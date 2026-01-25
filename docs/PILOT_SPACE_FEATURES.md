@@ -27,7 +27,7 @@ This document expands on the inherited Plane features with Pilot Space-specific 
 │                              ▼                                  │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │                INTEGRATION LAYER                          │   │
-│  │  VCS • Scrum Tools • Communication • CI/CD                │   │
+│  │  VCS (GitHub) • Communication (Slack)                     │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                              │                                  │
 │                              ▼                                  │
@@ -386,16 +386,67 @@ Generate architectural and technical diagrams from natural language descriptions
 
 #### Supported Diagrams
 
-| Type | Description | Format |
-|------|-------------|--------|
-| **Sequence** | API flows, interactions | Mermaid |
-| **Class** | Domain models, relationships | Mermaid |
-| **C4 Context** | System context view | C4-PlantUML |
-| **C4 Container** | Container architecture | C4-PlantUML |
-| **C4 Component** | Component details | C4-PlantUML |
-| **ERD** | Database schema | Mermaid |
-| **Flowchart** | Process flows | Mermaid |
-| **State** | State machines | Mermaid |
+| Type | Description | Formats Supported |
+|------|-------------|-------------------|
+| **Sequence** | API flows, interactions | Mermaid, PlantUML |
+| **Class** | Domain models, relationships | Mermaid, PlantUML |
+| **C4 Context** | System context view | C4-PlantUML, Structurizr DSL |
+| **C4 Container** | Container architecture | C4-PlantUML, Structurizr DSL |
+| **C4 Component** | Component details | C4-PlantUML, Structurizr DSL |
+| **C4 Code** | Code-level detail | C4-PlantUML |
+| **ERD** | Database schema | Mermaid, PlantUML |
+| **Flowchart** | Process flows | Mermaid, PlantUML |
+| **State** | State machines | Mermaid, PlantUML |
+| **Activity** | Business processes | PlantUML |
+| **Deployment** | Infrastructure diagrams | PlantUML, C4 |
+| **Mind Map** | Concept visualization | Mermaid, PlantUML |
+
+#### Notation Standards Support
+
+| Standard | Implementation | Use Case |
+|----------|----------------|----------|
+| **Mermaid** | Native markdown embedding | Quick diagrams, documentation pages |
+| **PlantUML** | Server-side rendering | Expressive UML, complex diagrams |
+| **C4 Model** | C4-PlantUML library | Architecture documentation (4 levels) |
+| **Structurizr** | DSL export | Architecture-as-code |
+| **ArchiMate** | PlantUML-ArchiMate | Enterprise architecture modeling |
+
+**Diagram Rendering Pipeline:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                 DIAGRAM GENERATION PIPELINE                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Input                          Processing                       │
+│  ┌─────────────┐               ┌─────────────┐                  │
+│  │ Natural     │──────────────▶│ AI generates│                  │
+│  │ Language    │               │ diagram code│                  │
+│  └─────────────┘               └──────┬──────┘                  │
+│                                       │                          │
+│  ┌─────────────┐               ┌──────▼──────┐                  │
+│  │ Code        │──────────────▶│  Format     │                  │
+│  │ Analysis    │               │  Selection  │                  │
+│  └─────────────┘               └──────┬──────┘                  │
+│                                       │                          │
+│                   ┌───────────────────┼───────────────────┐     │
+│                   │                   │                   │     │
+│                   ▼                   ▼                   ▼     │
+│            ┌──────────┐       ┌──────────┐       ┌──────────┐  │
+│            │ Mermaid  │       │ PlantUML │       │ C4 Model │  │
+│            │ (inline) │       │ (server) │       │ (server) │  │
+│            └────┬─────┘       └────┬─────┘       └────┬─────┘  │
+│                 │                  │                  │         │
+│                 └──────────────────┴──────────────────┘         │
+│                                    │                             │
+│                                    ▼                             │
+│                            ┌──────────────┐                     │
+│                            │ SVG/PNG      │                     │
+│                            │ Output       │                     │
+│                            └──────────────┘                     │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 #### Generation Modes
 
@@ -404,18 +455,62 @@ modes:
   natural_language:
     input: "Show how the authentication flow works"
     output: sequence_diagram
+    formats: [mermaid, plantuml]  # User selectable
 
   code_analysis:
     input: "src/services/auth/*"
     output: class_diagram
+    formats: [mermaid, plantuml]
 
   database_reverse:
     input: database_connection
     output: erd_diagram
+    formats: [mermaid, plantuml]
 
   architecture_scan:
     input: codebase_root
     output: c4_container_diagram
+    formats: [c4_plantuml, structurizr]
+
+  architecture_document:
+    input: architecture_description
+    output: c4_all_levels  # Context → Container → Component → Code
+    formats: [c4_plantuml]
+
+format_preferences:
+  default: mermaid        # For inline markdown embedding
+  complex_uml: plantuml   # For advanced UML needs
+  architecture: c4        # For architecture documentation
+```
+
+#### C4 Model Integration
+
+**C4 Level Support:**
+
+| Level | Description | Auto-Generate From |
+|-------|-------------|-------------------|
+| **Context** | System in environment | Project description, integrations |
+| **Container** | High-level tech | Codebase structure, docker-compose |
+| **Component** | Internal structure | Module/service analysis |
+| **Code** | Class/function level | Direct code analysis |
+
+**Example C4 Generation:**
+
+```
+User: Generate C4 diagrams for the authentication module
+
+AI Response:
+
+### Level 1: System Context
+[C4-PlantUML diagram showing Pilot Space with external systems]
+
+### Level 2: Container
+[C4-PlantUML showing API, Database, Redis, external auth providers]
+
+### Level 3: Component
+[C4-PlantUML showing AuthController, AuthService, UserRepository, TokenManager]
+
+[Export All as PDF] [Copy PlantUML Code] [Insert into Page]
 ```
 
 #### Example Interaction
@@ -1056,13 +1151,16 @@ audit_categories:
 
 AI features require users to provide their own LLM API keys:
 
-| Provider | Supported | Setup |
-|----------|-----------|-------|
-| OpenAI | ✅ | API key in workspace settings |
-| Anthropic | ✅ | API key in workspace settings |
-| Azure OpenAI | ✅ | Endpoint + API key |
+| Provider | Supported | Best For | Setup |
+|----------|-----------|----------|-------|
+| OpenAI | ✅ | Documentation, search, general tasks | API key in workspace settings |
+| Anthropic | ✅ | Code review, architecture analysis | API key in workspace settings |
+| Google Gemini | ✅ | Large context, task planning | API key in workspace settings |
+| Azure OpenAI | ✅ | Enterprise, compliance requirements | Endpoint + API key |
 
 **No limits on AI usage** - users control their own costs directly with their LLM provider.
+
+**Provider Routing**: The system intelligently routes tasks to the most suitable provider based on task type. Users can configure preferred providers per workspace or project.
 
 ### What Paid Tiers Provide
 
@@ -1078,7 +1176,340 @@ AI features require users to provide their own LLM API keys:
 
 ---
 
-*Document Version: 1.1*
-*Last Updated: 2026-01-20*
+## AI Context & Task Execution
+
+### PS-017: AI Context for Issues
+
+**Priority**: MVP
+**Category**: AI-Augmented
+
+#### Description
+Comprehensive AI context aggregation for issues that collects all related context (documents, linked issues, codebase references) and generates actionable tasks optimized for AI-assisted implementation with Claude Code.
+
+#### User Stories
+
+| ID | As a | I want to | So that |
+|----|------|-----------|---------|
+| US-017.1 | Developer | see all context related to an issue in one view | I understand the full scope before implementation |
+| US-017.2 | Developer | have AI generate implementation tasks from context | I can execute work efficiently with Claude Code |
+| US-017.3 | Developer | copy complete context as markdown | I can paste into Claude Code for AI-assisted development |
+| US-017.4 | Developer | refine context through AI chat | the generated tasks better match my requirements |
+| US-017.5 | Team Lead | share context views with team members | everyone has the same understanding of requirements |
+| US-017.6 | Developer | see task dependencies visualized | I know the correct order of implementation |
+
+#### AI Context Components
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AI CONTEXT TAB                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                  CONTEXT SUMMARY                         │    │
+│  │  • 3 Related Issues • 2 Documents • 5 Files • 2 PRs     │    │
+│  │  • Last updated: 5 min ago                               │    │
+│  │  [Copy All Context] [Regenerate]                        │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ RELATED CONTEXT                                          │    │
+│  │                                                          │    │
+│  │ Issues:                                                  │    │
+│  │ ├── PS-201 [BLOCKS] Simplify password reset             │    │
+│  │ ├── PS-202 [RELATES] OAuth error handling               │    │
+│  │ └── PS-203 [BLOCKED BY] Session timeout settings        │    │
+│  │                                                          │    │
+│  │ Documents:                                               │    │
+│  │ ├── [NOTE] Authentication Refactor Planning             │    │
+│  │ ├── [ADR] ADR-0015: Error Handling in Auth Flows        │    │
+│  │ └── [SPEC] OAuth Integration Specification              │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ CODEBASE CONTEXT                                         │    │
+│  │                                                          │    │
+│  │ Relevant Files (Semantic + Tagged):                     │    │
+│  │ ├── src/services/auth/oauth.py [MODIFIED]               │    │
+│  │ │   ├── class OAuthService                              │    │
+│  │ │   └── def handle_callback()                           │    │
+│  │ ├── src/api/auth/endpoints.py [REFERENCE]               │    │
+│  │ └── tests/auth/test_oauth.py [NEW]                      │    │
+│  │                                                          │    │
+│  │ Git References:                                          │    │
+│  │ ├── PR #234: OAuth retry logic (merged)                 │    │
+│  │ └── Branch: feature/oauth-errors (3 commits ahead)      │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ AI TASKS                                                 │    │
+│  │                                                          │    │
+│  │ Task Dependency Graph:                                   │    │
+│  │ [1] ──→ [2] ──→ [3]                                     │    │
+│  │          ↘       ↑                                       │    │
+│  │           [4] ───┘                                       │    │
+│  │                                                          │    │
+│  │ Implementation Checklist:                                │    │
+│  │ □ 1. Add retry logic to OAuthService (Bug Fix)          │    │
+│  │ □ 2. Update error messages in auth endpoints            │    │
+│  │ □ 3. Add integration tests for retry scenarios          │    │
+│  │ □ 4. Update API documentation                           │    │
+│  │                                                          │    │
+│  │ Ready-to-Use Prompts:                                    │    │
+│  │ ┌─────────────────────────────────────────────────┐     │    │
+│  │ │ ## Task 1: Add Retry Logic                       │     │    │
+│  │ │ Context: OAuth callbacks failing intermittently  │     │    │
+│  │ │ Files: src/services/auth/oauth.py               │     │    │
+│  │ │ ...                                              │     │    │
+│  │ │ [Copy] [Execute with Claude Code]               │     │    │
+│  │ └─────────────────────────────────────────────────┘     │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ ENHANCE CONTEXT                                          │    │
+│  │                                                          │    │
+│  │ 🤖 I've analyzed the context. The main focus is OAuth   │    │
+│  │    error handling with 3 actionable tasks identified.    │    │
+│  │                                                          │    │
+│  │ You: Can you add more context about the existing        │    │
+│  │      retry implementation?                               │    │
+│  │                                                          │    │
+│  │ 🤖 Found existing retry logic in http_client.py. I've   │    │
+│  │    added it to the codebase context section.            │    │
+│  │                                                          │    │
+│  │ [────────────────────────────────────] [Send]           │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Context Data Sources
+
+| Source | Method | Update Frequency |
+|--------|--------|------------------|
+| **Related Issues** | Issue links, semantic similarity | On-demand |
+| **Documents** | Explicit links, keyword matching | On-demand |
+| **Codebase Files** | Semantic similarity, explicit tagging, AST analysis | On-demand |
+| **Git References** | PR/branch linking, commit mentions | On-demand |
+| **Historical Patterns** | Similar issue resolution history | Cached (daily) |
+
+#### File Relevance Detection
+
+```yaml
+relevance_methods:
+  semantic_similarity:
+    description: AI embeds issue description and finds similar code chunks
+    threshold: 0.75
+    max_results: 20
+
+  explicit_tagging:
+    description: Files tagged in issue or linked documents
+    priority: highest  # Always included
+
+  ast_aware_context:
+    description: Parse code to extract key functions, classes, imports
+    languages: [python, typescript, javascript, go, rust, java]
+    depth: function_level  # Not line-by-line
+```
+
+#### Code Context Depth
+
+| Level | Included | Use Case |
+|-------|----------|----------|
+| **File paths** | Path, size, last modified | Overview |
+| **Key functions/classes** | Signatures, docstrings | Implementation context |
+| **AST-aware context** | Dependencies, call graph | Deep understanding |
+
+#### Task Generation
+
+```yaml
+generation_modes:
+  llm_generated:
+    description: AI analyzes context and generates tasks
+    model: claude-sonnet-4  # Best for code understanding
+    confidence_required: 0.7
+
+  historical_patterns:
+    description: Learn from similar resolved issues
+    lookback: 90_days
+    min_similarity: 0.8
+
+  manual_with_suggestions:
+    description: User creates, AI suggests improvements
+    suggestions: [missing_steps, better_ordering, estimate]
+
+  templates:
+    description: Pre-defined task templates
+    types:
+      - bug_fix
+      - feature
+      - refactor
+      - custom
+```
+
+#### Task Templates
+
+| Template | Structure | Best For |
+|----------|-----------|----------|
+| **Bug Fix** | Reproduce → Diagnose → Fix → Test → Document | Bug issues |
+| **Feature** | Design → Implement → Test → Document → Review | New features |
+| **Refactor** | Analyze → Plan → Execute → Verify → Document | Code improvements |
+| **Custom** | User-defined structure | Specific workflows |
+
+**Example Bug Fix Template**:
+```markdown
+## Bug Fix: {issue_title}
+
+### Context
+{ai_generated_context_summary}
+
+### Steps
+1. **Reproduce**: Verify the bug exists
+   - [ ] Set up test environment
+   - [ ] Follow reproduction steps
+   - [ ] Confirm expected vs actual behavior
+
+2. **Diagnose**: Identify root cause
+   - [ ] Review relevant code: {file_paths}
+   - [ ] Check logs and error messages
+   - [ ] Identify the failing code path
+
+3. **Fix**: Implement solution
+   - [ ] Modify: {files_to_modify}
+   - [ ] Handle edge cases
+   - [ ] Follow existing patterns
+
+4. **Test**: Verify fix
+   - [ ] Add unit tests
+   - [ ] Run existing test suite
+   - [ ] Manual verification
+
+5. **Document**: Update documentation
+   - [ ] Add code comments if needed
+   - [ ] Update relevant docs
+```
+
+#### Export Format
+
+**Markdown for Claude Code**:
+```markdown
+# Issue: PS-202 - Handle OAuth Errors Gracefully
+
+## Context Summary
+This issue addresses intermittent OAuth callback failures...
+
+## Related Context
+### Issues
+- PS-201 (BLOCKS): Simplify password reset flow
+- PS-203 (BLOCKED BY): Session timeout settings
+
+### Documents
+- Authentication Refactor Planning (Note)
+- ADR-0015: Error Handling in Auth Flows
+
+## Codebase Context
+### Files to Modify
+- `src/services/auth/oauth.py` - OAuthService class
+  - `handle_callback()` - Main callback handler
+  - `refresh_token()` - Token refresh logic
+
+### Reference Files
+- `src/api/auth/endpoints.py` - API layer
+- `tests/auth/test_oauth.py` - Existing tests
+
+### Git Context
+- PR #234: OAuth retry logic (merged) - Reference implementation
+- Branch: feature/oauth-errors (3 commits ahead)
+
+## Implementation Tasks
+### Task 1: Add Retry Logic (Bug Fix Template)
+**Priority**: High
+**Estimate**: 2-3 hours
+**Dependencies**: None
+
+[Detailed task prompt...]
+
+### Task 2: Update Error Messages
+**Priority**: Medium
+**Estimate**: 1 hour
+**Dependencies**: Task 1
+
+[Detailed task prompt...]
+
+---
+Generated by Pilot Space AI Context
+Last Updated: 2026-01-21 10:30:00 UTC
+```
+
+#### Integrations
+
+| Integration | Purpose | Implementation |
+|-------------|---------|----------------|
+| **GitHub API** | Fetch PR details, branch info, file contents | REST API calls |
+| **IDE Extensions** | Open files directly, navigate to functions | Deep link protocol |
+| **Claude Code CLI** | Execute tasks directly | `pilot-space execute --task <id>` |
+| **MCP Tools** | AI tool access to codebase | MCP protocol support |
+| **Skills** | Pre-defined AI workflows | Skill registry |
+| **Hooks** | Custom automation triggers | Webhook system |
+
+> **Note**: GitLab integration deferred to Phase 2. See DD-004 for rationale.
+
+#### Interactive Refinement Chat
+
+**Behavior**:
+- Multi-turn conversation to iteratively improve context
+- AI remembers conversation history within session
+- User can ask for more context, different focus, or task modifications
+- Changes reflected immediately in context view
+
+**Example Interactions**:
+- "Add more context about the retry implementation"
+- "Focus tasks on the API layer only"
+- "Generate tasks using the feature template instead"
+- "What files are we missing?"
+
+#### Task Dependencies
+
+```yaml
+dependency_management:
+  mode: hybrid_with_validation
+
+  ai_suggestions:
+    description: AI infers dependencies from code analysis
+    confidence_display: true
+    validation_required: true
+
+  user_validation:
+    description: User can accept, modify, or reject suggested dependencies
+    bulk_accept: true
+    manual_override: true
+
+  visualization:
+    type: directed_graph
+    interactive: true  # Click to focus, drag to reorder
+```
+
+#### Security Controls
+
+| Control | Description | Phase |
+|---------|-------------|-------|
+| **Workspace-scoped** | Context limited to current workspace | MVP |
+| **Permission-aware** | Respects user's access level | MVP |
+| **Audit logging (Partial)** | AI context generations and operations logged | MVP |
+| **Audit logging (Full)** | Complete audit trail (data access, modifications) | Phase 2 |
+| **Sensitive file exclusion** | `.env`, credentials excluded by default | MVP |
+
+#### Collaboration Features
+
+| Feature | Description |
+|---------|-------------|
+| **Shared context views** | Team members see same context |
+| **Context annotations** | Add notes to context items |
+| **Context history** | View previous context generations |
+| **Expert suggestions** | Route to team members with relevant expertise |
+
+---
+
+*Document Version: 1.4*
+*Last Updated: 2026-01-21*
 *Author: Pilot Space Team*
-*Changes: Updated pricing to support tiers, reduced MVP integration scope per DD-004/DD-010*
+*Changes: Updated PS-017 integrations (GitHub only for MVP per DD-004), clarified audit logging scope (Partial MVP + Full Phase 2)*

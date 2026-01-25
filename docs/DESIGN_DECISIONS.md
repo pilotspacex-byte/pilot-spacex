@@ -1,464 +1,920 @@
 # Pilot Space - Design Decisions & Clarifications
 
-This document records key design decisions made during the architecture review, capturing the rationale and implications for implementation.
+Architecture decision record optimized for AI context retrieval. Full rationale in expandable sections.
+
+**Document Version**: 3.2 | **Last Updated**: 2026-01-23 | **Decisions**: 85
 
 ---
 
-## Decision Log
+## Quick Reference: Decision Index
+
+| ID | Decision | Status | Impact |
+|----|----------|--------|--------|
+| DD-001 | FastAPI replaces Django | Accepted | Stack |
+| DD-002 | BYOK + Claude SDK orchestration | Accepted | AI |
+| DD-003 | Critical-only AI approval | Accepted | AI |
+| DD-004 | MVP: GitHub + Slack only | Accepted | Scope |
+| DD-005 | No real-time collaboration MVP | Accepted | Scope |
+| DD-006 | Unified AI PR Review | Accepted | AI |
+| DD-007 | Basic RBAC (Owner/Admin/Member/Guest) | Accepted | Auth |
+| DD-008 | Remove AI Studio | Accepted | Scope |
+| DD-009 | Merge Space app into main | Accepted | Arch |
+| DD-010 | Support tiers (features free) | Accepted | Business |
+| DD-011 | Google Gemini support | Accepted | AI |
+| DD-012 | Multi-format diagrams | Accepted | Features |
+| DD-013 | Note-First workflow | Accepted | Core UX |
+| DD-014–053 | UI/UX decisions | Accepted | UI |
+| DD-054 | MVP exclusions | Accepted | Scope |
+| DD-055 | AI Context architecture | Accepted | AI |
+| DD-056 | AI Context updates: on-demand | Accepted | AI |
+| DD-057 | GraphRAG hybrid (Phase 2) | Accepted | AI |
+| DD-058 | Claude SDK mode clarification | Accepted | AI |
+| DD-059 | Infrastructure SLA & Performance | Accepted | Infra |
+| DD-060 | Supabase Platform Integration | Accepted | Infra |
+| DD-061 | Authentication & Security | Accepted | Auth |
+| DD-062 | Data Management Policies | Accepted | Data |
+| DD-063 | API Design Standards | Accepted | API |
+| DD-064 | Backend Architecture Patterns | Accepted | Arch |
+| DD-065 | Frontend Architecture Patterns | Accepted | Arch |
+| DD-066 | SSE Streaming Architecture | Accepted | AI |
+| DD-067 | Note Canvas Implementation | Accepted | Features |
+| DD-068 | Knowledge Graph Architecture | Accepted | Features |
+| DD-069 | Background Job Configuration | Accepted | Infra |
+| DD-070 | Embedding & Search Configuration | Accepted | AI |
+| DD-071–085 | User Story Clarifications | Accepted | Features |
+
+---
+
+## Foundational Decisions (DD-001–012)
 
 ### DD-001: FastAPI Replaces Django
 
-**Date**: 2026-01-20
-**Status**: Accepted
-
-**Context**:
-The initial architecture proposed using both FastAPI (as API Gateway) and Django (as Core API). This created ambiguity about request flow and added unnecessary complexity.
-
-**Decision**:
-Replace Django entirely with FastAPI + SQLAlchemy + Alembic.
-
-**Rationale**:
-- Single framework simplifies development and deployment
-- FastAPI provides modern async support natively
-- SQLAlchemy 2.0 offers excellent async capabilities
-- Better alignment with AI workloads (async LLM calls)
-- Cleaner OpenAPI/Swagger documentation
-
-**Consequences**:
-- Need to reimplement Django admin functionality (or use alternative like SQLAdmin)
-- Lose Django's built-in authentication (implement with FastAPI-Users or custom)
-- Migration from Plane's Django models to SQLAlchemy
-- Team needs FastAPI/SQLAlchemy expertise
-
-**Revised Technology Stack**:
+**Stack**: FastAPI + SQLAlchemy 2.0 (async) + Alembic + Pydantic v2
 
 | Layer | Technology |
 |-------|------------|
-| API Framework | FastAPI |
+| API | FastAPI |
 | ORM | SQLAlchemy 2.0 (async) |
 | Migrations | Alembic |
 | Validation | Pydantic v2 |
-| Auth | FastAPI-Users or custom JWT |
-| Admin | SQLAdmin or custom |
+| Auth | FastAPI-Users / custom JWT |
+
+<details>
+<summary>Rationale & Consequences</summary>
+
+**Why**: Single framework, modern async, better AI workload support, cleaner OpenAPI docs.
+
+**Trade-offs**: Lose Django admin (use SQLAdmin), need FastAPI/SQLAlchemy expertise.
+</details>
 
 ---
 
-### DD-002: BYOK (Bring Your Own Key) for AI
+### DD-002: BYOK with Claude Agent SDK Orchestration
 
-**Date**: 2026-01-20
-**Status**: Accepted
+**Required Keys**: Anthropic (orchestration), OpenAI (embeddings)
+**Optional Keys**: Google (latency-sensitive), Azure (enterprise fallback)
 
-**Context**:
-AI features require LLM access. Options included providing free credits, supporting local models (Ollama), or requiring users to provide their own API keys.
+**SDK Mode Selection**:
 
-**Decision**:
-- BYOK Required for all tiers
-- Cloud LLM providers only (OpenAI, Anthropic, Azure OpenAI)
-- No local model (Ollama) support
-- No limits on AI usage when user provides valid API key
+| Task Type | SDK Mode | Tools |
+|-----------|----------|-------|
+| PR Review, Task Decomp, AI Context | Claude SDK (agentic) | MCP: DB, GitHub, Search |
+| Doc Generation, Issue Enhancement | Claude SDK `query()` | None |
+| Ghost Text, Annotations | Google Gemini Flash | None |
+| Embeddings | OpenAI text-embedding-3-large | None |
 
-**Rationale**:
-- Simplifies infrastructure (no need to run/scale LLM services)
-- Users control their AI costs directly
-- Avoids complex metering and billing
-- Cloud LLMs provide consistent quality and reliability
-- Local models add significant deployment complexity
-
-**Consequences**:
-- Users must have API keys to use AI features
-- No "free trial" of AI capabilities
-- Clear value proposition: platform is free, AI is BYOK
-- Need secure key storage and management
-
-**Configuration Model**:
+<details>
+<summary>Configuration & Architecture Diagram</summary>
 
 ```yaml
 ai:
+  orchestrator:
+    sdk: claude-agent-sdk
+    default_model: claude-opus-4-5
   providers:
-    openai:
-      api_key: ${USER_OPENAI_KEY}  # User-provided
-      models: [gpt-4o, gpt-4o-mini]
-
     anthropic:
-      api_key: ${USER_ANTHROPIC_KEY}  # User-provided
-      models: [claude-sonnet-4-20250514, claude-3-5-haiku-20241022]
-
-    azure_openai:
-      api_key: ${USER_AZURE_KEY}  # User-provided
-      endpoint: ${USER_AZURE_ENDPOINT}
-
-  # No local model support
-  # ollama: NOT SUPPORTED
+      models: [claude-opus-4-5, claude-sonnet-4, claude-haiku-4]
+      use_for: [pr_review, task_decomposition, ai_context, doc_generation]
+    google:
+      models: [gemini-2.0-flash, gemini-2.0-pro]
+      use_for: [ghost_text, margin_annotations, large_context]
+    openai:
+      models: [text-embedding-3-large]
+      use_for: [embeddings]
 ```
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                   TASK ROUTING LAYER                             │
+├─────────────────────────────────────────────────────────────────┤
+│  Agentic (MCP tools)        → Claude SDK (full)                 │
+│  One-shot Claude            → Claude SDK query()                │
+│  Latency-Critical           → Google Gemini Flash               │
+│  Embeddings                 → OpenAI text-embedding             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+</details>
 
 ---
 
-### DD-003: AI Autonomy Model - Critical-Only Approval
+### DD-003: AI Autonomy - Critical-Only Approval
 
-**Date**: 2026-01-20
-**Status**: Accepted
-
-**Context**:
-The human-in-the-loop principle requires clarity on which AI actions need approval vs execute automatically.
-
-**Decision**:
-- **Auto-execute with notification**: Non-destructive actions (state transitions, label suggestions)
-- **Require approval**: Destructive or critical actions (delete, merge, publish)
-- **Configurable per project**: Project admins can adjust autonomy levels
-
-**Action Classification**:
-
-| Action | Default Behavior | Configurable |
-|--------|------------------|--------------|
-| Suggest labels/priority | Auto-apply suggestion UI | Yes |
-| Auto-transition on PR events | Auto-execute + notify | Yes |
+| Action | Behavior | Configurable |
+|--------|----------|--------------|
+| Suggest labels/priority | Auto-apply UI | Yes |
+| Auto-transition on PR | Auto + notify | Yes |
 | Create sub-issues | Require approval | Yes |
-| Post PR comments | Auto-execute | Yes |
-| Delete/archive | Always require approval | No |
-| Publish docs | Require approval | Yes |
-| Send notifications | Auto-execute | Yes |
+| Delete/archive | **Always approval** | No |
 
-**Project Configuration**:
+<details>
+<summary>Configuration Schema</summary>
 
 ```yaml
 project:
   ai_autonomy:
     level: balanced  # conservative | balanced | autonomous
-
     overrides:
-      state_transitions: auto      # auto | approval | disabled
+      state_transitions: auto
       pr_comments: auto
       issue_creation: approval
-      documentation: approval
 ```
 
----
-
-### DD-004: MVP Integration Scope - GitHub + Slack Only
-
-**Date**: 2026-01-20
-**Status**: Accepted
-
-**Context**:
-Initial scope included all major integrations (GitHub, GitLab, Bitbucket, Jira, Trello, Asana, Slack, Discord, CI/CD). This was too ambitious for MVP.
-
-**Decision**:
-MVP includes only:
-- **GitHub**: PR linking, commit tracking, AI code review comments
-- **Slack**: Notifications, slash commands, issue creation
-
-**Rationale**:
-- GitHub is the dominant VCS platform
-- Slack is the dominant team communication tool
-- Focused scope enables quality over breadth
-- Other integrations can be added in Phase 2
-
-**Deferred to Phase 2**:
-- GitLab integration
-- Discord integration
-- CI/CD pipeline integration
-
-**Removed from Scope**:
-- ~~Jira bidirectional sync~~ (too complex, limited value for target users)
-- ~~Trello/Asana sync~~ (target users likely to migrate fully)
-- ~~Bitbucket~~ (lower market share)
-- ~~MS Teams~~ (enterprise focus is Phase 3)
+</details>
 
 ---
 
-### DD-005: Skip Real-Time Collaboration in MVP
+### DD-004: MVP Integrations
 
-**Date**: 2026-01-20
-**Status**: Accepted
+**In Scope**: GitHub (PR linking, AI review), Slack (notifications, commands)
 
-**Context**:
-Initial design included Y.js/HocusPocus for real-time collaborative editing of Pages (similar to Plane).
+**Deferred**: GitLab, Discord, CI/CD (Phase 2)
 
-**Decision**:
-Remove real-time collaboration from MVP. Use standard save-based editing.
-
-**Rationale**:
-- Significant infrastructure complexity (WebSocket server, CRDT state management)
-- MVP can deliver value without real-time editing
-- Standard editing with autosave is sufficient initially
-- Can add real-time in Phase 2 if user demand exists
-
-**Consequences**:
-- Remove HocusPocus/Live server from architecture
-- Simplify frontend (no Y.js integration)
-- Pages use standard rich text editor with autosave
-- Multiple users editing same content will have last-write-wins
-
-**Future Consideration**:
-If real-time is added later, start with Pages only (most valuable use case).
+**Removed**: Jira sync, Trello/Asana, Bitbucket, MS Teams
 
 ---
 
-### DD-006: Both Architecture and Code Review in MVP
+### DD-005: No Real-Time Collaboration in MVP
 
-**Date**: 2026-01-20
-**Status**: Accepted
+Standard save-based editing with autosave. Last-write-wins for concurrent edits.
 
-**Context**:
-Originally, architecture review was MVP and code review was Phase 2.
+**Future**: Y.js/HocusPocus for Pages in Phase 2 if demand exists.
 
-**Decision**:
-Include both AI Architecture Review and AI Code Review in MVP as a unified "AI PR Review" feature.
+---
 
-**Rationale**:
-- AI-powered PR review is a core differentiator
-- Architecture and code quality are closely related
-- Single feature is easier to explain/market
-- Combined review provides more value than either alone
+### DD-006: Unified AI PR Review
 
-**Unified Feature Scope**:
+Single feature covering: architecture, security, quality, performance, documentation.
 
 | Aspect | Checks |
 |--------|--------|
-| Architecture | Layer boundaries, patterns, dependency direction |
-| Security | OWASP basics, secrets detection, auth checks |
+| Architecture | Layer boundaries, patterns, dependencies |
+| Security | OWASP basics, secrets detection |
 | Quality | Complexity, duplication, naming |
 | Performance | N+1 queries, blocking calls |
-| Documentation | Missing docstrings, outdated comments |
 
 ---
 
-### DD-007: Basic RBAC in MVP
-
-**Date**: 2026-01-20
-**Status**: Accepted
-
-**Context**:
-Full RBAC with custom roles was planned for Phase 3, but enterprises often require access control from Day 1.
-
-**Decision**:
-Include basic fixed roles in MVP:
+### DD-007: Basic RBAC
 
 | Role | Permissions |
 |------|-------------|
-| **Owner** | Full workspace control, billing, delete workspace |
-| **Admin** | Manage members, projects, integrations |
-| **Member** | Create/edit issues, pages, cycles; view all |
-| **Guest** | View assigned issues, comment on assigned |
+| Owner | Full workspace control, billing, delete |
+| Admin | Manage members, projects, integrations |
+| Member | Create/edit issues, pages, cycles |
+| Guest | View/comment on assigned issues |
 
-**Phase 2 Additions**:
-- Custom role creation
-- Granular permissions
-- Project-level role overrides
+**Phase 2**: Custom roles, granular permissions, project-level overrides.
 
 ---
 
-### DD-008: Remove AI Studio from Scope
+### DD-008: Remove AI Studio
 
-**Date**: 2026-01-20
-**Status**: Accepted
-
-**Context**:
-Phase 4 roadmap included "AI Studio" as a separate app for custom agent creation and workflow automation.
-
-**Decision**:
-Remove AI Studio entirely. Focus on built-in AI agents with good defaults.
-
-**Rationale**:
-- Custom agent creation is complex to build and use
-- Built-in agents cover primary use cases
-- Reduces scope significantly
-- If needed, can add prompt customization as a simpler alternative
-
-**Alternative Approach**:
-- Allow workspace-level prompt customization (simple text overrides)
-- Provide agent enable/disable toggles per project
-- Consider plugin system in future if extensibility demand exists
+No custom agent creation. Built-in agents with workspace-level prompt customization only.
 
 ---
 
-### DD-009: Merge Space App into Main App
+### DD-009: Merge Space App
 
-**Date**: 2026-01-20
-**Status**: Accepted
-
-**Context**:
-Plane has a separate "Space" app (port 3002) for public read-only views.
-
-**Decision**:
-Merge public view functionality into the main web application as routes.
-
-**Rationale**:
-- Simplifies deployment (one frontend instead of three)
-- Shared component library usage
-- Easier routing and authentication
-- Public views are just different auth contexts
-
-**Implementation**:
-- `/public/projects/:id` - Public project board
-- `/public/issues/:id` - Public issue view
-- `/public/pages/:id` - Public page view
-- Authentication middleware handles public vs authenticated routes
+Public views as routes in main app: `/public/projects/:id`, `/public/issues/:id`
 
 ---
 
-### DD-010: Support Tiers Pricing Model
+### DD-010: Support Tiers
 
-**Date**: 2026-01-20
-**Status**: Accepted
+| Tier | Price | Features |
+|------|-------|----------|
+| Community | Free | Full platform |
+| Pro Support | $10/seat/mo | Email, 48h SLA |
+| Business | $18/seat/mo | Priority, 24h SLA |
 
-**Context**:
-Pricing showed $10/seat (Pro) and $18/seat (Business). Unclear if this applied to self-hosted.
-
-**Decision**:
-- Self-hosted is always 100% free with full features
-- Paid tiers are for **support and SLA only** (Cloud or self-hosted)
-- No feature gating based on payment
-
-**Pricing Structure**:
-
-| Tier | Price | What You Get |
-|------|-------|--------------|
-| **Community** | Free | Full platform, community support (GitHub issues) |
-| **Pro Support** | $10/seat/mo | Email support, 48h response SLA |
-| **Business Support** | $18/seat/mo | Priority support, 24h SLA, dedicated Slack |
-| **Enterprise** | Custom | Dedicated support, custom SLA, consulting |
-
-**Rationale**:
-- Encourages adoption (no feature anxiety)
-- Clear value proposition for support tiers
-- Aligns with open-source community expectations
-- Revenue from users who need guaranteed support
+**Principle**: Self-hosted always free. Paid = support only.
 
 ---
 
-## Revised Architecture
+### DD-011: Google Gemini Support
 
-Based on all decisions, the revised MVP architecture:
+| Model | Use Case | Context |
+|-------|----------|---------|
+| gemini-2.0-flash | Fast tasks (ghost text) | 256K |
+| gemini-2.0-pro | Large codebase analysis | 2M |
 
+---
+
+### DD-012: Multi-Format Diagrams
+
+Supported: Mermaid (default), PlantUML, C4 Model, Structurizr DSL
+
+---
+
+## Core UX Decisions (DD-013)
+
+### DD-013: Note-First Collaborative Workspace
+
+**Paradigm**: Users write in note canvas → AI assists → Issues emerge from refined thoughts
+
+**Workflow**: Capture → Brainstorm (AI) → Refine (threads) → Extract (rainbow boxes) → Approve → Track
+
+<details>
+<summary>Key Features</summary>
+
+| Feature | Description |
+|---------|-------------|
+| Note Canvas as Home | Default view is document, not dashboard |
+| Margin Annotations | AI suggestions in margin (smart visibility) |
+| Issue Extraction | Rainbow-bordered boxes wrap source text |
+| Bidirectional Sync | Notes ↔ Issues stay connected |
+
+</details>
+
+---
+
+## UI/UX Decisions Summary (DD-014–053)
+
+| ID | Decision | Summary | Why |
+|----|----------|---------|-----|
+| DD-014 | Issue Detail Modal | Quick view modal, not full page | Preserves writing context; full page for deep editing |
+| DD-015 | Block-Linked Annotations | Click annotation → scroll to block | Clear visual relationship between suggestion and context |
+| DD-016 | New Note AI Prompt | AI greeting + template suggestions | Reduces blank page anxiety; leverages user history |
+| DD-017 | Sidebar Organization | Project folders + tag filtering | Projects = logical groups; tags = cross-cutting views |
+| DD-018 | Command Palette | Smart AI suggestions by context | Context-aware actions save time; fuzzy handles typos |
+| DD-019 | Search Modal | Full-page spotlight (Cmd+K) | Large modal for results; preview avoids navigation |
+| DD-020 | Selection Toolbar | Rich formatting + AI actions | AI actions contextual to selected text; quick extract |
+| DD-021 | Keyboard Shortcuts | Slash (/) + hotkeys (Cmd+) | Multiple discovery methods for different learning styles |
+| DD-022 | Ghost Text | Tab = full, → = word-by-word | Fine control; non-intrusive; familiar from code editors |
+| DD-023 | Version History | Snapshots with AI reasoning | Full audit trail; easy revert; AI transparency |
+| DD-024 | Issue Detection | Margin indicator, not inline | Non-intrusive; text preserved until explicit approval |
+| DD-025 | AI Error States | Non-blocking margin + retry | Preserves workflow; consistent with AI annotations |
+| DD-026 | FAB | Bottom-right, opens AI search | Quick access from any view; combines search + AI |
+| DD-027 | AI Panel | Collapsible bottom + chips | Detailed AI results; chips for quick actions |
+| DD-028 | Status Indicators | Detailed text ("Analyzing...") | Transparency; reduces perceived wait (Claude Code pattern) |
+| DD-029 | Artifact Preview | Collapsed 2-3 lines + fade | Space-efficient; expand for full content |
+| DD-030 | Code Blocks | Syntax + line numbers + copy | Developer-focused; standard code display features |
+| DD-031 | Image Insert | Paste, drag, upload, URL | Multiple methods for different workflows |
+| DD-032 | Issue Extraction | Interactive inline, one at a time | Source highlighted; edit before accept; focused flow |
+| DD-033 | Templates | System + User + AI-generated | Cover all use cases; AI learns from patterns |
+| DD-034 | Note Header | Metadata + AI reading time | Quick context without reading; AI-enhanced estimate |
+| DD-035 | TOC | Auto-generated from headings | Navigation for long docs; no manual maintenance |
+| DD-036 | Similar Notes | AI guidance on differences | Avoid duplication; understand relationships |
+| DD-037 | Graph View | Force-directed (Obsidian-style) | Visual exploration of knowledge relationships |
+| DD-038 | Notifications | AI-prioritized smart inbox | Surface important items; reduce noise |
+| DD-039 | API Keys | Workspace-level, admin-managed | Centralized control; single billing point |
+| DD-040 | Context Menus | Standard + AI section | Familiar UX; AI discoverable but not dominant |
+| DD-041 | Block Reorder | Keyboard only (Cmd+Shift+↑/↓) | Precision over drag-and-drop; accessibility |
+| DD-042 | Tags | AI-suggested based on content | Reduce manual tagging; consistent taxonomy |
+| DD-043 | Bulk Actions | Standard + AI (Summarize, Extract) | Efficiency for batch operations |
+| DD-044 | Tooltips | Progressive (instant → 1s detail) | Quick labels; detail on hover-wait |
+| DD-045 | Onboarding | Sample "Product Launch" project | Learn by exploring real example |
+| DD-046 | Long Notes | Virtual scroll (1000+ blocks) | Performance for large documents |
+| DD-047 | Model Selection | Auto-select best, user override | Optimal defaults; power user control |
+| DD-048 | Confidence Tags | Recommended/Default/Current/Alt | Human-readable vs confusing percentages |
+| DD-049 | Autosave | 1-2s debounce, subtle indicator | No data loss; non-distracting feedback |
+| DD-050 | Undo Stack | Text + AI + block moves | Full recovery including AI changes |
+| DD-051 | Recent Notes | Edited + viewed combined | Single list; both access patterns matter |
+| DD-052 | Pin Notes | Sidebar top section | Quick access to frequently used notes |
+| DD-053 | Margin Panel | Resizable (150-350px) | User controls annotation space |
+
+---
+
+## Scope Exclusions (DD-054)
+
+| Feature | Reason | Phase |
+|---------|--------|-------|
+| Offline editing | Infrastructure complexity | - |
+| Note sharing/export | Focus on core workflow | Phase 2 |
+| Saved views/filters | Keep filtering simple | Phase 2 |
+| Focus/Zen mode | Standard layout sufficient | - |
+| Quick capture extension | Must be in app | - |
+| Inline comments | Team collaboration | Phase 2 |
+| Mobile-specific | Desktop-first | Phase 2 |
+
+**Removed Permanently**: Jira sync, Trello/Asana, AI Studio, Ollama, MS Teams, Bitbucket
+
+---
+
+## AI Architecture Decisions (DD-055–058)
+
+### DD-055: AI Context Architecture
+
+**Approach**: Hybrid (real-time discovery + cached embeddings)
+
+| Aspect | Decision |
+|--------|----------|
+| Data Source | Hybrid (real-time + cached) |
+| File Relevance | Semantic similarity + explicit tags |
+| Code Depth | AST-aware (functions/classes) |
+| Export Format | Markdown for Claude Code |
+
+<details>
+<summary>Architecture Diagram</summary>
+
+```text
+Data Sources              Context Engine              Output
+┌──────────────┐        ┌────────────────┐        ┌──────────────┐
+│ Real-Time    │───────▶│ Aggregation +  │───────▶│ UI Tab       │
+│ • Issue links│        │ Scoring        │        │ Markdown     │
+│ • Doc search │        └────────┬───────┘        │ Claude Code  │
+│ • Git history│                 │                └──────────────┘
+├──────────────┤        ┌────────▼───────┐
+│ Cached       │───────▶│ Task           │
+│ • Embeddings │        │ Generation     │
+│ • AST index  │        └────────────────┘
+└──────────────┘
 ```
+
+</details>
+
+---
+
+### DD-056: AI Context Update Strategy
+
+**Decision**: On-demand only with change notifications
+
+- User opens AI Context tab → fresh generation
+- Data changes → badge shows "Updates available"
+- User clicks "Regenerate" → new context
+
+---
+
+### DD-057: GraphRAG Hybrid Retrieval (Phase 2)
+
+**Algorithm**: Reciprocal Rank Fusion (RRF)
+
+```text
+RRF_score(d) = Σ 1/(k + rank_i(d))   where k=60
+```
+
+**Why RRF**: No normalization needed, robust fusion, pure SQL implementation.
+
+<details>
+<summary>SQL Implementation</summary>
+
+```sql
+-- Hybrid search combining vector + graph retrieval
+CREATE FUNCTION hybrid_search(query_embedding vector, query_entity_id uuid, ...)
+RETURNS TABLE (entity_id uuid, rrf_score float, ...)
+-- See full implementation in Phase 2 specs
+```
+
+</details>
+
+---
+
+### DD-058: Claude Agent SDK Mode Clarification
+
+**Key Insight**: Claude Agent SDK is Anthropic-only. Non-Claude providers use direct SDKs.
+
+| Category | Orchestrator | Examples |
+|----------|--------------|----------|
+| Agentic (MCP tools) | Claude SDK (full) | PR Review, Task Decomp, AI Context |
+| One-shot Claude | Claude SDK `query()` | Doc Generation, Issue Enhancement |
+| Non-Claude tasks | Direct SDKs | Ghost Text (Gemini), Embeddings (OpenAI) |
+
+**API Key Dependencies**:
+
+| Key | Status | Impact if Missing |
+|-----|--------|-------------------|
+| Anthropic | Required | Core AI features disabled |
+| OpenAI | Required | Semantic search disabled |
+| Google | Recommended | Ghost text slower (Haiku fallback) |
+
+<details>
+<summary>Architecture Diagram</summary>
+
+```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                    PILOT SPACE MVP                              │
+│                    TASK CLASSIFICATION                           │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                    WEB APPLICATION                       │   │
-│  │                    (React + TypeScript)                  │   │
-│  │                                                          │   │
-│  │  Routes:                                                 │   │
-│  │  • /app/* - Authenticated application                   │   │
-│  │  • /admin/* - Admin panel                               │   │
-│  │  • /public/* - Public views (merged Space)              │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                              │                                  │
-│                              ▼                                  │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                    FASTAPI BACKEND                       │   │
-│  │                                                          │   │
-│  │  • REST API (OpenAPI documented)                        │   │
-│  │  • SQLAlchemy 2.0 (async)                               │   │
-│  │  • Alembic migrations                                   │   │
-│  │  • Pydantic v2 validation                               │   │
-│  │  • JWT authentication                                   │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                              │                                  │
-│              ┌───────────────┼───────────────┐                 │
-│              │               │               │                 │
-│              ▼               ▼               ▼                 │
-│         ┌────────┐     ┌─────────┐     ┌─────────┐            │
-│         │PostgreSQL│    │  Redis  │     │RabbitMQ │            │
-│         │+ pgvector│    │ (Cache) │     │ (Queue) │            │
-│         └────────┘     └─────────┘     └─────────┘            │
-│                              │                                  │
-│                              ▼                                  │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                 BACKGROUND WORKERS                       │   │
-│  │                 (Celery or ARQ)                          │   │
-│  │                                                          │   │
-│  │  • AI tasks (LLM calls)                                 │   │
-│  │  • Integration sync (GitHub, Slack)                     │   │
-│  │  • Email notifications                                  │   │
-│  │  • Webhook delivery                                     │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│                    External Services                           │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
-│  │ GitHub  │  │  Slack  │  │  LLM    │  │  S3/    │          │
-│  │  API    │  │   API   │  │Provider │  │  MinIO  │          │
-│  └─────────┘  └─────────┘  └─────────┘  └─────────┘          │
-│                                                                 │
+│  task.requires_tools? ─────────────────────────────────────┐    │
+│         │                                                   │    │
+│    YES  │  NO                                              │    │
+│         │   └─ task.type == "embeddings"?                  │    │
+│         │              │                                    │    │
+│         │         YES  │  NO                               │    │
+│         │              │   └─ task.latency_critical?       │    │
+│         │              │              │                     │    │
+│         │              │         YES  │  NO                │    │
+│         ▼              ▼              ▼     ▼               │    │
+│  Claude SDK     OpenAI         Gemini    Claude SDK        │    │
+│  (Agentic)      Embeddings     Flash     query()           │    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+</details>
+
+---
+
+## Infrastructure Clarifications (DD-059–060)
+
+### DD-059: Infrastructure SLA & Performance
+
+**Date**: 2026-01-20 | **Status**: Accepted
+
+| Metric | Target |
+|--------|--------|
+| Uptime | 99.5% (~3.6 hours/month max downtime) |
+| RTO | 4 hours |
+| API reads (p95) | < 500ms |
+| API writes (p95) | < 1s |
+| Rate limit (standard) | 1000 req/min per workspace |
+| Rate limit (AI endpoints) | 100 req/min per workspace |
+
+**Deferred to Phase 2**: Structured logging, metrics, tracing
+**Deferred to Phase 3**: GDPR, SOC2, data residency compliance
+
+---
+
+### DD-060: Supabase Platform Integration
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+**Decision**: Consolidate infrastructure to Supabase platform (10+ services → 2-3)
+
+| Component | Solution |
+|-----------|----------|
+| Auth | Supabase Auth (GoTrue) - email, OAuth, SAML 2.0 SSO |
+| Database | PostgreSQL 16+ via Supabase |
+| Vector Search | pgvector + HNSW (m=16, ef_construction=64) |
+| Storage | Supabase Storage (S3-compatible, RLS, CDN) |
+| Queues | Supabase Queues (pgmq + pg_cron) |
+| Realtime | Supabase Realtime (per-workspace channel) |
+| Connection Pool | Managed PgBouncer (no separate container) |
+
+**No LDAP in MVP**: SAML 2.0 SSO covers enterprise needs.
+
+---
+
+## Security Clarifications (DD-061)
+
+### DD-061: Authentication & Security
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+| Aspect | Decision |
+|--------|----------|
+| Auth Provider | Supabase Auth (GoTrue) |
+| Token Strategy | Access (1h) + Refresh (7d), rotate on refresh |
+| Authorization | Row-Level Security (RLS) at database level |
+| API Key Encryption | AES-256-GCM with Supabase Vault |
+| Service Role Key | Backend services only (FastAPI) |
+| Anon Key | Client-side SDK (RLS enforced) |
+
+**RLS Policy Pattern**:
+
+```sql
+-- Workspace member check
+workspace_members.role IN ('admin', 'owner')
+-- User identification
+auth.uid() = user_id
+```
+
+---
+
+## Data Management Clarifications (DD-062)
+
+### DD-062: Data Management Policies
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+**Issue State Transitions**:
+
+| From | To | Allowed |
+|------|----|----|
+| unstarted | started | ✅ |
+| started | completed | ✅ |
+| completed | started | ✅ (reopen) |
+| any | cancelled | ✅ |
+| cancelled | any | ❌ (terminal) |
+| unstarted | completed | ❌ (no skip) |
+
+**Soft Deletion**:
+
+- 30-day recovery window
+- Restoration by: original creator OR workspace admin/owner
+- Deleted linked issue in note: strikethrough + "Deleted" badge
+
+**Export/Import**:
+
+- Format: JSON archive (ZIP with structured JSON per entity)
+- Import: restore-from-backup only (same format as export)
+- No migration tools in MVP
+
+---
+
+## API Design Clarifications (DD-063)
+
+### DD-063: API Design Standards
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+| Aspect | Decision |
+|--------|----------|
+| Versioning | URL path (`/api/v1/issues`) |
+| Error Format | RFC 7807 Problem Details |
+| Pagination | Cursor-based (stable with real-time updates) |
+| Response Envelope | `{data: [...], meta: {total, cursor, hasMore}}` |
+| Optimistic Updates | TanStack Query with automatic rollback |
+
+**GitHub Rate Limit Handling**: Queue with exponential backoff (1 min initial, 30 min max) + user notification
+
+---
+
+## Backend Architecture Clarifications (DD-064)
+
+### DD-064: Backend Architecture Patterns
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+| Pattern | Implementation |
+|---------|----------------|
+| Use Case Organization | CQRS-lite (Command/Query separation, no event sourcing) |
+| Service Structure | Service Classes with Payloads (`CreateIssueService.execute(payload)`) |
+| Repository | Generic + Specific (`BaseRepository[T]` + domain extensions) |
+| DI | `dependency-injector` library with full container |
+| AI Agent Structure | Claude Agent SDK with state machines |
+| Migrations | Alembic autogenerate + manual review |
+| Config | Pydantic Settings + `.env` files |
+| Logging | Structlog JSON with correlation IDs |
+| UUID Generation | Database-generated via `gen_random_uuid()` |
+| Activity Log | Action-only (actor, action, entity_type, entity_id, timestamp) |
+
+---
+
+## Frontend Architecture Clarifications (DD-065)
+
+### DD-065: Frontend Architecture Patterns
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+**State Management Split**:
+
+| Layer | Technology | Responsibility |
+|-------|------------|----------------|
+| Server Data | TanStack Query | Fetching, caching, mutations, optimistic updates |
+| UI State | MobX | Selection, toggles, local drafts, temp filters |
+
+**Rule**: No MobX store subscribes to TanStack Query. Use `useQuery` hooks directly.
+
+**Structure**:
+
+| Aspect | Decision |
+|--------|----------|
+| Module Organization | Feature folders (`features/issues/`, `features/notes/`) |
+| TipTap Extensions | Extension per feature (`GhostTextExtension`, `MarginAnnotationExtension`) |
+| Error Handling | Inline only (show in triggering component) |
+| Auth Flow | Supabase JS Client SDK (automatic token refresh) |
+| File Uploads | Direct to Supabase Storage with signed URL |
+| Command Palette Search | Client-side fuzzy (fuse.js) for commands, server for content |
+| Realtime Scope | Per-workspace channel, client-side filtering |
+| Dynamic Import Threshold | > 50KB gzipped (Sigma.js, Mermaid, AI Panel) |
+| Barrel Conventions | Feature-level only, no `export *` |
+
+**Supabase Realtime + TanStack Query Merge**: Optimistic merge via `queryClient.setQueryData()`. Last-write-wins. Skip if local mutation pending.
+
+---
+
+## SSE Streaming Clarifications (DD-066)
+
+### DD-066: SSE Streaming Architecture
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+**Architecture**: Separate EventSource per AI operation + cookie-based auth
+
+| Aspect | Decision |
+|--------|----------|
+| Stream Multiplexing | No - separate stream per operation |
+| Auth Method | HttpOnly cookie (1h access token) |
+| Heartbeat | Server sends every 30s (`: heartbeat\n\n`) |
+| Client Timeout | 45s no data → reconnect |
+| Reconnect Strategy | 3 attempts, exponential backoff (1s, 2s, 4s) |
+| Request Cancellation | AbortController per request |
+
+**Error Display by Context**:
+
+| Context | Display |
+|---------|---------|
+| Ghost Text | Inline muted "AI unavailable" (3s fade) |
+| AI Panel | Panel error state + retry button |
+| PR Review | Toast + notification center |
+| Network Error | Retry with exponential backoff (3 attempts) |
+
+**Command Palette AI Context**: Current selection + active entity type + document title. Cache 30s per entity.
+
+---
+
+## Note Canvas Clarifications (DD-067)
+
+### DD-067: Note Canvas Implementation
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+**Ghost Text**:
+
+| Aspect | Decision |
+|--------|----------|
+| Trigger | 500ms typing pause only (no manual trigger) |
+| Context | Current block + 3 previous + 3 sections summary + user patterns |
+| Max Length | 1-2 sentences (~50 tokens) |
+| Code Blocks | Code-aware suggestions |
+| Cancel | Any keystroke auto-cancels |
+
+**Word Boundary Handling**:
+
+| Aspect | Decision |
+|--------|----------|
+| Streaming | Buffer chunks until whitespace/punctuation before display |
+| Word-by-word (→) | Split on whitespace, advance by complete words only |
+| Partial token | Never display; wait for complete token from stream |
+| Edge case | If stream ends mid-word, display complete word only |
+
+**Margin Annotations**:
+
+| Aspect | Decision |
+|--------|----------|
+| Position | Vertical stack next to block, scroll if overflow |
+| Anchor | CSS Anchor Positioning API (Chrome 125+), fallback for Safari/Firefox |
+
+**Issue Detection**:
+
+| Aspect | Decision |
+|--------|----------|
+| Patterns | Action verbs + entities ("implement X", "fix Y", "add Z") |
+| Pre-fill | Title + description + priority + labels (AI suggests all) |
+
+**Virtualization**: `@tanstack/react-virtual` with TipTap NodeView wrapper, ResizeObserver for block heights
+
+**Tab Key Priority**: 1) code block indent, 2) ghost text accept, 3) default behavior
+
+**Content Change Detection**: Block-level via TipTap transaction. >20% blocks changed OR title/heading → trigger embedding. Debounce 5s.
+
+---
+
+## Knowledge Graph Clarifications (DD-068)
+
+### DD-068: Knowledge Graph Architecture
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+**Visualization**: Sigma.js + react-sigma (WebGL, ForceAtlas2, 50K+ nodes)
+
+Stack: Graphology (data) + Sigma.js (render) + @react-sigma/core + layout-force + minimap
+
+| Aspect | Decision |
+|--------|----------|
+| Layout | Always auto-layout (no position persistence) |
+| Relationship Types | Explicit (user) + Semantic (AI) + Mentions |
+| Storage | PostgreSQL adjacency table (`from_id`, `to_id`, `type`, `weight`) |
+| Semantic Detection | Embedding similarity (cosine > 0.7) + metadata |
+| Update Schedule | Explicit links on save; semantic weekly batch |
+
+---
+
+## Background Job Clarifications (DD-069)
+
+### DD-069: Background Job Configuration
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+**Priority Levels**:
+
+| Level | Examples |
+|-------|----------|
+| High | PR review, ghost text |
+| Normal | Embeddings, summaries |
+| Low | Graph recalculation |
+
+**Configuration**:
+
+| Aspect | Value |
+|--------|-------|
+| AI Job Timeout | 5 minutes (retry on timeout) |
+| Failed Job Handling | Dead letter queue + admin notification after max retries |
+| Batch Schedule | Nightly 2 AM UTC (semantic graph, cleanup) |
+| Job Cleanup | Completed jobs older than 7 days |
+
+---
+
+## Embedding & Search Clarifications (DD-070)
+
+### DD-070: Embedding & Search Configuration
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+| Aspect | Decision |
+|--------|----------|
+| Embedding Model | OpenAI text-embedding-3-large (3072 dims) |
+| Chunk Size | 512 tokens, 50 token overlap |
+| Regeneration Trigger | >20% content diff (hash comparison) |
+| Summary Granularity | Document + sections (H1/H2). No paragraph-level. |
+| Summary Model | Claude Haiku 4.5 (fast bulk processing) |
+| Structure Extraction | On save via async job (available within 30s) |
+| AST Languages | Python, TypeScript/JavaScript, Go, Java, Rust (regex fallback for others) |
+
+---
+
+## User Story Clarifications (DD-071–085)
+
+### DD-071: Issue Creation (US-2)
+
+| Aspect | Decision |
+|--------|----------|
+| Duplicate Detection | Auto on title blur |
+| 100% Match | Warn but allow (dialog with link to existing) |
+| Confidence Display | "Recommended" tag for ≥80% only |
+
+---
+
+### DD-072: PR Review (US-3)
+
+| Aspect | Decision |
+|--------|----------|
+| Trigger | Auto on PR open via webhook |
+| Comment Format | Severity (🔴🟡🔵) + suggestion + rationale + AI fix prompt |
+| Review Aspects | Architecture + Security + Quality (patterns, vulns, smells, coverage) |
+
+---
+
+### DD-073: Sprint Planning (US-4)
+
+| Aspect | Decision |
+|--------|----------|
+| Velocity Calculation | Sum of story points for completed issues |
+| Cycle Rollover | Manual selection modal (incomplete → rollover vs backlog) |
+
+---
+
+### DD-074: Modules/Epics (US-5)
+
+| Aspect | Decision |
+|--------|----------|
+| Target Date | Optional with overdue warning badge |
+| Progress Calculation | Hybrid: story points if available, issue count fallback |
+
+---
+
+### DD-075: Task Decomposition (US-7)
+
+| Aspect | Decision |
+|--------|----------|
+| Estimation Unit | Story points (Fibonacci: 1, 2, 3, 5, 8, 13) |
+
+---
+
+### DD-076: Architecture Diagrams (US-8)
+
+| Aspect | Decision |
+|--------|----------|
+| Edit Mode | Code editor + live preview side-by-side |
+
+---
+
+### DD-077: Slack Integration (US-9)
+
+| Aspect | Decision |
+|--------|----------|
+| `/pilot create` | Opens Slack modal with title, description, priority fields |
+
+---
+
+### DD-078: Semantic Search (US-10)
+
+| Aspect | Decision |
+|--------|----------|
+| Document Structure | Tree-based for docs, AST for code |
+| Code AST Storage | Function/class signatures + docstrings (top-level symbols) |
+
+---
+
+### DD-079: AI Context (US-12)
+
+| Aspect | Decision |
+|--------|----------|
+| Code Discovery | AST analysis of code references (file paths + symbols) |
+| File Resolution | GitHub API search in linked repos |
+| Context Extraction | Function signature + docstring + import dependencies |
+
+---
+
+### DD-080: Command Palette (US-13)
+
+| Aspect | Decision |
+|--------|----------|
+| AI Suggestion Learning | Context-only ranking (no frequency learning) |
+
+---
+
+### DD-081: Templates (US-15)
+
+| Aspect | Decision |
+|--------|----------|
+| AI-generated Storage | Workspace-level library |
+| Placeholder Syntax | Smart detection (AI infers, no special syntax) |
+
+---
+
+### DD-082: Sample Project (US-16)
+
+| Aspect | Decision |
+|--------|----------|
+| Deletion | Permanent delete (no soft delete for sample data) |
+
+---
+
+### DD-083: Notifications (US-17)
+
+| Aspect | Decision |
+|--------|----------|
+| Priority Factors | Urgency (deadline), assignment, mention type |
+
+---
+
+### DD-084: GitHub Integration (US-18)
+
+| Aspect | Decision |
+|--------|----------|
+| Commit Linking | Hybrid: parse on webhook + scheduled scan for missed |
+| PR Merge Behavior | Always auto-complete issue (PR merge → Completed) |
+| Branch Suggestion | `feature/PROJ-123-issue-title` format |
+
+---
+
+### DD-085: Accessibility & Focus
+
+**Date**: 2026-01-22 | **Status**: Accepted
+
+| Aspect | Decision |
+|--------|----------|
+| Conformance | WCAG 2.1 Level AA |
+| Focus Navigation | Tab stays in editor. Escape → sidebar. F6 cycles regions. |
+| Reduced Motion | CSS `@media (prefers-reduced-motion)` + Tailwind variants |
+| Testing | Vitest + jsdom (integration), Playwright (E2E), MSW (SSE), axe-core (a11y) |
+
+---
+
+## Appendix: Architecture Overview
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    PILOT SPACE MVP                               │
+├─────────────────────────────────────────────────────────────────┤
+│  WEB APP (React + TypeScript)                                   │
+│  Routes: /app/* (auth) | /admin/* | /public/* (merged Space)   │
+├─────────────────────────────────────────────────────────────────┤
+│  FASTAPI BACKEND                                                 │
+│  REST API | SQLAlchemy 2.0 | Alembic | Pydantic v2 | JWT       │
+├─────────────────────────────────────────────────────────────────┤
+│  DATA: PostgreSQL + pgvector | Redis | Supabase Queues         │
+├─────────────────────────────────────────────────────────────────┤
+│  EXTERNAL: GitHub | Slack | LLM Providers | Supabase Storage   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Revised Feature Roadmap
+## Phase Roadmap
 
 ### Phase 1: MVP
 
-**Core PM**:
-- Workspaces, Projects
-- Issues with states, priorities, assignees
-- Cycles (Sprints) with basic analytics
-- Modules (Epics)
-- Pages (standard editing, no real-time)
-- Views with filtering
-- Labels, custom states
-- Basic RBAC (Owner/Admin/Member/Guest)
-
-**AI Features** (BYOK):
-- AI-enhanced issue creation
-- Smart task decomposition
-- AI PR Review (architecture + code)
-- AI documentation generation
-- Diagram generation (Mermaid)
-- Semantic search
-
-**Integrations**:
-- GitHub (PR linking, commits, AI review comments)
-- Slack (notifications, slash commands)
-- Webhooks (outbound)
+- Core PM (workspaces, projects, issues, cycles, modules, pages)
+- AI: Issue enhancement, task decomposition, PR review, doc generation, semantic search
+- Integrations: GitHub, Slack, Webhooks
+- Basic RBAC
 
 ### Phase 2: Enhanced
 
-**Features**:
-- Real-time collaboration for Pages
-- Custom workflows with AI transitions
-- ADR (Architecture Decision Records)
-- Sprint planning assistant
-- Retrospective analyst
-
-**Integrations**:
-- GitLab integration
-- Discord integration
-- CI/CD status display
-
-**Enterprise**:
-- Custom RBAC roles
-- SSO (OIDC/SAML)
-- Audit logging
+- Real-time collaboration (Pages)
+- GraphRAG hybrid search
+- ADR, Sprint planning AI, Retrospective AI
+- GitLab, Discord, CI/CD display
+- Custom RBAC, SSO, Audit logging
 
 ### Phase 3: Enterprise
 
-**Features**:
-- Advanced analytics
-- Workflow automation builder
-- LDAP directory sync
-- Compliance reporting
-- Custom report builder
+- Advanced analytics, workflow automation
+- LDAP, compliance reporting, custom reports
 
 ---
 
-## Removed from Scope
-
-The following items have been explicitly removed:
-
-| Item | Reason |
-|------|--------|
-| Jira bidirectional sync | Complexity, limited value for target users |
-| Trello/Asana sync | Users expected to migrate fully |
-| AI Studio | Too complex, built-in agents sufficient |
-| Local AI (Ollama) | Deployment complexity, cloud LLM required |
-| MS Teams integration | Enterprise focus deferred |
-| Bitbucket integration | Lower priority |
-
----
-
-*Document Version: 1.0*
-*Last Updated: 2026-01-20*
-*Author: Pilot Space Team*
+*Document Version: 3.2 | Migrated: 2026-01-23 | Decisions: 58 original + 27 clarifications = 85 total*
+*Source: spec.md clarification sessions (2026-01-20, 2026-01-21, 2026-01-22)*

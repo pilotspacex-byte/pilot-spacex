@@ -1,0 +1,217 @@
+# Pilot Space CI Pipeline
+# Runs quality gates for backend (Python) and frontend (TypeScript)
+# Coverage requirement: 80%+
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+  PNPM_VERSION: "9"
+
+jobs:
+  # =============================================================================
+  # Backend Job - Python 3.12 with uv
+  # =============================================================================
+  backend:
+    name: Backend (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run ruff check (linting)
+        run: uv run ruff check .
+
+      - name: Run ruff format check
+        run: uv run ruff format --check .
+
+      - name: Run pyright (type checking)
+        run: uv run pyright
+
+      - name: Run pytest with coverage
+        run: |
+          uv run pytest \
+            --cov=src/pilot_space \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-report=term-missing \
+            --cov-fail-under=80 \
+            -v
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
+
+      - name: Upload HTML coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage-html
+          path: backend/htmlcov/
+          retention-days: 7
+
+  # =============================================================================
+  # Frontend Job - Node 20 with pnpm
+  # =============================================================================
+  frontend:
+    name: Frontend (TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint
+        run: pnpm lint
+
+      - name: Run TypeScript type check
+        run: pnpm type-check
+
+      - name: Run Vitest with coverage
+        run: pnpm test:coverage -- --coverage.thresholds.lines=80 --coverage.thresholds.functions=80 --coverage.thresholds.branches=80 --coverage.thresholds.statements=80
+
+      - name: Build production bundle
+        run: pnpm build
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          retention-days: 7
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/.next/
+          retention-days: 1
+
+  # =============================================================================
+  # E2E Tests - Playwright
+  # =============================================================================
+  e2e:
+    name: E2E Tests (Playwright)
+    needs: [frontend]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/.next/
+
+      - name: Run Playwright tests
+        run: pnpm test:e2e
+        env:
+          CI: true
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Upload Playwright test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-test-results
+          path: frontend/test-results/
+          retention-days: 7
+
+  # =============================================================================
+  # Summary Job - Reports overall status
+  # =============================================================================
+  ci-success:
+    name: CI Success
+    needs: [backend, frontend, e2e]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check job results
+        run: |
+          if [[ "${{ needs.backend.result }}" == "failure" ]] || \
+             [[ "${{ needs.frontend.result }}" == "failure" ]] || \
+             [[ "${{ needs.e2e.result }}" == "failure" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi
+          echo "All CI checks passed successfully"

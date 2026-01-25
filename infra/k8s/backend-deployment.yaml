@@ -1,0 +1,194 @@
+# Pilot Space Backend Kubernetes Deployment
+# Documentation: docs/architect/infrastructure.md
+#
+# Deployment Strategy:
+#   - RollingUpdate with maxSurge=1, maxUnavailable=0 for zero-downtime deploys
+#   - Resource limits prevent noisy neighbor issues
+#   - Readiness/liveness probes ensure healthy traffic routing
+#
+# Usage:
+#   kubectl apply -f backend-deployment.yaml
+#   kubectl rollout status deployment/pilot-space-backend
+#
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pilot-space-backend
+  namespace: pilot-space
+  labels:
+    app: pilot-space
+    component: backend
+    tier: application
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: pilot-space
+      component: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: pilot-space
+        component: backend
+        tier: application
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: pilot-space-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: backend
+          image: pilot-space/backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: pilot-space-config
+            - secretRef:
+                name: pilot-space-secrets
+
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: DEBUG
+              value: "false"
+            - name: WORKERS
+              value: "4"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+
+          # Kubernetes probes for health checking
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /app/.cache
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: component
+                      operator: In
+                      values:
+                        - backend
+                topologyKey: kubernetes.io/hostname
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              component: backend
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pilot-space-backend
+  namespace: pilot-space
+  labels:
+    app: pilot-space
+    component: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: pilot-space
+    component: backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pilot-space-backend
+  namespace: pilot-space
+  labels:
+    app: pilot-space
+    component: backend

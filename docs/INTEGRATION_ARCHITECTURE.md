@@ -402,7 +402,7 @@ inbound_webhooks:
 │                                                                 │
 │  ┌───────────────────────────────────────────────────────────┐ │
 │  │                    EVENT QUEUE                             │ │
-│  │  (RabbitMQ)                                                │ │
+│  │  (Supabase Queues - pgmq)                                  │ │
 │  │                                                            │ │
 │  │  Queues:                                                   │ │
 │  │  • sync.github.inbound    (webhooks from GitHub)          │ │
@@ -413,7 +413,7 @@ inbound_webhooks:
 │                              ▼                                  │
 │  ┌───────────────────────────────────────────────────────────┐ │
 │  │                    SYNC WORKERS                            │ │
-│  │  (Celery or ARQ)                                           │ │
+│  │  (Supabase Edge Functions)                                 │ │
 │  │                                                            │ │
 │  │  ┌─────────────────────┐  ┌─────────────────────┐        │ │
 │  │  │   GitHub Worker     │  │   Slack Worker      │        │ │

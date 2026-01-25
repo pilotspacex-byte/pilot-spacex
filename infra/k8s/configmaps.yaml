@@ -1,0 +1,114 @@
+# Pilot Space ConfigMaps
+# Documentation: docs/architect/infrastructure.md
+#
+# Non-sensitive configuration values for the application.
+# Sensitive values are stored in secrets.yaml
+#
+# Usage:
+#   kubectl apply -f configmaps.yaml
+#
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pilot-space-config
+  namespace: pilot-space
+  labels:
+    app: pilot-space
+data:
+  # Application
+  APP_NAME: "Pilot Space"
+  APP_ENV: "production"
+  DEBUG: "false"
+  LOG_LEVEL: "INFO"
+
+  # Server
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  WORKERS: "4"
+
+  # Database (connection pool settings)
+  DATABASE_POOL_SIZE: "10"
+  DATABASE_MAX_OVERFLOW: "20"
+  DATABASE_POOL_TIMEOUT: "30"
+
+  # Redis
+  REDIS_MAX_CONNECTIONS: "20"
+
+  # API URLs (non-sensitive)
+  API_URL: "https://api.pilot-space.example.com/api/v1"
+  SUPABASE_URL: "https://your-project.supabase.co"
+  MEILISEARCH_URL: "http://meilisearch:7700"
+
+  # AI Configuration
+  AI_TIMEOUT_SECONDS: "300"
+  AI_MAX_RETRIES: "3"
+  AI_GHOST_TEXT_DEBOUNCE_MS: "500"
+  AI_GHOST_TEXT_MAX_TOKENS: "50"
+
+  # Rate Limiting (NFR-019)
+  RATE_LIMIT_STANDARD_PER_MINUTE: "1000"
+  RATE_LIMIT_AI_PER_MINUTE: "100"
+
+  # CORS (production origins)
+  CORS_ORIGINS: "https://pilot-space.example.com"
+
+  # Security
+  JWT_ALGORITHM: "HS256"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+  REFRESH_TOKEN_EXPIRE_DAYS: "7"
+
+  # GitHub OAuth (non-sensitive)
+  GITHUB_CALLBACK_URL: "https://api.pilot-space.example.com/api/v1/integrations/github/callback"
+
+  # Feature Flags
+  ENABLE_AI_FEATURES: "true"
+  ENABLE_REALTIME: "true"
+  ENABLE_GITHUB_INTEGRATION: "true"
+  ENABLE_SLACK_INTEGRATION: "false"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pilot-space-frontend-config
+  namespace: pilot-space
+  labels:
+    app: pilot-space
+    component: frontend
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+  # Feature flags for frontend
+  NEXT_PUBLIC_ENABLE_AI_FEATURES: "true"
+  NEXT_PUBLIC_ENABLE_REALTIME: "true"
+
+---
+# Nginx configuration for custom proxy behavior
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pilot-space-nginx-config
+  namespace: pilot-space
+  labels:
+    app: pilot-space
+data:
+  # Custom nginx snippets for ingress
+  proxy-buffer-size: "8k"
+  proxy-buffers: "8 8k"
+  proxy-busy-buffers-size: "16k"
+
+  # SSE/WebSocket optimization
+  proxy-connect-timeout: "60"
+  proxy-read-timeout: "300"
+  proxy-send-timeout: "300"
+
+  # Security
+  server-tokens: "false"
+  ssl-protocols: "TLSv1.2 TLSv1.3"
+  ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+  hsts: "true"
+  hsts-max-age: "31536000"
+  hsts-include-subdomains: "true"

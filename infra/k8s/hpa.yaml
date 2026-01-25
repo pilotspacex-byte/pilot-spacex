@@ -1,0 +1,168 @@
+# Pilot Space Horizontal Pod Autoscaler Configuration
+# Documentation: docs/architect/infrastructure.md
+#
+# Scaling Strategy:
+#   - Backend: Scale on CPU (primary) and memory (secondary)
+#   - Frontend: Scale on CPU only (stateless, memory-efficient)
+#   - AI endpoints: Consider custom metrics for queue depth
+#
+# Prerequisites:
+#   - Metrics Server installed
+#   - For custom metrics: Prometheus Adapter
+#
+# Usage:
+#   kubectl apply -f hpa.yaml
+#   kubectl get hpa -n pilot-space
+#
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pilot-space-backend-hpa
+  namespace: pilot-space
+  labels:
+    app: pilot-space
+    component: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pilot-space-backend
+
+  # Replica bounds
+  minReplicas: 3
+  maxReplicas: 10
+
+  metrics:
+    # Primary: CPU utilization
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+    # Secondary: Memory utilization
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+  # Scaling behavior for stability
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+      selectPolicy: Max
+
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+      selectPolicy: Min
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pilot-space-frontend-hpa
+  namespace: pilot-space
+  labels:
+    app: pilot-space
+    component: frontend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pilot-space-frontend
+
+  minReplicas: 2
+  maxReplicas: 8
+
+  metrics:
+    # CPU only for frontend (memory-efficient Next.js)
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 3
+          periodSeconds: 30
+      selectPolicy: Max
+
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 120
+      selectPolicy: Min
+
+---
+# Custom metrics HPA for AI workloads (requires Prometheus Adapter)
+# Uncomment when custom metrics are available
+#
+# apiVersion: autoscaling/v2
+# kind: HorizontalPodAutoscaler
+# metadata:
+#   name: pilot-space-backend-ai-hpa
+#   namespace: pilot-space
+#   labels:
+#     app: pilot-space
+#     component: backend-ai
+# spec:
+#   scaleTargetRef:
+#     apiVersion: apps/v1
+#     kind: Deployment
+#     name: pilot-space-backend
+#
+#   minReplicas: 3
+#   maxReplicas: 20
+#
+#   metrics:
+#     # Custom metric: AI task queue depth
+#     - type: External
+#       external:
+#         metric:
+#           name: pilot_space_ai_queue_depth
+#           selector:
+#             matchLabels:
+#               queue: ai_tasks
+#         target:
+#           type: AverageValue
+#           averageValue: "10"
+#
+#     # Custom metric: P95 latency
+#     - type: External
+#       external:
+#         metric:
+#           name: pilot_space_request_latency_p95
+#           selector:
+#             matchLabels:
+#               endpoint: ai
+#         target:
+#           type: AverageValue
+#           averageValue: "400m"  # 400ms

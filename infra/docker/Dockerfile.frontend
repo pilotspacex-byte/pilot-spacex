@@ -1,0 +1,139 @@
+# =============================================================================
+# Pilot Space Frontend Dockerfile
+# =============================================================================
+# Multi-stage build for Next.js 14+ application
+#
+# Stages:
+#   - base:        Common dependencies and pnpm setup
+#   - development: Hot reload with full dev dependencies
+#   - builder:     Production build
+#   - production:  Minimal production image with standalone output
+#
+# Usage:
+#   Development: docker build --target development -t pilot-space-frontend:dev .
+#   Production:  docker build --target production -t pilot-space-frontend:prod .
+# =============================================================================
+
+ARG NODE_VERSION=20
+
+# =============================================================================
+# BASE STAGE - Common setup for all stages
+# =============================================================================
+FROM node:${NODE_VERSION}-alpine AS base
+
+# Enable corepack for pnpm
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /app
+
+# Copy package files for dependency caching
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
+
+# =============================================================================
+# DEVELOPMENT STAGE - Full dev environment with hot reload
+# =============================================================================
+FROM base AS development
+
+# Install all dependencies including devDependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code and configuration files
+COPY . .
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs \
+    && chown -R nextjs:nodejs /app
+
+USER nextjs
+
+# Expose port
+EXPOSE 3000
+
+# Set environment
+ENV NODE_ENV=development \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+
+# Development command with hot reload
+CMD ["pnpm", "dev"]
+
+# =============================================================================
+# BUILDER STAGE - Build production artifacts
+# =============================================================================
+FROM base AS builder
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build arguments for environment variables at build time
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_ENABLE_AI_FEATURES=true
+ARG NEXT_PUBLIC_ENABLE_REALTIME=true
+
+# Set build-time environment variables
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
+    NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL} \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY} \
+    NEXT_PUBLIC_ENABLE_AI_FEATURES=${NEXT_PUBLIC_ENABLE_AI_FEATURES} \
+    NEXT_PUBLIC_ENABLE_REALTIME=${NEXT_PUBLIC_ENABLE_REALTIME} \
+    # Disable telemetry during build
+    NEXT_TELEMETRY_DISABLED=1
+
+# Build the application
+RUN pnpm build
+
+# =============================================================================
+# PRODUCTION STAGE - Minimal production image
+# =============================================================================
+FROM node:${NODE_VERSION}-alpine AS production
+
+WORKDIR /app
+
+# Set production environment
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0 \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
+
+# Copy built artifacts from builder stage
+# Note: This requires `output: 'standalone'` in next.config.ts
+# If not using standalone, copy .next and node_modules instead
+
+# Option 1: Standalone output (recommended - smaller image)
+# Uncomment when next.config.ts has `output: 'standalone'`
+# COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+# COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# Option 2: Standard output (until standalone is configured)
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
+COPY --from=builder --chown=nextjs:nodejs /app/pnpm-lock.yaml ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+
+USER nextjs
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --spider http://localhost:3000 || exit 1
+
+# Production command
+# Option 1: Standalone (when configured)
+# CMD ["node", "server.js"]
+
+# Option 2: Standard (current)
+CMD ["node_modules/.bin/next", "start"]

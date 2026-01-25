@@ -1,0 +1,3229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PS-201 - Simplify password reset flow | Pilot Space</title>
+
+  <!-- Fonts - Same as note-canvas-v4-enhanced -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============================================
+       DESIGN TOKENS v2.3 - Same as note-canvas
+       ============================================ */
+    :root {
+      /* Base Colors */
+      --background: #FDFCFA;
+      --background-subtle: #F8F7F5;
+      --background-muted: #F3F2EF;
+      --foreground: #1A1918;
+      --foreground-muted: #6B6966;
+      --border: #E8E6E3;
+      --border-subtle: #F0EEEB;
+
+      /* Primary - Teal Green */
+      --primary: #29A386;
+      --primary-hover: #238F75;
+      --primary-muted: #E8F5F1;
+      --primary-foreground: #FFFFFF;
+
+      /* AI - Dusty Blue */
+      --ai: #6B8FAD;
+      --ai-hover: #5A7D9B;
+      --ai-muted: #EEF3F7;
+      --ai-border: #B8CCDB;
+      --ai-foreground: #FFFFFF;
+
+      /* Semantic */
+      --destructive: #D9534F;
+      --warning: #D9853F;
+      --success: #29A386;
+
+      /* Issue States */
+      --state-backlog: #9C9590;
+      --state-todo: #5B8FC9;
+      --state-in-progress: #D9853F;
+      --state-in-review: #9B7BC9;
+      --state-done: #29A386;
+
+      /* Notification Priority */
+      --priority-urgent: #D9534F;
+      --priority-important: #D9853F;
+      --priority-fyi: #6B8FAD;
+
+      /* Typography */
+      --font-display: 'Fraunces', Georgia, serif;
+      --font-sans: 'DM Sans', system-ui, sans-serif;
+      --font-mono: 'DM Mono', 'SF Mono', monospace;
+
+      /* Spacing */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-10: 40px;
+      --space-12: 48px;
+
+      /* Radius */
+      --radius-sm: 6px;
+      --radius: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 18px;
+      --radius-2xl: 24px;
+      --radius-full: 9999px;
+
+      /* Shadows */
+      --shadow-sm: 0 1px 2px hsl(30 10% 10% / 0.04);
+      --shadow: 0 2px 4px hsl(30 10% 10% / 0.04), 0 4px 8px hsl(30 10% 10% / 0.04);
+      --shadow-md: 0 4px 8px hsl(30 10% 10% / 0.04), 0 8px 16px hsl(30 10% 10% / 0.06);
+      --shadow-lg: 0 8px 16px hsl(30 10% 10% / 0.06), 0 16px 32px hsl(30 10% 10% / 0.08);
+      --shadow-elevated: 0 12px 24px hsl(30 10% 10% / 0.08), 0 24px 48px hsl(30 10% 10% / 0.1);
+
+      /* Animation */
+      --ease-out: cubic-bezier(0, 0, 0.2, 1);
+      --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+      --duration-fast: 150ms;
+      --duration-normal: 200ms;
+      --duration-slow: 300ms;
+    }
+
+    /* ============================================
+       RESET & BASE
+       ============================================ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--background);
+      color: var(--foreground);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Noise texture */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.02;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ============================================
+       LAYOUT
+       ============================================ */
+    .app-container {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ============================================
+       SIDEBAR - Same as note-canvas
+       ============================================ */
+    .sidebar {
+      width: 260px;
+      background: var(--background-subtle);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: var(--ai);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .logo svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .workspace-dropdown {
+      flex: 1;
+    }
+
+    .workspace-trigger {
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+
+    .workspace-name {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .workspace-stats {
+      font-size: 0.7rem;
+      color: var(--foreground-muted);
+    }
+
+    /* Search Input */
+    .sidebar-search {
+      padding: var(--space-3) var(--space-4);
+    }
+
+    .search-input {
+      width: 100%;
+      padding: var(--space-2) var(--space-3);
+      padding-left: 36px;
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      color: var(--foreground);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B6966' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 10px center;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    /* Sidebar Sections */
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-2) 0;
+    }
+
+    .nav-section {
+      padding: var(--space-3) var(--space-4);
+    }
+
+    .nav-section-title {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--foreground-muted);
+      margin-bottom: var(--space-2);
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: var(--foreground);
+      transition: background var(--duration-fast);
+      text-decoration: none;
+    }
+
+    .nav-item:hover {
+      background: var(--background-muted);
+    }
+
+    .nav-item.active {
+      background: var(--primary-muted);
+      color: var(--primary);
+    }
+
+    .nav-item-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .nav-item-badge {
+      margin-left: auto;
+      font-size: 0.7rem;
+      color: var(--foreground-muted);
+    }
+
+    .note-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .note-indicator.teal { background: var(--primary); }
+    .note-indicator.blue { background: var(--ai); }
+    .note-indicator.orange { background: var(--warning); }
+    .note-indicator.red { background: var(--destructive); }
+
+    /* Notifications Section */
+    .notifications-section {
+      border-top: 1px solid var(--border);
+      padding: var(--space-4);
+    }
+
+    .notifications-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+
+    .notifications-title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 0.8rem;
+      color: var(--foreground-muted);
+    }
+
+    .notifications-badge {
+      background: var(--primary);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+
+    .notification-item {
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .notification-item:last-child {
+      border-bottom: none;
+    }
+
+    .notification-priority {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .notification-priority.urgent { color: var(--priority-urgent); }
+    .notification-priority.important { color: var(--priority-important); }
+    .notification-priority.fyi { color: var(--priority-fyi); }
+
+    .notification-text {
+      font-size: 0.8rem;
+      color: var(--foreground);
+      margin-top: 2px;
+    }
+
+    .notification-time {
+      font-size: 0.7rem;
+      color: var(--foreground-muted);
+      margin-top: 2px;
+    }
+
+    /* ============================================
+       MAIN CONTENT AREA
+       ============================================ */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Top Header */
+    .top-header {
+      padding: var(--space-3) var(--space-6);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      background: var(--background);
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 0.875rem;
+    }
+
+    .breadcrumb a {
+      color: var(--foreground-muted);
+      text-decoration: none;
+    }
+
+    .breadcrumb a:hover {
+      color: var(--primary);
+    }
+
+    .breadcrumb-separator {
+      color: var(--border);
+    }
+
+    .breadcrumb-current {
+      color: var(--foreground);
+      font-weight: 500;
+    }
+
+    .header-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--foreground-muted);
+      transition: all var(--duration-fast);
+    }
+
+    .btn-icon:hover {
+      background: var(--background-muted);
+      color: var(--foreground);
+    }
+
+    .btn-primary {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background var(--duration-fast);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    /* Content Layout */
+    .content-layout {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .document-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-8) var(--space-10);
+    }
+
+    .document-container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* ============================================
+       DOCUMENT HEADER - Issue Title & Meta
+       ============================================ */
+    .document-title {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: var(--space-4);
+    }
+
+    .document-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+      font-size: 0.8rem;
+      color: var(--foreground-muted);
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .meta-item svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .issue-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .issue-badge.todo {
+      background: var(--ai-muted);
+      color: var(--state-todo);
+    }
+
+    .issue-badge.in-progress {
+      background: #FEF3E8;
+      color: var(--state-in-progress);
+    }
+
+    .issue-badge.done {
+      background: var(--primary-muted);
+      color: var(--state-done);
+    }
+
+    .priority-badge {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    .priority-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .priority-dot.high { background: var(--warning); }
+    .priority-dot.medium { background: var(--ai); }
+    .priority-dot.low { background: var(--foreground-muted); }
+
+    .you-ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-1) var(--space-2);
+      background: var(--ai-muted);
+      border: 1px solid var(--ai-border);
+      border-radius: var(--radius-full);
+      font-size: 0.7rem;
+      color: var(--ai);
+    }
+
+    /* ============================================
+       CONTENT SECTIONS
+       ============================================ */
+    .content-tabs {
+      display: flex;
+      gap: var(--space-1);
+      margin-bottom: var(--space-6);
+    }
+
+    .content-tab {
+      padding: var(--space-2) var(--space-4);
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-full);
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--foreground-muted);
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+
+    .content-tab:hover {
+      background: var(--background-muted);
+    }
+
+    .content-tab.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .document-section {
+      margin-bottom: var(--space-8);
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: var(--space-4);
+    }
+
+    .section-content {
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: var(--foreground);
+    }
+
+    .section-content p {
+      margin-bottom: var(--space-4);
+    }
+
+    .section-content ul, .section-content ol {
+      margin-left: var(--space-6);
+      margin-bottom: var(--space-4);
+    }
+
+    .section-content li {
+      margin-bottom: var(--space-2);
+    }
+
+    /* Issue Box (similar to note canvas) */
+    .issue-box {
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      margin-bottom: var(--space-6);
+    }
+
+    .issue-box-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+
+    .issue-box-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .related-issues-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .related-issue-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      background: var(--background-subtle);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background var(--duration-fast);
+    }
+
+    .related-issue-item:hover {
+      background: var(--background-muted);
+    }
+
+    .relation-type {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .relation-type.blocks {
+      background: #FEE8E8;
+      color: var(--destructive);
+    }
+
+    .relation-type.relates {
+      background: var(--ai-muted);
+      color: var(--ai);
+    }
+
+    .relation-type.duplicate {
+      background: var(--background-muted);
+      color: var(--foreground-muted);
+    }
+
+    .relation-type.blocked-by {
+      background: #FEF3E8;
+      color: var(--warning);
+    }
+
+    .issue-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8rem;
+    }
+
+    .issue-chip-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .issue-chip-icon.bug { color: var(--destructive); }
+    .issue-chip-icon.feature { color: var(--ai); }
+    .issue-chip-icon.task { color: var(--primary); }
+
+    .issue-status-pill {
+      margin-left: auto;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+
+    .issue-status-pill.in-progress {
+      background: #FEF3E8;
+      color: var(--state-in-progress);
+    }
+
+    .issue-status-pill.done {
+      background: var(--primary-muted);
+      color: var(--state-done);
+    }
+
+    .issue-status-pill.closed {
+      background: var(--background-muted);
+      color: var(--foreground-muted);
+    }
+
+    /* AI Thread */
+    .ai-thread {
+      background: var(--ai-muted);
+      border: 1px solid var(--ai-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      margin-top: var(--space-4);
+    }
+
+    .ai-thread-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 0.8rem;
+      color: var(--ai);
+    }
+
+    .ai-thread-header svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Graph Container */
+    .graph-container {
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .graph-canvas {
+      width: 100%;
+      height: 350px;
+      display: block;
+    }
+
+    .graph-legend {
+      position: absolute;
+      bottom: var(--space-4);
+      left: var(--space-4);
+      display: flex;
+      gap: var(--space-4);
+      padding: var(--space-2) var(--space-3);
+      background: rgba(253, 252, 250, 0.95);
+      border-radius: var(--radius);
+      font-size: 0.7rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .legend-dot.current { background: var(--ai); }
+    .legend-dot.issue { background: var(--destructive); }
+    .legend-dot.document { background: var(--primary); }
+    .legend-dot.adr { background: var(--warning); }
+
+    .ai-insight {
+      margin-top: var(--space-4);
+      padding: var(--space-4);
+      background: var(--ai-muted);
+      border: 1px solid var(--ai-border);
+      border-radius: var(--radius);
+      display: flex;
+      gap: var(--space-3);
+    }
+
+    .ai-insight-icon {
+      width: 20px;
+      height: 20px;
+      color: var(--ai);
+      flex-shrink: 0;
+    }
+
+    .ai-insight-text {
+      font-size: 0.85rem;
+      color: var(--foreground);
+      line-height: 1.6;
+    }
+
+    /* Activity Timeline */
+    .activity-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .activity-item {
+      display: flex;
+      gap: var(--space-3);
+      position: relative;
+      padding-left: var(--space-2);
+    }
+
+    .activity-item::before {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 28px;
+      bottom: -20px;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .activity-item:last-child::before {
+      display: none;
+    }
+
+    .activity-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--background-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--foreground-muted);
+      flex-shrink: 0;
+      z-index: 1;
+    }
+
+    .activity-avatar.ai {
+      background: var(--ai-muted);
+      color: var(--ai);
+    }
+
+    .activity-content {
+      flex: 1;
+      padding-top: 4px;
+    }
+
+    .activity-text {
+      font-size: 0.85rem;
+      color: var(--foreground);
+    }
+
+    .activity-text strong {
+      font-weight: 600;
+    }
+
+    .activity-text .highlight {
+      color: var(--primary);
+    }
+
+    .activity-time {
+      font-size: 0.7rem;
+      color: var(--foreground-muted);
+      margin-top: 2px;
+    }
+
+    /* ============================================
+       RIGHT PANEL - Pilot Suggestions Style
+       ============================================ */
+    .right-panel {
+      width: 300px;
+      background: var(--background);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .panel-header {
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .panel-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--foreground);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .panel-title svg {
+      width: 16px;
+      height: 16px;
+      color: var(--ai);
+    }
+
+    .panel-content {
+      padding: var(--space-4);
+    }
+
+    .panel-section {
+      margin-bottom: var(--space-5);
+    }
+
+    .panel-section-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-3);
+    }
+
+    .panel-section-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .panel-section-icon.recommend { color: var(--destructive); }
+    .panel-section-icon.related { color: var(--ai); }
+    .panel-section-icon.default { color: var(--warning); }
+
+    .panel-section-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--foreground-muted);
+    }
+
+    .panel-section-content {
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: var(--foreground);
+    }
+
+    .panel-action {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      margin-top: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      background: var(--primary);
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      border: none;
+    }
+
+    .panel-action:hover {
+      background: var(--primary-hover);
+    }
+
+    /* Properties List */
+    .properties-section {
+      padding: var(--space-4);
+      border-top: 1px solid var(--border);
+    }
+
+    .property-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-2) 0;
+      font-size: 0.85rem;
+    }
+
+    .property-label {
+      color: var(--foreground-muted);
+    }
+
+    .property-value {
+      color: var(--foreground);
+      font-weight: 500;
+    }
+
+    .label-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+    }
+
+    .label-chip {
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+
+    .label-chip.bug { background: #FEE8E8; color: var(--destructive); }
+    .label-chip.auth { background: var(--ai-muted); color: var(--ai); }
+    .label-chip.ux { background: var(--primary-muted); color: var(--primary); }
+
+    /* ============================================
+       BOTTOM INPUT - Ask Pilot
+       ============================================ */
+    .bottom-input {
+      padding: var(--space-4) var(--space-6);
+      border-top: 1px solid var(--border);
+      background: var(--background);
+    }
+
+    .ask-pilot {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--background-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      cursor: text;
+    }
+
+    .ask-pilot-icon {
+      width: 20px;
+      height: 20px;
+      color: var(--ai);
+    }
+
+    .ask-pilot-text {
+      font-size: 0.9rem;
+      color: var(--foreground-muted);
+    }
+
+    .ask-pilot-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* ============================================
+       AI CONTEXT TAB STYLES
+       ============================================ */
+    .ai-context-tab {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      background: var(--ai-muted) !important;
+      border: 1px solid var(--ai-border) !important;
+    }
+
+    .ai-context-tab.active {
+      background: var(--ai) !important;
+      border-color: var(--ai) !important;
+    }
+
+    .ai-context-tab svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* AI Context Header */
+    .ai-context-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ai-context-title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--ai);
+    }
+
+    .ai-context-actions {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .context-action-btn {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      background: var(--ai);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+
+    .context-action-btn:hover {
+      background: var(--ai-hover);
+    }
+
+    .context-action-btn.secondary {
+      background: transparent;
+      color: var(--ai);
+      border: 1px solid var(--ai-border);
+    }
+
+    .context-action-btn.secondary:hover {
+      background: var(--ai-muted);
+    }
+
+    /* Context Summary Card */
+    .context-summary-card {
+      display: flex;
+      gap: var(--space-5);
+      padding: var(--space-5);
+      background: linear-gradient(135deg, var(--ai-muted) 0%, #E8F0F5 100%);
+      border: 1px solid var(--ai-border);
+      border-radius: var(--radius-lg);
+      margin-bottom: var(--space-6);
+    }
+
+    .context-summary-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--ai);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .context-summary-content h3 {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: var(--space-2);
+    }
+
+    .context-summary-content p {
+      font-size: 0.9rem;
+      color: var(--foreground-muted);
+      line-height: 1.6;
+      margin-bottom: var(--space-3);
+    }
+
+    .context-summary-stats {
+      display: flex;
+      gap: var(--space-4);
+    }
+
+    .stat-item {
+      font-size: 0.8rem;
+      color: var(--foreground-muted);
+    }
+
+    .stat-item strong {
+      color: var(--ai);
+      font-weight: 600;
+    }
+
+    /* Context Sections */
+    .context-section {
+      margin-bottom: var(--space-8);
+      padding: var(--space-5);
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+    }
+
+    .context-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-5);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .context-section-title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .context-section-title svg {
+      color: var(--ai);
+    }
+
+    .context-copy-btn {
+      width: 28px;
+      height: 28px;
+      background: var(--background-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--foreground-muted);
+      transition: all var(--duration-fast);
+    }
+
+    .context-copy-btn:hover {
+      background: var(--ai-muted);
+      border-color: var(--ai-border);
+      color: var(--ai);
+    }
+
+    /* Context Subsections */
+    .context-subsection {
+      margin-bottom: var(--space-5);
+    }
+
+    .context-subsection:last-child {
+      margin-bottom: 0;
+    }
+
+    .context-subsection-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--foreground-muted);
+      margin-bottom: var(--space-3);
+    }
+
+    /* Context Items */
+    .context-items {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .context-item {
+      padding: var(--space-4);
+      background: var(--background-subtle);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-subtle);
+      transition: all var(--duration-fast);
+    }
+
+    .context-item:hover {
+      border-color: var(--border);
+      background: var(--background-muted);
+    }
+
+    .context-item-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-2);
+    }
+
+    .context-item-badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .context-item-badge.blocks { background: #FEE8E8; color: var(--destructive); }
+    .context-item-badge.relates { background: var(--ai-muted); color: var(--ai); }
+    .context-item-badge.blocked-by { background: #FEF3E8; color: var(--warning); }
+    .context-item-badge.doc { background: var(--primary-muted); color: var(--primary); }
+    .context-item-badge.adr { background: #FEF3E8; color: var(--warning); }
+    .context-item-badge.spec { background: var(--ai-muted); color: var(--ai); }
+
+    .context-item-id {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--foreground);
+      font-weight: 500;
+    }
+
+    .context-item-status {
+      margin-left: auto;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+
+    .context-item-status.in-progress { background: #FEF3E8; color: var(--state-in-progress); }
+    .context-item-status.done { background: var(--primary-muted); color: var(--state-done); }
+
+    .context-item-title {
+      font-weight: 500;
+      font-size: 0.9rem;
+      margin-bottom: var(--space-1);
+    }
+
+    .context-item-summary {
+      font-size: 0.8rem;
+      color: var(--foreground-muted);
+      line-height: 1.5;
+    }
+
+    /* File Tree */
+    .file-tree {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+
+    .file-tree-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--duration-fast);
+    }
+
+    .file-tree-item:hover {
+      background: var(--background-muted);
+    }
+
+    .file-tree-item.indent-1 {
+      padding-left: var(--space-8);
+    }
+
+    .file-tree-item svg {
+      color: var(--foreground-muted);
+      flex-shrink: 0;
+    }
+
+    .file-tree-item.folder svg {
+      color: var(--warning);
+    }
+
+    .file-badge {
+      margin-left: auto;
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--background-muted);
+      color: var(--foreground-muted);
+    }
+
+    .file-badge.modified { background: #FEF3E8; color: var(--warning); }
+    .file-badge.new { background: var(--primary-muted); color: var(--primary); }
+
+    /* Code Snippets */
+    .code-snippet {
+      margin-bottom: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .code-snippet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-2) var(--space-3);
+      background: var(--background-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-snippet-file {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--foreground-muted);
+    }
+
+    .code-copy-btn {
+      width: 24px;
+      height: 24px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--foreground-muted);
+      transition: all var(--duration-fast);
+    }
+
+    .code-copy-btn:hover {
+      background: var(--background-subtle);
+      color: var(--foreground);
+    }
+
+    .code-snippet-content {
+      padding: var(--space-4);
+      background: #1E1E1E;
+      overflow-x: auto;
+      margin: 0;
+    }
+
+    .code-snippet-content code {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.6;
+      color: #D4D4D4;
+    }
+
+    /* Git References */
+    .git-refs {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .git-ref-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      background: var(--background-subtle);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background var(--duration-fast);
+    }
+
+    .git-ref-item:hover {
+      background: var(--background-muted);
+    }
+
+    .git-ref-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .git-ref-icon.pr { background: var(--primary-muted); color: var(--primary); }
+    .git-ref-icon.commit { background: var(--ai-muted); color: var(--ai); }
+    .git-ref-icon.branch { background: #FEF3E8; color: var(--warning); }
+
+    .git-ref-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .git-ref-title {
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .git-ref-meta {
+      font-size: 0.7rem;
+      color: var(--foreground-muted);
+    }
+
+    /* Task Dependency Graph */
+    .task-graph-container {
+      background: var(--background-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .task-graph-canvas {
+      width: 100%;
+      height: 200px;
+      display: block;
+    }
+
+    /* Task Checklist */
+    .task-checklist {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .task-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--background-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      transition: all var(--duration-fast);
+    }
+
+    .task-item:hover {
+      border-color: var(--border);
+    }
+
+    .task-checkbox {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+
+    .task-checkbox:hover {
+      border-color: var(--primary);
+    }
+
+    .task-item.completed .task-checkbox {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .task-content {
+      flex: 1;
+    }
+
+    .task-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: var(--space-1);
+    }
+
+    .task-meta {
+      display: flex;
+      gap: var(--space-3);
+      font-size: 0.75rem;
+      color: var(--foreground-muted);
+    }
+
+    .task-estimate {
+      color: var(--ai);
+    }
+
+    .task-expand-btn {
+      width: 24px;
+      height: 24px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--foreground-muted);
+      transition: all var(--duration-fast);
+    }
+
+    .task-expand-btn:hover {
+      background: var(--background-muted);
+      color: var(--foreground);
+    }
+
+    /* Prompt Blocks */
+    .prompt-blocks {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .prompt-block {
+      border: 1px solid var(--ai-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .prompt-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      background: var(--ai-muted);
+      border-bottom: 1px solid var(--ai-border);
+    }
+
+    .prompt-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ai);
+    }
+
+    .prompt-copy-btn {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-1) var(--space-3);
+      background: var(--ai);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: background var(--duration-fast);
+    }
+
+    .prompt-copy-btn:hover {
+      background: var(--ai-hover);
+    }
+
+    .prompt-content {
+      padding: var(--space-4);
+      background: var(--background-subtle);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.6;
+      color: var(--foreground);
+      white-space: pre-wrap;
+      margin: 0;
+      overflow-x: auto;
+    }
+
+    /* Chat Section */
+    .chat-section {
+      background: var(--ai-muted);
+      border-color: var(--ai-border);
+    }
+
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .chat-messages {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .chat-message {
+      display: flex;
+      gap: var(--space-3);
+    }
+
+    .chat-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--ai);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .chat-content {
+      flex: 1;
+      padding: var(--space-3) var(--space-4);
+      background: var(--background);
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+
+    .chat-content ul {
+      margin: var(--space-2) 0 0 var(--space-4);
+    }
+
+    .chat-content li {
+      margin-bottom: var(--space-1);
+    }
+
+    .chat-input-container {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: var(--space-3) var(--space-4);
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      color: var(--foreground);
+    }
+
+    .chat-input:focus {
+      outline: none;
+      border-color: var(--ai);
+    }
+
+    .chat-send-btn {
+      width: 40px;
+      height: 40px;
+      background: var(--ai);
+      border: none;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      cursor: pointer;
+      transition: background var(--duration-fast);
+    }
+
+    .chat-send-btn:hover {
+      background: var(--ai-hover);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar - Same structure as note-canvas -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+        </div>
+        <div class="workspace-dropdown">
+          <div class="workspace-trigger">
+            <span class="workspace-name">Pilot Space</span>
+            <span class="workspace-stats">12 notes • 3 members</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-search">
+        <input type="text" class="search-input" placeholder="Search... ⌘K">
+      </div>
+
+      <div class="sidebar-content">
+        <div class="nav-section">
+          <div class="nav-section-title">Recent Notes</div>
+          <a href="note-canvas-v4-enhanced.html" class="nav-item">
+            <span class="note-indicator teal"></span>
+            <span>Auth Refactor</span>
+            <span class="nav-item-badge">3</span>
+          </a>
+          <div class="nav-item">
+            <span class="note-indicator blue"></span>
+            <span>API Design v2</span>
+          </div>
+          <div class="nav-item">
+            <span class="note-indicator orange"></span>
+            <span>Sprint Goals Q1</span>
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Projects</div>
+          <div class="nav-item">
+            <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Platform</span>
+          </div>
+          <div class="nav-item active">
+            <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>Issues</span>
+            <span class="nav-item-badge">5</span>
+          </div>
+          <div class="nav-item">
+            <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+            </svg>
+            <span>Mobile App</span>
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Tags</div>
+          <div class="nav-item">
+            <span class="note-indicator red"></span>
+            <span>bug</span>
+            <span class="nav-item-badge">3</span>
+          </div>
+          <div class="nav-item">
+            <span class="note-indicator blue"></span>
+            <span>auth</span>
+            <span class="nav-item-badge">2</span>
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Help</div>
+          <div class="nav-item">
+            <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Start Tour</span>
+          </div>
+          <div class="nav-item">
+            <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            <span>Feature Demo</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div class="notifications-section">
+        <div class="notifications-header">
+          <div class="notifications-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            Notifications
+          </div>
+          <span class="notifications-badge">3 new</span>
+        </div>
+        <div class="notification-item">
+          <div class="notification-priority urgent">URGENT</div>
+          <div class="notification-text">PR #142 needs your review - blocking release</div>
+          <div class="notification-time">2 min ago</div>
+        </div>
+        <div class="notification-item">
+          <div class="notification-priority important">IMPORTANT</div>
+          <div class="notification-text">@marcus mentioned you in Auth Refactor</div>
+          <div class="notification-time">15 min ago</div>
+        </div>
+        <div class="notification-item">
+          <div class="notification-priority fyi">FYI</div>
+          <div class="notification-text">Sprint 12 started</div>
+          <div class="notification-time">1 hour ago</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Header -->
+      <header class="top-header">
+        <nav class="breadcrumb">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <a href="#">Issues</a>
+          <span class="breadcrumb-separator">/</span>
+          <span class="breadcrumb-current">PS-201</span>
+        </nav>
+
+        <div class="header-actions">
+          <button class="btn-icon" title="Share">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          </button>
+          <button class="btn-icon" title="Help">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </button>
+          <button class="btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Edit Issue
+          </button>
+        </div>
+      </header>
+
+      <div class="content-layout">
+        <!-- Document Area -->
+        <div class="document-area">
+          <div class="document-container">
+            <!-- Document Header -->
+            <h1 class="document-title">Simplify password reset flow</h1>
+
+            <div class="document-meta">
+              <div class="meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                </svg>
+                Jan 15, 2026
+              </div>
+              <div class="meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                Marcus Chen
+              </div>
+              <span class="issue-badge todo">To Do</span>
+              <div class="priority-badge">
+                <span class="priority-dot high"></span>
+                High Priority
+              </div>
+              <span class="you-ai-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                You + AI
+              </span>
+            </div>
+
+            <!-- Content Tabs -->
+            <div class="content-tabs">
+              <button class="content-tab active" data-tab="description">Description</button>
+              <button class="content-tab" data-tab="related">Related</button>
+              <button class="content-tab" data-tab="graph">Graph</button>
+              <button class="content-tab" data-tab="activity">Activity</button>
+              <button class="content-tab ai-context-tab" data-tab="ai-context">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                AI Context
+              </button>
+            </div>
+
+            <!-- Description Tab -->
+            <div class="tab-content active" id="tab-description">
+              <div class="document-section">
+                <h2 class="section-title">Problem</h2>
+                <div class="section-content">
+                  <p>Users are abandoning the password reset flow due to complexity. Current flow requires 5 steps and users are dropping off at the password confirmation screen.</p>
+                </div>
+              </div>
+
+              <div class="document-section">
+                <h2 class="section-title">Impact</h2>
+                <div class="section-content">
+                  <ul>
+                    <li>~30% abandonment rate at password reset</li>
+                    <li>Increased support tickets about account access</li>
+                    <li>User frustration leading to churn</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="document-section">
+                <h2 class="section-title">Proposed Solution</h2>
+                <div class="section-content">
+                  <p>Reduce the flow to 2-3 steps with clearer guidance:</p>
+                  <ol>
+                    <li>Enter email → receive magic link or code</li>
+                    <li>Click link → auto-login with prompt to set new password</li>
+                    <li>Optional: Set new password (or keep using magic links)</li>
+                  </ol>
+                </div>
+              </div>
+
+              <div class="document-section">
+                <h2 class="section-title">Acceptance Criteria</h2>
+                <div class="section-content">
+                  <ul>
+                    <li>Password reset completes in 3 steps or fewer</li>
+                    <li>Clear progress indicator throughout flow</li>
+                    <li>Error messages are actionable (not just "Something went wrong")</li>
+                    <li>Magic link expires after 15 minutes</li>
+                    <li>User can resend link without starting over</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Related Tab -->
+            <div class="tab-content" id="tab-related">
+              <div class="issue-box">
+                <div class="issue-box-header">
+                  <h3 class="issue-box-title">Related Issues</h3>
+                </div>
+                <div class="related-issues-list">
+                  <div class="related-issue-item">
+                    <span class="relation-type blocks">Blocks</span>
+                    <span class="issue-chip">
+                      <svg class="issue-chip-icon feature" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                      </svg>
+                      PS-202 Handle social login errors
+                    </span>
+                    <span class="issue-status-pill in-progress">In Progress</span>
+                  </div>
+                  <div class="related-issue-item">
+                    <span class="relation-type relates">Relates</span>
+                    <span class="issue-chip">
+                      <svg class="issue-chip-icon task" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                      </svg>
+                      PS-203 Extend session timeout
+                    </span>
+                    <span class="issue-status-pill done">Done</span>
+                  </div>
+                  <div class="related-issue-item">
+                    <span class="relation-type duplicate">Duplicate</span>
+                    <span class="issue-chip">
+                      <svg class="issue-chip-icon bug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      PS-145 Password reset UX
+                    </span>
+                    <span class="issue-status-pill closed">Closed</span>
+                  </div>
+                  <div class="related-issue-item">
+                    <span class="relation-type blocked-by">Blocked By</span>
+                    <span class="issue-chip">
+                      <svg class="issue-chip-icon task" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+                        <line x1="7" y1="2" x2="7" y2="22"/>
+                        <line x1="17" y1="2" x2="17" y2="22"/>
+                        <line x1="2" y1="12" x2="22" y2="12"/>
+                      </svg>
+                      PS-198 Email rate limiting
+                    </span>
+                    <span class="issue-status-pill in-progress">In Progress</span>
+                  </div>
+                </div>
+
+                <div class="ai-thread">
+                  <div class="ai-thread-header">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 6v6l4 2"/>
+                    </svg>
+                    AI detected 4 related issues based on content analysis
+                  </div>
+                </div>
+              </div>
+
+              <div class="issue-box" style="margin-top: var(--space-6);">
+                <div class="issue-box-header">
+                  <h3 class="issue-box-title">Related Documents</h3>
+                </div>
+                <div class="related-issues-list">
+                  <div class="related-issue-item">
+                    <span class="note-indicator teal"></span>
+                    <span>Auth Refactor</span>
+                    <span class="issue-status-pill" style="background: var(--primary-muted); color: var(--primary);">Note</span>
+                  </div>
+                  <div class="related-issue-item">
+                    <span class="note-indicator orange"></span>
+                    <span>ADR-0015: Error Handling in Auth Flows</span>
+                    <span class="issue-status-pill" style="background: #FEF3E8; color: var(--warning);">ADR</span>
+                  </div>
+                  <div class="related-issue-item">
+                    <span class="note-indicator blue"></span>
+                    <span>Auth Module Spec v2</span>
+                    <span class="issue-status-pill" style="background: var(--ai-muted); color: var(--ai);">Spec</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Graph Tab -->
+            <div class="tab-content" id="tab-graph">
+              <div class="graph-container">
+                <canvas id="full-graph-canvas" class="graph-canvas"></canvas>
+                <div class="graph-legend">
+                  <span class="legend-item"><span class="legend-dot current"></span> Current</span>
+                  <span class="legend-item"><span class="legend-dot issue"></span> Issue</span>
+                  <span class="legend-item"><span class="legend-dot document"></span> Document</span>
+                  <span class="legend-item"><span class="legend-dot adr"></span> ADR</span>
+                </div>
+              </div>
+              <div class="ai-insight">
+                <svg class="ai-insight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                <p class="ai-insight-text">
+                  <strong>AI Pattern Detection:</strong> This issue is part of the "Auth UX" cluster with 5 connected issues and 3 related documents. PS-202 and PS-203 share common themes around session management.
+                </p>
+              </div>
+            </div>
+
+            <!-- Activity Tab -->
+            <div class="tab-content" id="tab-activity">
+              <div class="activity-timeline">
+                <div class="activity-item">
+                  <div class="activity-avatar">MC</div>
+                  <div class="activity-content">
+                    <div class="activity-text"><strong>Marcus Chen</strong> changed status to <span class="highlight">In Progress</span></div>
+                    <div class="activity-time">2 hours ago</div>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <div class="activity-avatar ai">AI</div>
+                  <div class="activity-content">
+                    <div class="activity-text"><strong>AI Assistant</strong> linked document <span class="highlight">ADR-0015</span></div>
+                    <div class="activity-time">3 hours ago</div>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <div class="activity-avatar ai">AI</div>
+                  <div class="activity-content">
+                    <div class="activity-text"><strong>AI Assistant</strong> detected relationship with <span class="highlight">PS-202</span></div>
+                    <div class="activity-time">3 hours ago</div>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <div class="activity-avatar">SK</div>
+                  <div class="activity-content">
+                    <div class="activity-text"><strong>Sarah Kim</strong> extracted issue from note <span class="highlight">Auth Refactor</span></div>
+                    <div class="activity-time">Yesterday</div>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <div class="activity-avatar ai">AI</div>
+                  <div class="activity-content">
+                    <div class="activity-text"><strong>AI Assistant</strong> suggested labels: <span class="highlight">bug</span>, <span class="highlight">authentication</span>, <span class="highlight">ux</span></div>
+                    <div class="activity-time">Yesterday</div>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <div class="activity-avatar">SK</div>
+                  <div class="activity-content">
+                    <div class="activity-text"><strong>Sarah Kim</strong> created this issue</div>
+                    <div class="activity-time">Jan 15, 2026</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Context Tab -->
+            <div class="tab-content" id="tab-ai-context">
+              <!-- Header with Actions -->
+              <div class="ai-context-header">
+                <div class="ai-context-title">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6v6l4 2"/>
+                  </svg>
+                  <span>Full Context for AI Implementation</span>
+                </div>
+                <div class="ai-context-actions">
+                  <button class="context-action-btn" id="copy-all-context">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    Copy All Context
+                  </button>
+                  <button class="context-action-btn secondary" id="regenerate-context">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 2v6h-6"/>
+                      <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                      <path d="M3 22v-6h6"/>
+                      <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                    </svg>
+                    Regenerate
+                  </button>
+                </div>
+              </div>
+
+              <!-- Context Summary -->
+              <div class="context-summary-card">
+                <div class="context-summary-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <line x1="10" y1="9" x2="8" y2="9"/>
+                  </svg>
+                </div>
+                <div class="context-summary-content">
+                  <h3>PS-201: Simplify Password Reset Flow</h3>
+                  <p>Reduce password reset from 5 steps to 2-3 using magic links. Target 30% improvement in completion rate. Part of Auth UX cluster with 4 related issues.</p>
+                  <div class="context-summary-stats">
+                    <span class="stat-item"><strong>4</strong> Related Issues</span>
+                    <span class="stat-item"><strong>3</strong> Documents</span>
+                    <span class="stat-item"><strong>8</strong> Files</span>
+                    <span class="stat-item"><strong>5</strong> Tasks</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Related Context Section -->
+              <div class="context-section">
+                <div class="context-section-header">
+                  <h3 class="context-section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                    Related Context
+                  </h3>
+                  <button class="context-copy-btn" data-section="related">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Issues Context -->
+                <div class="context-subsection">
+                  <h4 class="context-subsection-title">Related Issues</h4>
+                  <div class="context-items">
+                    <div class="context-item">
+                      <div class="context-item-header">
+                        <span class="context-item-badge blocks">BLOCKS</span>
+                        <span class="context-item-id">PS-202</span>
+                        <span class="context-item-status in-progress">In Progress</span>
+                      </div>
+                      <div class="context-item-title">Handle social login errors gracefully</div>
+                      <div class="context-item-summary">OAuth error handling with retry logic for Google/GitHub sign-in failures.</div>
+                    </div>
+                    <div class="context-item">
+                      <div class="context-item-header">
+                        <span class="context-item-badge relates">RELATES</span>
+                        <span class="context-item-id">PS-203</span>
+                        <span class="context-item-status done">Done</span>
+                      </div>
+                      <div class="context-item-title">Extend session timeout settings</div>
+                      <div class="context-item-summary">Configurable session duration with remember-me option.</div>
+                    </div>
+                    <div class="context-item">
+                      <div class="context-item-header">
+                        <span class="context-item-badge blocked-by">BLOCKED BY</span>
+                        <span class="context-item-id">PS-198</span>
+                        <span class="context-item-status in-progress">In Progress</span>
+                      </div>
+                      <div class="context-item-title">Email rate limiting</div>
+                      <div class="context-item-summary">Rate limiting for password reset emails to prevent abuse.</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Documents Context -->
+                <div class="context-subsection">
+                  <h4 class="context-subsection-title">Related Documents</h4>
+                  <div class="context-items">
+                    <div class="context-item doc">
+                      <div class="context-item-header">
+                        <span class="context-item-badge doc">NOTE</span>
+                        <span class="context-item-title">Auth Refactor</span>
+                      </div>
+                      <div class="context-item-summary">Planning notes for authentication system overhaul. Covers magic links, OAuth, session management.</div>
+                    </div>
+                    <div class="context-item doc">
+                      <div class="context-item-header">
+                        <span class="context-item-badge adr">ADR</span>
+                        <span class="context-item-title">ADR-0015: Error Handling in Auth Flows</span>
+                      </div>
+                      <div class="context-item-summary">Decision record for standardizing error messages and retry behavior in authentication.</div>
+                    </div>
+                    <div class="context-item doc">
+                      <div class="context-item-header">
+                        <span class="context-item-badge spec">SPEC</span>
+                        <span class="context-item-title">Auth Module Spec v2</span>
+                      </div>
+                      <div class="context-item-summary">Technical specification for the authentication module including API contracts.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Codebase Context Section -->
+              <div class="context-section">
+                <div class="context-section-header">
+                  <h3 class="context-section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="16 18 22 12 16 6"/>
+                      <polyline points="8 6 2 12 8 18"/>
+                    </svg>
+                    Codebase Context
+                  </h3>
+                  <button class="context-copy-btn" data-section="codebase">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- File Tree -->
+                <div class="context-subsection">
+                  <h4 class="context-subsection-title">Relevant Files</h4>
+                  <div class="file-tree">
+                    <div class="file-tree-item folder expanded">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                      </svg>
+                      <span>src/auth/</span>
+                    </div>
+                    <div class="file-tree-item file indent-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <span>password_reset.py</span>
+                      <span class="file-badge modified">Modified</span>
+                    </div>
+                    <div class="file-tree-item file indent-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <span>magic_link.py</span>
+                      <span class="file-badge new">New</span>
+                    </div>
+                    <div class="file-tree-item file indent-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <span>email_service.py</span>
+                      <span class="file-badge">Reference</span>
+                    </div>
+                    <div class="file-tree-item folder expanded">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                      </svg>
+                      <span>src/components/auth/</span>
+                    </div>
+                    <div class="file-tree-item file indent-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <span>PasswordResetForm.tsx</span>
+                      <span class="file-badge modified">Modified</span>
+                    </div>
+                    <div class="file-tree-item file indent-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <span>MagicLinkFlow.tsx</span>
+                      <span class="file-badge new">New</span>
+                    </div>
+                    <div class="file-tree-item folder">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                      </svg>
+                      <span>tests/auth/</span>
+                    </div>
+                    <div class="file-tree-item file indent-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <span>test_password_reset.py</span>
+                      <span class="file-badge modified">Modified</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Code Snippets -->
+                <div class="context-subsection">
+                  <h4 class="context-subsection-title">Key Code Sections</h4>
+                  <div class="code-snippet">
+                    <div class="code-snippet-header">
+                      <span class="code-snippet-file">src/auth/password_reset.py:45-62</span>
+                      <button class="code-copy-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <pre class="code-snippet-content"><code>async def initiate_password_reset(email: str) -> ResetToken:
+    """Current implementation - needs simplification"""
+    user = await get_user_by_email(email)
+    if not user:
+        raise UserNotFoundError(email)
+
+    # Generate 6-digit code (to be replaced with magic link)
+    code = generate_verification_code()
+    token = await create_reset_token(user.id, code)
+
+    await send_reset_email(user.email, code)
+    return token</code></pre>
+                  </div>
+                  <div class="code-snippet">
+                    <div class="code-snippet-header">
+                      <span class="code-snippet-file">src/components/auth/PasswordResetForm.tsx:28-45</span>
+                      <button class="code-copy-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <pre class="code-snippet-content"><code>const PasswordResetForm: React.FC = () => {
+  const [step, setStep] = useState(1); // 5 steps currently
+  const [error, setError] = useState<string | null>(null);
+
+  // TODO: Simplify to 2-3 steps with magic link
+  const handleSubmit = async (data: FormData) => {
+    try {
+      await api.post('/auth/reset', data);
+      setStep(step + 1);
+    } catch (err) {
+      setError('Something went wrong'); // Needs better message
+    }
+  };
+  // ...
+};</code></pre>
+                  </div>
+                </div>
+
+                <!-- Git References -->
+                <div class="context-subsection">
+                  <h4 class="context-subsection-title">Git References</h4>
+                  <div class="git-refs">
+                    <div class="git-ref-item">
+                      <div class="git-ref-icon pr">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="18" cy="18" r="3"/>
+                          <circle cx="6" cy="6" r="3"/>
+                          <path d="M13 6h3a2 2 0 0 1 2 2v7"/>
+                          <line x1="6" y1="9" x2="6" y2="21"/>
+                        </svg>
+                      </div>
+                      <div class="git-ref-content">
+                        <span class="git-ref-title">#142 - Add magic link authentication</span>
+                        <span class="git-ref-meta">Draft • Updated 2 days ago</span>
+                      </div>
+                    </div>
+                    <div class="git-ref-item">
+                      <div class="git-ref-icon commit">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="4"/>
+                          <line x1="1.05" y1="12" x2="7" y2="12"/>
+                          <line x1="17.01" y1="12" x2="22.96" y2="12"/>
+                        </svg>
+                      </div>
+                      <div class="git-ref-content">
+                        <span class="git-ref-title">feat(auth): initial password reset refactor</span>
+                        <span class="git-ref-meta">abc1234 • 3 days ago</span>
+                      </div>
+                    </div>
+                    <div class="git-ref-item">
+                      <div class="git-ref-icon branch">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <line x1="6" y1="3" x2="6" y2="15"/>
+                          <circle cx="18" cy="6" r="3"/>
+                          <circle cx="6" cy="18" r="3"/>
+                          <path d="M18 9a9 9 0 0 1-9 9"/>
+                        </svg>
+                      </div>
+                      <div class="git-ref-content">
+                        <span class="git-ref-title">feature/ps-201-password-reset</span>
+                        <span class="git-ref-meta">Active branch • 5 commits ahead</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- AI Tasks Section -->
+              <div class="context-section">
+                <div class="context-section-header">
+                  <h3 class="context-section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M9 11l3 3L22 4"/>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    AI Tasks
+                  </h3>
+                  <button class="context-copy-btn" data-section="tasks">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Task Dependency Graph -->
+                <div class="context-subsection">
+                  <h4 class="context-subsection-title">Task Dependencies</h4>
+                  <div class="task-graph-container">
+                    <canvas id="task-dependency-graph" class="task-graph-canvas"></canvas>
+                  </div>
+                </div>
+
+                <!-- Task Checklist -->
+                <div class="context-subsection">
+                  <h4 class="context-subsection-title">Implementation Checklist</h4>
+                  <div class="task-checklist">
+                    <div class="task-item" data-task="1">
+                      <div class="task-checkbox"></div>
+                      <div class="task-content">
+                        <div class="task-title">Create magic link service</div>
+                        <div class="task-meta">
+                          <span class="task-estimate">~2h</span>
+                          <span class="task-deps">No dependencies</span>
+                        </div>
+                      </div>
+                      <button class="task-expand-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="task-item" data-task="2">
+                      <div class="task-checkbox"></div>
+                      <div class="task-content">
+                        <div class="task-title">Update email templates</div>
+                        <div class="task-meta">
+                          <span class="task-estimate">~1h</span>
+                          <span class="task-deps">Depends on: Task 1</span>
+                        </div>
+                      </div>
+                      <button class="task-expand-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="task-item" data-task="3">
+                      <div class="task-checkbox"></div>
+                      <div class="task-content">
+                        <div class="task-title">Simplify frontend flow</div>
+                        <div class="task-meta">
+                          <span class="task-estimate">~3h</span>
+                          <span class="task-deps">Depends on: Task 1</span>
+                        </div>
+                      </div>
+                      <button class="task-expand-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="task-item" data-task="4">
+                      <div class="task-checkbox"></div>
+                      <div class="task-content">
+                        <div class="task-title">Add retry logic for email</div>
+                        <div class="task-meta">
+                          <span class="task-estimate">~1h</span>
+                          <span class="task-deps">Depends on: Task 2</span>
+                        </div>
+                      </div>
+                      <button class="task-expand-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="task-item" data-task="5">
+                      <div class="task-checkbox"></div>
+                      <div class="task-content">
+                        <div class="task-title">Write tests and documentation</div>
+                        <div class="task-meta">
+                          <span class="task-estimate">~2h</span>
+                          <span class="task-deps">Depends on: Tasks 1-4</span>
+                        </div>
+                      </div>
+                      <button class="task-expand-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Copyable Prompt Blocks -->
+                <div class="context-subsection">
+                  <h4 class="context-subsection-title">Ready-to-Use Prompts</h4>
+                  <div class="prompt-blocks">
+                    <div class="prompt-block">
+                      <div class="prompt-header">
+                        <span class="prompt-title">Task 1: Create Magic Link Service</span>
+                        <button class="prompt-copy-btn">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                          </svg>
+                          Copy
+                        </button>
+                      </div>
+                      <pre class="prompt-content">Create a magic link authentication service in src/auth/magic_link.py:
+
+Requirements:
+- Generate secure, time-limited tokens (15 min expiry)
+- Store tokens in database with user_id reference
+- Validate tokens and auto-login user
+- Follow patterns from existing email_service.py
+
+Files to reference:
+- src/auth/password_reset.py (current implementation)
+- src/auth/email_service.py (email sending patterns)
+
+Acceptance criteria:
+- Token generation is cryptographically secure
+- Tokens expire after 15 minutes
+- Used tokens are invalidated immediately
+- Rate limiting: max 3 requests per email per hour</pre>
+                    </div>
+                    <div class="prompt-block">
+                      <div class="prompt-header">
+                        <span class="prompt-title">Task 3: Simplify Frontend Flow</span>
+                        <button class="prompt-copy-btn">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                          </svg>
+                          Copy
+                        </button>
+                      </div>
+                      <pre class="prompt-content">Refactor PasswordResetForm.tsx to use magic links:
+
+Current: 5-step flow with verification codes
+Target: 2-3 step flow with magic links
+
+Steps:
+1. Email input → Submit
+2. "Check your email" confirmation
+3. (Optional) Set new password after clicking link
+
+Requirements:
+- Clear progress indicator
+- Actionable error messages (not "Something went wrong")
+- Resend link option without restarting
+- Mobile-friendly design
+
+Files to modify:
+- src/components/auth/PasswordResetForm.tsx
+- Create: src/components/auth/MagicLinkFlow.tsx</pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Chat Enhance Section -->
+              <div class="context-section chat-section">
+                <div class="context-section-header">
+                  <h3 class="context-section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    Enhance Context
+                  </h3>
+                </div>
+                <div class="chat-container">
+                  <div class="chat-messages" id="chat-messages">
+                    <div class="chat-message ai">
+                      <div class="chat-avatar">AI</div>
+                      <div class="chat-content">
+                        I've compiled the context for PS-201. Would you like me to add more details about any specific area? I can:
+                        <ul>
+                          <li>Add more code snippets from related files</li>
+                          <li>Expand on technical requirements</li>
+                          <li>Include API contract details</li>
+                          <li>Add testing strategy recommendations</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="chat-input-container">
+                    <input type="text" class="chat-input" placeholder="Ask to enhance context..." id="chat-input">
+                    <button class="chat-send-btn" id="chat-send">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Panel - Pilot Suggestions Style -->
+        <aside class="right-panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+              Pilot Suggestions
+            </span>
+          </div>
+
+          <div class="panel-content">
+            <div class="panel-section">
+              <div class="panel-section-header">
+                <svg class="panel-section-icon recommend" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="12" r="10"/>
+                </svg>
+                <span class="panel-section-title">Recommend</span>
+              </div>
+              <div class="panel-section-content">
+                Consider implementing retry logic for the magic link. Users often mistype emails on mobile devices.
+              </div>
+              <button class="panel-action">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Apply
+              </button>
+            </div>
+
+            <div class="panel-section">
+              <div class="panel-section-header">
+                <svg class="panel-section-icon related" viewBox="0 0 24 24" fill="currentColor">
+                  <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                </svg>
+                <span class="panel-section-title">Related</span>
+              </div>
+              <div class="panel-section-content">
+                Similar issues discussed in 'API Design v2'. Link for context?
+              </div>
+            </div>
+
+            <div class="panel-section">
+              <div class="panel-section-header">
+                <svg class="panel-section-icon default" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <span class="panel-section-title">Default</span>
+              </div>
+              <div class="panel-section-content">
+                For enterprise, SAML/OIDC might be better than magic links. Many require SSO compliance.
+              </div>
+            </div>
+          </div>
+
+          <!-- Properties -->
+          <div class="properties-section">
+            <div class="property-row">
+              <span class="property-label">Status</span>
+              <span class="property-value">To Do</span>
+            </div>
+            <div class="property-row">
+              <span class="property-label">Priority</span>
+              <span class="property-value">High</span>
+            </div>
+            <div class="property-row">
+              <span class="property-label">Assignee</span>
+              <span class="property-value">Marcus Chen</span>
+            </div>
+            <div class="property-row">
+              <span class="property-label">Cycle</span>
+              <span class="property-value">Sprint 24</span>
+            </div>
+            <div class="property-row">
+              <span class="property-label">Module</span>
+              <span class="property-value">Authentication</span>
+            </div>
+            <div class="property-row">
+              <span class="property-label">Due Date</span>
+              <span class="property-value">Jan 31, 2026</span>
+            </div>
+            <div class="property-row">
+              <span class="property-label">Estimate</span>
+              <span class="property-value">5 points</span>
+            </div>
+            <div class="property-row">
+              <span class="property-label">Labels</span>
+              <div class="label-chips">
+                <span class="label-chip bug">bug</span>
+                <span class="label-chip auth">auth</span>
+                <span class="label-chip ux">ux</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- Bottom Input -->
+      <div class="bottom-input">
+        <div class="ask-pilot">
+          <svg class="ask-pilot-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          <span class="ask-pilot-text">Ask Pilot</span>
+          <span class="ask-pilot-indicator"></span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.content-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+        tab.classList.add('active');
+        const tabId = tab.dataset.tab;
+        document.getElementById('tab-' + tabId).classList.add('active');
+
+        if (tabId === 'graph') {
+          setTimeout(drawFullGraph, 100);
+        }
+        if (tabId === 'ai-context') {
+          setTimeout(drawTaskDependencyGraph, 100);
+        }
+      });
+    });
+
+    // Task Dependency Graph
+    function drawTaskDependencyGraph() {
+      const canvas = document.getElementById('task-dependency-graph');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      canvas.width = canvas.offsetWidth * 2;
+      canvas.height = canvas.offsetHeight * 2;
+      ctx.scale(2, 2);
+
+      const width = canvas.offsetWidth;
+      const height = canvas.offsetHeight;
+
+      // Task nodes
+      const tasks = [
+        { id: 1, label: 'Task 1', desc: 'Magic Link Service', x: 80, y: height/2 },
+        { id: 2, label: 'Task 2', desc: 'Email Templates', x: 220, y: height/2 - 50 },
+        { id: 3, label: 'Task 3', desc: 'Frontend Flow', x: 220, y: height/2 + 50 },
+        { id: 4, label: 'Task 4', desc: 'Retry Logic', x: 360, y: height/2 - 50 },
+        { id: 5, label: 'Task 5', desc: 'Tests & Docs', x: 500, y: height/2 },
+      ];
+
+      const deps = [
+        { from: 1, to: 2 },
+        { from: 1, to: 3 },
+        { from: 2, to: 4 },
+        { from: 2, to: 5 },
+        { from: 3, to: 5 },
+        { from: 4, to: 5 },
+      ];
+
+      // Background
+      ctx.fillStyle = '#F8F7F5';
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw connections
+      deps.forEach(dep => {
+        const from = tasks.find(t => t.id === dep.from);
+        const to = tasks.find(t => t.id === dep.to);
+        ctx.beginPath();
+        ctx.moveTo(from.x + 30, from.y);
+        ctx.lineTo(to.x - 30, to.y);
+        ctx.strokeStyle = '#B8CCDB';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Arrow head
+        const angle = Math.atan2(to.y - from.y, to.x - from.x);
+        const arrowX = to.x - 30;
+        const arrowY = to.y;
+        ctx.beginPath();
+        ctx.moveTo(arrowX, arrowY);
+        ctx.lineTo(arrowX - 8 * Math.cos(angle - Math.PI/6), arrowY - 8 * Math.sin(angle - Math.PI/6));
+        ctx.lineTo(arrowX - 8 * Math.cos(angle + Math.PI/6), arrowY - 8 * Math.sin(angle + Math.PI/6));
+        ctx.closePath();
+        ctx.fillStyle = '#B8CCDB';
+        ctx.fill();
+      });
+
+      // Draw nodes
+      tasks.forEach(task => {
+        // Node circle
+        ctx.beginPath();
+        ctx.arc(task.x, task.y, 24, 0, Math.PI * 2);
+        ctx.fillStyle = task.id === 1 ? '#6B8FAD' : '#29A386';
+        ctx.fill();
+
+        // Task number
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = "600 12px 'DM Sans', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(task.id, task.x, task.y);
+
+        // Description
+        ctx.fillStyle = '#1A1918';
+        ctx.font = "500 10px 'DM Sans', sans-serif";
+        ctx.fillText(task.desc, task.x, task.y + 38);
+      });
+    }
+
+    // Copy functionality
+    function showCopyFeedback(btn, type) {
+      btn.classList.add('copied');
+      if (type === 'small') {
+        btn.style.background = '#29A386';
+        btn.style.color = 'white';
+      }
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.style.background = '';
+        btn.style.color = '';
+      }, 1500);
+    }
+
+    // Copy All Context button
+    document.getElementById('copy-all-context')?.addEventListener('click', function() {
+      const contextText = generateFullContext();
+      navigator.clipboard.writeText(contextText).then(() => {
+        const originalText = this.textContent;
+        this.textContent = '✓ Copied!';
+        setTimeout(() => {
+          this.textContent = originalText;
+        }, 1500);
+      });
+    });
+
+    function generateFullContext() {
+      return `# PS-201: Simplify Password Reset Flow
+
+## Summary
+Reduce password reset from 5 steps to 2-3 using magic links. Target 30% improvement in completion rate.
+
+## Related Issues
+- PS-202 (BLOCKS): Handle social login errors gracefully - In Progress
+- PS-203 (RELATES): Extend session timeout settings - Done
+- PS-198 (BLOCKED BY): Email rate limiting - In Progress
+
+## Related Documents
+- Auth Refactor (Note): Planning notes for authentication system overhaul
+- ADR-0015: Error Handling in Auth Flows
+- Auth Module Spec v2: Technical specification for auth module
+
+## Relevant Files
+- src/auth/password_reset.py (Modified)
+- src/auth/magic_link.py (New)
+- src/auth/email_service.py (Reference)
+- src/components/auth/PasswordResetForm.tsx (Modified)
+- src/components/auth/MagicLinkFlow.tsx (New)
+- tests/auth/test_password_reset.py (Modified)
+
+## Implementation Tasks
+1. Create magic link service (~2h)
+2. Update email templates (~1h, depends on Task 1)
+3. Simplify frontend flow (~3h, depends on Task 1)
+4. Add retry logic for email (~1h, depends on Task 2)
+5. Write tests and documentation (~2h, depends on Tasks 1-4)
+
+## Acceptance Criteria
+- Password reset completes in 3 steps or fewer
+- Clear progress indicator throughout flow
+- Error messages are actionable
+- Magic link expires after 15 minutes
+- User can resend link without starting over`;
+    }
+
+    // Section copy buttons
+    document.querySelectorAll('.context-copy-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const section = this.dataset.section;
+        let text = '';
+        if (section === 'related') {
+          text = 'Related Issues:\n- PS-202: Handle social login errors\n- PS-203: Extend session timeout\n- PS-198: Email rate limiting';
+        } else if (section === 'codebase') {
+          text = 'Files: src/auth/password_reset.py, src/auth/magic_link.py, src/components/auth/PasswordResetForm.tsx';
+        } else if (section === 'tasks') {
+          text = 'Tasks:\n1. Create magic link service\n2. Update email templates\n3. Simplify frontend flow\n4. Add retry logic\n5. Write tests';
+        }
+        navigator.clipboard.writeText(text).then(() => {
+          showCopyFeedback(this, 'small');
+        });
+      });
+    });
+
+    // Prompt copy buttons
+    document.querySelectorAll('.prompt-copy-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const promptContent = this.closest('.prompt-block').querySelector('.prompt-content').textContent;
+        navigator.clipboard.writeText(promptContent).then(() => {
+          const originalText = this.textContent;
+          this.textContent = '✓ Copied!';
+          setTimeout(() => {
+            this.textContent = originalText;
+          }, 1500);
+        });
+      });
+    });
+
+    // Code snippet copy buttons
+    document.querySelectorAll('.code-copy-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const code = this.closest('.code-snippet').querySelector('code').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          showCopyFeedback(this, 'small');
+        });
+      });
+    });
+
+    // Task checkbox toggle
+    document.querySelectorAll('.task-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('click', function() {
+        this.closest('.task-item').classList.toggle('completed');
+      });
+    });
+
+    // Chat functionality
+    const chatInput = document.getElementById('chat-input');
+    const chatSend = document.getElementById('chat-send');
+    const chatMessages = document.getElementById('chat-messages');
+
+    function addChatMessage(content, isUser) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'chat-message ' + (isUser ? 'user' : 'ai');
+
+      const avatarDiv = document.createElement('div');
+      avatarDiv.className = 'chat-avatar';
+      avatarDiv.textContent = isUser ? 'You' : 'AI';
+
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'chat-content';
+      contentDiv.textContent = content;
+
+      messageDiv.appendChild(avatarDiv);
+      messageDiv.appendChild(contentDiv);
+      chatMessages?.appendChild(messageDiv);
+      chatMessages?.scrollTo(0, chatMessages.scrollHeight);
+    }
+
+    function handleChatSubmit() {
+      const message = chatInput?.value.trim();
+      if (!message) return;
+
+      addChatMessage(message, true);
+      chatInput.value = '';
+
+      // Simulate AI response
+      setTimeout(() => {
+        const responses = [
+          "I've added more details about the API contract for the magic link endpoint. The context now includes request/response schemas.",
+          "Good question! I've expanded the testing strategy section to include unit tests, integration tests, and E2E scenarios.",
+          "I've included the error handling patterns from ADR-0015 in the context. This should help ensure consistency.",
+          "Added code snippets from the email_service.py showing the rate limiting implementation that PS-198 is working on."
+        ];
+        const response = responses[Math.floor(Math.random() * responses.length)];
+        addChatMessage(response, false);
+      }, 1000);
+    }
+
+    chatSend?.addEventListener('click', handleChatSubmit);
+    chatInput?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleChatSubmit();
+    });
+
+    // Regenerate context button
+    document.getElementById('regenerate-context')?.addEventListener('click', function() {
+      this.textContent = 'Regenerating...';
+      setTimeout(() => {
+        this.textContent = 'Regenerate';
+      }, 2000);
+    });
+
+    // Force-directed graph
+    function drawFullGraph() {
+      const canvas = document.getElementById('full-graph-canvas');
+      const ctx = canvas.getContext('2d');
+
+      canvas.width = canvas.offsetWidth * 2;
+      canvas.height = canvas.offsetHeight * 2;
+      ctx.scale(2, 2);
+
+      const width = canvas.offsetWidth;
+      const height = canvas.offsetHeight;
+
+      const nodes = [
+        { id: 'PS-201', type: 'current', label: 'PS-201', x: width/2, y: height/2 },
+        { id: 'PS-202', type: 'issue', label: 'PS-202', x: 0, y: 0 },
+        { id: 'PS-203', type: 'issue', label: 'PS-203', x: 0, y: 0 },
+        { id: 'PS-145', type: 'issue', label: 'PS-145', x: 0, y: 0 },
+        { id: 'PS-198', type: 'issue', label: 'PS-198', x: 0, y: 0 },
+        { id: 'auth-refactor', type: 'document', label: 'Auth Refactor', x: 0, y: 0 },
+        { id: 'adr-0015', type: 'adr', label: 'ADR-0015', x: 0, y: 0 },
+        { id: 'auth-spec', type: 'document', label: 'Auth Spec', x: 0, y: 0 },
+      ];
+
+      const links = [
+        { source: 'PS-201', target: 'PS-202', type: 'blocks' },
+        { source: 'PS-201', target: 'PS-203', type: 'relates' },
+        { source: 'PS-201', target: 'PS-145', type: 'duplicate' },
+        { source: 'PS-198', target: 'PS-201', type: 'blocks' },
+        { source: 'PS-201', target: 'auth-refactor', type: 'doc' },
+        { source: 'PS-201', target: 'adr-0015', type: 'doc' },
+        { source: 'PS-201', target: 'auth-spec', type: 'doc' },
+      ];
+
+      // Initialize positions
+      nodes.forEach((node, i) => {
+        if (node.type !== 'current') {
+          const angle = (i / nodes.length) * Math.PI * 2;
+          const radius = 100 + Math.random() * 30;
+          node.x = width/2 + Math.cos(angle) * radius;
+          node.y = height/2 + Math.sin(angle) * radius;
+        }
+      });
+
+      // Force simulation
+      for (let iter = 0; iter < 80; iter++) {
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const dx = nodes[j].x - nodes[i].x;
+            const dy = nodes[j].y - nodes[i].y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const force = 2000 / (dist * dist);
+            if (nodes[i].type !== 'current') {
+              nodes[i].x -= (dx / dist) * force;
+              nodes[i].y -= (dy / dist) * force;
+            }
+            if (nodes[j].type !== 'current') {
+              nodes[j].x += (dx / dist) * force;
+              nodes[j].y += (dy / dist) * force;
+            }
+          }
+        }
+        links.forEach(link => {
+          const source = nodes.find(n => n.id === link.source);
+          const target = nodes.find(n => n.id === link.target);
+          const dx = target.x - source.x;
+          const dy = target.y - source.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const force = (dist - 90) * 0.02;
+          if (source.type !== 'current') {
+            source.x += (dx / dist) * force;
+            source.y += (dy / dist) * force;
+          }
+          if (target.type !== 'current') {
+            target.x -= (dx / dist) * force;
+            target.y -= (dy / dist) * force;
+          }
+        });
+        nodes.forEach(node => {
+          if (node.type !== 'current') {
+            node.x = Math.max(50, Math.min(width - 50, node.x));
+            node.y = Math.max(50, Math.min(height - 50, node.y));
+          }
+        });
+      }
+
+      // Draw
+      ctx.fillStyle = '#FDFCFA';
+      ctx.fillRect(0, 0, width, height);
+
+      // Links
+      links.forEach(link => {
+        const source = nodes.find(n => n.id === link.source);
+        const target = nodes.find(n => n.id === link.target);
+        ctx.beginPath();
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+        if (link.type === 'blocks') {
+          ctx.strokeStyle = '#D9534F';
+          ctx.setLineDash([4, 4]);
+        } else if (link.type === 'doc') {
+          ctx.strokeStyle = '#29A386';
+          ctx.setLineDash([]);
+        } else {
+          ctx.strokeStyle = '#6B8FAD';
+          ctx.setLineDash([]);
+        }
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // Nodes
+      nodes.forEach(node => {
+        ctx.beginPath();
+        let radius = 18;
+        let fillColor = '#9C9590';
+        if (node.type === 'current') {
+          radius = 24;
+          fillColor = '#6B8FAD';
+          ctx.shadowColor = '#6B8FAD';
+          ctx.shadowBlur = 12;
+        } else if (node.type === 'issue') {
+          fillColor = '#D9534F';
+        } else if (node.type === 'document') {
+          fillColor = '#29A386';
+        } else if (node.type === 'adr') {
+          fillColor = '#D9853F';
+        }
+        ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#1A1918';
+        ctx.font = "500 10px 'DM Sans', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.fillText(node.label, node.x, node.y + radius + 12);
+      });
+    }
+  </script>
+</body>
+</html>

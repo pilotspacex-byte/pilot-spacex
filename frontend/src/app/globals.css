@@ -1,0 +1,1098 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* =============================================================================
+   PILOT SPACE DESIGN TOKENS v2.0
+   Direction: Warm, Capable, Collaborative | Editorial Quality
+   ============================================================================= */
+
+@theme inline {
+  /* Color mappings */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-muted: var(--primary-muted);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Background variants */
+  --color-background-subtle: var(--background-subtle);
+  --color-background-muted: var(--background-muted);
+
+  /* AI Partner colors */
+  --color-ai: var(--ai);
+  --color-ai-foreground: var(--ai-foreground);
+  --color-ai-muted: var(--ai-muted);
+  --color-ai-border: var(--ai-border);
+  --color-ai-hover: var(--ai-hover);
+
+  /* Issue state colors */
+  --color-state-backlog: var(--state-backlog);
+  --color-state-todo: var(--state-todo);
+  --color-state-in-progress: var(--state-in-progress);
+  --color-state-in-review: var(--state-in-review);
+  --color-state-done: var(--state-done);
+  --color-state-cancelled: var(--state-cancelled);
+
+  /* Priority colors */
+  --color-priority-urgent: var(--priority-urgent);
+  --color-priority-high: var(--priority-high);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-low: var(--priority-low);
+  --color-priority-none: var(--priority-none);
+
+  /* Sidebar */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Typography - Pilot Space v4 fonts */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-sans: var(--font-dm-sans), var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), var(--font-geist-mono), 'SF Mono', monospace;
+
+  /* Border radius (Apple squircle style) */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-3xl: 2rem;
+  --radius-full: 9999px;
+
+  /* Animation easings */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Animation durations */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+}
+
+/* =============================================================================
+   LIGHT THEME (Default) - Warm Editorial (Prototype v4)
+   ============================================================================= */
+:root {
+  /* Base - Warm off-white (v4 exact values) */
+  --background: #fdfcfa;
+  --background-subtle: #f8f7f5;
+  --background-muted: #f3f2ef;
+  --foreground: #1a1918;
+  --foreground-muted: #6b6966;
+
+  /* Card surfaces */
+  --card: #fdfcfa;
+  --card-foreground: #1a1918;
+
+  /* Popover */
+  --popover: #fdfcfa;
+  --popover-foreground: #1a1918;
+
+  /* Primary - Teal Green (v4 exact values) */
+  --primary: #29a386;
+  --primary-hover: #238f75;
+  --primary-muted: #e8f5f1;
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #f3f2ef;
+  --secondary-foreground: #1a1918;
+
+  /* Muted */
+  --muted: #f3f2ef;
+  --muted-foreground: #6b6966;
+
+  /* Accent */
+  --accent: #f3f2ef;
+  --accent-foreground: #1a1918;
+
+  /* Destructive - Warm red */
+  --destructive: #d9534f;
+  --destructive-foreground: #ffffff;
+
+  /* Warning */
+  --warning: #d9853f;
+
+  /* Borders - Warm (v4 exact values) */
+  --border: #e8e6e3;
+  --border-subtle: #f0eeeb;
+  --input: #e8e6e3;
+  --ring: #29a386;
+
+  /* AI Partner - Dusty Blue (v4 exact values) */
+  --ai: #6b8fad;
+  --ai-hover: #5a7d9b;
+  --ai-muted: #eef3f7;
+  --ai-border: #b8ccdb;
+  --ai-foreground: #ffffff;
+
+  /* Issue States (v4 exact values) */
+  --state-backlog: #9c9590;
+  --state-todo: #5b8fc9;
+  --state-in-progress: #d9853f;
+  --state-in-review: #9b7bc9;
+  --state-done: #29a386;
+  --state-cancelled: #d9534f;
+
+  /* Priority */
+  --priority-urgent: #d9534f;
+  --priority-high: #d9853f;
+  --priority-medium: hsl(45 70% 48%);
+  --priority-low: #6b8fad;
+  --priority-none: #9c9590;
+
+  /* Sidebar */
+  --sidebar: #f8f7f5;
+  --sidebar-foreground: #1a1918;
+  --sidebar-primary: #29a386;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3f2ef;
+  --sidebar-accent-foreground: #1a1918;
+  --sidebar-border: #e8e6e3;
+  --sidebar-ring: #29a386;
+
+  /* Layout */
+  --header-height: 56px;
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 60px;
+  --content-max-width: 1200px;
+}
+
+/* =============================================================================
+   DARK THEME - Soft Dark (v4 aligned)
+   ============================================================================= */
+.dark {
+  /* Base - Soft dark */
+  --background: #1a1918;
+  --background-subtle: #232220;
+  --background-muted: #2d2c2a;
+  --foreground: #edeceb;
+  --foreground-muted: #9c9590;
+
+  /* Card surfaces */
+  --card: #232220;
+  --card-foreground: #edeceb;
+
+  /* Popover */
+  --popover: #232220;
+  --popover-foreground: #edeceb;
+
+  /* Primary */
+  --primary: #3db896;
+  --primary-hover: #29a386;
+  --primary-muted: #1f3d35;
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #2d2c2a;
+  --secondary-foreground: #edeceb;
+
+  /* Muted */
+  --muted: #2d2c2a;
+  --muted-foreground: #9c9590;
+
+  /* Accent */
+  --accent: #2d2c2a;
+  --accent-foreground: #edeceb;
+
+  /* Destructive */
+  --destructive: #e5605b;
+  --destructive-foreground: #ffffff;
+
+  /* Warning */
+  --warning: #e5955b;
+
+  /* Borders */
+  --border: #3d3c3a;
+  --border-subtle: #333230;
+  --input: #3d3c3a;
+  --ring: #3db896;
+
+  /* AI Partner */
+  --ai: #7da3c1;
+  --ai-hover: #6b8fad;
+  --ai-muted: #1f2d38;
+  --ai-border: #4a6b85;
+  --ai-foreground: #ffffff;
+
+  /* Issue States */
+  --state-backlog: #7a7570;
+  --state-todo: #5b8fc9;
+  --state-in-progress: #e5955b;
+  --state-in-review: #a98bd9;
+  --state-done: #3db896;
+  --state-cancelled: #e5605b;
+
+  /* Priority */
+  --priority-urgent: #e5605b;
+  --priority-high: #e5955b;
+  --priority-medium: hsl(45 65% 45%);
+  --priority-low: #7da3c1;
+  --priority-none: #7a7570;
+
+  /* Sidebar */
+  --sidebar: #151413;
+  --sidebar-foreground: #edeceb;
+  --sidebar-primary: #3db896;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2d2c2a;
+  --sidebar-accent-foreground: #edeceb;
+  --sidebar-border: #3d3c3a;
+  --sidebar-ring: #3db896;
+}
+
+/* =============================================================================
+   BASE STYLES
+   ============================================================================= */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+}
+
+/* =============================================================================
+   CUSTOM CLASSES (Not using @layer utilities for Tailwind v4 compatibility)
+   ============================================================================= */
+
+/* Warm Shadows */
+.shadow-warm-sm {
+  box-shadow:
+    0 1px 2px hsl(30 10% 10% / 0.04),
+    0 1px 1px hsl(30 10% 10% / 0.02);
+}
+
+.shadow-warm {
+  box-shadow:
+    0 2px 4px hsl(30 10% 10% / 0.04),
+    0 4px 8px hsl(30 10% 10% / 0.04);
+}
+
+.shadow-warm-md {
+  box-shadow:
+    0 4px 8px hsl(30 10% 10% / 0.04),
+    0 8px 16px hsl(30 10% 10% / 0.06);
+}
+
+.shadow-warm-lg {
+  box-shadow:
+    0 8px 16px hsl(30 10% 10% / 0.06),
+    0 16px 32px hsl(30 10% 10% / 0.08);
+}
+
+.shadow-warm-xl {
+  box-shadow:
+    0 12px 24px hsl(30 10% 10% / 0.08),
+    0 24px 48px hsl(30 10% 10% / 0.1);
+}
+
+/* Frosted Glass */
+.glass {
+  backdrop-filter: blur(20px) saturate(180%);
+  background: hsl(40 20% 98% / 0.72);
+  border: 1px solid hsl(40 10% 90% / 0.5);
+}
+
+.glass-subtle {
+  backdrop-filter: blur(12px) saturate(150%);
+  background: hsl(40 20% 98% / 0.85);
+}
+
+/* AI Styling */
+.ai-border-left {
+  border-left: 3px solid hsl(210 40% 55%);
+  padding-left: 12px;
+  background: hsl(210 30% 94% / 0.5);
+}
+
+.ai-glow {
+  box-shadow: 0 0 20px hsl(210 40% 55% / 0.15);
+}
+
+.ai-voice {
+  font-style: italic;
+  color: hsl(210 40% 55%);
+}
+
+/* Scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(40 10% 90%) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(40 10% 90%);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(0 0% 45% / 0.5);
+}
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* Interactive States */
+.interactive {
+  transition: all 0.2s ease;
+}
+
+.interactive:hover {
+  box-shadow:
+    0 4px 8px hsl(30 10% 10% / 0.04),
+    0 8px 16px hsl(30 10% 10% / 0.06);
+  transform: translateY(-1px);
+}
+
+.interactive:active {
+  transform: scale(0.98) translateY(0);
+}
+
+/* Tabular numbers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+.animate-page-in {
+  animation: pageIn 0.4s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.3s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-ai-pulse {
+  animation: aiPulse 2s ease-in-out infinite;
+}
+
+@keyframes aiPulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(40 15% 95%) 0%,
+    hsl(0 0% 45% / 0.1) 50%,
+    hsl(40 15% 95%) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* =============================================================================
+   TYPOGRAPHY UTILITIES
+   ============================================================================= */
+
+/* Display font for headings/titles */
+.font-display {
+  font-family: 'Fraunces', Georgia, serif;
+  letter-spacing: -0.03em;
+}
+
+/* Document title style (from prototype v4) */
+.document-title {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+/* Section heading (h2) style */
+.section-heading {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Subsection heading (h3) style */
+.subsection-heading {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* =============================================================================
+   AI READING TIME PILL
+   ============================================================================= */
+.reading-time-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--ai-muted);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--ai);
+}
+
+/* AI attribution badge */
+.ai-attribution {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--ai-muted);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ai);
+}
+
+/* =============================================================================
+   DOCUMENT CANVAS STYLES
+   ============================================================================= */
+
+/* Clean document container - Notion-inspired minimal style */
+.document-canvas {
+  background: var(--background);
+}
+
+/* Block content typography - UI Spec v3.3: line-height 1.75 */
+.prose p,
+.prose li,
+.prose blockquote {
+  line-height: 1.75;
+}
+
+/* =============================================================================
+   HORIZONTAL TOC PILLS - UI Spec v3.3 / Prototype v4 aligned
+   ============================================================================= */
+
+.toc-container {
+  position: sticky;
+  top: 0;
+  background: var(--background);
+  padding: 12px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: 10;
+}
+
+.toc-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--foreground-muted);
+  margin-bottom: 8px;
+}
+
+.toc-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toc-item {
+  padding: 4px 12px;
+  background: var(--background-muted);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  color: var(--foreground-muted);
+  cursor: pointer;
+  transition: all 150ms ease-out;
+  border: none;
+}
+
+.toc-item:hover {
+  background: var(--primary-muted);
+  color: var(--primary);
+}
+
+.toc-item.active {
+  background: var(--primary);
+  color: white;
+}
+
+/* =============================================================================
+   AI THREAD INDICATOR - UI Spec v3.3 / DD-013 aligned
+   ============================================================================= */
+
+.ai-thread-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: var(--ai-muted);
+  border-left: 3px solid var(--ai);
+  border-radius: 0 10px 10px 0;
+  cursor: pointer;
+  transition: all 150ms ease-out;
+}
+
+.ai-thread-collapsed:hover {
+  box-shadow: var(--shadow-warm-sm);
+}
+
+/* =============================================================================
+   MARGIN PANEL TOGGLE
+   ============================================================================= */
+
+/* Edge toggle button for margin panel */
+.margin-toggle {
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 48px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+  z-index: 10;
+}
+
+.margin-toggle:hover,
+.margin-panel:hover .margin-toggle {
+  opacity: 1;
+}
+
+.margin-toggle svg {
+  width: 14px;
+  height: 14px;
+  color: var(--foreground-muted);
+}
+
+/* =============================================================================
+   ISSUE BOX - Inline issue reference with rainbow animation
+   ============================================================================= */
+
+.issue-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  background-image:
+    linear-gradient(var(--background), var(--background)),
+    linear-gradient(90deg, var(--primary), var(--ai), var(--state-in-progress));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.issue-box:hover {
+  transform: scale(1.02);
+  box-shadow: var(--shadow-warm-md);
+}
+
+.issue-box:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.issue-box-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.issue-box-id {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--foreground-muted);
+}
+
+.issue-box-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* New issue - rainbow animation */
+.issue-box-new {
+  animation: rainbow-shift 2.5s linear forwards;
+  box-shadow:
+    0 0 0 2px var(--primary),
+    0 0 12px 2px hsl(168 60% 45% / 0.4);
+}
+
+@keyframes rainbow-shift {
+  0% {
+    filter: hue-rotate(0deg);
+    box-shadow:
+      0 0 0 2px var(--primary),
+      0 0 15px 3px hsl(168 60% 45% / 0.5);
+  }
+  50% {
+    filter: hue-rotate(180deg);
+    box-shadow:
+      0 0 0 2px var(--ai),
+      0 0 15px 3px hsl(210 40% 55% / 0.5);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+    box-shadow: var(--shadow-warm-sm);
+  }
+}
+
+/* Completed issue */
+.issue-box-completed {
+  background-image:
+    linear-gradient(var(--background), var(--background)),
+    linear-gradient(90deg, var(--state-done), var(--state-done));
+  animation: none;
+}
+
+.issue-box-completed .issue-box-title {
+  text-decoration: line-through;
+  color: var(--foreground-muted);
+}
+
+/* =============================================================================
+   VERTICAL TEXT UTILITY
+   ============================================================================= */
+.writing-mode-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+/* =============================================================================
+   RAINBOW GRADIENT BORDER - Inline Issue Extraction
+   Per UI Spec v3.3 Section 7: Issue Box with rainbow pulse
+   ============================================================================= */
+.issue-rainbow-border {
+  position: relative;
+  background: var(--background);
+  border-radius: var(--radius-md);
+}
+
+.issue-rainbow-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--radius-md) + 2px);
+  background: linear-gradient(
+    90deg,
+    var(--primary) 0%,
+    var(--ai) 25%,
+    #9b59b6 50%,
+    #e74c8c 75%,
+    var(--primary) 100%
+  );
+  z-index: -1;
+  animation: rainbow-pulse 3s ease-in-out infinite;
+}
+
+@keyframes rainbow-pulse {
+  0%,
+  100% {
+    filter: hue-rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    filter: hue-rotate(30deg);
+    opacity: 0.9;
+  }
+}
+
+/* Done state - solid green border instead of rainbow */
+.issue-done-border::before {
+  background: var(--state-done);
+  animation: none;
+}
+
+/* =============================================================================
+   MINIMAL TIPTAP PROSE STYLES - Craft-like clean design
+   ============================================================================= */
+.document-canvas .prose {
+  max-width: none;
+}
+
+.document-canvas .prose h1 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--foreground);
+}
+
+.document-canvas .prose h2 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--foreground);
+}
+
+.document-canvas .prose h3 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+
+.document-canvas .prose p {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  color: var(--foreground);
+}
+
+.document-canvas .prose ul,
+.document-canvas .prose ol {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.document-canvas .prose li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.document-canvas .prose code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--background-muted);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+}
+
+.document-canvas .prose pre {
+  background: var(--background-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.document-canvas .prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.8125rem;
+}
+
+.document-canvas .prose blockquote {
+  border-left: 3px solid var(--ai);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: var(--foreground-muted);
+}
+
+/* =============================================================================
+   AI THREAD INLINE INDICATOR
+   ============================================================================= */
+.ai-thread-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  font-size: 0.75rem;
+  color: var(--ai);
+  background: var(--ai-muted);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.ai-thread-indicator:hover {
+  background: var(--ai);
+  color: white;
+}
+
+/* =============================================================================
+   INLINE ISSUE NODE - TipTap NodeView styling
+   ============================================================================= */
+.inline-issue-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  margin: 0 2px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  cursor: pointer;
+  vertical-align: middle;
+  position: relative;
+  background: var(--background);
+  border: 1px solid var(--border-subtle);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+/* Rainbow border pseudo-element (hidden by default) */
+.inline-issue-node::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--radius-md) + 2px);
+  background: linear-gradient(
+    90deg,
+    var(--primary) 0%,
+    var(--ai) 25%,
+    #9b59b6 50%,
+    #e74c8c 75%,
+    var(--primary) 100%
+  );
+  z-index: -1;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+/* Hover: show animated rainbow border */
+.inline-issue-node:hover {
+  border-color: transparent;
+}
+
+.inline-issue-node:hover::before {
+  opacity: 1;
+  animation: issue-border-pulse 2s ease-in-out infinite;
+}
+
+/* New issues show rainbow border immediately */
+.inline-issue-node.issue-rainbow-border {
+  border-color: transparent;
+}
+
+.inline-issue-node.issue-rainbow-border::before {
+  opacity: 1;
+  animation: issue-border-pulse 2s ease-in-out infinite;
+}
+
+@keyframes issue-border-pulse {
+  0%,
+  100% {
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    filter: hue-rotate(30deg);
+  }
+}
+
+.inline-issue-node .issue-type-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.inline-issue-node .issue-key {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--foreground-muted);
+}
+
+.inline-issue-node .issue-title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Issue type variants */
+.inline-issue-node.type-bug {
+  background:
+    linear-gradient(var(--background), var(--background)),
+    linear-gradient(90deg, var(--destructive), var(--priority-high));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  border: 2px solid transparent;
+}
+
+.inline-issue-node.type-improvement {
+  background:
+    linear-gradient(var(--background), var(--background)),
+    linear-gradient(90deg, var(--primary), var(--ai));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  border: 2px solid transparent;
+}
+
+.inline-issue-node.type-feature {
+  background:
+    linear-gradient(var(--background), var(--background)),
+    linear-gradient(90deg, var(--state-in-review), var(--ai));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  border: 2px solid transparent;
+}
+
+.inline-issue-node.state-done {
+  background: var(--state-done);
+  background:
+    linear-gradient(var(--background), var(--background)),
+    linear-gradient(90deg, var(--state-done), var(--state-done));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  border: 2px solid transparent;
+}
+
+.inline-issue-node.state-done .issue-title {
+  text-decoration: line-through;
+  color: var(--foreground-muted);
+}
+
+/* =============================================================================
+   SCROLLBAR NONE UTILITY
+   ============================================================================= */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* =============================================================================
+   REDUCED MOTION
+   ============================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .issue-rainbow-border::before {
+    animation: none;
+  }
+}

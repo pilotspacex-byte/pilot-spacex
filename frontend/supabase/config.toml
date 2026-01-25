@@ -1,0 +1,196 @@
+# Supabase Local Development Configuration
+# Pilot Space - AI-augmented SDLC Platform
+# https://supabase.com/docs/guides/cli/config
+
+[api]
+enabled = true
+# Port to use for the API URL
+port = 54321
+# Schemas to expose via PostgREST
+schemas = ["public", "graphql_public"]
+# Extra schemas to add to the search path
+extra_search_path = ["public", "extensions"]
+# Max rows to return from a single query
+max_rows = 1000
+
+[api.tls]
+enabled = false
+
+# ============================================
+# DATABASE CONFIGURATION
+# PostgreSQL 16+ with pgvector for RAG
+# ============================================
+[db]
+# Port to use for the local PostgreSQL database
+port = 54322
+# Port to use for the shadow database (used by migrations)
+shadow_port = 54320
+# PostgreSQL major version
+major_version = 15
+
+[db.pooler]
+enabled = true
+# Port to use for the connection pooler (PgBouncer)
+port = 54329
+# Default pool size per user
+default_pool_size = 20
+# Maximum number of client connections
+max_client_conn = 100
+
+# ============================================
+# STUDIO CONFIGURATION
+# Web-based database management UI
+# ============================================
+[studio]
+enabled = true
+# Port to use for Supabase Studio
+port = 54323
+# External URL of the API server (for Studio to connect)
+api_url = "http://127.0.0.1"
+# OpenAI API key for AI features in Studio
+openai_api_key = "env(OPENAI_API_KEY)"
+
+# ============================================
+# INBUCKET CONFIGURATION
+# Email testing (captures all emails locally)
+# ============================================
+[inbucket]
+enabled = true
+# Port to use for the web interface
+port = 54324
+# Port to use for the SMTP server
+smtp_port = 54325
+# Port to use for the POP3 server
+pop3_port = 54326
+
+# ============================================
+# STORAGE CONFIGURATION
+# S3-compatible file storage
+# ============================================
+[storage]
+enabled = true
+# Max file size allowed: 50MB for attachments
+file_size_limit = "50MiB"
+
+[storage.image_transformation]
+enabled = true
+
+# ============================================
+# AUTHENTICATION CONFIGURATION
+# Supabase Auth (GoTrue) for user management
+# ============================================
+[auth]
+enabled = true
+# The base URL of the site (for redirects)
+site_url = "http://localhost:3000"
+# Additional URLs to allow for redirects
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+# JWT expiration in seconds (1 hour)
+jwt_expiry = 3600
+# Enable anonymous sign-ins (disabled for Pilot Space)
+enable_anonymous_sign_ins = false
+# Enable email/password sign-ups
+enable_signup = true
+# Minimum password length
+minimum_password_length = 8
+
+[auth.email]
+# Enable email sign-up
+enable_signup = true
+# Require email confirmation for signup
+enable_confirmations = true
+# Require email confirmation for email changes
+double_confirm_changes = true
+# Max frequency of sending emails per user per hour
+max_frequency = "1s"
+# OTP expiry in seconds
+otp_expiry = 3600
+
+[auth.sms]
+# SMS authentication disabled
+enable_signup = false
+enable_confirmations = false
+
+[auth.mfa]
+# Multi-factor authentication (TOTP)
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.mfa.phone]
+enroll_enabled = false
+verify_enabled = false
+
+[auth.sessions]
+# Session timings
+timebox = "24h"
+inactivity_timeout = "8h"
+
+# ============================================
+# EXTERNAL AUTH PROVIDERS
+# OAuth providers for Pilot Space
+# ============================================
+
+[auth.external.github]
+enabled = true
+client_id = "env(GITHUB_CLIENT_ID)"
+secret = "env(GITHUB_CLIENT_SECRET)"
+redirect_uri = "http://localhost:54321/auth/v1/callback"
+
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+redirect_uri = "http://localhost:54321/auth/v1/callback"
+
+# ============================================
+# REALTIME CONFIGURATION
+# WebSocket subscriptions for live updates
+# ============================================
+[realtime]
+enabled = true
+# IP version to use for the WebSocket server
+ip_version = "IPv4"
+# Max channels per client
+max_header_length = 4096
+
+# ============================================
+# ANALYTICS CONFIGURATION
+# ============================================
+[analytics]
+enabled = false
+port = 54327
+backend = "postgres"
+
+# ============================================
+# EDGE FUNCTIONS
+# Serverless functions (Deno runtime)
+# ============================================
+[functions]
+# Enable Edge Functions
+enabled = true
+
+# ============================================
+# DATABASE EXTENSIONS
+# Enable required PostgreSQL extensions
+# ============================================
+[db.settings]
+# Enable these extensions for Pilot Space
+
+# pgvector for RAG/semantic search (3072 dimensions for text-embedding-3-large)
+# pg_net for HTTP requests from database
+# pg_cron for scheduled tasks
+# pgmq for message queues
+# hstore for key-value operations
+
+# Extensions are enabled via migrations, not config.toml
+# See: supabase/migrations/00000000000000_enable_extensions.sql
+
+# ============================================
+# EXPERIMENTAL FEATURES
+# ============================================
+[experimental]
+# Enable webhook support
+webhooks_enabled = true

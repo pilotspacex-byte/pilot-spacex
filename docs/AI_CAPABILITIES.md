@@ -4,43 +4,72 @@
 
 Pilot Space integrates AI as a first-class platform capability, designed to augment human expertise across the software development lifecycle. This document details the AI features, architecture, and implementation strategy.
 
-> **Important**: Pilot Space uses a **BYOK (Bring Your Own Key)** model. Users must provide their own API keys for LLM providers (OpenAI, Anthropic, or Azure OpenAI). There are no limits on AI usage when valid API keys are configured.
+> **Important**: Pilot Space uses a **BYOK (Bring Your Own Key)** model per DD-002. Users must provide their own API keys:
+> - **Anthropic** (Required): Claude Agent SDK orchestration for all agentic tasks
+> - **OpenAI** (Required): Embeddings for semantic search, duplicate detection, RAG
+> - **Google Gemini** (Recommended): Low-latency tasks like ghost text, large context analysis
+> - **Azure OpenAI** (Optional): Enterprise data residency requirements
+>
+> See [claude-agent-sdk-architecture.md](./architect/claude-agent-sdk-architecture.md) for detailed BYOK implementation.
 
 ---
 
 ## AI Philosophy
 
-### Human-in-the-Loop Principle
+### Human-in-the-Loop Principle (DD-003) (DD-003)
 
-Every AI interaction in Pilot Space follows a consistent pattern:
+Every AI interaction in Pilot Space follows the **Critical-Only Approval** model (DD-003):
+
+**Auto-Execute (Non-destructive)**:
+- Suggest labels/priority
+- Show ghost text
+- Display margin annotations
+- Post PR review comments
+- Send notifications
+- State transitions on PR events
+
+**Require Approval (Destructive/Critical)**:
+- Create sub-issues
+- Delete any content
+- Archive projects
+- Publish documentation
+- Merge PRs
+- Bulk operations
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     AI INTERACTION FLOW                         │
+│                     AI INTERACTION FLOW (DD-003)                    │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
+│                                                                     │
 │  ┌─────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│  │ Trigger │ → │    AI    │ → │  Human   │ → │  Action  │  │
-│  │         │    │ Analysis │    │  Review  │    │          │  │
-│  └─────────┘    └──────────┘    └──────────┘    └──────────┘  │
-│       │              │               │               │         │
-│       ▼              ▼               ▼               ▼         │
-│   User action    Suggestion      Accept/Modify    Execute      │
-│   or event      with rationale    /Reject        or Cancel     │
+│  │ Trigger │ → │    AI    │ → │  Check   │ → │  Action  │  │
+│  │         │    │ Analysis │    │  Impact  │    │          │  │
+│  └─────────┘    └──────────┘    └────┬─────┘    └──────────┘  │
+│       │              │              │               │         │
+│       ▼              ▼              ▼               ▼         │
+│   User action    Suggestion   Non-destructive    Execute      │
+│   or event      with rationale → Auto-execute   or Cancel     │
+│                                Destructive →                   │
+│                                Human Approval                   │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### AI Confidence Levels
+### AI Confidence Levels (DD-048)
 
-AI suggestions include confidence indicators:
+AI suggestions display contextual tags instead of raw percentages (see DD-048). Percentage values are available via tooltip for users who want numerical detail.
 
-| Level | Indicator | Behavior |
-|-------|-----------|----------|
-| **High** (>90%) | Green | Suggestion prominent, one-click accept |
-| **Medium** (70-90%) | Yellow | Suggestion visible, review recommended |
-| **Low** (<70%) | Orange | Flagged for human attention, requires review |
-| **Uncertain** | Gray | AI cannot determine, human input required |
+**Primary Display (Tags)**:
+
+| Tag | Range | Meaning | Behavior |
+|-----|-------|---------|----------|
+| `Recommended` | ≥80% | Best option based on analysis | Prominent display, one-click accept |
+| `Default` | 60-79% | Standard choice for this context | Visible suggestion, review recommended |
+| `Current` | N/A | Matches existing pattern in codebase | Informational badge |
+| `Alternative` | <60% | Valid but less common option | Flagged for human attention |
+
+**Secondary Display (Tooltips)**:
+Hover over any tag to see the underlying confidence percentage (e.g., "Recommended - 92% confidence").
 
 ### Transparency Requirements
 
@@ -80,22 +109,32 @@ All AI-generated content is clearly labeled:
 │  ┌───────────────────────────▼───────────────────────────────┐ │
 │  │                    AGENT POOL                              │ │
 │  │                                                            │ │
-│  │  Critical Agents (Human Confirmation Required)             │ │
-│  │  ┌────────────┐ ┌────────────┐ ┌────────────┐            │ │
-│  │  │ Arch Review│ │Code Review │ │ Security   │            │ │
-│  │  │   Agent    │ │   Agent    │ │   Agent    │            │ │
-│  │  └────────────┘ └────────────┘ └────────────┘            │ │
+│  │  MVP Critical Agents (Human Confirmation Required)         │ │
+│  │  ┌─────────────────────────────────────────────────────┐  │ │
+│  │  │              PRReviewAgent (DD-006 Unified)              │  │ │
+│  │  │  ┌───────────┐ ┌───────────┐ ┌───────────────────┐  │  │ │
+│  │  │  │🏗️Architect│ │✨Code      │ │🔒Security(OWASP) │  │  │ │
+│  │  │  │  Review   │ │  Quality  │ │⚡Perf 📚Docs     │  │  │ │
+│  │  │  └───────────┘ └───────────┘ └───────────────────┘  │  │ │
+│  │  │  Provider: Claude Opus 4.5 via Claude Agent SDK        │  │ │
+│  │  └─────────────────────────────────────────────────────┘  │ │
 │  │                                                            │ │
-│  │  Autonomous Agents (Human-in-the-Loop)                     │ │
+│  │  MVP Autonomous Agents (Human-in-the-Loop)                 │ │
 │  │  ┌────────────┐ ┌────────────┐ ┌────────────┐            │ │
 │  │  │    Doc     │ │   Task     │ │  Diagram   │            │ │
 │  │  │ Generator  │ │  Planner   │ │ Generator  │            │ │
 │  │  └────────────┘ └────────────┘ └────────────┘            │ │
 │  │                                                            │ │
 │  │  ┌────────────┐ ┌────────────┐ ┌────────────┐            │ │
-│  │  │  Pattern   │ │  Retro     │ │ Knowledge  │            │ │
-│  │  │  Matcher   │ │  Analyst   │ │   Search   │            │ │
+│  │  │ AI Context │ │  Issue     │ │ Knowledge  │            │ │
+│  │  │   Agent    │ │ Enhancer   │ │   Search   │            │ │
 │  │  └────────────┘ └────────────┘ └────────────┘            │ │
+│  │                                                            │ │
+│  │  Phase 2 Agents (Post-MVP)                                 │ │
+│  │  ┌────────────┐ ┌────────────┐                            │ │
+│  │  │  Pattern   │ │  Retro     │  ← Deferred per plan.md   │ │
+│  │  │  Matcher   │ │  Analyst   │                            │ │
+│  │  └────────────┘ └────────────┘                            │ │
 │  │                                                            │ │
 │  └───────────────────────────────────────────────────────────┘ │
 │                                                                 │
@@ -105,6 +144,7 @@ All AI-generated content is clearly labeled:
 ### Agent Definitions
 
 #### 1. Architecture Review Agent
+> **Note**: In MVP, this is implemented as part of the Unified `PRReviewAgent` (see DD-006), covering both Architecture and Code Quality.
 
 **Purpose**: Analyze code changes for architectural compliance and suggest improvements.
 
@@ -161,6 +201,7 @@ actions:
 ```
 
 #### 2. Code Review Agent
+> **Note**: In MVP, this is implemented as part of the Unified `PRReviewAgent` (see DD-006).
 
 **Purpose**: Provide automated code review focusing on quality, security, and maintainability.
 
@@ -339,6 +380,8 @@ sequenceDiagram
 
 #### 6. Pattern Matcher Agent
 
+> **Phase 2**: This agent is deferred to Phase 2 per plan.md constitution check. Not included in MVP scope.
+
 **Purpose**: Identify recurring patterns and suggest standardization.
 
 **Capabilities**:
@@ -358,6 +401,8 @@ sequenceDiagram
 | **Security** | Input validation, Authentication, Authorization |
 
 #### 7. Retrospective Analyst Agent
+
+> **Phase 2**: This agent is deferred to Phase 2 per plan.md constitution check. Not included in MVP scope.
 
 **Purpose**: Analyze sprint data and generate insights for retrospectives.
 
@@ -433,6 +478,207 @@ Redis-based token bucket algorithm. (Source: API Architecture Doc)
 ### Code Reference
 `api/middleware/rate_limit.py:45-78`
 ```
+
+#### 9. AI Context Agent
+
+**Purpose**: Aggregate all relevant context for an issue and generate actionable tasks optimized for AI-assisted implementation with Claude Code.
+
+**Triggers**:
+- User opens "AI Context" tab on issue
+- User requests context regeneration
+- Linked issue/document changes (optional notification)
+
+**Capabilities**:
+```yaml
+inputs:
+  - Issue description and metadata
+  - Linked issues (blocks, relates, blocked by)
+  - Related documents (notes, ADRs, specs)
+  - Codebase (semantic search + explicit tags)
+  - Git history (PRs, branches, commits)
+  - Historical patterns (similar resolved issues)
+
+outputs:
+  - Context summary with statistics
+  - Structured related context
+  - Codebase file tree with function/class extraction
+  - Task dependency graph
+  - Implementation checklist
+  - Ready-to-use prompts for Claude Code
+  - Markdown export
+
+actions:
+  - Generate context from multiple sources
+  - Create task breakdown with dependencies
+  - Apply task templates (bug fix, feature, refactor)
+  - Interactive refinement via chat
+  - Export to Claude Code format
+  - Share context with team members
+```
+
+**Context Aggregation Pipeline**:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                 AI CONTEXT AGGREGATION PIPELINE                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Issue Input                                                     │
+│       │                                                          │
+│       ▼                                                          │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                  CONTEXT DISCOVERY                       │    │
+│  │                                                          │    │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │    │
+│  │  │  Issue   │ │ Document │ │ Codebase │ │   Git    │   │    │
+│  │  │  Links   │ │  Search  │ │  Search  │ │ History  │   │    │
+│  │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘   │    │
+│  │       │            │            │            │          │    │
+│  │       └────────────┴────────────┴────────────┘          │    │
+│  │                          │                               │    │
+│  └──────────────────────────┼───────────────────────────────┘    │
+│                             ▼                                    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                  RELEVANCE SCORING                       │    │
+│  │                                                          │    │
+│  │  • Semantic similarity (embedding distance)             │    │
+│  │  • Explicit tagging (highest priority)                  │    │
+│  │  • AST-aware analysis (function/class level)            │    │
+│  │  • Historical patterns (similar issues)                 │    │
+│  └──────────────────────────┬───────────────────────────────┘    │
+│                             │                                    │
+│                             ▼                                    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                  TASK GENERATION                         │    │
+│  │                                                          │    │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐                │    │
+│  │  │   LLM    │ │Historical│ │ Template │                │    │
+│  │  │Generated │ │ Patterns │ │  Based   │                │    │
+│  │  └────┬─────┘ └────┬─────┘ └────┬─────┘                │    │
+│  │       │            │            │                       │    │
+│  │       └────────────┴────────────┘                       │    │
+│  │                    │                                     │    │
+│  │                    ▼                                     │    │
+│  │         ┌──────────────────┐                            │    │
+│  │         │ Dependency Graph │                            │    │
+│  │         │   + Validation   │                            │    │
+│  │         └──────────────────┘                            │    │
+│  └──────────────────────────────────────────────────────────┘    │
+│                             │                                    │
+│                             ▼                                    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                  OUTPUT FORMATTING                       │    │
+│  │                                                          │    │
+│  │  • Interactive UI (AI Context tab)                      │    │
+│  │  • Markdown export (Claude Code optimized)              │    │
+│  │  • Ready-to-use prompts                                 │    │
+│  │  • Shareable context views                              │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Task Templates**:
+
+| Template | Purpose | Structure |
+|----------|---------|-----------|
+| **Bug Fix** | Debugging and fixing issues | Reproduce → Diagnose → Fix → Test → Document |
+| **Feature** | New functionality | Design → Implement → Test → Document → Review |
+| **Refactor** | Code improvements | Analyze → Plan → Execute → Verify → Document |
+| **Custom** | User-defined workflows | Configurable steps |
+
+**Example Output**:
+
+```markdown
+## AI Context: PS-202 - Handle OAuth Errors Gracefully
+
+### Context Summary
+- **Related Issues**: 3 (1 blocks, 1 relates, 1 blocked by)
+- **Documents**: 2 (1 note, 1 ADR)
+- **Codebase Files**: 5 (2 to modify, 3 reference)
+- **Git References**: 2 (1 PR, 1 branch)
+- **Confidence**: 87%
+
+### Implementation Tasks
+
+#### Task 1: Add Retry Logic to OAuthService
+**Template**: Bug Fix
+**Priority**: High | **Estimate**: 2-3 hours
+**Dependencies**: None
+
+**Files**:
+- `src/services/auth/oauth.py` (modify)
+  - `OAuthService.handle_callback()` - Add retry wrapper
+  - `OAuthService.refresh_token()` - Handle refresh failures
+
+**Prompt for Claude Code**:
+```
+Implement retry logic for OAuth callbacks in src/services/auth/oauth.py.
+
+Context:
+- OAuth callbacks fail intermittently due to network issues
+- Need exponential backoff with max 3 retries
+- Reference: PR #234 shows similar pattern in http_client.py
+
+Tasks:
+1. Add retry decorator to handle_callback()
+2. Configure exponential backoff (1s, 2s, 4s)
+3. Add proper error logging
+4. Update existing tests
+```
+
+#### Task 2: Update Error Messages
+**Template**: Feature
+**Priority**: Medium | **Estimate**: 1 hour
+**Dependencies**: Task 1
+
+[Continues with detailed prompt...]
+```
+
+**Interactive Refinement**:
+
+The AI Context Agent supports multi-turn conversation to refine context:
+
+```
+User: "Add more context about the existing retry implementation"
+
+AI: I found existing retry logic in `src/utils/http_client.py`.
+    I've added it to the Codebase Context section with:
+    - RetryConfig class (configures backoff parameters)
+    - retry_with_backoff() decorator (wraps HTTP calls)
+
+    The OAuth implementation should follow the same pattern.
+
+    [Context view updated]
+
+User: "Focus the tasks on API layer only"
+
+AI: I've updated the task breakdown to focus on API layer changes:
+    - Removed internal service-level tasks
+    - Added API endpoint error handling tasks
+    - Updated file references to src/api/auth/*
+
+    [Tasks regenerated with API focus]
+```
+
+**Integration with Claude Code**:
+
+| Integration Method | Description |
+|-------------------|-------------|
+| **Copy to Clipboard** | Markdown formatted for pasting into Claude Code |
+| **CLI Command** | `pilot-space context --issue PS-202 | claude` |
+| **MCP Protocol** | Direct tool access via MCP server |
+| **IDE Extension** | One-click "Open in Claude Code" button |
+
+**Security & Privacy**:
+
+| Control | Implementation | Phase |
+|---------|----------------|-------|
+| **Workspace-scoped** | Context limited to accessible workspace data | MVP |
+| **Permission-aware** | Respects user's project/issue permissions | MVP |
+| **Sensitive exclusion** | `.env`, credentials, secrets auto-excluded | MVP |
+| **Audit logging (Partial)** | AI context generations and operations logged | MVP |
+| **Audit logging (Full)** | Complete audit trail (data access, modifications) | Phase 2 |
 
 ---
 
@@ -725,11 +971,15 @@ Embeddings are generated using the configured LLM provider's embedding API:
 
 | Model | Provider | Dimensions | Use Case |
 |-------|----------|------------|----------|
-| `text-embedding-3-small` | OpenAI | 1536 | Default, cost-effective |
-| `text-embedding-3-large` | OpenAI | 3072 | Higher quality retrieval |
-| `voyage-code-2` | Anthropic | 1536 | Code-specific embeddings |
+| `text-embedding-3-large` | OpenAI | 3072 | Default, high quality retrieval |
+| `text-embedding-3-small` | OpenAI | 1536 | Cost-effective alternative |
+| `gemini-embedding-001` | Google | 768 | Fast, cost-effective |
+| `voyage-code-3` | Voyage AI | 1024 | Code-specific embeddings |
+| `voyage-3` | Voyage AI | 1024 | General-purpose, high quality |
 
 **Note**: Embeddings are stored in PostgreSQL using the pgvector extension.
+
+**Provider Fallback**: If a provider's embedding API is unavailable, the system automatically falls back to the next available provider in the routing configuration.
 
 ### Index Update Strategy
 
@@ -761,47 +1011,65 @@ providers:
   openai:
     api_key: ${OPENAI_API_KEY}  # User-provided
     models:
-      - gpt-4o           # Recommended for code review
-      - gpt-4o-mini      # Cost-effective for suggestions
-    default_model: gpt-4o
+      - gpt-4.1              # Latest flagship model (Jan 2026)
+      - gpt-4.1-mini         # Cost-effective for suggestions
+      - o3-mini              # Reasoning tasks
+    default_model: gpt-4.1
 
   anthropic:
     api_key: ${ANTHROPIC_API_KEY}  # User-provided
     models:
-      - claude-sonnet-4-20250514  # Excellent for code analysis
-      - claude-3-5-haiku-20241022  # Fast, cost-effective
+      - claude-opus-4-5-20251101   # Most capable, deep analysis
+      - claude-sonnet-4-20250514   # Balanced performance/cost
+      - claude-haiku-4-20251215    # Fast, cost-effective
     default_model: claude-sonnet-4-20250514
+
+  google:
+    api_key: ${GOOGLE_API_KEY}  # User-provided
+    models:
+      - gemini-3.0-flash     # Fast, cost-effective
+      - gemini-3.0-pro       # Advanced reasoning, code analysis
+      - gemini-3.0-pro       # Long context (2M tokens)
+    default_model: gemini-3.0-flash
 
   azure_openai:
     api_key: ${AZURE_OPENAI_KEY}  # User-provided
     endpoint: ${AZURE_OPENAI_ENDPOINT}  # User-provided
-    deployment_name: gpt-4
+    deployment_name: gpt-4.1
     # Enterprise preferred for compliance requirements
 
 # Task-to-provider routing (configurable)
 routing:
   code_review:
-    preferred: [anthropic, openai]
-    model: claude-sonnet-4-20250514
+    preferred: [anthropic, google, openai]
+    model: claude-sonnet-4-20250514  # or gemini-3.0-pro
 
   documentation:
-    preferred: [openai, anthropic]
-    model: gpt-4o-mini
+    preferred: [google, openai, anthropic]
+    model: gemini-3.0-flash
 
   issue_enhancement:
-    preferred: [openai, anthropic]
-    model: gpt-4o-mini
+    preferred: [google, openai, anthropic]
+    model: gemini-3.0-flash
+
+  task_decomposition:
+    preferred: [anthropic, google, openai]
+    model: claude-sonnet-4-20250514
+
+  complex_reasoning:
+    preferred: [anthropic, openai]
+    model: claude-opus-4-5-20251101  # or o3-mini
 
   semantic_search:
-    preferred: [openai]
-    model: text-embedding-3-small
+    preferred: [openai, google]
+    model: text-embedding-3-large  # or gemini-embedding-001
 ```
 
 ### Cost Optimization
 
 | Strategy | Implementation |
 |----------|----------------|
-| **Tiered Models** | Use gpt-4o-mini/haiku for simple tasks, gpt-4o/sonnet for complex |
+| **Tiered Models** | Use gpt-5.1-mini/haiku-4 for simple tasks, gpt-4.1/sonnet-4 for complex |
 | **Caching** | Cache embeddings and common query responses (Redis) |
 | **Batching** | Batch similar requests where possible |
 | **Smart Routing** | Route to cheapest capable model per task type |
@@ -811,8 +1079,20 @@ routing:
 | Provider | Strengths | Best For | Cost |
 |----------|-----------|----------|------|
 | **OpenAI** | Fast, reliable, good all-around | Documentation, search | $$ |
-| **Anthropic** | Excellent code understanding | Code review, architecture | $$$ |
+| **Anthropic** | Excellent code understanding, safety | Code review, architecture | $$$ |
+| **Google Gemini** | Long context (1M tokens), multimodal, fast | Task planning, large codebase analysis | $ |
 | **Azure OpenAI** | Enterprise compliance, private endpoints | Enterprise deployments | $$ |
+
+### Provider Selection Guide
+
+| Use Case | Recommended Provider | Rationale |
+|----------|---------------------|-----------|
+| **Code Review** | Anthropic Claude | Best code understanding and security analysis |
+| **Documentation** | Google Gemini | Fast, cost-effective, good prose generation |
+| **Task Decomposition** | Anthropic/Gemini | Strong reasoning for complex breakdown |
+| **Diagram Generation** | OpenAI/Gemini | Good at structured output formats |
+| **Large Codebase Analysis** | Google Gemini | 1M token context window |
+| **Enterprise/Compliance** | Azure OpenAI | Private endpoints, data residency |
 
 ---
 
@@ -931,13 +1211,14 @@ Since Pilot Space uses BYOK (external LLM providers):
 workspace:
   ai:
     enabled: true
-    default_provider: openai  # openai | anthropic | azure_openai
+    default_provider: google  # openai | anthropic | google | azure_openai
 
     # API Keys (encrypted at rest)
     credentials:
-      openai_api_key: "sk-..."      # User-provided
-      anthropic_api_key: "sk-..."   # User-provided (optional)
-      azure_endpoint: "https://..." # User-provided (optional)
+      openai_api_key: "sk-..."       # User-provided (optional)
+      anthropic_api_key: "sk-..."    # User-provided (optional)
+      google_api_key: "AIza..."      # User-provided (optional)
+      azure_endpoint: "https://..."  # User-provided (optional)
 
     features:
       auto_label: true
@@ -1005,6 +1286,7 @@ project:
 
 ---
 
-*Document Version: 1.0*
-*Last Updated: 2026-01-20*
+*Document Version: 1.3*
+*Last Updated: 2026-01-21*
 *Author: Pilot Space Team*
+*Changes: Updated Gemini to 3.0, aligned confidence display (tags + percentage tooltips per DD-048), clarified audit logging scope (Partial MVP + Full Phase 2)*
