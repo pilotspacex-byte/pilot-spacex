@@ -10,16 +10,19 @@
 
 ### Core Value Proposition
 
-**Pilot Space is a complete scrum board replacement** with built-in AI capabilities. It is not an integration layer on top of existing tools—it provides full project management functionality (Issues, Cycles/Sprints, Modules/Epics, Pages/Documentation) with AI augmentation throughout.
+**Pilot Space is a thought-first SDLC platform** with built-in AI capabilities. Unlike traditional issue trackers that start with forms, Pilot Space starts with collaborative thinking—users brainstorm with AI in a living document, and issues emerge naturally from refined thoughts.
 
-| Traditional PM Tools | Pilot Space |
-|---------------------|-------------|
+> **"Think first, structure later"**
+
+| Traditional PM Tools (Ticket-First) | Pilot Space (Thought-First) |
+|-------------------------------------|------------------------------|
+| Start with forms → Fill fields → Submit | Start with notes → Write thoughts → AI extracts |
+| Structure imposed upfront | Structure emerges from thinking |
 | Manual documentation | AI-generated + human-refined documentation |
-| Reactive issue tracking | Proactive AI suggestions on patterns & best practices |
-| Siloed code reviews | Integrated architecture compliance checking |
-| Static task boards | Intelligent workflow automation with human-in-the-loop |
+| AI bolt-on (autocomplete) | AI embedded (co-writing partner) |
+| Issues are the artifact | Notes become living documentation |
 | Disconnected tools | Unified workspace with GitHub & Slack integrations |
-| Separate scrum board (Jira/Trello) | **Built-in scrum board with AI enhancement** |
+| Dashboard as home | **Note Canvas as home** |
 
 ---
 
@@ -65,7 +68,7 @@ Pilot Space is built on seven foundational principles that guide all product dec
 | # | Principle | Description |
 |---|-----------|-------------|
 | 1 | **AI-Human Collaboration First** | AI augments human expertise, never replaces human judgment |
-| 2 | **Note-Second Approach** | Capture thoughts quickly, refine into structured documentation |
+| 2 | **Note-First Approach** | Start with collaborative thinking, issues emerge from refined thoughts |
 | 3 | **Documentation-Third Approach** | Documentation flows naturally from work artifacts |
 | 4 | **Task-Centric Workflow** | Prioritize actionable tasks with AI-powered decomposition |
 | 5 | **Collaboration & Knowledge Sharing** | Foster team knowledge through AI-curated insights |
@@ -82,26 +85,160 @@ User Intent → AI Suggestion → Human Review → Execution
             User can modify, accept, or reject
 ```
 
+**AI Trigger Modes (All Supported):**
+
+| Mode | Description | Examples |
+|------|-------------|----------|
+| **Explicit Commands** | User-invoked via slash commands or buttons | `/ai review`, `/ai plan`, "Generate diagram" button |
+| **Automatic Suggestions** | AI proactively suggests based on context | Label suggestions on issue creation, duplicate detection |
+| **Event-Driven** | AI triggers on system events | PR opened → auto code review, sprint ended → retrospective |
+
+**Trigger Flow:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AI TRIGGER MODES                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  EXPLICIT COMMANDS          AUTOMATIC SUGGESTIONS               │
+│  ┌─────────────────┐       ┌─────────────────┐                 │
+│  │ User invokes    │       │ Context detected│                 │
+│  │ /ai command     │       │ (typing, editing)│                │
+│  └────────┬────────┘       └────────┬────────┘                 │
+│           │                         │                           │
+│           ▼                         ▼                           │
+│  ┌─────────────────────────────────────────────┐               │
+│  │            AI ORCHESTRATOR                   │               │
+│  │  • Route to appropriate agent               │               │
+│  │  • Apply context (workspace, project, user) │               │
+│  │  • Execute with confidence scoring          │               │
+│  └─────────────────────────────────────────────┘               │
+│           ▲                         ▲                           │
+│           │                         │                           │
+│  ┌────────┴────────┐       ┌────────┴────────┐                 │
+│  │ EVENT-DRIVEN    │       │ OUTPUT          │                 │
+│  │ PR created      │       │ Suggestion +    │                 │
+│  │ Sprint ended    │       │ Human review    │                 │
+│  │ Issue assigned  │       │ option          │                 │
+│  └─────────────────┘       └─────────────────┘                 │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 **Implementation:**
 - AI suggestions are always presented for human approval
 - Critical actions (merge, deploy, delete) require explicit human confirmation
 - AI provides rationale and alternatives for transparency
-- Users can adjust AI behavior per workspace/project
+- Users can adjust AI behavior and trigger modes per workspace/project
+- Event-driven triggers are configurable (enable/disable per event type)
 
-### 2. Note-Second Approach
+### 2. Note-First Approach
 
-Encourage capturing thoughts, designs, and decisions in structured notes before formal documentation:
+The primary interface is a **collaborative note canvas** where users brainstorm with AI. Issues and tasks emerge naturally from refined thinking—not from filling out forms.
 
 ```
-Quick Note (Sticky) → Refined Note (Page) → Formal Doc (Architecture Doc)
-       ↓                      ↓                       ↓
-  AI organizes          AI structures           AI validates
+Note Canvas (Home)  →  AI Co-Writing  →  Issue Extraction  →  Living Documentation
+        ↓                    ↓                  ↓                      ↓
+   Start typing        AI suggests       Rainbow-bordered       Bidirectional
+    thoughts           in margin         boxes wrap text          sync
 ```
 
-**Features:**
-- Quick capture via Stickies with AI categorization
-- AI-assisted note-to-document conversion
-- Automatic linking of related notes to issues/decisions
+**Workflow:**
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                                                            │
+│   1. CAPTURE      Open Pilot Space → Note canvas is home                  │
+│                                                                            │
+│   2. BRAINSTORM   AI joins via inline suggestions + margin annotations    │
+│                                                                            │
+│   3. REFINE       Threaded discussions clarify each thought block         │
+│                                                                            │
+│   4. EXTRACT      AI automatically identifies actionable items            │
+│                                                                            │
+│   5. WRAP         Rainbow-bordered boxes wrap source text inline          │
+│                                                                            │
+│   6. APPROVE      User reviews and approves issue creation                │
+│                                                                            │
+│   7. TRACK        Issues link back to source note (bidirectional)         │
+│                                                                            │
+│   8. EVOLVE       Note continues as living documentation                  │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Features:**
+- **Note Canvas as Home**: Default view is ready-to-write, not a dashboard
+- **Threaded AI Discussions**: Each block can spawn a conversation with AI
+- **Margin Annotations**: AI proactively suggests ideas (smart visibility, block-linked)
+- **Automatic Issue Extraction**: AI identifies actionable items, wraps text with rainbow borders
+- **Bidirectional Sync**: Notes and issues stay connected
+- **Living Documentation**: Notes evolve with the project
+
+**Enhanced UI Features (v2.3):**
+- **New Note AI Prompt**: AI greeting with work history summary and recommended templates
+- **Ghost Text Autocomplete**: Inline suggestions as you type (Tab to accept all, → for word-by-word)
+- **Issue Detail Modal**: Quick view modal when clicking issue boxes
+- **Command Palette (Cmd+P)**: Smart AI suggestions based on context
+- **Full-Page Search (Cmd+K)**: Spotlight-style search across all content
+- **Selection Toolbar**: Rich formatting plus AI actions (Improve, Simplify, Expand, Ask, Extract)
+- **Version History Panel**: Claude Code-style snapshots with AI reasoning (collapsible, expand for AI rationale)
+- **@ Mentions**: Link to notes, issues, projects, and AI agents inline with typed icons
+
+**AI Panel & Search (v2.3):**
+- **Floating Action Button (FAB)**: Bottom-right button opens AI-enabled search bar
+- **AI Search Bar**: Keyword + semantic search, AI answer first, search results as rows
+- **Collapsible AI Panel**: Toggle panel at bottom with thin bar + pulse dot (●) when collapsed
+- **Panel Input**: Free-form questions with static + dynamic action chips
+- **Claude Code-Style Status**: Detailed AI activity indicators ("Searching codebase...", "Generating diagram...")
+- **Full Keyboard Navigation**: Arrow keys, Tab, number keys for chip selection
+
+**Note Management (v2.3):**
+- **Virtual Scroll**: Performance optimization for long notes (1000+ blocks)
+- **Auto-Generated TOC**: Click-to-scroll + highlight sync for current section
+- **Rich Header**: Note metadata, word count, AI reading time estimate ("5 min • learn how to...")
+- **Margin Annotations**: Block-linked AI suggestions with resizable margin, edge icon toggle
+- **Interactive Issue Extraction**: Highlight source text, show draft issue inline, edit before accept
+- **AI Similar Notes**: After note creation, AI shows related notes with guidance
+
+**Template System (v2.3):**
+- **Template Gallery**: System + User + AI-generated templates
+- **Conversational Filling**: AI fills template hints from natural language input
+- **Split View Modal**: Conversation on left, live preview on right
+- **Skip Button**: Leave template hints empty if desired
+- **Auto-Create**: Note created automatically when conversation completes
+
+**Graph View (v2.3):**
+- **Force-Directed Layout**: Current note at center, highlighted
+- **Cluster Labels**: Grouped by project name
+- **Full Navigation**: Pan/zoom + click focus + mini-map
+- **AI Pattern Detection**: AI identifies connection patterns and suggests links
+- **Preview + AI Explanation**: First click shows preview, second click opens with AI analysis
+- **Full Metrics**: Connection count, cluster count, orphaned note detection
+
+**Notification Center (v2.3):**
+- **Sidebar Section**: Smart preview with AI-prioritized inbox
+- **Priority Labels**: AI-assigned tags (Urgent, Important, FYI)
+- **Smart Text Count**: "3 new" instead of raw numbers
+- **Configurable Triggers**: All notification sources user-configurable
+- **Delayed Mark-as-Read**: Brief delay before auto-marking as read
+
+**Workspace Management (v2.3):**
+- **Header Dropdown**: Workspace switcher with stats (note count, member count)
+- **Tabbed Settings**: General, Members, API Keys, Activity organized in tabs
+- **Simple Member List**: Role management without complex hierarchy
+- **Real-Time API Key Validation**: Immediate feedback on key entry
+- **Activity Log**: Basic events for all members (created, edited, deleted)
+- **Workspace-Level API Keys**: All AI features configured at workspace scope
+
+**Onboarding (v2.3):**
+- **Sample Project**: "Product Launch" themed sample with realistic data
+- **Pre-Populated Content**: Sample notes, issues, and AI threads
+- **Progressive Tooltips**: Two-stage discovery (brief → detailed on hover)
+- **Comprehensive Shortcut Discovery**: Tooltips + Command palette + Shortcut guide + Contextual hints
+
+> See [DD-013: Note-First Collaborative Workspace](./DESIGN_DECISIONS.md#dd-013-note-first-collaborative-workspace) for core rationale.
+> See [DD-014 through DD-054](./DESIGN_DECISIONS.md) for detailed UI clarifications.
 
 ### 3. Documentation-Third Approach
 
@@ -199,14 +336,14 @@ Promote standardized architectural notation with AI assistance:
 │              │                  │                  │                   │
 │              ▼                  ▼                  ▼                   │
 │         ┌────────┐        ┌─────────┐        ┌─────────┐              │
-│         │PostgreSQL│      │  Redis  │        │RabbitMQ │              │
-│         │+ pgvector│      │ (Cache) │        │ (Queue) │              │
+│         │PostgreSQL│      │  Redis  │        │Supabase │              │
+│         │+ pgvector│      │ (Cache) │        │ Queues  │              │
 │         └────────┘        └─────────┘        └─────────┘              │
 │                                 │                                       │
 │                                 ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │                    BACKGROUND WORKERS                            │   │
-│  │                    (Celery or ARQ)                               │   │
+│  │                    (Supabase Edge Functions)                     │   │
 │  │                                                                  │   │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │   │
 │  │  │  Email   │  │ Webhooks │  │    AI    │  │   Sync   │        │   │
@@ -219,8 +356,8 @@ Promote standardized architectural notation with AI assistance:
                          External Services
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐                    │
-│  │ GitHub  │  │  Slack  │  │   LLM   │  │   S3/   │                    │
-│  │   API   │  │   API   │  │Provider │  │  MinIO  │                    │
+│  │ GitHub  │  │  Slack  │  │   LLM   │  │Supabase │                    │
+│  │   API   │  │   API   │  │Provider │  │ Storage │                    │
 │  │         │  │         │  │ (BYOK)  │  │         │                    │
 │  └─────────┘  └─────────┘  └─────────┘  └─────────┘                    │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -238,8 +375,8 @@ Promote standardized architectural notation with AI assistance:
 | **AI Engine** | LangChain/LlamaIndex | LLM orchestration, RAG, agents |
 | **Database** | PostgreSQL 15+ with pgvector | JSONB, full-text search, vector embeddings |
 | **Cache** | Redis | Session, rate limiting, AI response cache |
-| **Queue** | RabbitMQ + Celery/ARQ | Async tasks, AI job processing |
-| **Storage** | S3-compatible (MinIO) | Self-hosted object storage |
+| **Queue** | Supabase Queues (pgmq + pg_cron) | Async tasks, AI job processing |
+| **Storage** | Supabase Storage | S3-compatible object storage with RLS |
 | **Search** | Meilisearch | Fast, typo-tolerant search |
 
 ### AI Architecture
@@ -276,16 +413,21 @@ Promote standardized architectural notation with AI assistance:
 │  │                    RAG PIPELINE                            │ │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐       │ │
 │  │  │  Embeddings │  │Vector Store │  │  Retriever  │       │ │
-│  │  │  (OpenAI)   │  │ (pgvector)  │  │             │       │ │
+│  │  │  (OpenAI)   │  │ (pgvector)  │  │  (Hybrid)   │       │ │
 │  │  └─────────────┘  └─────────────┘  └─────────────┘       │ │
+│  │                                                            │ │
+│  │  Hybrid Retrieval: RRF Scoring (DD-057)                   │ │
+│  │  • Semantic: pgvector HNSW cosine similarity              │ │
+│  │  • Graph: KnowledgeGraphRelationship traversal            │ │
+│  │  • Fusion: Reciprocal Rank Fusion (k=60)                  │ │
 │  └───────────────────────────────────────────────────────────┘ │
 │                              │                                  │
 │  ┌───────────────────────────▼───────────────────────────────┐ │
 │  │               LLM PROVIDERS (BYOK)                         │ │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐       │ │
-│  │  │   OpenAI    │  │  Anthropic  │  │ Azure OpenAI│       │ │
-│  │  │             │  │   Claude    │  │             │       │ │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘       │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │ │
+│  │  │  OpenAI  │ │Anthropic │ │  Google  │ │  Azure   │     │ │
+│  │  │  GPT-4o  │ │  Claude  │ │  Gemini  │ │  OpenAI  │     │ │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘     │ │
 │  │                                                            │ │
 │  │  Users provide their own API keys (BYOK model)            │ │
 │  └───────────────────────────────────────────────────────────┘ │
@@ -310,7 +452,17 @@ Promote standardized architectural notation with AI assistance:
 - [ ] Views with filtering and layouts
 - [ ] Labels and custom states
 - [ ] Basic RBAC (Owner/Admin/Member/Guest)
-- [ ] Notifications system
+- [ ] Notifications system (AI-prioritized with label tags)
+
+**Note-First Editor**
+- [ ] Note canvas as home (ready-to-write default)
+- [ ] Ghost text autocomplete (Tab/→ to accept)
+- [ ] Margin annotations (block-linked, resizable)
+- [ ] Rainbow-bordered issue extraction with inline review
+- [ ] Version history panel (Claude Code-style with AI reasoning)
+- [ ] Virtual scroll for long notes (1000+ blocks)
+- [ ] Auto-generated TOC with sync highlighting
+- [ ] Rich header with word count and AI reading time
 
 **AI Features (BYOK - Bring Your Own Key)**
 - [ ] AI-enhanced issue creation (title, description, labels, priority)
@@ -318,13 +470,33 @@ Promote standardized architectural notation with AI assistance:
 - [ ] AI PR Review (architecture + code quality + security)
 - [ ] Documentation generation from code/issues
 - [ ] Diagram generation (Mermaid)
-- [ ] Semantic search across workspace content
+- [ ] Keyword + semantic search across workspace content
 - [ ] Duplicate detection
+- [ ] Collapsible AI panel (bottom toggle with thin bar)
+- [ ] FAB with AI search bar
+- [ ] Conversational template filling
+
+**Knowledge Features**
+- [ ] Force-directed graph view (note connections)
+- [ ] AI-suggested tags
+- [ ] Template gallery (System + User + AI-generated)
+- [ ] @ Mentions with inline dropdown
+- [ ] Hybrid retrieval with RRF scoring (semantic + graph fusion)
 
 **Integrations**
 - [ ] GitHub: PR linking, commit tracking, AI review comments
 - [ ] Slack: Notifications, slash commands, issue creation
 - [ ] Webhooks (outbound)
+
+**MVP Scope Exclusions**
+- Offline editing (infrastructure complexity)
+- Note sharing/export (focus on core workflow)
+- Focus/Zen mode (standard layout sufficient)
+- Mobile-specific features (desktop-first)
+- Real-time collaboration (standard editing with autosave)
+- Saved views/filters (basic filtering sufficient)
+- Quick capture from anywhere (editor-focused)
+- Inline comments from team members (Phase 2)
 
 ### Phase 2: Enhanced Workflows
 
@@ -394,28 +566,23 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://...
       - REDIS_URL=redis://redis:6379
-      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - SUPABASE_URL=http://supabase:8000
+      - SUPABASE_ANON_KEY=...
+      - SUPABASE_SERVICE_ROLE_KEY=...
 
-  worker:
-    image: pilotspace/api:latest
-    command: celery -A app worker
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://...
+  # Background workers handled by Supabase Edge Functions
+  # No separate worker container needed
 
-  postgres:
-    image: postgres:15
+  supabase:
+    # Use Supabase CLI for local development:
+    # supabase start
+    # This starts: PostgreSQL, Auth, Storage, Realtime, Edge Functions
+    image: supabase/postgres:15.1.0
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
-
-  rabbitmq:
-    image: rabbitmq:3-alpine
-
-  minio:
-    image: minio/minio
-    command: server /data
 
 volumes:
   postgres_data:
@@ -454,12 +621,31 @@ volumes:
 
 ### Unique Differentiators
 
-1. **AI-Native Architecture**: AI is not a bolt-on but a core platform capability
-2. **Open Source + Self-Hosted**: Full control over data and customization
-3. **Human-in-the-Loop**: AI augments, never replaces human judgment
-4. **SDLC-Focused AI**: Purpose-built for software development workflows
-5. **Architecture-Aware**: Understands code structure, not just text
-6. **Integration Hub**: Bridges existing tools rather than replacing them
+**Core Philosophy:**
+1. **Thought-First, Not Ticket-First**: Users brainstorm with AI in notes; issues emerge naturally (vs. Linear/Jira's form-first approach)
+2. **AI-Native Architecture**: AI is not a bolt-on but a core platform capability embedded in the writing experience
+3. **Living Documentation**: Notes stay connected to issues bidirectionally, evolving with the project
+4. **Open Source + Self-Hosted**: Full control over data and customization
+5. **Human-in-the-Loop**: AI augments, never replaces human judgment
+
+**AI Experience:**
+6. **Ghost Text AI**: Real-time inline suggestions as you type (like Copilot for project management)
+7. **Always-Available AI Panel**: Bottom toggle panel with thin bar + pulse dot for AI suggestions
+8. **FAB with AI Search**: Bottom-right button opens hybrid keyword + semantic search with AI answers
+9. **Smart Command Palette**: Context-aware AI suggestions in Cmd+P based on current work
+10. **Version History with AI Reasoning**: Claude Code-style snapshots showing what AI changed and why
+
+**Knowledge Management:**
+11. **Force-Directed Graph View**: Visualize note connections like Obsidian, with AI pattern detection
+12. **AI-Suggested Tags**: Automatic tag suggestions based on content analysis
+13. **Conversational Templates**: AI fills template hints from natural language descriptions
+14. **AI-Prioritized Notifications**: Smart inbox with label tags (Urgent, Important, FYI)
+
+**Technical Excellence:**
+15. **SDLC-Focused AI**: Purpose-built for software development workflows
+16. **Architecture-Aware**: Understands code structure, not just text
+17. **Virtual Scroll**: High performance for notes with 1000+ blocks
+18. **Auto-Generated TOC**: Click-to-scroll navigation with sync highlighting
 
 ---
 
@@ -509,7 +695,7 @@ volumes:
 
 ---
 
-*Document Version: 1.1*
-*Last Updated: 2026-01-20*
+*Document Version: 1.5*
+*Last Updated: 2026-01-21*
 *Author: Pilot Space Team*
-*Changes: Added Key Principles table, Community Engagement to Phase 3, clarified scrum board replacement positioning*
+*Changes: Added v2.3 UI features from Q&A clarifications - FAB with AI search, collapsible AI panel, force-directed graph view, template system with conversational filling, AI-prioritized notification center, sample project onboarding, virtual scroll, auto-generated TOC, rich header, interactive issue extraction, workspace management with API key validation, comprehensive shortcut discovery, and expanded differentiators (18 total)*

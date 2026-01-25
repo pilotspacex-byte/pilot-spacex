@@ -1,0 +1,30 @@
+# Secrets - NEVER commit these
+.env
+kong/kong-processed.yml
+*.key
+*.pem
+*.crt
+
+# Backup files
+backups/
+*.sql
+*.sql.gz
+
+# Runtime data
+volumes/db/data/
+volumes/storage/*
+!volumes/storage/.gitkeep
+logs/
+
+# Edge function build artifacts
+volumes/functions/.deno/
+
+# Local overrides
+docker-compose.override.yml
+docker-compose.local.yml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

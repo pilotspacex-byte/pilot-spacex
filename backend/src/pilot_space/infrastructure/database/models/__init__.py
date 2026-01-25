@@ -1,0 +1,120 @@
+"""SQLAlchemy ORM models for Pilot Space.
+
+Core Models:
+- User, Workspace, WorkspaceMember
+- Project, State, Label, Module
+- Issue, IssueLabel, Activity
+- Note, NoteAnnotation, ThreadedDiscussion, DiscussionComment
+- NoteIssueLink, Template
+- Cycle
+- Integration, IntegrationLink
+- AIContext, AIConfiguration
+- Embedding
+"""
+
+from pilot_space.infrastructure.database.base import (
+    Base,
+    BaseModel,
+    EntityId,
+    SlugMixin,
+    SoftDeleteMixin,
+    TimestampMixin,
+    WorkspaceScopedMixin,
+    WorkspaceScopedModel,
+)
+from pilot_space.infrastructure.database.models.activity import Activity, ActivityType
+from pilot_space.infrastructure.database.models.ai_configuration import (
+    AIConfiguration,
+    LLMProvider,
+)
+from pilot_space.infrastructure.database.models.ai_context import AIContext
+from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
+from pilot_space.infrastructure.database.models.discussion_comment import (
+    DiscussionComment,
+)
+from pilot_space.infrastructure.database.models.embedding import Embedding, EmbeddingType
+from pilot_space.infrastructure.database.models.integration import (
+    Integration,
+    IntegrationLink,
+    IntegrationLinkType,
+    IntegrationProvider,
+)
+from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
+from pilot_space.infrastructure.database.models.issue_label import issue_labels
+from pilot_space.infrastructure.database.models.label import Label
+from pilot_space.infrastructure.database.models.module import Module, ModuleStatus
+from pilot_space.infrastructure.database.models.note import Note
+from pilot_space.infrastructure.database.models.note_annotation import (
+    AnnotationStatus,
+    AnnotationType,
+    NoteAnnotation,
+)
+from pilot_space.infrastructure.database.models.note_issue_link import (
+    NoteIssueLink,
+    NoteLinkType,
+)
+from pilot_space.infrastructure.database.models.project import Project
+from pilot_space.infrastructure.database.models.state import (
+    DEFAULT_STATES,
+    State,
+    StateGroup,
+)
+from pilot_space.infrastructure.database.models.template import Template
+from pilot_space.infrastructure.database.models.threaded_discussion import (
+    DiscussionStatus,
+    ThreadedDiscussion,
+)
+from pilot_space.infrastructure.database.models.user import User
+from pilot_space.infrastructure.database.models.workspace import Workspace
+from pilot_space.infrastructure.database.models.workspace_member import (
+    WorkspaceMember,
+    WorkspaceRole,
+)
+
+__all__ = [
+    "DEFAULT_STATES",
+    "AIConfiguration",
+    "AIContext",
+    "Activity",
+    "ActivityType",
+    "AnnotationStatus",
+    "AnnotationType",
+    "Base",
+    "BaseModel",
+    "Cycle",
+    "CycleStatus",
+    "DiscussionComment",
+    "DiscussionStatus",
+    "Embedding",
+    "EmbeddingType",
+    "EntityId",
+    "Integration",
+    "IntegrationLink",
+    "IntegrationLinkType",
+    "IntegrationProvider",
+    "Issue",
+    "IssuePriority",
+    "LLMProvider",
+    "Label",
+    "Module",
+    "ModuleStatus",
+    "Note",
+    "NoteAnnotation",
+    "NoteIssueLink",
+    "NoteLinkType",
+    "Project",
+    "SlugMixin",
+    "SoftDeleteMixin",
+    "State",
+    "StateGroup",
+    "Template",
+    "ThreadedDiscussion",
+    "TimestampMixin",
+    "User",
+    "Workspace",
+    "WorkspaceMember",
+    "WorkspaceRole",
+    "WorkspaceScopedMixin",
+    "WorkspaceScopedModel",
+    "issue_labels",
+]
