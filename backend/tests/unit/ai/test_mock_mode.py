@@ -216,7 +216,10 @@ class TestGeneratorRegistry:
 
     def test_all_agents_have_generators(self) -> None:
         """Verify all agents have registered mock generators."""
-        from pilot_space.ai.providers import mock_generators  # noqa: F401
+        from pilot_space.ai.providers import (
+            mock_generators,  # noqa: F401
+            mock_generators_supporting,  # noqa: F401
+        )
 
         registered = MockResponseRegistry.list_registered()
 
@@ -250,7 +253,10 @@ class TestGeneratorRegistry:
 
     def test_generator_produces_valid_output(self) -> None:
         """Test that generators produce non-empty output."""
-        from pilot_space.ai.providers import mock_generators  # noqa: F401
+        from pilot_space.ai.providers import (
+            mock_generators,  # noqa: F401
+            mock_generators_supporting,  # noqa: F401
+        )
 
         registered = MockResponseRegistry.list_registered()
 
