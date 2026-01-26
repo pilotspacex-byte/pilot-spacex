@@ -45,9 +45,22 @@ export interface CostSummary {
   period_end: string;
   total_cost_usd: number;
   total_requests: number;
-  by_agent: Array<{ agent_name: string; total_cost_usd: number; request_count: number }>;
-  by_user: Array<{ user_id: string; user_name: string; total_cost_usd: number }>;
-  by_day: Array<{ date: string; total_cost_usd: number }>;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  by_agent: Array<{
+    agent_name: string;
+    total_cost_usd: number;
+    request_count: number;
+    input_tokens: number;
+    output_tokens: number;
+  }>;
+  by_user: Array<{
+    user_id: string;
+    user_name: string;
+    total_cost_usd: number;
+    request_count: number;
+  }>;
+  by_day: Array<{ date: string; total_cost_usd: number; request_count: number }>;
 }
 
 export interface ApprovalListResponse {
@@ -65,6 +78,20 @@ export interface ApprovalRequest {
   requested_by: string;
   context_preview: string;
   payload?: Record<string, unknown>;
+}
+
+export interface ConversationSession {
+  session_id: string;
+  issue_id: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
 }
 
 /**
@@ -181,12 +208,33 @@ export const aiApi = {
 
   /**
    * Get cost summary for workspace AI usage.
-   * @param startDate - Optional start date (ISO 8601)
-   * @param endDate - Optional end date (ISO 8601)
+   * @param workspaceId - Workspace UUID
+   * @param startDate - Start date (YYYY-MM-DD format)
+   * @param endDate - End date (YYYY-MM-DD format)
    * @returns Cost summary with breakdowns by agent, user, and day
    */
-  getCostSummary: (startDate?: string, endDate?: string) =>
-    apiClient.get<CostSummary>('/ai/costs/summary', {
+  getCostSummary: (workspaceId: string, startDate: string, endDate: string) =>
+    apiClient.get<CostSummary>(`/workspaces/${workspaceId}/ai/costs/summary`, {
       params: { start_date: startDate, end_date: endDate },
     }),
+
+  /**
+   * Conversation endpoints for multi-turn chat.
+   */
+
+  /**
+   * Create conversation session for issue.
+   * @param issueId - Issue UUID
+   * @returns Conversation session
+   */
+  createConversationSession: (issueId: string) =>
+    apiClient.post<ConversationSession>('/ai/conversation/sessions', { issue_id: issueId }),
+
+  /**
+   * Get conversation history for session.
+   * @param sessionId - Session UUID
+   * @returns List of conversation messages
+   */
+  getConversationHistory: (sessionId: string) =>
+    apiClient.get<ConversationMessage[]>(`/ai/conversation/sessions/${sessionId}/messages`),
 };

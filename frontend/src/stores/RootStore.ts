@@ -105,5 +105,6 @@ export function useStore() {
     issueStore: store.issues,
     cycleStore: store.cycles,
     aiStore: store.ai,
+    ai: store.ai, // Alias for consistency with task specs
   };
 }

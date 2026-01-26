@@ -13,6 +13,7 @@ export { AISettingsStore } from './AISettingsStore';
 export { PRReviewStore } from './PRReviewStore';
 export { IssueExtractionStore } from './IssueExtractionStore';
 export { MarginAnnotationStore } from './MarginAnnotationStore';
+export { CostStore } from './CostStore';
 
 // Types
 export type { AIContextPhase, AIContextResult } from './AIContextStore';
@@ -28,3 +29,4 @@ export type {
 } from './PRReviewStore';
 export type { ExtractedIssue } from './IssueExtractionStore';
 export type { NoteAnnotation } from './MarginAnnotationStore';
+export type { DateRange, CostByAgentData, CostTrendData } from './CostStore';
