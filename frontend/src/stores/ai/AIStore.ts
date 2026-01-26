@@ -12,6 +12,10 @@ import { AIContextStore } from './AIContextStore';
 import { ApprovalStore } from './ApprovalStore';
 import { AISettingsStore } from './AISettingsStore';
 import { PRReviewStore } from './PRReviewStore';
+import { IssueExtractionStore } from './IssueExtractionStore';
+import { ConversationStore } from './ConversationStore';
+import { CostStore } from './CostStore';
+import { MarginAnnotationStore } from './MarginAnnotationStore';
 
 export class AIStore {
   ghostText: GhostTextStore;
@@ -19,6 +23,10 @@ export class AIStore {
   approval: ApprovalStore;
   settings: AISettingsStore;
   prReview: PRReviewStore;
+  issueExtraction: IssueExtractionStore;
+  conversation: ConversationStore;
+  cost: CostStore;
+  marginAnnotation: MarginAnnotationStore;
 
   isGloballyEnabled = true;
   globalError: string | null = null;
@@ -31,6 +39,10 @@ export class AIStore {
     this.approval = new ApprovalStore(this);
     this.settings = new AISettingsStore(this);
     this.prReview = new PRReviewStore(this);
+    this.issueExtraction = new IssueExtractionStore(this);
+    this.conversation = new ConversationStore(this);
+    this.cost = new CostStore(this);
+    this.marginAnnotation = new MarginAnnotationStore(this);
   }
 
   setGloballyEnabled(enabled: boolean): void {
@@ -45,6 +57,9 @@ export class AIStore {
     this.ghostText.abort();
     this.aiContext.abort();
     this.prReview.abort();
+    this.issueExtraction.abort();
+    this.conversation.abort();
+    this.marginAnnotation.abort();
   }
 
   async loadWorkspaceSettings(workspaceId: string): Promise<void> {
@@ -54,6 +69,7 @@ export class AIStore {
       // Update feature availability based on settings
       this.ghostText.setEnabled(this.settings.ghostTextEnabled);
       this.aiContext.setEnabled(this.settings.aiContextEnabled);
+      this.marginAnnotation.setEnabled(this.settings.marginAnnotationsEnabled ?? true);
     });
   }
 
@@ -61,8 +77,12 @@ export class AIStore {
     this.ghostText.abort();
     this.aiContext.abort();
     this.prReview.abort();
+    this.issueExtraction.abort();
+    this.marginAnnotation.abort();
+    this.conversation.clearSession();
     this.approval.reset();
     this.settings.reset();
+    this.cost.reset();
     this.globalError = null;
   }
 }

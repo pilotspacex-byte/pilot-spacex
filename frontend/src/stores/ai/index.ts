@@ -11,6 +11,8 @@ export { AIContextStore } from './AIContextStore';
 export { ApprovalStore } from './ApprovalStore';
 export { AISettingsStore } from './AISettingsStore';
 export { PRReviewStore } from './PRReviewStore';
+export { IssueExtractionStore } from './IssueExtractionStore';
+export { MarginAnnotationStore } from './MarginAnnotationStore';
 
 // Types
 export type { AIContextPhase, AIContextResult } from './AIContextStore';
@@ -24,3 +26,5 @@ export type {
   PRReviewResult,
   TokenUsage,
 } from './PRReviewStore';
+export type { ExtractedIssue } from './IssueExtractionStore';
+export type { NoteAnnotation } from './MarginAnnotationStore';
