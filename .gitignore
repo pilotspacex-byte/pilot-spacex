@@ -329,3 +329,6 @@ docs/dev-pattern/*
 .serena/*
 **/CLAUDE.md
 **/playwright-report/*
+
+# Re-include frontend source lib (not Python build lib)
+!frontend/src/lib/
