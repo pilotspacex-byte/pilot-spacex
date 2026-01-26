@@ -42,6 +42,14 @@ from pilot_space.api.v1.schemas.annotation import (
     AnalyzeNoteRequest,
     AnalyzeNoteResponse,
 )
+from pilot_space.api.v1.schemas.approval import (
+    ApprovalDetailResponse,
+    ApprovalListResponse,
+    ApprovalRequestResponse,
+    ApprovalResolution,
+    ApprovalResolutionResponse,
+    ApprovalStatus as ApprovalStatusSchema,
+)
 from pilot_space.api.v1.schemas.cost import (
     CostByAgent,
     CostByDay,
@@ -546,7 +554,7 @@ async def extract_issues_stream(
     Returns:
         SSE stream of extraction events.
     """
-    correlation_id = get_correlation_id(request)
+    _correlation_id = get_correlation_id(request)
     workspace_id = get_workspace_id(request)
 
     async def generate_events():
@@ -560,7 +568,7 @@ async def extract_issues_stream(
 
             # TODO: Fetch note from database
             # For now, use request data
-            note_content = extract_text_from_tiptap(extract_request.note_content)
+            _note_content = extract_text_from_tiptap(extract_request.note_content)
 
             yield builder.event(
                 "progress", {"status": "extracting", "message": "Extracting issues..."}
@@ -573,7 +581,7 @@ async def extract_issues_stream(
                 IssueExtractorInput,
             )
 
-            input_data = IssueExtractorInput(
+            _input_data = IssueExtractorInput(
                 note_id=UUID(note_id),
                 project_id=UUID(extract_request.note_id)
                 if extract_request.note_id
@@ -582,7 +590,7 @@ async def extract_issues_stream(
                 min_confidence=0.5,
             )
 
-            context = AgentContext(workspace_id=workspace_id, user_id=UUID(str(current_user_id)))
+            _context = AgentContext(workspace_id=workspace_id, user_id=UUID(str(current_user_id)))
 
             # TODO: Get agent from DI container
             # For now, create directly (will need ToolRegistry, etc.)
@@ -750,7 +758,7 @@ async def approve_extracted_issues(
     Returns:
         Created issue IDs
     """
-    workspace_id = get_workspace_id(request)
+    _workspace_id = get_workspace_id(request)
 
     # TODO: Integrate with ApprovalService
     # approval_service = get_approval_service()
@@ -1250,23 +1258,7 @@ async def get_cost_trends(
     )
 
 
-__all__ = ["router"]
-"""Approval Queue Endpoints (T073-T075)
-
-To be added to ai.py router file.
-"""
-
-# Add these imports at the top of ai.py:
-from pilot_space.api.v1.schemas.approval import (
-    ApprovalDetailResponse,
-    ApprovalListResponse,
-    ApprovalRequestResponse,
-    ApprovalResolution,
-    ApprovalResolutionResponse,
-    ApprovalStatus as ApprovalStatusSchema,
-)
-
-# Add these functions before __all__:
+# Approval Queue Endpoints (T073-T075)
 
 
 def _get_context_preview(payload: dict[str, Any]) -> str:
@@ -1489,7 +1481,7 @@ async def resolve_approval(
 
     # Resolve the request
     await approval_service.resolve(
-        approval_id=approval_id,
+        request_id=approval_id,
         resolved_by=current_user_id,
         approved=body.approved,
         resolution_note=body.note,
@@ -1547,3 +1539,6 @@ async def _execute_approved_action(
 
     # Default: mark as executed
     return {"executed": True, "agent": agent_name}
+
+
+__all__ = ["router"]

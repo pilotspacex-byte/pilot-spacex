@@ -22,13 +22,17 @@ from pilot_space.ai.agents.ai_context_agent import (
     CodeReference,
     RelatedItem,
 )
-from pilot_space.ai.agents.base import AgentContext, Provider
+from pilot_space.ai.agents.sdk_base import AgentContext
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+    from pilot_space.ai.infrastructure.resilience import ResilientExecutor
+    from pilot_space.ai.providers.provider_selector import ProviderSelector
+    from pilot_space.ai.tools.mcp_server import ToolRegistry
     from pilot_space.infrastructure.database.repositories import (
         AIContextRepository,
         IssueRepository,
@@ -92,6 +96,10 @@ class RefineAIContextService:
         session: AsyncSession,
         ai_context_repository: AIContextRepository,
         issue_repository: IssueRepository,
+        tool_registry: ToolRegistry,
+        provider_selector: ProviderSelector,
+        cost_tracker: CostTracker,
+        resilient_executor: ResilientExecutor,
     ) -> None:
         """Initialize service.
 
@@ -99,10 +107,18 @@ class RefineAIContextService:
             session: Async database session.
             ai_context_repository: AIContext repository.
             issue_repository: Issue repository.
+            tool_registry: MCP tool registry.
+            provider_selector: Provider/model selection service.
+            cost_tracker: Cost tracking service.
+            resilient_executor: Retry and circuit breaker service.
         """
         self._session = session
         self._context_repo = ai_context_repository
         self._issue_repo = issue_repository
+        self._tool_registry = tool_registry
+        self._provider_selector = provider_selector
+        self._cost_tracker = cost_tracker
+        self._resilient_executor = resilient_executor
 
     async def execute(
         self,
@@ -194,20 +210,31 @@ class RefineAIContextService:
         )
 
         # Build agent context
-        api_keys = {
-            Provider.CLAUDE: payload.api_keys.get("anthropic", ""),
-            Provider.OPENAI: payload.api_keys.get("openai", ""),
-        }
         agent_context = AgentContext(
             workspace_id=payload.workspace_id,
             user_id=payload.user_id,
-            correlation_id=payload.correlation_id,
-            api_keys=api_keys,
+            operation_id=None,
+            metadata={"correlation_id": payload.correlation_id},
         )
 
+        # Extract Anthropic API key for the agent
+        anthropic_key = payload.api_keys.get("anthropic", "")
+        if not anthropic_key:
+            raise ValueError("Anthropic API key is required")
+
+        # Update input with API key
+        agent_input.api_key = anthropic_key
+
         # Execute agent
-        agent = AIContextAgent()
-        result = await agent.execute(agent_input, agent_context)
+        agent = AIContextAgent(
+            tool_registry=self._tool_registry,
+            provider_selector=self._provider_selector,
+            cost_tracker=self._cost_tracker,
+            resilient_executor=self._resilient_executor,
+        )
+        result = await agent.run(agent_input, agent_context)
+        if not result.success or not result.output:
+            raise ValueError(f"Agent refinement failed: {result.error}")
         output = result.output
 
         # Update conversation history
@@ -239,6 +266,7 @@ class RefineAIContextService:
                 "conversation_count": context.conversation_count,
                 "input_tokens": result.input_tokens,
                 "output_tokens": result.output_tokens,
+                "cost_usd": result.cost_usd,
             },
         )
 
@@ -318,22 +346,32 @@ class RefineAIContextService:
         )
 
         # Build agent context
-        api_keys = {
-            Provider.CLAUDE: payload.api_keys.get("anthropic", ""),
-            Provider.OPENAI: payload.api_keys.get("openai", ""),
-        }
         agent_context = AgentContext(
             workspace_id=payload.workspace_id,
             user_id=payload.user_id,
-            correlation_id=payload.correlation_id,
-            api_keys=api_keys,
+            operation_id=None,
+            metadata={"correlation_id": payload.correlation_id},
         )
 
+        # Extract Anthropic API key for the agent
+        anthropic_key = payload.api_keys.get("anthropic", "")
+        if not anthropic_key:
+            yield "Error: Anthropic API key is required"
+            return
+
+        # Update input with API key
+        agent_input.api_key = anthropic_key
+
         # Stream from agent
-        agent = AIContextAgent()
+        agent = AIContextAgent(
+            tool_registry=self._tool_registry,
+            provider_selector=self._provider_selector,
+            cost_tracker=self._cost_tracker,
+            resilient_executor=self._resilient_executor,
+        )
         full_response = ""
 
-        async for chunk in agent.stream_refinement(agent_input, agent_context):
+        async for chunk in agent.run_stream(agent_input, agent_context):
             full_response += chunk
             yield chunk
 

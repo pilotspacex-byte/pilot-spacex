@@ -324,12 +324,13 @@ class SDKOrchestrator:
 
             approval_request = await self._approval_service.create_approval_request(
                 workspace_id=context.workspace_id,
+                user_id=context.user_id,
                 action_type=action_enum,
                 action_data=payload or {"input": input_data},
                 requested_by_agent=agent_name,
             )
             return ExecutionResult.approval_required(
-                approval_request.id,
+                approval_request,
                 f"Critical action '{action_type}' requires approval",
             )
 
@@ -346,13 +347,14 @@ class SDKOrchestrator:
                 approval_request = (
                     await self._approval_service.create_approval_request(
                         workspace_id=context.workspace_id,
+                        user_id=context.user_id,
                         action_type=action_enum,
                         action_data=payload or {"input": input_data},
                         requested_by_agent=agent_name,
                     )
                 )
                 return ExecutionResult.approval_required(
-                    approval_request.id,
+                    approval_request,
                     f"Action '{action_type}' requires approval",
                 )
 

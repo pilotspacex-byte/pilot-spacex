@@ -18,7 +18,6 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from pilot_space.ai.agents.base import AgentContext, Provider
 from pilot_space.ai.agents.pr_review_agent import (
     PRReviewAgent,
     PRReviewInput,
@@ -26,12 +25,18 @@ from pilot_space.ai.agents.pr_review_agent import (
     ReviewComment,
     ReviewSeverity,
 )
+from pilot_space.ai.agents.sdk_base import AgentContext
 from pilot_space.ai.prompts.pr_review import format_review_as_markdown
 from pilot_space.infrastructure.queue.models import QueueName
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+    from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+    from pilot_space.ai.infrastructure.resilience import ResilientExecutor
+    from pilot_space.ai.providers.provider_selector import ProviderSelector
+    from pilot_space.ai.tools.mcp_server import ToolRegistry
     from pilot_space.infrastructure.database.repositories import (
         AIConfigurationRepository,
         IntegrationRepository,
@@ -175,6 +180,11 @@ class PRReviewJobHandler:
         queue_client: SupabaseQueueClient,
         integration_repo: IntegrationRepository,
         ai_config_repo: AIConfigurationRepository,
+        tool_registry: ToolRegistry,
+        provider_selector: ProviderSelector,
+        cost_tracker: CostTracker,
+        resilient_executor: ResilientExecutor,
+        key_storage: SecureKeyStorage,
     ) -> None:
         """Initialize handler.
 
@@ -183,12 +193,23 @@ class PRReviewJobHandler:
             queue_client: Supabase queue client.
             integration_repo: Integration repository.
             ai_config_repo: AI configuration repository.
+            tool_registry: Registry for MCP tool access.
+            provider_selector: Provider/model selection service.
+            cost_tracker: Cost tracking service.
+            resilient_executor: Retry and circuit breaker service.
+            key_storage: Secure API key storage service.
         """
         self._session = session
         self._queue = queue_client
         self._integration_repo = integration_repo
         self._ai_config_repo = ai_config_repo
-        self._agent = PRReviewAgent()
+        self._agent = PRReviewAgent(
+            tool_registry=tool_registry,
+            provider_selector=provider_selector,
+            cost_tracker=cost_tracker,
+            resilient_executor=resilient_executor,
+            key_storage=key_storage,
+        )
 
     async def execute(self, payload: PRReviewJobPayload) -> PRReviewJobResult:
         """Execute a PR review job.
@@ -229,9 +250,25 @@ class PRReviewJobHandler:
                 correlation_id=payload.correlation_id,
             )
 
-            # Execute review
-            result = await self._agent.execute(pr_input, context)
-            review_output = result.output
+            # Execute review (SDK agent returns AgentResult)
+            agent_result = await self._agent.run(pr_input, context)
+
+            if not agent_result.success or agent_result.output is None:
+                error_msg = agent_result.error or "Review execution failed"
+                logger.error(
+                    "PR review execution failed",
+                    extra={
+                        "job_id": payload.job_id,
+                        "error": error_msg,
+                    },
+                )
+                return PRReviewJobResult(
+                    job_id=payload.job_id,
+                    status=PRReviewJobStatus.FAILED,
+                    error=error_msg,
+                )
+
+            review_output = agent_result.output
 
             # Post results to GitHub
             comments_posted = 0
@@ -423,7 +460,7 @@ class PRReviewJobHandler:
         user_id: UUID,
         correlation_id: str,
     ) -> AgentContext:
-        """Build agent context with API keys.
+        """Build agent context.
 
         Args:
             workspace_id: Workspace ID.
@@ -433,25 +470,10 @@ class PRReviewJobHandler:
         Returns:
             Configured AgentContext.
         """
-        from pilot_space.infrastructure.database.models import LLMProvider
-        from pilot_space.infrastructure.encryption import decrypt_api_key
-
-        # Get AI configuration for Anthropic (Claude) provider
-        anthropic_config = await self._ai_config_repo.get_active_for_provider(
-            workspace_id, LLMProvider.ANTHROPIC
-        )
-        if not anthropic_config:
-            raise ValueError(f"No active Anthropic AI configuration for workspace {workspace_id}")
-
-        api_keys: dict[Provider, str] = {
-            Provider.CLAUDE: decrypt_api_key(anthropic_config.api_key_encrypted),
-        }
-
         return AgentContext(
             workspace_id=workspace_id,
             user_id=user_id,
-            correlation_id=correlation_id,
-            api_keys=api_keys,
+            metadata={"correlation_id": correlation_id},
         )
 
     async def _post_inline_comments(
@@ -598,6 +620,11 @@ async def handle_pr_review_job(
     queue_client: SupabaseQueueClient,
     integration_repo: IntegrationRepository,
     ai_config_repo: AIConfigurationRepository,
+    tool_registry: ToolRegistry,
+    provider_selector: ProviderSelector,
+    cost_tracker: CostTracker,
+    resilient_executor: ResilientExecutor,
+    key_storage: SecureKeyStorage,
     payload: PRReviewJobPayload,
 ) -> PRReviewJobResult:
     """Process a single PR review job from the queue.
@@ -607,6 +634,11 @@ async def handle_pr_review_job(
         queue_client: Queue client.
         integration_repo: Integration repository.
         ai_config_repo: AI configuration repository.
+        tool_registry: Registry for MCP tool access.
+        provider_selector: Provider/model selection service.
+        cost_tracker: Cost tracking service.
+        resilient_executor: Retry and circuit breaker service.
+        key_storage: Secure API key storage service.
         payload: Job payload.
 
     Returns:
@@ -617,6 +649,11 @@ async def handle_pr_review_job(
         queue_client=queue_client,
         integration_repo=integration_repo,
         ai_config_repo=ai_config_repo,
+        tool_registry=tool_registry,
+        provider_selector=provider_selector,
+        cost_tracker=cost_tracker,
+        resilient_executor=resilient_executor,
+        key_storage=key_storage,
     )
     return await handler.execute(payload)
 

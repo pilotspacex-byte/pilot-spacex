@@ -409,11 +409,13 @@ async def get_activity_service(
 
 async def get_ai_context_service(
     session: Annotated[AsyncSession, Depends(get_session)],
+    request: Request,
 ) -> GenerateAIContextService:
     """Get GenerateAIContextService instance.
 
     Args:
         session: Database session.
+        request: FastAPI request for accessing app container.
 
     Returns:
         Configured GenerateAIContextService.
@@ -426,12 +428,74 @@ async def get_ai_context_service(
         NoteRepository,
     )
 
+    # Get AI infrastructure from container
+    if not hasattr(request.app.state, "container"):
+        raise RuntimeError("DI container not initialized. Check app startup.")
+
+    container = request.app.state.container
+    tool_registry = container.tool_registry()
+    provider_selector = container.provider_selector()
+    resilient_executor = container.resilient_executor()
+
+    # Create session-scoped cost tracker
+    from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+
+    cost_tracker = CostTracker(session=session)
+
     return GenerateAIContextService(
         session=session,
         ai_context_repository=AIContextRepository(session),
         issue_repository=IssueRepository(session),
         note_repository=NoteRepository(session),
         integration_link_repository=IntegrationLinkRepository(session),
+        tool_registry=tool_registry,
+        provider_selector=provider_selector,
+        cost_tracker=cost_tracker,
+        resilient_executor=resilient_executor,
+    )
+
+
+async def get_refine_ai_context_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    request: Request,
+) -> RefineAIContextService:
+    """Get RefineAIContextService instance.
+
+    Args:
+        session: Database session.
+        request: FastAPI request for accessing app container.
+
+    Returns:
+        Configured RefineAIContextService.
+    """
+    from pilot_space.application.services.ai_context import RefineAIContextService
+    from pilot_space.infrastructure.database.repositories import (
+        AIContextRepository,
+        IssueRepository,
+    )
+
+    # Get AI infrastructure from container
+    if not hasattr(request.app.state, "container"):
+        raise RuntimeError("DI container not initialized. Check app startup.")
+
+    container = request.app.state.container
+    tool_registry = container.tool_registry()
+    provider_selector = container.provider_selector()
+    resilient_executor = container.resilient_executor()
+
+    # Create session-scoped cost tracker
+    from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+
+    cost_tracker = CostTracker(session=session)
+
+    return RefineAIContextService(
+        session=session,
+        ai_context_repository=AIContextRepository(session),
+        issue_repository=IssueRepository(session),
+        tool_registry=tool_registry,
+        provider_selector=provider_selector,
+        cost_tracker=cost_tracker,
+        resilient_executor=resilient_executor,
     )
 
 
@@ -758,7 +822,10 @@ CostTrackerDep = Annotated["CostTracker", Depends(get_cost_tracker_dep)]
 
 # Additional type imports for other services
 if TYPE_CHECKING:
-    from pilot_space.application.services.ai_context import GenerateAIContextService
+    from pilot_space.application.services.ai_context import (
+        GenerateAIContextService,
+        RefineAIContextService,
+    )
     from pilot_space.application.services.issue import (
         ActivityService,
         CreateIssueService,

@@ -247,10 +247,10 @@ Return JSON with annotations array."""
             # Extract text from content blocks
             content = ""
             for block in response.content:
-                if hasattr(block, "text"):
+                if block.type == "text":
                     content += block.text
-        elif hasattr(response, "content"):
-            content = str(response.content)
+        elif isinstance(response, str):
+            content = response
         else:
             content = str(response)
 

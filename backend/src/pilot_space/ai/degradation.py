@@ -36,7 +36,7 @@ class DegradationLevel(Enum):
 
 
 @dataclass
-class DegradedResponse(Generic[T]):
+class DegradedResponse(Generic[T]):  # noqa: UP046 - keeping Generic for Python 3.11 compat
     """Response wrapper indicating degradation status.
 
     Attributes:

@@ -8,10 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from pilot_space.ai.agents.issue_enhancer_agent import IssueEnhancementOutput
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +96,7 @@ def parse_enhancement_response(
     response_text: str,
     original_title: str,
     original_description: str | None,
-) -> IssueEnhancementOutput:
+) -> dict[str, Any]:
     """Parse the AI response into structured output.
 
     Args:
@@ -108,9 +105,8 @@ def parse_enhancement_response(
         original_description: Original description.
 
     Returns:
-        Parsed IssueEnhancementOutput.
+        Dict with parsed enhancement data that can be used to construct IssueEnhancementOutput.
     """
-    from pilot_space.ai.agents.issue_enhancer_agent import IssueEnhancementOutput
 
     # Try to extract JSON from response
     try:
@@ -158,14 +154,14 @@ def parse_enhancement_response(
                 "confidence": float(raw_priority.get("confidence", 0.5)),
             }
 
-    return IssueEnhancementOutput(
-        enhanced_title=enhanced_title,
-        enhanced_description=enhanced_description,
-        suggested_labels=suggested_labels,
-        suggested_priority=suggested_priority,
-        title_enhanced=title_enhanced,
-        description_expanded=description_expanded,
-    )
+    return {
+        "enhanced_title": enhanced_title,
+        "enhanced_description": enhanced_description,
+        "suggested_labels": suggested_labels,
+        "suggested_priority": suggested_priority,
+        "title_enhanced": title_enhanced,
+        "description_expanded": description_expanded,
+    }
 
 
 __all__ = ["build_enhancement_prompt", "parse_enhancement_response"]

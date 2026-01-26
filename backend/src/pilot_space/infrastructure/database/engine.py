@@ -52,7 +52,7 @@ class EngineManager:
     _instance: "EngineManager | None" = None
     _engine: AsyncEngine | None = None
 
-    def __new__(cls) -> "EngineManager":
+    def __new__(cls) -> "EngineManager":  # noqa: PYI034 - Self not available in 3.11
         """Create singleton instance."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)

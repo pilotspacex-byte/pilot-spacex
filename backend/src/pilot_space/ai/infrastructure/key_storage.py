@@ -252,10 +252,10 @@ class SecureKeyStorage:
                 # List models is a cheap validation
                 await client.models.list()
             elif provider == "google":
-                import google.generativeai as genai
+                import google.generativeai as genai  # type: ignore[import-untyped]
 
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel("gemini-2.0-flash")
+                genai.configure(api_key=api_key)  # type: ignore[attr-defined]
+                model = genai.GenerativeModel("gemini-2.0-flash")  # type: ignore[attr-defined]
                 await model.generate_content_async("ping")
             else:
                 logger.warning(

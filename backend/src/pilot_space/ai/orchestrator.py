@@ -245,10 +245,12 @@ class AIOrchestrator:
         self._rate_limiter = RateLimiter()
 
         # Initialize agents
-        self._ghost_text_agent = GhostTextAgent()
-        self._margin_annotation_agent = MarginAnnotationAgent()
-        self._issue_extractor_agent = IssueExtractorAgent()
-        self._conversation_agent = ConversationAgent()
+        # DEPRECATED: Legacy orchestrator will be removed in Wave 12 cleanup
+        # These agents now require SDK infrastructure dependencies
+        self._ghost_text_agent = GhostTextAgent()  # type: ignore[call-arg]
+        self._margin_annotation_agent = MarginAnnotationAgent()  # type: ignore[call-arg]
+        self._issue_extractor_agent = IssueExtractorAgent()  # type: ignore[call-arg]
+        self._conversation_agent = ConversationAgent()  # type: ignore[call-arg]
 
         logger.info("AI Orchestrator initialized")
 
@@ -374,7 +376,9 @@ class AIOrchestrator:
             correlation_id,
         )
 
-        return await self._ghost_text_agent.execute(input_data, context)
+        # DEPRECATED: Legacy orchestrator will be removed in Wave 12 cleanup
+        # SDK orchestrator in sdk_orchestrator.py is the replacement
+        return await self._ghost_text_agent.execute(input_data, context)  # type: ignore[return-value, arg-type]
 
     async def stream_ghost_text(
         self,
@@ -404,8 +408,9 @@ class AIOrchestrator:
             correlation_id,
         )
 
-        streaming_agent = GhostTextStreamingAgent()
-        async for token in streaming_agent.stream(input_data, context):
+        # DEPRECATED: Legacy orchestrator will be removed in Wave 12 cleanup
+        streaming_agent = GhostTextStreamingAgent()  # type: ignore[call-arg]
+        async for token in streaming_agent.stream(input_data, context):  # type: ignore[arg-type]
             yield token
 
     # Margin Annotation API

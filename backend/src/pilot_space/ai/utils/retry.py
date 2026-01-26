@@ -120,7 +120,7 @@ def is_transient_error(error: Exception) -> bool:
     return any(indicator in error_str for indicator in transient_indicators)
 
 
-async def retry_async(
+async def retry_async(  # noqa: UP047 - keeping TypeVar for Python 3.11 compat
     func: Callable[..., Awaitable[T]],
     *args: Any,
     config: RetryConfig | None = None,

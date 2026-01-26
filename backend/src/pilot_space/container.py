@@ -210,7 +210,7 @@ class Container(containers.DeclarativeContainer):
     sdk_orchestrator = providers.Object(None)
 
 
-def _register_sdk_agents(orchestrator: Any) -> None:
+def _register_sdk_agents(orchestrator: Any) -> None:  # noqa: RUF100  # pyright: ignore[reportUnusedFunction]
     """Register all SDK agents in the orchestrator.
 
     Args:

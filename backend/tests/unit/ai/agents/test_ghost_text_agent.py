@@ -14,7 +14,7 @@ T044-T049: GhostTextAgent test suite.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -22,9 +22,6 @@ import pytest
 
 from pilot_space.ai.agents.ghost_text_agent import GhostTextAgent, GhostTextInput
 from pilot_space.ai.agents.sdk_base import AgentContext
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
 
 
 @pytest.fixture

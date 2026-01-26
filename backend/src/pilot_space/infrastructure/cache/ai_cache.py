@@ -174,7 +174,7 @@ class AICache:
                 logger.warning("Failed to cache AI result for %s", cache_key)
         except Exception as e:
             self._errors += 1
-            logger.exception("Error generating AI result for %s: %s", cache_key, e)
+            logger.exception("Error generating AI result for %s: %s", cache_key, e)  # noqa: TRY401
             raise
 
         return result

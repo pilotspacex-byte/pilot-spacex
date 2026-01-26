@@ -402,10 +402,10 @@ def log_ai_latency(
 
 # Prometheus metrics for SDK operations (T328)
 # Note: prometheus_client is optional and may not be installed in all environments
-_PROMETHEUS_AVAILABLE = False
+_prometheus_available = False
 
 try:
-    from prometheus_client import Counter, Gauge, Histogram
+    from prometheus_client import Counter, Gauge, Histogram  # type: ignore[import-untyped]
 
     # Counters
     ai_requests_total: Counter | None = Counter(
@@ -441,7 +441,7 @@ try:
         ["agent_name"],
     )
 
-    _PROMETHEUS_AVAILABLE = True
+    _prometheus_available = True
 except ImportError:
     logger.warning("prometheus_client not installed, metrics will not be exported")
     ai_requests_total = None
@@ -467,7 +467,7 @@ def record_request_metrics(
         output_tokens: Number of output tokens.
         duration_seconds: Request duration in seconds.
     """
-    if not _PROMETHEUS_AVAILABLE or not all(
+    if not _prometheus_available or not all(
         [
             ai_requests_total,
             ai_tokens_total,
@@ -494,7 +494,7 @@ def update_circuit_breaker_metric(provider: str, state: str) -> None:
         provider: Provider name (anthropic, openai, google).
         state: Circuit breaker state (closed, open, half_open).
     """
-    if not _PROMETHEUS_AVAILABLE or not ai_circuit_breaker_state:
+    if not _prometheus_available or not ai_circuit_breaker_state:
         return
 
     state_value = {"closed": 0.0, "open": 1.0, "half_open": 0.5}.get(state, 0.0)
@@ -508,7 +508,7 @@ def update_active_sessions_metric(agent_name: str, count: int) -> None:
         agent_name: Agent name.
         count: Number of active sessions.
     """
-    if not _PROMETHEUS_AVAILABLE or not ai_active_sessions:
+    if not _prometheus_available or not ai_active_sessions:
         return
 
     ai_active_sessions.labels(agent_name=agent_name).set(count)  # type: ignore[union-attr]

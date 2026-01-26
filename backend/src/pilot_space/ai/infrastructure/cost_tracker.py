@@ -157,7 +157,7 @@ class CostTracker:
         """
         if provider not in PRICING_TABLE:
             raise ValueError(
-                f"Unknown provider '{provider}'. " f"Supported: {', '.join(PRICING_TABLE.keys())}"
+                f"Unknown provider '{provider}'. Supported: {', '.join(PRICING_TABLE.keys())}"
             )
 
         provider_pricing = PRICING_TABLE[provider]

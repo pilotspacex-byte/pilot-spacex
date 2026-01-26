@@ -129,11 +129,14 @@ class IssueEnhancerAgent(BaseAgent[IssueEnhancementInput, IssueEnhancementOutput
             first_block = message.content[0]
             if isinstance(first_block, TextBlock):
                 response_text = first_block.text
-        output = parse_enhancement_response(
+        parsed_data = parse_enhancement_response(
             response_text,
             original_title=input_data.title,
             original_description=input_data.description,
         )
+
+        # Construct output from parsed dict
+        output = IssueEnhancementOutput(**parsed_data)
 
         return AgentResult(
             output=output,

@@ -30,9 +30,11 @@ from pilot_space.api.v1.schemas.ai_context import (
     RefineContextResponse,
 )
 from pilot_space.dependencies import (
+    get_ai_context_service,
     get_current_user,
     get_current_workspace_id,
     get_db_session,
+    get_refine_ai_context_service,
     get_user_api_keys,
 )
 
@@ -92,6 +94,7 @@ async def get_ai_context(
     user_id: Annotated[UUID, Depends(get_current_user)],
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
     session: Annotated[..., Depends(get_db_session)],
+    service: Annotated[..., Depends(get_ai_context_service)],
     generate_if_missing: bool = Query(default=True),
 ) -> AIContextResponse:
     """Get AI context for an issue, optionally generating if missing.
@@ -105,6 +108,7 @@ async def get_ai_context(
         user_id: Current user.
         api_keys: User's API keys.
         session: Database session.
+        service: Generated AI context service.
         generate_if_missing: Generate if no context exists.
 
     Returns:
@@ -113,19 +117,10 @@ async def get_ai_context(
     Raises:
         HTTPException: If context not found and generation disabled or failed.
     """
-    from pilot_space.application.services.ai_context import (
-        GenerateAIContextPayload,
-        GenerateAIContextService,
-    )
-    from pilot_space.infrastructure.database.repositories import (
-        AIContextRepository,
-        IntegrationLinkRepository,
-        IssueRepository,
-        NoteRepository,
-    )
+    from pilot_space.application.services.ai_context import GenerateAIContextPayload
+    from pilot_space.infrastructure.database.repositories import AIContextRepository
 
     context_repo = AIContextRepository(session)
-    issue_repo = IssueRepository(session)
 
     # Try to get existing context
     context = await context_repo.get_by_issue_id(issue_id)
@@ -148,18 +143,6 @@ async def get_ai_context(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Maximum 5 context generations per hour.",
         )
-
-    # Generate new context
-    note_repo = NoteRepository(session)
-    link_repo = IntegrationLinkRepository(session)
-
-    service = GenerateAIContextService(
-        session=session,
-        ai_context_repository=context_repo,
-        issue_repository=issue_repo,
-        note_repository=note_repo,
-        integration_link_repository=link_repo,
-    )
 
     import uuid as uuid_module
 
@@ -208,6 +191,7 @@ async def regenerate_ai_context(
     user_id: Annotated[UUID, Depends(get_current_user)],
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
     session: Annotated[..., Depends(get_db_session)],
+    service: Annotated[..., Depends(get_ai_context_service)],
 ) -> GenerateContextResponse:
     """Force regenerate AI context, bypassing cache.
 
@@ -219,20 +203,12 @@ async def regenerate_ai_context(
         user_id: Current user.
         api_keys: User's API keys.
         session: Database session.
+        service: Generated AI context service.
 
     Returns:
         Generation result.
     """
-    from pilot_space.application.services.ai_context import (
-        GenerateAIContextPayload,
-        GenerateAIContextService,
-    )
-    from pilot_space.infrastructure.database.repositories import (
-        AIContextRepository,
-        IntegrationLinkRepository,
-        IssueRepository,
-        NoteRepository,
-    )
+    from pilot_space.application.services.ai_context import GenerateAIContextPayload
 
     # Check rate limit
     if not _check_rate_limit(str(user_id)):
@@ -240,19 +216,6 @@ async def regenerate_ai_context(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Maximum 5 context generations per hour.",
         )
-
-    context_repo = AIContextRepository(session)
-    issue_repo = IssueRepository(session)
-    note_repo = NoteRepository(session)
-    link_repo = IntegrationLinkRepository(session)
-
-    service = GenerateAIContextService(
-        session=session,
-        ai_context_repository=context_repo,
-        issue_repository=issue_repo,
-        note_repository=note_repo,
-        integration_link_repository=link_repo,
-    )
 
     import uuid as uuid_module
 
@@ -305,6 +268,7 @@ async def refine_ai_context(
     user_id: Annotated[UUID, Depends(get_current_user)],
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
     session: Annotated[..., Depends(get_db_session)],
+    service: Annotated[..., Depends(get_refine_ai_context_service)],
 ) -> RefineContextResponse:
     """Refine AI context with a chat message.
 
@@ -317,29 +281,14 @@ async def refine_ai_context(
         user_id: Current user.
         api_keys: User's API keys.
         session: Database session.
+        service: Refine AI context service.
 
     Returns:
         Refinement result.
     """
-    from pilot_space.application.services.ai_context import (
-        RefineAIContextPayload,
-        RefineAIContextService,
-    )
-    from pilot_space.infrastructure.database.repositories import (
-        AIContextRepository,
-        IssueRepository,
-    )
-
-    context_repo = AIContextRepository(session)
-    issue_repo = IssueRepository(session)
-
-    service = RefineAIContextService(
-        session=session,
-        ai_context_repository=context_repo,
-        issue_repository=issue_repo,
-    )
-
     import uuid as uuid_module
+
+    from pilot_space.application.services.ai_context import RefineAIContextPayload
 
     payload = RefineAIContextPayload(
         workspace_id=workspace_id,
@@ -384,6 +333,7 @@ async def stream_ai_context_refinement(
     user_id: Annotated[UUID, Depends(get_current_user)],
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
     session: Annotated[..., Depends(get_db_session)],
+    service: Annotated[..., Depends(get_refine_ai_context_service)],
 ) -> StreamingResponse:
     """Stream AI context refinement response via SSE.
 
@@ -394,29 +344,14 @@ async def stream_ai_context_refinement(
         user_id: Current user.
         api_keys: User's API keys.
         session: Database session.
+        service: Refine AI context service.
 
     Returns:
         Streaming SSE response.
     """
-    from pilot_space.application.services.ai_context import (
-        RefineAIContextPayload,
-        RefineAIContextService,
-    )
-    from pilot_space.infrastructure.database.repositories import (
-        AIContextRepository,
-        IssueRepository,
-    )
-
-    context_repo = AIContextRepository(session)
-    issue_repo = IssueRepository(session)
-
-    service = RefineAIContextService(
-        session=session,
-        ai_context_repository=context_repo,
-        issue_repository=issue_repo,
-    )
-
     import uuid as uuid_module
+
+    from pilot_space.application.services.ai_context import RefineAIContextPayload
 
     payload = RefineAIContextPayload(
         workspace_id=workspace_id,
