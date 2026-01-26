@@ -19,18 +19,25 @@ from pilot_space.main import app
 async def e2e_client() -> AsyncGenerator[AsyncClient, None]:
     """Create async HTTP client for E2E testing.
 
+    Creates a fresh container for each test to avoid event loop issues
+    with SSE streaming tests.
+
     Yields:
         AsyncClient for making requests.
     """
-    # Initialize DI container in app state to avoid RuntimeError
+    # Reset and reinitialize DI container to ensure fresh state
     from pilot_space.container import get_container
 
-    if not hasattr(app.state, "container"):
-        app.state.container = get_container()
+    # Always create a fresh container to avoid event loop contamination
+    app.state.container = get_container()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+    # Clean up app state after test
+    if hasattr(app.state, "container"):
+        delattr(app.state, "container")
 
 
 @pytest.fixture

@@ -230,54 +230,66 @@ def generate_pr_review(input_data: dict[str, Any]) -> dict[str, Any]:
 
 @MockResponseRegistry.register("IssueExtractorAgent")
 @MockResponseRegistry.register("IssueExtractorSDKAgent")
-def generate_extracted_issues(input_data: dict[str, Any]) -> dict[str, Any]:
+def generate_extracted_issues(input_data: Any) -> Any:
     """Generate mock extracted issues from note.
 
     Args:
-        input_data: Dict with note_id, project_id
+        input_data: IssueExtractorInput dataclass or dict with note_id, project_id
 
     Returns:
-        Issue extractor output dict.
+        IssueExtractorOutput instance with mock issues.
     """
-    note_id = input_data.get("note_id", str(uuid4()))
+    from pilot_space.ai.agents.issue_extractor_sdk_agent import (
+        ExtractedIssue,
+        IssueExtractorOutput,
+    )
+    from pilot_space.ai.prompts.issue_extraction import ConfidenceTag
 
-    return {
-        "issues": [
-            {
-                "title": "Implement user authentication",
-                "description": "Add JWT-based authentication with refresh tokens",
-                "labels": ["auth", "security"],
-                "priority": 1,
-                "confidence_tag": "recommended",
-                "confidence_score": 0.92,
-                "source_block_ids": ["block-1", "block-2"],
-                "rationale": "Clear action item with specific technical requirements",
-            },
-            {
-                "title": "Add rate limiting to API",
-                "description": "Protect endpoints from abuse with per-user rate limits",
-                "labels": ["api", "security"],
-                "priority": 2,
-                "confidence_tag": "default",
-                "confidence_score": 0.78,
-                "source_block_ids": ["block-5"],
-                "rationale": "Mentioned as important but less urgency than auth",
-            },
-            {
-                "title": "Write unit tests for user service",
-                "description": "Achieve >80% coverage for user service layer",
-                "labels": ["testing", "quality"],
-                "priority": 3,
-                "confidence_tag": "current",
-                "confidence_score": 0.65,
-                "source_block_ids": ["block-8"],
-                "rationale": "Standard practice but not explicitly prioritized",
-            },
-        ],
-        "source_note_id": note_id,
-        "extraction_summary": "Extracted 3 actionable issues from note content. "
+    # Handle both dataclass and dict input
+    if hasattr(input_data, "note_id"):
+        note_id = input_data.note_id
+    else:
+        note_id = input_data.get("note_id", uuid4())
+
+    issues = [
+        ExtractedIssue(
+            title="Implement user authentication",
+            description="Add JWT-based authentication with refresh tokens",
+            labels=["auth", "security"],
+            priority=1,
+            confidence_tag=ConfidenceTag.RECOMMENDED,
+            confidence_score=0.92,
+            source_block_ids=["block-1", "block-2"],
+            rationale="Clear action item with specific technical requirements",
+        ),
+        ExtractedIssue(
+            title="Add rate limiting to API",
+            description="Protect endpoints from abuse with per-user rate limits",
+            labels=["api", "security"],
+            priority=2,
+            confidence_tag=ConfidenceTag.DEFAULT,
+            confidence_score=0.78,
+            source_block_ids=["block-5"],
+            rationale="Mentioned as important but less urgency than auth",
+        ),
+        ExtractedIssue(
+            title="Write unit tests for user service",
+            description="Achieve >80% coverage for user service layer",
+            labels=["testing", "quality"],
+            priority=3,
+            confidence_tag=ConfidenceTag.CURRENT,
+            confidence_score=0.65,
+            source_block_ids=["block-8"],
+            rationale="Standard practice but not explicitly prioritized",
+        ),
+    ]
+
+    return IssueExtractorOutput(
+        issues=issues,
+        source_note_id=note_id,
+        extraction_summary="Extracted 3 actionable issues from note content. "
         "1 recommended, 1 default, 1 current confidence level.",
-    }
+    )
 
 
 # =============================================================================

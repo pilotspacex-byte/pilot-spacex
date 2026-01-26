@@ -8,18 +8,23 @@ T058-T059: Issue extraction and approval.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.infrastructure.approval import ApprovalService
+from pilot_space.ai.sdk_orchestrator import SDKOrchestrator
 from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
 from pilot_space.api.utils.sse import SSEResponse, SSEStreamBuilder
 from pilot_space.api.v1.schemas.note import extract_text_from_tiptap
 from pilot_space.dependencies import (
     CurrentUserIdOrDemo,
+    DbSession,
+    get_approval_service_dep,
+    get_sdk_orchestrator,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,6 +41,10 @@ class ExtractIssuesRequest(BaseModel):
         description="Note title",
     )
     note_content: dict[str, Any] = Field(description="TipTap JSON content")
+    project_id: str | None = Field(
+        default=None,
+        description="Project ID for context",
+    )
     project_context: str | None = Field(
         default=None,
         max_length=2000,
@@ -50,6 +59,12 @@ class ExtractIssuesRequest(BaseModel):
         default=None,
         description="Labels available in the project",
     )
+    max_issues: int = Field(
+        default=10,
+        ge=1,
+        le=20,
+        description="Maximum number of issues to extract",
+    )
 
 
 class ExtractedIssueResponse(BaseModel):
@@ -57,11 +72,12 @@ class ExtractedIssueResponse(BaseModel):
 
     title: str = Field(description="Issue title")
     description: str = Field(description="Issue description")
-    priority: str = Field(description="Suggested priority")
+    priority: int = Field(description="Suggested priority (0-4)")
     labels: list[str] = Field(description="Suggested labels")
-    confidence: float = Field(description="Confidence score")
+    confidence_score: float = Field(description="Confidence score (0-1)")
     confidence_tag: str = Field(description="Confidence category")
-    source_text: str = Field(default="", description="Source text")
+    source_block_ids: list[str] = Field(default_factory=list, description="Source blocks")
+    rationale: str = Field(default="", description="Extraction rationale")
 
 
 class ExtractIssuesResponse(BaseModel):
@@ -77,13 +93,13 @@ class ApproveExtractedIssuesRequest(BaseModel):
     """Request to approve extracted issues."""
 
     approval_id: str = Field(description="Approval request ID")
-    selected_issues: list[int] = Field(description="Indices of issues to create (from extraction)")
+    selected_issues: list[int] = Field(description="Indices of issues to create")
 
 
 @router.post(
     "/notes/{note_id}/extract-issues",
     summary="Extract issues from note with SSE streaming",
-    description="Extract structured issues from note content with confidence tags (DD-048). Returns SSE stream.",
+    description="Extract structured issues from note content with confidence tags (DD-048).",
     response_model=None,
 )
 async def extract_issues_stream(
@@ -92,32 +108,46 @@ async def extract_issues_stream(
     note_id: str,
     extract_request: ExtractIssuesRequest,
     current_user_id: CurrentUserIdOrDemo,
+    request: Request,
+    orchestrator: Annotated[SDKOrchestrator, Depends(get_sdk_orchestrator)],
+    approval_service: Annotated[ApprovalService, Depends(get_approval_service_dep)],
+    session: DbSession,
 ) -> SSEResponse:
     """Extract issues from note content with confidence tags.
 
     Returns SSE stream with:
     - progress: Extraction progress updates
     - issue: Each extracted issue as found
-    - complete: Final summary with all issues
+    - complete: Final summary with approval_id
     - error: If extraction fails
 
-    Issues will require approval before creation (DD-003).
+    Issues require approval before creation (DD-003).
 
     Args:
         workspace_id: Workspace UUID from request context.
-        correlation_id: Correlation ID from request context.
+        correlation_id: Correlation ID for tracing.
         note_id: Note ID to extract from.
         extract_request: Extraction request.
         current_user_id: Current user ID.
+        request: FastAPI request.
+        orchestrator: SDK orchestrator for agent execution.
+        approval_service: Approval service for human-in-the-loop.
+        session: Database session.
 
     Returns:
         SSE stream of extraction events.
     """
-    # Suppress unused variable warning
-    _ = correlation_id
+    _ = correlation_id  # Used for tracing
 
     async def generate_events():
+        import time
+
+        from pilot_space.ai.agents.issue_extractor_sdk_agent import IssueExtractorInput
+        from pilot_space.ai.sdk_orchestrator import AgentName
+
         builder = SSEStreamBuilder()
+        start_time = time.perf_counter()
+
         try:
             # Emit start event
             yield builder.event(
@@ -125,64 +155,122 @@ async def extract_issues_stream(
                 {"status": "analyzing", "message": "Reading note content..."},
             )
 
-            # TODO: Fetch note from database
-            # For now, use request data
-            _note_content = extract_text_from_tiptap(extract_request.note_content)
+            # Extract text from TipTap JSON
+            note_text = extract_text_from_tiptap(extract_request.note_content)
+            if not note_text.strip():
+                yield builder.event(
+                    "error",
+                    {"code": "EMPTY_NOTE", "message": "Note content is empty"},
+                )
+                return
 
             yield builder.event(
-                "progress", {"status": "extracting", "message": "Extracting issues..."}
+                "progress",
+                {"status": "extracting", "message": "Extracting issues with AI..."},
             )
 
-            # Build input for SDK agent
-            from pilot_space.ai.agents.issue_extractor_sdk_agent import (
-                IssueExtractorInput,
+            # Build input for agent
+            project_id = (
+                UUID(extract_request.project_id)
+                if extract_request.project_id
+                else UUID("00000000-0000-0000-0000-000000000000")
             )
 
-            _input_data = IssueExtractorInput(
+            input_data = IssueExtractorInput(
                 note_id=UUID(note_id),
-                project_id=UUID(extract_request.note_id)
-                if extract_request.note_id
-                else UUID("00000000-0000-0000-0000-000000000000"),
-                max_issues=10,
+                project_id=project_id,
+                max_issues=extract_request.max_issues,
                 min_confidence=0.5,
             )
 
-            _context = AgentContext(workspace_id=workspace_id, user_id=UUID(str(current_user_id)))
-
-            # TODO: Get agent from DI container
-            # For now, create directly (will need ToolRegistry, etc.)
-            # agent = IssueExtractorAgent(...)
-            # result = await agent.execute(input_data, context)
-
-            # Emit placeholder result
-            yield builder.event(
-                "issue",
-                {
-                    "index": 0,
-                    "title": "Sample Issue",
-                    "description": "This is a placeholder",
-                    "labels": ["todo"],
-                    "priority": 2,
-                    "confidence_tag": "default",
-                    "confidence_score": 0.7,
-                    "rationale": "Placeholder for SDK integration",
+            # Create agent context with note text in metadata
+            context = AgentContext(
+                workspace_id=workspace_id,
+                user_id=UUID(str(current_user_id)),
+                metadata={
+                    "note_text": note_text,
+                    "note_title": extract_request.note_title,
+                    "project_context": extract_request.project_context or "",
+                    "available_labels": extract_request.available_labels or [],
                 },
             )
+
+            # Execute extraction via orchestrator
+            result = await orchestrator.execute(
+                AgentName.ISSUE_EXTRACTOR,
+                input_data,
+                context,
+            )
+
+            if not result.success:
+                yield builder.event(
+                    "error",
+                    {
+                        "code": "EXTRACTION_FAILED",
+                        "message": result.error or "Issue extraction failed",
+                    },
+                )
+                return
+
+            # Get output
+            output = result.output
+            if not output or not hasattr(output, "issues"):
+                yield builder.event(
+                    "error",
+                    {"code": "NO_ISSUES", "message": "No issues could be extracted"},
+                )
+                return
+
+            # Stream each extracted issue
+            issues_data = []
+            for idx, issue in enumerate(output.issues):
+                issue_dict = issue.to_dict() if hasattr(issue, "to_dict") else issue
+                issue_dict["index"] = idx
+                issues_data.append(issue_dict)
+
+                yield builder.event("issue", issue_dict)
+
+            # Create approval request if issues were extracted
+            from pilot_space.ai.infrastructure.approval import ActionType
+
+            approval_id = None
+            if issues_data:
+                request_id = await approval_service.create_approval_request(
+                    workspace_id=workspace_id,
+                    user_id=UUID(str(current_user_id)),
+                    action_type=ActionType.EXTRACT_ISSUES,
+                    action_data={
+                        "note_id": note_id,
+                        "issues": issues_data,
+                    },
+                    requested_by_agent="issue_extractor",
+                    context={
+                        "note_title": extract_request.note_title,
+                        "project_id": str(project_id),
+                    },
+                )
+                approval_id = str(request_id)
+
+            # Calculate processing time
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
 
             # Emit completion
             yield builder.event(
                 "complete",
                 {
                     "status": "complete",
-                    "total_issues": 1,
-                    "summary": "Extracted 1 issue from note",
-                    "requires_approval": True,
-                    "cost_usd": 0.0,
+                    "total_issues": len(issues_data),
+                    "recommended_count": output.recommended_count,
+                    "summary": output.extraction_summary or f"Extracted {len(issues_data)} issues",
+                    "approval_id": approval_id,
+                    "requires_approval": approval_id is not None,
+                    "cost_usd": result.cost_usd or 0.0,
+                    "processing_time_ms": elapsed_ms,
                 },
             )
 
         except Exception as e:
-            logger.exception("Failed to extract issues")
+            logger.exception("Failed to extract issues", extra={"note_id": note_id})
             yield builder.error(str(e), type(e).__name__)
 
     return SSEResponse(generate_events())
@@ -191,13 +279,15 @@ async def extract_issues_stream(
 @router.post(
     "/notes/{note_id}/extract-issues/approve",
     summary="Approve and create extracted issues",
-    description="Approve selected extracted issues and create them in the project (DD-003).",
+    description="Approve selected issues and create them in the project (DD-003).",
 )
 async def approve_extracted_issues(
     workspace_id: WorkspaceId,
     note_id: str,
     body: ApproveExtractedIssuesRequest,
     current_user_id: CurrentUserIdOrDemo,
+    approval_service: Annotated[ApprovalService, Depends(get_approval_service_dep)],
+    session: DbSession,
 ) -> dict[str, Any]:
     """Approve and create selected extracted issues.
 
@@ -206,53 +296,120 @@ async def approve_extracted_issues(
         note_id: Source note ID
         body: Approval request with selected issue indices
         current_user_id: Current user ID
+        approval_service: Approval service
+        session: Database session
 
     Returns:
         Created issue IDs
+
+    Raises:
+        HTTPException: 404 if approval not found, 400 if already resolved
     """
-    # Suppress unused variable warning
-    _ = workspace_id
+    from pilot_space.application.services.issue import CreateIssuePayload, CreateIssueService
+    from pilot_space.infrastructure.database.models.issue import IssuePriority
+    from pilot_space.infrastructure.database.repositories import (
+        ActivityRepository,
+        IssueRepository,
+        LabelRepository,
+    )
 
-    # TODO: Integrate with ApprovalService
-    # approval_service = get_approval_service()
-    # approval = await approval_service.get_request(body.approval_id)
+    # Get approval request
+    approval = await approval_service.get_request(UUID(body.approval_id))
+    if not approval:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Approval request not found",
+        )
 
-    # TODO: Verify approval belongs to user's workspace
-    # if not approval or approval.workspace_id != workspace_id:
-    #     raise HTTPException(404, "Approval request not found")
+    # Verify workspace match
+    if approval.workspace_id != workspace_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Approval request not found",
+        )
 
-    # TODO: Check approval status
-    # if approval.status != "pending":
-    #     raise HTTPException(400, f"Approval already {approval.status}")
+    # Check approval status
+    if approval.status.value != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Approval already {approval.status.value}",
+        )
 
-    # TODO: Resolve approval
-    # await approval_service.resolve(
-    #     approval_id=body.approval_id,
-    #     resolved_by=current_user_id,
-    #     approved=True,
-    #     note=f"Creating {len(body.selected_issues)} issues",
-    # )
+    # Get issues from payload
+    issues_payload = approval.payload.get("issues", [])
+    if not issues_payload:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No issues in approval payload",
+        )
 
-    # TODO: Create selected issues via IssueService
-    # created_ids = []
-    # for idx in body.selected_issues:
-    #     if idx < len(approval.payload["issues"]):
-    #         issue_data = approval.payload["issues"][idx]
-    #         issue = await issue_service.create(
-    #             project_id=current_user.current_project_id,
-    #             title=issue_data["title"],
-    #             description=issue_data["description"],
-    #             labels=issue_data.get("labels", []),
-    #             priority=issue_data.get("priority", 2),
-    #             created_by=current_user_id,
-    #             source_note_id=note_id,
-    #         )
-    #         created_ids.append(str(issue.id))
+    # Create issue service
+    issue_service = CreateIssueService(
+        session=session,
+        issue_repository=IssueRepository(session),
+        activity_repository=ActivityRepository(session),
+        label_repository=LabelRepository(session),
+    )
 
-    # Placeholder response
+    # Map priority int to IssuePriority enum
+    priority_map = {
+        0: IssuePriority.URGENT,
+        1: IssuePriority.HIGH,
+        2: IssuePriority.MEDIUM,
+        3: IssuePriority.LOW,
+        4: IssuePriority.NONE,
+    }
+
+    # Create selected issues
+    created_ids = []
+    project_id = UUID(approval.context.get("project_id", "00000000-0000-0000-0000-000000000000"))
+
+    for idx in body.selected_issues:
+        if idx < 0 or idx >= len(issues_payload):
+            continue
+
+        issue_data = issues_payload[idx]
+
+        # Map priority
+        priority_int = issue_data.get("priority", 4)
+        priority = priority_map.get(priority_int, IssuePriority.NONE)
+
+        # Create issue via service
+        payload = CreateIssuePayload(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            reporter_id=UUID(str(current_user_id)),
+            name=issue_data.get("title", "Untitled Issue"),
+            description=issue_data.get("description"),
+            priority=priority,
+        )
+
+        try:
+            result = await issue_service.execute(payload)
+            if result.issue:
+                created_ids.append(str(result.issue.id))
+        except ValueError as e:
+            logger.warning(
+                "Failed to create issue",
+                extra={"index": idx, "error": str(e)},
+            )
+            continue
+
+    # Resolve approval
+    await approval_service.resolve(
+        request_id=UUID(body.approval_id),
+        approved=True,
+        resolved_by=UUID(str(current_user_id)),
+        resolution_note=f"Created {len(created_ids)} of {len(body.selected_issues)} selected issues",
+    )
+
+    await session.commit()
+
     return {
-        "created_issues": [],
-        "message": "Approval endpoint placeholder - requires ApprovalService integration",
+        "created_issues": created_ids,
+        "created_count": len(created_ids),
+        "source_note_id": note_id,
+        "message": f"Successfully created {len(created_ids)} issues",
     }
 
 

@@ -120,14 +120,14 @@ export const aiApi = {
    * @param noteId - Note UUID
    * @returns SSE endpoint URL (absolute for EventSource)
    */
-  getGhostTextUrl: (noteId: string) => `${API_BASE}/ai/notes/${noteId}/ghost-text`,
+  getGhostTextUrl: (noteId: string) => `${API_BASE}/notes/${noteId}/ghost-text`,
 
   /**
    * Get AI context streaming URL for issue.
    * @param issueId - Issue UUID
    * @returns SSE endpoint URL (absolute for EventSource)
    */
-  getAIContextUrl: (issueId: string) => `${API_BASE}/ai/issues/${issueId}/ai-context/stream`,
+  getAIContextUrl: (issueId: string) => `${API_BASE}/issues/${issueId}/ai-context/stream`,
 
   /**
    * Get PR review streaming URL.
@@ -143,14 +143,14 @@ export const aiApi = {
    * @param noteId - Note UUID
    * @returns SSE endpoint URL (absolute for EventSource)
    */
-  getIssueExtractionUrl: (noteId: string) => `${API_BASE}/ai/notes/${noteId}/extract-issues`,
+  getIssueExtractionUrl: (noteId: string) => `${API_BASE}/notes/${noteId}/extract-issues`,
 
   /**
    * Get margin annotations streaming URL for note.
    * @param noteId - Note UUID
    * @returns SSE endpoint URL (absolute for EventSource)
    */
-  getAnnotationsUrl: (noteId: string) => `${API_BASE}/ai/notes/${noteId}/annotations`,
+  getAnnotationsUrl: (noteId: string) => `${API_BASE}/notes/${noteId}/annotations`,
 
   /**
    * Get conversation streaming URL for multi-turn chat.

@@ -35,7 +35,7 @@ export interface ExtractedIssue {
   suggestedLabels: string[];
   priority: IssuePriority;
   confidence: number;
-  confidenceTag: 'recommended' | 'default' | 'alternative';
+  confidenceTag: 'recommended' | 'default' | 'current' | 'alternative';
   sourceBlockId: string;
   sourceText: string;
 }
@@ -69,6 +69,13 @@ const CONFIDENCE_TAG_CONFIG = {
     bgColor: 'bg-blue-500/10',
     borderColor: 'border-blue-500/30',
     gradient: 'from-blue-500 via-indigo-500 to-purple-500',
+  },
+  current: {
+    label: 'Current',
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-500/10',
+    borderColor: 'border-amber-500/30',
+    gradient: 'from-amber-500 via-orange-500 to-yellow-500',
   },
   alternative: {
     label: 'Alternative',

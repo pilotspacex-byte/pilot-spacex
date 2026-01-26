@@ -110,7 +110,12 @@ class AIApprovalRequest(Base, WorkspaceScopedMixin):
 
     # Status
     status: Mapped[ApprovalStatus] = mapped_column(
-        Enum(ApprovalStatus, name="approval_status", create_type=False),
+        Enum(
+            ApprovalStatus,
+            name="approval_status",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
         default=ApprovalStatus.PENDING,
         nullable=False,
     )

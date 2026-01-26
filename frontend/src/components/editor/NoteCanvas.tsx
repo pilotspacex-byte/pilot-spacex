@@ -269,7 +269,7 @@ export const NoteCanvas = observer(function NoteCanvas({
     return () => disposer();
   }, [isEditorReady, noteId, aiStore.marginAnnotation]);
 
-  // Issue extraction handler - calls backend API
+  // Issue extraction handler - calls backend API with SSE streaming
   const handleExtractIssues = useCallback(
     async (selectedText?: string) => {
       const currentEditor = editorRef.current;
@@ -277,12 +277,13 @@ export const NoteCanvas = observer(function NoteCanvas({
 
       setIsExtracting(true);
       setShowExtractionPanel(true);
+      setExtractedIssues([]); // Clear previous issues
 
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
         const noteContent = currentEditor.getJSON();
 
-        const response = await fetch(`${apiUrl}/ai/extract-issues`, {
+        const response = await fetch(`${apiUrl}/notes/${noteId}/extract-issues`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -299,38 +300,68 @@ export const NoteCanvas = observer(function NoteCanvas({
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.detail ?? `Failed to extract issues (${response.status})`);
+          const errorText = await response.text();
+          throw new Error(`Failed to extract issues (${response.status}): ${errorText}`);
         }
 
-        const data = await response.json();
+        // Parse SSE stream
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body');
 
-        // Transform API response to ExtractedIssue format
-        const issues: ExtractedIssue[] = data.issues.map(
-          (issue: {
-            title: string;
-            description: string;
-            priority: string;
-            labels: string[];
-            confidence: number;
-            confidence_tag: string;
-            source_text: string;
-          }) => ({
-            id: crypto.randomUUID(),
-            title: issue.title,
-            description: issue.description,
-            suggestedLabels: issue.labels,
-            priority: issue.priority as ExtractedIssue['priority'],
-            confidence: issue.confidence,
-            confidenceTag: issue.confidence_tag as ExtractedIssue['confidenceTag'],
-            sourceBlockId: '',
-            sourceText: issue.source_text,
-          })
-        );
+        const decoder = new TextDecoder();
+        const extractedIssues: ExtractedIssue[] = [];
+        let buffer = '';
 
-        setExtractedIssues(issues);
-        if (issues.length > 0) {
-          toast.success(`Found ${issues.length} potential issue${issues.length > 1 ? 's' : ''}`);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+          let currentEventType = '';
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              currentEventType = line.slice(6).trim();
+            } else if (line.startsWith('data:') && currentEventType === 'issue') {
+              try {
+                const issueData = JSON.parse(line.slice(5).trim());
+                const issue: ExtractedIssue = {
+                  id: crypto.randomUUID(),
+                  title: issueData.title,
+                  description: issueData.description,
+                  suggestedLabels: issueData.labels || [],
+                  priority: (issueData.priority === 1
+                    ? 'high'
+                    : issueData.priority === 2
+                      ? 'medium'
+                      : 'low') as ExtractedIssue['priority'],
+                  confidence: issueData.confidence_score || 0,
+                  confidenceTag: issueData.confidence_tag as ExtractedIssue['confidenceTag'],
+                  sourceBlockId: issueData.source_block_ids?.[0] || '',
+                  sourceText: issueData.rationale || '',
+                };
+                extractedIssues.push(issue);
+                setExtractedIssues([...extractedIssues]); // Update state incrementally
+              } catch {
+                // Skip invalid JSON
+              }
+            } else if (line.startsWith('data:') && currentEventType === 'error') {
+              try {
+                const errorData = JSON.parse(line.slice(5).trim());
+                throw new Error(errorData.message || 'Extraction failed');
+              } catch {
+                // Skip invalid JSON
+              }
+            }
+          }
+        }
+
+        if (extractedIssues.length > 0) {
+          toast.success(
+            `Found ${extractedIssues.length} potential issue${extractedIssues.length > 1 ? 's' : ''}`
+          );
         } else {
           toast.info('No issues found in the selected content');
         }
