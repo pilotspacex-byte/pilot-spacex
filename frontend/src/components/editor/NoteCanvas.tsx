@@ -25,13 +25,6 @@ import type { GhostTextContext } from '@/features/notes/editor/extensions/GhostT
 import { motion, AnimatePresence } from 'motion/react';
 import { getAIStore } from '@/stores/ai/AIStore';
 
-// MarginAnnotationContext for auto-trigger callback
-// TODO: Move to MarginAnnotationExtension once auto-trigger is implemented
-interface MarginAnnotationContext {
-  blockIds: string[];
-  trigger: 'content_change' | 'user_request';
-}
-
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -207,16 +200,14 @@ export const NoteCanvas = observer(function NoteCanvas({
     [noteId, aiStore.ghostText]
   );
 
-  // Margin annotation auto-trigger - delegates to MarginAnnotationStore
-  // TODO: Wire this up once MarginAnnotationExtension supports auto-trigger
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleAnnotationTrigger = useCallback(
-    (context: MarginAnnotationContext) => {
-      if (!noteId) return;
-      aiStore.marginAnnotation.autoTriggerAnnotations(noteId, context.blockIds);
-    },
-    [noteId, aiStore.marginAnnotation]
-  );
+  // TODO: Add margin annotation auto-trigger once MarginAnnotationExtension supports it
+  // const handleAnnotationTrigger = useCallback(
+  //   (context: MarginAnnotationContext) => {
+  //     if (!noteId) return;
+  //     aiStore.marginAnnotation.autoTriggerAnnotations(noteId, context.blockIds);
+  //   },
+  //   [noteId, aiStore.marginAnnotation]
+  // );
 
   // State to track when editor is ready for MobX reactions
   const [isEditorReady, setIsEditorReady] = useState(false);
@@ -373,6 +364,19 @@ export const NoteCanvas = observer(function NoteCanvas({
     [handleExtractIssues]
   );
 
+  // Handle annotation click to scroll to block
+  const handleAnnotationClick = useCallback((annotation: NoteAnnotation) => {
+    // Scroll to the block in the editor
+    if (editorContainerRef.current) {
+      const blockElement = editorContainerRef.current.querySelector(
+        `[data-blockId="${annotation.blockId}"]`
+      );
+      if (blockElement) {
+        blockElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, []);
+
   // Create editor extensions with ghost text and margin annotations
   const extensions = useMemo(
     () =>
@@ -403,7 +407,14 @@ export const NoteCanvas = observer(function NoteCanvas({
           onAICommand: handleAICommand,
         },
       }),
-    [readOnly, handleGhostTextTrigger, handleAICommand, noteId, aiStore.marginAnnotation, handleAnnotationClick]
+    [
+      readOnly,
+      handleGhostTextTrigger,
+      handleAICommand,
+      noteId,
+      aiStore.marginAnnotation,
+      handleAnnotationClick,
+    ]
   );
 
   // Initialize TipTap editor
@@ -473,19 +484,6 @@ export const NoteCanvas = observer(function NoteCanvas({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onSave]);
-
-  // Handle annotation click to scroll to block
-  const handleAnnotationClick = useCallback((annotation: NoteAnnotation) => {
-    // Scroll to the block in the editor
-    if (editorContainerRef.current) {
-      const blockElement = editorContainerRef.current.querySelector(
-        `[data-blockId="${annotation.blockId}"]`
-      );
-      if (blockElement) {
-        blockElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }, []);
 
   // Handle annotation actions
   const handleAnnotationAccept = useCallback(
