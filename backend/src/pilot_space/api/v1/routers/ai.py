@@ -1,17 +1,21 @@
 """AI API router.
 
 Main router that aggregates AI-powered feature endpoints:
+- Ghost text suggestions for notes (notes_ai.py)
 - Cost tracking and analytics (ai_costs.py)
 - Approval queue management (ai_approvals.py)
 - Note analysis and margin annotations (ai_annotations.py)
 - Issue extraction from notes (ai_extraction.py)
-- PR review status
+- PR review streaming with aspect progress (ai_pr_review.py)
+- PR review status (legacy polling endpoint)
 
 T096: AI router implementation.
+T113: Ghost text SSE endpoint.
 T091-T094: Cost tracking endpoints.
 T069: Margin annotations.
 T058-T059: Issue extraction and approval.
 T073-T075: Approval queue endpoints.
+T202: PR review SSE streaming.
 """
 
 from __future__ import annotations
@@ -25,14 +29,18 @@ from pilot_space.api.v1.routers.ai_annotations import router as annotations_rout
 from pilot_space.api.v1.routers.ai_approvals import router as approvals_router
 from pilot_space.api.v1.routers.ai_costs import router as costs_router
 from pilot_space.api.v1.routers.ai_extraction import router as extraction_router
+from pilot_space.api.v1.routers.ai_pr_review import router as pr_review_router
+from pilot_space.api.v1.routers.notes_ai import router as notes_ai_router
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
 # Include sub-routers
+router.include_router(notes_ai_router)
 router.include_router(costs_router)
 router.include_router(approvals_router)
 router.include_router(annotations_router)
 router.include_router(extraction_router)
+router.include_router(pr_review_router)
 
 
 # Shared schemas for deprecated endpoints
