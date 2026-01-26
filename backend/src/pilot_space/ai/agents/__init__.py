@@ -24,8 +24,25 @@ SDK Agent Architecture:
 - Legacy agent files have been migrated to SDK versions (Wave 11)
 """
 
-# SDK Base Classes
-# Legacy Base Classes
+# SDK Base Classes (Primary)
+from pilot_space.ai.agents.sdk_base import (
+    AgentContext,
+    AgentResult,
+    SDKBaseAgent,
+    StreamingSDKBaseAgent,
+)
+
+# Provider and TaskType enums
+from pilot_space.ai.providers.provider_selector import Provider, TaskType
+
+# Legacy compatibility: Add CLAUDE and GEMINI aliases for old code
+# These map to the new ANTHROPIC and GOOGLE enum values
+Provider.CLAUDE = Provider.ANTHROPIC  # type: ignore[attr-defined]
+Provider.GEMINI = Provider.GOOGLE  # type: ignore[attr-defined]
+
+# ruff: noqa: E402 - imports after Provider modification are intentional for backward compatibility
+
+# AI Context Agent
 from pilot_space.ai.agents.ai_context_agent import (
     AIContextAgent,
     AIContextInput,
@@ -49,17 +66,6 @@ from pilot_space.ai.agents.assignee_recommender_agent_sdk import (
     AssigneeRecommenderAgent as AssigneeRecommenderAgentSDK,
     TeamMember,
     TeamMember as SDKTeamMember,
-)
-
-# Legacy base - deprecated, use SDK base instead
-from pilot_space.ai.agents.base import (
-    AgentContext as LegacyAgentContext,
-    AgentResult as LegacyAgentResult,
-    BaseAgent,
-    Provider,
-    TaskType,
-    get_default_model,
-    get_provider_for_task,
 )
 
 # SDK aliases
@@ -129,25 +135,31 @@ from pilot_space.ai.agents.issue_enhancer_agent_sdk import (
     IssueEnhancerAgent,
     IssueEnhancerAgent as IssueEnhancerAgentSDK,
 )
-from pilot_space.ai.agents.issue_extractor_agent import (
+
+# Issue Extractor SDK - legacy names map to SDK version
+from pilot_space.ai.agents.issue_extractor_sdk_agent import (
     ExtractedIssue,
-    IssueExtractionInput,
-    IssueExtractionOutput,
     IssueExtractorAgent,
-    QuickIssueExtractor,
+    # SDK-prefixed aliases
+    IssueExtractorAgent as IssueExtractorAgentSDK,
+    IssueExtractorInput as IssueExtractionInput,  # Legacy name mapping
+    IssueExtractorInput as SDKIssueExtractorInput,
+    IssueExtractorOutput as IssueExtractionOutput,  # Legacy name mapping
+    IssueExtractorOutput as SDKIssueExtractorOutput,
 )
-from pilot_space.ai.agents.margin_annotation_agent import (
-    AnnotationSuggestion,
-    BatchMarginAnnotationAgent,
-    MarginAnnotationAgent,
-    MarginAnnotationInput,
-    MarginAnnotationOutput,
-)
+
+# Margin Annotation SDK - legacy names map to SDK version
 from pilot_space.ai.agents.margin_annotation_agent_sdk import (
+    Annotation,
+    # SDK-prefixed aliases
     Annotation as SDKAnnotation,
+    AnnotationType,
     AnnotationType as SDKAnnotationType,
     MarginAnnotationAgentSDK,
+    MarginAnnotationAgentSDK as MarginAnnotationAgent,  # Legacy name mapping
+    MarginAnnotationInput,
     MarginAnnotationInput as SDKMarginAnnotationInput,
+    MarginAnnotationOutput,
     MarginAnnotationOutput as SDKMarginAnnotationOutput,
 )
 from pilot_space.ai.agents.pr_review_agent import (
@@ -160,14 +172,6 @@ from pilot_space.ai.agents.pr_review_agent import (
     ReviewCategory,
     ReviewComment,
     ReviewSeverity,
-)
-
-# SDK Base Classes (Primary)
-from pilot_space.ai.agents.sdk_base import (
-    AgentContext,
-    AgentResult,
-    SDKBaseAgent,
-    StreamingSDKBaseAgent,
 )
 from pilot_space.ai.agents.task_decomposer_agent import (
     SubTask,
@@ -199,19 +203,25 @@ __all__ = [  # noqa: RUF022 - Grouped logically, not alphabetically
     "MAX_FILES_FULL_REVIEW",
     "MAX_LINES_FULL_REVIEW",
     "PRIORITY_FILE_PATTERNS",
-    # ===== Legacy Agents =====
-    # AI Context
-    "AICodeReference",
-    "AIContextAgent",
-    "AIContextInput",
-    "AIContextOutput",
     # ===== SDK Base Classes (Primary) =====
     # SDK Base - now the primary context and result types
     "AgentContext",
     "AgentResult",
-    # Margin Annotation
-    "AnnotationSuggestion",
-    # Assignee Recommender (Legacy)
+    "SDKBaseAgent",
+    "StreamingSDKBaseAgent",
+    # Provider and Task Type enums
+    "Provider",
+    "TaskType",
+    # ===== Legacy Agents (Still Active) =====
+    # AI Context (uses SDK base)
+    "AICodeReference",
+    "AIContextAgent",
+    "AIContextInput",
+    "AIContextOutput",
+    # Common types
+    "Annotation",
+    "AnnotationType",
+    # Assignee Recommender
     "AssigneeRecommendation",
     "AssigneeRecommendationInput",
     "AssigneeRecommendationOutput",
@@ -219,20 +229,15 @@ __all__ = [  # noqa: RUF022 - Grouped logically, not alphabetically
     # ===== SDK Agents =====
     # Assignee Recommender SDK
     "AssigneeRecommenderAgentSDK",
-    # Legacy base classes (deprecated)
-    "BaseAgent",
-    "BatchMarginAnnotationAgent",
-    "LegacyAgentContext",
-    "LegacyAgentResult",
-    # Commit Linker (Legacy)
+    # Commit Linker
     "CommitLinkerAgent",
     # Commit Linker SDK
     "CommitLinkerAgentSDK",
     "CommitLinkerInput",
     "CommitLinkerOutput",
-    # Conversation (Legacy)
+    # Conversation
     "ConversationAgent",
-    # Conversation SDK
+    # Conversation SDK aliases
     "ConversationAgentSDK",
     "ConversationInput",
     "ConversationManager",
@@ -249,12 +254,12 @@ __all__ = [  # noqa: RUF022 - Grouped logically, not alphabetically
     "DocGeneratorInput",
     "DocGeneratorOutput",
     "DocType",
-    # Duplicate Detector (Legacy)
+    # Duplicate Detector
     "DuplicateCandidate",
     "DuplicateDetectionInput",
     "DuplicateDetectionOutput",
     "DuplicateDetectorAgent",
-    # Duplicate Detector SDK
+    # Duplicate Detector SDK aliases
     "DuplicateDetectorAgentSDK",
     # Issue Extraction
     "ExtractedIssue",
@@ -263,18 +268,23 @@ __all__ = [  # noqa: RUF022 - Grouped logically, not alphabetically
     "GhostTextInput",
     "GhostTextOutput",
     "GhostTextStreamingAgent",
-    # Issue Enhancement (Legacy)
+    # Issue Enhancement
     "IssueEnhancementInput",
     "IssueEnhancementOutput",
     "IssueEnhancerAgent",
-    # Issue Enhancer SDK
+    # Issue Enhancer SDK aliases
     "IssueEnhancerAgentSDK",
+    # Issue Extraction (maps to SDK)
     "IssueExtractionInput",
     "IssueExtractionOutput",
     "IssueExtractorAgent",
+    # Issue Extractor SDK aliases
+    "IssueExtractorAgentSDK",
+    "SDKIssueExtractorInput",
+    "SDKIssueExtractorOutput",
     "IssueLink",
+    # Margin Annotation (maps to SDK)
     "MarginAnnotationAgent",
-    # Margin Annotation SDK
     "MarginAnnotationAgentSDK",
     "MarginAnnotationInput",
     "MarginAnnotationOutput",
@@ -283,8 +293,6 @@ __all__ = [  # noqa: RUF022 - Grouped logically, not alphabetically
     "PRReviewAgent",
     "PRReviewInput",
     "PRReviewOutput",
-    "Provider",
-    "QuickIssueExtractor",
     "RelatedItem",
     "ReviewCategory",
     "ReviewComment",
@@ -294,7 +302,6 @@ __all__ = [  # noqa: RUF022 - Grouped logically, not alphabetically
     "SDKAssigneeRecommendation",
     "SDKAssigneeRecommendationInput",
     "SDKAssigneeRecommendationOutput",
-    "SDKBaseAgent",
     "SDKCommitLinkerInput",
     "SDKCommitLinkerOutput",
     "SDKConversationInput",
@@ -310,16 +317,12 @@ __all__ = [  # noqa: RUF022 - Grouped logically, not alphabetically
     "SDKMarginAnnotationOutput",
     "SDKMessageRole",
     "SDKTeamMember",
-    "StreamingSDKBaseAgent",
     # Task Decomposer (T083-T084)
     "SubTask",
     "TaskDecomposerAgent",
     "TaskDecomposerInput",
     "TaskDecomposerOutput",
     "TaskItem",
-    "TaskType",
     "TeamMember",
     "extract_issue_refs",
-    "get_default_model",
-    "get_provider_for_task",
 ]

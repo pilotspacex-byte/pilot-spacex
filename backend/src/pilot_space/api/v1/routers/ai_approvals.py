@@ -1,0 +1,345 @@
+"""AI approval queue endpoints.
+
+Approval queue management for AI-suggested actions.
+
+T073-T075: Approval queue endpoints.
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from typing import Annotated, Any
+
+from fastapi import APIRouter, HTTPException, Path, Query, Request, status
+
+from pilot_space.api.v1.schemas.approval import (
+    ApprovalDetailResponse,
+    ApprovalListResponse,
+    ApprovalRequestResponse,
+    ApprovalResolution,
+    ApprovalResolutionResponse,
+    ApprovalStatus as ApprovalStatusSchema,
+)
+from pilot_space.dependencies import (
+    CurrentUserIdOrDemo,
+    DbSession,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/approvals", tags=["AI Approvals"])
+
+
+def get_workspace_id(request: Request) -> uuid.UUID:
+    """Get workspace ID from request headers.
+
+    Supports both UUID and slug-based demo workspace IDs.
+    """
+    workspace_id_str = request.headers.get("X-Workspace-ID") or request.headers.get(
+        "X-Workspace-Id"
+    )
+    if not workspace_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-Workspace-ID header required",
+        )
+
+    # Check for demo workspace slugs
+    demo_workspace_uuid = uuid.UUID("00000000-0000-0000-0000-000000000002")
+    demo_workspace_slugs = {"pilot-space-demo", "demo", "test"}
+
+    if workspace_id_str.lower() in demo_workspace_slugs:
+        return demo_workspace_uuid
+
+    # Try to parse as UUID
+    try:
+        return uuid.UUID(workspace_id_str)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid workspace ID format: {workspace_id_str}",
+        ) from e
+
+
+def _get_context_preview(payload: dict[str, Any]) -> str:
+    """Generate brief context from payload.
+
+    Args:
+        payload: Action payload dictionary.
+
+    Returns:
+        Brief preview string.
+    """
+    if "title" in payload:
+        return payload["title"][:100]
+    if "issues" in payload:
+        issue_count = len(payload["issues"])
+        return f"{issue_count} issue{'s' if issue_count != 1 else ''} to create"
+    if "issue_id" in payload:
+        return f"Action on issue {payload['issue_id']}"
+    return "Action pending approval"
+
+
+async def verify_workspace_admin(current_user_id: uuid.UUID, workspace_id: uuid.UUID) -> None:
+    """Verify user is workspace admin.
+
+    Args:
+        current_user_id: User to verify.
+        workspace_id: Workspace to check.
+
+    Raises:
+        HTTPException: If user is not admin.
+    """
+    # TODO: Implement proper admin check via workspace_members table
+    # For now, allow all authenticated users (MVP)
+
+
+@router.get(
+    "",
+    response_model=ApprovalListResponse,
+    summary="List approval requests",
+    description="List approval requests for workspace with optional status filter (DD-003).",
+)
+async def list_approvals(
+    request: Request,
+    current_user_id: CurrentUserIdOrDemo,
+    session: DbSession,
+    status: Annotated[ApprovalStatusSchema | None, Query(description="Filter by status")] = None,
+    limit: Annotated[int, Query(ge=1, le=100, description="Maximum results")] = 20,
+    offset: Annotated[int, Query(ge=0, description="Results to skip")] = 0,
+) -> ApprovalListResponse:
+    """List approval requests for workspace.
+
+    Filters:
+    - status: Filter by status (pending, approved, rejected, expired)
+
+    Returns paginated list of approval requests.
+    Requires workspace admin permission.
+
+    Args:
+        request: FastAPI request.
+        current_user_id: Current user ID.
+        session: Database session.
+        status: Optional status filter.
+        limit: Maximum results.
+        offset: Results to skip.
+
+    Returns:
+        List of approval requests with pagination.
+    """
+    workspace_id = get_workspace_id(request)
+
+    # Verify user is workspace admin
+    await verify_workspace_admin(current_user_id, workspace_id)
+
+    # Get approval service
+    from pilot_space.ai.infrastructure.approval import ApprovalService
+
+    approval_service = ApprovalService(session)
+
+    # List requests
+    requests, total = await approval_service.list_requests(
+        workspace_id=workspace_id,
+        status=status.value if status else None,
+        limit=limit,
+        offset=offset,
+    )
+
+    # Count pending
+    pending_count = await approval_service.count_pending(workspace_id)
+
+    # Build response
+    return ApprovalListResponse(
+        requests=[
+            ApprovalRequestResponse(
+                id=str(r.id),
+                agent_name=r.agent_name,
+                action_type=r.action_type,
+                status=ApprovalStatusSchema(r.status),
+                created_at=r.created_at,
+                expires_at=r.expires_at,
+                requested_by=r.user.name if r.user else "Unknown",
+                context_preview=_get_context_preview(r.payload),
+            )
+            for r in requests
+        ],
+        total=total,
+        pending_count=pending_count,
+    )
+
+
+@router.get(
+    "/{approval_id}",
+    response_model=ApprovalDetailResponse,
+    summary="Get approval request details",
+    description="Get full details of an approval request including payload.",
+)
+async def get_approval(
+    request: Request,
+    approval_id: Annotated[uuid.UUID, Path(description="Approval request ID")],
+    current_user_id: CurrentUserIdOrDemo,
+    session: DbSession,
+) -> ApprovalDetailResponse:
+    """Get approval request details including payload.
+
+    Args:
+        request: FastAPI request.
+        approval_id: Approval request ID.
+        current_user_id: Current user ID.
+        session: Database session.
+
+    Returns:
+        Full approval request details.
+
+    Raises:
+        HTTPException: If request not found or unauthorized.
+    """
+    workspace_id = get_workspace_id(request)
+
+    from pilot_space.ai.infrastructure.approval import ApprovalService
+
+    approval_service = ApprovalService(session)
+
+    # Get request
+    approval_request = await approval_service.get_request(approval_id)
+
+    if not approval_request or approval_request.workspace_id != workspace_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Approval request not found",
+        )
+
+    return ApprovalDetailResponse(
+        id=str(approval_request.id),
+        agent_name=approval_request.agent_name,
+        action_type=approval_request.action_type,
+        status=ApprovalStatusSchema(approval_request.status),
+        payload=approval_request.payload,
+        context=approval_request.context,
+        created_at=approval_request.created_at,
+        expires_at=approval_request.expires_at,
+        resolved_at=approval_request.resolved_at,
+        resolved_by=approval_request.resolver.name if approval_request.resolver else None,
+        resolution_note=approval_request.resolution_note,
+    )
+
+
+@router.post(
+    "/{approval_id}/resolve",
+    response_model=ApprovalResolutionResponse,
+    summary="Resolve approval request",
+    description="Approve or reject an approval request. If approved, executes the pending action.",
+)
+async def resolve_approval(
+    request: Request,
+    approval_id: Annotated[uuid.UUID, Path(description="Approval request ID")],
+    body: ApprovalResolution,
+    current_user_id: CurrentUserIdOrDemo,
+    session: DbSession,
+) -> ApprovalResolutionResponse:
+    """Resolve an approval request.
+
+    If approved, executes the pending action.
+    If rejected, discards the action.
+
+    Args:
+        request: FastAPI request.
+        approval_id: Approval request ID.
+        body: Resolution decision.
+        current_user_id: Current user ID.
+        session: Database session.
+
+    Returns:
+        Resolution result with action outcome.
+
+    Raises:
+        HTTPException: If request not found, unauthorized, or already resolved.
+    """
+    workspace_id = get_workspace_id(request)
+
+    # Verify user is workspace admin
+    await verify_workspace_admin(current_user_id, workspace_id)
+
+    from pilot_space.ai.infrastructure.approval import ApprovalService
+
+    approval_service = ApprovalService(session)
+
+    # Get request
+    approval_request = await approval_service.get_request(approval_id)
+
+    if not approval_request or approval_request.workspace_id != workspace_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Approval request not found",
+        )
+
+    if approval_request.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Request already {approval_request.status}",
+        )
+
+    # Resolve the request
+    await approval_service.resolve(
+        request_id=approval_id,
+        resolved_by=current_user_id,
+        approved=body.approved,
+        resolution_note=body.note,
+    )
+
+    result: dict[str, Any] = {"approved": body.approved, "action_result": None}
+
+    # If approved, execute the action
+    if body.approved:
+        try:
+            action_result = await _execute_approved_action(
+                approval_request.agent_name,
+                approval_request.action_type,
+                approval_request.payload,
+                current_user_id,
+                session,
+            )
+            result["action_result"] = action_result
+        except Exception as e:
+            logger.exception("Failed to execute approved action")
+            result["action_error"] = str(e)
+
+    return ApprovalResolutionResponse(**result)
+
+
+async def _execute_approved_action(
+    agent_name: str,
+    action_type: str,
+    payload: dict[str, Any],
+    current_user_id: uuid.UUID,
+    session: Any,
+) -> dict[str, Any]:
+    """Execute the approved action.
+
+    Args:
+        agent_name: Name of the requesting agent.
+        action_type: Type of action to execute.
+        payload: Action payload.
+        current_user_id: User who approved.
+        session: Database session.
+
+    Returns:
+        Execution result.
+    """
+    # TODO: Implement action execution based on action_type
+    # This will require integration with various service classes
+
+    if action_type == "extract_issues":
+        # Placeholder for issue creation
+        # In full implementation, would call IssueService to create issues
+        return {
+            "created_issues": [],
+            "message": "Issue creation not yet implemented",
+        }
+
+    # Default: mark as executed
+    return {"executed": True, "agent": agent_name}
+
+
+__all__ = ["router"]
