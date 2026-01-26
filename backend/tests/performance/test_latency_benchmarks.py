@@ -1,11 +1,14 @@
-"""T102-T104: Performance Latency Benchmarks.
+"""T102-T104, T313-T315: Performance Latency Benchmarks.
 
 Verify AI endpoints meet performance SLOs:
-- Ghost text: p95 < 2s
-- AI context: p95 < 30s
-- SSE first token: p95 < 1s
+- Ghost text: p95 < 2s (T102, T313)
+- AI context: p95 < 30s (T103, T314)
+- PR review: p95 < 60s for <1000 lines (T315)
+- SSE first token: p95 < 1s (T104)
 
-Reference: specs/004-mvp-agents-build/tasks/P15-T095-T110.md
+Reference:
+- specs/004-mvp-agents-build/tasks/P15-T095-T110.md
+- specs/004-mvp-agents-build/tasks/P29-T313-T331.md
 """
 
 from __future__ import annotations
@@ -35,13 +38,13 @@ class TestLatencyBenchmarks:
         auth_headers: dict[str, str],
         test_note: AsyncMock,
     ) -> None:
-        """T102: Verify ghost text p95 latency < 2s.
+        """T102, T313: Verify ghost text p95 latency < 2s.
 
         SLO: Ghost text suggestions must complete within 2 seconds
         at p95 to maintain real-time typing experience.
         """
         latencies: list[float] = []
-        iterations = 20  # Enough for p95 calculation
+        iterations = 50  # T313: Run 50 iterations for statistical significance
 
         # Mock the agent to avoid actual API calls
         with patch("pilot_space.ai.agents.ghost_text_agent.GhostTextAgent") as MockAgent:
@@ -92,13 +95,13 @@ class TestLatencyBenchmarks:
         auth_headers: dict[str, str],
         test_issue: AsyncMock,
     ) -> None:
-        """T103: Verify AI context p95 latency < 30s.
+        """T103, T314: Verify AI context p95 latency < 30s.
 
         SLO: AI context generation must complete within 30 seconds
         at p95 for acceptable user experience.
         """
         latencies: list[float] = []
-        iterations = 5  # Fewer iterations due to longer operation
+        iterations = 10  # T314: Run 10 iterations
 
         # Mock the agent
         with patch("pilot_space.ai.agents.ai_context_agent.AIContextAgent") as MockAgent:
@@ -140,6 +143,67 @@ class TestLatencyBenchmarks:
         print(f"  p95:    {p95:.3f}s")
 
         assert p95 < 30.0, f"AI context p95 latency {p95:.3f}s exceeds 30s SLO"
+
+    @pytest.mark.asyncio
+    async def test_pr_review_p95_under_60s(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """T315: Verify PR review p95 latency < 60s for PRs under 1000 lines.
+
+        SLO: PR review must complete within 60 seconds at p95
+        for PRs with less than 1000 lines changed.
+        """
+        latencies: list[float] = []
+        iterations = 5  # Fewer iterations due to longer operation
+
+        # Mock PR data
+        mock_pr = AsyncMock()
+        mock_pr.number = 123
+        mock_pr.lines_changed = 500  # Under 1000 line threshold
+
+        # Mock the agent
+        with patch("pilot_space.ai.agents.pr_review_agent.PRReviewAgent") as MockAgent:
+            mock_instance = MockAgent.return_value
+            mock_instance.execute.return_value = {
+                "architecture_analysis": "Looks good",
+                "code_quality": "High quality",
+                "security_concerns": [],
+                "performance_notes": "Efficient",
+                "documentation_gaps": [],
+                "overall_recommendation": "Approve",
+            }
+
+            for _i in range(iterations):
+                start = time.perf_counter()
+
+                # Make request
+                response = await client.post(
+                    f"/ai/repos/test-org/test-repo/prs/{mock_pr.number}/review",
+                    headers=auth_headers,
+                    json={"review_depth": "comprehensive"},
+                )
+
+                elapsed = time.perf_counter() - start
+                latencies.append(elapsed)
+
+                assert response.status_code in [200, 201, 202]
+
+        # Calculate p95
+        sorted_latencies = sorted(latencies)
+        p95_index = int(len(sorted_latencies) * 0.95)
+        p95 = sorted_latencies[p95_index]
+
+        mean = statistics.mean(latencies)
+        median = statistics.median(latencies)
+
+        print("\nPR Review Latency Statistics:")
+        print(f"  Mean:   {mean:.3f}s")
+        print(f"  Median: {median:.3f}s")
+        print(f"  p95:    {p95:.3f}s")
+
+        assert p95 < 60.0, f"PR review p95 latency {p95:.3f}s exceeds 60s SLO"
 
     @pytest.mark.asyncio
     async def test_sse_first_token_under_1s(
@@ -237,9 +301,7 @@ class TestThroughputBenchmarks:
                 return elapsed
 
             # Execute concurrent requests
-            results = await asyncio.gather(*[
-                make_request(i) for i in range(concurrent_requests)
-            ])
+            results = await asyncio.gather(*[make_request(i) for i in range(concurrent_requests)])
 
             latencies.extend(results)
 
@@ -298,8 +360,8 @@ class TestThroughputBenchmarks:
                     await asyncio.sleep(sleep_time)
 
         # Analyze performance over time
-        first_half = latencies[:len(latencies)//2]
-        second_half = latencies[len(latencies)//2:]
+        first_half = latencies[: len(latencies) // 2]
+        second_half = latencies[len(latencies) // 2 :]
 
         first_half_mean = statistics.mean(first_half)
         second_half_mean = statistics.mean(second_half)
@@ -310,7 +372,9 @@ class TestThroughputBenchmarks:
 
         # Performance should not degrade significantly
         degradation = (second_half_mean - first_half_mean) / first_half_mean
-        assert degradation < 0.5, f"Performance degraded by {degradation*100:.1f}% under sustained load"
+        assert degradation < 0.5, (
+            f"Performance degraded by {degradation * 100:.1f}% under sustained load"
+        )
 
 
 class TestMemoryEfficiency:
