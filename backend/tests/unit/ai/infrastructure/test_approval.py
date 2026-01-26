@@ -65,9 +65,9 @@ class TestActionClassification:
         for level in ApprovalLevel:
             settings = ProjectSettings(level=level)
             for action in always_require_actions:
-                assert approval_service.check_approval_required(
-                    action, settings
-                ), f"{action.value} should always require approval"
+                assert approval_service.check_approval_required(action, settings), (
+                    f"{action.value} should always require approval"
+                )
 
     def test_default_require_balanced_level(
         self,
@@ -77,18 +77,10 @@ class TestActionClassification:
         settings = ProjectSettings(level=ApprovalLevel.BALANCED)
 
         # Should require approval by default
-        assert approval_service.check_approval_required(
-            ActionType.CREATE_SUB_ISSUES, settings
-        )
-        assert approval_service.check_approval_required(
-            ActionType.EXTRACT_ISSUES, settings
-        )
-        assert approval_service.check_approval_required(
-            ActionType.PUBLISH_DOCS, settings
-        )
-        assert approval_service.check_approval_required(
-            ActionType.POST_PR_COMMENTS, settings
-        )
+        assert approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, settings)
+        assert approval_service.check_approval_required(ActionType.EXTRACT_ISSUES, settings)
+        assert approval_service.check_approval_required(ActionType.PUBLISH_DOCS, settings)
+        assert approval_service.check_approval_required(ActionType.POST_PR_COMMENTS, settings)
 
     def test_default_require_autonomous_level(
         self,
@@ -98,12 +90,8 @@ class TestActionClassification:
         settings = ProjectSettings(level=ApprovalLevel.AUTONOMOUS)
 
         # Should auto-execute with autonomous level
-        assert not approval_service.check_approval_required(
-            ActionType.CREATE_SUB_ISSUES, settings
-        )
-        assert not approval_service.check_approval_required(
-            ActionType.EXTRACT_ISSUES, settings
-        )
+        assert not approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, settings)
+        assert not approval_service.check_approval_required(ActionType.EXTRACT_ISSUES, settings)
 
     def test_auto_execute_balanced_level(
         self,
@@ -113,18 +101,12 @@ class TestActionClassification:
         settings = ProjectSettings(level=ApprovalLevel.BALANCED)
 
         # Should auto-execute
-        assert not approval_service.check_approval_required(
-            ActionType.SUGGEST_LABELS, settings
-        )
-        assert not approval_service.check_approval_required(
-            ActionType.SUGGEST_PRIORITY, settings
-        )
+        assert not approval_service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
+        assert not approval_service.check_approval_required(ActionType.SUGGEST_PRIORITY, settings)
         assert not approval_service.check_approval_required(
             ActionType.AUTO_TRANSITION_STATE, settings
         )
-        assert not approval_service.check_approval_required(
-            ActionType.CREATE_ANNOTATION, settings
-        )
+        assert not approval_service.check_approval_required(ActionType.CREATE_ANNOTATION, settings)
 
     def test_auto_execute_conservative_level(
         self,
@@ -134,12 +116,8 @@ class TestActionClassification:
         settings = ProjectSettings(level=ApprovalLevel.CONSERVATIVE)
 
         # Should require approval with conservative level
-        assert approval_service.check_approval_required(
-            ActionType.SUGGEST_LABELS, settings
-        )
-        assert approval_service.check_approval_required(
-            ActionType.SUGGEST_PRIORITY, settings
-        )
+        assert approval_service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
+        assert approval_service.check_approval_required(ActionType.SUGGEST_PRIORITY, settings)
 
     def test_override_allows_auto_execute(
         self,
@@ -152,14 +130,10 @@ class TestActionClassification:
         )
 
         # Override should allow auto-execute
-        assert not approval_service.check_approval_required(
-            ActionType.CREATE_SUB_ISSUES, settings
-        )
+        assert not approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, settings)
 
         # Other DEFAULT_REQUIRE actions still need approval
-        assert approval_service.check_approval_required(
-            ActionType.EXTRACT_ISSUES, settings
-        )
+        assert approval_service.check_approval_required(ActionType.EXTRACT_ISSUES, settings)
 
     def test_override_requires_approval(
         self,
@@ -172,14 +146,10 @@ class TestActionClassification:
         )
 
         # Override should require approval
-        assert approval_service.check_approval_required(
-            ActionType.SUGGEST_LABELS, settings
-        )
+        assert approval_service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
 
         # Other AUTO_EXECUTE actions still auto-execute
-        assert not approval_service.check_approval_required(
-            ActionType.SUGGEST_PRIORITY, settings
-        )
+        assert not approval_service.check_approval_required(ActionType.SUGGEST_PRIORITY, settings)
 
     def test_no_settings_defaults_to_balanced(
         self,
@@ -187,14 +157,10 @@ class TestActionClassification:
     ) -> None:
         """Verify behavior when no settings provided defaults to balanced."""
         # DEFAULT_REQUIRE should require approval
-        assert approval_service.check_approval_required(
-            ActionType.CREATE_SUB_ISSUES, None
-        )
+        assert approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, None)
 
         # AUTO_EXECUTE should auto-execute
-        assert not approval_service.check_approval_required(
-            ActionType.SUGGEST_LABELS, None
-        )
+        assert not approval_service.check_approval_required(ActionType.SUGGEST_LABELS, None)
 
 
 class TestApprovalRequestCreation:
@@ -211,6 +177,7 @@ class TestApprovalRequestCreation:
 
         request = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": str(uuid.uuid4()), "reason": "Duplicate"},
             requested_by_agent="DuplicateDetectorAgent",
@@ -244,6 +211,7 @@ class TestApprovalRequestCreation:
 
         request = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.MERGE_PR,
             action_data={"pr_number": 123, "repository": "owner/repo"},
             requested_by_agent="PRReviewAgent",
@@ -262,6 +230,7 @@ class TestApprovalRequestCreation:
         with pytest.raises(ValueError, match="action_data cannot be empty"):
             await approval_service.create_approval_request(
                 workspace_id=workspace_id,
+                user_id=user_id,
                 action_type=ActionType.DELETE_ISSUE,
                 action_data={},
                 requested_by_agent="TestAgent",
@@ -282,6 +251,7 @@ class TestApprovalRequestResolution:
         # Create request
         request = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": str(uuid.uuid4())},
             requested_by_agent="TestAgent",
@@ -320,6 +290,7 @@ class TestApprovalRequestResolution:
         """Verify request rejection."""
         request = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": str(uuid.uuid4())},
             requested_by_agent="TestAgent",
@@ -342,7 +313,12 @@ class TestApprovalRequestResolution:
         user_id: uuid.UUID,
     ) -> None:
         """Verify error when resolving non-existent request."""
+        from unittest.mock import AsyncMock
+
         fake_id = uuid.uuid4()
+
+        # Mock repository to return None for non-existent request
+        approval_service._repository.resolve = AsyncMock(return_value=None)  # noqa: SLF001
 
         with pytest.raises(ValueError, match=f"Approval request not found: {fake_id}"):
             await approval_service.resolve(
@@ -361,6 +337,7 @@ class TestApprovalRequestResolution:
         """Verify error when resolving already-resolved request."""
         request = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": str(uuid.uuid4())},
             requested_by_agent="TestAgent",
@@ -396,6 +373,7 @@ class TestPendingRequestsQuery:
         # Create multiple requests
         request1 = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": "1"},
             requested_by_agent="Agent1",
@@ -403,6 +381,7 @@ class TestPendingRequestsQuery:
 
         request2 = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.MERGE_PR,
             action_data={"pr_number": 123},
             requested_by_agent="Agent2",
@@ -433,6 +412,7 @@ class TestPendingRequestsQuery:
         # Create three requests
         request1 = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": "1"},
             requested_by_agent="Agent1",
@@ -440,6 +420,7 @@ class TestPendingRequestsQuery:
 
         request2 = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": "2"},
             requested_by_agent="Agent2",
@@ -447,6 +428,7 @@ class TestPendingRequestsQuery:
 
         request3 = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": "3"},
             requested_by_agent="Agent3",
@@ -472,6 +454,7 @@ class TestPendingRequestsQuery:
         # Create requests in different workspaces
         await approval_service.create_approval_request(
             workspace_id=workspace1,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": "1"},
             requested_by_agent="Agent1",
@@ -479,6 +462,7 @@ class TestPendingRequestsQuery:
 
         await approval_service.create_approval_request(
             workspace_id=workspace2,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": "2"},
             requested_by_agent="Agent2",
@@ -509,6 +493,7 @@ class TestRequestExpiration:
 
         request = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": str(uuid.uuid4())},
             requested_by_agent="TestAgent",
@@ -537,6 +522,7 @@ class TestRequestExpiration:
 
         request = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": str(uuid.uuid4())},
             requested_by_agent="TestAgent",
@@ -564,6 +550,7 @@ class TestRequestExpiration:
 
         request = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": str(uuid.uuid4())},
             requested_by_agent="TestAgent",
@@ -599,6 +586,7 @@ class TestUtilityMethods:
         """Verify getting request by ID."""
         request = await approval_service.create_approval_request(
             workspace_id=workspace_id,
+            user_id=user_id,
             action_type=ActionType.DELETE_ISSUE,
             action_data={"issue_id": str(uuid.uuid4())},
             requested_by_agent="TestAgent",
@@ -616,7 +604,13 @@ class TestUtilityMethods:
         approval_service: ApprovalService,
     ) -> None:
         """Verify getting non-existent request returns None."""
+        from unittest.mock import AsyncMock
+
         fake_id = uuid.uuid4()
+
+        # Mock repository to return None for non-existent request
+        approval_service._repository.get_by_id = AsyncMock(return_value=None)  # noqa: SLF001
+
         result = await approval_service.get_request(fake_id)
         assert result is None
 
@@ -634,6 +628,5 @@ class TestUtilityMethods:
             == "default_require"
         )
         assert (
-            approval_service.get_action_classification(ActionType.SUGGEST_LABELS)
-            == "auto_execute"
+            approval_service.get_action_classification(ActionType.SUGGEST_LABELS) == "auto_execute"
         )
