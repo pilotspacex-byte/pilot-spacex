@@ -588,8 +588,79 @@ class SessionManager:
 
         return cleaned
 
+    async def get_session_metrics(self) -> dict[str, Any]:
+        """Get session metrics for monitoring (T331).
+
+        Provides real-time metrics about active sessions:
+        - Total session count
+        - Sessions grouped by agent name
+        - Average session age
+        - Total cost across all sessions
+
+        Returns:
+            Dictionary with session metrics.
+
+        Example:
+            >>> metrics = await session_manager.get_session_metrics()
+            >>> print(f"Total sessions: {metrics['total_sessions']}")
+            >>> print(f"By agent: {metrics['by_agent']}")
+        """
+        pattern = f"{SESSION_KEY_PREFIX}:*"
+        keys = await self._redis.scan_keys(pattern, max_keys=10000)
+
+        total_sessions = 0
+        by_agent: dict[str, int] = {}
+        total_cost = 0.0
+        session_ages: list[float] = []
+        now = datetime.now(UTC)
+
+        for key in keys:
+            # Skip index keys
+            if ":index:" in key:
+                continue
+
+            data = await self._redis.get(key)
+            if data is None:
+                continue
+
+            try:
+                session = AISession.from_dict(data)
+
+                # Skip expired sessions
+                if session.is_expired():
+                    continue
+
+                total_sessions += 1
+
+                # Count by agent
+                agent = session.agent_name
+                by_agent[agent] = by_agent.get(agent, 0) + 1
+
+                # Accumulate cost
+                total_cost += session.total_cost_usd
+
+                # Calculate age in minutes
+                age_seconds = (now - session.created_at).total_seconds()
+                session_ages.append(age_seconds / 60.0)
+
+            except (KeyError, ValueError, TypeError):
+                # Skip invalid session data
+                continue
+
+        # Calculate average age
+        avg_age_minutes = sum(session_ages) / len(session_ages) if session_ages else 0.0
+
+        return {
+            "total_sessions": total_sessions,
+            "by_agent": by_agent,
+            "total_cost_usd": round(total_cost, 2),
+            "average_age_minutes": round(avg_age_minutes, 2),
+            "timestamp": now.isoformat(),
+        }
+
 
 __all__ = [
+    "SESSION_KEY_PREFIX",
     "SESSION_TTL_SECONDS",
     "AIMessage",
     "AISession",
