@@ -78,9 +78,7 @@ class TestIssueExtractionE2E:
         complete_data = complete_events[0]["data"]
 
         # Verify approval is required
-        assert (
-            "requires_approval" in complete_data
-        ), "Should indicate approval is required"
+        assert "requires_approval" in complete_data, "Should indicate approval is required"
         assert complete_data["requires_approval"] is True
 
         # May include approval_id in future
@@ -205,9 +203,9 @@ class TestIssueExtractionE2E:
             for issue_event in issue_events:
                 issue_data = issue_event["data"]
                 # Should have confidence tag or score
-                assert (
-                    "confidence_tag" in issue_data or "confidence_score" in issue_data
-                ), "Issues should include confidence information"
+                assert "confidence_tag" in issue_data or "confidence_score" in issue_data, (
+                    "Issues should include confidence information"
+                )
 
     @pytest.mark.asyncio
     async def test_approval_list_endpoint(

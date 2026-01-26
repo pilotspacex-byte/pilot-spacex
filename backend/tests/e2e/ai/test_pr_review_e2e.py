@@ -135,9 +135,7 @@ class TestPRReviewE2E:
                 "repository": "tindang/pilot-space",
                 "pr_url": f"https://github.com/tindang/pilot-space/pull/{pr_number}",
                 "include_tests": False,  # Skip tests for large PRs
-                "priority_files": [
-                    "backend/src/pilot_space/ai/agents/pr_review_agent.py"
-                ],
+                "priority_files": ["backend/src/pilot_space/ai/agents/pr_review_agent.py"],
             },
         )
 

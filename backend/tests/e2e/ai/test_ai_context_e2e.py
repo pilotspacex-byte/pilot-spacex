@@ -73,9 +73,9 @@ class TestAIContextE2E:
             # Verify all expected phases are present
             expected_phases = ["analysis", "related", "tasks", "code", "summary"]
             for expected_phase in expected_phases:
-                assert any(
-                    expected_phase in str(phase).lower() for phase in phases
-                ), f"Missing phase: {expected_phase}"
+                assert any(expected_phase in str(phase).lower() for phase in phases), (
+                    f"Missing phase: {expected_phase}"
+                )
 
             # Verify complete event
             complete_events = [e for e in events if e["type"] == "complete"]
@@ -122,9 +122,9 @@ class TestAIContextE2E:
         complete_data = complete_events[0]["data"]
 
         # Verify Claude Code prompt is present
-        assert (
-            "claude_code_prompt" in complete_data or "prompt" in complete_data
-        ), "Should include Claude Code prompt in output"
+        assert "claude_code_prompt" in complete_data or "prompt" in complete_data, (
+            "Should include Claude Code prompt in output"
+        )
 
     @pytest.mark.asyncio
     async def test_ai_context_get_endpoint(
@@ -274,7 +274,5 @@ class TestAIContextE2E:
                         pass
 
         # Should have progress/phase events
-        progress_events = [
-            e for e in events if e["type"] in {"progress", "phase", "status"}
-        ]
+        progress_events = [e for e in events if e["type"] in {"progress", "phase", "status"}]
         assert len(progress_events) > 0, "Should send progress updates"
