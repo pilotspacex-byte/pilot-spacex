@@ -35,6 +35,7 @@ import { SelectionToolbar } from './SelectionToolbar';
 import { AskPilotInput } from './AskPilotInput';
 import { InlineNoteHeader } from './InlineNoteHeader';
 import { NoteTitleBlock } from './NoteTitleBlock';
+import { EditorToolbar } from '@/features/notes/components/EditorToolbar';
 import type { User } from '@/types';
 
 export interface NoteCanvasProps {
@@ -499,6 +500,9 @@ export const NoteCanvas = observer(function NoteCanvas({
             disabled={readOnly}
           />
         )}
+
+        {/* Editor Toolbar - AI controls and formatting options */}
+        {!readOnly && <EditorToolbar noteId={noteId} workspaceId={workspaceId} />}
 
         {/* Scrollable Editor Area */}
         <div ref={editorContainerRef} className="relative flex-1 overflow-auto bg-background">
