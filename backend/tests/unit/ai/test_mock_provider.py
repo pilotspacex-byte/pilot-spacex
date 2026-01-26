@@ -7,25 +7,21 @@ from uuid import uuid4
 
 import pytest
 
-from pilot_space.ai.agents.base import AgentContext, Provider
-from pilot_space.ai.agents.conversation_agent import (
+from pilot_space.ai.agents import (
     ConversationAgent,
     ConversationInput,
     ConversationMessage,
-    MessageRole,
-)
-from pilot_space.ai.agents.ghost_text_agent import GhostTextAgent, GhostTextInput
-from pilot_space.ai.agents.issue_enhancer_agent import (
+    GhostTextAgent,
+    GhostTextInput,
     IssueEnhancementInput,
     IssueEnhancerAgent,
-)
-from pilot_space.ai.agents.issue_extractor_agent import (
     IssueExtractionInput,
     IssueExtractorAgent,
-)
-from pilot_space.ai.agents.margin_annotation_agent import (
+    LegacyAgentContext as AgentContext,
     MarginAnnotationAgent,
     MarginAnnotationInput,
+    MessageRole,
+    Provider,
 )
 from pilot_space.ai.providers.mock import (
     MockCallRecord,

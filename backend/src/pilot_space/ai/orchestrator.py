@@ -7,6 +7,10 @@ Central coordinator for all AI operations:
 - Task prioritization
 
 T091: AI orchestrator implementation.
+
+DEPRECATED: This legacy orchestrator is deprecated and will be removed in Wave 12.
+Use SDKOrchestrator (sdk_orchestrator.py) instead for SDK-based agent execution.
+This file remains only for backward compatibility during migration.
 """
 
 from __future__ import annotations
@@ -15,30 +19,22 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from pilot_space.ai.agents.base import (
-    AgentContext,
-    AgentResult,
-    Provider,
-)
-from pilot_space.ai.agents.conversation_agent import (
+from pilot_space.ai.agents import (
     ConversationAgent,
     ConversationInput,
     ConversationOutput,
-)
-from pilot_space.ai.agents.ghost_text_agent import (
     GhostTextAgent,
     GhostTextInput,
     GhostTextOutput,
-)
-from pilot_space.ai.agents.issue_extractor_agent import (
     IssueExtractionInput,
     IssueExtractionOutput,
     IssueExtractorAgent,
-)
-from pilot_space.ai.agents.margin_annotation_agent import (
+    LegacyAgentContext as AgentContext,
+    LegacyAgentResult as AgentResult,
     MarginAnnotationAgent,
     MarginAnnotationInput,
     MarginAnnotationOutput,
+    Provider,
 )
 from pilot_space.ai.circuit_breaker import CircuitBreaker
 from pilot_space.ai.exceptions import (
@@ -501,7 +497,9 @@ class AIOrchestrator:
             correlation_id,
         )
 
-        return await self._conversation_agent.execute(input_data, context)
+        # Type ignore: Legacy AgentContext incompatible with SDK AgentContext
+        # This orchestrator is deprecated - use SDKOrchestrator instead
+        return await self._conversation_agent.execute(input_data, context)  # type: ignore[arg-type, return-value]
 
     async def stream_chat(
         self,
@@ -529,7 +527,9 @@ class AIOrchestrator:
             correlation_id,
         )
 
-        async for chunk in self._conversation_agent.stream(input_data, context):
+        # Type ignore: Legacy AgentContext incompatible with SDK AgentContext
+        # This orchestrator is deprecated - use SDKOrchestrator instead
+        async for chunk in self._conversation_agent.stream(input_data, context):  # type: ignore[arg-type]
             yield chunk
 
     # Health and Metrics

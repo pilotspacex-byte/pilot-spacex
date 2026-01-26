@@ -12,15 +12,11 @@ from fastapi import APIRouter, Depends
 
 from pilot_space.api.v1.schemas.ai_suggestion import (
     AssigneeRecommendationRequest,
-    AssigneeRecommendationResponse,
     AssigneeRecommendationsResponse,
-    DuplicateCandidateResponse,
     DuplicateCheckRequest,
     DuplicateCheckResponse,
     IssueEnhancementRequest,
     IssueEnhancementResponse,
-    LabelSuggestion,
-    PrioritySuggestion,
     SuggestionDecisionRequest,
     SuggestionDecisionResponse,
 )
@@ -35,7 +31,7 @@ from pilot_space.dependencies import (
 router = APIRouter(prefix="/issues", tags=["issues-ai"])
 
 
-@router.post("/ai/enhance", response_model=IssueEnhancementResponse, summary="Enhance issue")
+@router.post("/ai/enhance", response_model=IssueEnhancementResponse, summary="Enhance issue (DEPRECATED)")
 async def enhance_issue(
     request: IssueEnhancementRequest,
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
@@ -43,62 +39,25 @@ async def enhance_issue(
     session: DbSession,
     ai_config: Annotated[..., Depends(get_ai_config_or_demo)],
 ) -> IssueEnhancementResponse:
-    """Get AI suggestions for issue enhancement."""
-    from pilot_space.ai.agents import (
-        AgentContext,
-        IssueEnhancementInput,
-        IssueEnhancerAgent,
-        Provider,
-    )
-    from pilot_space.infrastructure.database.repositories import LabelRepository
+    """Get AI suggestions for issue enhancement.
 
-    label_repo = LabelRepository(session)
-    labels = await label_repo.get_workspace_labels(workspace_id, project_id=request.project_id)
-    label_names = [label.name for label in labels]
+    DEPRECATED: This endpoint needs migration to SDK orchestrator pattern.
+    Currently returns empty results until migration is complete.
+    """
+    from fastapi import HTTPException
 
-    context = AgentContext(
-        workspace_id=workspace_id,
-        user_id=user_id,
-        correlation_id=str(user_id),
-        api_keys={Provider.CLAUDE: ai_config.anthropic_key if ai_config else ""},
-    )
-
-    agent = IssueEnhancerAgent()
-    input_data = IssueEnhancementInput(
-        title=request.title,
-        description=request.description,
-        available_labels=label_names,
-    )
-
-    result = await agent.execute(input_data, context)
-    output = result.output
-
-    return IssueEnhancementResponse(
-        enhanced_title=output.enhanced_title,
-        enhanced_description=output.enhanced_description,
-        suggested_labels=[
-            LabelSuggestion(
-                name=str(label["name"]),
-                confidence=float(label["confidence"]),
-                is_existing=str(label["name"]) in label_names,
-            )
-            for label in output.suggested_labels
-        ],
-        suggested_priority=PrioritySuggestion(
-            priority=str(output.suggested_priority["priority"]),
-            confidence=float(output.suggested_priority["confidence"]),
-        )
-        if output.suggested_priority
-        else None,
-        title_enhanced=output.title_enhanced,
-        description_expanded=output.description_expanded,
+    # TODO: Migrate to SDK orchestrator pattern
+    # See get_sdk_orchestrator dependency and SDKOrchestrator.execute()
+    raise HTTPException(
+        status_code=501,
+        detail="Issue enhancement endpoint requires SDK migration. Use manual enhancement for now."
     )
 
 
 @router.post(
     "/ai/check-duplicates",
     response_model=DuplicateCheckResponse,
-    summary="Check for duplicates",
+    summary="Check for duplicates (DEPRECATED)",
 )
 async def check_duplicates(
     request: DuplicateCheckRequest,
@@ -107,54 +66,25 @@ async def check_duplicates(
     session: DbSession,
     ai_config: Annotated[..., Depends(get_ai_config_or_demo)],
 ) -> DuplicateCheckResponse:
-    """Check for potential duplicate issues using vector similarity."""
-    from pilot_space.ai.agents import (
-        AgentContext,
-        DuplicateDetectionInput,
-        DuplicateDetectorAgent,
-        Provider,
-    )
+    """Check for potential duplicate issues using vector similarity.
 
-    context = AgentContext(
-        workspace_id=workspace_id,
-        user_id=user_id,
-        correlation_id=str(user_id),
-        api_keys={Provider.OPENAI: ai_config.openai_key if ai_config else ""},
-    )
+    DEPRECATED: This endpoint needs migration to SDK orchestrator pattern.
+    Currently returns empty results until migration is complete.
+    """
+    from fastapi import HTTPException
 
-    agent = DuplicateDetectorAgent(session)
-    input_data = DuplicateDetectionInput(
-        title=request.title,
-        description=request.description,
-        workspace_id=workspace_id,
-        project_id=request.project_id,
-        exclude_issue_id=request.exclude_issue_id,
-        threshold=request.threshold,
-    )
-
-    result = await agent.execute(input_data, context)
-    output = result.output
-
-    return DuplicateCheckResponse(
-        candidates=[
-            DuplicateCandidateResponse(
-                issue_id=c.issue_id,
-                identifier=c.identifier,
-                title=c.title,
-                similarity=c.similarity,
-                explanation=c.explanation,
-            )
-            for c in output.candidates
-        ],
-        has_likely_duplicate=output.has_likely_duplicate,
-        highest_similarity=output.highest_similarity,
+    # TODO: Migrate to SDK orchestrator pattern
+    # See get_sdk_orchestrator dependency and SDKOrchestrator.execute()
+    raise HTTPException(
+        status_code=501,
+        detail="Duplicate detection endpoint requires SDK migration. Use manual search for now."
     )
 
 
 @router.post(
     "/ai/recommend-assignee",
     response_model=AssigneeRecommendationsResponse,
-    summary="Get assignee recommendations",
+    summary="Get assignee recommendations (DEPRECATED)",
 )
 async def recommend_assignee(
     request: AssigneeRecommendationRequest,
@@ -162,42 +92,18 @@ async def recommend_assignee(
     user_id: CurrentUserIdOrDemo,
     session: DbSession,
 ) -> AssigneeRecommendationsResponse:
-    """Get AI-powered assignee recommendations based on expertise and workload."""
-    from pilot_space.ai.agents import (
-        AgentContext,
-        AssigneeRecommendationInput,
-        AssigneeRecommenderAgent,
-    )
+    """Get AI-powered assignee recommendations based on expertise and workload.
 
-    context = AgentContext(
-        workspace_id=workspace_id,
-        user_id=user_id,
-        correlation_id=str(user_id),
-    )
+    DEPRECATED: This endpoint needs migration to SDK orchestrator pattern.
+    Currently returns empty results until migration is complete.
+    """
+    from fastapi import HTTPException
 
-    agent = AssigneeRecommenderAgent(session)
-    input_data = AssigneeRecommendationInput(
-        issue_title=request.title,
-        issue_description=request.description,
-        issue_labels=request.label_names,
-        workspace_id=workspace_id,
-        project_id=request.project_id,
-    )
-
-    result = await agent.execute(input_data, context)
-    output = result.output
-
-    return AssigneeRecommendationsResponse(
-        recommendations=[
-            AssigneeRecommendationResponse(
-                user_id=r.user_id,
-                name=r.name,
-                confidence=r.confidence,
-                reason=r.reason,
-            )
-            for r in output.recommendations
-        ],
-        has_strong_match=output.has_strong_match,
+    # TODO: Migrate to SDK orchestrator pattern
+    # See get_sdk_orchestrator dependency and SDKOrchestrator.execute()
+    raise HTTPException(
+        status_code=501,
+        detail="Assignee recommendation endpoint requires SDK migration. Use manual assignment for now."
     )
 
 

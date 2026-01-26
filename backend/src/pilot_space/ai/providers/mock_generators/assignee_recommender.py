@@ -6,7 +6,7 @@ workload patterns and label matching.
 
 from uuid import uuid4
 
-from pilot_space.ai.agents.assignee_recommender_agent import (
+from pilot_space.ai.agents import (
     AssigneeRecommendation,
     AssigneeRecommendationInput,
     AssigneeRecommendationOutput,
@@ -35,7 +35,7 @@ def generate_assignee_recommendation(
     team_members = input_data.team_members
     if not team_members:
         # Generate 3 mock team members
-        from pilot_space.ai.agents.assignee_recommender_agent import TeamMember
+        from pilot_space.ai.agents import TeamMember
 
         team_members = [
             TeamMember(

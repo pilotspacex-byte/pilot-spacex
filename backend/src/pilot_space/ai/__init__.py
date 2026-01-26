@@ -31,18 +31,24 @@ from pilot_space.ai.exceptions import (
     RateLimitError,
     TokenLimitExceededError,
 )
-from pilot_space.ai.orchestrator import AIOrchestrator, WorkspaceAIConfig, get_orchestrator
+from pilot_space.ai.sdk_orchestrator import (
+    ActionClassification,
+    AgentName,
+    ExecutionResult,
+    SDKOrchestrator,
+)
 from pilot_space.ai.telemetry import AIMetrics, AIOperation, AIProvider
 
-__all__ = [
+__all__ = [  # noqa: RUF022 - Grouped logically, not alphabetically
     # Exceptions
     "AIConfigurationError",
     "AIError",
     # Telemetry
     "AIMetrics",
     "AIOperation",
-    # Orchestrator
-    "AIOrchestrator",
+    # SDK Orchestrator
+    "ActionClassification",
+    "AgentName",
     "AIProvider",
     "AITimeoutError",
     "AgentExecutionError",
@@ -52,13 +58,13 @@ __all__ = [
     # Degradation
     "DegradationLevel",
     "DegradedResponse",
+    "ExecutionResult",
     "GhostTextFallback",
     "InvalidResponseError",
     "IssueExtractionFallback",
     "MarginAnnotationFallback",
     "ProviderUnavailableError",
     "RateLimitError",
+    "SDKOrchestrator",
     "TokenLimitExceededError",
-    "WorkspaceAIConfig",
-    "get_orchestrator",
 ]

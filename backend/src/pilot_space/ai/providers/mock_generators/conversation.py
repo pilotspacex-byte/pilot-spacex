@@ -4,7 +4,7 @@ Provides deterministic conversation responses based on
 intent detection from message content.
 """
 
-from pilot_space.ai.agents.conversation_agent import (
+from pilot_space.ai.agents import (
     ConversationInput,
     ConversationMessage,
     ConversationOutput,

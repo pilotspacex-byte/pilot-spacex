@@ -6,7 +6,7 @@ commit messages and PR descriptions.
 
 import re
 
-from pilot_space.ai.agents.commit_linker_agent import (
+from pilot_space.ai.agents import (
     CommitLinkerInput,
     CommitLinkerOutput,
     IssueLink,

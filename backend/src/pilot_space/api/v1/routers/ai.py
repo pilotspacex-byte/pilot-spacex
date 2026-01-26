@@ -23,20 +23,11 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from pilot_space.ai.agents.base import Provider
-from pilot_space.ai.agents.conversation_agent import (
-    ConversationInput,
-    ConversationMessage,
-    MessageRole,
-)
-from pilot_space.ai.agents.ghost_text_agent import GhostTextInput
-from pilot_space.ai.agents.issue_extractor_agent import IssueExtractionInput
 from pilot_space.ai.agents.margin_annotation_agent_sdk import (
     MarginAnnotationInput,
 )
 from pilot_space.ai.agents.sdk_base import AgentContext
-from pilot_space.ai.exceptions import AIConfigurationError, AIError, RateLimitError
-from pilot_space.ai.orchestrator import WorkspaceAIConfig, get_orchestrator
+from pilot_space.ai.exceptions import AIConfigurationError, RateLimitError
 from pilot_space.api.utils.sse import SSEResponse, SSEStreamBuilder
 from pilot_space.api.v1.schemas.annotation import (
     AnalyzeNoteRequest,
@@ -260,14 +251,15 @@ def get_workspace_id(request: Request) -> uuid.UUID:
         ) from e
 
 
-# Ghost Text Endpoint
+# Ghost Text Endpoint (Legacy - Deprecated)
 
 
 @router.post(
     "/ghost-text",
-    summary="Generate ghost text suggestion",
-    description="Generate inline text completion. Returns SSE stream or JSON.",
+    summary="Generate ghost text suggestion (deprecated)",
+    description="DEPRECATED: Legacy endpoint. Ghost text will be integrated with SDK orchestrator in future release.",
     response_model=None,
+    deprecated=True,
 )
 async def generate_ghost_text(
     request: Request,
@@ -275,9 +267,10 @@ async def generate_ghost_text(
     current_user_id: CurrentUserIdOrDemo,
     stream: Annotated[bool, Query(description="Enable SSE streaming")] = False,
 ) -> GhostTextResponse | SSEResponse:
-    """Generate ghost text suggestion.
+    """Generate ghost text suggestion (DEPRECATED).
 
-    Rate limit: 10 requests/minute per user.
+    This endpoint uses legacy orchestrator and will be removed.
+    Use SDK-based agents instead.
 
     Args:
         request: FastAPI request.
@@ -288,79 +281,10 @@ async def generate_ghost_text(
     Returns:
         Ghost text suggestion or SSE stream.
     """
-    correlation_id = get_correlation_id(request)
-    workspace_id = get_workspace_id(request)
-
-    orchestrator = get_orchestrator()
-
-    # Ensure workspace is configured (for demo, auto-configure)
-    if not orchestrator.get_workspace_config(workspace_id):
-        # In production, this would come from database
-        orchestrator.configure_workspace(
-            WorkspaceAIConfig(
-                workspace_id=workspace_id,
-                api_keys={
-                    Provider.GEMINI: request.headers.get("X-Google-API-Key", ""),
-                    Provider.CLAUDE: request.headers.get("X-Anthropic-API-Key", ""),
-                    Provider.OPENAI: request.headers.get("X-OpenAI-API-Key", ""),
-                },
-            )
-        )
-
-    input_data = GhostTextInput(
-        current_text=ghost_request.current_text,
-        cursor_position=ghost_request.cursor_position,
-        context=ghost_request.context,
-        language=ghost_request.language,
-        is_code=ghost_request.is_code,
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Ghost text endpoint requires SDK orchestrator migration (pending)",
     )
-
-    try:
-        if stream:
-            # SSE streaming response
-            async def stream_generator():
-                builder = SSEStreamBuilder()
-                try:
-                    async for token in orchestrator.stream_ghost_text(
-                        input_data,
-                        workspace_id,
-                        current_user_id,
-                        correlation_id,
-                    ):
-                        yield builder.event("token", {"text": token})
-                    yield builder.done()
-                except AIError as e:
-                    yield builder.error(str(e), e.code)
-
-            return SSEResponse(stream_generator())
-
-        # Regular JSON response
-        result = await orchestrator.generate_ghost_text(
-            input_data,
-            workspace_id,
-            current_user_id,
-            correlation_id,
-        )
-
-        return GhostTextResponse(
-            suggestion=result.output.suggestion,
-            cursor_offset=result.output.cursor_offset,
-            is_empty=result.output.is_empty,
-            degraded=False,
-        )
-
-    except RateLimitError as e:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(e),
-            headers={"Retry-After": str(e.retry_after_seconds)},
-        ) from e
-
-    except AIConfigurationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
 
 
 # Note Analysis Endpoint
@@ -636,7 +560,7 @@ async def extract_issues_stream(
     "/extract-issues",
     response_model=ExtractIssuesResponse,
     summary="Extract issues from note (deprecated)",
-    description="Extract structured issues from note content. Use /notes/{note_id}/extract-issues instead.",
+    description="DEPRECATED: Use /notes/{note_id}/extract-issues streaming endpoint instead.",
     deprecated=True,
 )
 async def extract_issues(
@@ -644,9 +568,10 @@ async def extract_issues(
     extract_request: ExtractIssuesRequest,
     current_user_id: CurrentUserIdOrDemo,
 ) -> ExtractIssuesResponse:
-    """Extract issues from note content.
+    """Extract issues from note content (DEPRECATED).
 
-    Rate limit: 5 requests/minute per user.
+    This endpoint uses legacy orchestrator and will be removed.
+    Use streaming endpoint /notes/{note_id}/extract-issues instead.
 
     Args:
         request: FastAPI request.
@@ -656,74 +581,10 @@ async def extract_issues(
     Returns:
         Extracted issues with confidence scores.
     """
-    correlation_id = get_correlation_id(request)
-    workspace_id = get_workspace_id(request)
-    start_time = time.time()
-
-    orchestrator = get_orchestrator()
-
-    # Configure workspace if needed
-    if not orchestrator.get_workspace_config(workspace_id):
-        orchestrator.configure_workspace(
-            WorkspaceAIConfig(
-                workspace_id=workspace_id,
-                api_keys={
-                    Provider.CLAUDE: request.headers.get("X-Anthropic-API-Key", ""),
-                },
-            )
-        )
-
-    # Extract text from TipTap content
-    note_content = extract_text_from_tiptap(extract_request.note_content)
-
-    input_data = IssueExtractionInput(
-        note_title=extract_request.note_title,
-        note_content=note_content,
-        project_context=extract_request.project_context,
-        selected_text=extract_request.selected_text,
-        available_labels=extract_request.available_labels,
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Legacy endpoint removed. Use /notes/{note_id}/extract-issues streaming endpoint.",
     )
-
-    try:
-        result = await orchestrator.extract_issues(
-            input_data,
-            workspace_id,
-            current_user_id,
-            correlation_id,
-        )
-
-        processing_time = (time.time() - start_time) * 1000
-
-        return ExtractIssuesResponse(
-            issues=[
-                ExtractedIssueResponse(
-                    title=issue.title,
-                    description=issue.description,
-                    priority=issue.priority.value,
-                    labels=issue.labels,
-                    confidence=issue.confidence,
-                    confidence_tag=issue.confidence_tag.value,
-                    source_text=issue.source_text,
-                )
-                for issue in result.output.issues
-            ],
-            recommended_count=result.output.recommended_count,
-            total_count=result.output.total_count,
-            processing_time_ms=processing_time,
-        )
-
-    except RateLimitError as e:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(e),
-            headers={"Retry-After": str(e.retry_after_seconds)},
-        ) from e
-
-    except AIConfigurationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
 
 
 # Issue Extraction Approval Endpoint (T059)
@@ -803,14 +664,15 @@ async def approve_extracted_issues(
     }
 
 
-# Chat Endpoint
+# Chat Endpoint (Legacy - Deprecated)
 
 
 @router.post(
     "/chat",
-    summary="AI chat",
-    description="Multi-turn conversation with AI assistant.",
+    summary="AI chat (deprecated)",
+    description="DEPRECATED: Legacy chat endpoint. Use conversation agent via SDK orchestrator.",
     response_model=None,
+    deprecated=True,
 )
 async def ai_chat(
     request: Request,
@@ -818,9 +680,10 @@ async def ai_chat(
     current_user_id: CurrentUserIdOrDemo,
     stream: Annotated[bool, Query(description="Enable SSE streaming")] = False,
 ) -> ChatResponse | SSEResponse:
-    """AI chat conversation.
+    """AI chat conversation (DEPRECATED).
 
-    Rate limit: 20 requests/minute per user.
+    This endpoint uses legacy orchestrator and will be removed.
+    Use SDK-based conversation agent instead.
 
     Args:
         request: FastAPI request.
@@ -831,104 +694,34 @@ async def ai_chat(
     Returns:
         AI response or SSE stream.
     """
-    correlation_id = get_correlation_id(request)
-    workspace_id = get_workspace_id(request)
-
-    orchestrator = get_orchestrator()
-
-    # Configure workspace if needed
-    if not orchestrator.get_workspace_config(workspace_id):
-        orchestrator.configure_workspace(
-            WorkspaceAIConfig(
-                workspace_id=workspace_id,
-                api_keys={
-                    Provider.CLAUDE: request.headers.get("X-Anthropic-API-Key", ""),
-                },
-            )
-        )
-
-    # Build conversation history
-    history: list[ConversationMessage] = []
-    if chat_request.history:
-        for msg in chat_request.history:
-            role = MessageRole.USER if msg.get("role") == "user" else MessageRole.ASSISTANT
-            history.append(ConversationMessage(role=role, content=msg.get("content", "")))
-
-    input_data = ConversationInput(
-        message=chat_request.message,
-        history=history,
-        system_context=chat_request.system_context,
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Chat endpoint requires SDK orchestrator migration (pending)",
     )
 
-    try:
-        if stream:
 
-            async def stream_generator():
-                builder = SSEStreamBuilder()
-                try:
-                    async for chunk in orchestrator.stream_chat(
-                        input_data,
-                        workspace_id,
-                        current_user_id,
-                        correlation_id,
-                    ):
-                        yield builder.event("chunk", {"text": chunk})
-                    yield builder.done()
-                except AIError as e:
-                    yield builder.error(str(e), e.code)
-
-            return SSEResponse(stream_generator())
-
-        result = await orchestrator.chat(
-            input_data,
-            workspace_id,
-            current_user_id,
-            correlation_id,
-        )
-
-        return ChatResponse(
-            response=result.output.response,
-            truncated=result.output.truncated,
-        )
-
-    except RateLimitError as e:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(e),
-            headers={"Retry-After": str(e.retry_after_seconds)},
-        ) from e
-
-    except AIConfigurationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-
-
-# Health Check
+# Health Check (Deprecated)
 
 
 @router.get(
     "/health",
     response_model=HealthResponse,
-    summary="AI health check",
-    description="Check AI provider health and circuit breaker status.",
+    summary="AI health check (deprecated)",
+    description="DEPRECATED: Legacy health check. Will be replaced with SDK orchestrator health endpoint.",
+    deprecated=True,
 )
 async def ai_health() -> HealthResponse:
-    """Check AI provider health.
+    """Check AI provider health (DEPRECATED).
+
+    This endpoint uses legacy orchestrator and will be removed.
 
     Returns:
         Provider health status.
     """
-    orchestrator = get_orchestrator()
-    providers = orchestrator.get_provider_health()
-
-    # Determine overall status
-    all_healthy = all(p.get("status") == "healthy" for p in providers.values())
-
+    # Return minimal response for now
     return HealthResponse(
-        status="healthy" if all_healthy else "degraded",
-        providers=providers,
+        status="unknown",
+        providers={"message": "Health check requires SDK orchestrator migration"},
     )
 
 

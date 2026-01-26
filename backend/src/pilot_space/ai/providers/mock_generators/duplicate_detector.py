@@ -6,7 +6,7 @@ keyword similarity and title matching.
 
 from uuid import uuid4
 
-from pilot_space.ai.agents.duplicate_detector_agent import (
+from pilot_space.ai.agents import (
     DuplicateCandidate,
     DuplicateDetectionInput,
     DuplicateDetectionOutput,

@@ -4,7 +4,7 @@ Provides deterministic issue enhancements based on
 keyword analysis in title and description.
 """
 
-from pilot_space.ai.agents.issue_enhancer_agent import (
+from pilot_space.ai.agents import (
     IssueEnhancementInput,
     IssueEnhancementOutput,
 )

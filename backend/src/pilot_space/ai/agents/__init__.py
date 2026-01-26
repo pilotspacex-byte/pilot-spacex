@@ -18,10 +18,10 @@ Supporting Agents (T079-T090):
 - CommitLinkerAgent: Commit-issue linking (Claude Haiku)
 
 SDK Agent Architecture:
-- SDK agents use Claude Agent SDK for MCP tool integration
+- All agents now use Claude Agent SDK for MCP tool integration
 - SDK agents have _sdk suffix in module name (e.g., conversation_agent_sdk)
-- SDK agents are exported with SDK suffix (e.g., ConversationAgentSDK)
-- Legacy agents remain for backward compatibility during migration
+- Both legacy names and SDK-prefixed names are exported for compatibility
+- Legacy agent files have been migrated to SDK versions (Wave 11)
 """
 
 # SDK Base Classes
@@ -34,59 +34,59 @@ from pilot_space.ai.agents.ai_context_agent import (
     RelatedItem,
     TaskItem,
 )
-from pilot_space.ai.agents.assignee_recommender_agent import (
-    AssigneeRecommendation,
-    AssigneeRecommendationInput,
-    AssigneeRecommendationOutput,
-    AssigneeRecommenderAgent,
-    TeamMember,
-)
 
 # ===== SDK Agents (Claude Agent SDK) =====
-# Import SDK versions with SDK suffix to allow gradual migration
+# Import SDK versions - legacy names now map to SDK implementations
+# SDK aliases for explicit SDK usage
 from pilot_space.ai.agents.assignee_recommender_agent_sdk import (
+    AssigneeRecommendation,
     AssigneeRecommendation as SDKAssigneeRecommendation,
+    AssigneeRecommendationInput,
     AssigneeRecommendationInput as SDKAssigneeRecommendationInput,
+    AssigneeRecommendationOutput,
     AssigneeRecommendationOutput as SDKAssigneeRecommendationOutput,
+    AssigneeRecommenderAgent,
     AssigneeRecommenderAgent as AssigneeRecommenderAgentSDK,
+    TeamMember,
     TeamMember as SDKTeamMember,
 )
+
+# Legacy base - deprecated, use SDK base instead
 from pilot_space.ai.agents.base import (
-    AgentContext,
-    AgentResult,
+    AgentContext as LegacyAgentContext,
+    AgentResult as LegacyAgentResult,
     BaseAgent,
     Provider,
     TaskType,
     get_default_model,
     get_provider_for_task,
 )
-from pilot_space.ai.agents.commit_linker_agent import (
-    CommitLinkerAgent,
-    CommitLinkerInput,
-    CommitLinkerOutput,
-    IssueLink,
-    extract_issue_refs,
-)
+
+# SDK aliases
 from pilot_space.ai.agents.commit_linker_agent_sdk import (
+    CommitLinkerAgent,
     CommitLinkerAgent as CommitLinkerAgentSDK,
+    CommitLinkerInput,
     CommitLinkerInput as SDKCommitLinkerInput,
+    CommitLinkerOutput,
     CommitLinkerOutput as SDKCommitLinkerOutput,
+    IssueLink,
     IssueLink as SDKIssueLink,
 )
-from pilot_space.ai.agents.conversation_agent import (
-    ConversationAgent,
-    ConversationInput,
-    ConversationManager,
-    ConversationMessage,
-    ConversationOutput,
-    MessageRole,
-)
+
+# SDK aliases
 from pilot_space.ai.agents.conversation_agent_sdk import (
+    ConversationAgent,
     ConversationAgent as ConversationAgentSDK,
+    ConversationInput,
     ConversationInput as SDKConversationInput,
+    ConversationManager,
     ConversationManager as ConversationManagerSDK,
+    ConversationMessage,
     ConversationMessage as SDKConversationMessage,
+    ConversationOutput,
     ConversationOutput as SDKConversationOutput,
+    MessageRole,
     MessageRole as SDKMessageRole,
 )
 from pilot_space.ai.agents.diagram_generator_agent import (
@@ -101,16 +101,16 @@ from pilot_space.ai.agents.doc_generator_agent import (
     DocGeneratorOutput,
     DocType,
 )
-from pilot_space.ai.agents.duplicate_detector_agent import (
-    DuplicateCandidate,
-    DuplicateDetectionInput,
-    DuplicateDetectionOutput,
-    DuplicateDetectorAgent,
-)
+
+# SDK aliases
 from pilot_space.ai.agents.duplicate_detector_agent_sdk import (
+    DuplicateCandidate,
     DuplicateCandidate as SDKDuplicateCandidate,
+    DuplicateDetectionInput,
     DuplicateDetectionInput as SDKDuplicateDetectionInput,
+    DuplicateDetectionOutput,
     DuplicateDetectionOutput as SDKDuplicateDetectionOutput,
+    DuplicateDetectorAgent,
     DuplicateDetectorAgent as DuplicateDetectorAgentSDK,
 )
 from pilot_space.ai.agents.ghost_text_agent import (
@@ -119,14 +119,14 @@ from pilot_space.ai.agents.ghost_text_agent import (
     GhostTextOutput,
     GhostTextStreamingAgent,
 )
-from pilot_space.ai.agents.issue_enhancer_agent import (
-    IssueEnhancementInput,
-    IssueEnhancementOutput,
-    IssueEnhancerAgent,
-)
+
+# SDK aliases
 from pilot_space.ai.agents.issue_enhancer_agent_sdk import (
+    IssueEnhancementInput,
     IssueEnhancementInput as SDKIssueEnhancementInput,
+    IssueEnhancementOutput,
     IssueEnhancementOutput as SDKIssueEnhancementOutput,
+    IssueEnhancerAgent,
     IssueEnhancerAgent as IssueEnhancerAgentSDK,
 )
 from pilot_space.ai.agents.issue_extractor_agent import (
@@ -161,9 +161,11 @@ from pilot_space.ai.agents.pr_review_agent import (
     ReviewComment,
     ReviewSeverity,
 )
+
+# SDK Base Classes (Primary)
 from pilot_space.ai.agents.sdk_base import (
-    AgentContext as SDKAgentContext,
-    AgentResult as SDKAgentResult,
+    AgentContext,
+    AgentResult,
     SDKBaseAgent,
     StreamingSDKBaseAgent,
 )
@@ -174,7 +176,26 @@ from pilot_space.ai.agents.task_decomposer_agent import (
     TaskDecomposerOutput,
 )
 
-__all__ = [
+
+# Legacy helper function - reimplemented for backward compatibility
+def extract_issue_refs(text: str) -> list[str]:
+    """Extract issue references from text (legacy compatibility).
+
+    Args:
+        text: Text to scan for issue references.
+
+    Returns:
+        List of issue reference strings (e.g., ["#123", "ABC-456"]).
+    """
+    import re
+
+    # Match #123 or PROJECT-123 patterns
+    pattern = r"(?:#(\d+)|([A-Z]+-\d+))"
+    matches = re.findall(pattern, text)
+    return [f"#{m[0]}" if m[0] else m[1] for m in matches]
+
+
+__all__ = [  # noqa: RUF022 - Grouped logically, not alphabetically
     "MAX_FILES_FULL_REVIEW",
     "MAX_LINES_FULL_REVIEW",
     "PRIORITY_FILE_PATTERNS",
@@ -184,8 +205,8 @@ __all__ = [
     "AIContextAgent",
     "AIContextInput",
     "AIContextOutput",
-    # ===== Legacy Base Classes =====
-    # Legacy Base
+    # ===== SDK Base Classes (Primary) =====
+    # SDK Base - now the primary context and result types
     "AgentContext",
     "AgentResult",
     # Margin Annotation
@@ -198,8 +219,11 @@ __all__ = [
     # ===== SDK Agents =====
     # Assignee Recommender SDK
     "AssigneeRecommenderAgentSDK",
+    # Legacy base classes (deprecated)
     "BaseAgent",
     "BatchMarginAnnotationAgent",
+    "LegacyAgentContext",
+    "LegacyAgentResult",
     # Commit Linker (Legacy)
     "CommitLinkerAgent",
     # Commit Linker SDK
@@ -265,10 +289,6 @@ __all__ = [
     "ReviewCategory",
     "ReviewComment",
     "ReviewSeverity",
-    # ===== SDK Base Classes =====
-    # SDK Base (imported as SDKAgentContext, SDKAgentResult to avoid conflicts)
-    "SDKAgentContext",
-    "SDKAgentResult",
     "SDKAnnotation",
     "SDKAnnotationType",
     "SDKAssigneeRecommendation",
