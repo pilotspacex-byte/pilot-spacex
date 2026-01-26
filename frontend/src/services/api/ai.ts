@@ -1,0 +1,192 @@
+import { apiClient } from './client';
+
+/**
+ * AI API client with typed endpoints.
+ * @see specs/004-mvp-agents-build/tasks/P16-T111-T120.md#T113
+ */
+
+// Types
+export interface GhostTextRequest {
+  context: string;
+  cursor_position: number;
+}
+
+export interface AIContextRequest {
+  issue_id: string;
+}
+
+export interface PRReviewRequest {
+  pr_number: number;
+  repo_id: string;
+}
+
+export interface IssueExtractionRequest {
+  note_id: string;
+  max_issues?: number;
+}
+
+export interface ApprovalResolutionRequest {
+  approved: boolean;
+  note?: string;
+  selected_issues?: number[];
+}
+
+export interface WorkspaceAISettings {
+  anthropic_key_set: boolean;
+  openai_key_set: boolean;
+  ghost_text_enabled: boolean;
+  margin_annotations_enabled: boolean;
+  ai_context_enabled: boolean;
+}
+
+export interface CostSummary {
+  workspace_id: string;
+  period_start: string;
+  period_end: string;
+  total_cost_usd: number;
+  total_requests: number;
+  by_agent: Array<{ agent_name: string; total_cost_usd: number; request_count: number }>;
+  by_user: Array<{ user_id: string; user_name: string; total_cost_usd: number }>;
+  by_day: Array<{ date: string; total_cost_usd: number }>;
+}
+
+export interface ApprovalListResponse {
+  requests: ApprovalRequest[];
+  pending_count: number;
+}
+
+export interface ApprovalRequest {
+  id: string;
+  agent_name: string;
+  action_type: string;
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
+  created_at: string;
+  expires_at: string;
+  requested_by: string;
+  context_preview: string;
+  payload?: Record<string, unknown>;
+}
+
+/**
+ * AI API client for AI-powered features.
+ * Provides both SSE streaming endpoints and REST endpoints.
+ */
+export const aiApi = {
+  /**
+   * SSE streaming endpoint URLs (return URL for SSE client).
+   * These endpoints support Server-Sent Events for real-time streaming.
+   */
+
+  /**
+   * Get ghost text streaming URL for note.
+   * @param noteId - Note UUID
+   * @returns SSE endpoint URL
+   */
+  getGhostTextUrl: (noteId: string) => `/api/v1/ai/notes/${noteId}/ghost-text`,
+
+  /**
+   * Get AI context streaming URL for issue.
+   * @param issueId - Issue UUID
+   * @returns SSE endpoint URL
+   */
+  getAIContextUrl: (issueId: string) => `/api/v1/ai/issues/${issueId}/context`,
+
+  /**
+   * Get PR review streaming URL.
+   * @param repoId - Repository UUID
+   * @param prNumber - Pull request number
+   * @returns SSE endpoint URL
+   */
+  getPRReviewUrl: (repoId: string, prNumber: number) =>
+    `/api/v1/ai/repos/${repoId}/prs/${prNumber}/review`,
+
+  /**
+   * Get issue extraction streaming URL for note.
+   * @param noteId - Note UUID
+   * @returns SSE endpoint URL
+   */
+  getIssueExtractionUrl: (noteId: string) => `/api/v1/ai/notes/${noteId}/extract-issues`,
+
+  /**
+   * Get margin annotations streaming URL for note.
+   * @param noteId - Note UUID
+   * @returns SSE endpoint URL
+   */
+  getAnnotationsUrl: (noteId: string) => `/api/v1/ai/notes/${noteId}/annotations`,
+
+  /**
+   * Get conversation streaming URL for multi-turn chat.
+   * @returns SSE endpoint URL
+   */
+  getConversationUrl: () => `/api/v1/ai/conversation`,
+
+  /**
+   * REST endpoints for AI settings and management.
+   */
+
+  /**
+   * Get AI settings for workspace.
+   * @param workspaceId - Workspace UUID
+   * @returns Workspace AI settings
+   */
+  getWorkspaceSettings: (workspaceId: string) =>
+    apiClient.get<WorkspaceAISettings>(`/workspaces/${workspaceId}/ai/settings`),
+
+  /**
+   * Update AI settings for workspace.
+   * @param workspaceId - Workspace UUID
+   * @param settings - Partial settings update with optional API keys
+   * @returns Updated workspace AI settings
+   */
+  updateWorkspaceSettings: (
+    workspaceId: string,
+    settings: Partial<WorkspaceAISettings> & {
+      anthropic_api_key?: string;
+      openai_api_key?: string;
+    }
+  ) => apiClient.put<WorkspaceAISettings>(`/workspaces/${workspaceId}/ai/settings`, settings),
+
+  /**
+   * Approval endpoints for human-in-the-loop actions.
+   */
+
+  /**
+   * List approval requests with optional status filter.
+   * @param status - Optional filter by status
+   * @returns List of approval requests with pending count
+   */
+  listApprovals: (status?: 'pending' | 'approved' | 'rejected' | 'expired') =>
+    apiClient.get<ApprovalListResponse>('/ai/approvals', { params: { status } }),
+
+  /**
+   * Get specific approval request by ID.
+   * @param approvalId - Approval request UUID
+   * @returns Approval request details
+   */
+  getApproval: (approvalId: string) =>
+    apiClient.get<ApprovalRequest>(`/ai/approvals/${approvalId}`),
+
+  /**
+   * Resolve approval request (approve/reject).
+   * @param approvalId - Approval request UUID
+   * @param resolution - Approval resolution with optional note and selected issues
+   * @returns Updated approval request
+   */
+  resolveApproval: (approvalId: string, resolution: ApprovalResolutionRequest) =>
+    apiClient.post<ApprovalRequest>(`/ai/approvals/${approvalId}/resolve`, resolution),
+
+  /**
+   * Cost tracking endpoints.
+   */
+
+  /**
+   * Get cost summary for workspace AI usage.
+   * @param startDate - Optional start date (ISO 8601)
+   * @param endDate - Optional end date (ISO 8601)
+   * @returns Cost summary with breakdowns by agent, user, and day
+   */
+  getCostSummary: (startDate?: string, endDate?: string) =>
+    apiClient.get<CostSummary>('/ai/costs/summary', {
+      params: { start_date: startDate, end_date: endDate },
+    }),
+};

@@ -20,3 +20,15 @@ export {
   type IntegrationSettings,
 } from './integrations';
 export { approvalsApi } from './approvals';
+export {
+  aiApi,
+  type GhostTextRequest,
+  type AIContextRequest,
+  type PRReviewRequest,
+  type IssueExtractionRequest,
+  type ApprovalResolutionRequest,
+  type WorkspaceAISettings,
+  type CostSummary,
+  type ApprovalListResponse,
+  type ApprovalRequest,
+} from './ai';
