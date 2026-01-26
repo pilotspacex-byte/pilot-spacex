@@ -113,12 +113,29 @@ export interface NoteBlock {
 /**
  * Annotation type for AI-generated suggestions
  */
-export type AnnotationType = 'suggestion' | 'warning' | 'issue_candidate' | 'info';
+export type AnnotationType =
+  | 'suggestion'
+  | 'warning'
+  | 'issue_candidate'
+  | 'info'
+  | 'question'
+  | 'insight'
+  | 'reference';
 
 /**
  * Annotation status for tracking user actions
  */
 export type AnnotationStatus = 'pending' | 'accepted' | 'rejected' | 'dismissed';
+
+/**
+ * AI annotation metadata
+ */
+export interface AnnotationMetadata {
+  title?: string;
+  summary?: string;
+  suggestedText?: string;
+  references?: Array<{ title: string; url: string }>;
+}
 
 /**
  * AI annotation on a note block
@@ -131,7 +148,7 @@ export interface NoteAnnotation {
   type: AnnotationType;
   confidence: number;
   status: AnnotationStatus;
-  aiMetadata?: Record<string, unknown>;
+  aiMetadata?: AnnotationMetadata;
   createdAt: string;
   updatedAt?: string;
   /** @deprecated Use status instead */

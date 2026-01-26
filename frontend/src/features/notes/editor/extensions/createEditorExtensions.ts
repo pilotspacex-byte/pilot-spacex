@@ -19,6 +19,11 @@ import {
   type MarginAnnotationOptions,
   type BlockAnnotationData,
 } from './MarginAnnotationExtension';
+import {
+  MarginAnnotationAutoTriggerExtension,
+  type MarginAnnotationAutoTriggerOptions,
+  type MarginAnnotationContext,
+} from './MarginAnnotationAutoTriggerExtension';
 import { IssueLinkExtension, type IssueLinkOptions, type IssuePreview } from './IssueLinkExtension';
 import { CodeBlockExtension, type CodeBlockOptions } from './CodeBlockExtension';
 import { MentionExtension, type MentionOptions, type MentionUser } from './MentionExtension';
@@ -53,6 +58,10 @@ export interface EditorExtensionsOptions {
   marginAnnotation?: Partial<MarginAnnotationOptions> & {
     annotations?: Map<string, BlockAnnotationData>;
     onClick?: (blockId: string) => void;
+  };
+  /** Margin annotation auto-trigger configuration */
+  marginAnnotationAutoTrigger?: Partial<MarginAnnotationAutoTriggerOptions> & {
+    onTrigger?: (context: MarginAnnotationContext) => void;
   };
   /** Issue link configuration */
   issueLink?: Partial<IssueLinkOptions> & {
@@ -141,6 +150,7 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
     blockId,
     annotation,
     marginAnnotation,
+    marginAnnotationAutoTrigger,
     issueLink,
     codeBlock,
     codeHighlighting = true,
@@ -240,6 +250,17 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
     MarginAnnotationExtension.configure({
       annotations: new Map(),
       ...marginAnnotation,
+    })
+  );
+
+  // Margin annotation auto-trigger
+  extensions.push(
+    MarginAnnotationAutoTriggerExtension.configure({
+      debounceMs: 2000,
+      minChars: 50,
+      contextBlocks: 3,
+      enabled: true,
+      ...marginAnnotationAutoTrigger,
     })
   );
 

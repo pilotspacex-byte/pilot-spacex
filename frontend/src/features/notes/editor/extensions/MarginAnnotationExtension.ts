@@ -46,6 +46,9 @@ const ANNOTATION_COLORS: Record<AnnotationType, string> = {
   warning: 'rgb(234, 179, 8)', // yellow-500
   issue_candidate: 'rgb(168, 85, 247)', // purple-500
   info: 'rgb(107, 114, 128)', // gray-500
+  question: 'rgb(147, 51, 234)', // purple-600
+  insight: 'rgb(34, 197, 94)', // green-500
+  reference: 'rgb(107, 114, 128)', // gray-500
 };
 
 /**

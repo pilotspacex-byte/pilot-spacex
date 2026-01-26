@@ -21,6 +21,11 @@ export {
   type BlockAnnotationData,
 } from './MarginAnnotationExtension';
 export {
+  MarginAnnotationAutoTriggerExtension,
+  type MarginAnnotationAutoTriggerOptions,
+  type MarginAnnotationContext,
+} from './MarginAnnotationAutoTriggerExtension';
+export {
   IssueLinkExtension,
   issueLinkStyles,
   type IssueLinkOptions,

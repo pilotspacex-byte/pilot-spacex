@@ -3,7 +3,8 @@
  * Unit tests for margin annotation state management
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MarginAnnotationStore, type NoteAnnotation } from '../MarginAnnotationStore';
+import { MarginAnnotationStore } from '../MarginAnnotationStore';
+import type { NoteAnnotation } from '@/types';
 import { AIStore } from '../AIStore';
 
 // Mock dependencies
@@ -40,10 +41,10 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-1',
           type: 'suggestion',
-          title: 'Test 1',
-          summary: 'Summary 1',
           content: 'Content 1',
           confidence: 0.9,
+          status: 'pending',
+          aiMetadata: { title: 'Test 1', summary: 'Summary 1' },
           createdAt: new Date().toISOString(),
         },
         {
@@ -51,10 +52,10 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-1',
           type: 'warning',
-          title: 'Test 2',
-          summary: 'Summary 2',
           content: 'Content 2',
           confidence: 0.8,
+          status: 'pending',
+          aiMetadata: { title: 'Test 2', summary: 'Summary 2' },
           createdAt: new Date().toISOString(),
         },
         {
@@ -62,10 +63,10 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-2',
           type: 'insight',
-          title: 'Test 3',
-          summary: 'Summary 3',
           content: 'Content 3',
           confidence: 0.75,
+          status: 'pending',
+          aiMetadata: { title: 'Test 3', summary: 'Summary 3' },
           createdAt: new Date().toISOString(),
         },
       ];
@@ -125,10 +126,10 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-1',
           type: 'suggestion',
-          title: 'Test 1',
-          summary: 'Summary 1',
           content: 'Content 1',
           confidence: 0.9,
+          status: 'pending',
+          aiMetadata: { title: 'Test 1', summary: 'Summary 1' },
           createdAt: new Date().toISOString(),
         },
         {
@@ -136,10 +137,10 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-1',
           type: 'warning',
-          title: 'Test 2',
-          summary: 'Summary 2',
           content: 'Content 2',
           confidence: 0.8,
+          status: 'pending',
+          aiMetadata: { title: 'Test 2', summary: 'Summary 2' },
           createdAt: new Date().toISOString(),
         },
       ];
@@ -159,10 +160,13 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-1',
           type: 'suggestion',
-          title: 'Test',
-          summary: 'Summary',
           content: 'Content',
           confidence: 0.9,
+          status: 'pending',
+          aiMetadata: {
+            title: 'Test',
+            summary: 'Summary',
+          },
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -180,10 +184,13 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-1',
           type: 'suggestion',
-          title: 'Test',
-          summary: 'Summary',
           content: 'Content',
           confidence: 0.9,
+          status: 'pending',
+          aiMetadata: {
+            title: 'Test',
+            summary: 'Summary',
+          },
           createdAt: new Date().toISOString(),
         },
         {
@@ -191,10 +198,13 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-1',
           type: 'warning',
-          title: 'Test 2',
-          summary: 'Summary 2',
           content: 'Content 2',
           confidence: 0.8,
+          status: 'pending',
+          aiMetadata: {
+            title: 'Test 2',
+            summary: 'Summary 2',
+          },
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -228,10 +238,13 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-1',
           type: 'suggestion',
-          title: 'Test',
-          summary: 'Summary',
           content: 'Content',
           confidence: 0.9,
+          status: 'pending',
+          aiMetadata: {
+            title: 'Test',
+            summary: 'Summary',
+          },
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -252,10 +265,10 @@ describe('MarginAnnotationStore', () => {
           noteId: 'note-1',
           blockId: 'block-1',
           type: 'suggestion',
-          title: 'Test',
-          summary: 'Summary',
           content: 'Content',
           confidence: 0.9,
+          status: 'pending',
+          aiMetadata: { title: 'Test', summary: 'Summary' },
           createdAt: new Date().toISOString(),
         },
       ];

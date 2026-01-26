@@ -22,6 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   List,
+  HelpCircle,
+  Link2,
 } from 'lucide-react';
 
 import { AutoTOC } from './AutoTOC';
@@ -123,6 +125,27 @@ const ANNOTATION_TYPE_CONFIG: Record<
     color: 'text-ai',
     bgColor: 'bg-ai-muted',
     borderColor: 'border-ai-border',
+  },
+  question: {
+    icon: HelpCircle,
+    label: 'Question',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+  },
+  insight: {
+    icon: Sparkles,
+    label: 'Insight',
+    color: 'text-green-600',
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
+  },
+  reference: {
+    icon: Link2,
+    label: 'Reference',
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-50',
+    borderColor: 'border-gray-200',
   },
 };
 
