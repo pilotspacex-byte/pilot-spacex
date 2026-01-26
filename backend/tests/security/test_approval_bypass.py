@@ -64,11 +64,7 @@ class TestApprovalBypassPrevention:
             requested_by_id=user_id,
             agent_type="issue_extractor",
             action_type="create_issues",
-            action_payload={
-                "issues": [
-                    {"title": "Test Issue", "description": "From AI"}
-                ]
-            },
+            action_payload={"issues": [{"title": "Test Issue", "description": "From AI"}]},
             status=ApprovalStatus.PENDING,
             confidence_score=0.85,
             created_at=datetime.now(UTC) - timedelta(hours=25),  # Expired
@@ -219,9 +215,7 @@ class TestApprovalBypassPrevention:
             action_type="create_issues",
             action_payload={
                 "note_id": str(uuid.uuid4()),
-                "issues": [
-                    {"title": "Issue 1", "description": "AI extracted"}
-                ]
+                "issues": [{"title": "Issue 1", "description": "AI extracted"}],
             },
             status=ApprovalStatus.PENDING,
             confidence_score=0.8,

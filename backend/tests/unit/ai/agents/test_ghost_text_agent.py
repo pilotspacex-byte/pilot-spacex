@@ -74,7 +74,7 @@ def agent_context() -> AgentContext:
     return AgentContext(
         workspace_id=uuid4(),
         user_id=uuid4(),
-        metadata={"anthropic_api_key": "sk-ant-test-key"},
+        metadata={"anthropic_api_key": "sk-ant-test-key"},  # pragma: allowlist secret
     )
 
 
@@ -88,18 +88,14 @@ class TestGhostTextAgentValidation:
         with pytest.raises(ValueError, match="current_text cannot be empty"):
             agent._validate_input(input_data)
 
-    def test_validate_negative_cursor_position_raises_error(
-        self, agent: GhostTextAgent
-    ) -> None:
+    def test_validate_negative_cursor_position_raises_error(self, agent: GhostTextAgent) -> None:
         """Verify negative cursor position is rejected."""
         input_data = GhostTextInput(current_text="Hello", cursor_position=-1)
 
         with pytest.raises(ValueError, match="cursor_position must be non-negative"):
             agent._validate_input(input_data)
 
-    def test_validate_cursor_exceeds_length_raises_error(
-        self, agent: GhostTextAgent
-    ) -> None:
+    def test_validate_cursor_exceeds_length_raises_error(self, agent: GhostTextAgent) -> None:
         """Verify cursor position beyond text length is rejected."""
         input_data = GhostTextInput(current_text="Hello", cursor_position=10)
 
@@ -170,11 +166,9 @@ class TestGhostTextAgentTruncation:
         # Should be truncated
         assert len(result) < len(text)
         # Should end at word boundary (space after word)
-        assert result.endswith(" ") or result.endswith("word")
+        assert result.endswith((" ", "word"))
 
-    def test_truncate_respects_punctuation_boundaries(
-        self, agent: GhostTextAgent
-    ) -> None:
+    def test_truncate_respects_punctuation_boundaries(self, agent: GhostTextAgent) -> None:
         """Verify truncation at punctuation boundaries."""
         # Create long text with punctuation
         text = "word, " * 60  # 360 characters
@@ -182,7 +176,7 @@ class TestGhostTextAgentTruncation:
         result = agent._truncate_at_word_boundary(text)
 
         # Should end at comma or space, not mid-word
-        assert result.endswith(",") or result.endswith(" ") or result.endswith("word")
+        assert result.endswith((",", " ", "word"))
 
     def test_truncate_empty_text_returns_empty(self, agent: GhostTextAgent) -> None:
         """Verify empty text returns empty."""
@@ -200,10 +194,7 @@ class TestGhostTextAgentCleaning:
     def test_clean_removes_common_prefixes(self, agent: GhostTextAgent) -> None:
         """Verify common prefixes are removed."""
         assert agent._clean_suggestion("Completion: Hello") == "Hello"
-        assert (
-            agent._clean_suggestion("Here's the completion: Hello world")
-            == "Hello world"
-        )
+        assert agent._clean_suggestion("Here's the completion: Hello world") == "Hello world"
         assert agent._clean_suggestion("Suggestion: Test") == "Test"
 
     def test_clean_applies_truncation(self, agent: GhostTextAgent) -> None:
@@ -372,9 +363,7 @@ class TestGhostTextAgentExecution:
         )
 
         # Mock stream to return chunks with quotes that will be cleaned
-        async def mock_stream(
-            *args: object, **kwargs: object
-        ) -> AsyncIterator[str]:
+        async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[str]:
             yield '" world'
             yield '!"'
 
@@ -398,9 +387,7 @@ class TestGhostTextAgentExecution:
         )
 
         # Mock empty stream
-        async def mock_stream(
-            *args: object, **kwargs: object
-        ) -> AsyncIterator[str]:
+        async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[str]:
             if False:  # pragma: no cover
                 yield ""
 
@@ -487,18 +474,14 @@ class TestGhostTextAgentIntegration:
         )
 
         # Mock resilient executor to call the wrapped function
-        async def mock_execute_wrapper(
-            provider: str, operation: object
-        ) -> str:
+        async def mock_execute_wrapper(provider: str, operation: object) -> str:
             # Call the operation function
             return await operation()  # type: ignore[misc]
 
         mock_resilient_executor.execute = mock_execute_wrapper  # type: ignore[method-assign]
 
         # Mock stream to return result
-        async def mock_stream(
-            *args: object, **kwargs: object
-        ) -> AsyncIterator[str]:
+        async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[str]:
             yield "world"
 
         agent.stream = mock_stream  # type: ignore[method-assign]
@@ -522,9 +505,7 @@ class TestGhostTextAgentIntegration:
         )
 
         # Mock stream
-        async def mock_stream(
-            *args: object, **kwargs: object
-        ) -> AsyncIterator[str]:
+        async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[str]:
             yield " world"
 
         agent.stream = mock_stream  # type: ignore[method-assign]

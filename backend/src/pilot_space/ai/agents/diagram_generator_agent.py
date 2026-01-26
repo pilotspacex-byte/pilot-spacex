@@ -261,9 +261,7 @@ For state diagrams:
 
         return base_prompt + type_specific.get(diagram_type, "")
 
-    def _parse_response(
-        self, content: str, diagram_type: DiagramType
-    ) -> DiagramGeneratorOutput:
+    def _parse_response(self, content: str, diagram_type: DiagramType) -> DiagramGeneratorOutput:
         """Parse diagram response.
 
         Args:
@@ -284,7 +282,7 @@ For state diagrams:
             mermaid_code = content[start:end].strip()
 
             # Description is text before code block
-            before_code = content[:content.find("```mermaid")].strip()
+            before_code = content[: content.find("```mermaid")].strip()
             if before_code:
                 description = before_code
         elif "```" in content:

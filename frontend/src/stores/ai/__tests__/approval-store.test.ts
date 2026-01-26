@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ApprovalStore } from '../ApprovalStore';
-import { aiApi } from '@/services/api/ai';
+import { aiApi, type ApprovalRequest } from '@/services/api/ai';
 import type { AIStore } from '../AIStore';
 
 // Mock the API
@@ -21,7 +21,7 @@ describe('ApprovalStore', () => {
   let store: ApprovalStore;
   let mockRootStore: AIStore;
 
-  const mockApprovalRequests = [
+  const mockApprovalRequests: ApprovalRequest[] = [
     {
       id: '1',
       agent_name: 'issue_extractor',
@@ -101,8 +101,9 @@ describe('ApprovalStore', () => {
     });
 
     it('should load approvals with status filter', async () => {
+      const firstRequest = mockApprovalRequests[0]!;
       const mockResponse = {
-        requests: [mockApprovalRequests[0]],
+        requests: [firstRequest],
         pending_count: 1,
       };
 
@@ -111,7 +112,7 @@ describe('ApprovalStore', () => {
       await store.loadAll('approved');
 
       expect(aiApi.listApprovals).toHaveBeenCalledWith('approved');
-      expect(store.requests).toEqual([mockApprovalRequests[0]]);
+      expect(store.requests).toEqual([firstRequest]);
     });
   });
 
@@ -122,7 +123,18 @@ describe('ApprovalStore', () => {
         pending_count: 0,
       };
 
-      vi.mocked(aiApi.resolveApproval).mockResolvedValue({} as any);
+      const mockApprovedRequest: ApprovalRequest = {
+        id: '1',
+        agent_name: 'issue_extractor',
+        action_type: 'extract_issues',
+        status: 'approved',
+        created_at: '2026-01-26T10:00:00Z',
+        expires_at: '2026-01-27T10:00:00Z',
+        requested_by: 'John Doe',
+        context_preview: '3 issues to create',
+      };
+
+      vi.mocked(aiApi.resolveApproval).mockResolvedValue(mockApprovedRequest);
       vi.mocked(aiApi.listApprovals).mockResolvedValue(mockResponse);
 
       await store.approve('1', 'Looks good');
@@ -141,7 +153,18 @@ describe('ApprovalStore', () => {
         pending_count: 0,
       };
 
-      vi.mocked(aiApi.resolveApproval).mockResolvedValue({} as any);
+      const mockApprovedRequest: ApprovalRequest = {
+        id: '1',
+        agent_name: 'issue_extractor',
+        action_type: 'extract_issues',
+        status: 'approved',
+        created_at: '2026-01-26T10:00:00Z',
+        expires_at: '2026-01-27T10:00:00Z',
+        requested_by: 'John Doe',
+        context_preview: '3 issues to create',
+      };
+
+      vi.mocked(aiApi.resolveApproval).mockResolvedValue(mockApprovedRequest);
       vi.mocked(aiApi.listApprovals).mockResolvedValue(mockResponse);
 
       await store.approve('1', undefined, [0, 2]);
@@ -169,7 +192,18 @@ describe('ApprovalStore', () => {
         pending_count: 0,
       };
 
-      vi.mocked(aiApi.resolveApproval).mockResolvedValue({} as any);
+      const mockRejectedRequest: ApprovalRequest = {
+        id: '1',
+        agent_name: 'issue_extractor',
+        action_type: 'extract_issues',
+        status: 'rejected',
+        created_at: '2026-01-26T10:00:00Z',
+        expires_at: '2026-01-27T10:00:00Z',
+        requested_by: 'John Doe',
+        context_preview: '3 issues to create',
+      };
+
+      vi.mocked(aiApi.resolveApproval).mockResolvedValue(mockRejectedRequest);
       vi.mocked(aiApi.listApprovals).mockResolvedValue(mockResponse);
 
       await store.reject('1', 'Not needed');
@@ -195,21 +229,19 @@ describe('ApprovalStore', () => {
       expect(store.selectedRequest).toBeNull();
 
       const request = mockApprovalRequests[0];
-      if (request) {
-        store.selectRequest(request);
-        expect(store.selectedRequest).toEqual(request);
-      }
+      expect(request).toBeDefined();
+      store.selectRequest(request!);
+      expect(store.selectedRequest).toEqual(request);
     });
 
     it('should clear selected request', () => {
       const request = mockApprovalRequests[0];
-      if (request) {
-        store.selectRequest(request);
-        expect(store.selectedRequest).not.toBeNull();
+      expect(request).toBeDefined();
+      store.selectRequest(request!);
+      expect(store.selectedRequest).not.toBeNull();
 
-        store.selectRequest(null);
-        expect(store.selectedRequest).toBeNull();
-      }
+      store.selectRequest(null);
+      expect(store.selectedRequest).toBeNull();
     });
   });
 
@@ -260,9 +292,8 @@ describe('ApprovalStore', () => {
       vi.mocked(aiApi.listApprovals).mockResolvedValue(mockResponse);
       await store.loadPending();
       const request = mockApprovalRequests[0];
-      if (request) {
-        store.selectRequest(request);
-      }
+      expect(request).toBeDefined();
+      store.selectRequest(request!);
       store.setFilter('approved');
 
       // Reset

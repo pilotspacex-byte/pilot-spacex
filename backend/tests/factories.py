@@ -90,9 +90,9 @@ class WorkspaceFactory(BaseFactory):
     @factory.post_generation
     def members(
         self,
-        create: bool,
+        _create: bool,
         extracted: list[WorkspaceMember] | None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> None:
         """Add workspace members after creation."""
         if extracted:
@@ -170,9 +170,9 @@ class ProjectFactory(BaseFactory):
     @factory.post_generation
     def states(
         self,
-        create: bool,
+        _create: bool,
         extracted: list[State] | None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> None:
         """Add project states after creation."""
         if extracted:

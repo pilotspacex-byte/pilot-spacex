@@ -37,7 +37,7 @@ vi.mock('@/services/api/ai', () => ({
 describe('ConversationStore', () => {
   let store: ConversationStore;
   let mockRootStore: AIStore;
-  let mockAiApi: any;
+  let mockAiApi: typeof import('@/services/api/ai').aiApi;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -68,7 +68,7 @@ describe('ConversationStore', () => {
         expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
-      mockAiApi.createConversationSession.mockResolvedValue(mockSession);
+      vi.mocked(mockAiApi.createConversationSession).mockResolvedValue(mockSession);
 
       await store.startSession(issueId);
 
@@ -96,8 +96,8 @@ describe('ConversationStore', () => {
         },
       ];
 
-      mockAiApi.createConversationSession.mockResolvedValue(mockSession);
-      mockAiApi.getConversationHistory.mockResolvedValue(mockHistory);
+      vi.mocked(mockAiApi.createConversationSession).mockResolvedValue(mockSession);
+      vi.mocked(mockAiApi.getConversationHistory).mockResolvedValue(mockHistory);
 
       // First call creates session
       await store.startSession(issueId);
@@ -126,7 +126,7 @@ describe('ConversationStore', () => {
         expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
-      mockAiApi.createConversationSession
+      vi.mocked(mockAiApi.createConversationSession)
         .mockResolvedValueOnce(expiredSession)
         .mockResolvedValueOnce(newSession);
 
@@ -142,7 +142,7 @@ describe('ConversationStore', () => {
 
     it('should handle session creation error', async () => {
       const issueId = 'test-issue-id';
-      mockAiApi.createConversationSession.mockRejectedValue(new Error('API error'));
+      vi.mocked(mockAiApi.createConversationSession).mockRejectedValue(new Error('API error'));
 
       await store.startSession(issueId);
 
@@ -159,7 +159,7 @@ describe('ConversationStore', () => {
         expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
-      mockAiApi.createConversationSession.mockResolvedValue(mockSession);
+      vi.mocked(mockAiApi.createConversationSession).mockResolvedValue(mockSession);
 
       expect(store.isSessionActive).toBe(false);
 
@@ -178,13 +178,13 @@ describe('ConversationStore', () => {
         expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
-      mockAiApi.createConversationSession.mockResolvedValue(mockSession);
+      vi.mocked(mockAiApi.createConversationSession).mockResolvedValue(mockSession);
       await store.startSession('test-issue-id');
     });
 
     it('should send message and stream response', async () => {
       const { SSEClient } = await import('@/lib/sse-client');
-      const mockSSEClient = SSEClient as any;
+      const mockSSEClient = SSEClient as unknown as ReturnType<typeof vi.fn>;
 
       await store.sendMessage('Hello AI');
 
@@ -199,23 +199,29 @@ describe('ConversationStore', () => {
 
     it('should handle streaming tokens', async () => {
       const { SSEClient } = await import('@/lib/sse-client');
-      const mockSSEClient = SSEClient as any;
+      const mockSSEClient = SSEClient as unknown as ReturnType<typeof vi.fn>;
 
-      let onMessageCallback: any;
-      mockSSEClient.mockImplementation((options: any) => {
-        onMessageCallback = options.onMessage;
-        return {
-          connect: vi.fn().mockResolvedValue(undefined),
-          abort: vi.fn(),
-        };
-      });
+      let onMessageCallback:
+        | ((event: { type: string; data: Record<string, unknown> }) => void)
+        | undefined;
+      mockSSEClient.mockImplementation(
+        (options: {
+          onMessage?: (event: { type: string; data: Record<string, unknown> }) => void;
+        }) => {
+          onMessageCallback = options.onMessage;
+          return {
+            connect: vi.fn().mockResolvedValue(undefined),
+            abort: vi.fn(),
+          };
+        }
+      );
 
       await store.sendMessage('Hello');
 
       // Simulate streaming tokens
       runInAction(() => {
-        onMessageCallback({ type: 'token', data: { content: 'Hello' } });
-        onMessageCallback({ type: 'token', data: { content: ' there' } });
+        onMessageCallback?.({ type: 'token', data: { content: 'Hello' } });
+        onMessageCallback?.({ type: 'token', data: { content: ' there' } });
       });
 
       expect(store.currentStreamContent).toBe('Hello there');
@@ -223,28 +229,35 @@ describe('ConversationStore', () => {
 
     it('should complete message on stream complete', async () => {
       const { SSEClient } = await import('@/lib/sse-client');
-      const mockSSEClient = SSEClient as any;
+      const mockSSEClient = SSEClient as unknown as ReturnType<typeof vi.fn>;
 
-      let onMessageCallback: any;
-      let onCompleteCallback: any;
-      mockSSEClient.mockImplementation((options: any) => {
-        onMessageCallback = options.onMessage;
-        onCompleteCallback = options.onComplete;
-        return {
-          connect: vi.fn().mockResolvedValue(undefined),
-          abort: vi.fn(),
-        };
-      });
+      let onMessageCallback:
+        | ((event: { type: string; data: Record<string, unknown> }) => void)
+        | undefined;
+      let onCompleteCallback: (() => void) | undefined;
+      mockSSEClient.mockImplementation(
+        (options: {
+          onMessage?: (event: { type: string; data: Record<string, unknown> }) => void;
+          onComplete?: () => void;
+        }) => {
+          onMessageCallback = options.onMessage;
+          onCompleteCallback = options.onComplete;
+          return {
+            connect: vi.fn().mockResolvedValue(undefined),
+            abort: vi.fn(),
+          };
+        }
+      );
 
       await store.sendMessage('Test');
 
       runInAction(() => {
-        onMessageCallback({ type: 'token', data: { content: 'Response text' } });
-        onMessageCallback({
+        onMessageCallback?.({ type: 'token', data: { content: 'Response text' } });
+        onMessageCallback?.({
           type: 'complete',
           data: { message_id: 'msg-ai-1' },
         });
-        onCompleteCallback();
+        onCompleteCallback?.();
       });
 
       expect(store.messages).toHaveLength(2);
@@ -259,10 +272,10 @@ describe('ConversationStore', () => {
 
     it('should handle streaming error', async () => {
       const { SSEClient } = await import('@/lib/sse-client');
-      const mockSSEClient = SSEClient as any;
+      const mockSSEClient = SSEClient as unknown as ReturnType<typeof vi.fn>;
 
-      let onErrorCallback: any;
-      mockSSEClient.mockImplementation((options: any) => {
+      let onErrorCallback: ((error: Error) => void) | undefined;
+      mockSSEClient.mockImplementation((options: { onError?: (error: Error) => void }) => {
         onErrorCallback = options.onError;
         return {
           connect: vi.fn().mockResolvedValue(undefined),
@@ -273,7 +286,7 @@ describe('ConversationStore', () => {
       await store.sendMessage('Test');
 
       runInAction(() => {
-        onErrorCallback(new Error('Stream error'));
+        onErrorCallback?.(new Error('Stream error'));
       });
 
       expect(store.isStreaming).toBe(false);
@@ -299,14 +312,14 @@ describe('ConversationStore', () => {
         expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
-      mockAiApi.createConversationSession.mockResolvedValue(mockSession);
+      vi.mocked(mockAiApi.createConversationSession).mockResolvedValue(mockSession);
       await store.startSession('test-issue-id');
     });
 
     it('should abort streaming', async () => {
       const { SSEClient } = await import('@/lib/sse-client');
       const mockAbort = vi.fn();
-      const mockSSEClient = SSEClient as any;
+      const mockSSEClient = SSEClient as unknown as ReturnType<typeof vi.fn>;
 
       mockSSEClient.mockImplementation(() => ({
         connect: vi.fn().mockResolvedValue(undefined),
@@ -350,7 +363,7 @@ describe('ConversationStore', () => {
         expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
-      mockAiApi.createConversationSession.mockResolvedValue(mockSession);
+      vi.mocked(mockAiApi.createConversationSession).mockResolvedValue(mockSession);
       await store.startSession('test-issue-id');
     });
 

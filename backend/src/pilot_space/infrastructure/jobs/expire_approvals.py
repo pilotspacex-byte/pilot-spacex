@@ -56,7 +56,7 @@ async def run_expiration_job() -> None:
         >>> # Schedule with APScheduler
         >>> from apscheduler.schedulers.asyncio import AsyncIOScheduler
         >>> scheduler = AsyncIOScheduler()
-        >>> scheduler.add_job(run_expiration_job, 'interval', hours=1)
+        >>> scheduler.add_job(run_expiration_job, "interval", hours=1)
         >>> scheduler.start()
     """
     from pilot_space.infrastructure.database.engine import get_db_session

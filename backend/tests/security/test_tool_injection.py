@@ -135,7 +135,7 @@ class TestToolInputSanitization:
     async def test_semantic_search_sanitizes_input(self) -> None:
         """Verify semantic search removes SQL injection patterns."""
         mcp_server = MockMCPServer()
-        mcp_server._db_mock.search.return_value = []  # noqa: SLF001
+        mcp_server._db_mock.search.return_value = []
 
         # Attempt injection via search query
         malicious_queries = [
@@ -185,7 +185,7 @@ class TestToolInputSanitization:
     async def test_get_issue_context_accepts_valid_uuid(self) -> None:
         """Verify valid UUIDs are accepted."""
         mcp_server = MockMCPServer()
-        mcp_server._db_mock.get_issue.return_value = {"id": "test", "title": "Test"}  # noqa: SLF001
+        mcp_server._db_mock.get_issue.return_value = {"id": "test", "title": "Test"}
 
         valid_uuid = str(uuid4())
 
@@ -201,7 +201,7 @@ class TestToolInputSanitization:
     async def test_list_issues_filters_dangerous_fields(self) -> None:
         """Verify list_issues only allows whitelisted filter fields."""
         mcp_server = MockMCPServer()
-        mcp_server._db_mock.list_issues.return_value = []  # noqa: SLF001
+        mcp_server._db_mock.list_issues.return_value = []
 
         # Attempt to filter on dangerous fields
         result = await mcp_server.call_tool(
@@ -220,7 +220,7 @@ class TestToolInputSanitization:
         assert "issues" in result
 
         # Verify only safe filters were passed to DB
-        call_args = mcp_server._db_mock.list_issues.call_args  # noqa: SLF001
+        call_args = mcp_server._db_mock.list_issues.call_args
         filters_used = call_args[0][0] if call_args else {}
 
         assert "status" in filters_used
@@ -232,7 +232,7 @@ class TestToolInputSanitization:
     async def test_xss_in_search_query_sanitized(self) -> None:
         """Verify XSS attempts in search queries are handled safely."""
         mcp_server = MockMCPServer()
-        mcp_server._db_mock.search.return_value = []  # noqa: SLF001
+        mcp_server._db_mock.search.return_value = []
 
         xss_payloads = [
             "<script>alert('xss')</script>",
@@ -272,7 +272,7 @@ class TestToolInputSanitization:
     async def test_unicode_injection_handled(self) -> None:
         """Verify Unicode injection attempts are handled safely."""
         mcp_server = MockMCPServer()
-        mcp_server._db_mock.search.return_value = []  # noqa: SLF001
+        mcp_server._db_mock.search.return_value = []
 
         # Unicode variations of SQL injection
         unicode_attacks = [

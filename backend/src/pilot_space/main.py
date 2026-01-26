@@ -17,6 +17,7 @@ from pilot_space.api.v1.routers import (
     cycles_router,
     integrations_router,
     issues_ai_context_router,
+    issues_ai_context_streaming_router,
     issues_ai_router,
     issues_router,
     notes_router,
@@ -31,7 +32,11 @@ from pilot_space.api.v1.routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan handler for startup/shutdown events."""
-    # Startup: Initialize connections (database, redis, etc.)
+    # Startup: Initialize DI container and connections
+    from pilot_space.container import get_container
+
+    app.state.container = get_container()
+
     # These will be implemented in Phase 2 (Foundation)
     yield
     # Shutdown: Clean up connections
@@ -100,6 +105,7 @@ app.include_router(projects_router, prefix=API_V1_PREFIX)
 app.include_router(issues_router, prefix=API_V1_PREFIX)
 app.include_router(issues_ai_router, prefix=API_V1_PREFIX)
 app.include_router(issues_ai_context_router, prefix=API_V1_PREFIX)
+app.include_router(issues_ai_context_streaming_router, prefix=API_V1_PREFIX)
 app.include_router(notes_router, prefix=API_V1_PREFIX)
 app.include_router(cycles_router, prefix=API_V1_PREFIX)
 app.include_router(ai_router, prefix=API_V1_PREFIX)

@@ -40,24 +40,20 @@ def agent_context() -> AgentContext:
     return AgentContext(
         workspace_id=uuid4(),
         user_id=uuid4(),
-        metadata={"anthropic_api_key": "test-key"},
+        metadata={"anthropic_api_key": "test-key"},  # pragma: allowlist secret
     )
 
 
 class TestTaskDecomposerAgent:
     """Test suite for TaskDecomposerAgent."""
 
-    def test_agent_initialization(
-        self, task_decomposer_agent: TaskDecomposerAgent
-    ) -> None:
+    def test_agent_initialization(self, task_decomposer_agent: TaskDecomposerAgent) -> None:
         """Verify agent initializes with correct configuration."""
         assert task_decomposer_agent.AGENT_NAME == "task_decomposer"
         assert task_decomposer_agent.DEFAULT_MODEL == "claude-opus-4-5-20251101"
         assert task_decomposer_agent.MAX_TOKENS == 4096
 
-    def test_build_prompt_basic(
-        self, task_decomposer_agent: TaskDecomposerAgent
-    ) -> None:
+    def test_build_prompt_basic(self, task_decomposer_agent: TaskDecomposerAgent) -> None:
         """Verify prompt building with basic input."""
         input_data = TaskDecomposerInput(
             issue_id="PILOT-123",
@@ -91,9 +87,7 @@ class TestTaskDecomposerAgent:
         assert "dependencies: False" in prompt
         assert "FastAPI backend" in prompt
 
-    def test_get_system_prompt(
-        self, task_decomposer_agent: TaskDecomposerAgent
-    ) -> None:
+    def test_get_system_prompt(self, task_decomposer_agent: TaskDecomposerAgent) -> None:
         """Verify system prompt content."""
         system_prompt = task_decomposer_agent._get_system_prompt()
 
@@ -102,9 +96,7 @@ class TestTaskDecomposerAgent:
         assert "dependencies" in system_prompt.lower()
         assert "JSON" in system_prompt
 
-    def test_parse_response_valid_json(
-        self, task_decomposer_agent: TaskDecomposerAgent
-    ) -> None:
+    def test_parse_response_valid_json(self, task_decomposer_agent: TaskDecomposerAgent) -> None:
         """Verify response parsing with valid JSON."""
         json_response = """{
   "subtasks": [
@@ -170,16 +162,12 @@ This should work well."""
         assert len(output.subtasks) == 1
         assert output.subtasks[0].title == "Task 1"
 
-    def test_parse_response_invalid_json(
-        self, task_decomposer_agent: TaskDecomposerAgent
-    ) -> None:
+    def test_parse_response_invalid_json(self, task_decomposer_agent: TaskDecomposerAgent) -> None:
         """Verify error handling for invalid JSON."""
         invalid_response = "This is not JSON at all"
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="JSON"):
             task_decomposer_agent._parse_response(invalid_response)
-
-        assert "JSON" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_execute_requires_api_key(
@@ -197,10 +185,8 @@ This should work well."""
             metadata={},  # No API key
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception, match=r"(?i)api key"):
             await task_decomposer_agent.execute(input_data, context)
-
-        assert "api key" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_execute_validates_input(
@@ -214,10 +200,8 @@ This should work well."""
             issue_title="",  # Empty title
         )
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match=r"(?i)required"):
             await task_decomposer_agent.execute(input_data, agent_context)
-
-        assert "required" in str(exc_info.value).lower()
 
 
 __all__ = ["TestTaskDecomposerAgent"]

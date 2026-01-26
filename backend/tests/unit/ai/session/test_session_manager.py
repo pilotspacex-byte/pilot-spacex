@@ -321,10 +321,10 @@ class TestSessionManager:
         assert mock_redis.set.call_count == 2  # Session + index
 
     @pytest.mark.asyncio
+    @pytest.mark.usefixtures("mock_redis")
     async def test_create_session_with_context(
         self,
         session_manager: SessionManager,
-        mock_redis: AsyncMock,
         sample_user_id: UUID,
         sample_workspace_id: UUID,
         sample_context_id: UUID,

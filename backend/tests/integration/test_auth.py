@@ -53,7 +53,7 @@ class TestTokenValidation:
     def test_that_valid_token_is_decoded_successfully(self) -> None:
         """Test that a valid JWT token is properly decoded."""
         # Arrange
-        secret = "test-secret-key-for-testing-purposes"
+        secret = "test-secret-key-for-testing-purposes"  # pragma: allowlist secret
         auth = SupabaseAuth(jwt_secret=secret)
 
         # Create a valid token manually
@@ -84,7 +84,7 @@ class TestTokenValidation:
     def test_that_expired_token_raises_error(self) -> None:
         """Test that an expired token raises TokenExpiredError."""
         # Arrange
-        secret = "test-secret-key-for-testing-purposes"
+        secret = "test-secret-key-for-testing-purposes"  # pragma: allowlist secret
         auth = SupabaseAuth(jwt_secret=secret)
 
         import jwt
@@ -140,7 +140,7 @@ class TestTokenValidation:
     def test_that_token_user_id_is_extracted_correctly(self) -> None:
         """Test that user ID is correctly extracted from token."""
         # Arrange
-        secret = "test-secret"
+        secret = "test-secret"  # pragma: allowlist secret
         auth = SupabaseAuth(jwt_secret=secret)
         user_id = uuid4()
 
@@ -357,7 +357,7 @@ class TestRLSPolicies:
     def test_that_workspace_access_succeeds_with_valid_token(self) -> None:
         """Test that workspace access succeeds with valid token."""
         # Arrange
-        secret = "test-secret"
+        secret = "test-secret"  # pragma: allowlist secret
         auth = SupabaseAuth(jwt_secret=secret)
         workspace_id = uuid4()
 
@@ -575,16 +575,24 @@ class TestPermissionChecks:
 
         # Assert hierarchy
         # Owner has all permissions
-        assert owner.is_owner and owner.is_admin and owner.can_edit
+        assert owner.is_owner
+        assert owner.is_admin
+        assert owner.can_edit
 
         # Admin has admin and edit, not owner
-        assert not admin.is_owner and admin.is_admin and admin.can_edit
+        assert not admin.is_owner
+        assert admin.is_admin
+        assert admin.can_edit
 
         # Member has edit only
-        assert not member.is_owner and not member.is_admin and member.can_edit
+        assert not member.is_owner
+        assert not member.is_admin
+        assert member.can_edit
 
         # Guest has no permissions
-        assert not guest.is_owner and not guest.is_admin and not guest.can_edit
+        assert not guest.is_owner
+        assert not guest.is_admin
+        assert not guest.can_edit
 
 
 # ============================================================================

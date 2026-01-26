@@ -204,41 +204,126 @@ class Container(containers.DeclarativeContainer):
 
     tool_registry = providers.Singleton(_create_tool_registry)
 
-
     # SDK orchestrator not yet fully integrated
     # Will be implemented in P12-P15 with proper AsyncSession handling
     sdk_orchestrator = providers.Object(None)
 
 
-def _register_sdk_agents(orchestrator: Any) -> None:  # noqa: RUF100  # pyright: ignore[reportUnusedFunction]
+def register_sdk_agents(orchestrator: Any) -> None:
     """Register all SDK agents in the orchestrator.
+
+    NOTE: Some agents require key_storage which is session-dependent.
+    For now, we pass orchestrator._key_storage to those agents.
+    This works because the orchestrator is created per-request with
+    a session-scoped key_storage instance.
 
     Args:
         orchestrator: SDKOrchestrator instance.
     """
+    from pilot_space.ai.agents.ai_context_agent import AIContextAgent
+    from pilot_space.ai.agents.assignee_recommender_agent_sdk import (
+        AssigneeRecommenderAgent,
+    )
+    from pilot_space.ai.agents.commit_linker_agent_sdk import CommitLinkerAgent
+    from pilot_space.ai.agents.conversation_agent_sdk import ConversationAgent
+    from pilot_space.ai.agents.diagram_generator_agent import DiagramGeneratorAgent
+    from pilot_space.ai.agents.doc_generator_agent import DocGeneratorAgent
+
+    # DuplicateDetectorAgent requires AsyncSession - cannot register at init time
+    # from pilot_space.ai.agents.duplicate_detector_agent_sdk import (
+    #     DuplicateDetectorAgent,
+    # )
+    from pilot_space.ai.agents.ghost_text_agent import GhostTextAgent
+    from pilot_space.ai.agents.issue_enhancer_agent_sdk import IssueEnhancerAgent
+    from pilot_space.ai.agents.issue_extractor_sdk_agent import IssueExtractorAgent
     from pilot_space.ai.agents.margin_annotation_agent_sdk import (
         MarginAnnotationAgentSDK,
     )
+    from pilot_space.ai.agents.pr_review_agent import PRReviewAgent
+    from pilot_space.ai.agents.task_decomposer_agent import TaskDecomposerAgent
     from pilot_space.ai.sdk_orchestrator import AgentName
 
     # Access orchestrator's protected members for agent initialization
     # These are design decisions per DD-002 (infrastructure injection)
-    deps = {
+    deps_base = {
         "tool_registry": orchestrator._tool_registry,  # noqa: SLF001
         "provider_selector": orchestrator._provider_selector,  # noqa: SLF001
         "cost_tracker": orchestrator._cost_tracker,  # noqa: SLF001
         "resilient_executor": orchestrator._resilient_executor,  # noqa: SLF001
     }
 
-    # Register agents
+    # Extended deps for agents that need key_storage
+    deps_with_key = {
+        **deps_base,
+        "key_storage": orchestrator._key_storage,  # noqa: SLF001
+    }
+
+    # Register all SDK agents
+    # Note-related agents (no key_storage needed)
+    orchestrator.register_agent(
+        AgentName.GHOST_TEXT,
+        GhostTextAgent(**deps_base),
+    )
     orchestrator.register_agent(
         AgentName.MARGIN_ANNOTATION,
-        MarginAnnotationAgentSDK(**deps),
+        MarginAnnotationAgentSDK(**deps_base),
+    )
+    orchestrator.register_agent(
+        AgentName.ISSUE_EXTRACTOR,
+        IssueExtractorAgent(**deps_base),
     )
 
-    # TODO: Register other SDK agents as they are migrated
-    # orchestrator.register_agent(AgentName.GHOST_TEXT, GhostTextAgentSDK(**deps))
-    # orchestrator.register_agent(AgentName.AI_CONTEXT, AIContextAgentSDK(**deps))
+    # Issue-related agents
+    orchestrator.register_agent(
+        AgentName.AI_CONTEXT,
+        AIContextAgent(**deps_base),
+    )
+    # Conversation agent needs key_storage for API key access
+    orchestrator.register_agent(
+        AgentName.CONVERSATION,
+        ConversationAgent(**deps_with_key),
+    )
+    # Issue enhancer needs key_storage
+    orchestrator.register_agent(
+        AgentName.ISSUE_ENHANCER,
+        IssueEnhancerAgent(**deps_with_key),
+    )
+    # Assignee recommender needs key_storage
+    orchestrator.register_agent(
+        AgentName.ASSIGNEE_RECOMMENDER,
+        AssigneeRecommenderAgent(**deps_with_key),
+    )
+    # TODO(T036): DuplicateDetectorAgent requires AsyncSession parameter
+    # which is per-request. Need to refactor to lazy instantiation or
+    # pass session via context. Skipping registration for now.
+    # orchestrator.register_agent(
+    #     AgentName.DUPLICATE_DETECTOR,
+    #     DuplicateDetectorAgent(**deps_with_key, session=???),
+    # )
+
+    # PR/Code agents (need key_storage for API access)
+    orchestrator.register_agent(
+        AgentName.PR_REVIEW,
+        PRReviewAgent(**deps_with_key),
+    )
+    orchestrator.register_agent(
+        AgentName.COMMIT_LINKER,
+        CommitLinkerAgent(**deps_with_key),
+    )
+
+    # Documentation agents (no key_storage needed)
+    orchestrator.register_agent(
+        AgentName.DOC_GENERATOR,
+        DocGeneratorAgent(**deps_base),
+    )
+    orchestrator.register_agent(
+        AgentName.TASK_DECOMPOSER,
+        TaskDecomposerAgent(**deps_base),
+    )
+    orchestrator.register_agent(
+        AgentName.DIAGRAM_GENERATOR,
+        DiagramGeneratorAgent(**deps_base),
+    )
 
 
 def create_container(settings: Settings | None = None) -> Container:

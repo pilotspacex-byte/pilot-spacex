@@ -134,6 +134,29 @@ export function ApprovalDialog({
     setHasExpired(Date.now() >= expiryTime);
   }, [approval.expiresAt]);
 
+  // Memoized handlers to prevent useEffect re-runs
+  const handleApprove = React.useCallback(async () => {
+    if (isApproving || isRejecting || hasExpired) return;
+
+    setIsApproving(true);
+    try {
+      await onApprove();
+    } finally {
+      setIsApproving(false);
+    }
+  }, [isApproving, isRejecting, hasExpired, onApprove]);
+
+  const handleReject = React.useCallback(async () => {
+    if (isApproving || isRejecting || hasExpired) return;
+
+    setIsRejecting(true);
+    try {
+      await onReject();
+    } finally {
+      setIsRejecting(false);
+    }
+  }, [isApproving, isRejecting, hasExpired, onReject]);
+
   // Keyboard shortcuts
   React.useEffect(() => {
     if (!isOpen) return;
@@ -159,7 +182,7 @@ export function ApprovalDialog({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isApproving, isRejecting, hasExpired]);
+  }, [isOpen, isApproving, isRejecting, hasExpired, handleApprove, handleReject]);
 
   // Focus approve button when dialog opens
   React.useEffect(() => {
@@ -171,28 +194,6 @@ export function ApprovalDialog({
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
-
-  const handleApprove = async () => {
-    if (isApproving || isRejecting || hasExpired) return;
-
-    setIsApproving(true);
-    try {
-      await onApprove();
-    } finally {
-      setIsApproving(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (isApproving || isRejecting || hasExpired) return;
-
-    setIsRejecting(true);
-    try {
-      await onReject();
-    } finally {
-      setIsRejecting(false);
-    }
-  };
 
   const handleExpire = () => {
     setHasExpired(true);

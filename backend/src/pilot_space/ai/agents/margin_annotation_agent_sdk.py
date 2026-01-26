@@ -64,9 +64,7 @@ class MarginAnnotationOutput:
     processed_blocks: int
 
 
-class MarginAnnotationAgentSDK(
-    SDKBaseAgent[MarginAnnotationInput, MarginAnnotationOutput]
-):
+class MarginAnnotationAgentSDK(SDKBaseAgent[MarginAnnotationInput, MarginAnnotationOutput]):
     """Generates margin annotations for note blocks.
 
     Uses Claude Sonnet for quality suggestions without
@@ -260,11 +258,7 @@ Return JSON with annotations array."""
         except json.JSONDecodeError:
             # Try to extract JSON from markdown code block
             json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
-            data = (
-                json.loads(json_match.group(1))
-                if json_match
-                else {"annotations": []}
-            )
+            data = json.loads(json_match.group(1)) if json_match else {"annotations": []}
 
         # Parse annotations
         annotations: list[Annotation] = []

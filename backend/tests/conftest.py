@@ -154,12 +154,10 @@ async def db_session(
         autoflush=False,
     )
 
-    async with session_factory() as session:
-        # Start a savepoint for rollback
-        async with session.begin():
-            # Yield session for test
-            yield session
-            # Rollback on completion (automatic with context manager)
+    async with session_factory() as session, session.begin():
+        # Yield session for test with automatic rollback
+        yield session
+        # Rollback on completion (automatic with context manager)
 
 
 @pytest.fixture

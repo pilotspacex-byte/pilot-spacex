@@ -34,11 +34,11 @@ class TestAPIKeySecurity:
     ) -> None:
         """Verify storing API key logs masked version only."""
         workspace_id = uuid.uuid4()
-        test_key = "sk-ant-api03-test-secret-key-1234567890abcdef"
+        test_key = "sk-ant-api03-test-secret-key-1234567890abcdef"  # pragma: allowlist secret
 
         storage = SecureKeyStorage(
             db=db_session,
-            master_secret="test-master-secret-for-testing",
+            master_secret="test-master-secret-for-testing",  # pragma: allowlist secret
         )
 
         with caplog.at_level(logging.DEBUG):
@@ -67,7 +67,7 @@ class TestAPIKeySecurity:
 
         storage = SecureKeyStorage(
             db=db_session,
-            master_secret="test-master-secret",
+            master_secret="test-master-secret",  # pragma: allowlist secret
         )
 
         # Mock the validation to fail
@@ -92,11 +92,11 @@ class TestAPIKeySecurity:
     ) -> None:
         """Verify retrieving API key doesn't log the decrypted value."""
         workspace_id = uuid.uuid4()
-        test_key = "sk-openai-test-secret-key-1234567890"
+        test_key = "sk-openai-test-secret-key-1234567890"  # pragma: allowlist secret
 
         storage = SecureKeyStorage(
             db=db_session,
-            master_secret="test-master-secret",
+            master_secret="test-master-secret",  # pragma: allowlist secret
         )
 
         # Store key
@@ -125,11 +125,11 @@ class TestAPIKeySecurity:
     ) -> None:
         """Verify deleting API key doesn't log the value."""
         workspace_id = uuid.uuid4()
-        test_key = "sk-google-test-secret-key-xyz"
+        test_key = "sk-google-test-secret-key-xyz"  # pragma: allowlist secret
 
         storage = SecureKeyStorage(
             db=db_session,
-            master_secret="test-master-secret",
+            master_secret="test-master-secret",  # pragma: allowlist secret
         )
 
         await storage.store_api_key(
@@ -150,12 +150,12 @@ class TestAPIKeySecurity:
         """Verify _mask_key produces safe output."""
         storage = SecureKeyStorage(
             db=AsyncMock(),
-            master_secret="test",
+            master_secret="test",  # pragma: allowlist secret
         )
 
         # Long key
         long_key = "sk-ant-api03-very-long-secret-key-12345"
-        masked = storage._mask_key(long_key)  # noqa: SLF001 - Testing private method
+        masked = storage._mask_key(long_key)
         assert long_key not in masked
         assert "sk-a" in masked
         assert "2345" in masked
@@ -163,7 +163,7 @@ class TestAPIKeySecurity:
 
         # Short key
         short_key = "abc123"
-        masked_short = storage._mask_key(short_key)  # noqa: SLF001 - Testing private method
+        masked_short = storage._mask_key(short_key)
         assert short_key not in masked_short
         assert "*" in masked_short
 
@@ -175,11 +175,11 @@ class TestAPIKeySecurity:
         """Verify exceptions don't expose API keys."""
         storage = SecureKeyStorage(
             db=db_session,
-            master_secret="test-master-secret",
+            master_secret="test-master-secret",  # pragma: allowlist secret
         )
 
         # Invalid provider should raise ValueError
-        test_key = "sk-test-secret-key"
+        test_key = "sk-test-secret-key"  # pragma: allowlist secret
         with pytest.raises(ValueError, match="Invalid provider") as exc_info:
             await storage.store_api_key(
                 workspace_id=uuid.uuid4(),
@@ -198,11 +198,11 @@ class TestAPIKeySecurity:
     ) -> None:
         """Verify all logging uses masked key preview."""
         workspace_id = uuid.uuid4()
-        test_key = "sk-ant-api03-this-is-a-test-key-12345678"
+        test_key = "sk-ant-api03-this-is-a-test-key-12345678"  # pragma: allowlist secret
 
         storage = SecureKeyStorage(
             db=db_session,
-            master_secret="test-master-secret",
+            master_secret="test-master-secret",  # pragma: allowlist secret
         )
 
         with caplog.at_level(logging.INFO):
@@ -232,11 +232,11 @@ class TestAPIKeySecurity:
         """Verify validation logging doesn't expose keys."""
         workspace_id = uuid.uuid4()
         # Use a test key that will fail validation
-        test_key = "sk-ant-invalid-key-for-testing"
+        test_key = "sk-ant-invalid-key-for-testing"  # pragma: allowlist secret
 
         storage = SecureKeyStorage(
             db=db_session,
-            master_secret="test-master-secret",
+            master_secret="test-master-secret",  # pragma: allowlist secret
         )
 
         await storage.store_api_key(
@@ -259,7 +259,11 @@ class TestAPIKeySecurity:
             assert test_key not in record.message
             # If key is mentioned, should be masked
             if "key" in record.message.lower():
-                assert "sk-a...ting" in record.message or "*" in record.message or "preview" in str(record.__dict__)
+                assert (
+                    "sk-a...ting" in record.message
+                    or "*" in record.message
+                    or "preview" in str(record.__dict__)
+                )
 
 
 class TestAPIKeyPatternAudit:
@@ -294,7 +298,7 @@ class TestAPIKeyEnvironmentSecurity:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Verify master secret is never logged."""
-        master_secret = "super-secret-master-key-do-not-log"
+        master_secret = "super-secret-master-key-do-not-log"  # pragma: allowlist secret
 
         with caplog.at_level(logging.DEBUG):
             _ = SecureKeyStorage(
@@ -315,11 +319,11 @@ class TestAPIKeyEnvironmentSecurity:
     ) -> None:
         """Verify encrypted key value is not logged."""
         workspace_id = uuid.uuid4()
-        test_key = "sk-test-key-12345"
+        test_key = "sk-test-key-12345"  # pragma: allowlist secret
 
         storage = SecureKeyStorage(
             db=db_session,
-            master_secret="test-secret",
+            master_secret="test-secret",  # pragma: allowlist secret
         )
 
         # Store key
@@ -331,7 +335,7 @@ class TestAPIKeyEnvironmentSecurity:
             )
 
         # Get encrypted value (for test purposes)
-        encrypted = storage._encrypt(test_key)  # noqa: SLF001 - Testing encryption
+        encrypted = storage._encrypt(test_key)
 
         # Encrypted value should not be in logs either
         for record in caplog.records:

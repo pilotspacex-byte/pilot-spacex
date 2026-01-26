@@ -22,9 +22,34 @@ export class ApprovalStore {
   isLoading = false;
   error: string | null = null;
   selectedRequest: ApprovalRequest | null = null;
+  filter: 'pending' | 'approved' | 'rejected' | 'expired' | undefined = 'pending';
 
   constructor(_rootStore: AIStore) {
     makeAutoObservable(this);
+  }
+
+  /**
+   * Get requests grouped by agent name
+   */
+  get groupedByAgent(): Record<string, ApprovalRequest[]> {
+    return this.requests.reduce(
+      (acc, request) => {
+        const agentName = request.agent_name;
+        if (!acc[agentName]) {
+          acc[agentName] = [];
+        }
+        acc[agentName].push(request);
+        return acc;
+      },
+      {} as Record<string, ApprovalRequest[]>
+    );
+  }
+
+  /**
+   * Set filter for approval requests
+   */
+  setFilter(filter: 'pending' | 'approved' | 'rejected' | 'expired' | undefined): void {
+    this.filter = filter;
   }
 
   /**
@@ -125,5 +150,6 @@ export class ApprovalStore {
     this.isLoading = false;
     this.error = null;
     this.selectedRequest = null;
+    this.filter = 'pending';
   }
 }

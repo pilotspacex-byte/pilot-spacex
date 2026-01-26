@@ -144,7 +144,7 @@ class TestSessionExpiration:
         assert retrieved.id == session.id
 
         # Manually set session to expire in 1 second for testing
-        session_key = session_manager._session_key(session.id)  # noqa: SLF001
+        session_key = session_manager._session_key(session.id)
         session_data = session.to_dict()
         session_data["expires_at"] = (datetime.now(UTC) + timedelta(seconds=1)).isoformat()
         await redis.set(session_key, session_data, ttl=1)
@@ -170,7 +170,7 @@ class TestSessionExpiration:
         )
 
         # Manually set Redis TTL to 2 seconds
-        session_key = session_manager._session_key(session.id)  # noqa: SLF001
+        session_key = session_manager._session_key(session.id)
         initial_data = session.to_dict()
         await redis.set(session_key, initial_data, ttl=2)
 
@@ -207,7 +207,7 @@ class TestSessionExpiration:
         )
 
         # Manually set expires_at to past
-        session_key = session_manager._session_key(session.id)  # noqa: SLF001
+        session_key = session_manager._session_key(session.id)
         session_data = session.to_dict()
         past_time = datetime.now(UTC) - timedelta(seconds=10)
         session_data["expires_at"] = past_time.isoformat()
@@ -240,7 +240,7 @@ class TestSessionExpiration:
         )
 
         # Expire session1 manually
-        session_key1 = session_manager._session_key(session1.id)  # noqa: SLF001
+        session_key1 = session_manager._session_key(session1.id)
         session_data1 = session1.to_dict()
         past_time = datetime.now(UTC) - timedelta(seconds=10)
         session_data1["expires_at"] = past_time.isoformat()

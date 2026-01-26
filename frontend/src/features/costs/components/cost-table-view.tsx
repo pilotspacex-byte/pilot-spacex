@@ -73,6 +73,32 @@ function getUserInitials(name: string): string {
 }
 
 // ============================================================================
+// Sub-components
+// ============================================================================
+
+/**
+ * Sort icon component.
+ */
+function SortIcon({
+  column,
+  sortColumn,
+  sortDirection,
+}: {
+  column: SortColumn;
+  sortColumn: SortColumn;
+  sortDirection: SortDirection;
+}) {
+  if (sortColumn !== column) {
+    return <ArrowUpDown className="ml-2 size-4 text-muted-foreground" />;
+  }
+  return sortDirection === 'asc' ? (
+    <ArrowUp className="ml-2 size-4" />
+  ) : (
+    <ArrowDown className="ml-2 size-4" />
+  );
+}
+
+// ============================================================================
 // Component
 // ============================================================================
 
@@ -131,18 +157,6 @@ export function CostTableView({ data, className }: CostTableViewProps) {
     });
   }, [data, sortColumn, sortDirection, hasData]);
 
-  // Render sort icon
-  const SortIcon = ({ column }: { column: SortColumn }) => {
-    if (sortColumn !== column) {
-      return <ArrowUpDown className="ml-2 size-4 text-muted-foreground" />;
-    }
-    return sortDirection === 'asc' ? (
-      <ArrowUp className="ml-2 size-4" />
-    ) : (
-      <ArrowDown className="ml-2 size-4" />
-    );
-  };
-
   return (
     <Card className={className}>
       <CardHeader>
@@ -167,7 +181,11 @@ export function CostTableView({ data, className }: CostTableViewProps) {
                       onClick={() => handleSort('user_name')}
                     >
                       User
-                      <SortIcon column="user_name" />
+                      <SortIcon
+                        column="user_name"
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                      />
                     </Button>
                   </TableHead>
                   <TableHead className="text-right">
@@ -178,7 +196,11 @@ export function CostTableView({ data, className }: CostTableViewProps) {
                       onClick={() => handleSort('request_count')}
                     >
                       Requests
-                      <SortIcon column="request_count" />
+                      <SortIcon
+                        column="request_count"
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                      />
                     </Button>
                   </TableHead>
                   <TableHead className="text-right">
@@ -189,7 +211,11 @@ export function CostTableView({ data, className }: CostTableViewProps) {
                       onClick={() => handleSort('total_cost_usd')}
                     >
                       Total Cost
-                      <SortIcon column="total_cost_usd" />
+                      <SortIcon
+                        column="total_cost_usd"
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                      />
                     </Button>
                   </TableHead>
                   <TableHead className="text-right">
@@ -200,7 +226,11 @@ export function CostTableView({ data, className }: CostTableViewProps) {
                       onClick={() => handleSort('avg_cost')}
                     >
                       Avg/Request
-                      <SortIcon column="avg_cost" />
+                      <SortIcon
+                        column="avg_cost"
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                      />
                     </Button>
                   </TableHead>
                 </TableRow>

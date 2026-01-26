@@ -72,7 +72,7 @@ def sample_input() -> AIContextInput:
         issue_identifier="PILOT-123",
         workspace_id=str(uuid4()),
         project_name="Pilot Space",
-        api_key="test-api-key",
+        api_key="test-api-key",  # pragma: allowlist secret
         related_issues=[
             RelatedItem(
                 id=str(uuid4()),
@@ -200,7 +200,7 @@ class TestAIContextAgent:
             issue_description=None,
             issue_identifier="PILOT-1",
             workspace_id=str(uuid4()),
-            api_key="test-key",
+            api_key="test-key",  # pragma: allowlist secret
         )
 
         with pytest.raises(ValueError, match="issue_id is required"):
@@ -241,7 +241,9 @@ class TestAIContextAgent:
 
             # Verify output structure
             assert isinstance(output, AIContextOutput)
-            assert output.summary == "Implement JWT-based authentication service with refresh tokens"
+            assert (
+                output.summary == "Implement JWT-based authentication service with refresh tokens"
+            )
             assert output.complexity == "high"
             assert output.estimated_effort == "L"
             assert len(output.key_considerations) == 3

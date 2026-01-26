@@ -366,8 +366,8 @@ class TestCacheKeyGeneration:
         input1 = {"context": "test", "cursor": 10}
         input2 = {"context": "test", "cursor": 10}
 
-        hash1 = ai_cache._hash_input(input1)  # noqa: SLF001
-        hash2 = ai_cache._hash_input(input2)  # noqa: SLF001
+        hash1 = ai_cache._hash_input(input1)
+        hash2 = ai_cache._hash_input(input2)
 
         assert hash1 == hash2
 
@@ -379,8 +379,8 @@ class TestCacheKeyGeneration:
         input1 = {"context": "test1"}
         input2 = {"context": "test2"}
 
-        hash1 = ai_cache._hash_input(input1)  # noqa: SLF001
-        hash2 = ai_cache._hash_input(input2)  # noqa: SLF001
+        hash1 = ai_cache._hash_input(input1)
+        hash2 = ai_cache._hash_input(input2)
 
         assert hash1 != hash2
 
@@ -392,8 +392,8 @@ class TestCacheKeyGeneration:
         input1 = {"a": 1, "b": 2, "c": 3}
         input2 = {"c": 3, "a": 1, "b": 2}
 
-        hash1 = ai_cache._hash_input(input1)  # noqa: SLF001
-        hash2 = ai_cache._hash_input(input2)  # noqa: SLF001
+        hash1 = ai_cache._hash_input(input1)
+        hash2 = ai_cache._hash_input(input2)
 
         assert hash1 == hash2
 
@@ -404,7 +404,7 @@ class TestCacheKeyGeneration:
         """Verify cache keys include agent name for isolation."""
         hash_value = "abc123"
 
-        key = ai_cache._make_key("ghost_text", hash_value)  # noqa: SLF001
+        key = ai_cache._make_key("ghost_text", hash_value)
 
         assert "ghost_text" in key
         assert hash_value in key

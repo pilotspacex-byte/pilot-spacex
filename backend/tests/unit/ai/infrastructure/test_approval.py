@@ -318,7 +318,7 @@ class TestApprovalRequestResolution:
         fake_id = uuid.uuid4()
 
         # Mock repository to return None for non-existent request
-        approval_service._repository.resolve = AsyncMock(return_value=None)  # noqa: SLF001
+        approval_service._repository.resolve = AsyncMock(return_value=None)
 
         with pytest.raises(ValueError, match=f"Approval request not found: {fake_id}"):
             await approval_service.resolve(
@@ -609,7 +609,7 @@ class TestUtilityMethods:
         fake_id = uuid.uuid4()
 
         # Mock repository to return None for non-existent request
-        approval_service._repository.get_by_id = AsyncMock(return_value=None)  # noqa: SLF001
+        approval_service._repository.get_by_id = AsyncMock(return_value=None)
 
         result = await approval_service.get_request(fake_id)
         assert result is None

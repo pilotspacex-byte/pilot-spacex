@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
 from pilot_space.infrastructure.database.models.note import Note
@@ -26,6 +26,9 @@ from pilot_space.infrastructure.database.models.workspace_member import Workspac
 from pilot_space.infrastructure.database.rls import set_rls_context
 
 from .conftest import SecurityTestContext
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 # =============================================================================
 # Test Helpers
@@ -144,7 +147,7 @@ class TestWorkspaceIsolation:
             db_session,
             populated_db.workspace_b.id,
         )
-        issue_in_b = await create_test_issue(
+        await create_test_issue(
             db_session,
             workspace_id=populated_db.workspace_b.id,
             project_id=project_b.id,
@@ -221,7 +224,7 @@ class TestWorkspaceIsolation:
     ) -> None:
         """Notes should be strictly isolated between workspaces."""
         # Setup: Create note in workspace B
-        note_in_b = await create_test_note(
+        await create_test_note(
             db_session,
             workspace_id=populated_db.workspace_b.id,
             created_by_id=populated_db.outsider.id,
@@ -381,7 +384,7 @@ class TestRoleBasedAccess:
         )
         state = await create_test_state(db_session, populated_db.workspace_a.id)
 
-        assigned_issue = await create_test_issue(
+        await create_test_issue(
             db_session,
             workspace_id=populated_db.workspace_a.id,
             project_id=project.id,
@@ -460,7 +463,7 @@ class TestRoleBasedAccess:
         # In SQLite test, we verify the policy logic conceptually
         # Real PostgreSQL test would show 0 rows due to RLS
 
-        notes = result.scalars().all()
+        result.scalars().all()
         # This assertion documents expected behavior
         # Actual enforcement requires PostgreSQL RLS
         # For now, we verify the note exists (test setup worked)
@@ -479,14 +482,14 @@ class TestRoleBasedAccess:
             populated_db.workspace_a.id,
         )
         state = await create_test_state(db_session, populated_db.workspace_a.id)
-        issue = await create_test_issue(
+        await create_test_issue(
             db_session,
             workspace_id=populated_db.workspace_a.id,
             project_id=project.id,
             state_id=state.id,
             reporter_id=populated_db.owner.id,
         )
-        note = await create_test_note(
+        await create_test_note(
             db_session,
             workspace_id=populated_db.workspace_a.id,
             created_by_id=populated_db.owner.id,
@@ -708,7 +711,7 @@ class TestDataLeakagePrevention:
             db_session,
             populated_db.workspace_b.id,
         )
-        secret_issue = await create_test_issue(
+        await create_test_issue(
             db_session,
             workspace_id=populated_db.workspace_b.id,
             project_id=project_b.id,
@@ -750,7 +753,7 @@ class TestDataLeakagePrevention:
             db_session,
             populated_db.workspace_b.id,
         )
-        issue_b = await create_test_issue(
+        await create_test_issue(
             db_session,
             workspace_id=populated_db.workspace_b.id,
             project_id=project_b.id,

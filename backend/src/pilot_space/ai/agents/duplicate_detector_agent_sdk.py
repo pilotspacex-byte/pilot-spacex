@@ -86,9 +86,7 @@ class DuplicateDetectionOutput:
     highest_similarity: float = 0.0
 
 
-class DuplicateDetectorAgent(
-    SDKBaseAgent[DuplicateDetectionInput, DuplicateDetectionOutput]
-):
+class DuplicateDetectorAgent(SDKBaseAgent[DuplicateDetectionInput, DuplicateDetectionOutput]):
     """Agent for detecting duplicate issues using vector similarity.
 
     Uses OpenAI embeddings + pgvector for efficient similarity search.
@@ -197,9 +195,7 @@ class DuplicateDetectorAgent(
             provider="openai",
         )
         if not api_key:
-            raise RuntimeError(
-                f"OpenAI API key not found for workspace {context.workspace_id}"
-            )
+            raise RuntimeError(f"OpenAI API key not found for workspace {context.workspace_id}")
 
         # Generate embedding using OpenAI
         embedding, input_tokens = await self._generate_embedding(text_to_embed, api_key)
@@ -298,26 +294,19 @@ class DuplicateDetectorAgent(
 
         # Query using cosine similarity
         # 1 - (embedding <=> query_vector) gives similarity (pgvector uses distance)
-        similarity_expr = text(
-            f"1 - (embedding <=> '{vector_str}'::vector)"
-        ).label("similarity")
+        similarity_expr = text(f"1 - (embedding <=> '{vector_str}'::vector)").label("similarity")
 
-        query = (
-            select(
-                Embedding.content_id,
-                Embedding.content_preview,
-                Embedding.embedding_metadata,
-                similarity_expr,
-            )
-            .where(
-                and_(
-                    Embedding.workspace_id == workspace_id,
-                    Embedding.content_type == EmbeddingType.ISSUE,
-                    Embedding.is_deleted == False,  # noqa: E712
-                    text(
-                        f"1 - (embedding <=> '{vector_str}'::vector) >= {threshold}"
-                    ),
-                )
+        query = select(
+            Embedding.content_id,
+            Embedding.content_preview,
+            Embedding.embedding_metadata,
+            similarity_expr,
+        ).where(
+            and_(
+                Embedding.workspace_id == workspace_id,
+                Embedding.content_type == EmbeddingType.ISSUE,
+                Embedding.is_deleted == False,  # noqa: E712
+                text(f"1 - (embedding <=> '{vector_str}'::vector) >= {threshold}"),
             )
         )
 

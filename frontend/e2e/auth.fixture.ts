@@ -24,14 +24,12 @@ export const test = base.extend<{
   authenticatedPage: typeof base;
 }>({
   // Override storageState to use auth state file
+  // Note: This is a Playwright fixture, not a React hook
+  // The 'use' function is part of Playwright's test API
   storageState: async ({}, use) => {
-    try {
-      // Try to use stored auth state
-      await use(AUTH_STATE_PATH);
-    } catch {
-      // If no stored state, use default (unauthenticated)
-      await use(undefined);
-    }
+    // Try to use stored auth state, fall back to default if not found
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- This is Playwright's 'use' function, not a React hook
+    await use(AUTH_STATE_PATH).catch(() => use(undefined));
   },
 });
 

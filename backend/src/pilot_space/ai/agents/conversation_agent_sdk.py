@@ -274,8 +274,7 @@ class ConversationAgent(StreamingSDKBaseAgent[ConversationInput, ConversationOut
             Messages in Anthropic format.
         """
         messages: list[dict[str, str]] = [
-            {"role": msg.role.value, "content": msg.content}
-            for msg in history
+            {"role": msg.role.value, "content": msg.content} for msg in history
         ]
         messages.append({"role": "user", "content": new_message})
         return messages
@@ -525,13 +524,11 @@ class ConversationManager:
 
         # Update history after streaming completes
         self._history.append(ConversationMessage(role=MessageRole.USER, content=message))
-        self._history.append(
-            ConversationMessage(role=MessageRole.ASSISTANT, content=full_response)
-        )
+        self._history.append(ConversationMessage(role=MessageRole.ASSISTANT, content=full_response))
 
         # Trim history if needed
         if len(self._history) > self._max_history:
-            self._history = self._history[-self._max_history:]
+            self._history = self._history[-self._max_history :]
 
 
 __all__ = [

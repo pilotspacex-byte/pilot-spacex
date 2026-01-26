@@ -119,7 +119,7 @@ class TestUserOverride:
             CircuitBreakerConfig(failure_threshold=1),
         )
         # Access private state for testing (allowed in unit tests)
-        breaker._state.state = breaker._state.state.__class__.OPEN  # noqa: SLF001
+        breaker._state.state = breaker._state.state.__class__.OPEN
 
         user_override = (Provider.GOOGLE.value, ProviderSelector.GOOGLE_FLASH)
         config = selector.select_with_config(TaskType.PR_REVIEW, user_override)
@@ -163,7 +163,7 @@ class TestFallbackLogic:
             CircuitBreakerConfig(failure_threshold=1),
         )
         # Access private state for testing (allowed in unit tests)
-        breaker._state.state = breaker._state.state.__class__.OPEN  # noqa: SLF001
+        breaker._state.state = breaker._state.state.__class__.OPEN
 
         # Ghost text should fall back to Google Flash
         config = selector.select_with_config(TaskType.GHOST_TEXT)
@@ -190,7 +190,7 @@ class TestCircuitBreakerIntegration:
             CircuitBreakerConfig(failure_threshold=1),
         )
         # Access private state for testing (allowed in unit tests)
-        breaker._state.state = breaker._state.state.__class__.OPEN  # noqa: SLF001
+        breaker._state.state = breaker._state.state.__class__.OPEN
 
         is_healthy = selector.is_provider_healthy(Provider.ANTHROPIC.value)
 
@@ -205,7 +205,7 @@ class TestCircuitBreakerIntegration:
 
         # Should have created 3 breakers
         # Access private attribute for testing (allowed in unit tests)
-        assert len(selector._circuit_breakers) == 3  # noqa: SLF001
+        assert len(selector._circuit_breakers) == 3
 
 
 class TestRoutingInfo:
@@ -350,18 +350,14 @@ class TestEdgeCases:
             CircuitBreakerConfig(failure_threshold=1),
         )
         # Access private state for testing (allowed in unit tests)
-        anthropic_breaker._state.state = (  # noqa: SLF001
-            anthropic_breaker._state.state.__class__.OPEN  # noqa: SLF001
-        )
+        anthropic_breaker._state.state = anthropic_breaker._state.state.__class__.OPEN
 
         google_breaker = CircuitBreaker.get_or_create(
             Provider.GOOGLE.value,
             CircuitBreakerConfig(failure_threshold=1),
         )
         # Access private state for testing (allowed in unit tests)
-        google_breaker._state.state = (  # noqa: SLF001
-            google_breaker._state.state.__class__.OPEN  # noqa: SLF001
-        )
+        google_breaker._state.state = google_breaker._state.state.__class__.OPEN
 
         # Ghost text has Google as fallback
         config = selector.select_with_config(TaskType.GHOST_TEXT)

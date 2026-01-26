@@ -132,8 +132,7 @@ async def get_pr_details(
 
     Example:
         >>> await get_pr_details(
-        ...     pr_number=123,
-        ...     ctx=ToolContext(db_session=session, workspace_id=ws_id)
+        ...     pr_number=123, ctx=ToolContext(db_session=session, workspace_id=ws_id)
         ... )
         {
             "found": True,
@@ -234,8 +233,7 @@ async def get_pr_diff(
 
     Example:
         >>> await get_pr_diff(
-        ...     pr_number=123,
-        ...     ctx=ToolContext(db_session=session, workspace_id=ws_id)
+        ...     pr_number=123, ctx=ToolContext(db_session=session, workspace_id=ws_id)
         ... )
         {
             "found": True,
@@ -357,7 +355,7 @@ async def search_code_in_repo(
         >>> await search_code_in_repo(
         ...     query="async def",
         ...     ctx=ToolContext(db_session=session, workspace_id=ws_id),
-        ...     extension="py"
+        ...     extension="py",
         ... )
         {
             "found": True,

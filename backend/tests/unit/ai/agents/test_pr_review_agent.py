@@ -271,9 +271,12 @@ class TestPRReviewAgent:
         basic_pr_input: PRReviewInput,
     ) -> None:
         """Test _prepare_review_input for small PR."""
-        prompt, partial, files_reviewed, files_skipped = (
-            await pr_review_agent._prepare_review_input(basic_pr_input)
-        )
+        (
+            prompt,
+            partial,
+            files_reviewed,
+            files_skipped,
+        ) = await pr_review_agent._prepare_review_input(basic_pr_input)
 
         assert partial is False
         assert files_reviewed == 1
@@ -289,9 +292,12 @@ class TestPRReviewAgent:
         large_pr_input: PRReviewInput,
     ) -> None:
         """Test _prepare_review_input for large PR."""
-        prompt, partial, files_reviewed, files_skipped = (
-            await pr_review_agent._prepare_review_input(large_pr_input)
-        )
+        (
+            prompt,
+            partial,
+            files_reviewed,
+            files_skipped,
+        ) = await pr_review_agent._prepare_review_input(large_pr_input)
 
         assert partial is True
         assert files_reviewed <= MAX_FILES_FULL_REVIEW

@@ -87,7 +87,7 @@ class TestEndpointTypeDetection:
     """Tests for endpoint type classification."""
 
     @pytest.mark.parametrize(
-        "path,expected_type",
+        ("path", "expected_type"),
         [
             # AI endpoints
             ("/api/v1/ai/ghost-text", "ai"),

@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { useParams } from 'next/navigation';
-import { Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { AlertCircle, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
@@ -86,17 +86,25 @@ export const AISettingsPage = observer(function AISettingsPage() {
             <ProviderStatusCard
               provider="anthropic"
               isKeySet={settings.anthropicKeySet}
-              lastValidated={settings.settings?.provider_status?.find(p => p.provider === 'anthropic')?.last_validated_at}
+              lastValidated={
+                settings.settings?.provider_status?.find((p) => p.provider === 'anthropic')
+                  ?.last_validated_at
+              }
               status={
-                settings.settings?.provider_status?.find(p => p.provider === 'anthropic')?.status ?? 'unknown'
+                settings.settings?.provider_status?.find((p) => p.provider === 'anthropic')
+                  ?.status ?? 'unknown'
               }
             />
             <ProviderStatusCard
               provider="openai"
               isKeySet={settings.openaiKeySet}
-              lastValidated={settings.settings?.provider_status?.find(p => p.provider === 'openai')?.last_validated_at}
+              lastValidated={
+                settings.settings?.provider_status?.find((p) => p.provider === 'openai')
+                  ?.last_validated_at
+              }
               status={
-                settings.settings?.provider_status?.find(p => p.provider === 'openai')?.status ?? 'unknown'
+                settings.settings?.provider_status?.find((p) => p.provider === 'openai')?.status ??
+                'unknown'
               }
             />
           </div>
@@ -117,8 +125,8 @@ export const AISettingsPage = observer(function AISettingsPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Security & Privacy</AlertTitle>
           <AlertDescription>
-            API keys are encrypted using Supabase Vault before storage. Keys are never logged or exposed
-            in responses. Each AI request is tracked for cost monitoring and audit purposes.
+            API keys are encrypted using Supabase Vault before storage. Keys are never logged or
+            exposed in responses. Each AI request is tracked for cost monitoring and audit purposes.
           </AlertDescription>
         </Alert>
       </div>

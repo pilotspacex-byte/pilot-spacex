@@ -4,7 +4,6 @@
  * T182: Show provider status (Anthropic, OpenAI), connection indicator, last validated.
  */
 
-import * as React from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { CheckCircle2, XCircle, Circle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -65,7 +64,10 @@ export function ProviderStatusCard({
 
     if (status === 'connected') {
       return (
-        <Badge variant="outline" className="gap-1.5 border-green-500/20 bg-green-500/10 text-green-600">
+        <Badge
+          variant="outline"
+          className="gap-1.5 border-green-500/20 bg-green-500/10 text-green-600"
+        >
           <CheckCircle2 className="h-3 w-3" />
           Connected
         </Badge>
@@ -74,7 +76,10 @@ export function ProviderStatusCard({
 
     if (status === 'disconnected') {
       return (
-        <Badge variant="outline" className="gap-1.5 border-destructive/20 bg-destructive/10 text-destructive">
+        <Badge
+          variant="outline"
+          className="gap-1.5 border-destructive/20 bg-destructive/10 text-destructive"
+        >
           <XCircle className="h-3 w-3" />
           Failed
         </Badge>

@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { IssueExtractionStore } from '../IssueExtractionStore';
+import { AIErrorCode } from '@/types/ai-errors';
 import type { AIStore } from '../AIStore';
 
 // Mock SSE client
@@ -116,7 +117,7 @@ describe('IssueExtractionStore', () => {
       ];
       store.approvalId = 'approval-123';
       store.error = {
-        code: 'UNKNOWN' as const,
+        code: AIErrorCode.UNKNOWN,
         message: 'Test error',
         retryable: false,
       };

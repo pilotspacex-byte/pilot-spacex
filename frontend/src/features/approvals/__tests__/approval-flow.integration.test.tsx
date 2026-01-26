@@ -131,17 +131,31 @@ describe('Approval Flow Integration', () => {
   });
 
   it('should approve request and reload list', async () => {
+    const secondRequest = mockPendingRequests[1];
+    expect(secondRequest).toBeDefined();
+
     vi.mocked(aiApi.listApprovals)
       .mockResolvedValueOnce({
         requests: mockPendingRequests,
         pending_count: 2,
       })
       .mockResolvedValueOnce({
-        requests: [mockPendingRequests[1]],
+        requests: [secondRequest!],
         pending_count: 1,
       });
 
-    vi.mocked(aiApi.resolveApproval).mockResolvedValue({} as any);
+    const mockResolvedRequest: ApprovalRequest = {
+      id: '1',
+      agent_name: 'issue_extractor',
+      action_type: 'extract_issues',
+      status: 'approved',
+      created_at: '2026-01-26T10:00:00Z',
+      expires_at: '2026-01-27T10:00:00Z',
+      requested_by: 'John Doe',
+      context_preview: '3 issues to create from note',
+    };
+
+    vi.mocked(aiApi.resolveApproval).mockResolvedValue(mockResolvedRequest);
 
     renderWithStore(<ApprovalQueuePage />);
 
@@ -182,17 +196,31 @@ describe('Approval Flow Integration', () => {
   });
 
   it('should reject request with note and reload list', async () => {
+    const firstRequest = mockPendingRequests[0];
+    expect(firstRequest).toBeDefined();
+
     vi.mocked(aiApi.listApprovals)
       .mockResolvedValueOnce({
         requests: mockPendingRequests,
         pending_count: 2,
       })
       .mockResolvedValueOnce({
-        requests: [mockPendingRequests[0]],
+        requests: [firstRequest!],
         pending_count: 1,
       });
 
-    vi.mocked(aiApi.resolveApproval).mockResolvedValue({} as any);
+    const mockResolvedRequest: ApprovalRequest = {
+      id: '1',
+      agent_name: 'issue_extractor',
+      action_type: 'extract_issues',
+      status: 'approved',
+      created_at: '2026-01-26T10:00:00Z',
+      expires_at: '2026-01-27T10:00:00Z',
+      requested_by: 'John Doe',
+      context_preview: '3 issues to create from note',
+    };
+
+    vi.mocked(aiApi.resolveApproval).mockResolvedValue(mockResolvedRequest);
 
     renderWithStore(<ApprovalQueuePage />);
 
@@ -236,10 +264,10 @@ describe('Approval Flow Integration', () => {
 
   it('should filter approvals by status', async () => {
     const firstRequest = mockPendingRequests[0];
-    if (!firstRequest) throw new Error('First request not found');
+    expect(firstRequest).toBeDefined();
 
     const approvedRequest: ApprovalRequest = {
-      ...firstRequest,
+      ...firstRequest!,
       status: 'approved' as const,
     };
 

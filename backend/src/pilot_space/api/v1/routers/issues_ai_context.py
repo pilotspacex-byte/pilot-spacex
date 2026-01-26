@@ -5,10 +5,12 @@ T210: Create AI Context endpoints for issues.
 Endpoints:
 - GET /issues/{id}/ai-context - Get or generate context
 - POST /issues/{id}/ai-context/regenerate - Force regenerate
-- POST /issues/{id}/ai-context/chat - SSE refinement
+- POST /issues/{id}/ai-context/chat - Refine context via chat
 - GET /issues/{id}/ai-context/export - Export context
 - POST /issues/{id}/ai-context/tasks/{task_id}/complete - Mark task done
 - DELETE /issues/{id}/ai-context/conversation - Clear conversation
+
+Note: Streaming endpoints are in issues_ai_context_streaming.py
 """
 
 from __future__ import annotations
@@ -18,7 +20,6 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import StreamingResponse
 
 from pilot_space.api.v1.schemas.ai_context import (
     AIContextResponse,
@@ -319,67 +320,6 @@ async def refine_ai_context(
         response=result.response,
         conversation_count=result.conversation_count,
         last_refined_at=result.last_refined_at,
-    )
-
-
-@router.post(
-    "/chat/stream",
-    summary="Stream refinement response via SSE",
-)
-async def stream_ai_context_refinement(
-    issue_id: UUID,
-    request: RefineContextRequest,
-    workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
-    user_id: Annotated[UUID, Depends(get_current_user)],
-    api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
-    session: Annotated[..., Depends(get_db_session)],
-    service: Annotated[..., Depends(get_refine_ai_context_service)],
-) -> StreamingResponse:
-    """Stream AI context refinement response via SSE.
-
-    Args:
-        issue_id: Issue UUID.
-        request: Refinement request with query.
-        workspace_id: Current workspace.
-        user_id: Current user.
-        api_keys: User's API keys.
-        session: Database session.
-        service: Refine AI context service.
-
-    Returns:
-        Streaming SSE response.
-    """
-    import uuid as uuid_module
-
-    from pilot_space.application.services.ai_context import RefineAIContextPayload
-
-    payload = RefineAIContextPayload(
-        workspace_id=workspace_id,
-        issue_id=issue_id,
-        user_id=user_id,
-        query=request.query,
-        correlation_id=str(uuid_module.uuid4()),
-        api_keys=api_keys,
-    )
-
-    async def event_generator():
-        """Generate SSE events."""
-        try:
-            async for chunk in service.stream(payload):
-                # Format as SSE
-                yield f"data: {chunk}\n\n"
-            yield "data: [DONE]\n\n"
-        except Exception as e:
-            logger.exception("Error streaming refinement")
-            yield f"data: [ERROR] {e}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
     )
 
 
