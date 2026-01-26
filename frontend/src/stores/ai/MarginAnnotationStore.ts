@@ -58,7 +58,10 @@ export class MarginAnnotationStore {
    * Generate annotations for note blocks via SSE streaming.
    * Clears existing annotations and streams new ones.
    */
-  async generateAnnotations(noteId: string, blocks: Array<{ id: string; content: string }>): Promise<void> {
+  async generateAnnotations(
+    noteId: string,
+    blocks: Array<{ id: string; content: string }>
+  ): Promise<void> {
     // Abort any in-progress generation
     this.abort();
 
