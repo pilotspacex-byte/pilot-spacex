@@ -11,6 +11,7 @@ export {
   useNotificationStore,
   useNoteStore,
   useIssueStore,
+  useAIStore,
 } from './RootStore';
 
 // Auth Store
@@ -42,3 +43,15 @@ export {
 // Feature Stores
 export { NoteStore, noteStore } from './features/notes/NoteStore';
 export { IssueStore, issueStore } from './features/issues/IssueStore';
+
+// AI Stores
+export {
+  AIStore,
+  aiStore,
+  getAIStore,
+  GhostTextStore,
+  AIContextStore,
+  ApprovalStore,
+  AISettingsStore,
+} from './ai';
+export type { AIContextPhase, AIContextResult } from './ai';

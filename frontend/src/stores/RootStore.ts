@@ -8,6 +8,7 @@ import { NotificationStore } from './NotificationStore';
 import { NoteStore } from './features/notes/NoteStore';
 import { IssueStore } from './features/issues/IssueStore';
 import { CycleStore } from './features/cycles/CycleStore';
+import { AIStore, getAIStore } from './ai';
 
 export class RootStore {
   auth: AuthStore;
@@ -17,6 +18,7 @@ export class RootStore {
   notes: NoteStore;
   issues: IssueStore;
   cycles: CycleStore;
+  ai: AIStore;
 
   constructor() {
     this.auth = new AuthStore();
@@ -26,6 +28,7 @@ export class RootStore {
     this.notes = new NoteStore();
     this.issues = new IssueStore();
     this.cycles = new CycleStore();
+    this.ai = getAIStore();
   }
 
   reset(): void {
@@ -35,6 +38,7 @@ export class RootStore {
     this.issues.reset();
     this.cycles.reset();
     this.ui.reset();
+    this.ai.reset();
   }
 
   dispose(): void {
@@ -82,6 +86,10 @@ export function useCycleStore(): CycleStore {
   return useStores().cycles;
 }
 
+export function useAIStore(): AIStore {
+  return useStores().ai;
+}
+
 /**
  * Convenient hook to access multiple stores at once.
  * Returns an object with named stores for destructuring.
@@ -96,5 +104,6 @@ export function useStore() {
     noteStore: store.notes,
     issueStore: store.issues,
     cycleStore: store.cycles,
+    aiStore: store.ai,
   };
 }
