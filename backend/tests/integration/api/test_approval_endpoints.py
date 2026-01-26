@@ -10,9 +10,9 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from fastapi.testclient import TestClient
 
 if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.infrastructure.database.models.ai_approval_request import (
@@ -121,7 +121,7 @@ class TestListApprovals:
         self,
         client: TestClient,
         auth_headers: dict[str, str],
-        test_approval: AIApprovalRequest,
+        test_approval: AIApprovalRequest,  # noqa: ARG002
     ) -> None:
         """Verify listing pending approval requests."""
         response = client.get(
@@ -155,7 +155,7 @@ class TestListApprovals:
         self,
         client: TestClient,
         auth_headers: dict[str, str],
-        test_approval: AIApprovalRequest,
+        test_approval: AIApprovalRequest,  # noqa: ARG002
     ) -> None:
         """Verify pagination works."""
         response = client.get(
@@ -273,7 +273,7 @@ class TestResolveApproval:
         client: TestClient,
         auth_headers: dict[str, str],
         test_approval: AIApprovalRequest,
-        db_session: AsyncSession,
+        db_session: AsyncSession,  # noqa: ARG002
     ) -> None:
         """Verify resolving already-resolved request fails."""
         # First resolution
