@@ -42,7 +42,7 @@ class TestAIContextE2E:
         # Request context generation via SSE
         async with e2e_client.stream(
             "POST",
-            f"/api/v1/issues/{issue_id}/ai-context/regenerate",
+            f"/api/v1/issues/{issue_id}/ai-context/stream",
             headers=auth_headers,
         ) as response:
             assert response.status_code == 200
@@ -100,7 +100,7 @@ class TestAIContextE2E:
         events: list[dict[str, Any]] = []
         async with e2e_client.stream(
             "POST",
-            f"/api/v1/issues/{issue_id}/ai-context/regenerate",
+            f"/api/v1/issues/{issue_id}/ai-context/stream",
             headers=auth_headers,
         ) as response:
             current_event_type = None
@@ -145,7 +145,7 @@ class TestAIContextE2E:
         # First generate context
         async with e2e_client.stream(
             "POST",
-            f"/api/v1/issues/{issue_id}/ai-context/regenerate",
+            f"/api/v1/issues/{issue_id}/ai-context/stream",
             headers=auth_headers,
         ) as response:
             # Consume all events
@@ -184,7 +184,7 @@ class TestAIContextE2E:
 
         async with e2e_client.stream(
             "POST",
-            f"/api/v1/issues/{fake_issue_id}/ai-context/regenerate",
+            f"/api/v1/issues/{fake_issue_id}/ai-context/stream",
             headers=auth_headers,
         ) as response:
             # Should return error or 404
@@ -224,7 +224,7 @@ class TestAIContextE2E:
 
         async with e2e_client.stream(
             "POST",
-            f"/api/v1/issues/{issue_id}/ai-context/regenerate",
+            f"/api/v1/issues/{issue_id}/ai-context/stream",
             headers=auth_headers,
         ) as response:
             assert response.status_code == 200
@@ -258,7 +258,7 @@ class TestAIContextE2E:
         events: list[dict[str, Any]] = []
         async with e2e_client.stream(
             "POST",
-            f"/api/v1/issues/{issue_id}/ai-context/regenerate",
+            f"/api/v1/issues/{issue_id}/ai-context/stream",
             headers=auth_headers,
         ) as response:
             current_event_type = None

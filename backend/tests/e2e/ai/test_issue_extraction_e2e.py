@@ -44,7 +44,7 @@ class TestIssueExtractionE2E:
         events: list[dict[str, Any]] = []
         async with e2e_client.stream(
             "POST",
-            f"/api/v1/ai/notes/{note_id}/extract-issues",
+            f"/api/v1/notes/{note_id}/extract-issues",
             headers=auth_headers,
             json={
                 "note_id": note_id,
@@ -106,7 +106,7 @@ class TestIssueExtractionE2E:
 
         # Approve extracted issues
         response = await e2e_client.post(
-            f"/api/v1/ai/notes/{note_id}/extract-issues/approve",
+            f"/api/v1/notes/{note_id}/extract-issues/approve",
             headers=auth_headers,
             json={
                 "approval_id": approval_id,
@@ -175,7 +175,7 @@ class TestIssueExtractionE2E:
         events: list[dict[str, Any]] = []
         async with e2e_client.stream(
             "POST",
-            f"/api/v1/ai/notes/{note_id}/extract-issues",
+            f"/api/v1/notes/{note_id}/extract-issues",
             headers=auth_headers,
             json={
                 "note_id": note_id,
@@ -307,7 +307,7 @@ class TestIssueExtractionE2E:
         events: list[dict[str, Any]] = []
         async with e2e_client.stream(
             "POST",
-            f"/api/v1/ai/notes/{note_id}/extract-issues",
+            f"/api/v1/notes/{note_id}/extract-issues",
             headers=auth_headers,
             json={
                 "note_id": note_id,
@@ -354,7 +354,7 @@ class TestIssueExtractionE2E:
 
         # Approve only issue at index 0
         response = await e2e_client.post(
-            f"/api/v1/ai/notes/{note_id}/extract-issues/approve",
+            f"/api/v1/notes/{note_id}/extract-issues/approve",
             headers=auth_headers,
             json={
                 "approval_id": approval_id,

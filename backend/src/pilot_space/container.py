@@ -268,9 +268,10 @@ def register_sdk_agents(orchestrator: Any) -> None:
         AgentName.MARGIN_ANNOTATION,
         MarginAnnotationAgentSDK(**deps_base),
     )
+    # Issue extractor needs key_storage for API key access
     orchestrator.register_agent(
         AgentName.ISSUE_EXTRACTOR,
-        IssueExtractorAgent(**deps_base),
+        IssueExtractorAgent(**deps_with_key),
     )
 
     # Issue-related agents

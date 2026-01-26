@@ -5,18 +5,24 @@ T078: Integration tests for GET/POST approval endpoints.
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from pilot_space.infrastructure.database.models.ai_approval_request import (
+    AIApprovalRequest,
+)
+
 if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
 
-from pilot_space.infrastructure.database.models.ai_approval_request import (
-    AIApprovalRequest,
+pytestmark = pytest.mark.skipif(
+    "sqlite" in os.getenv("DATABASE_URL", "sqlite"),
+    reason="Requires PostgreSQL (JSONB columns)",
 )
 
 

@@ -35,6 +35,7 @@ def agent_deps():
         "resilient_executor": MagicMock(
             execute=AsyncMock(side_effect=lambda operation: operation())
         ),
+        "key_storage": AsyncMock(get_api_key=AsyncMock(return_value="test-api-key-123")),
     }
 
 
@@ -62,59 +63,58 @@ class TestIssueExtractorAgent:
     """Test suite for IssueExtractorAgent."""
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.query")
+    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.AsyncAnthropic")
     async def test_extracts_issues_with_confidence_tags(
-        self, mock_query, agent_deps, context, input_data
+        self, mock_anthropic_cls, agent_deps, context, input_data
     ):
         """Verify extraction with all confidence tag types."""
-        # Mock SDK response with multiple confidence levels
-        mock_response = MagicMock(
-            content=json.dumps(
-                {
-                    "issues": [
-                        {
-                            "title": "Fix login error",
-                            "description": "Users see 500 error on login",
-                            "labels": ["bug"],
-                            "priority": 1,
-                            "confidence_tag": "recommended",
-                            "confidence_score": 0.95,
-                            "source_block_ids": ["block-1"],
-                            "rationale": "Clear error report with reproduction steps",
-                        },
-                        {
-                            "title": "Improve search performance",
-                            "description": "Search could be faster for large datasets",
-                            "labels": ["enhancement"],
-                            "priority": 2,
-                            "confidence_tag": "default",
-                            "confidence_score": 0.7,
-                            "source_block_ids": ["block-2"],
-                            "rationale": "Performance improvement suggestion",
-                        },
-                        {
-                            "title": "Consider dark mode",
-                            "description": "Maybe we should add dark mode support?",
-                            "labels": ["feature"],
-                            "priority": 3,
-                            "confidence_tag": "alternative",
-                            "confidence_score": 0.5,
-                            "source_block_ids": ["block-3"],
-                            "rationale": "Speculative feature that needs stakeholder input",
-                        },
-                    ],
-                    "extraction_summary": "Found 3 issues: 1 bug, 1 enhancement, 1 feature",
-                }
-            ),
-            input_tokens=100,
-            output_tokens=200,
+        # Mock Anthropic API response with multiple confidence levels
+        response_text = json.dumps(
+            {
+                "issues": [
+                    {
+                        "title": "Fix login error",
+                        "description": "Users see 500 error on login",
+                        "labels": ["bug"],
+                        "priority": 1,
+                        "confidence_tag": "recommended",
+                        "confidence_score": 0.95,
+                        "source_block_ids": ["block-1"],
+                        "rationale": "Clear error report with reproduction steps",
+                    },
+                    {
+                        "title": "Improve search performance",
+                        "description": "Search could be faster for large datasets",
+                        "labels": ["enhancement"],
+                        "priority": 2,
+                        "confidence_tag": "default",
+                        "confidence_score": 0.7,
+                        "source_block_ids": ["block-2"],
+                        "rationale": "Performance improvement suggestion",
+                    },
+                    {
+                        "title": "Consider dark mode",
+                        "description": "Maybe we should add dark mode support?",
+                        "labels": ["feature"],
+                        "priority": 3,
+                        "confidence_tag": "alternative",
+                        "confidence_score": 0.5,
+                        "source_block_ids": ["block-3"],
+                        "rationale": "Speculative feature that needs stakeholder input",
+                    },
+                ],
+                "extraction_summary": "Found 3 issues: 1 bug, 1 enhancement, 1 feature",
+            }
         )
 
-        # Make query return async mock
-        async def mock_query_func(prompt):
-            return mock_response
+        mock_response = MagicMock(
+            content=[MagicMock(text=response_text)],
+            usage=MagicMock(input_tokens=100, output_tokens=200),
+        )
 
-        mock_query.side_effect = mock_query_func
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_anthropic_cls.return_value = mock_client
 
         agent = IssueExtractorAgent(**agent_deps)
         result = await agent.execute(input_data, context)
@@ -132,19 +132,22 @@ class TestIssueExtractorAgent:
         assert result.issues[2].confidence_tag == ConfidenceTag.ALTERNATIVE
         assert result.issues[2].confidence_score == 0.5
 
-        # Verify SDK query was called
-        mock_query.assert_called_once()
-        # Note: Currently SDK query() only receives prompt
-        # TODO: Verify when SDK API is finalized
+        # Verify Anthropic client was called with system prompt
+        mock_client.messages.create.assert_called_once()
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+        assert call_kwargs["model"] == "claude-sonnet-4-20250514"
+        assert "system" in call_kwargs
+        assert "RECOMMENDED" in call_kwargs["system"]
+        assert len(call_kwargs["messages"]) == 1
+        assert call_kwargs["messages"][0]["role"] == "user"
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.query")
+    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.AsyncAnthropic")
     async def test_parses_json_from_markdown_code_block(
-        self, mock_query, agent_deps, context, input_data
+        self, mock_anthropic_cls, agent_deps, context, input_data
     ):
         """Verify JSON extraction from markdown code block."""
-        mock_response = MagicMock(
-            content="""Here are the extracted issues:
+        response_text = """Here are the extracted issues:
 
 ```json
 {
@@ -164,16 +167,16 @@ class TestIssueExtractorAgent:
 }
 ```
 
-Let me know if you need any adjustments!""",
-            input_tokens=100,
-            output_tokens=200,
+Let me know if you need any adjustments!"""
+
+        mock_response = MagicMock(
+            content=[MagicMock(text=response_text)],
+            usage=MagicMock(input_tokens=100, output_tokens=200),
         )
 
-        # Make query return async mock
-        async def mock_query_func(prompt):
-            return mock_response
-
-        mock_query.side_effect = mock_query_func
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_anthropic_cls.return_value = mock_client
 
         agent = IssueExtractorAgent(**agent_deps)
         result = await agent.execute(input_data, context)
@@ -183,37 +186,36 @@ Let me know if you need any adjustments!""",
         assert result.issues[0].confidence_tag == ConfidenceTag.DEFAULT
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.query")
+    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.AsyncAnthropic")
     async def test_handles_missing_confidence_tag(
-        self, mock_query, agent_deps, context, input_data
+        self, mock_anthropic_cls, agent_deps, context, input_data
     ):
         """Verify fallback to score-based tag when tag is missing."""
-        mock_response = MagicMock(
-            content=json.dumps(
-                {
-                    "issues": [
-                        {
-                            "title": "Issue without tag",
-                            "description": "Test",
-                            "labels": [],
-                            "priority": 2,
-                            "confidence_score": 0.85,  # Should be RECOMMENDED
-                            "source_block_ids": [],
-                            "rationale": "Test",
-                        }
-                    ],
-                    "extraction_summary": "Found 1 issue",
-                }
-            ),
-            input_tokens=100,
-            output_tokens=200,
+        response_text = json.dumps(
+            {
+                "issues": [
+                    {
+                        "title": "Issue without tag",
+                        "description": "Test",
+                        "labels": [],
+                        "priority": 2,
+                        "confidence_score": 0.85,  # Should be RECOMMENDED
+                        "source_block_ids": [],
+                        "rationale": "Test",
+                    }
+                ],
+                "extraction_summary": "Found 1 issue",
+            }
         )
 
-        # Make query return async mock
-        async def mock_query_func(prompt):
-            return mock_response
+        mock_response = MagicMock(
+            content=[MagicMock(text=response_text)],
+            usage=MagicMock(input_tokens=100, output_tokens=200),
+        )
 
-        mock_query.side_effect = mock_query_func
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_anthropic_cls.return_value = mock_client
 
         agent = IssueExtractorAgent(**agent_deps)
         result = await agent.execute(input_data, context)
@@ -223,20 +225,17 @@ Let me know if you need any adjustments!""",
         assert result.issues[0].confidence_tag == ConfidenceTag.RECOMMENDED
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.query")
-    async def test_handles_invalid_json(self, mock_query, agent_deps, context, input_data):
+    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.AsyncAnthropic")
+    async def test_handles_invalid_json(self, mock_anthropic_cls, agent_deps, context, input_data):
         """Verify graceful handling of invalid JSON response."""
         mock_response = MagicMock(
-            content="This is not valid JSON at all!",
-            input_tokens=100,
-            output_tokens=200,
+            content=[MagicMock(text="This is not valid JSON at all!")],
+            usage=MagicMock(input_tokens=100, output_tokens=200),
         )
 
-        # Make query return async mock
-        async def mock_query_func(prompt):
-            return mock_response
-
-        mock_query.side_effect = mock_query_func
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_anthropic_cls.return_value = mock_client
 
         agent = IssueExtractorAgent(**agent_deps)
         result = await agent.execute(input_data, context)
@@ -246,20 +245,19 @@ Let me know if you need any adjustments!""",
         assert "Failed to parse response" in result.extraction_summary
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.query")
-    async def test_tracks_token_usage(self, mock_query, agent_deps, context, input_data):
+    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.AsyncAnthropic")
+    async def test_tracks_token_usage(self, mock_anthropic_cls, agent_deps, context, input_data):
         """Verify token usage is tracked."""
+        response_text = json.dumps({"issues": [], "extraction_summary": "No issues found"})
+
         mock_response = MagicMock(
-            content=json.dumps({"issues": [], "extraction_summary": "No issues found"}),
-            input_tokens=150,
-            output_tokens=50,
+            content=[MagicMock(text=response_text)],
+            usage=MagicMock(input_tokens=150, output_tokens=50),
         )
 
-        # Make query return async mock
-        async def mock_query_func(prompt):
-            return mock_response
-
-        mock_query.side_effect = mock_query_func
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_anthropic_cls.return_value = mock_client
 
         agent = IssueExtractorAgent(**agent_deps)
         await agent.execute(input_data, context)
@@ -301,10 +299,12 @@ Let me know if you need any adjustments!""",
         assert "0.6" in prompt  # min_confidence
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.query")
-    async def test_handles_sdk_exception(self, mock_query, agent_deps, context, input_data):
-        """Verify graceful handling of SDK exceptions."""
-        mock_query.side_effect = Exception("SDK connection error")
+    @patch("pilot_space.ai.agents.issue_extractor_sdk_agent.AsyncAnthropic")
+    async def test_handles_sdk_exception(self, mock_anthropic_cls, agent_deps, context, input_data):
+        """Verify graceful handling of API exceptions."""
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(side_effect=Exception("API connection error"))
+        mock_anthropic_cls.return_value = mock_client
 
         agent = IssueExtractorAgent(**agent_deps)
         result = await agent.execute(input_data, context)

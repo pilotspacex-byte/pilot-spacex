@@ -5,19 +5,25 @@ T094: Integration tests for cost tracking API.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import pytest
 
+from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
+from pilot_space.infrastructure.database.models.user import User
+
 if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
 
-from pilot_space.ai.infrastructure.cost_tracker import CostTracker
-from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
-from pilot_space.infrastructure.database.models.user import User
+pytestmark = pytest.mark.skipif(
+    "sqlite" in os.getenv("DATABASE_URL", "sqlite"),
+    reason="Requires PostgreSQL (JSONB columns)",
+)
 
 
 @pytest.fixture

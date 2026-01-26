@@ -12,7 +12,7 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic
 
 from pilot_space.ai.agents.sdk_base import AgentContext, SDKBaseAgent
 from pilot_space.ai.exceptions import AIConfigurationError
@@ -156,8 +156,8 @@ class TaskDecomposerAgent(SDKBaseAgent[TaskDecomposerInput, TaskDecomposerOutput
         system_prompt = self._get_system_prompt()
 
         # Call Anthropic API
-        client = Anthropic(api_key=api_key)
-        response = client.messages.create(
+        client = AsyncAnthropic(api_key=api_key)
+        response = await client.messages.create(
             model=self.DEFAULT_MODEL,
             max_tokens=self.MAX_TOKENS,
             temperature=0.3,

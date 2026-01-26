@@ -13,16 +13,23 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from claude_agent_sdk import query
+from anthropic import AsyncAnthropic
 
 from pilot_space.ai.agents.sdk_base import AgentContext, SDKBaseAgent
 from pilot_space.ai.prompts.issue_extraction import (
     ConfidenceTag,
     get_confidence_tag,
 )
+
+if TYPE_CHECKING:
+    from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+    from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+    from pilot_space.ai.infrastructure.resilience import ResilientExecutor
+    from pilot_space.ai.providers.provider_selector import ProviderSelector
+    from pilot_space.ai.tools.mcp_server import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +105,53 @@ class IssueExtractorAgent(SDKBaseAgent[IssueExtractorInput, IssueExtractorOutput
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
     MAX_TOKENS = 4096
 
+    def __init__(
+        self,
+        tool_registry: ToolRegistry,
+        provider_selector: ProviderSelector,
+        cost_tracker: CostTracker,
+        resilient_executor: ResilientExecutor,
+        key_storage: SecureKeyStorage,
+    ) -> None:
+        """Initialize issue extractor agent.
+
+        Args:
+            tool_registry: Registry for MCP tool access
+            provider_selector: Provider/model selection service
+            cost_tracker: Cost tracking service
+            resilient_executor: Retry and circuit breaker service
+            key_storage: Secure API key storage service
+        """
+        super().__init__(
+            tool_registry=tool_registry,
+            provider_selector=provider_selector,
+            cost_tracker=cost_tracker,
+            resilient_executor=resilient_executor,
+        )
+        self._key_storage = key_storage
+
+    def get_model(self) -> tuple[str, str]:
+        """Get provider and model for issue extraction.
+
+        Returns:
+            Tuple of ("anthropic", "claude-sonnet-4-20250514")
+        """
+        return ("anthropic", self.DEFAULT_MODEL)
+
+    async def _get_api_key(self, context: AgentContext) -> str | None:
+        """Get Anthropic API key from secure storage.
+
+        Args:
+            context: Agent execution context.
+
+        Returns:
+            API key string or None if not configured.
+        """
+        return await self._key_storage.get_api_key(
+            workspace_id=context.workspace_id,
+            provider="anthropic",
+        )
+
     async def execute(
         self,
         input_data: IssueExtractorInput,
@@ -114,19 +168,31 @@ class IssueExtractorAgent(SDKBaseAgent[IssueExtractorInput, IssueExtractorOutput
         """
         # Build extraction prompt
         prompt = self._build_prompt(input_data)
+        system_prompt = self._get_system_prompt()
 
-        # Execute SDK query (one-shot, no tools)
-        # Note: claude_agent_sdk.query() signature may vary
-        # This is a placeholder implementation
+        # Get API key from secure storage
+        api_key = await self._get_api_key(context)
+        if not api_key:
+            raise ValueError(
+                f"No Anthropic API key configured for workspace {context.workspace_id}"
+            )
+
+        # Execute Claude API call with system prompt
         try:
-            # TODO: Verify claude_agent_sdk.query() API signature
-            # TODO: Pass system prompt via SDK options
-            response = await query(prompt)  # type: ignore[call-arg]
+            client = AsyncAnthropic(api_key=api_key)
+            response = await client.messages.create(
+                model=self.DEFAULT_MODEL,
+                system=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=self.MAX_TOKENS,
+            )
 
             # Track usage
-            input_tokens = getattr(response, "input_tokens", 0)
-            output_tokens = getattr(response, "output_tokens", 0)
-            await self.track_usage(context, input_tokens, output_tokens)
+            await self.track_usage(
+                context,
+                response.usage.input_tokens,
+                response.usage.output_tokens,
+            )
 
             # Parse structured output
             return self._parse_response(response, input_data.note_id)
@@ -210,9 +276,14 @@ Only include issues with confidence_score >= {input_data.min_confidence}."""
         response: Any,
         note_id: UUID,
     ) -> IssueExtractorOutput:
-        """Parse SDK response to output format."""
-        # Extract content from response
-        content = response.content if hasattr(response, "content") else str(response)
+        """Parse Anthropic API response to output format."""
+        # Extract text from first content block
+        content = ""
+        if hasattr(response, "content") and response.content:
+            first_block = response.content[0]
+            content = first_block.text if hasattr(first_block, "text") else str(first_block)
+        else:
+            content = str(response)
 
         # Find JSON in response
         data: dict[str, Any]

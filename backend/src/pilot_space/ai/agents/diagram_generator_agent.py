@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic
 
 from pilot_space.ai.agents.sdk_base import AgentContext, SDKBaseAgent
 from pilot_space.ai.exceptions import AIConfigurationError
@@ -141,8 +141,8 @@ class DiagramGeneratorAgent(SDKBaseAgent[DiagramGeneratorInput, DiagramGenerator
         system_prompt = self._get_system_prompt(input_data.diagram_type)
 
         # Call Anthropic API
-        client = Anthropic(api_key=api_key)
-        response = client.messages.create(
+        client = AsyncAnthropic(api_key=api_key)
+        response = await client.messages.create(
             model=self.DEFAULT_MODEL,
             max_tokens=self.MAX_TOKENS,
             temperature=0.3,

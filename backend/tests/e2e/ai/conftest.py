@@ -22,6 +22,12 @@ async def e2e_client() -> AsyncGenerator[AsyncClient, None]:
     Yields:
         AsyncClient for making requests.
     """
+    # Initialize DI container in app state to avoid RuntimeError
+    from pilot_space.container import get_container
+
+    if not hasattr(app.state, "container"):
+        app.state.container = get_container()
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
