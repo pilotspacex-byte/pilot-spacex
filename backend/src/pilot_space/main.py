@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from pilot_space.api.middleware.request_context import RequestContextMiddleware
 from pilot_space.api.v1.routers import (
     ai_configuration_router,
     ai_router,
@@ -49,6 +50,9 @@ app = FastAPI(
     openapi_url="/openapi.json",
     lifespan=lifespan,
 )
+
+# Request context middleware (must be first for header extraction)
+app.add_middleware(RequestContextMiddleware)
 
 # CORS middleware configuration
 # In production, replace with actual frontend origins

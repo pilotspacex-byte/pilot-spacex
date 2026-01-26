@@ -11,8 +11,9 @@ import logging
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, HTTPException, Path, Query, status
 
+from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.api.v1.schemas.approval import (
     ApprovalDetailResponse,
     ApprovalListResponse,
@@ -29,37 +30,6 @@ from pilot_space.dependencies import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/approvals", tags=["AI Approvals"])
-
-
-def get_workspace_id(request: Request) -> uuid.UUID:
-    """Get workspace ID from request headers.
-
-    Supports both UUID and slug-based demo workspace IDs.
-    """
-    workspace_id_str = request.headers.get("X-Workspace-ID") or request.headers.get(
-        "X-Workspace-Id"
-    )
-    if not workspace_id_str:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Workspace-ID header required",
-        )
-
-    # Check for demo workspace slugs
-    demo_workspace_uuid = uuid.UUID("00000000-0000-0000-0000-000000000002")
-    demo_workspace_slugs = {"pilot-space-demo", "demo", "test"}
-
-    if workspace_id_str.lower() in demo_workspace_slugs:
-        return demo_workspace_uuid
-
-    # Try to parse as UUID
-    try:
-        return uuid.UUID(workspace_id_str)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid workspace ID format: {workspace_id_str}",
-        ) from e
 
 
 def _get_context_preview(payload: dict[str, Any]) -> str:
@@ -102,7 +72,7 @@ async def verify_workspace_admin(current_user_id: uuid.UUID, workspace_id: uuid.
     description="List approval requests for workspace with optional status filter (DD-003).",
 )
 async def list_approvals(
-    request: Request,
+    workspace_id: WorkspaceId,
     current_user_id: CurrentUserIdOrDemo,
     session: DbSession,
     status: Annotated[ApprovalStatusSchema | None, Query(description="Filter by status")] = None,
@@ -118,7 +88,7 @@ async def list_approvals(
     Requires workspace admin permission.
 
     Args:
-        request: FastAPI request.
+        workspace_id: Workspace UUID from request context.
         current_user_id: Current user ID.
         session: Database session.
         status: Optional status filter.
@@ -128,7 +98,6 @@ async def list_approvals(
     Returns:
         List of approval requests with pagination.
     """
-    workspace_id = get_workspace_id(request)
 
     # Verify user is workspace admin
     await verify_workspace_admin(current_user_id, workspace_id)
@@ -176,7 +145,7 @@ async def list_approvals(
     description="Get full details of an approval request including payload.",
 )
 async def get_approval(
-    request: Request,
+    workspace_id: WorkspaceId,
     approval_id: Annotated[uuid.UUID, Path(description="Approval request ID")],
     current_user_id: CurrentUserIdOrDemo,
     session: DbSession,
@@ -184,7 +153,7 @@ async def get_approval(
     """Get approval request details including payload.
 
     Args:
-        request: FastAPI request.
+        workspace_id: Workspace UUID from request context.
         approval_id: Approval request ID.
         current_user_id: Current user ID.
         session: Database session.
@@ -195,7 +164,6 @@ async def get_approval(
     Raises:
         HTTPException: If request not found or unauthorized.
     """
-    workspace_id = get_workspace_id(request)
 
     from pilot_space.ai.infrastructure.approval import ApprovalService
 
@@ -232,7 +200,7 @@ async def get_approval(
     description="Approve or reject an approval request. If approved, executes the pending action.",
 )
 async def resolve_approval(
-    request: Request,
+    workspace_id: WorkspaceId,
     approval_id: Annotated[uuid.UUID, Path(description="Approval request ID")],
     body: ApprovalResolution,
     current_user_id: CurrentUserIdOrDemo,
@@ -244,7 +212,7 @@ async def resolve_approval(
     If rejected, discards the action.
 
     Args:
-        request: FastAPI request.
+        workspace_id: Workspace UUID from request context.
         approval_id: Approval request ID.
         body: Resolution decision.
         current_user_id: Current user ID.
@@ -256,7 +224,6 @@ async def resolve_approval(
     Raises:
         HTTPException: If request not found, unauthorized, or already resolved.
     """
-    workspace_id = get_workspace_id(request)
 
     # Verify user is workspace admin
     await verify_workspace_admin(current_user_id, workspace_id)

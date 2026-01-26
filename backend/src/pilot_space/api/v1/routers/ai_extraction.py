@@ -8,13 +8,14 @@ T058-T059: Issue extraction and approval.
 from __future__ import annotations
 
 import logging
-import uuid
 from typing import Any
+from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
 from pilot_space.api.utils.sse import SSEResponse, SSEStreamBuilder
 from pilot_space.api.v1.schemas.note import extract_text_from_tiptap
 from pilot_space.dependencies import (
@@ -79,45 +80,6 @@ class ApproveExtractedIssuesRequest(BaseModel):
     selected_issues: list[int] = Field(description="Indices of issues to create (from extraction)")
 
 
-def get_workspace_id(request: Request) -> uuid.UUID:
-    """Get workspace ID from request headers.
-
-    Supports both UUID and slug-based demo workspace IDs.
-    """
-    workspace_id_str = request.headers.get("X-Workspace-ID") or request.headers.get(
-        "X-Workspace-Id"
-    )
-    if not workspace_id_str:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Workspace-ID header required",
-        )
-
-    # Check for demo workspace slugs
-    demo_workspace_uuid = uuid.UUID("00000000-0000-0000-0000-000000000002")
-    demo_workspace_slugs = {"pilot-space-demo", "demo", "test"}
-
-    if workspace_id_str.lower() in demo_workspace_slugs:
-        return demo_workspace_uuid
-
-    # Try to parse as UUID
-    try:
-        return uuid.UUID(workspace_id_str)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid workspace ID format: {workspace_id_str}",
-        ) from e
-
-
-def get_correlation_id(request: Request) -> str:
-    """Get or generate correlation ID for request."""
-    correlation_id = request.headers.get("X-Correlation-ID")
-    if not correlation_id:
-        correlation_id = str(uuid.uuid4())
-    return correlation_id
-
-
 @router.post(
     "/notes/{note_id}/extract-issues",
     summary="Extract issues from note with SSE streaming",
@@ -125,8 +87,9 @@ def get_correlation_id(request: Request) -> str:
     response_model=None,
 )
 async def extract_issues_stream(
+    workspace_id: WorkspaceId,
+    correlation_id: CorrelationId,
     note_id: str,
-    request: Request,
     extract_request: ExtractIssuesRequest,
     current_user_id: CurrentUserIdOrDemo,
 ) -> SSEResponse:
@@ -141,16 +104,17 @@ async def extract_issues_stream(
     Issues will require approval before creation (DD-003).
 
     Args:
+        workspace_id: Workspace UUID from request context.
+        correlation_id: Correlation ID from request context.
         note_id: Note ID to extract from.
-        request: FastAPI request.
         extract_request: Extraction request.
         current_user_id: Current user ID.
 
     Returns:
         SSE stream of extraction events.
     """
-    _correlation_id = get_correlation_id(request)
-    workspace_id = get_workspace_id(request)
+    # Suppress unused variable warning
+    _ = correlation_id
 
     async def generate_events():
         builder = SSEStreamBuilder()
@@ -170,8 +134,6 @@ async def extract_issues_stream(
             )
 
             # Build input for SDK agent
-            from uuid import UUID
-
             from pilot_space.ai.agents.issue_extractor_sdk_agent import (
                 IssueExtractorInput,
             )
@@ -232,23 +194,24 @@ async def extract_issues_stream(
     description="Approve selected extracted issues and create them in the project (DD-003).",
 )
 async def approve_extracted_issues(
+    workspace_id: WorkspaceId,
     note_id: str,
-    request: Request,
     body: ApproveExtractedIssuesRequest,
     current_user_id: CurrentUserIdOrDemo,
 ) -> dict[str, Any]:
     """Approve and create selected extracted issues.
 
     Args:
+        workspace_id: Workspace UUID from request context.
         note_id: Source note ID
-        request: FastAPI request
         body: Approval request with selected issue indices
         current_user_id: Current user ID
 
     Returns:
         Created issue IDs
     """
-    _workspace_id = get_workspace_id(request)
+    # Suppress unused variable warning
+    _ = workspace_id
 
     # TODO: Integrate with ApprovalService
     # approval_service = get_approval_service()

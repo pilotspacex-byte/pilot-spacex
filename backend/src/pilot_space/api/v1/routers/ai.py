@@ -16,10 +16,9 @@ T073-T075: Approval queue endpoints.
 
 from __future__ import annotations
 
-import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Path, Request, status
+from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, Field
 
 from pilot_space.api.v1.routers.ai_annotations import router as annotations_router
@@ -57,40 +56,6 @@ class HealthResponse(BaseModel):
 
     status: str = Field(description="Overall status")
     providers: dict[str, Any] = Field(description="Provider status details")
-
-
-# Helper to get workspace ID
-
-
-def get_workspace_id(request: Request) -> uuid.UUID:
-    """Get workspace ID from request headers.
-
-    Supports both UUID and slug-based demo workspace IDs.
-    """
-    workspace_id_str = request.headers.get("X-Workspace-ID") or request.headers.get(
-        "X-Workspace-Id"
-    )
-    if not workspace_id_str:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Workspace-ID header required",
-        )
-
-    # Check for demo workspace slugs
-    demo_workspace_uuid = uuid.UUID("00000000-0000-0000-0000-000000000002")
-    demo_workspace_slugs = {"pilot-space-demo", "demo", "test"}
-
-    if workspace_id_str.lower() in demo_workspace_slugs:
-        return demo_workspace_uuid
-
-    # Try to parse as UUID
-    try:
-        return uuid.UUID(workspace_id_str)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid workspace ID format: {workspace_id_str}",
-        ) from e
 
 
 # PR Review Status (T199)

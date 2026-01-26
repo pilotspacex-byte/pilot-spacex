@@ -11,9 +11,10 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, select
 
+from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.api.v1.schemas.cost import (
     CostByAgent,
     CostByDay,
@@ -34,37 +35,6 @@ from pilot_space.infrastructure.database.models.user import User
 router = APIRouter(prefix="/costs", tags=["AI Costs"])
 
 
-def get_workspace_id(request: Request) -> uuid.UUID:
-    """Get workspace ID from request headers.
-
-    Supports both UUID and slug-based demo workspace IDs.
-    """
-    workspace_id_str = request.headers.get("X-Workspace-ID") or request.headers.get(
-        "X-Workspace-Id"
-    )
-    if not workspace_id_str:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Workspace-ID header required",
-        )
-
-    # Check for demo workspace slugs
-    demo_workspace_uuid = uuid.UUID("00000000-0000-0000-0000-000000000002")
-    demo_workspace_slugs = {"pilot-space-demo", "demo", "test"}
-
-    if workspace_id_str.lower() in demo_workspace_slugs:
-        return demo_workspace_uuid
-
-    # Try to parse as UUID
-    try:
-        return uuid.UUID(workspace_id_str)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid workspace ID format: {workspace_id_str}",
-        ) from e
-
-
 @router.get(
     "/summary",
     response_model=CostSummaryResponse,
@@ -72,7 +42,7 @@ def get_workspace_id(request: Request) -> uuid.UUID:
     description="Get aggregated AI cost summary for workspace.",
 )
 async def get_cost_summary(
-    request: Request,
+    workspace_id: WorkspaceId,
     current_user_id: CurrentUserIdOrDemo,
     cost_tracker: CostTrackerDep,
     session: DbSession,
@@ -85,7 +55,7 @@ async def get_cost_summary(
     Requires workspace context via X-Workspace-Id header.
 
     Args:
-        request: FastAPI request.
+        workspace_id: Workspace UUID from request context.
         current_user_id: Current authenticated user ID.
         cost_tracker: Cost tracker dependency.
         session: Database session.
@@ -95,7 +65,6 @@ async def get_cost_summary(
     Returns:
         Cost summary with breakdowns by agent, user, and day.
     """
-    workspace_id = get_workspace_id(request)
 
     # Default to last 30 days
     if not end_date:
@@ -173,7 +142,7 @@ async def get_cost_summary(
     description="Get AI cost breakdown by user for workspace.",
 )
 async def get_cost_by_user(
-    request: Request,
+    workspace_id: WorkspaceId,
     current_user_id: CurrentUserIdOrDemo,
     cost_tracker: CostTrackerDep,
     session: DbSession,
@@ -185,7 +154,7 @@ async def get_cost_by_user(
     Default period: last 30 days.
 
     Args:
-        request: FastAPI request.
+        workspace_id: Workspace UUID from request context.
         current_user_id: Current authenticated user ID.
         cost_tracker: Cost tracker dependency.
         session: Database session.
@@ -195,7 +164,6 @@ async def get_cost_by_user(
     Returns:
         User cost breakdown.
     """
-    workspace_id = get_workspace_id(request)
 
     # Default to last 30 days
     if not end_date:
@@ -252,7 +220,7 @@ async def get_cost_by_user(
     description="Get AI cost trends over time.",
 )
 async def get_cost_trends(
-    request: Request,
+    workspace_id: WorkspaceId,
     current_user_id: CurrentUserIdOrDemo,
     cost_tracker: CostTrackerDep,
     start_date: Annotated[date | None, Query(description="Period start date")] = None,
@@ -264,7 +232,7 @@ async def get_cost_trends(
     Default period: last 30 days for daily, last 90 days for weekly.
 
     Args:
-        request: FastAPI request.
+        workspace_id: Workspace UUID from request context.
         current_user_id: Current authenticated user ID.
         cost_tracker: Cost tracker dependency.
         start_date: Optional period start date.
@@ -274,7 +242,6 @@ async def get_cost_trends(
     Returns:
         Cost trends data.
     """
-    workspace_id = get_workspace_id(request)
 
     # Validate granularity
     if granularity not in {"daily", "weekly"}:

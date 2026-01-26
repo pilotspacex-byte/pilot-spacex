@@ -8,11 +8,10 @@ T069: Margin annotations.
 from __future__ import annotations
 
 import logging
-import time
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Request, status
+from fastapi import APIRouter, Path, status
 from pydantic import BaseModel, Field
 
 from pilot_space.ai.agents.margin_annotation_agent_sdk import (
@@ -20,6 +19,7 @@ from pilot_space.ai.agents.margin_annotation_agent_sdk import (
 )
 from pilot_space.ai.agents.sdk_base import AgentContext
 from pilot_space.ai.exceptions import AIConfigurationError, RateLimitError
+from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
 from pilot_space.api.utils.sse import SSEResponse, SSEStreamBuilder
 from pilot_space.api.v1.schemas.annotation import (
     AnalyzeNoteRequest,
@@ -53,53 +53,16 @@ class AnnotationResponse(BaseModel):
     action_label: str | None = None
 
 
-def get_correlation_id(request: Request) -> str:
-    """Get or generate correlation ID for request."""
-    correlation_id = request.headers.get("X-Correlation-ID")
-    if not correlation_id:
-        correlation_id = str(uuid.uuid4())
-    return correlation_id
-
-
-def get_workspace_id(request: Request) -> uuid.UUID:
-    """Get workspace ID from request headers.
-
-    Supports both UUID and slug-based demo workspace IDs.
-    """
-    workspace_id_str = request.headers.get("X-Workspace-ID") or request.headers.get(
-        "X-Workspace-Id"
-    )
-    if not workspace_id_str:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Workspace-ID header required",
-        )
-
-    # Check for demo workspace slugs
-    demo_workspace_uuid = uuid.UUID("00000000-0000-0000-0000-000000000002")
-    demo_workspace_slugs = {"pilot-space-demo", "demo", "test"}
-
-    if workspace_id_str.lower() in demo_workspace_slugs:
-        return demo_workspace_uuid
-
-    # Try to parse as UUID
-    try:
-        return uuid.UUID(workspace_id_str)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid workspace ID format: {workspace_id_str}",
-        ) from e
-
-
 @router.post(
     "/analyze-note",
     response_model=AnalyzeNoteResponse,
     summary="Analyze note for annotations",
     description="Generate AI margin annotations for a note.",
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
 )
 async def analyze_note(
-    request: Request,
+    workspace_id: WorkspaceId,
+    correlation_id: CorrelationId,
     analyze_request: AnalyzeNoteRequest,
     current_user_id: CurrentUserIdOrDemo,
     session: DbSession,
@@ -109,7 +72,8 @@ async def analyze_note(
     Rate limit: 5 requests/minute per user.
 
     Args:
-        request: FastAPI request.
+        workspace_id: Workspace UUID from request context.
+        correlation_id: Correlation ID from request context.
         analyze_request: Analysis request.
         current_user_id: Current user ID.
         session: Database session.
@@ -117,12 +81,13 @@ async def analyze_note(
     Returns:
         Generated annotations.
     """
-    get_correlation_id(request)
-    get_workspace_id(request)  # Validate workspace ID
-    time.time()
+    # Suppress unused variable warnings
+    _ = workspace_id, correlation_id
 
     # TODO: Fetch note from database
     # For now, return placeholder
+    from fastapi import HTTPException
+
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Note analysis requires database integration",
@@ -136,8 +101,9 @@ async def analyze_note(
     response_model=None,
 )
 async def generate_annotations(
+    workspace_id: WorkspaceId,
+    correlation_id: CorrelationId,
     note_id: Annotated[uuid.UUID, Path(description="Note ID")],
-    request: Request,
     body: AnnotateBlocksRequest,
     current_user_id: CurrentUserIdOrDemo,
 ) -> SSEResponse:
@@ -152,16 +118,15 @@ async def generate_annotations(
     Rate limit: 10 requests/minute per user.
 
     Args:
+        workspace_id: Workspace UUID from request context.
+        correlation_id: Correlation ID from request context.
         note_id: UUID of the note to annotate
-        request: FastAPI request
         body: Annotation request with block IDs
         current_user_id: Current user ID
 
     Returns:
         SSE stream of annotations
     """
-    correlation_id = get_correlation_id(request)
-    workspace_id = get_workspace_id(request)
 
     async def generate_events():
         builder = SSEStreamBuilder()
