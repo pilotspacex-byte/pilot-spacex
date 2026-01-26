@@ -18,7 +18,6 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from collections.abc import AsyncIterator, Callable
@@ -289,10 +288,11 @@ async def stream_mock_response(
     chunk_size: int = 15,
     delay_ms: int | None = None,
 ) -> AsyncIterator[str]:
-    """Stream mock response in SSE format.
+    """Stream mock response as plain text chunks.
 
     Simulates streaming LLM output by chunking content
-    and yielding with delays.
+    and yielding with delays. SSE formatting is handled by
+    the streaming utilities (sse_stream_generator).
 
     Args:
         content: Full content to stream.
@@ -300,7 +300,7 @@ async def stream_mock_response(
         delay_ms: Delay between chunks (uses settings if None).
 
     Yields:
-        SSE-formatted chunks.
+        Plain text chunks (not SSE-formatted).
     """
     if delay_ms is None:
         settings = get_settings()
@@ -308,11 +308,9 @@ async def stream_mock_response(
 
     for i in range(0, len(content), chunk_size):
         chunk = content[i : i + chunk_size]
-        yield f"data: {json.dumps({'chunk': chunk, 'done': False})}\n\n"
+        yield chunk
         if delay_ms > 0:
             await asyncio.sleep(delay_ms / 1000)
-
-    yield f"data: {json.dumps({'chunk': '', 'done': True})}\n\n"
 
 
 __all__ = [

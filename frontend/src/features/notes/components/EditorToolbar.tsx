@@ -5,13 +5,10 @@
  * Per T129: Ghost text toggle with Sparkles icon
  */
 import { observer } from 'mobx-react-lite';
-import { Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { getAIStore } from '@/stores/ai';
 
@@ -46,10 +43,6 @@ export const EditorToolbar = observer(function EditorToolbar({
 }: EditorToolbarProps) {
   const aiStore = getAIStore();
 
-  const handleGhostTextToggle = (enabled: boolean) => {
-    aiStore.ghostText.setEnabled(enabled);
-  };
-
   return (
     <div
       className={cn(
@@ -62,32 +55,6 @@ export const EditorToolbar = observer(function EditorToolbar({
       {/* AI Features Section */}
       <div className="flex items-center gap-2">
         <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="ghost-text-toggle"
-                checked={aiStore.ghostText.isEnabled}
-                onCheckedChange={handleGhostTextToggle}
-                aria-label="Toggle AI suggestions"
-                className="data-[state=checked]:bg-ai"
-              />
-              <Label
-                htmlFor="ghost-text-toggle"
-                className={cn(
-                  'flex items-center gap-1.5 cursor-pointer text-sm font-medium',
-                  aiStore.ghostText.isEnabled ? 'text-ai' : 'text-muted-foreground'
-                )}
-              >
-                <Sparkles
-                  className={cn(
-                    'h-4 w-4',
-                    aiStore.ghostText.isEnabled ? 'text-ai animate-pulse' : 'text-muted-foreground'
-                  )}
-                />
-                <span>AI Suggestions</span>
-              </Label>
-            </div>
-          </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs">
             <p className="font-medium">Ghost Text AI Suggestions</p>
             <p className="text-xs text-muted-foreground mt-1">

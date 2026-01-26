@@ -5,6 +5,9 @@ import { apiClient } from './client';
  * @see specs/004-mvp-agents-build/tasks/P16-T111-T120.md#T113
  */
 
+// API base URL for SSE endpoints (must be absolute for EventSource)
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+
 // Types
 export interface GhostTextRequest {
   context: string;
@@ -115,39 +118,39 @@ export const aiApi = {
   /**
    * Get ghost text streaming URL for note.
    * @param noteId - Note UUID
-   * @returns SSE endpoint URL
+   * @returns SSE endpoint URL (absolute for EventSource)
    */
-  getGhostTextUrl: (noteId: string) => `/api/v1/ai/notes/${noteId}/ghost-text`,
+  getGhostTextUrl: (noteId: string) => `${API_BASE}/ai/notes/${noteId}/ghost-text`,
 
   /**
    * Get AI context streaming URL for issue.
    * @param issueId - Issue UUID
-   * @returns SSE endpoint URL
+   * @returns SSE endpoint URL (absolute for EventSource)
    */
-  getAIContextUrl: (issueId: string) => `/api/v1/ai/issues/${issueId}/ai-context/stream`,
+  getAIContextUrl: (issueId: string) => `${API_BASE}/ai/issues/${issueId}/ai-context/stream`,
 
   /**
    * Get PR review streaming URL.
    * @param repoId - Repository UUID
    * @param prNumber - Pull request number
-   * @returns SSE endpoint URL
+   * @returns SSE endpoint URL (absolute for EventSource)
    */
   getPRReviewUrl: (repoId: string, prNumber: number) =>
-    `/api/v1/ai/repos/${repoId}/prs/${prNumber}/review`,
+    `${API_BASE}/ai/repos/${repoId}/prs/${prNumber}/review`,
 
   /**
    * Get issue extraction streaming URL for note.
    * @param noteId - Note UUID
-   * @returns SSE endpoint URL
+   * @returns SSE endpoint URL (absolute for EventSource)
    */
-  getIssueExtractionUrl: (noteId: string) => `/api/v1/ai/notes/${noteId}/extract-issues`,
+  getIssueExtractionUrl: (noteId: string) => `${API_BASE}/ai/notes/${noteId}/extract-issues`,
 
   /**
    * Get margin annotations streaming URL for note.
    * @param noteId - Note UUID
-   * @returns SSE endpoint URL
+   * @returns SSE endpoint URL (absolute for EventSource)
    */
-  getAnnotationsUrl: (noteId: string) => `/api/v1/ai/notes/${noteId}/annotations`,
+  getAnnotationsUrl: (noteId: string) => `${API_BASE}/ai/notes/${noteId}/annotations`,
 
   /**
    * Get conversation streaming URL for multi-turn chat.

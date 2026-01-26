@@ -10,8 +10,26 @@
  */
 import { makeAutoObservable, runInAction } from 'mobx';
 import { SSEClient } from '@/lib/sse-client';
+import { supabase } from '@/lib/supabase';
 import type { AIStore } from './AIStore';
 import type { NoteAnnotation, AnnotationStatus } from '@/types';
+
+/**
+ * Get auth headers for API requests.
+ */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return { Authorization: `Bearer ${session.access_token}` };
+    }
+  } catch {
+    console.warn('Failed to get auth session');
+  }
+  return {};
+}
 
 // Re-export for convenience
 export type { NoteAnnotation };
@@ -126,7 +144,7 @@ export class MarginAnnotationStore {
    * Fetch existing annotations for a note (from cache or API).
    * Used on note load to restore previously generated annotations.
    */
-  async fetchAnnotations(noteId: string): Promise<void> {
+  async fetchAnnotations(workspaceSlug: string, noteId: string): Promise<void> {
     // Check cache first
     const cached = this.cache.get(noteId);
     if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
@@ -139,18 +157,27 @@ export class MarginAnnotationStore {
     try {
       this.error = null;
       const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+      const authHeaders = await getAuthHeaders();
 
-      const response = await fetch(`${apiUrl}/ai/notes/${noteId}/annotations`, {
-        method: 'GET',
-        credentials: 'include',
-      });
+      const response = await fetch(
+        `${apiUrl}/workspaces/${workspaceSlug}/notes/${noteId}/annotations`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders,
+          },
+          credentials: 'include',
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch annotations (${response.status})`);
       }
 
       const data = await response.json();
-      const annotations = data.annotations || [];
+      // Backend may return array directly or { items: [...] } format
+      const annotations = Array.isArray(data) ? data : data.items || data.annotations || [];
 
       runInAction(() => {
         this.annotations.set(noteId, annotations);
@@ -169,6 +196,7 @@ export class MarginAnnotationStore {
    * Persists to backend and updates local state.
    */
   async updateAnnotationStatus(
+    workspaceSlug: string,
     noteId: string,
     annotationId: string,
     status: Exclude<AnnotationStatus, 'pending'>
@@ -176,12 +204,16 @@ export class MarginAnnotationStore {
     try {
       this.error = null;
       const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+      const authHeaders = await getAuthHeaders();
 
       const response = await fetch(
-        `${apiUrl}/ai/notes/${noteId}/annotations/${annotationId}/status`,
+        `${apiUrl}/workspaces/${workspaceSlug}/notes/${noteId}/annotations/${annotationId}`,
         {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders,
+          },
           credentials: 'include',
           body: JSON.stringify({ status }),
         }

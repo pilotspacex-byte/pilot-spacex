@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NoteCanvas } from '@/components/editor/NoteCanvas';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
-import { useNote, useNoteAnnotations, useUpdateNote, useAutoSave } from '@/features/notes/hooks';
+import { useNote, useUpdateNote, useAutoSave } from '@/features/notes/hooks';
 import { useDeleteNote } from '@/features/notes/hooks/useDeleteNote';
 import { useTogglePin } from '@/hooks/useTogglePin';
 import { useNoteVersions, useRestoreNoteVersion } from '@/hooks/useNoteVersions';
@@ -123,12 +123,8 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     enabled: hasValidParams,
   });
 
-  // Fetch annotations
-  const { data: annotations, isLoading: isLoadingAnnotations } = useNoteAnnotations({
-    workspaceId,
-    noteId,
-    enabled: hasValidParams && !!note,
-  });
+  // Note: Annotations are fetched by NoteCanvas via MobX store (aiStore.marginAnnotation)
+  // to prevent duplicate API requests
 
   // Update note mutation
   const updateNote = useUpdateNote({
@@ -278,11 +274,9 @@ const NoteDetailPage = observer(function NoteDetailPage() {
           key={noteId}
           noteId={noteId}
           content={note.content}
-          annotations={annotations ?? note.annotations ?? []}
           readOnly={false}
           onChange={handleContentChange}
           onSave={handleSave}
-          isLoading={isLoadingAnnotations}
           workspaceId={workspaceId}
           // Merged header props per Prototype v4
           title={note.title}

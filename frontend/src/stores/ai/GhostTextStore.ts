@@ -57,8 +57,8 @@ export class GhostTextStore {
 
   private async fetchSuggestion(
     noteId: string,
-    _context: string,
-    _cursorPosition: number,
+    context: string,
+    cursorPosition: number,
     cacheKey: string
   ): Promise<void> {
     this.abort();
@@ -71,6 +71,10 @@ export class GhostTextStore {
 
     this.client = new SSEClient({
       url: aiApi.getGhostTextUrl(noteId),
+      body: {
+        context,
+        cursor_position: cursorPosition,
+      },
       onMessage: (event: SSEEvent) => {
         if (event.type === 'token') {
           runInAction(() => {

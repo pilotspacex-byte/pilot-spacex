@@ -5,7 +5,7 @@ T072: Integration tests for SSE streaming annotation endpoint.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -283,16 +283,18 @@ class TestMarginAnnotationEndpoint:
         mock_result.output = None
         mock_result.error = "Agent execution failed"
 
+        # Override dependency using FastAPI pattern
+        from pilot_space.dependencies import get_sdk_orchestrator
+
         mock_orchestrator = MagicMock()
         mock_orchestrator.execute = AsyncMock(return_value=mock_result)
 
-        async def mock_get_sdk_orchestrator(*args, **kwargs):
+        async def mock_get_orch():
             return mock_orchestrator
 
-        with patch(
-            "pilot_space.api.v1.routers.ai_annotations.get_sdk_orchestrator",
-            mock_get_sdk_orchestrator,
-        ):
+        app.dependency_overrides[get_sdk_orchestrator] = mock_get_orch
+
+        try:
             # Act
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -307,6 +309,14 @@ class TestMarginAnnotationEndpoint:
                 assert response.status_code == 200  # SSE always returns 200
                 # Should contain error event
                 assert "error" in response.text
+        finally:
+            # Restore default mock
+            async def default_mock():
+                mock_orch = MagicMock()
+                mock_orch.execute = AsyncMock()
+                return mock_orch
+
+            app.dependency_overrides[get_sdk_orchestrator] = default_mock
 
     @pytest.mark.asyncio
     async def test_streams_multiple_annotations(
@@ -343,16 +353,18 @@ class TestMarginAnnotationEndpoint:
         mock_result.success = True
         mock_result.output = mock_output
 
+        # Override dependency using FastAPI pattern
+        from pilot_space.dependencies import get_sdk_orchestrator
+
         mock_orchestrator = MagicMock()
         mock_orchestrator.execute = AsyncMock(return_value=mock_result)
 
-        async def mock_get_sdk_orchestrator(*args, **kwargs):
+        async def mock_get_orch():
             return mock_orchestrator
 
-        with patch(
-            "pilot_space.api.v1.routers.ai_annotations.get_sdk_orchestrator",
-            mock_get_sdk_orchestrator,
-        ):
+        app.dependency_overrides[get_sdk_orchestrator] = mock_get_orch
+
+        try:
             # Act
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -369,6 +381,14 @@ class TestMarginAnnotationEndpoint:
                 # Count annotation events
                 annotation_events = response.text.count("event: annotation")
                 assert annotation_events == 3
+        finally:
+            # Restore default mock
+            async def default_mock():
+                mock_orch = MagicMock()
+                mock_orch.execute = AsyncMock()
+                return mock_orch
+
+            app.dependency_overrides[get_sdk_orchestrator] = default_mock
 
     @pytest.mark.asyncio
     async def test_includes_completion_metadata(
@@ -410,16 +430,18 @@ class TestMarginAnnotationEndpoint:
         mock_result.success = True
         mock_result.output = mock_output
 
+        # Override dependency using FastAPI pattern
+        from pilot_space.dependencies import get_sdk_orchestrator
+
         mock_orchestrator = MagicMock()
         mock_orchestrator.execute = AsyncMock(return_value=mock_result)
 
-        async def mock_get_sdk_orchestrator(*args, **kwargs):
+        async def mock_get_orch():
             return mock_orchestrator
 
-        with patch(
-            "pilot_space.api.v1.routers.ai_annotations.get_sdk_orchestrator",
-            mock_get_sdk_orchestrator,
-        ):
+        app.dependency_overrides[get_sdk_orchestrator] = mock_get_orch
+
+        try:
             # Act
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -436,6 +458,14 @@ class TestMarginAnnotationEndpoint:
                 assert "event: done" in response.text
                 assert "total_annotations" in response.text
                 assert "processed_blocks" in response.text
+        finally:
+            # Restore default mock
+            async def default_mock():
+                mock_orch = MagicMock()
+                mock_orch.execute = AsyncMock()
+                return mock_orch
+
+            app.dependency_overrides[get_sdk_orchestrator] = default_mock
 
     @pytest.mark.asyncio
     async def test_default_context_blocks_value(
@@ -459,16 +489,18 @@ class TestMarginAnnotationEndpoint:
         mock_result.success = True
         mock_result.output = mock_output
 
+        # Override dependency using FastAPI pattern
+        from pilot_space.dependencies import get_sdk_orchestrator
+
         mock_orchestrator = MagicMock()
         mock_orchestrator.execute = AsyncMock(return_value=mock_result)
 
-        async def mock_get_sdk_orchestrator(*args, **kwargs):
+        async def mock_get_orch():
             return mock_orchestrator
 
-        with patch(
-            "pilot_space.api.v1.routers.ai_annotations.get_sdk_orchestrator",
-            mock_get_sdk_orchestrator,
-        ):
+        app.dependency_overrides[get_sdk_orchestrator] = mock_get_orch
+
+        try:
             # Act
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -488,3 +520,11 @@ class TestMarginAnnotationEndpoint:
                 if call_args:
                     input_data = call_args[0][1]
                     assert input_data.context_blocks == 3
+        finally:
+            # Restore default mock
+            async def default_mock():
+                mock_orch = MagicMock()
+                mock_orch.execute = AsyncMock()
+                return mock_orch
+
+            app.dependency_overrides[get_sdk_orchestrator] = default_mock

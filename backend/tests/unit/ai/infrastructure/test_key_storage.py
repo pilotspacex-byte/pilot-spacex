@@ -234,7 +234,7 @@ class TestSecureKeyStorage:
         assert masked == "*****"
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.infrastructure.key_storage.AsyncAnthropic")
+    @patch("anthropic.AsyncAnthropic")
     async def test_validate_api_key_anthropic_success(
         self,
         mock_anthropic: MagicMock,
@@ -252,7 +252,7 @@ class TestSecureKeyStorage:
         mock_client.messages.create.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.infrastructure.key_storage.AsyncAnthropic")
+    @patch("anthropic.AsyncAnthropic")
     async def test_validate_api_key_anthropic_failure(
         self,
         mock_anthropic: MagicMock,
@@ -269,7 +269,7 @@ class TestSecureKeyStorage:
         assert is_valid is False
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.infrastructure.key_storage.AsyncOpenAI")
+    @patch("openai.AsyncOpenAI")
     async def test_validate_api_key_openai_success(
         self,
         mock_openai: MagicMock,
@@ -287,24 +287,26 @@ class TestSecureKeyStorage:
         mock_client.models.list.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.infrastructure.key_storage.genai")
+    @patch("google.generativeai.GenerativeModel")
+    @patch("google.generativeai.configure")
     async def test_validate_api_key_google_success(
         self,
-        mock_genai: MagicMock,
+        mock_configure: MagicMock,
+        mock_model_class: MagicMock,
         key_storage: SecureKeyStorage,
     ) -> None:
         """Verify Google key validation."""
         # Mock successful API call
         mock_model = AsyncMock()
         mock_model.generate_content_async = AsyncMock()
-        mock_genai.GenerativeModel.return_value = mock_model
+        mock_model_class.return_value = mock_model
 
         is_valid = await key_storage.validate_api_key(
             "google", "test-key"
         )  # pragma: allowlist secret
 
         assert is_valid is True
-        mock_genai.configure.assert_called_once_with(api_key="test-key")  # pragma: allowlist secret
+        mock_configure.assert_called_once_with(api_key="test-key")  # pragma: allowlist secret
 
     @pytest.mark.asyncio
     async def test_validate_api_key_unknown_provider(self, key_storage: SecureKeyStorage) -> None:
@@ -314,7 +316,7 @@ class TestSecureKeyStorage:
         assert is_valid is False
 
     @pytest.mark.asyncio
-    @patch("pilot_space.ai.infrastructure.key_storage.AsyncAnthropic")
+    @patch("anthropic.AsyncAnthropic")
     async def test_validate_and_update_success(
         self,
         mock_anthropic: MagicMock,

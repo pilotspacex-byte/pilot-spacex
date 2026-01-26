@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
@@ -34,9 +34,6 @@ from pilot_space.ai.agents.pr_review_agent import (
 from pilot_space.ai.agents.sdk_base import AgentContext
 from pilot_space.api.v1.streaming import format_sse_event
 from pilot_space.dependencies import get_current_user_id, get_sdk_orchestrator
-
-if TYPE_CHECKING:
-    from pilot_space.ai.sdk_orchestrator import SDKOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +85,9 @@ async def stream_pr_review(
     repo_id: Annotated[UUID, Path(description="Repository UUID")],
     pr_number: Annotated[int, Path(description="PR number", ge=1)],
     review_request: StreamPRReviewRequest,
-    orchestrator: Annotated[SDKOrchestrator, Depends(get_sdk_orchestrator)],
+    orchestrator: Annotated[..., Depends(get_sdk_orchestrator)],
     user_id: Annotated[UUID, Depends(get_current_user_id)],
-) -> StreamingResponse:
+):
     """Stream PR review generation with aspect-by-aspect progress.
 
     This endpoint integrates with the frontend PRReviewStore which expects:

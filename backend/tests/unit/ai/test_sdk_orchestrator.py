@@ -1,8 +1,10 @@
 """Unit tests for SDKOrchestrator."""
 
+# ruff: noqa: PT019 (mock params from @patch decorator are not fixtures)
+
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -166,11 +168,15 @@ class TestActionClassification:
             )
 
 
+@patch("pilot_space.ai.providers.mock.MockProvider.is_enabled", return_value=False)
 class TestExecute:
-    """Test agent execution without approval."""
+    """Test agent execution without approval.
+
+    Note: _mock_enabled parameter is injected by class-level @patch decorator, not a fixture.
+    """
 
     @pytest.mark.asyncio
-    async def test_execute_success(self, orchestrator, mock_deps, context):
+    async def test_execute_success(self, _mock_enabled, orchestrator, mock_deps, context):
         """Verify successful agent execution."""
         agent = MockAgent(
             tool_registry=mock_deps["tool_registry"],
@@ -193,7 +199,7 @@ class TestExecute:
         assert result.requires_approval is False
 
     @pytest.mark.asyncio
-    async def test_execute_unregistered_agent(self, orchestrator, context):
+    async def test_execute_unregistered_agent(self, _mock_enabled, orchestrator, context):
         """Verify executing unregistered agent returns error."""
         result = await orchestrator.execute("unknown", "input", context)
 
@@ -202,7 +208,7 @@ class TestExecute:
         assert result.output is None
 
     @pytest.mark.asyncio
-    async def test_execute_no_api_key(self, orchestrator, mock_deps, context):
+    async def test_execute_no_api_key(self, _mock_enabled, orchestrator, mock_deps, context):
         """Verify execution fails without API key."""
         agent = MockAgent(
             tool_registry=mock_deps["tool_registry"],
@@ -218,11 +224,14 @@ class TestExecute:
             await orchestrator.execute("test", "input", context)
 
 
+@patch("pilot_space.ai.providers.mock.MockProvider.is_enabled", return_value=False)
 class TestExecuteWithApproval:
     """Test agent execution with approval flow."""
 
     @pytest.mark.asyncio
-    async def test_critical_action_requires_approval(self, orchestrator, mock_deps, context):
+    async def test_critical_action_requires_approval(
+        self, _mock_enabled, orchestrator, mock_deps, context
+    ):
         """Verify critical actions always require approval."""
         approval_id = uuid4()
         mock_deps["approval_service"].create_approval_request = AsyncMock(return_value=approval_id)
@@ -234,7 +243,7 @@ class TestExecuteWithApproval:
         assert result.success is True
 
     @pytest.mark.asyncio
-    async def test_auto_execute_proceeds(self, orchestrator, mock_deps, context):
+    async def test_auto_execute_proceeds(self, _mock_enabled, orchestrator, mock_deps, context):
         """Verify auto-execute actions proceed without approval."""
         agent = MockAgent(
             tool_registry=mock_deps["tool_registry"],
@@ -257,7 +266,9 @@ class TestExecuteWithApproval:
         assert result.output == "result: input"
 
     @pytest.mark.asyncio
-    async def test_default_require_with_approval_enabled(self, orchestrator, mock_deps, context):
+    async def test_default_require_with_approval_enabled(
+        self, _mock_enabled, orchestrator, mock_deps, context
+    ):
         """Verify default require actions check workspace settings."""
         approval_id = uuid4()
         mock_deps["approval_service"].check_approval_required = MagicMock(return_value=True)
@@ -271,7 +282,9 @@ class TestExecuteWithApproval:
         assert result.approval_id == approval_id
 
     @pytest.mark.asyncio
-    async def test_default_require_with_approval_disabled(self, orchestrator, mock_deps, context):
+    async def test_default_require_with_approval_disabled(
+        self, _mock_enabled, orchestrator, mock_deps, context
+    ):
         """Verify default require actions auto-execute when disabled."""
         agent = MockAgent(
             tool_registry=mock_deps["tool_registry"],
@@ -296,11 +309,12 @@ class TestExecuteWithApproval:
         assert result.success is True
 
 
+@patch("pilot_space.ai.providers.mock.MockProvider.is_enabled", return_value=False)
 class TestStreaming:
     """Test streaming execution."""
 
     @pytest.mark.asyncio
-    async def test_stream_success(self, orchestrator, mock_deps, context):
+    async def test_stream_success(self, _mock_enabled, orchestrator, mock_deps, context):
         """Verify streaming agent output."""
         agent = MockStreamingAgent(
             tool_registry=mock_deps["tool_registry"],
@@ -319,7 +333,7 @@ class TestStreaming:
         assert chunks == ["hello", "world"]
 
     @pytest.mark.asyncio
-    async def test_stream_unregistered_agent(self, orchestrator, context):
+    async def test_stream_unregistered_agent(self, _mock_enabled, orchestrator, context):
         """Verify streaming unregistered agent yields error."""
         chunks = []
         async for chunk in orchestrator.stream("unknown", "input", context):
@@ -329,7 +343,9 @@ class TestStreaming:
         assert "not registered" in chunks[0]
 
     @pytest.mark.asyncio
-    async def test_stream_non_streaming_agent(self, orchestrator, mock_deps, context):
+    async def test_stream_non_streaming_agent(
+        self, _mock_enabled, orchestrator, mock_deps, context
+    ):
         """Verify streaming non-streaming agent yields error."""
         agent = MockAgent(
             tool_registry=mock_deps["tool_registry"],
@@ -349,7 +365,7 @@ class TestStreaming:
         assert "does not support streaming" in chunks[0]
 
     @pytest.mark.asyncio
-    async def test_stream_no_api_key(self, orchestrator, mock_deps, context):
+    async def test_stream_no_api_key(self, _mock_enabled, orchestrator, mock_deps, context):
         """Verify streaming fails without API key."""
         agent = MockStreamingAgent(
             tool_registry=mock_deps["tool_registry"],

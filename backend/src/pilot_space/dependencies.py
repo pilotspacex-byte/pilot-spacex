@@ -755,11 +755,11 @@ async def get_cost_tracker_dep(
 async def get_sdk_orchestrator(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_session)],
-    session_manager: Annotated[SessionManager | None, Depends(get_session_manager)],
-    provider_selector: Annotated[ProviderSelector, Depends(get_provider_selector)],
-    resilient_executor: Annotated[ResilientExecutor, Depends(get_resilient_executor)],
-    tool_registry: Annotated[ToolRegistry, Depends(get_tool_registry)],
-) -> SDKOrchestrator:
+    session_manager: Annotated[..., Depends(get_session_manager)],
+    provider_selector: Annotated[..., Depends(get_provider_selector)],
+    resilient_executor: Annotated[..., Depends(get_resilient_executor)],
+    tool_registry: Annotated[..., Depends(get_tool_registry)],
+):
     """Get SDK orchestrator with all dependencies.
 
     The orchestrator is created per-request with request-scoped session

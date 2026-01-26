@@ -116,4 +116,56 @@ async def get_mock_generators() -> dict[str, Any]:
     }
 
 
+@router.post("/mock-invoke/{agent_name}")
+async def invoke_mock_generator(
+    agent_name: str,
+    input_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Invoke a mock generator directly without database dependencies.
+
+    This endpoint allows testing mock AI responses during development
+    without needing a full database setup.
+
+    Args:
+        agent_name: Name of the agent to test (e.g., "GhostTextAgent")
+        input_data: Optional input data to pass to the generator
+
+    Returns:
+        Dict with:
+        - agent_name: The requested agent name
+        - input_data: The input that was provided
+        - output: The mock response generated
+        - mock_enabled: Whether mock mode is enabled
+    """
+    _ensure_development()
+
+    # Check if mock mode is enabled
+    mock_provider = MockProvider.get_instance()
+    if not mock_provider.is_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mock mode is not enabled. Set AI_FAKE_MODE=true in development.",
+        )
+
+    # Check if generator exists
+    generator = MockResponseRegistry.get_generator(agent_name)
+    if generator is None:
+        registered = MockResponseRegistry.list_registered()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No mock generator for '{agent_name}'. Available: {registered}",
+        )
+
+    # Generate mock response
+    test_input = input_data or {}
+    output = generator(test_input)
+
+    return {
+        "agent_name": agent_name,
+        "input_data": test_input,
+        "output": output,
+        "mock_enabled": True,
+    }
+
+
 __all__ = ["router"]

@@ -18,24 +18,31 @@ from pilot_space.api.v1.schemas.base import BaseSchema, EntitySchema, PaginatedR
 
 
 class AnnotationType(str, Enum):
-    """Types of margin annotations."""
+    """Types of margin annotations.
 
-    CLARIFICATION = "clarification"
-    EXPANSION = "expansion"
-    SIMPLIFICATION = "simplification"
-    ACTION_ITEM = "action_item"
-    ISSUE_CANDIDATE = "issue_candidate"
-    QUESTION = "question"
-    REFERENCE = "reference"
-    TECHNICAL_REVIEW = "technical_review"
+    Aligns with AI agent output (margin_annotation_agent_sdk.py)
+    and database model (note_annotation.py).
+    """
+
+    SUGGESTION = "suggestion"  # Improvement suggestion
+    WARNING = "warning"  # Potential issue
+    QUESTION = "question"  # Clarification needed
+    INSIGHT = "insight"  # Additional context (alias: info in DB)
+    REFERENCE = "reference"  # Related content link
+    ISSUE_CANDIDATE = "issue_candidate"  # Can become a tracked issue
+    INFO = "info"  # Informational (DB compatibility)
 
 
 class AnnotationStatus(str, Enum):
-    """Status of an annotation."""
+    """Status of an annotation.
+
+    Aligns with database model (note_annotation.py).
+    """
 
     PENDING = "pending"  # Not yet acted upon
     ACCEPTED = "accepted"  # User accepted the suggestion
-    DISMISSED = "dismissed"  # User dismissed the suggestion
+    REJECTED = "rejected"  # User rejected the suggestion
+    DISMISSED = "dismissed"  # User dismissed without action
     CONVERTED = "converted"  # Converted to issue or action
 
 

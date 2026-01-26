@@ -45,8 +45,6 @@ export interface NoteCanvasProps {
   noteId: string;
   /** Initial content to load */
   content?: JSONContent;
-  /** Annotations for this note */
-  annotations?: NoteAnnotation[];
   /** Read-only mode */
   readOnly?: boolean;
   /** Callback when content changes */
@@ -141,7 +139,6 @@ function EditorSkeleton() {
 export const NoteCanvas = observer(function NoteCanvas({
   noteId,
   content,
-  annotations: _annotationsProp,
   readOnly = false,
   onChange,
   onSave,
@@ -466,10 +463,10 @@ export const NoteCanvas = observer(function NoteCanvas({
 
   // Fetch persisted annotations on mount
   useEffect(() => {
-    if (noteId && editor && !editor.isDestroyed) {
-      aiStore.marginAnnotation.fetchAnnotations(noteId);
+    if (noteId && workspaceSlug && editor && !editor.isDestroyed) {
+      aiStore.marginAnnotation.fetchAnnotations(workspaceSlug, noteId);
     }
-  }, [noteId, editor, aiStore.marginAnnotation]);
+  }, [noteId, workspaceSlug, editor, aiStore.marginAnnotation]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -488,43 +485,96 @@ export const NoteCanvas = observer(function NoteCanvas({
   // Handle annotation actions
   const handleAnnotationAccept = useCallback(
     async (annotation: NoteAnnotation) => {
-      if (!editor || annotation.type !== 'suggestion') return;
+      if (!editor || !workspaceSlug || annotation.type !== 'suggestion') return;
 
       try {
-        await aiStore.marginAnnotation.updateAnnotationStatus(noteId, annotation.id, 'accepted');
+        // Find the block position in the editor by blockId
+        let blockPos: number | null = null;
+        let blockEndPos: number | null = null;
 
-        // TODO: Apply suggestion to editor content
-        // This would insert the suggested text at the annotation's block position
+        editor.state.doc.descendants((node, pos) => {
+          if (node.attrs?.id === annotation.blockId || node.attrs?.blockId === annotation.blockId) {
+            blockPos = pos;
+            blockEndPos = pos + node.nodeSize;
+            return false; // Stop iteration
+          }
+          return true;
+        });
 
-        toast.success('Suggestion applied');
+        // Insert the suggestion content after the block
+        if (blockPos !== null && blockEndPos !== null) {
+          // Create a new paragraph with the suggestion content
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(blockEndPos, {
+              type: 'paragraph',
+              content: [{ type: 'text', text: annotation.content }],
+            })
+            .run();
+        } else {
+          // Fallback: Insert at the end of the document if block not found
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(editor.state.doc.content.size, {
+              type: 'paragraph',
+              content: [{ type: 'text', text: annotation.content }],
+            })
+            .run();
+        }
+
+        // Update status in backend
+        await aiStore.marginAnnotation.updateAnnotationStatus(
+          workspaceSlug,
+          noteId,
+          annotation.id,
+          'accepted'
+        );
+
+        toast.success('Suggestion applied', {
+          description: `Added: "${annotation.content.substring(0, 50)}${annotation.content.length > 50 ? '...' : ''}"`,
+        });
       } catch (_err) {
         toast.error('Failed to apply suggestion');
       }
     },
-    [editor, noteId, aiStore.marginAnnotation]
+    [editor, workspaceSlug, noteId, aiStore.marginAnnotation]
   );
 
   const handleAnnotationReject = useCallback(
     async (annotation: NoteAnnotation) => {
+      if (!workspaceSlug) return;
       try {
-        await aiStore.marginAnnotation.updateAnnotationStatus(noteId, annotation.id, 'rejected');
+        await aiStore.marginAnnotation.updateAnnotationStatus(
+          workspaceSlug,
+          noteId,
+          annotation.id,
+          'rejected'
+        );
         toast.info('Suggestion dismissed');
       } catch (_err) {
         toast.error('Failed to dismiss suggestion');
       }
     },
-    [noteId, aiStore.marginAnnotation]
+    [workspaceSlug, noteId, aiStore.marginAnnotation]
   );
 
   const handleAnnotationDismiss = useCallback(
     async (annotation: NoteAnnotation) => {
+      if (!workspaceSlug) return;
       try {
-        await aiStore.marginAnnotation.updateAnnotationStatus(noteId, annotation.id, 'dismissed');
+        await aiStore.marginAnnotation.updateAnnotationStatus(
+          workspaceSlug,
+          noteId,
+          annotation.id,
+          'dismissed'
+        );
       } catch (err) {
         console.error('Failed to dismiss annotation:', err);
       }
     },
-    [noteId, aiStore.marginAnnotation]
+    [workspaceSlug, noteId, aiStore.marginAnnotation]
   );
 
   // Issue extraction panel handlers
@@ -785,9 +835,11 @@ export const NoteCanvas = observer(function NoteCanvas({
                 animate={{ width: isLargeDesktop ? 340 : 288, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className="hidden lg:block flex-shrink-0 overflow-hidden"
+                className="hidden lg:flex flex-shrink-0 overflow-hidden h-full"
               >
-                <div className={cn('h-full', isLargeDesktop ? 'w-[340px]' : 'w-72')}>
+                <div
+                  className={cn('h-full overflow-hidden', isLargeDesktop ? 'w-[340px]' : 'w-72')}
+                >
                   <MarginAnnotations
                     annotations={annotations}
                     editor={editor}

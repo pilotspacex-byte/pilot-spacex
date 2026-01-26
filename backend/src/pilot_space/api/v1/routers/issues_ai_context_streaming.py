@@ -22,8 +22,8 @@ from pilot_space.dependencies import (
     get_ai_context_service,
     get_current_user,
     get_current_workspace_id,
-    get_db_session,
     get_refine_ai_context_service,
+    get_session,
     get_user_api_keys,
 )
 
@@ -69,6 +69,7 @@ def _check_rate_limit(user_id: str, limit: int = 5, window_hours: int = 1) -> bo
 
 @router.post(
     "/chat/stream",
+    response_class=StreamingResponse,
     summary="Stream refinement response via SSE",
 )
 async def stream_ai_context_refinement(
@@ -77,9 +78,9 @@ async def stream_ai_context_refinement(
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user)],
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_session)],
     service: Annotated[..., Depends(get_refine_ai_context_service)],
-) -> StreamingResponse:
+):
     """Stream AI context refinement response via SSE.
 
     Args:
@@ -138,9 +139,9 @@ async def stream_ai_context_generation(
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user)],
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_session)],
     service: Annotated[..., Depends(get_ai_context_service)],
-) -> StreamingResponse:
+):
     """Stream AI context generation with phase progress events.
 
     SSE Events:

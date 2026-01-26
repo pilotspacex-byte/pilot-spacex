@@ -34,12 +34,18 @@ class AnnotationType(str, Enum):
     Different types affect rendering and user interaction:
     - suggestion: AI suggestion for improvement
     - warning: Potential issue or concern
+    - question: Clarification needed
+    - insight: Additional context
+    - reference: Related content link
     - issue_candidate: Content that could become an Issue
     - info: Informational note from AI
     """
 
     SUGGESTION = "suggestion"
     WARNING = "warning"
+    QUESTION = "question"
+    INSIGHT = "insight"
+    REFERENCE = "reference"
     ISSUE_CANDIDATE = "issue_candidate"
     INFO = "info"
 
@@ -93,7 +99,12 @@ class NoteAnnotation(WorkspaceScopedModel):
 
     # Annotation type and content
     type: Mapped[AnnotationType] = mapped_column(
-        SQLEnum(AnnotationType, name="annotation_type", create_type=False),
+        SQLEnum(
+            AnnotationType,
+            name="annotation_type",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         default=AnnotationType.SUGGESTION,
     )
@@ -112,7 +123,12 @@ class NoteAnnotation(WorkspaceScopedModel):
 
     # Status tracking
     status: Mapped[AnnotationStatus] = mapped_column(
-        SQLEnum(AnnotationStatus, name="annotation_status", create_type=False),
+        SQLEnum(
+            AnnotationStatus,
+            name="annotation_status",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         default=AnnotationStatus.PENDING,
     )

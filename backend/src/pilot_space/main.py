@@ -11,15 +11,22 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from pilot_space.api.middleware.request_context import RequestContextMiddleware
 from pilot_space.api.v1.routers import (
+    ai_annotations_router,
+    ai_approvals_router,
     ai_configuration_router,
+    ai_costs_router,
+    ai_extraction_router,
+    ai_pr_review_router,
     ai_router,
     auth_router,
     cycles_router,
+    debug_router,
     integrations_router,
     issues_ai_context_router,
     issues_ai_context_streaming_router,
     issues_ai_router,
     issues_router,
+    notes_ai_router,
     notes_router,
     projects_router,
     webhooks_router,
@@ -107,10 +114,18 @@ app.include_router(issues_ai_router, prefix=API_V1_PREFIX)
 app.include_router(issues_ai_context_router, prefix=API_V1_PREFIX)
 app.include_router(issues_ai_context_streaming_router, prefix=API_V1_PREFIX)
 app.include_router(notes_router, prefix=API_V1_PREFIX)
+app.include_router(notes_ai_router, prefix=API_V1_PREFIX)
 app.include_router(cycles_router, prefix=API_V1_PREFIX)
 app.include_router(ai_router, prefix=API_V1_PREFIX)
+app.include_router(ai_annotations_router, prefix=API_V1_PREFIX)
+app.include_router(ai_approvals_router, prefix=API_V1_PREFIX)
 app.include_router(ai_configuration_router, prefix=API_V1_PREFIX)
+app.include_router(ai_costs_router, prefix=API_V1_PREFIX)
+app.include_router(ai_extraction_router, prefix=API_V1_PREFIX)
+app.include_router(ai_pr_review_router, prefix=API_V1_PREFIX)
 app.include_router(integrations_router, prefix=API_V1_PREFIX)
 app.include_router(webhooks_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_router, prefix=f"{API_V1_PREFIX}/workspaces")
+if debug_router:
+    app.include_router(debug_router, prefix=API_V1_PREFIX)

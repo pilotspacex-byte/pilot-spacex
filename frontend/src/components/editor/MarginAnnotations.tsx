@@ -534,7 +534,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
       </div>
 
       {/* Annotations list - grouped by confidence category per DD-048 */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-3 space-y-4">
           <AnimatePresence mode="popLayout">
             {annotationsByCategory.map(({ category, label, annotations: categoryAnnotations }) => (

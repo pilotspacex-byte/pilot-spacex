@@ -287,58 +287,68 @@ def generate_extracted_issues(input_data: dict[str, Any]) -> dict[str, Any]:
 
 @MockResponseRegistry.register("MarginAnnotationAgent")
 @MockResponseRegistry.register("MarginAnnotationAgentSDK")
-def generate_margin_annotations(input_data: dict[str, Any]) -> dict[str, Any]:
+def generate_margin_annotations(input_data: dict[str, Any]) -> Any:
     """Generate mock margin annotations.
 
     Args:
-        input_data: Dict with note_id, block_ids
+        input_data: Dict or dataclass with note_id, block_ids
 
     Returns:
-        Margin annotation output dict.
+        MarginAnnotationOutput dataclass.
     """
-    block_ids = input_data.get("block_ids", ["block-1", "block-2"])
+    from pilot_space.ai.agents.margin_annotation_agent_sdk import (
+        Annotation,
+        AnnotationType,
+        MarginAnnotationOutput,
+    )
+
+    # Handle both dict and dataclass input
+    if hasattr(input_data, "block_ids"):
+        block_ids = input_data.block_ids  # type: ignore[union-attr]
+    else:
+        block_ids = input_data.get("block_ids", ["block-1", "block-2"])
 
     annotations = []
     for i, block_id in enumerate(block_ids[:3]):  # Limit to 3 for mock
         if i == 0:
             annotations.append(
-                {
-                    "block_id": block_id,
-                    "type": "suggestion",
-                    "title": "Consider adding error handling",
-                    "content": "This section could benefit from try-catch blocks for robust error handling.",
-                    "confidence": 0.85,
-                    "action_label": "Show example",
-                    "action_payload": {"type": "code_example"},
-                }
+                Annotation(
+                    block_id=block_id,
+                    type=AnnotationType.SUGGESTION,
+                    title="Consider adding error handling",
+                    content="This section could benefit from try-catch blocks for robust error handling.",
+                    confidence=0.85,
+                    action_label="Show example",
+                    action_payload={"type": "code_example"},
+                )
             )
         elif i == 1:
             annotations.append(
-                {
-                    "block_id": block_id,
-                    "type": "reference",
-                    "title": "Related architecture doc",
-                    "content": "See authentication architecture decision in ADR-003",
-                    "confidence": 0.92,
-                    "action_label": "Open doc",
-                    "action_payload": {"type": "link", "doc_id": "adr-003"},
-                }
+                Annotation(
+                    block_id=block_id,
+                    type=AnnotationType.REFERENCE,
+                    title="Related architecture doc",
+                    content="See authentication architecture decision in ADR-003",
+                    confidence=0.92,
+                    action_label="Open doc",
+                    action_payload={"type": "link", "doc_id": "adr-003"},
+                )
             )
         else:
             annotations.append(
-                {
-                    "block_id": block_id,
-                    "type": "insight",
-                    "title": "Best practice",
-                    "content": "Using async/await here aligns with project patterns",
-                    "confidence": 0.78,
-                }
+                Annotation(
+                    block_id=block_id,
+                    type=AnnotationType.INSIGHT,
+                    title="Best practice",
+                    content="Using async/await here aligns with project patterns",
+                    confidence=0.78,
+                )
             )
 
-    return {
-        "annotations": annotations,
-        "processed_blocks": len(block_ids),
-    }
+    return MarginAnnotationOutput(
+        annotations=annotations,
+        processed_blocks=len(block_ids),
+    )
 
 
 # =============================================================================

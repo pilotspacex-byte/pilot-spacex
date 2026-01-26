@@ -22,7 +22,7 @@ from pilot_space.ai.tools.database_tools import (
 )
 from pilot_space.ai.tools.mcp_server import ToolContext
 from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
-from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
+from pilot_space.infrastructure.database.models.issue import IssuePriority
 from pilot_space.infrastructure.database.models.state import State, StateGroup
 from pilot_space.infrastructure.database.models.user import User
 from pilot_space.infrastructure.database.models.workspace_member import (
@@ -93,7 +93,7 @@ class TestGetWorkspaceMembers:
 
         mock_scalars = MagicMock()
         mock_scalars.all.return_value = [member1, member2]
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalars.return_value = mock_scalars
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
@@ -117,7 +117,7 @@ class TestGetWorkspaceMembers:
         # Arrange
         mock_scalars = MagicMock()
         mock_scalars.all.return_value = []
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalars.return_value = mock_scalars
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
@@ -153,7 +153,7 @@ class TestGetWorkspaceMembers:
 
         mock_scalars = MagicMock()
         mock_scalars.all.return_value = [member1]
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalars.return_value = mock_scalars
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
@@ -254,32 +254,22 @@ class TestGetCycleContext:
             sequence=2,
         )
 
-        # Create issues
-        issue1 = Issue(
-            id=uuid4(),
-            workspace_id=UUID(workspace_id),
-            project_id=project_id,
-            sequence_id=1,
-            identifier="PILOT-1",
-            name="Issue 1",
-            state_id=completed_state.id,
-            reporter_id=uuid4(),
-            priority=IssuePriority.HIGH,
-        )
+        # Create mock issues (using MagicMock to avoid Issue model constraints)
+        issue1 = MagicMock()
+        issue1.id = uuid4()
+        issue1.identifier = "PILOT-1"
+        issue1.name = "Issue 1"
         issue1.state = completed_state
+        issue1.state_id = completed_state.id
+        issue1.priority = IssuePriority.HIGH
 
-        issue2 = Issue(
-            id=uuid4(),
-            workspace_id=UUID(workspace_id),
-            project_id=project_id,
-            sequence_id=2,
-            identifier="PILOT-2",
-            name="Issue 2",
-            state_id=in_progress_state.id,
-            reporter_id=uuid4(),
-            priority=IssuePriority.MEDIUM,
-        )
+        issue2 = MagicMock()
+        issue2.id = uuid4()
+        issue2.identifier = "PILOT-2"
+        issue2.name = "Issue 2"
         issue2.state = in_progress_state
+        issue2.state_id = in_progress_state.id
+        issue2.priority = IssuePriority.MEDIUM
 
         cycle = Cycle(
             id=cycle_id,

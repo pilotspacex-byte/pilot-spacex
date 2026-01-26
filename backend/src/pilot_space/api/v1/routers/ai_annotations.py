@@ -191,24 +191,15 @@ async def generate_annotations(
 
                 annotation_service = CreateAnnotationService(session)
 
-                # Map AI annotation types to database types
-                type_mapping = {
-                    "clarification": DBAnnotationType.SUGGESTION,
-                    "expansion": DBAnnotationType.SUGGESTION,
-                    "simplification": DBAnnotationType.SUGGESTION,
-                    "action_item": DBAnnotationType.SUGGESTION,
-                    "issue_candidate": DBAnnotationType.ISSUE_CANDIDATE,
-                    "question": DBAnnotationType.INFO,
-                    "reference": DBAnnotationType.INFO,
-                    "technical_review": DBAnnotationType.WARNING,
-                }
-
+                # Map AI annotation types directly to database types
+                # (DB enum now supports all AI agent types)
                 for annotation in result.output.annotations:
-                    # Map annotation type
-                    db_type = type_mapping.get(
-                        annotation.type.value,
-                        DBAnnotationType.SUGGESTION,
-                    )
+                    # Use the annotation type directly
+                    try:
+                        db_type = DBAnnotationType(annotation.type.value)
+                    except ValueError:
+                        # Fallback for unknown types
+                        db_type = DBAnnotationType.SUGGESTION
 
                     payload = CreateAnnotationPayload(
                         workspace_id=workspace_id,

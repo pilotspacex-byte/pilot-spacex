@@ -41,7 +41,7 @@ Your task is to analyze issues and generate comprehensive context that helps dev
 Respond with valid JSON containing the following structure:
 
 ```json
-{
+{{
   "summary": "2-3 sentence summary of the issue and its context",
   "analysis": "Detailed analysis including technical considerations",
   "complexity": "low|medium|high",
@@ -50,21 +50,21 @@ Respond with valid JSON containing the following structure:
   "suggested_approach": "Recommended implementation approach",
   "potential_blockers": ["possible", "blockers", "or", "risks"],
   "tasks": [
-    {
+    {{
       "id": "task-1",
       "description": "Task description",
       "dependencies": [],
       "estimated_effort": "S|M|L",
       "order": 1
-    }
+    }}
   ],
-  "claude_code_sections": {
+  "claude_code_sections": {{
     "context": "Brief context for Claude Code",
     "code_references": ["list of relevant file paths"],
     "instructions": "Implementation instructions",
     "constraints": "Any constraints or requirements"
-  }
-}
+  }}
+}}
 ```
 
 ## Guidelines

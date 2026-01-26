@@ -238,15 +238,15 @@ Return JSON with annotations array."""
         Returns:
             MarginAnnotationOutput with parsed annotations
         """
-        # Extract content from Anthropic response
-        import anthropic
-
-        if isinstance(response, anthropic.types.Message):
-            # Extract text from content blocks
-            content = ""
-            for block in response.content:
-                if block.type == "text":
-                    content += block.text
+        # Extract content from Anthropic response (duck typing for testability)
+        content = ""
+        response_content = getattr(response, "content", None)
+        if response_content is not None and isinstance(response_content, list):
+            # Anthropic Message-like object (works with mocks too)
+            for block in response_content:
+                block_type = getattr(block, "type", None)
+                if block_type == "text" or hasattr(block, "text"):
+                    content += getattr(block, "text", "")
         elif isinstance(response, str):
             content = response
         else:

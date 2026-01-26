@@ -10,22 +10,18 @@ Related:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from pilot_space.ai.agents.sdk_base import AgentContext
-from pilot_space.ai.sdk_orchestrator import SDKOrchestrator
 from pilot_space.api.v1.streaming import create_sse_response
 from pilot_space.dependencies import get_current_user_id, get_sdk_orchestrator, get_session
 from pilot_space.infrastructure.database.models.note import Note
-
-if TYPE_CHECKING:
-    from fastapi.responses import StreamingResponse
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/notes", tags=["notes-ai"])
 
@@ -53,6 +49,7 @@ class GhostTextRequest(BaseModel):
 
 @router.post(
     "/{note_id}/ghost-text",
+    response_class=StreamingResponse,
     summary="Stream ghost text suggestions",
     description="""
     Generate AI-powered inline text completion suggestions.
@@ -72,10 +69,10 @@ async def ghost_text_stream(
     note_id: Annotated[UUID, Path(description="Note UUID")],
     request_body: GhostTextRequest,
     request: Request,
-    orchestrator: Annotated[SDKOrchestrator, Depends(get_sdk_orchestrator)],
+    orchestrator: Annotated[..., Depends(get_sdk_orchestrator)],
     user_id: Annotated[UUID, Depends(get_current_user_id)],
-    session: Annotated[AsyncSession, Depends(get_session)],
-) -> StreamingResponse:
+    session: Annotated[..., Depends(get_session)],
+):
     """Stream ghost text suggestions for note editing.
 
     Args:
