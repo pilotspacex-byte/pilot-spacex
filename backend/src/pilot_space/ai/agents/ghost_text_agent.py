@@ -347,9 +347,7 @@ class GhostTextAgent(StreamingSDKBaseAgent[GhostTextInput, str]):
                         # Yield text chunks
                         if event.type == "content_block_delta":
                             delta_event: Any = event
-                            if hasattr(delta_event, "delta") and hasattr(
-                                delta_event.delta, "text"
-                            ):
+                            if hasattr(delta_event, "delta") and hasattr(delta_event.delta, "text"):
                                 chunk = delta_event.delta.text
                                 accumulated.append(chunk)
                                 yield chunk
@@ -415,7 +413,6 @@ class GhostTextStreamingAgent(GhostTextAgent):
     This class exists for backward compatibility.
     GhostTextAgent already extends StreamingSDKBaseAgent.
     """
-
 
 
 __all__ = [

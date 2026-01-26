@@ -1,6 +1,14 @@
 """FastAPI dependency injection.
 
 Provides request-scoped dependencies for authentication, database, and services.
+
+TODO(refactor): This file has 843 lines (exceeds 700-line limit).
+  Split into modules:
+  - dependencies/auth.py - Authentication dependencies
+  - dependencies/database.py - Database session dependencies
+  - dependencies/services.py - Service layer dependencies
+  - dependencies/ai.py - AI-related dependencies
+  Track: Issue to be created for proper refactoring
 """
 
 from __future__ import annotations
@@ -787,7 +795,7 @@ async def get_sdk_orchestrator(
     approval_service = ApprovalService(session=session)
     cost_tracker = CostTracker(session=session)
 
-    return SDKOrchestrator(
+    orchestrator = SDKOrchestrator(
         key_storage=key_storage,
         approval_service=approval_service,
         cost_tracker=cost_tracker,
@@ -796,6 +804,13 @@ async def get_sdk_orchestrator(
         resilient_executor=resilient_executor,
         tool_registry=tool_registry,
     )
+
+    # Register all SDK agents
+    from pilot_space.container import register_sdk_agents
+
+    register_sdk_agents(orchestrator)
+
+    return orchestrator
 
 
 # Type imports for service return types (must be before type aliases)

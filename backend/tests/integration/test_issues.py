@@ -11,15 +11,16 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from httpx import AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.domain.models import Issue, Label
 from pilot_space.infrastructure.database.models import ActivityModel, IssueModel
 
 if TYPE_CHECKING:
-    from pilot_space.domain.models import Project, User, Workspace
+    from httpx import AsyncClient
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from pilot_space.domain.models import Project, User
 
 
 pytestmark = pytest.mark.asyncio
@@ -28,12 +29,11 @@ pytestmark = pytest.mark.asyncio
 class TestIssueCRUD:
     """Test issue CRUD operations."""
 
+    @pytest.mark.usefixtures("_db_session", "_test_workspace")
     async def test_create_issue_success(
         self,
         client: AsyncClient,
-        db_session: AsyncSession,
         authenticated_user: User,
-        test_workspace: Workspace,
         test_project: Project,
         auth_headers: dict[str, str],
     ) -> None:
@@ -156,7 +156,7 @@ class TestIssueStateMachine:
     """Test issue state machine transitions."""
 
     @pytest.mark.parametrize(
-        "from_state,to_state,expected_success",
+        ("from_state", "to_state", "expected_success"),
         [
             ("backlog", "todo", True),
             ("todo", "in_progress", True),
@@ -391,11 +391,11 @@ class TestIssueActivityLogging:
         data = response.json()
         assert isinstance(data, list)
 
+    @pytest.mark.usefixtures("authenticated_user")
     async def test_activity_includes_user_info(
         self,
         client: AsyncClient,
         test_issue: Issue,
-        authenticated_user: User,
         auth_headers: dict[str, str],
     ) -> None:
         """Test that activity includes user information."""
@@ -420,11 +420,11 @@ class TestIssueActivityLogging:
 class TestIssueFilteringAndPagination:
     """Test issue filtering and pagination."""
 
+    @pytest.mark.usefixtures("test_issue")
     async def test_list_issues_by_project(
         self,
         client: AsyncClient,
         test_project: Project,
-        test_issue: Issue,
         auth_headers: dict[str, str],
     ) -> None:
         """Test filtering issues by project."""
@@ -437,10 +437,10 @@ class TestIssueFilteringAndPagination:
         data = response.json()
         assert "items" in data or isinstance(data, list)
 
+    @pytest.mark.usefixtures("test_issue")
     async def test_list_issues_by_state(
         self,
         client: AsyncClient,
-        test_issue: Issue,
         auth_headers: dict[str, str],
     ) -> None:
         """Test filtering issues by state."""

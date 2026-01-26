@@ -21,7 +21,7 @@ import { test, expect } from '@playwright/test';
  * Helper to check if an element has a visible focus indicator.
  * Checks for outline, box-shadow, or ring styles.
  */
-async function hasFocusIndicator(page: import('@playwright/test').Page, selector: string) {
+async function _hasFocusIndicator(page: import('@playwright/test').Page, selector: string) {
   return page.evaluate((sel) => {
     const element = document.querySelector(sel);
     if (!element) return false;
@@ -379,7 +379,7 @@ test.describe('Modal/Dialog Keyboard Interaction', () => {
     const createButton = page.getByRole('button', { name: /new|create/i });
     if (await createButton.isVisible()) {
       // Get button identifier
-      const buttonText = await createButton.textContent();
+      const _buttonText = await createButton.textContent();
 
       await createButton.click();
       await page.waitForTimeout(300);

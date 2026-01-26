@@ -169,7 +169,7 @@ class CommitLinkerAgent(SDKBaseAgent[CommitLinkerInput, CommitLinkerOutput]):
 
             # Check for fix/close keywords before the match
             start = match.start()
-            prefix_text = text[max(0, start - 20):start].lower().strip()
+            prefix_text = text[max(0, start - 20) : start].lower().strip()
             is_closing = any(prefix_text.endswith(kw) for kw in FIX_KEYWORDS)
 
             links.append(IssueLink(identifier=identifier, is_closing=is_closing))
@@ -194,9 +194,7 @@ class CommitLinkerAgent(SDKBaseAgent[CommitLinkerInput, CommitLinkerOutput]):
             return links
 
         prefix_set = {p.upper() for p in prefixes}
-        return [
-            link for link in links if link.identifier.split("-")[0].upper() in prefix_set
-        ]
+        return [link for link in links if link.identifier.split("-")[0].upper() in prefix_set]
 
     async def _get_api_key(self, context: AgentContext) -> str | None:
         """Get Anthropic API key from secure storage.
@@ -338,7 +336,7 @@ def extract_issue_refs(text: str) -> list[dict[str, Any]]:
         seen.add(identifier)
 
         start = match.start()
-        prefix_text = text[max(0, start - 20):start].lower().strip()
+        prefix_text = text[max(0, start - 20) : start].lower().strip()
         is_closing = any(prefix_text.endswith(kw) for kw in FIX_KEYWORDS)
 
         links.append({"identifier": identifier, "is_closing": is_closing})

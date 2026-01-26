@@ -56,8 +56,6 @@ class TestToolRegistry:
 
     def test_get_tools_avoids_duplicates(self) -> None:
         """Verify no duplicates when same tool matches multiple filters."""
-        tools = ToolRegistry.get_tools(
-            names=["get_issue_context"], categories=["database"]
-        )
+        tools = ToolRegistry.get_tools(names=["get_issue_context"], categories=["database"])
         # Should only appear once even though it matches both filters
         assert sum(1 for t in tools if t.__name__ == "get_issue_context") == 1

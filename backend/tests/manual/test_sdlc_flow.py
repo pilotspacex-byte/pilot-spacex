@@ -11,7 +11,7 @@ import asyncio
 # Add parent path for imports
 import sys
 import uuid
-from datetime import date, timedelta
+from datetime import UTC, datetime, timedelta
 
 sys.path.insert(0, "/Users/tindang/workspaces/tind-repo/pilot-space/backend/src")
 
@@ -28,7 +28,9 @@ from pilot_space.infrastructure.database.models.project import Project
 from pilot_space.infrastructure.database.models.state import State
 
 # Database URL
-DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:54322/pilot_space"
+DATABASE_URL = (
+    "postgresql+asyncpg://postgres:postgres@localhost:54322/pilot_space"  # pragma: allowlist secret
+)
 
 # Test data IDs
 WORKSPACE_ID = uuid.UUID("a0000000-0000-0000-0000-000000000001")
@@ -233,7 +235,7 @@ async def main():
         max_seq = result.scalar() or 0
 
         created_issues = []
-        for i, issue_data in enumerate(mock_extracted_issues, 1):
+        for _i, issue_data in enumerate(mock_extracted_issues, 1):
             max_seq += 1
             issue = Issue(
                 workspace_id=WORKSPACE_ID,
@@ -277,8 +279,8 @@ async def main():
             name="Sprint 1 - Authentication",
             description="Complete the authentication module with JWT, OAuth, and security features",
             status=CycleStatus.PLANNED,
-            start_date=date.today(),
-            end_date=date.today() + timedelta(days=14),
+            start_date=datetime.now(UTC).date(),
+            end_date=datetime.now(UTC).date() + timedelta(days=14),
             sequence=1,
             owned_by_id=USER_ID,
         )

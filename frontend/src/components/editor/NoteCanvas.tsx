@@ -17,11 +17,13 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { Content, Editor } from '@tiptap/core';
 import { observer } from 'mobx-react-lite';
+import { reaction } from 'mobx';
 import { AlertTriangle, X, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { IssueExtractionPanel, type ExtractedIssue } from './IssueExtractionPanel';
 import type { GhostTextContext } from '@/features/notes/editor/extensions/GhostTextExtension';
 import { motion, AnimatePresence } from 'motion/react';
+import { getAIStore } from '@/stores/ai/AIStore';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -183,57 +185,41 @@ export const NoteCanvas = observer(function NoteCanvas({
 
   // Ref to track current editor for ghost text callback
   const editorRef = useRef<Editor | null>(null);
+  const aiStore = getAIStore();
 
-  // Ghost text trigger function - calls backend API
+  // Ghost text trigger function - delegates to GhostTextStore
   const handleGhostTextTrigger = useCallback(
-    async (context: GhostTextContext) => {
-      const currentEditor = editorRef.current;
-      if (!currentEditor || currentEditor.isDestroyed) return;
-
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8001/api/v1';
-        const response = await fetch(`${apiUrl}/ai/ghost-text`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(workspaceId ? { 'X-Workspace-ID': workspaceId } : {}),
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            current_text: context.textBeforeCursor,
-            cursor_position: context.cursorPosition,
-            context: context.textAfterCursor,
-            is_code: context.blockType === 'codeBlock',
-          }),
-        });
-
-        if (!response.ok) {
-          console.warn('Ghost text API error:', response.status);
-          // Clear loading state on error
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (currentEditor.commands as any).dismissGhostText?.();
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.suggestion && !data.is_empty) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (currentEditor.commands as any).setGhostText?.(data.suggestion);
-        } else {
-          // Clear loading state if no suggestion
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (currentEditor.commands as any).dismissGhostText?.();
-        }
-      } catch (err) {
-        console.warn('Ghost text fetch error:', err);
-        // Clear loading state on network error
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (currentEditor.commands as any).dismissGhostText?.();
-      }
+    (context: GhostTextContext) => {
+      if (!noteId) return;
+      // Request suggestion from store (handles SSE streaming)
+      aiStore.ghostText.requestSuggestion(noteId, context.textBeforeCursor, context.cursorPosition);
     },
-    [workspaceId]
+    [noteId, aiStore.ghostText]
   );
+
+  // Sync ghost text suggestion from store to editor
+  useEffect(() => {
+    const currentEditor = editorRef.current;
+    if (!currentEditor || currentEditor.isDestroyed) return;
+
+    const disposer = reaction(
+      () => aiStore.ghostText.suggestion,
+      (suggestion: string) => {
+        if (!currentEditor.isDestroyed) {
+          if (suggestion) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (currentEditor.commands as any).setGhostText?.(suggestion);
+          } else {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (currentEditor.commands as any).dismissGhostText?.();
+          }
+        }
+      },
+      { fireImmediately: true }
+    );
+
+    return () => disposer();
+  }, [aiStore.ghostText]);
 
   // Issue extraction handler - calls backend API
   const handleExtractIssues = useCallback(

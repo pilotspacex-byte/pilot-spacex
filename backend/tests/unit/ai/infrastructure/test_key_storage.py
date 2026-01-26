@@ -33,7 +33,7 @@ def key_storage(mock_session: MagicMock) -> SecureKeyStorage:
 
     return SecureKeyStorage(
         db=mock_session,
-        master_secret="test-master-secret-32-bytes-long!",
+        master_secret="test-master-secret-32-bytes-long!",  # pragma: allowlist secret
     )
 
 
@@ -46,7 +46,7 @@ class TestSecureKeyStorage:
     ) -> None:
         """Verify key is encrypted before storage."""
         workspace_id = uuid4()
-        api_key = "sk-ant-test-key-12345"
+        api_key = "sk-ant-test-key-12345"  # pragma: allowlist secret
 
         # Mock the execute to simulate successful insert
         mock_session.execute.return_value = None
@@ -72,7 +72,7 @@ class TestSecureKeyStorage:
             await key_storage.store_api_key(
                 workspace_id=workspace_id,
                 provider="invalid-provider",
-                api_key="test-key",
+                api_key="test-key",  # pragma: allowlist secret
             )
 
         # Should not call database
@@ -84,10 +84,10 @@ class TestSecureKeyStorage:
     ) -> None:
         """Verify key is decrypted when retrieved."""
         workspace_id = uuid4()
-        original_key = "sk-ant-test-key-12345"
+        original_key = "sk-ant-test-key-12345"  # pragma: allowlist secret
 
         # First store the key to get encrypted version
-        encrypted = key_storage._encrypt(original_key)  # noqa: SLF001
+        encrypted = key_storage._encrypt(original_key)
 
         # Mock the execute to return encrypted key
         mock_result = MagicMock()
@@ -217,8 +217,8 @@ class TestSecureKeyStorage:
     @pytest.mark.asyncio
     async def test_mask_key_hides_middle_characters(self, key_storage: SecureKeyStorage) -> None:
         """Verify key masking for logging."""
-        api_key = "sk-ant-api01-test-key-12345"
-        masked = key_storage._mask_key(api_key)  # noqa: SLF001
+        api_key = "sk-ant-api01-test-key-12345"  # pragma: allowlist secret
+        masked = key_storage._mask_key(api_key)
 
         assert masked.startswith("sk-a")
         assert masked.endswith("2345")
@@ -228,8 +228,8 @@ class TestSecureKeyStorage:
     @pytest.mark.asyncio
     async def test_mask_short_key_all_asterisks(self, key_storage: SecureKeyStorage) -> None:
         """Verify short keys are fully masked."""
-        api_key = "short"
-        masked = key_storage._mask_key(api_key)  # noqa: SLF001
+        api_key = "short"  # pragma: allowlist secret
+        masked = key_storage._mask_key(api_key)
 
         assert masked == "*****"
 
@@ -299,10 +299,12 @@ class TestSecureKeyStorage:
         mock_model.generate_content_async = AsyncMock()
         mock_genai.GenerativeModel.return_value = mock_model
 
-        is_valid = await key_storage.validate_api_key("google", "test-key")
+        is_valid = await key_storage.validate_api_key(
+            "google", "test-key"
+        )  # pragma: allowlist secret
 
         assert is_valid is True
-        mock_genai.configure.assert_called_once_with(api_key="test-key")
+        mock_genai.configure.assert_called_once_with(api_key="test-key")  # pragma: allowlist secret
 
     @pytest.mark.asyncio
     async def test_validate_api_key_unknown_provider(self, key_storage: SecureKeyStorage) -> None:
@@ -323,7 +325,7 @@ class TestSecureKeyStorage:
         workspace_id = uuid4()
 
         # Mock get_api_key to return a key
-        encrypted = key_storage._encrypt("sk-ant-test")  # noqa: SLF001
+        encrypted = key_storage._encrypt("sk-ant-test")
         mock_result_get = MagicMock()
         mock_result_get.scalar_one_or_none.return_value = encrypted
 

@@ -10,6 +10,7 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import type { MarginAnnotationStore, NoteAnnotation } from '@/stores/ai/MarginAnnotationStore';
 
 export interface MarginAnnotationOptions {
@@ -86,18 +87,23 @@ export const MarginAnnotationExtension = Extension.create<MarginAnnotationOption
   },
 
   addCommands() {
+    // Return type needs to match TipTap's command structure
+    // Using any here because TipTap's types are complex
     return {
       /**
        * Force rebuild decorations (call after store updates)
        */
       updateMarginAnnotations:
         () =>
-        ({ tr, dispatch }: { tr: any; dispatch?: ((tr: any) => void) | null }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ({ tr, dispatch }: any) => {
           if (dispatch) {
             tr.setMeta(marginAnnotationPluginKey, { forceUpdate: true });
+            dispatch(tr);
           }
           return true;
         },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
   },
 });
@@ -106,7 +112,7 @@ export const MarginAnnotationExtension = Extension.create<MarginAnnotationOption
  * Build decoration widgets for blocks with annotations.
  * Creates small indicators in the editor margin.
  */
-function buildDecorations(doc: any, store: MarginAnnotationStore): DecorationSet {
+function buildDecorations(doc: PMNode, store: MarginAnnotationStore): DecorationSet {
   const decorations: Decoration[] = [];
   const annotations = store.getAnnotationsForDoc();
 
@@ -122,20 +128,16 @@ function buildDecorations(doc: any, store: MarginAnnotationStore): DecorationSet
   });
 
   // Traverse document to find blocks with annotations
-  doc.descendants((node: any, pos: number) => {
+  doc.descendants((node: PMNode, pos: number) => {
     if (node.isBlock && node.attrs.blockId) {
       const blockAnnotations = annotationsByBlock.get(node.attrs.blockId);
 
       if (blockAnnotations && blockAnnotations.length > 0) {
         // Create indicator widget at block start
-        const widget = Decoration.widget(
-          pos + 1,
-          () => createIndicatorWidget(blockAnnotations),
-          {
-            side: 1,
-            key: `annotation-${node.attrs.blockId}`,
-          }
-        );
+        const widget = Decoration.widget(pos + 1, () => createIndicatorWidget(blockAnnotations), {
+          side: 1,
+          key: `annotation-${node.attrs.blockId}`,
+        });
         decorations.push(widget);
       }
     }
@@ -199,10 +201,10 @@ function createIndicatorWidget(annotations: NoteAnnotation[]): HTMLElement {
  * Find document position for a block ID.
  * Returns null if block not found.
  */
-export function findBlockPosition(doc: any, blockId: string): number | null {
+export function findBlockPosition(doc: PMNode, blockId: string): number | null {
   let position: number | null = null;
 
-  doc.descendants((node: any, pos: number) => {
+  doc.descendants((node: PMNode, pos: number) => {
     if (position !== null) return false;
     if (node.isBlock && node.attrs.blockId === blockId) {
       position = pos;

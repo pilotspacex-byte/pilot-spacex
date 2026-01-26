@@ -113,7 +113,7 @@ class TestApprovalExpiration:
             session=mock_session,
             expiration_hours=24,
         )
-        approval_service._repository = mock_repo  # noqa: SLF001 - Test mock
+        approval_service._repository = mock_repo
 
         # Create an expired request
         request_id = uuid4()
@@ -150,7 +150,7 @@ class TestApprovalExpiration:
             session=mock_session,
             expiration_hours=24,
         )
-        approval_service._repository = mock_repo  # noqa: SLF001 - Test mock
+        approval_service._repository = mock_repo
 
         # Create a valid request (expires in future)
         request_id = uuid4()
@@ -177,7 +177,7 @@ class TestApprovalExpiration:
         )
 
         # Verify request was marked as approved
-        request = mock_repo._requests[request_id]  # noqa: SLF001 - Test mock
+        request = mock_repo._requests[request_id]
         assert request["status"] == ApprovalStatus.APPROVED
         assert request["resolved_by"] == resolved_by
 
@@ -191,7 +191,7 @@ class TestApprovalExpiration:
             session=mock_session,
             expiration_hours=24,
         )
-        approval_service._repository = mock_repo  # noqa: SLF001 - Test mock
+        approval_service._repository = mock_repo
 
         request_id = uuid4()
         workspace_id = uuid4()
@@ -226,7 +226,7 @@ class TestApprovalExpiration:
             session=mock_session,
             expiration_hours=24,
         )
-        approval_service._repository = mock_repo  # noqa: SLF001 - Test mock
+        approval_service._repository = mock_repo
 
         request_id = uuid4()
         expires_at = datetime.now(UTC) - timedelta(hours=1)
@@ -258,7 +258,7 @@ class TestApprovalExpiration:
             session=mock_session,
             expiration_hours=24,
         )
-        approval_service._repository = mock_repo  # noqa: SLF001 - Test mock
+        approval_service._repository = mock_repo
 
         # Create multiple expired requests
         request_ids = [uuid4() for _ in range(3)]
@@ -292,7 +292,7 @@ class TestApprovalExpiration:
             session=mock_session,
             expiration_hours=24,
         )
-        approval_service._repository = mock_repo  # noqa: SLF001 - Test mock
+        approval_service._repository = mock_repo
 
         request_id = uuid4()
 
@@ -314,7 +314,7 @@ class TestApprovalExpiration:
             resolved_by=uuid4(),
         )
 
-        request = mock_repo._requests[request_id]  # noqa: SLF001 - Test mock
+        request = mock_repo._requests[request_id]
         assert request["status"] == ApprovalStatus.APPROVED
 
 

@@ -105,8 +105,7 @@ async def get_issue_context(
             ),
             "priority": issue.priority.value if issue.priority else None,
             "labels": [
-                {"name": label.name, "color": label.color}
-                for label in (issue.labels or [])
+                {"name": label.name, "color": label.color} for label in (issue.labels or [])
             ],
             "assignee": (
                 {
@@ -143,9 +142,7 @@ async def get_issue_context(
     if include_related:
         response["related_issues"] = {
             "parent": _issue_summary(issue.parent) if issue.parent else None,
-            "children": [
-                _issue_summary(child) for child in (issue.sub_issues or [])[:10]
-            ],
+            "children": [_issue_summary(child) for child in (issue.sub_issues or [])[:10]],
         }
 
     # Add activity
@@ -358,10 +355,7 @@ async def find_similar_issues(
             Issue.workspace_id == UUID(ctx.workspace_id),
             Issue.deleted_at.is_(None),
         )
-        .where(
-            Issue.name.ilike(search_pattern)
-            | Issue.description.ilike(search_pattern)
-        )
+        .where(Issue.name.ilike(search_pattern) | Issue.description.ilike(search_pattern))
         .limit(limit)
     )
 
@@ -508,9 +502,7 @@ async def get_cycle_context(
     if include_issues:
         issues = cycle.issues or []
         completed_count = sum(
-            1
-            for i in issues
-            if i.state and i.state.group and i.state.group.value == "completed"
+            1 for i in issues if i.state and i.state.group and i.state.group.value == "completed"
         )
         response["metrics"] = {
             "total_issues": len(issues),

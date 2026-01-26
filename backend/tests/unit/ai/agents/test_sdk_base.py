@@ -157,10 +157,10 @@ class TestSDKBaseAgent:
         """Verify agent initialization stores dependencies."""
         agent = ConcreteAgent(**mock_deps)
 
-        assert agent._tool_registry is mock_deps["tool_registry"]  # noqa: SLF001
-        assert agent._provider_selector is mock_deps["provider_selector"]  # noqa: SLF001
-        assert agent._cost_tracker is mock_deps["cost_tracker"]  # noqa: SLF001
-        assert agent._resilient_executor is mock_deps["resilient_executor"]  # noqa: SLF001
+        assert agent._tool_registry is mock_deps["tool_registry"]
+        assert agent._provider_selector is mock_deps["provider_selector"]
+        assert agent._cost_tracker is mock_deps["cost_tracker"]
+        assert agent._resilient_executor is mock_deps["resilient_executor"]
 
     def test_tools_property_returns_registry(self, mock_deps):
         """Verify tools property returns tool registry."""
@@ -221,9 +221,7 @@ class TestSDKBaseAgent:
     @pytest.mark.asyncio
     async def test_run_handles_exception(self, mock_deps, context):
         """Verify run handles exceptions from execute."""
-        mock_deps["resilient_executor"].execute = AsyncMock(
-            side_effect=ValueError("test error")
-        )
+        mock_deps["resilient_executor"].execute = AsyncMock(side_effect=ValueError("test error"))
         mock_deps["provider_selector"].select.return_value = (
             "anthropic",
             "claude-sonnet-4-20250514",

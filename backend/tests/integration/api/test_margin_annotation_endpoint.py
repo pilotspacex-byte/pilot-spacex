@@ -118,9 +118,7 @@ class TestMarginAnnotationEndpoint:
         }
 
         # Act
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 f"/ai/notes/{test_note_id}/annotations",
                 headers=auth_headers,
@@ -144,9 +142,7 @@ class TestMarginAnnotationEndpoint:
         }
 
         # Act
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 f"/ai/notes/{test_note_id}/annotations",
                 headers=auth_headers,
@@ -170,9 +166,7 @@ class TestMarginAnnotationEndpoint:
         }
 
         # Act
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 f"/ai/notes/{test_note_id}/annotations",
                 headers=auth_headers,
@@ -200,9 +194,7 @@ class TestMarginAnnotationEndpoint:
         }
 
         # Act
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 f"/ai/notes/{test_note_id}/annotations",
                 headers=headers,
@@ -269,10 +261,10 @@ class TestMarginAnnotationEndpoint:
         mock_annotations = []
         for i in range(3):
             mock_ann = MagicMock()
-            mock_ann.block_id = f"block-{i+1}"
+            mock_ann.block_id = f"block-{i + 1}"
             mock_ann.type = MagicMock(value="suggestion")
-            mock_ann.title = f"Annotation {i+1}"
-            mock_ann.content = f"Content {i+1}"
+            mock_ann.title = f"Annotation {i + 1}"
+            mock_ann.content = f"Content {i + 1}"
             mock_ann.confidence = 0.8
             mock_ann.action_label = None
             mock_annotations.append(mock_ann)

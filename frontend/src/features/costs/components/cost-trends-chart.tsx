@@ -26,6 +26,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { format, parseISO } from 'date-fns';
 import type { CostTrendData } from '@/stores/ai/CostStore';
+import type { TooltipProps } from 'recharts';
 
 // ============================================================================
 // Types
@@ -36,6 +37,13 @@ export interface CostTrendsChartProps {
   data: CostTrendData[];
   /** Additional class name */
   className?: string;
+}
+
+interface CustomTooltipProps extends TooltipProps<number, string> {
+  active?: boolean;
+  payload?: Array<{
+    payload: CostTrendData;
+  }>;
 }
 
 // ============================================================================
@@ -73,40 +81,47 @@ function formatTooltipDate(dateStr: string): string {
 }
 
 // ============================================================================
+// Sub-components
+// ============================================================================
+
+/**
+ * Custom tooltip content component.
+ */
+function CustomTooltip({ active, payload }: CustomTooltipProps) {
+  if (!active || !payload || !payload.length) return null;
+
+  const data = payload[0]?.payload as CostTrendData;
+  if (!data) return null;
+
+  return (
+    <div className="rounded-lg border bg-background p-3 shadow-md">
+      <p className="font-semibold text-sm">{formatTooltipDate(data.date)}</p>
+      <div className="mt-1 space-y-1">
+        <div className="flex justify-between gap-4 text-xs">
+          <span className="text-muted-foreground">Cost:</span>
+          <span className="font-medium font-mono">{formatCost(data.total_cost_usd)}</span>
+        </div>
+        <div className="flex justify-between gap-4 text-xs">
+          <span className="text-muted-foreground">Requests:</span>
+          <span className="font-medium">{data.request_count.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between gap-4 text-xs">
+          <span className="text-muted-foreground">Avg/Request:</span>
+          <span className="font-medium font-mono">
+            {formatCost(data.request_count > 0 ? data.total_cost_usd / data.request_count : 0)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // Component
 // ============================================================================
 
 export function CostTrendsChart({ data, className }: CostTrendsChartProps) {
   const hasData = data && data.length > 0;
-
-  // Custom tooltip content
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || !payload.length) return null;
-
-    const data = payload[0].payload as CostTrendData;
-
-    return (
-      <div className="rounded-lg border bg-background p-3 shadow-md">
-        <p className="font-semibold text-sm">{formatTooltipDate(data.date)}</p>
-        <div className="mt-1 space-y-1">
-          <div className="flex justify-between gap-4 text-xs">
-            <span className="text-muted-foreground">Cost:</span>
-            <span className="font-medium font-mono">{formatCost(data.total_cost_usd)}</span>
-          </div>
-          <div className="flex justify-between gap-4 text-xs">
-            <span className="text-muted-foreground">Requests:</span>
-            <span className="font-medium">{data.request_count.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between gap-4 text-xs">
-            <span className="text-muted-foreground">Avg/Request:</span>
-            <span className="font-medium font-mono">
-              {formatCost(data.request_count > 0 ? data.total_cost_usd / data.request_count : 0)}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <Card className={className}>

@@ -37,6 +37,14 @@ export interface WorkspaceAISettings {
   ghost_text_enabled: boolean;
   margin_annotations_enabled: boolean;
   ai_context_enabled: boolean;
+  issue_extraction_enabled: boolean;
+  pr_review_enabled: boolean;
+  provider_status?: Array<{
+    provider: 'anthropic' | 'openai' | 'google';
+    key_set: boolean;
+    last_validated_at?: string | null;
+    status?: 'connected' | 'disconnected' | 'unknown';
+  }>;
 }
 
 export interface CostSummary {
@@ -116,7 +124,7 @@ export const aiApi = {
    * @param issueId - Issue UUID
    * @returns SSE endpoint URL
    */
-  getAIContextUrl: (issueId: string) => `/api/v1/ai/issues/${issueId}/context`,
+  getAIContextUrl: (issueId: string) => `/api/v1/ai/issues/${issueId}/ai-context/stream`,
 
   /**
    * Get PR review streaming URL.

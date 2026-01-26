@@ -6,7 +6,8 @@ Available routers:
 - workspace_notes: Workspace-scoped note routes
 - projects: Project management
 - issues: Issue tracking with AI enhancement
-- notes: Note canvas with ghost text
+- notes: Note canvas
+- notes_ai: AI features for notes (ghost text, annotations)
 - cycles: Sprint/cycle management
 - ai: AI feature endpoints (ghost text, PR review, context)
 - ai_configuration: Workspace AI/LLM provider configuration
@@ -24,7 +25,11 @@ from pilot_space.api.v1.routers.integrations import router as integrations_route
 from pilot_space.api.v1.routers.issues import router as issues_router
 from pilot_space.api.v1.routers.issues_ai import router as issues_ai_router
 from pilot_space.api.v1.routers.issues_ai_context import router as issues_ai_context_router
+from pilot_space.api.v1.routers.issues_ai_context_streaming import (
+    router as issues_ai_context_streaming_router,
+)
 from pilot_space.api.v1.routers.notes import router as notes_router
+from pilot_space.api.v1.routers.notes_ai import router as notes_ai_router
 from pilot_space.api.v1.routers.projects import router as projects_router
 from pilot_space.api.v1.routers.webhooks import router as webhooks_router
 from pilot_space.api.v1.routers.workspace_issues import router as workspace_issues_router
@@ -38,8 +43,10 @@ __all__ = [
     "cycles_router",
     "integrations_router",
     "issues_ai_context_router",
+    "issues_ai_context_streaming_router",
     "issues_ai_router",
     "issues_router",
+    "notes_ai_router",
     "notes_router",
     "projects_router",
     "webhooks_router",

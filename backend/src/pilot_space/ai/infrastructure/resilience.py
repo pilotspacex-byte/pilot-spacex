@@ -360,6 +360,7 @@ class ResilientExecutor:
                     if timeout_sec is None:
                         stream_iterator = operation()
                     else:
+
                         async def _timed_operation() -> AsyncGenerator[T, None]:
                             try:
                                 async with asyncio.timeout(timeout_sec):
@@ -452,8 +453,7 @@ class ResilientExecutor:
             Dictionary mapping provider names to circuit breaker metrics.
         """
         return {
-            provider: breaker.get_metrics()
-            for provider, breaker in self._circuit_breakers.items()
+            provider: breaker.get_metrics() for provider, breaker in self._circuit_breakers.items()
         }
 
 

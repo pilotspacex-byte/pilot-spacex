@@ -168,14 +168,14 @@ class TestCircuitBreaker:
                 await breaker.execute(failing_operation)
 
         assert breaker.is_closed
-        assert breaker._state.failure_count == 2  # noqa: SLF001
+        assert breaker._state.failure_count == 2
 
         # Success should reset counter
         async def successful_operation() -> str:
             return "success"
 
         await breaker.execute(successful_operation)
-        assert breaker._state.failure_count == 0  # noqa: SLF001
+        assert breaker._state.failure_count == 0
 
         # Can handle 3 more failures before opening
         for _ in range(2):

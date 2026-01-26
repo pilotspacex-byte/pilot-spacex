@@ -17,10 +17,18 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CostByAgentData } from '@/stores/ai/CostStore';
+import type { TooltipProps } from 'recharts';
 
 // ============================================================================
 // Types
 // ============================================================================
+
+interface CustomTooltipProps extends TooltipProps<number, string> {
+  active?: boolean;
+  payload?: Array<{
+    payload: CostByAgentData;
+  }>;
+}
 
 export interface CostByAgentChartProps {
   /** Agent cost data */
@@ -75,45 +83,52 @@ function formatAgentName(name: string): string {
 }
 
 // ============================================================================
-// Component
+// Sub-components
 // ============================================================================
 
-export function CostByAgentChart({ data, className, onAgentClick }: CostByAgentChartProps) {
-  const hasData = data && data.length > 0;
+/**
+ * Custom tooltip content component.
+ */
+function CustomTooltip({ active, payload }: CustomTooltipProps) {
+  if (!active || !payload || !payload.length) return null;
 
-  // Custom tooltip content
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || !payload.length) return null;
+  const data = payload[0]?.payload as CostByAgentData;
+  if (!data) return null;
 
-    const data = payload[0].payload as CostByAgentData;
-
-    return (
-      <div className="rounded-lg border bg-background p-3 shadow-md">
-        <p className="font-semibold text-sm">{formatAgentName(data.agent_name)}</p>
-        <div className="mt-1 space-y-1">
-          <div className="flex justify-between gap-4 text-xs">
-            <span className="text-muted-foreground">Cost:</span>
-            <span className="font-medium">{formatCost(data.total_cost_usd)}</span>
-          </div>
-          <div className="flex justify-between gap-4 text-xs">
-            <span className="text-muted-foreground">Requests:</span>
-            <span className="font-medium">{data.request_count.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between gap-4 text-xs">
-            <span className="text-muted-foreground">Share:</span>
-            <span className="font-medium">{data.percentage.toFixed(1)}%</span>
-          </div>
+  return (
+    <div className="rounded-lg border bg-background p-3 shadow-md">
+      <p className="font-semibold text-sm">{formatAgentName(data.agent_name)}</p>
+      <div className="mt-1 space-y-1">
+        <div className="flex justify-between gap-4 text-xs">
+          <span className="text-muted-foreground">Cost:</span>
+          <span className="font-medium">{formatCost(data.total_cost_usd)}</span>
+        </div>
+        <div className="flex justify-between gap-4 text-xs">
+          <span className="text-muted-foreground">Requests:</span>
+          <span className="font-medium">{data.request_count.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between gap-4 text-xs">
+          <span className="text-muted-foreground">Share:</span>
+          <span className="font-medium">{data.percentage.toFixed(1)}%</span>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+}
 
-  // Custom legend renderer
-  const renderLegend = (props: any) => {
+/**
+ * Custom legend renderer component factory.
+ */
+function createLegendRenderer(onAgentClick?: (agentName: string) => void) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return function LegendRenderer(props: any) {
     const { payload } = props;
+
+    if (!payload) return null;
 
     return (
       <div className="flex flex-col gap-2 mt-4">
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {payload.map((entry: any, index: number) => {
           const data = entry.payload as CostByAgentData;
           return (
@@ -136,6 +151,14 @@ export function CostByAgentChart({ data, className, onAgentClick }: CostByAgentC
       </div>
     );
   };
+}
+
+// ============================================================================
+// Component
+// ============================================================================
+
+export function CostByAgentChart({ data, className, onAgentClick }: CostByAgentChartProps) {
+  const hasData = data && data.length > 0;
 
   return (
     <Card className={className}>
@@ -172,7 +195,7 @@ export function CostByAgentChart({ data, className, onAgentClick }: CostByAgentC
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} />
-              <Legend content={renderLegend} />
+              <Legend content={createLegendRenderer(onAgentClick)} />
             </PieChart>
           </ResponsiveContainer>
         )}

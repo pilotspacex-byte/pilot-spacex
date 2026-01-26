@@ -377,7 +377,7 @@ class TestGhostText:
         mock_ai_client.query = AsyncMock(side_effect=Exception("AI service unavailable"))
 
         # Act & Assert
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="AI service unavailable"):
             await mock_ai_client.query(prompt="Test")
 
 

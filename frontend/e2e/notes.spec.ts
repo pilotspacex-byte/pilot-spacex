@@ -162,7 +162,7 @@ test.describe('Note Workflow', () => {
       await page.waitForTimeout(600);
 
       // Get initial content length
-      const initialContent = await editor.textContent();
+      const _initialContent = await editor.textContent();
 
       // Press Arrow Right
       await page.keyboard.press('ArrowRight');

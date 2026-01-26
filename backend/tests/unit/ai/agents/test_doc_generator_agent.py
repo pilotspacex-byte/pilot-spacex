@@ -41,7 +41,7 @@ def agent_context() -> AgentContext:
     return AgentContext(
         workspace_id=uuid4(),
         user_id=uuid4(),
-        metadata={"anthropic_api_key": "test-key"},
+        metadata={"anthropic_api_key": "test-key"},  # pragma: allowlist secret
     )
 
 
@@ -65,9 +65,7 @@ class TestDocGeneratorAgent:
         assert "generate readme documentation" in prompt.lower()
         assert "comprehensive" in prompt.lower()
 
-    def test_build_prompt_with_context(
-        self, doc_generator_agent: DocGeneratorAgent
-    ) -> None:
+    def test_build_prompt_with_context(self, doc_generator_agent: DocGeneratorAgent) -> None:
         """Verify prompt building with project context."""
         input_data = DocGeneratorInput(
             doc_type=DocType.API_DOCS,
@@ -83,9 +81,7 @@ class TestDocGeneratorAgent:
         assert "FastAPI REST API" in prompt
         assert "# API" in prompt
 
-    def test_get_system_prompt_readme(
-        self, doc_generator_agent: DocGeneratorAgent
-    ) -> None:
+    def test_get_system_prompt_readme(self, doc_generator_agent: DocGeneratorAgent) -> None:
         """Verify system prompt for README type."""
         system_prompt = doc_generator_agent._get_system_prompt(DocType.README)
 
@@ -93,9 +89,7 @@ class TestDocGeneratorAgent:
         assert "installation" in system_prompt.lower()
         assert "usage examples" in system_prompt.lower()
 
-    def test_get_system_prompt_api_docs(
-        self, doc_generator_agent: DocGeneratorAgent
-    ) -> None:
+    def test_get_system_prompt_api_docs(self, doc_generator_agent: DocGeneratorAgent) -> None:
         """Verify system prompt for API docs type."""
         system_prompt = doc_generator_agent._get_system_prompt(DocType.API_DOCS)
 
@@ -103,9 +97,7 @@ class TestDocGeneratorAgent:
         assert "endpoint" in system_prompt.lower()
         assert "request/response" in system_prompt.lower()
 
-    def test_parse_response_basic(
-        self, doc_generator_agent: DocGeneratorAgent
-    ) -> None:
+    def test_parse_response_basic(self, doc_generator_agent: DocGeneratorAgent) -> None:
         """Verify response parsing with basic content."""
         content = """# My Project
 
@@ -132,9 +124,7 @@ Import and use the API.
         assert "Installation" in output.sections
         assert output.estimated_reading_time >= 1
 
-    def test_parse_response_long_content(
-        self, doc_generator_agent: DocGeneratorAgent
-    ) -> None:
+    def test_parse_response_long_content(self, doc_generator_agent: DocGeneratorAgent) -> None:
         """Verify reading time estimation for long content."""
         # Create content with ~400 words (should be ~2 min read at 200 wpm)
         long_content = "# Title\n\n" + " ".join(["word"] * 400)
@@ -156,10 +146,8 @@ Import and use the API.
             metadata={},  # No API key
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception, match=r"(?i)api key"):
             await doc_generator_agent.execute(input_data, context)
-
-        assert "api key" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_execute_validates_input(
@@ -170,10 +158,8 @@ Import and use the API.
         """Verify execution validates required fields."""
         input_data = DocGeneratorInput(doc_type=None)  # type: ignore[arg-type]
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match=r"(?i)required"):
             await doc_generator_agent.execute(input_data, agent_context)
-
-        assert "required" in str(exc_info.value).lower()
 
 
 __all__ = ["TestDocGeneratorAgent"]

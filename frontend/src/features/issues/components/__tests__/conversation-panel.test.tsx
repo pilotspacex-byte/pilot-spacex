@@ -15,11 +15,19 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConversationPanel } from '../conversation-panel';
 
+// Types
+interface MockMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
+
 // Mock stores
 const mockConversationStore = {
   currentIssueId: null as string | null,
   isSessionActive: false,
-  messages: [] as any[],
+  messages: [] as MockMessage[],
   isStreaming: false,
   currentStreamContent: '',
   error: null as string | null,

@@ -161,6 +161,9 @@ export function useIssueSyncListener({
       return;
     }
 
+    // Copy ref to variable for cleanup function
+    const dismissTimers = dismissTimersRef.current;
+
     // Create channel for issue changes
     const channel = supabase
       .channel(`note-issues-${noteId}`)
@@ -188,9 +191,9 @@ export function useIssueSyncListener({
       }
       setIsConnected(false);
 
-      // Clear all timers
-      dismissTimersRef.current.forEach((timer) => clearTimeout(timer));
-      dismissTimersRef.current.clear();
+      // Clear all timers using the captured variable
+      dismissTimers.forEach((timer) => clearTimeout(timer));
+      dismissTimers.clear();
     };
   }, [enabled, noteId, workspaceId, linkedBlockIds, handleIssueChange]);
 

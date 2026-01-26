@@ -96,16 +96,18 @@ async def semantic_search(
             if issue.name and query.lower() in issue.name.lower():
                 score = 0.95  # Higher score for title matches
 
-            results.append({
-                "type": "issue",
-                "id": str(issue.id),
-                "identifier": issue.identifier,
-                "title": issue.name,
-                "excerpt": (issue.description or "")[:200],
-                "score": score,
-                "priority": issue.priority.value if issue.priority else "none",
-                "state": issue.state.name if issue.state else None,
-            })
+            results.append(
+                {
+                    "type": "issue",
+                    "id": str(issue.id),
+                    "identifier": issue.identifier,
+                    "title": issue.name,
+                    "excerpt": (issue.description or "")[:200],
+                    "score": score,
+                    "priority": issue.priority.value if issue.priority else "none",
+                    "state": issue.state.name if issue.state else None,
+                }
+            )
 
     # Search notes
     if content_types is None or "note" in content_types:
@@ -130,15 +132,17 @@ async def semantic_search(
             if note.title and query.lower() in note.title.lower():
                 score = 0.90
 
-            results.append({
-                "type": "note",
-                "id": str(note.id),
-                "title": note.title,
-                "excerpt": (note.summary or "")[:200],
-                "score": score,
-                "word_count": note.word_count,
-                "is_pinned": note.is_pinned,
-            })
+            results.append(
+                {
+                    "type": "note",
+                    "id": str(note.id),
+                    "title": note.title,
+                    "excerpt": (note.summary or "")[:200],
+                    "score": score,
+                    "word_count": note.word_count,
+                    "is_pinned": note.is_pinned,
+                }
+            )
 
     # Sort by score descending and limit
     results.sort(key=lambda x: x["score"], reverse=True)
@@ -199,9 +203,7 @@ async def search_codebase(
     )
 
     if repo_id:
-        integration_query = integration_query.where(
-            Integration.id == UUID(repo_id)
-        )
+        integration_query = integration_query.where(Integration.id == UUID(repo_id))
 
     result = await ctx.db_session.execute(integration_query)
     integrations = result.scalars().all()
@@ -220,11 +222,13 @@ async def search_codebase(
     for integration in integrations:
         # Safe access to metadata (might be None)
         metadata = integration.settings or {}
-        integration_info.append({
-            "id": str(integration.id),
-            "repo_name": metadata.get("repo_name"),
-            "external_account": integration.external_account_name,
-        })
+        integration_info.append(
+            {
+                "id": str(integration.id),
+                "repo_name": metadata.get("repo_name"),
+                "external_account": integration.external_account_name,
+            }
+        )
 
     return {
         "found": True,

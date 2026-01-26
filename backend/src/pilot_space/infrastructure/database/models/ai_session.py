@@ -46,8 +46,7 @@ class AISession(Base, WorkspaceScopedMixin):
     __tablename__ = "ai_sessions"
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "agent_name", "context_id",
-            name="uq_ai_sessions_user_agent_context"
+            "user_id", "agent_name", "context_id", name="uq_ai_sessions_user_agent_context"
         ),
         Index("ix_ai_sessions_expires_at", "expires_at"),
         Index("ix_ai_sessions_user_agent", "user_id", "agent_name"),

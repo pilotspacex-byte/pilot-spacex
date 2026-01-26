@@ -41,24 +41,20 @@ def agent_context() -> AgentContext:
     return AgentContext(
         workspace_id=uuid4(),
         user_id=uuid4(),
-        metadata={"anthropic_api_key": "test-key"},
+        metadata={"anthropic_api_key": "test-key"},  # pragma: allowlist secret
     )
 
 
 class TestDiagramGeneratorAgent:
     """Test suite for DiagramGeneratorAgent."""
 
-    def test_agent_initialization(
-        self, diagram_generator_agent: DiagramGeneratorAgent
-    ) -> None:
+    def test_agent_initialization(self, diagram_generator_agent: DiagramGeneratorAgent) -> None:
         """Verify agent initializes with correct configuration."""
         assert diagram_generator_agent.AGENT_NAME == "diagram_generator"
         assert diagram_generator_agent.DEFAULT_MODEL == "claude-sonnet-4-20250514"
         assert diagram_generator_agent.MAX_TOKENS == 2048
 
-    def test_build_prompt_basic(
-        self, diagram_generator_agent: DiagramGeneratorAgent
-    ) -> None:
+    def test_build_prompt_basic(self, diagram_generator_agent: DiagramGeneratorAgent) -> None:
         """Verify prompt building with basic input."""
         input_data = DiagramGeneratorInput(
             diagram_type=DiagramType.FLOWCHART,
@@ -93,9 +89,7 @@ class TestDiagramGeneratorAgent:
         self, diagram_generator_agent: DiagramGeneratorAgent
     ) -> None:
         """Verify system prompt for flowchart type."""
-        system_prompt = diagram_generator_agent._get_system_prompt(
-            DiagramType.FLOWCHART
-        )
+        system_prompt = diagram_generator_agent._get_system_prompt(DiagramType.FLOWCHART)
 
         assert "flowchart" in system_prompt.lower()
         assert "TD" in system_prompt or "top-down" in system_prompt.lower()
@@ -199,10 +193,8 @@ graph TD
             metadata={},  # No API key
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception, match=r"(?i)api key"):
             await diagram_generator_agent.execute(input_data, context)
-
-        assert "api key" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_execute_validates_input(
@@ -216,10 +208,8 @@ graph TD
             description="",  # Empty description
         )
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match=r"(?i)required"):
             await diagram_generator_agent.execute(input_data, agent_context)
-
-        assert "required" in str(exc_info.value).lower()
 
 
 __all__ = ["TestDiagramGeneratorAgent"]
