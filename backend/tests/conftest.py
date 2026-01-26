@@ -91,11 +91,12 @@ def test_database_url() -> str:
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def test_engine(test_database_url: str) -> AsyncGenerator[AsyncEngine, None]:
     """Create async engine for tests.
 
     Creates tables on startup and drops them on teardown.
+    Changed from session to function scope to work with pytest-asyncio.
 
     Args:
         test_database_url: Database URL for tests.

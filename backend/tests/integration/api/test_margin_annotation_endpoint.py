@@ -29,6 +29,46 @@ def test_note_id() -> UUID:
     return uuid4()
 
 
+@pytest.fixture
+def mock_dependencies():
+    """Override FastAPI dependencies for testing."""
+    from pilot_space.dependencies import (
+        get_current_user_id_or_demo,
+        get_sdk_orchestrator,
+        get_session,
+    )
+
+    async def mock_get_session():
+        """Mock database session."""
+        mock_session = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session.rollback = AsyncMock()
+        # Mock the get method for note retrieval
+        mock_session.get = AsyncMock(return_value=None)  # Return None to skip DB validation
+        yield mock_session
+
+    def mock_get_user_id():
+        """Mock user ID."""
+        return uuid4()
+
+    async def mock_get_orchestrator():
+        """Mock SDK orchestrator - will be replaced in individual tests."""
+        # Return a default mock - tests can override with patches
+        mock_orch = MagicMock()
+        mock_orch.execute = AsyncMock()
+        return mock_orch
+
+    # Override dependencies at the app level
+    app.dependency_overrides[get_session] = mock_get_session
+    app.dependency_overrides[get_current_user_id_or_demo] = mock_get_user_id
+    app.dependency_overrides[get_sdk_orchestrator] = mock_get_orchestrator
+
+    yield
+
+    # Clean up overrides after test
+    app.dependency_overrides.clear()
+
+
 class TestMarginAnnotationEndpoint:
     """Test suite for margin annotation SSE endpoint."""
 
@@ -37,6 +77,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
+        mock_dependencies,  # noqa: ARG002
     ) -> None:
         """Verify endpoint streams annotations via SSE."""
         # Arrange
@@ -55,6 +96,7 @@ class TestMarginAnnotationEndpoint:
                 content="Consider adding examples",
                 confidence=0.8,
                 action_label=None,
+                action_payload=None,
             ),
             MagicMock(
                 block_id="block-2",
@@ -63,6 +105,7 @@ class TestMarginAnnotationEndpoint:
                 content="Verify syntax",
                 confidence=0.9,
                 action_label="Validate",
+                action_payload=None,
             ),
         ]
         mock_output.processed_blocks = 2
@@ -71,26 +114,31 @@ class TestMarginAnnotationEndpoint:
         mock_result.success = True
         mock_result.output = mock_output
 
-        with patch("pilot_space.api.v1.routers.ai.get_container") as mock_get_container:
-            mock_container = MagicMock()
-            mock_orchestrator = MagicMock()
-            mock_orchestrator.execute = AsyncMock(return_value=mock_result)
-            mock_container.sdk_orchestrator.return_value = mock_orchestrator
-            mock_get_container.return_value = mock_container
+        # Override the orchestrator dependency for this specific test
+        from pilot_space.dependencies import get_sdk_orchestrator
 
+        mock_orchestrator = MagicMock()
+        mock_orchestrator.execute = AsyncMock(return_value=mock_result)
+
+        async def mock_get_orch():
+            return mock_orchestrator
+
+        app.dependency_overrides[get_sdk_orchestrator] = mock_get_orch
+
+        try:
             # Act
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    f"/ai/notes/{test_note_id}/annotations",
+                    f"/api/v1/notes/{test_note_id}/annotations",
                     headers=auth_headers,
                     json=request_body,
                 )
 
                 # Assert
                 assert response.status_code == 200
-                assert response.headers["content-type"] == "text/event-stream"
+                assert response.headers["content-type"].startswith("text/event-stream")
 
                 # Parse SSE events
                 events = []
@@ -103,12 +151,21 @@ class TestMarginAnnotationEndpoint:
                 assert "progress" in events
                 assert "annotation" in events
                 assert "done" in events
+        finally:
+            # Restore original override from fixture
+            async def default_mock_get_orchestrator():
+                mock_orch = MagicMock()
+                mock_orch.execute = AsyncMock()
+                return mock_orch
+
+            app.dependency_overrides[get_sdk_orchestrator] = default_mock_get_orchestrator
 
     @pytest.mark.asyncio
     async def test_validates_block_ids_min_length(
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
+        mock_dependencies,  # noqa: ARG002
     ) -> None:
         """Verify endpoint validates minimum block_ids length."""
         # Arrange
@@ -120,7 +177,7 @@ class TestMarginAnnotationEndpoint:
         # Act
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                f"/ai/notes/{test_note_id}/annotations",
+                f"/api/v1/notes/{test_note_id}/annotations",
                 headers=auth_headers,
                 json=request_body,
             )
@@ -133,6 +190,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
+        mock_dependencies,  # noqa: ARG002
     ) -> None:
         """Verify endpoint validates maximum block_ids length."""
         # Arrange
@@ -144,7 +202,7 @@ class TestMarginAnnotationEndpoint:
         # Act
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                f"/ai/notes/{test_note_id}/annotations",
+                f"/api/v1/notes/{test_note_id}/annotations",
                 headers=auth_headers,
                 json=request_body,
             )
@@ -157,6 +215,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
+        mock_dependencies,  # noqa: ARG002
     ) -> None:
         """Verify endpoint validates context_blocks range."""
         # Arrange
@@ -168,7 +227,7 @@ class TestMarginAnnotationEndpoint:
         # Act
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                f"/ai/notes/{test_note_id}/annotations",
+                f"/api/v1/notes/{test_note_id}/annotations",
                 headers=auth_headers,
                 json=request_body,
             )
@@ -180,6 +239,7 @@ class TestMarginAnnotationEndpoint:
     async def test_requires_workspace_header(
         self,
         test_note_id: UUID,
+        mock_dependencies,  # noqa: ARG002
     ) -> None:
         """Verify endpoint requires X-Workspace-ID header."""
         # Arrange
@@ -196,7 +256,7 @@ class TestMarginAnnotationEndpoint:
         # Act
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                f"/ai/notes/{test_note_id}/annotations",
+                f"/api/v1/notes/{test_note_id}/annotations",
                 headers=headers,
                 json=request_body,
             )
@@ -209,6 +269,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
+        mock_dependencies,  # noqa: ARG002
     ) -> None:
         """Verify endpoint handles agent execution failures gracefully."""
         # Arrange
@@ -222,19 +283,22 @@ class TestMarginAnnotationEndpoint:
         mock_result.output = None
         mock_result.error = "Agent execution failed"
 
-        with patch("pilot_space.api.v1.routers.ai.get_container") as mock_get_container:
-            mock_container = MagicMock()
-            mock_orchestrator = MagicMock()
-            mock_orchestrator.execute = AsyncMock(return_value=mock_result)
-            mock_container.sdk_orchestrator.return_value = mock_orchestrator
-            mock_get_container.return_value = mock_container
+        mock_orchestrator = MagicMock()
+        mock_orchestrator.execute = AsyncMock(return_value=mock_result)
 
+        async def mock_get_sdk_orchestrator(*args, **kwargs):
+            return mock_orchestrator
+
+        with patch(
+            "pilot_space.api.v1.routers.ai_annotations.get_sdk_orchestrator",
+            mock_get_sdk_orchestrator,
+        ):
             # Act
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    f"/ai/notes/{test_note_id}/annotations",
+                    f"/api/v1/notes/{test_note_id}/annotations",
                     headers=auth_headers,
                     json=request_body,
                 )
@@ -249,6 +313,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
+        mock_dependencies,  # noqa: ARG002
     ) -> None:
         """Verify endpoint streams multiple annotations correctly."""
         # Arrange
@@ -262,11 +327,12 @@ class TestMarginAnnotationEndpoint:
         for i in range(3):
             mock_ann = MagicMock()
             mock_ann.block_id = f"block-{i + 1}"
-            mock_ann.type = MagicMock(value="suggestion")
+            mock_ann.type.value = "suggestion"
             mock_ann.title = f"Annotation {i + 1}"
             mock_ann.content = f"Content {i + 1}"
             mock_ann.confidence = 0.8
             mock_ann.action_label = None
+            mock_ann.action_payload = None
             mock_annotations.append(mock_ann)
 
         mock_output = MagicMock()
@@ -277,19 +343,22 @@ class TestMarginAnnotationEndpoint:
         mock_result.success = True
         mock_result.output = mock_output
 
-        with patch("pilot_space.api.v1.routers.ai.get_container") as mock_get_container:
-            mock_container = MagicMock()
-            mock_orchestrator = MagicMock()
-            mock_orchestrator.execute = AsyncMock(return_value=mock_result)
-            mock_container.sdk_orchestrator.return_value = mock_orchestrator
-            mock_get_container.return_value = mock_container
+        mock_orchestrator = MagicMock()
+        mock_orchestrator.execute = AsyncMock(return_value=mock_result)
 
+        async def mock_get_sdk_orchestrator(*args, **kwargs):
+            return mock_orchestrator
+
+        with patch(
+            "pilot_space.api.v1.routers.ai_annotations.get_sdk_orchestrator",
+            mock_get_sdk_orchestrator,
+        ):
             # Act
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    f"/ai/notes/{test_note_id}/annotations",
+                    f"/api/v1/notes/{test_note_id}/annotations",
                     headers=auth_headers,
                     json=request_body,
                 )
@@ -306,6 +375,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
+        mock_dependencies,  # noqa: ARG002
     ) -> None:
         """Verify endpoint includes completion metadata in done event."""
         # Arrange
@@ -314,27 +384,48 @@ class TestMarginAnnotationEndpoint:
             "context_blocks": 3,
         }
 
+        mock_ann1 = MagicMock()
+        mock_ann1.block_id = "block-1"
+        mock_ann1.type.value = "suggestion"
+        mock_ann1.title = "Title 1"
+        mock_ann1.content = "Content 1"
+        mock_ann1.confidence = 0.8
+        mock_ann1.action_label = None
+        mock_ann1.action_payload = None
+
+        mock_ann2 = MagicMock()
+        mock_ann2.block_id = "block-2"
+        mock_ann2.type.value = "warning"
+        mock_ann2.title = "Title 2"
+        mock_ann2.content = "Content 2"
+        mock_ann2.confidence = 0.9
+        mock_ann2.action_label = None
+        mock_ann2.action_payload = None
+
         mock_output = MagicMock()
-        mock_output.annotations = [MagicMock(), MagicMock()]  # 2 annotations
+        mock_output.annotations = [mock_ann1, mock_ann2]
         mock_output.processed_blocks = 2
 
         mock_result = MagicMock()
         mock_result.success = True
         mock_result.output = mock_output
 
-        with patch("pilot_space.api.v1.routers.ai.get_container") as mock_get_container:
-            mock_container = MagicMock()
-            mock_orchestrator = MagicMock()
-            mock_orchestrator.execute = AsyncMock(return_value=mock_result)
-            mock_container.sdk_orchestrator.return_value = mock_orchestrator
-            mock_get_container.return_value = mock_container
+        mock_orchestrator = MagicMock()
+        mock_orchestrator.execute = AsyncMock(return_value=mock_result)
 
+        async def mock_get_sdk_orchestrator(*args, **kwargs):
+            return mock_orchestrator
+
+        with patch(
+            "pilot_space.api.v1.routers.ai_annotations.get_sdk_orchestrator",
+            mock_get_sdk_orchestrator,
+        ):
             # Act
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    f"/ai/notes/{test_note_id}/annotations",
+                    f"/api/v1/notes/{test_note_id}/annotations",
                     headers=auth_headers,
                     json=request_body,
                 )
@@ -351,6 +442,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
+        mock_dependencies,  # noqa: ARG002
     ) -> None:
         """Verify endpoint uses default context_blocks value."""
         # Arrange
@@ -367,19 +459,22 @@ class TestMarginAnnotationEndpoint:
         mock_result.success = True
         mock_result.output = mock_output
 
-        with patch("pilot_space.api.v1.routers.ai.get_container") as mock_get_container:
-            mock_container = MagicMock()
-            mock_orchestrator = MagicMock()
-            mock_orchestrator.execute = AsyncMock(return_value=mock_result)
-            mock_container.sdk_orchestrator.return_value = mock_orchestrator
-            mock_get_container.return_value = mock_container
+        mock_orchestrator = MagicMock()
+        mock_orchestrator.execute = AsyncMock(return_value=mock_result)
 
+        async def mock_get_sdk_orchestrator(*args, **kwargs):
+            return mock_orchestrator
+
+        with patch(
+            "pilot_space.api.v1.routers.ai_annotations.get_sdk_orchestrator",
+            mock_get_sdk_orchestrator,
+        ):
             # Act
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 response = await client.post(
-                    f"/ai/notes/{test_note_id}/annotations",
+                    f"/api/v1/notes/{test_note_id}/annotations",
                     headers=auth_headers,
                     json=request_body,
                 )
@@ -388,6 +483,8 @@ class TestMarginAnnotationEndpoint:
                 assert response.status_code == 200
 
                 # Verify execute was called with default context_blocks=3
+                assert mock_orchestrator.execute.called
                 call_args = mock_orchestrator.execute.call_args
-                input_data = call_args[0][1]
-                assert input_data.context_blocks == 3
+                if call_args:
+                    input_data = call_args[0][1]
+                    assert input_data.context_blocks == 3

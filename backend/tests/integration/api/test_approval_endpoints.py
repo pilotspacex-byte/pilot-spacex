@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 if TYPE_CHECKING:
-    from fastapi.testclient import TestClient
+    from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.infrastructure.database.models.ai_approval_request import (
@@ -119,12 +119,12 @@ class TestListApprovals:
     @pytest.mark.asyncio
     async def test_list_pending_approvals(
         self,
-        client: TestClient,
+        client: AsyncClient,
         auth_headers: dict[str, str],
         test_approval: AIApprovalRequest,  # noqa: ARG002
     ) -> None:
         """Verify listing pending approval requests."""
-        response = client.get(
+        response = await client.get(
             "/api/v1/ai/approvals",
             headers=auth_headers,
             params={"status": "pending"},
@@ -153,12 +153,12 @@ class TestListApprovals:
     @pytest.mark.asyncio
     async def test_list_with_pagination(
         self,
-        client: TestClient,
+        client: AsyncClient,
         auth_headers: dict[str, str],
         test_approval: AIApprovalRequest,  # noqa: ARG002
     ) -> None:
         """Verify pagination works."""
-        response = client.get(
+        response = await client.get(
             "/api/v1/ai/approvals",
             headers=auth_headers,
             params={"limit": 10, "offset": 0},
@@ -171,10 +171,10 @@ class TestListApprovals:
     @pytest.mark.asyncio
     async def test_list_without_workspace_fails(
         self,
-        client: TestClient,
+        client: AsyncClient,
     ) -> None:
         """Verify request without workspace ID fails."""
-        response = client.get(
+        response = await client.get(
             "/api/v1/ai/approvals",
             headers={"Authorization": "Bearer demo-token"},
         )
@@ -188,12 +188,12 @@ class TestGetApprovalDetail:
     @pytest.mark.asyncio
     async def test_get_approval_details(
         self,
-        client: TestClient,
+        client: AsyncClient,
         auth_headers: dict[str, str],
         test_approval: AIApprovalRequest,
     ) -> None:
         """Verify getting full approval details."""
-        response = client.get(
+        response = await client.get(
             f"/api/v1/ai/approvals/{test_approval.id}",
             headers=auth_headers,
         )
@@ -211,12 +211,12 @@ class TestGetApprovalDetail:
     @pytest.mark.asyncio
     async def test_get_nonexistent_approval_fails(
         self,
-        client: TestClient,
+        client: AsyncClient,
         auth_headers: dict[str, str],
     ) -> None:
         """Verify getting nonexistent approval returns 404."""
         fake_id = uuid.uuid4()
-        response = client.get(
+        response = await client.get(
             f"/api/v1/ai/approvals/{fake_id}",
             headers=auth_headers,
         )
@@ -230,12 +230,12 @@ class TestResolveApproval:
     @pytest.mark.asyncio
     async def test_approve_executes_action(
         self,
-        client: TestClient,
+        client: AsyncClient,
         auth_headers: dict[str, str],
         test_approval: AIApprovalRequest,
     ) -> None:
         """Verify approving executes the action."""
-        response = client.post(
+        response = await client.post(
             f"/api/v1/ai/approvals/{test_approval.id}/resolve",
             headers=auth_headers,
             json={"approved": True, "note": "Looks good"},
@@ -250,12 +250,12 @@ class TestResolveApproval:
     @pytest.mark.asyncio
     async def test_reject_discards_action(
         self,
-        client: TestClient,
+        client: AsyncClient,
         auth_headers: dict[str, str],
         test_approval: AIApprovalRequest,
     ) -> None:
         """Verify rejecting discards the action."""
-        response = client.post(
+        response = await client.post(
             f"/api/v1/ai/approvals/{test_approval.id}/resolve",
             headers=auth_headers,
             json={"approved": False, "note": "Not needed"},
@@ -270,14 +270,14 @@ class TestResolveApproval:
     @pytest.mark.asyncio
     async def test_resolve_already_resolved_fails(
         self,
-        client: TestClient,
+        client: AsyncClient,
         auth_headers: dict[str, str],
         test_approval: AIApprovalRequest,
         db_session: AsyncSession,  # noqa: ARG002
     ) -> None:
         """Verify resolving already-resolved request fails."""
         # First resolution
-        response = client.post(
+        response = await client.post(
             f"/api/v1/ai/approvals/{test_approval.id}/resolve",
             headers=auth_headers,
             json={"approved": True},
@@ -285,7 +285,7 @@ class TestResolveApproval:
         assert response.status_code == 200
 
         # Second resolution should fail
-        response = client.post(
+        response = await client.post(
             f"/api/v1/ai/approvals/{test_approval.id}/resolve",
             headers=auth_headers,
             json={"approved": False},
@@ -297,12 +297,12 @@ class TestResolveApproval:
     @pytest.mark.asyncio
     async def test_resolve_nonexistent_fails(
         self,
-        client: TestClient,
+        client: AsyncClient,
         auth_headers: dict[str, str],
     ) -> None:
         """Verify resolving nonexistent request fails."""
         fake_id = uuid.uuid4()
-        response = client.post(
+        response = await client.post(
             f"/api/v1/ai/approvals/{fake_id}/resolve",
             headers=auth_headers,
             json={"approved": True},
