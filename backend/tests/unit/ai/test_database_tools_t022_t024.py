@@ -9,7 +9,7 @@ Tests for:
 from __future__ import annotations
 
 from datetime import date
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -91,8 +91,10 @@ class TestGetWorkspaceMembers:
         )
         member2.user = user2
 
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = [member1, member2]
         mock_result = AsyncMock()
-        mock_result.scalars().all.return_value = [member1, member2]
+        mock_result.scalars.return_value = mock_scalars
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
         # Act
@@ -113,8 +115,10 @@ class TestGetWorkspaceMembers:
     ) -> None:
         """Test workspace members retrieval with no members."""
         # Arrange
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = []
         mock_result = AsyncMock()
-        mock_result.scalars().all.return_value = []
+        mock_result.scalars.return_value = mock_scalars
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
         # Act
@@ -147,8 +151,10 @@ class TestGetWorkspaceMembers:
         )
         member1.user = user1
 
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = [member1]
         mock_result = AsyncMock()
-        mock_result.scalars().all.return_value = [member1]
+        mock_result.scalars.return_value = mock_scalars
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
         # Act
@@ -203,7 +209,7 @@ class TestGetCycleContext:
             sequence=1,
         )
 
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = cycle
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
@@ -288,7 +294,7 @@ class TestGetCycleContext:
         )
         cycle.issues = [issue1, issue2]
 
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = cycle
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
@@ -324,7 +330,7 @@ class TestGetCycleContext:
         # Arrange
         cycle_id = uuid4()
 
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
@@ -360,7 +366,7 @@ class TestGetCycleContext:
         )
         cycle.issues = []
 
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = cycle
         tool_context.db_session.execute = AsyncMock(return_value=mock_result)
 
