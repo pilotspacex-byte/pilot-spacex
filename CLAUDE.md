@@ -241,6 +241,8 @@ For any new feature, load patterns in this order:
 
 ## Active Technologies
 - Python 3.12+ (Backend), TypeScript 5.x (Frontend) (001-pilot-space-mvp)
+- Python 3.12+ (Backend) + FastAPI, SQLAlchemy 2.0 (async), claude-agent-sdk>=1.0,<2.0, anthropic, openai, google-generativeai (004-mvp-agents-build)
+- PostgreSQL 16+ with pgvector, Redis (sessions), Supabase Vault (key encryption) (004-mvp-agents-build)
 
 ## Recent Changes
 - 001-pilot-space-mvp: Supabase platform, Claude Agent SDK, MobX, CQRS-lite
