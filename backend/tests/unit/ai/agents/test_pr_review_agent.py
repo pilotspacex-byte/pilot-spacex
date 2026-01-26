@@ -11,7 +11,6 @@ Tests migration to Claude Agent SDK patterns:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import UUID, uuid4
 
@@ -33,9 +32,6 @@ from pilot_space.ai.agents.pr_review_agent import (
     _should_partial_review,
 )
 from pilot_space.ai.agents.sdk_base import AgentContext
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
 
 
 @pytest.fixture

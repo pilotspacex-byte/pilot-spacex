@@ -184,8 +184,12 @@ class ApprovalService:
         """
         self.session = session
         self.expiration_hours = expiration_hours
-        # In-memory storage for MVP; migrate to database table in production
-        self._requests: dict[uuid.UUID, ApprovalRequest] = {}
+        # Use repository for database persistence
+        from pilot_space.infrastructure.database.repositories.approval_repository import (
+            ApprovalRepository,
+        )
+
+        self._repository = ApprovalRepository(session)
 
     def check_approval_required(
         self,
@@ -262,29 +266,34 @@ class ApprovalService:
     async def create_approval_request(
         self,
         workspace_id: uuid.UUID,
+        user_id: uuid.UUID,
         action_type: ActionType,
         action_data: dict[str, Any],
         requested_by_agent: str,
+        context: dict[str, Any] | None = None,
         expires_at: datetime | None = None,
-    ) -> ApprovalRequest:
+    ) -> uuid.UUID:
         """Create a new approval request.
 
         Args:
             workspace_id: Workspace where action will be performed.
+            user_id: User who triggered the AI action.
             action_type: Type of action requiring approval.
             action_data: Action-specific parameters and context.
             requested_by_agent: Name of the AI agent requesting approval.
+            context: Optional context for the reviewer.
             expires_at: Optional custom expiration time.
 
         Returns:
-            Created approval request.
+            Created approval request ID.
 
         Raises:
             ValueError: If action_data is empty or action_type is invalid.
 
         Example:
-            >>> request = await service.create_approval_request(
+            >>> request_id = await service.create_approval_request(
             ...     workspace_id=workspace_id,
+            ...     user_id=user_id,
             ...     action_type=ActionType.DELETE_ISSUE,
             ...     action_data={"issue_id": issue_id, "reason": "Duplicate"},
             ...     requested_by_agent="DuplicateDetectorAgent",
@@ -297,21 +306,29 @@ class ApprovalService:
         if expires_at is None:
             expires_at = datetime.now(UTC) + timedelta(hours=self.expiration_hours)
 
-        request = ApprovalRequest(
+        from pilot_space.infrastructure.database.models.ai_approval_request import (
+            AIApprovalRequest,
+        )
+
+        # Create database record
+        db_request = AIApprovalRequest(
             workspace_id=workspace_id,
-            action_type=action_type,
-            action_data=action_data,
-            requested_by_agent=requested_by_agent,
+            user_id=user_id,
+            agent_name=requested_by_agent,
+            action_type=action_type.value,
+            payload=action_data,
+            context=context,
             expires_at=expires_at,
         )
 
-        # Store request (in-memory for MVP)
-        self._requests[request.id] = request
+        self.session.add(db_request)
+        await self.session.commit()
+        await self.session.refresh(db_request)
 
         logger.info(
             "Approval request created",
             extra={
-                "request_id": str(request.id),
+                "request_id": str(db_request.id),
                 "workspace_id": str(workspace_id),
                 "action_type": action_type.value,
                 "agent": requested_by_agent,
@@ -319,114 +336,111 @@ class ApprovalService:
             },
         )
 
-        return request
+        return db_request.id
 
     async def resolve(
         self,
         request_id: uuid.UUID,
         approved: bool,
         resolved_by: uuid.UUID,
-        resolution_comment: str | None = None,
-    ) -> ApprovalRequest:
+        resolution_note: str | None = None,
+    ) -> None:
         """Resolve an approval request.
 
         Args:
             request_id: ID of the request to resolve.
             approved: True to approve, False to reject.
             resolved_by: User ID who is resolving the request.
-            resolution_comment: Optional comment explaining the decision.
-
-        Returns:
-            Updated approval request.
+            resolution_note: Optional note explaining the decision.
 
         Raises:
             ValueError: If request not found or already resolved.
 
         Example:
-            >>> resolved = await service.resolve(
+            >>> await service.resolve(
             ...     request_id=request_id,
             ...     approved=False,
             ...     resolved_by=user_id,
-            ...     resolution_comment="Not a duplicate, different requirements",
+            ...     resolution_note="Not a duplicate, different requirements",
             ... )
         """
-        request = self._requests.get(request_id)
-        if not request:
-            raise ValueError(f"Approval request not found: {request_id}")
-
-        if request.status != ApprovalStatus.PENDING:
-            raise ValueError(
-                f"Cannot resolve request with status {request.status.value}"
-            )
-
-        # Create new immutable request with updated fields
-        now = datetime.now(UTC)
-        status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
-
-        resolved_request = ApprovalRequest(
-            id=request.id,
-            workspace_id=request.workspace_id,
-            action_type=request.action_type,
-            action_data=request.action_data,
-            requested_by_agent=request.requested_by_agent,
-            requested_at=request.requested_at,
-            expires_at=request.expires_at,
-            status=status,
-            resolved_at=now,
+        resolved_request = await self._repository.resolve(
+            request_id,
+            approved=approved,
             resolved_by=resolved_by,
-            resolution_comment=resolution_comment,
+            resolution_note=resolution_note,
         )
 
-        # Update storage
-        self._requests[request_id] = resolved_request
+        if not resolved_request:
+            raise ValueError(f"Approval request not found: {request_id}")
 
         logger.info(
             "Approval request resolved",
             extra={
                 "request_id": str(request_id),
-                "status": status.value,
+                "status": resolved_request.status.value,
                 "resolved_by": str(resolved_by),
-                "has_comment": resolution_comment is not None,
+                "has_note": resolution_note is not None,
             },
         )
 
-        return resolved_request
-
-    async def get_pending_for_workspace(
+    async def list_requests(
         self,
         workspace_id: uuid.UUID,
-    ) -> list[ApprovalRequest]:
-        """Get all pending approval requests for a workspace.
+        *,
+        status: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Any], int]:
+        """List approval requests for a workspace with filtering.
+
+        Args:
+            workspace_id: Workspace to query.
+            status: Optional status filter.
+            limit: Maximum results.
+            offset: Results to skip.
+
+        Returns:
+            Tuple of (requests list, total count).
+
+        Example:
+            >>> requests, total = await service.list_requests(workspace_id, status="pending")
+            >>> print(f"Found {total} pending requests")
+        """
+        from pilot_space.infrastructure.database.models.ai_approval_request import (
+            ApprovalStatus as DBApprovalStatus,
+        )
+
+        status_enum = DBApprovalStatus(status) if status else None
+        requests, total = await self._repository.list_by_workspace(
+            workspace_id,
+            status=status_enum,
+            limit=limit,
+            offset=offset,
+        )
+
+        logger.debug(
+            "Listed approval requests",
+            extra={
+                "workspace_id": str(workspace_id),
+                "status_filter": status,
+                "count": len(requests),
+                "total": total,
+            },
+        )
+
+        return list(requests), total
+
+    async def count_pending(self, workspace_id: uuid.UUID) -> int:
+        """Count pending approval requests for a workspace.
 
         Args:
             workspace_id: Workspace to query.
 
         Returns:
-            List of pending requests, sorted by requested_at descending.
-
-        Example:
-            >>> pending = await service.get_pending_for_workspace(workspace_id)
-            >>> for request in pending:
-            ...     print(f"{request.action_type}: {request.requested_at}")
+            Number of pending requests.
         """
-        pending = [
-            req
-            for req in self._requests.values()
-            if req.workspace_id == workspace_id and req.status == ApprovalStatus.PENDING
-        ]
-
-        # Sort by requested_at descending (newest first)
-        pending.sort(key=lambda r: r.requested_at, reverse=True)
-
-        logger.debug(
-            "Fetched pending approval requests",
-            extra={
-                "workspace_id": str(workspace_id),
-                "count": len(pending),
-            },
-        )
-
-        return pending
+        return await self._repository.count_pending(workspace_id)
 
     async def expire_stale_requests(self) -> int:
         """Mark expired requests as EXPIRED.
@@ -442,31 +456,7 @@ class ApprovalService:
             >>> print(f"Expired {expired_count} stale requests")
         """
         now = datetime.now(UTC)
-        expired_count = 0
-
-        # Find pending requests past expiration
-        for request_id, request in list(self._requests.items()):
-            if request.status != ApprovalStatus.PENDING:
-                continue
-
-            if request.expires_at and request.expires_at <= now:
-                # Create expired version
-                expired_request = ApprovalRequest(
-                    id=request.id,
-                    workspace_id=request.workspace_id,
-                    action_type=request.action_type,
-                    action_data=request.action_data,
-                    requested_by_agent=request.requested_by_agent,
-                    requested_at=request.requested_at,
-                    expires_at=request.expires_at,
-                    status=ApprovalStatus.EXPIRED,
-                    resolved_at=now,
-                    resolved_by=None,
-                    resolution_comment="Request expired without response",
-                )
-
-                self._requests[request_id] = expired_request
-                expired_count += 1
+        expired_count = await self._repository.expire_stale_requests(now)
 
         if expired_count > 0:
             logger.info(
@@ -479,7 +469,7 @@ class ApprovalService:
 
         return expired_count
 
-    async def get_request(self, request_id: uuid.UUID) -> ApprovalRequest | None:
+    async def get_request(self, request_id: uuid.UUID) -> Any:
         """Get an approval request by ID.
 
         Args:
@@ -488,7 +478,7 @@ class ApprovalService:
         Returns:
             Approval request if found, None otherwise.
         """
-        return self._requests.get(request_id)
+        return await self._repository.get_by_id(request_id)
 
     def get_action_classification(self, action_type: ActionType) -> str:
         """Get the classification of an action type.

@@ -14,7 +14,6 @@ import pytest
 from pilot_space.ai.infrastructure.approval import (
     ActionType,
     ApprovalLevel,
-    ApprovalRequest,
     ApprovalService,
     ApprovalStatus,
     ProjectSettings,

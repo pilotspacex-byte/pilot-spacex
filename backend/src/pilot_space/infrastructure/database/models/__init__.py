@@ -31,9 +31,9 @@ from pilot_space.infrastructure.database.models.ai_configuration import (
     AIConfiguration,
     LLMProvider,
 )
+from pilot_space.infrastructure.database.models.ai_context import AIContext
 from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
 from pilot_space.infrastructure.database.models.ai_session import AISession
-from pilot_space.infrastructure.database.models.ai_context import AIContext
 from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
 from pilot_space.infrastructure.database.models.discussion_comment import (
     DiscussionComment,
@@ -87,9 +87,9 @@ __all__ = [
     "AISession",
     "Activity",
     "ActivityType",
-    "ApprovalStatus",
     "AnnotationStatus",
     "AnnotationType",
+    "ApprovalStatus",
     "Base",
     "BaseModel",
     "Cycle",
@@ -123,10 +123,10 @@ __all__ = [
     "TimestampMixin",
     "User",
     "Workspace",
+    "WorkspaceAPIKey",
     "WorkspaceMember",
     "WorkspaceRole",
     "WorkspaceScopedMixin",
-    "WorkspaceAPIKey",
     "WorkspaceScopedModel",
     "issue_labels",
 ]

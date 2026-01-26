@@ -238,13 +238,9 @@ class WorkspaceAISettingsUpdate(BaseSchema):
         cost_limit_usd: Monthly cost limit update.
     """
 
-    api_keys: list[APIKeyUpdate] | None = Field(
-        default=None, description="API key updates"
-    )
+    api_keys: list[APIKeyUpdate] | None = Field(default=None, description="API key updates")
     features: AIFeatureToggles | None = Field(default=None, description="Feature toggle updates")
-    cost_limit_usd: float | None = Field(
-        default=None, description="Monthly cost limit USD", ge=0
-    )
+    cost_limit_usd: float | None = Field(default=None, description="Monthly cost limit USD", ge=0)
 
 
 class KeyValidationResult(BaseSchema):

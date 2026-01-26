@@ -268,7 +268,7 @@ class SupabaseQueueClient:
                 return []
 
             # Cast result to list - pgmq_read returns list of message dicts
-            result_list = cast(list[dict[str, Any]], result)
+            result_list = cast("list[dict[str, Any]]", result)
 
             messages: list[QueueMessage] = []
             for item in result_list:
@@ -547,7 +547,7 @@ class SupabaseQueueClient:
             # result is list of metrics dicts from pgmq
             if result and isinstance(result, list):
                 # Cast result - pgmq_metrics returns list of metric dicts
-                metrics_list = cast(list[dict[str, Any]], result)
+                metrics_list = cast("list[dict[str, Any]]", result)
                 if len(metrics_list) > 0:
                     first_item = metrics_list[0]
                     return int(first_item.get("queue_length", 0))

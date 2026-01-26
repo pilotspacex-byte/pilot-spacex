@@ -54,7 +54,7 @@ class AgentName(StrEnum):
     PR_REVIEW = "pr_review"
     COMMIT_LINKER = "commit_linker"
 
-    # Documentation agents
+    # Documentation agents (T079-T090)
     DOC_GENERATOR = "doc_generator"
     TASK_DECOMPOSER = "task_decomposer"
     DIAGRAM_GENERATOR = "diagram_generator"

@@ -9,7 +9,7 @@ Uses dependency-injector to manage application dependencies including:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from dependency_injector import containers, providers
 
@@ -32,11 +32,12 @@ from pilot_space.infrastructure.database.repositories.workspace_repository impor
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
-    from pilot_space.ai.session.session_manager import SessionManager
     from pilot_space.ai.tools.mcp_server import ToolRegistry
     from pilot_space.config import Settings
     from pilot_space.infrastructure.cache.redis import RedisClient
     from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
+
+from pilot_space.ai.session.session_manager import SessionManager
 
 
 class Container(containers.DeclarativeContainer):
@@ -202,6 +203,42 @@ class Container(containers.DeclarativeContainer):
     resilient_executor = providers.Singleton(_create_resilient_executor)
 
     tool_registry = providers.Singleton(_create_tool_registry)
+
+
+    # SDK orchestrator not yet fully integrated
+    # Will be implemented in P12-P15 with proper AsyncSession handling
+    sdk_orchestrator = providers.Object(None)
+
+
+def _register_sdk_agents(orchestrator: Any) -> None:
+    """Register all SDK agents in the orchestrator.
+
+    Args:
+        orchestrator: SDKOrchestrator instance.
+    """
+    from pilot_space.ai.agents.margin_annotation_agent_sdk import (
+        MarginAnnotationAgentSDK,
+    )
+    from pilot_space.ai.sdk_orchestrator import AgentName
+
+    # Access orchestrator's protected members for agent initialization
+    # These are design decisions per DD-002 (infrastructure injection)
+    deps = {
+        "tool_registry": orchestrator._tool_registry,  # noqa: SLF001
+        "provider_selector": orchestrator._provider_selector,  # noqa: SLF001
+        "cost_tracker": orchestrator._cost_tracker,  # noqa: SLF001
+        "resilient_executor": orchestrator._resilient_executor,  # noqa: SLF001
+    }
+
+    # Register agents
+    orchestrator.register_agent(
+        AgentName.MARGIN_ANNOTATION,
+        MarginAnnotationAgentSDK(**deps),
+    )
+
+    # TODO: Register other SDK agents as they are migrated
+    # orchestrator.register_agent(AgentName.GHOST_TEXT, GhostTextAgentSDK(**deps))
+    # orchestrator.register_agent(AgentName.AI_CONTEXT, AIContextAgentSDK(**deps))
 
 
 def create_container(settings: Settings | None = None) -> Container:

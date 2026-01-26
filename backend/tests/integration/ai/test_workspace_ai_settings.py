@@ -21,9 +21,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-async def test_workspace_with_admin(
-    db_session: AsyncSession, test_user_id: UUID
-) -> Workspace:
+async def test_workspace_with_admin(db_session: AsyncSession, test_user_id: UUID) -> Workspace:
     """Create test workspace with admin member for AI settings tests."""
     from pilot_space.infrastructure.database.models import (
         Workspace,
@@ -115,9 +113,7 @@ async def test_update_settings_validates_key_success(
 
     response = await authenticated_client.put(
         f"/api/v1/workspaces/{test_workspace_with_admin.id}/ai/settings",
-        json={
-            "api_keys": [{"provider": "anthropic", "api_key": "sk-ant-test-valid-key"}]
-        },
+        json={"api_keys": [{"provider": "anthropic", "api_key": "sk-ant-test-valid-key"}]},
     )
 
     assert response.status_code == status.HTTP_200_OK

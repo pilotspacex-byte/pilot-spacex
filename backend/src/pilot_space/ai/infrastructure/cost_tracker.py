@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Date, cast, func, select
 
 from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
 
@@ -157,8 +157,7 @@ class CostTracker:
         """
         if provider not in PRICING_TABLE:
             raise ValueError(
-                f"Unknown provider '{provider}'. "
-                f"Supported: {', '.join(PRICING_TABLE.keys())}"
+                f"Unknown provider '{provider}'. " f"Supported: {', '.join(PRICING_TABLE.keys())}"
             )
 
         provider_pricing = PRICING_TABLE[provider]
@@ -277,12 +276,8 @@ class CostTracker:
         total_query = select(
             func.coalesce(func.sum(AICostRecord.cost_usd), 0).label("total_cost"),
             func.count(AICostRecord.id).label("total_requests"),
-            func.coalesce(func.sum(AICostRecord.input_tokens), 0).label(
-                "total_input_tokens"
-            ),
-            func.coalesce(func.sum(AICostRecord.output_tokens), 0).label(
-                "total_output_tokens"
-            ),
+            func.coalesce(func.sum(AICostRecord.input_tokens), 0).label("total_input_tokens"),
+            func.coalesce(func.sum(AICostRecord.output_tokens), 0).label("total_output_tokens"),
         ).where(base_filter)
 
         result = await self.session.execute(total_query)
@@ -370,12 +365,8 @@ class CostTracker:
         total_query = select(
             func.coalesce(func.sum(AICostRecord.cost_usd), 0).label("total_cost"),
             func.count(AICostRecord.id).label("total_requests"),
-            func.coalesce(func.sum(AICostRecord.input_tokens), 0).label(
-                "total_input_tokens"
-            ),
-            func.coalesce(func.sum(AICostRecord.output_tokens), 0).label(
-                "total_output_tokens"
-            ),
+            func.coalesce(func.sum(AICostRecord.input_tokens), 0).label("total_input_tokens"),
+            func.coalesce(func.sum(AICostRecord.output_tokens), 0).label("total_output_tokens"),
         ).where(base_filter)
 
         result = await self.session.execute(total_query)
@@ -433,6 +424,229 @@ class CostTracker:
             start_date=start_date,
             end_date=end_date,
         )
+
+    async def get_cost_summary_detailed(
+        self,
+        workspace_id: UUID,
+        start_date: date,
+        end_date: date,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Get detailed cost summary with user and daily breakdowns.
+
+        Args:
+            workspace_id: Workspace UUID.
+            start_date: Start date (inclusive).
+            end_date: End date (inclusive).
+
+        Returns:
+            Dict with by_agent, by_user, by_day lists.
+        """
+        # Convert dates to datetime for comparison
+        start_datetime = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=UTC)
+        end_datetime = datetime.combine(
+            end_date, datetime.max.time().replace(microsecond=0)
+        ).replace(tzinfo=UTC)
+
+        base_filter = (
+            (AICostRecord.workspace_id == workspace_id)
+            & (AICostRecord.created_at >= start_datetime)
+            & (AICostRecord.created_at <= end_datetime)
+            & (AICostRecord.is_deleted == False)  # noqa: E712
+        )
+
+        # By agent
+        agent_query = (
+            select(
+                AICostRecord.agent_name,
+                func.sum(AICostRecord.cost_usd).label("total_cost_usd"),
+                func.count(AICostRecord.id).label("request_count"),
+                func.sum(AICostRecord.input_tokens).label("input_tokens"),
+                func.sum(AICostRecord.output_tokens).label("output_tokens"),
+            )
+            .where(base_filter)
+            .group_by(AICostRecord.agent_name)
+            .order_by(func.sum(AICostRecord.cost_usd).desc())
+        )
+        agent_result = await self.session.execute(agent_query)
+        by_agent = [
+            {
+                "agent_name": row.agent_name,
+                "total_cost_usd": float(row.total_cost_usd),
+                "request_count": int(row.request_count),
+                "input_tokens": int(row.input_tokens),
+                "output_tokens": int(row.output_tokens),
+            }
+            for row in agent_result
+        ]
+
+        # By user (with user name from relationship)
+        user_query = (
+            select(
+                AICostRecord.user_id,
+                func.sum(AICostRecord.cost_usd).label("total_cost_usd"),
+                func.count(AICostRecord.id).label("request_count"),
+            )
+            .where(base_filter)
+            .group_by(AICostRecord.user_id)
+            .order_by(func.sum(AICostRecord.cost_usd).desc())
+        )
+        user_result = await self.session.execute(user_query)
+        by_user = [
+            {
+                "user_id": str(row.user_id),
+                "total_cost_usd": float(row.total_cost_usd),
+                "request_count": int(row.request_count),
+            }
+            for row in user_result
+        ]
+
+        # By day
+        day_query = (
+            select(
+                cast(AICostRecord.created_at, Date).label("date"),
+                func.sum(AICostRecord.cost_usd).label("total_cost_usd"),
+                func.count(AICostRecord.id).label("request_count"),
+            )
+            .where(base_filter)
+            .group_by(cast(AICostRecord.created_at, Date))
+            .order_by(cast(AICostRecord.created_at, Date))
+        )
+        day_result = await self.session.execute(day_query)
+        by_day = [
+            {
+                "date": row.date,
+                "total_cost_usd": float(row.total_cost_usd),
+                "request_count": int(row.request_count),
+            }
+            for row in day_result
+        ]
+
+        return {
+            "by_agent": by_agent,
+            "by_user": by_user,
+            "by_day": by_day,
+        }
+
+    async def get_cost_by_user_detailed(
+        self,
+        workspace_id: UUID,
+        start_date: date,
+        end_date: date,
+    ) -> list[dict[str, Any]]:
+        """Get cost breakdown by user with user details.
+
+        Args:
+            workspace_id: Workspace UUID.
+            start_date: Start date (inclusive).
+            end_date: End date (inclusive).
+
+        Returns:
+            List of user cost records with names.
+        """
+        start_datetime = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=UTC)
+        end_datetime = datetime.combine(
+            end_date, datetime.max.time().replace(microsecond=0)
+        ).replace(tzinfo=UTC)
+
+        base_filter = (
+            (AICostRecord.workspace_id == workspace_id)
+            & (AICostRecord.created_at >= start_datetime)
+            & (AICostRecord.created_at <= end_datetime)
+            & (AICostRecord.is_deleted == False)  # noqa: E712
+        )
+
+        query = (
+            select(
+                AICostRecord.user_id,
+                func.sum(AICostRecord.cost_usd).label("total_cost_usd"),
+                func.count(AICostRecord.id).label("request_count"),
+            )
+            .where(base_filter)
+            .group_by(AICostRecord.user_id)
+            .order_by(func.sum(AICostRecord.cost_usd).desc())
+        )
+        result = await self.session.execute(query)
+
+        return [
+            {
+                "user_id": str(row.user_id),
+                "total_cost_usd": float(row.total_cost_usd),
+                "request_count": int(row.request_count),
+            }
+            for row in result
+        ]
+
+    async def get_cost_trends(
+        self,
+        workspace_id: UUID,
+        start_date: date,
+        end_date: date,
+        granularity: str = "daily",
+    ) -> list[dict[str, Any]]:
+        """Get cost trends over time.
+
+        Args:
+            workspace_id: Workspace UUID.
+            start_date: Start date (inclusive).
+            end_date: End date (inclusive).
+            granularity: "daily" or "weekly".
+
+        Returns:
+            List of trend data points.
+        """
+        start_datetime = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=UTC)
+        end_datetime = datetime.combine(
+            end_date, datetime.max.time().replace(microsecond=0)
+        ).replace(tzinfo=UTC)
+
+        base_filter = (
+            (AICostRecord.workspace_id == workspace_id)
+            & (AICostRecord.created_at >= start_datetime)
+            & (AICostRecord.created_at <= end_datetime)
+            & (AICostRecord.is_deleted == False)  # noqa: E712
+        )
+
+        if granularity == "weekly":
+            # PostgreSQL week aggregation (ISO week)
+            query = (
+                select(
+                    func.to_char(AICostRecord.created_at, "IYYY-IW").label("period"),
+                    func.sum(AICostRecord.cost_usd).label("total_cost_usd"),
+                    func.count(AICostRecord.id).label("request_count"),
+                )
+                .where(base_filter)
+                .group_by(func.to_char(AICostRecord.created_at, "IYYY-IW"))
+                .order_by(func.to_char(AICostRecord.created_at, "IYYY-IW"))
+            )
+        else:
+            # Daily aggregation
+            query = (
+                select(
+                    func.to_char(AICostRecord.created_at, "YYYY-MM-DD").label("period"),
+                    func.sum(AICostRecord.cost_usd).label("total_cost_usd"),
+                    func.count(AICostRecord.id).label("request_count"),
+                )
+                .where(base_filter)
+                .group_by(func.to_char(AICostRecord.created_at, "YYYY-MM-DD"))
+                .order_by(func.to_char(AICostRecord.created_at, "YYYY-MM-DD"))
+            )
+
+        result = await self.session.execute(query)
+
+        trends = []
+        for row in result:
+            total_cost = float(row.total_cost_usd)
+            count = int(row.request_count)
+            trends.append(
+                {
+                    "period": row.period,
+                    "total_cost_usd": total_cost,
+                    "request_count": count,
+                    "avg_cost_per_request": total_cost / count if count > 0 else 0.0,
+                }
+            )
+
+        return trends
 
 
 __all__ = [

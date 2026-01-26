@@ -9,10 +9,13 @@ MVP Agents (7):
 - PRReviewAgent: Automated PR code review (Claude Opus 4.5)
 - AIContextAgent: Context aggregation for issues (Claude Opus 4.5)
 
-Additional Agents:
+Supporting Agents (T079-T090):
+- ConversationAgent: Multi-turn AI conversations (Claude Opus 4.5)
+- DocGeneratorAgent: Documentation generation (Claude Sonnet)
+- TaskDecomposerAgent: Task breakdown with dependencies (Claude Opus 4.5)
+- DiagramGeneratorAgent: Mermaid diagram generation (Claude Sonnet)
 - AssigneeRecommenderAgent: Assignee suggestions (Claude Haiku)
 - CommitLinkerAgent: Commit-issue linking (Claude Haiku)
-- ConversationAgent: Multi-turn AI conversations (Claude Sonnet)
 """
 
 from pilot_space.ai.agents.ai_context_agent import (
@@ -53,6 +56,18 @@ from pilot_space.ai.agents.conversation_agent import (
     ConversationMessage,
     ConversationOutput,
     MessageRole,
+)
+from pilot_space.ai.agents.diagram_generator_agent import (
+    DiagramGeneratorAgent,
+    DiagramGeneratorInput,
+    DiagramGeneratorOutput,
+    DiagramType,
+)
+from pilot_space.ai.agents.doc_generator_agent import (
+    DocGeneratorAgent,
+    DocGeneratorInput,
+    DocGeneratorOutput,
+    DocType,
 )
 from pilot_space.ai.agents.duplicate_detector_agent import (
     DuplicateCandidate,
@@ -96,6 +111,12 @@ from pilot_space.ai.agents.pr_review_agent import (
     ReviewComment,
     ReviewSeverity,
 )
+from pilot_space.ai.agents.task_decomposer_agent import (
+    SubTask,
+    TaskDecomposerAgent,
+    TaskDecomposerInput,
+    TaskDecomposerOutput,
+)
 
 __all__ = [
     "MAX_FILES_FULL_REVIEW",
@@ -128,6 +149,16 @@ __all__ = [
     "ConversationManager",
     "ConversationMessage",
     "ConversationOutput",
+    # Diagram Generator (T085-T086)
+    "DiagramGeneratorAgent",
+    "DiagramGeneratorInput",
+    "DiagramGeneratorOutput",
+    "DiagramType",
+    # Doc Generator (T081-T082)
+    "DocGeneratorAgent",
+    "DocGeneratorInput",
+    "DocGeneratorOutput",
+    "DocType",
     # Duplicate Detector
     "DuplicateCandidate",
     "DuplicateDetectionInput",
@@ -162,6 +193,11 @@ __all__ = [
     "ReviewCategory",
     "ReviewComment",
     "ReviewSeverity",
+    # Task Decomposer (T083-T084)
+    "SubTask",
+    "TaskDecomposerAgent",
+    "TaskDecomposerInput",
+    "TaskDecomposerOutput",
     "TaskItem",
     "TaskType",
     "TeamMember",

@@ -8,8 +8,7 @@ Tests for:
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-from typing import Any
+from datetime import date
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 

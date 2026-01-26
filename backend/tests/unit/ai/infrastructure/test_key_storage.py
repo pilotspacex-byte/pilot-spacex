@@ -215,9 +215,7 @@ class TestSecureKeyStorage:
         assert providers == ["anthropic", "openai"]
 
     @pytest.mark.asyncio
-    async def test_mask_key_hides_middle_characters(
-        self, key_storage: SecureKeyStorage
-    ) -> None:
+    async def test_mask_key_hides_middle_characters(self, key_storage: SecureKeyStorage) -> None:
         """Verify key masking for logging."""
         api_key = "sk-ant-api01-test-key-12345"
         masked = key_storage._mask_key(api_key)  # noqa: SLF001
@@ -228,9 +226,7 @@ class TestSecureKeyStorage:
         assert len(masked) < len(api_key)
 
     @pytest.mark.asyncio
-    async def test_mask_short_key_all_asterisks(
-        self, key_storage: SecureKeyStorage
-    ) -> None:
+    async def test_mask_short_key_all_asterisks(self, key_storage: SecureKeyStorage) -> None:
         """Verify short keys are fully masked."""
         api_key = "short"
         masked = key_storage._mask_key(api_key)  # noqa: SLF001
@@ -309,9 +305,7 @@ class TestSecureKeyStorage:
         mock_genai.configure.assert_called_once_with(api_key="test-key")
 
     @pytest.mark.asyncio
-    async def test_validate_api_key_unknown_provider(
-        self, key_storage: SecureKeyStorage
-    ) -> None:
+    async def test_validate_api_key_unknown_provider(self, key_storage: SecureKeyStorage) -> None:
         """Verify unknown provider returns False."""
         is_valid = await key_storage.validate_api_key("unknown", "test-key")
 

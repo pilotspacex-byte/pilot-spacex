@@ -13,10 +13,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
 
 import pytest
 
-from pilot_space.ai.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+from pilot_space.ai.circuit_breaker import CircuitBreaker
 from pilot_space.ai.providers.provider_selector import (
     Provider,
-    ProviderConfig,
     ProviderSelector,
     TaskType,
 )

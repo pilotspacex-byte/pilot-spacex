@@ -445,7 +445,7 @@ class MeilisearchClient:
                 elif isinstance(filter_value, list):
                     # Build IN clause with filter list values
                     # Cast to list[Any] to satisfy type checker
-                    value_items = cast(list[Any], filter_value)
+                    value_items = cast("list[Any]", filter_value)
                     filter_list: list[str] = [str(item) for item in value_items]
                     values_str = ", ".join(f'"{v}"' for v in filter_list)
                     filter_parts.append(f"{key} IN [{values_str}]")

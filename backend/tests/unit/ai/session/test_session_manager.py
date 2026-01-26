@@ -15,9 +15,9 @@ import pytest
 
 from pilot_space.ai.exceptions import AIError
 from pilot_space.ai.session.session_manager import (
+    SESSION_TTL_SECONDS,
     AIMessage,
     AISession,
-    SESSION_TTL_SECONDS,
     SessionExpiredError,
     SessionManager,
     SessionNotFoundError,
