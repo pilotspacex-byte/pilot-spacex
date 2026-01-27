@@ -16,6 +16,7 @@ import { IssueExtractionStore } from './IssueExtractionStore';
 import { ConversationStore } from './ConversationStore';
 import { CostStore } from './CostStore';
 import { MarginAnnotationStore } from './MarginAnnotationStore';
+import { PilotSpaceStore } from './PilotSpaceStore';
 
 export class AIStore {
   ghostText: GhostTextStore;
@@ -27,6 +28,7 @@ export class AIStore {
   conversation: ConversationStore;
   cost: CostStore;
   marginAnnotation: MarginAnnotationStore;
+  pilotSpace: PilotSpaceStore;
 
   isGloballyEnabled = true;
   globalError: string | null = null;
@@ -43,6 +45,7 @@ export class AIStore {
     this.conversation = new ConversationStore(this);
     this.cost = new CostStore(this);
     this.marginAnnotation = new MarginAnnotationStore(this);
+    this.pilotSpace = new PilotSpaceStore(this);
   }
 
   setGloballyEnabled(enabled: boolean): void {
@@ -60,6 +63,7 @@ export class AIStore {
     this.issueExtraction.abort();
     this.conversation.abort();
     this.marginAnnotation.abort();
+    this.pilotSpace.abort();
   }
 
   async loadWorkspaceSettings(workspaceId: string): Promise<void> {
@@ -80,6 +84,7 @@ export class AIStore {
     this.issueExtraction.abort();
     this.marginAnnotation.abort();
     this.conversation.clearSession();
+    this.pilotSpace.reset();
     this.approval.reset();
     this.settings.reset();
     this.cost.reset();

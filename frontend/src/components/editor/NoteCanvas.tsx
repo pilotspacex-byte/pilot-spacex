@@ -18,12 +18,14 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import type { Content, Editor } from '@tiptap/core';
 import { observer } from 'mobx-react-lite';
 import { reaction } from 'mobx';
-import { AlertTriangle, X, Sparkles } from 'lucide-react';
+import { AlertTriangle, X, Sparkles, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { IssueExtractionPanel, type ExtractedIssue } from './IssueExtractionPanel';
 import type { GhostTextContext } from '@/features/notes/editor/extensions/GhostTextExtension';
 import { motion, AnimatePresence } from 'motion/react';
 import { getAIStore } from '@/stores/ai/AIStore';
+import { useSelectionContext } from '@/features/notes/editor/hooks/useSelectionContext';
+import { ChatView } from '@/features/ai/ChatView/ChatView';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -37,7 +39,6 @@ import { SelectionToolbar } from './SelectionToolbar';
 import { AskPilotInput } from './AskPilotInput';
 import { InlineNoteHeader } from './InlineNoteHeader';
 import { NoteTitleBlock } from './NoteTitleBlock';
-import { EditorToolbar } from '@/features/notes/components/EditorToolbar';
 import type { User } from '@/types';
 
 export interface NoteCanvasProps {
@@ -167,6 +168,7 @@ export const NoteCanvas = observer(function NoteCanvas({
   const [isExtracting, setIsExtracting] = useState(false);
   const [showExtractionPanel, setShowExtractionPanel] = useState(false);
   const [extractionInsertPos, setExtractionInsertPos] = useState<number | null>(null);
+  const [isChatViewOpen, setIsChatViewOpen] = useState(false);
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -521,6 +523,9 @@ export const NoteCanvas = observer(function NoteCanvas({
     }
   }, [noteId, workspaceSlug, editor, aiStore.marginAnnotation]);
 
+  // Track selection context for ChatView
+  useSelectionContext(editor, aiStore.pilotSpace, noteId);
+
   // Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -529,11 +534,16 @@ export const NoteCanvas = observer(function NoteCanvas({
         e.preventDefault();
         onSave?.();
       }
+      // Cmd/Ctrl + Shift + P to toggle ChatView
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p') {
+        e.preventDefault();
+        setIsChatViewOpen((prev) => !prev);
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onSave]);
+  }, [editor, aiStore.pilotSpace, noteId, onSave]);
 
   // Handle annotation actions
   const handleAnnotationAccept = useCallback(
@@ -731,7 +741,8 @@ export const NoteCanvas = observer(function NoteCanvas({
       );
 
       // Build inline issue nodes with real issue data
-      const issueNodes: Array<{ type: string; attrs?: Record<string, unknown>; text?: string }> = [];
+      const issueNodes: Array<{ type: string; attrs?: Record<string, unknown>; text?: string }> =
+        [];
       createdIssues.forEach((createdIssue, index) => {
         const originalIssue = extractedIssues[index];
         issueNodes.push({
@@ -1073,6 +1084,98 @@ export const NoteCanvas = observer(function NoteCanvas({
             </Tooltip>
           </div>
         </>
+      )}
+
+      {/* ChatView Sidebar - Toggleable right panel for conversational AI */}
+      <AnimatePresence mode="wait">
+        {isChatViewOpen && (
+          <>
+            {isSmallScreen ? (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
+                  onClick={() => setIsChatViewOpen(false)}
+                  aria-hidden="true"
+                />
+                {/* Slide-over panel */}
+                <motion.aside
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  className={cn(
+                    'fixed inset-y-0 right-0 z-50 lg:hidden',
+                    'w-full max-w-[400px] sm:max-w-[480px]',
+                    'bg-background border-l border-border shadow-xl'
+                  )}
+                >
+                  {/* Close button for mobile */}
+                  <div className="absolute top-3 right-3 z-10">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsChatViewOpen(false)}
+                      className="h-8 w-8 rounded-full"
+                    >
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Close ChatView</span>
+                    </Button>
+                  </div>
+                  <div className="h-full overflow-hidden">
+                    <ChatView store={aiStore.pilotSpace} />
+                  </div>
+                </motion.aside>
+              </>
+            ) : (
+              <motion.aside
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: isLargeDesktop ? 480 : 400, opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                className="hidden lg:flex flex-shrink-0 overflow-hidden border-l border-border"
+              >
+                <div className={cn('h-full', isLargeDesktop ? 'w-[480px]' : 'w-[400px]')}>
+                  <div className="flex items-center justify-between p-2 border-b border-border">
+                    <span className="text-sm font-medium">PilotSpace AI</span>
+                    <Button variant="ghost" size="icon-sm" onClick={() => setIsChatViewOpen(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <ChatView store={aiStore.pilotSpace} className="h-[calc(100%-48px)]" />
+                </div>
+              </motion.aside>
+            )}
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ChatView Toggle Button - Floating action button */}
+      {!isChatViewOpen && (
+        <div className="fixed bottom-4 right-4 z-30">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size="icon"
+                onClick={() => setIsChatViewOpen(true)}
+                className={cn(
+                  'h-12 w-12 rounded-full shadow-lg',
+                  'bg-primary hover:bg-primary/90',
+                  'text-primary-foreground'
+                )}
+              >
+                <MessageSquare className="h-5 w-5" />
+                <span className="sr-only">Open ChatView</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">Open PilotSpace AI (Cmd+Shift+P)</TooltipContent>
+          </Tooltip>
+        </div>
       )}
     </div>
   );

@@ -248,4 +248,22 @@ export const aiApi = {
    */
   getConversationHistory: (sessionId: string) =>
     apiClient.get<ConversationMessage[]>(`/ai/conversation/sessions/${sessionId}/messages`),
+
+  /**
+   * Approve an action request with optional modifications.
+   * @param requestId - Request UUID
+   * @param modifications - Optional modifications to apply
+   * @returns Updated approval request
+   */
+  approveAction: (requestId: string, modifications?: Record<string, unknown>) =>
+    apiClient.post<ApprovalRequest>(`/ai/approvals/${requestId}/approve`, { modifications }),
+
+  /**
+   * Reject an action request with a reason.
+   * @param requestId - Request UUID
+   * @param reason - Rejection reason
+   * @returns Updated approval request
+   */
+  rejectAction: (requestId: string, reason: string) =>
+    apiClient.post<ApprovalRequest>(`/ai/approvals/${requestId}/reject`, { reason }),
 };

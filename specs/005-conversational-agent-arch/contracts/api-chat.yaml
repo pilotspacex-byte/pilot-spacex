@@ -1,0 +1,433 @@
+# OpenAPI Contract: AI Chat Endpoint
+# POST /api/v1/ai/chat
+# SSE streaming response for conversational AI interactions
+
+openapi: 3.1.0
+info:
+  title: PilotSpace AI Chat API
+  version: 1.0.0
+  description: Unified conversational AI endpoint with SSE streaming
+
+paths:
+  /api/v1/ai/chat:
+    post:
+      operationId: chatConversation
+      summary: Conversational AI interaction
+      description: |
+        Send a message to the PilotSpace AI agent and receive a streaming response.
+        Supports skill invocation (\skill), subagent mentions (@agent), and natural language.
+
+        ## Authentication
+        Requires valid Supabase Auth token.
+
+        ## Streaming
+        Response is Server-Sent Events (SSE) stream with multiple event types.
+
+        ## Context
+        Provide note_id, issue_id, or project_id for context-aware responses.
+
+        ## Session Resumption
+        Pass session_id to continue a previous conversation.
+      tags:
+        - AI
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              naturalLanguage:
+                summary: Natural language query
+                value:
+                  message: "Summarize this note for me"
+                  context:
+                    note_id: "550e8400-e29b-41d4-a716-446655440000"
+                  session_id: null
+              skillInvocation:
+                summary: Skill invocation
+                value:
+                  message: "\\extract-issues"
+                  context:
+                    note_id: "550e8400-e29b-41d4-a716-446655440000"
+                    selected_text: "We need to fix the login bug and add 2FA"
+                  session_id: null
+              subagentMention:
+                summary: Subagent mention
+                value:
+                  message: "@pr-review https://github.com/org/repo/pull/123"
+                  context:
+                    project_id: "660e8400-e29b-41d4-a716-446655440000"
+                  session_id: "sdk_session_abc123"
+      responses:
+        '200':
+          description: SSE stream with AI response events
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/SSEStream'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: User message (natural language, \skill, or @agent)
+          minLength: 1
+          maxLength: 32000
+          examples:
+            - "Help me improve this paragraph"
+            - "\\extract-issues"
+            - "@pr-review https://github.com/org/repo/pull/123"
+        context:
+          $ref: '#/components/schemas/ConversationContext'
+        session_id:
+          type: string
+          nullable: true
+          description: SDK session ID for resumption
+          examples:
+            - "sdk_session_abc123"
+
+    ConversationContext:
+      type: object
+      description: Current working context
+      properties:
+        note_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Active note ID
+        issue_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Active issue ID
+        project_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Active project ID
+        selected_text:
+          type: string
+          nullable: true
+          description: User-selected text in editor
+          maxLength: 50000
+        selected_block_ids:
+          type: array
+          items:
+            type: string
+          default: []
+          description: IDs of selected content blocks
+
+    SSEStream:
+      description: |
+        Server-Sent Events stream with the following event types:
+        - message_start: Conversation turn begins
+        - content_block_start: Content block begins
+        - text_delta: Incremental text
+        - tool_use: Tool invocation started
+        - tool_result: Tool execution completed
+        - task_progress: Task status update
+        - approval_request: Human approval needed
+        - message_stop: Conversation turn ends
+        - error: Error occurred
+      oneOf:
+        - $ref: '#/components/schemas/MessageStartEvent'
+        - $ref: '#/components/schemas/TextDeltaEvent'
+        - $ref: '#/components/schemas/ToolUseEvent'
+        - $ref: '#/components/schemas/ToolResultEvent'
+        - $ref: '#/components/schemas/TaskProgressEvent'
+        - $ref: '#/components/schemas/ApprovalRequestEvent'
+        - $ref: '#/components/schemas/MessageStopEvent'
+        - $ref: '#/components/schemas/ErrorEvent'
+
+    MessageStartEvent:
+      type: object
+      required:
+        - type
+        - message_id
+        - session_id
+      properties:
+        type:
+          type: string
+          const: message_start
+        message_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          description: SDK session ID (capture for resumption)
+
+    TextDeltaEvent:
+      type: object
+      required:
+        - type
+        - message_id
+        - delta
+      properties:
+        type:
+          type: string
+          const: text_delta
+        message_id:
+          type: string
+          format: uuid
+        delta:
+          type: string
+          description: Incremental text content
+
+    ToolUseEvent:
+      type: object
+      required:
+        - type
+        - tool_call_id
+        - tool_name
+        - tool_input
+      properties:
+        type:
+          type: string
+          const: tool_use
+        tool_call_id:
+          type: string
+          format: uuid
+        tool_name:
+          type: string
+          description: Tool name (e.g., "Skill", "Read", "pilotspace_search")
+          examples:
+            - "Skill"
+            - "Read"
+            - "Task"
+        tool_input:
+          type: object
+          additionalProperties: true
+          description: Tool arguments
+
+    ToolResultEvent:
+      type: object
+      required:
+        - type
+        - tool_call_id
+        - status
+      properties:
+        type:
+          type: string
+          const: tool_result
+        tool_call_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [completed, failed, cancelled]
+        output:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Tool result (null if failed)
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if failed
+
+    TaskProgressEvent:
+      type: object
+      required:
+        - type
+        - task_id
+        - subject
+        - status
+      properties:
+        type:
+          type: string
+          const: task_progress
+        task_id:
+          type: string
+          format: uuid
+        subject:
+          type: string
+          description: Brief task title
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed, blocked]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Completion percentage
+        description:
+          type: string
+          nullable: true
+          description: Detailed task description
+
+    ApprovalRequestEvent:
+      type: object
+      required:
+        - type
+        - request_id
+        - action_type
+        - description
+        - urgency
+        - expires_at
+      properties:
+        type:
+          type: string
+          const: approval_request
+        request_id:
+          type: string
+          format: uuid
+        action_type:
+          type: string
+          description: Action classification per DD-003
+          enum:
+            - create_issue
+            - modify_file
+            - delete_entity
+            - bulk_operation
+            - external_api_call
+        description:
+          type: string
+          description: Human-readable action description
+        consequences:
+          type: string
+          nullable: true
+          description: Impact description
+        affected_entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/AffectedEntity'
+        urgency:
+          type: string
+          enum: [low, medium, high]
+        proposed_content:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: AI's proposed action content
+        expires_at:
+          type: string
+          format: date-time
+          description: 24h expiry time (ISO 8601)
+
+    AffectedEntity:
+      type: object
+      required:
+        - type
+        - id
+        - name
+      properties:
+        type:
+          type: string
+          enum: [issue, note, file, project]
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Human-readable name
+
+    MessageStopEvent:
+      type: object
+      required:
+        - type
+        - message_id
+        - stop_reason
+      properties:
+        type:
+          type: string
+          const: message_stop
+        message_id:
+          type: string
+          format: uuid
+        stop_reason:
+          type: string
+          enum: [end_turn, max_tokens, stop_sequence, tool_use]
+        usage:
+          type: object
+          properties:
+            input_tokens:
+              type: integer
+            output_tokens:
+              type: integer
+
+    ErrorEvent:
+      type: object
+      required:
+        - type
+        - error_code
+        - message
+      properties:
+        type:
+          type: string
+          const: error
+        error_code:
+          type: string
+          enum:
+            - rate_limited
+            - context_exceeded
+            - api_error
+            - network_error
+            - authentication_error
+            - permission_denied
+        message:
+          type: string
+          description: Human-readable error message
+        retry_after:
+          type: integer
+          nullable: true
+          description: Seconds to wait before retry (for rate limits)
+
+    ProblemDetail:
+      type: object
+      description: RFC 7807 Problem Details
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Problem type URI
+        title:
+          type: string
+          description: Short human-readable summary
+        status:
+          type: integer
+          description: HTTP status code
+        detail:
+          type: string
+          nullable: true
+          description: Detailed explanation
+        instance:
+          type: string
+          format: uri
+          nullable: true
+          description: URI of the specific problem occurrence

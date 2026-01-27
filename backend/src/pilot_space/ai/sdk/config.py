@@ -1,0 +1,159 @@
+"""Claude Agent SDK configuration for PilotSpace.
+
+Provides configuration options and factory functions for creating
+Claude Agent SDK client instances with PilotSpace-specific settings.
+
+Reference: docs/architect/claude-agent-sdk-architecture.md
+Design Decisions: DD-002 (BYOK), DD-058 (SDK mode clarification)
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+from uuid import UUID
+
+if TYPE_CHECKING:
+    from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+    from pilot_space.ai.session.session_manager import SessionManager
+    from pilot_space.ai.tools.mcp_server import ToolRegistry
+
+
+@dataclass(frozen=True, kw_only=True)
+class ClaudeAgentOptions:
+    """Configuration options for Claude Agent SDK.
+
+    Provides all settings needed to create a configured ClaudeSDKClient
+    or use the query() function with PilotSpace infrastructure.
+
+    Attributes:
+        api_key: Anthropic API key (from SecureKeyStorage)
+        model: Model identifier (default: claude-sonnet-4-20250514)
+        max_tokens: Maximum output tokens per request
+        temperature: Sampling temperature (0.0-1.0)
+        system_prompt: Optional system prompt override
+        tools: Optional list of MCP tools
+        tool_registry: Optional tool registry for MCP server
+        session_manager: Optional session manager for multi-turn
+        max_retries: Maximum retry attempts on failure
+        timeout_seconds: Request timeout in seconds
+        stream: Whether to enable streaming responses
+        metadata: Additional metadata for tracking
+    """
+
+    api_key: str
+    model: str = "claude-sonnet-4-20250514"
+    max_tokens: int = 8192
+    temperature: float = 0.7
+    system_prompt: str | None = None
+    tools: list[dict[str, Any]] | None = None
+    tool_registry: ToolRegistry | None = None
+    session_manager: SessionManager | None = None
+    max_retries: int = 3
+    timeout_seconds: int = 300
+    stream: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_sdk_params(self) -> dict[str, Any]:
+        """Convert to parameters for Claude Agent SDK client.
+
+        Returns:
+            Dictionary of parameters suitable for ClaudeSDKClient constructor
+            or query() function call.
+        """
+        params: dict[str, Any] = {
+            "api_key": self.api_key,
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+        }
+
+        if self.system_prompt:
+            params["system"] = self.system_prompt
+
+        if self.tools:
+            params["tools"] = self.tools
+
+        if self.stream:
+            params["stream"] = True
+
+        return params
+
+
+async def create_agent_options(
+    workspace_id: str,
+    user_id: str,
+    key_storage: SecureKeyStorage,
+    model: str = "claude-sonnet-4-20250514",
+    tool_registry: ToolRegistry | None = None,
+    session_manager: SessionManager | None = None,
+    **kwargs: Any,
+) -> ClaudeAgentOptions:
+    """Create ClaudeAgentOptions with decrypted API key.
+
+    Factory function that:
+    1. Retrieves and decrypts Anthropic API key from SecureKeyStorage
+    2. Validates key exists for workspace/user
+    3. Returns configured ClaudeAgentOptions
+
+    Args:
+        workspace_id: Workspace UUID for key lookup
+        user_id: User UUID for key lookup
+        key_storage: SecureKeyStorage instance for key retrieval
+        model: Model identifier (default: claude-sonnet-4-20250514)
+        tool_registry: Optional MCP tool registry
+        session_manager: Optional session manager for multi-turn
+        **kwargs: Additional options to pass to ClaudeAgentOptions
+
+    Returns:
+        Configured ClaudeAgentOptions instance
+
+    Raises:
+        ValueError: If API key not found for workspace/user
+        Exception: If key decryption fails
+    """
+    # Retrieve API key from secure storage
+    # SecureKeyStorage.get_api_key only takes workspace_id and provider
+    api_key = await key_storage.get_api_key(
+        workspace_id=UUID(workspace_id),
+        provider="anthropic",
+    )
+
+    if not api_key:
+        raise ValueError(
+            f"Anthropic API key not found for workspace {workspace_id}, "
+            f"user {user_id}. Please configure API keys in workspace settings."
+        )
+
+    return ClaudeAgentOptions(
+        api_key=api_key,
+        model=model,
+        tool_registry=tool_registry,
+        session_manager=session_manager,
+        **kwargs,
+    )
+
+
+def get_model_for_task(task_type: str) -> str:
+    """Get optimal model for task type based on DD-011.
+
+    Provider routing rules:
+    - Code/Architecture: Claude Sonnet/Opus (best reasoning)
+    - Latency-sensitive: Gemini Flash (fastest)
+    - Embeddings: OpenAI text-embedding-3-large (best quality)
+
+    Args:
+        task_type: Task classification (code, latency, embedding, general)
+
+    Returns:
+        Model identifier string
+    """
+    model_mapping = {
+        "code": "claude-sonnet-4-20250514",
+        "architecture": "claude-opus-4-5-20251101",
+        "latency": "gemini-2.0-flash",
+        "embedding": "text-embedding-3-large",
+        "general": "claude-sonnet-4-20250514",
+    }
+
+    return model_mapping.get(task_type, "claude-sonnet-4-20250514")

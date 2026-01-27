@@ -1,0 +1,258 @@
+/**
+ * ChatView Usage Examples
+ * Demonstrates various integration patterns
+ */
+
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/**
+ * @file ChatView usage examples
+ * @description These are documentation examples showing integration patterns.
+ * They use mock stores with minimal implementations for illustration purposes.
+ */
+import { ChatView } from './ChatView';
+import type { IPilotSpaceStore } from './types';
+
+// ============================================================================
+// Example 1: Basic Usage with Mock Store
+// ============================================================================
+
+function BasicExample() {
+  // In production, this would come from your actual store
+  const mockStore: IPilotSpaceStore = {
+    messages: [],
+    isStreaming: false,
+    streamContent: '',
+    sessionId: null,
+    error: null,
+    tasks: new Map(),
+    activeTasks: [],
+    completedTasks: [],
+    pendingApprovals: [],
+    hasUnresolvedApprovals: false,
+    noteContext: null,
+    issueContext: null,
+    projectContext: null,
+    activeSkill: null,
+    skillArgs: null,
+    mentionedAgents: [],
+    sendMessage: async (content: string) => {
+      console.log('Sending:', content);
+    },
+    setNoteContext: (ctx) => console.log('Note context:', ctx),
+    setIssueContext: (ctx) => console.log('Issue context:', ctx),
+    setProjectContext: (ctx) => console.log('Project context:', ctx),
+    setActiveSkill: (skill, args) => console.log('Skill:', skill, args),
+    addMentionedAgent: (agent) => console.log('Agent:', agent),
+    approveAction: async (id, mods) => console.log('Approve:', id, mods),
+    rejectAction: async (id, reason) => console.log('Reject:', id, reason),
+    abort: () => console.log('Abort'),
+    clearConversation: () => console.log('Clear'),
+  };
+
+  return (
+    <div className="h-screen">
+      <ChatView store={mockStore} userName="John Doe" userAvatar="/avatars/john.png" />
+    </div>
+  );
+}
+
+// ============================================================================
+// Example 2: Integration with Note Editor
+// ============================================================================
+
+function NoteEditorIntegration() {
+  // In production, use your actual store from MobX
+  // const store = useStore((root) => root.ai.pilotSpace);
+
+  const mockStore = {} as IPilotSpaceStore; // Replace with actual store
+
+  // Set note context when user opens AI chat from note
+  const handleOpenChat = (noteId: string, selectedText: string) => {
+    mockStore.setNoteContext({
+      noteId,
+      selectedText,
+      selectedBlockIds: [], // Add selected block IDs
+    });
+  };
+
+  return (
+    <div className="flex h-screen">
+      {/* Note Editor */}
+      <div className="flex-1">
+        <button onClick={() => handleOpenChat('note-123', 'Selected text')}>Open AI Chat</button>
+      </div>
+
+      {/* AI Chat Sidebar */}
+      <div className="w-[400px] border-l">
+        <ChatView store={mockStore} />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Example 3: Integration with Issue Detail
+// ============================================================================
+
+function IssueDetailIntegration() {
+  const mockStore = {} as IPilotSpaceStore; // Replace with actual store
+
+  // Set issue context when user opens AI chat from issue
+  const handleOpenChat = (issueId: string, projectId: string, title: string) => {
+    mockStore.setIssueContext({
+      issueId,
+      projectId,
+      title,
+      description: 'Issue description here',
+    });
+  };
+
+  return (
+    <div className="flex h-screen">
+      {/* Issue Detail */}
+      <div className="flex-1">
+        <button onClick={() => handleOpenChat('issue-456', 'proj-789', 'Fix bug')}>
+          Get AI Context
+        </button>
+      </div>
+
+      {/* AI Chat Panel */}
+      <div className="w-[500px] border-l">
+        <ChatView store={mockStore} />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Example 4: Standalone Full-Screen Chat
+// ============================================================================
+
+function FullScreenChat() {
+  const mockStore = {} as IPilotSpaceStore; // Replace with actual store
+
+  return (
+    <div className="h-screen flex flex-col">
+      {/* Optional: Top navigation */}
+      <header className="border-b p-4">
+        <h1 className="text-xl font-semibold">PilotSpace AI Assistant</h1>
+      </header>
+
+      {/* Full-screen chat */}
+      <div className="flex-1">
+        <ChatView store={mockStore} />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Example 5: Popover Chat (Floating Widget)
+// ============================================================================
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { MessageSquare } from 'lucide-react';
+
+function PopoverChat() {
+  const mockStore = {} as IPilotSpaceStore; // Replace with actual store
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      {/* Floating button */}
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <SheetTrigger asChild>
+          <Button size="icon" className="fixed bottom-4 right-4 h-14 w-14 rounded-full shadow-lg">
+            <MessageSquare className="h-6 w-6" />
+          </Button>
+        </SheetTrigger>
+
+        <SheetContent side="right" className="w-[500px] p-0">
+          <ChatView store={mockStore} />
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+// ============================================================================
+// Example 6: With Real MobX Store Integration
+// ============================================================================
+
+import { observer } from 'mobx-react-lite';
+// import { useRootStore } from '@/stores';
+
+const ChatWithStore = observer(() => {
+  // Get store from MobX context
+  // const { ai } = useRootStore();
+  // const store = ai.pilotSpace;
+
+  // For now, mock it
+  const store = {} as IPilotSpaceStore;
+
+  // Get user info from auth store
+  // const { user } = useRootStore().auth;
+
+  return (
+    <ChatView
+      store={store}
+      userName="Current User" // user?.name
+      userAvatar="/avatars/default.png" // user?.avatarUrl
+    />
+  );
+});
+
+// ============================================================================
+// Example 7: Programmatic Skill Invocation
+// ============================================================================
+
+function ProgrammaticSkillInvocation() {
+  const mockStore = {} as IPilotSpaceStore;
+
+  const handleExtractIssues = async () => {
+    // Set the skill and send message
+    mockStore.setActiveSkill('extract-issues');
+    await mockStore.sendMessage('\\extract-issues from the current selection');
+  };
+
+  const handleImproveWriting = async (text: string) => {
+    await mockStore.sendMessage(`\\improve-writing ${text}`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Button onClick={handleExtractIssues}>Extract Issues</Button>
+      <Button onClick={() => handleImproveWriting('This text needs improvement')}>
+        Improve Writing
+      </Button>
+
+      <ChatView store={mockStore} />
+    </div>
+  );
+}
+
+// ============================================================================
+// Example 8: With Approval Handling
+// ============================================================================
+
+const ChatWithApprovals = observer(() => {
+  const mockStore = {} as IPilotSpaceStore;
+
+  // Approvals are automatically handled by ApprovalOverlay
+  // No additional code needed - the overlay will appear when approvals are pending
+
+  return <ChatView store={mockStore} />;
+});
+
+export {
+  BasicExample,
+  NoteEditorIntegration,
+  IssueDetailIntegration,
+  FullScreenChat,
+  PopoverChat,
+  ChatWithStore,
+  ProgrammaticSkillInvocation,
+  ChatWithApprovals,
+};

@@ -14,6 +14,7 @@ export { PRReviewStore } from './PRReviewStore';
 export { IssueExtractionStore } from './IssueExtractionStore';
 export { MarginAnnotationStore } from './MarginAnnotationStore';
 export { CostStore } from './CostStore';
+export { PilotSpaceStore } from './PilotSpaceStore';
 
 // Types
 export type { AIContextPhase, AIContextResult } from './AIContextStore';
@@ -30,3 +31,12 @@ export type {
 export type { ExtractedIssue } from './IssueExtractionStore';
 export type { NoteAnnotation } from './MarginAnnotationStore';
 export type { DateRange, CostByAgentData, CostTrendData } from './CostStore';
+export type {
+  TaskState,
+  ApprovalRequest as PilotSpaceApprovalRequest,
+  NoteContext,
+  IssueContext,
+} from './PilotSpaceStore';
+
+// Conversational Agent Types
+export * from './types';
