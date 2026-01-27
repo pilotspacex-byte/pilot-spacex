@@ -27,7 +27,7 @@ export interface ToolCall {
 }
 
 /**
- * Agent task tracked in the UI
+ * Agent task tracked in the UI (T071-T074: Added progress tracking)
  */
 export interface AgentTask {
   id: string;
@@ -39,6 +39,11 @@ export interface AgentTask {
   subagent?: string;
   createdAt?: Date;
   completedAt?: Date;
+  // Progress tracking (T071-T074)
+  progress?: number;
+  currentStep?: string;
+  totalSteps?: number;
+  estimatedSecondsRemaining?: number;
 }
 
 /**

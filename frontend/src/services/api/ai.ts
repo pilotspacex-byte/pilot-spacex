@@ -117,10 +117,11 @@ export const aiApi = {
 
   /**
    * Get ghost text streaming URL for note.
-   * @param noteId - Note UUID
+   * Uses new /api/v1/ai/ghost-text endpoint per T071-T074.
+   * @param _noteId - Note UUID (unused, kept for API compatibility)
    * @returns SSE endpoint URL (absolute for EventSource)
    */
-  getGhostTextUrl: (noteId: string) => `${API_BASE}/notes/${noteId}/ghost-text`,
+  getGhostTextUrl: (_noteId: string) => `${API_BASE}/ai/ghost-text`,
 
   /**
    * Get AI context streaming URL for issue.

@@ -2,9 +2,12 @@
  * Ghost Text Store with debouncing and caching.
  *
  * Manages AI-powered text suggestions with:
- * - Debounced requests (500ms default)
+ * - Debounced requests (300ms per requirements)
  * - LRU cache for recent suggestions
  * - SSE streaming for real-time updates
+ * - Loading indicator during fetch
+ *
+ * @see T071-T074 (GhostText Integration with 300ms debounce)
  */
 import { makeAutoObservable, runInAction } from 'mobx';
 import { SSEClient, type SSEEvent } from '@/lib/sse-client';
@@ -19,7 +22,7 @@ export class GhostTextStore {
 
   private client: SSEClient | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly debounceMs = 500;
+  private readonly debounceMs = 300; // 300ms debounce per requirements
   private cache = new Map<string, string>();
   private readonly maxCacheSize = 10;
 

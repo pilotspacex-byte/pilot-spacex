@@ -1,11 +1,20 @@
 /**
  * ChatHeader - Chat title, status, and task badges
+ * T075-T079: Add session selector dropdown
  */
 
 import { observer } from 'mobx-react-lite';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Loader2, X, MessageSquare } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Sparkles, Loader2, X, MessageSquare, ChevronDown, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ChatHeaderProps {
@@ -13,12 +22,29 @@ interface ChatHeaderProps {
   isStreaming?: boolean;
   activeTaskCount?: number;
   sessionId?: string | null;
+  recentSessions?: Array<{
+    sessionId: string;
+    title?: string;
+    updatedAt: Date;
+  }>;
   onClear?: () => void;
+  onNewSession?: () => void;
+  onSelectSession?: (sessionId: string) => void;
   className?: string;
 }
 
 export const ChatHeader = observer<ChatHeaderProps>(
-  ({ title, isStreaming, activeTaskCount = 0, sessionId, onClear, className }) => {
+  ({
+    title,
+    isStreaming,
+    activeTaskCount = 0,
+    sessionId,
+    recentSessions = [],
+    onClear,
+    onNewSession,
+    onSelectSession,
+    className,
+  }) => {
     return (
       <div className={cn('border-b bg-background', className)}>
         <div className="flex items-center justify-between px-4 py-3">
@@ -53,7 +79,55 @@ export const ChatHeader = observer<ChatHeaderProps>(
           </div>
 
           <div className="flex items-center gap-2">
-            {sessionId && (
+            {/* Session selector dropdown */}
+            {recentSessions.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <MessageSquare className="h-3 w-3" />
+                    {sessionId ? `Session: ${sessionId.slice(0, 8)}` : 'Select Session'}
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel>Recent Sessions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {onNewSession && (
+                    <>
+                      <DropdownMenuItem onClick={onNewSession} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        <span>New Session</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  {recentSessions.map((session) => (
+                    <DropdownMenuItem
+                      key={session.sessionId}
+                      onClick={() => onSelectSession?.(session.sessionId)}
+                      className={cn('gap-2', sessionId === session.sessionId && 'bg-accent')}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {session.title || `Session ${session.sessionId.slice(0, 8)}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {session.updatedAt.toLocaleDateString([], {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Session badge (show if sessions not available) */}
+            {sessionId && recentSessions.length === 0 && (
               <Badge variant="outline" className="gap-1.5 font-mono text-xs">
                 <MessageSquare className="h-3 w-3" />
                 Session: {sessionId.slice(0, 8)}
