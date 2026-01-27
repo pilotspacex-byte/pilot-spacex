@@ -101,15 +101,16 @@ export const APIKeyForm = observer(function APIKeyForm() {
           <CardTitle>API Keys</CardTitle>
         </div>
         <CardDescription>
-          Configure your AI provider API keys. Keys are encrypted and stored securely in Supabase Vault.
+          Configure your AI provider API keys. Keys are encrypted and stored securely in Supabase
+          Vault.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            Both Anthropic and OpenAI API keys are required for full functionality.
-            Anthropic powers code generation, and OpenAI provides semantic search.
+            Both Anthropic and OpenAI API keys are required for full functionality. Anthropic powers
+            code generation, and OpenAI provides semantic search.
           </AlertDescription>
         </Alert>
 

@@ -29,25 +29,29 @@ const tagConfig = {
   recommended: {
     label: 'Recommended',
     icon: Star,
-    className: 'bg-green-500/10 text-green-600 border-green-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-800',
+    className:
+      'bg-green-500/10 text-green-600 border-green-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-800',
     description: 'High confidence - strongly suggested',
   },
   default: {
     label: 'Default',
     icon: Check,
-    className: 'bg-blue-500/10 text-blue-600 border-blue-200 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-800',
+    className:
+      'bg-blue-500/10 text-blue-600 border-blue-200 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-800',
     description: 'Good confidence - reasonable option',
   },
   current: {
     label: 'Current',
     icon: Minus,
-    className: 'bg-gray-500/10 text-gray-600 border-gray-200 dark:bg-gray-500/20 dark:text-gray-400 dark:border-gray-800',
+    className:
+      'bg-gray-500/10 text-gray-600 border-gray-200 dark:bg-gray-500/20 dark:text-gray-400 dark:border-gray-800',
     description: 'Moderate confidence - matches existing pattern',
   },
   alternative: {
     label: 'Alternative',
     icon: HelpCircle,
-    className: 'bg-yellow-500/10 text-yellow-600 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800',
+    className:
+      'bg-yellow-500/10 text-yellow-600 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800',
     description: 'Lower confidence - consider carefully',
   },
 };

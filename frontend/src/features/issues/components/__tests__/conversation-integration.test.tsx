@@ -125,9 +125,7 @@ describe('Conversation Integration', () => {
     await waitFor(
       () => {
         expect(screen.getByText('How do I implement this?')).toBeInTheDocument();
-        expect(
-          screen.getByText('AI response to: How do I implement this?')
-        ).toBeInTheDocument();
+        expect(screen.getByText('AI response to: How do I implement this?')).toBeInTheDocument();
       },
       { timeout: 3000 }
     );

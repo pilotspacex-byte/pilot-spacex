@@ -24,8 +24,11 @@ from pilot_space.api.v1.routers.ai_configuration import router as ai_configurati
 from pilot_space.api.v1.routers.ai_costs import router as ai_costs_router
 from pilot_space.api.v1.routers.ai_extraction import router as ai_extraction_router
 from pilot_space.api.v1.routers.ai_pr_review import router as ai_pr_review_router
+from pilot_space.api.v1.routers.ai_sessions import router as ai_sessions_router
+from pilot_space.api.v1.routers.ai_tasks import router as ai_tasks_router
 from pilot_space.api.v1.routers.auth import router as auth_router
 from pilot_space.api.v1.routers.cycles import router as cycles_router
+from pilot_space.api.v1.routers.ghost_text import router as ghost_text_router
 from pilot_space.api.v1.routers.integrations import router as integrations_router
 from pilot_space.api.v1.routers.issues import router as issues_router
 from pilot_space.api.v1.routers.issues_ai import router as issues_ai_router
@@ -33,6 +36,7 @@ from pilot_space.api.v1.routers.issues_ai_context import router as issues_ai_con
 from pilot_space.api.v1.routers.issues_ai_context_streaming import (
     router as issues_ai_context_streaming_router,
 )
+from pilot_space.api.v1.routers.mcp_tools import router as mcp_tools_router
 from pilot_space.api.v1.routers.notes import router as notes_router
 from pilot_space.api.v1.routers.notes_ai import router as notes_ai_router
 from pilot_space.api.v1.routers.projects import router as projects_router
@@ -57,14 +61,18 @@ __all__ = [
     "ai_extraction_router",
     "ai_pr_review_router",
     "ai_router",
+    "ai_sessions_router",
+    "ai_tasks_router",
     "auth_router",
     "cycles_router",
     "debug_router",
+    "ghost_text_router",
     "integrations_router",
     "issues_ai_context_router",
     "issues_ai_context_streaming_router",
     "issues_ai_router",
     "issues_router",
+    "mcp_tools_router",
     "notes_ai_router",
     "notes_router",
     "projects_router",

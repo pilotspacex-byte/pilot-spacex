@@ -65,8 +65,8 @@ export const IssueExtractionApprovalModal = observer(function IssueExtractionApp
             Create Issues
           </DialogTitle>
           <DialogDescription>
-            You are about to create {selectedIndices.length} issue{selectedIndices.length > 1 ? 's' : ''} from the
-            extracted suggestions.
+            You are about to create {selectedIndices.length} issue
+            {selectedIndices.length > 1 ? 's' : ''} from the extracted suggestions.
           </DialogDescription>
         </DialogHeader>
 
@@ -113,7 +113,11 @@ export const IssueExtractionApprovalModal = observer(function IssueExtractionApp
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={issueExtraction.isCreating}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={issueExtraction.isCreating}
+          >
             Cancel
           </Button>
           <Button onClick={handleApprove} disabled={issueExtraction.isCreating}>

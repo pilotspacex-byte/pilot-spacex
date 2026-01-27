@@ -94,9 +94,7 @@ export function ConversationInput({
           {/* Hint text */}
           <div className="absolute bottom-2 right-2 text-xs text-muted-foreground pointer-events-none">
             {input.trim() && !disabled && (
-              <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">
-                ⌘↵
-              </kbd>
+              <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">⌘↵</kbd>
             )}
           </div>
         </div>

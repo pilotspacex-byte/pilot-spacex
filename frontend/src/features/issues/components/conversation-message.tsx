@@ -54,9 +54,7 @@ export function ConversationMessage({ message, isStreaming = false }: Conversati
       <div
         className={cn(
           'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center',
-          isUser
-            ? 'bg-primary/10 text-primary'
-            : 'bg-ai/10 text-ai border border-ai/20'
+          isUser ? 'bg-primary/10 text-primary' : 'bg-ai/10 text-ai border border-ai/20'
         )}
         aria-hidden="true"
       >
@@ -86,9 +84,7 @@ export function ConversationMessage({ message, isStreaming = false }: Conversati
           )}
         >
           {/* Timestamp */}
-          <time dateTime={message.created_at}>
-            {format(new Date(message.created_at), 'HH:mm')}
-          </time>
+          <time dateTime={message.created_at}>{format(new Date(message.created_at), 'HH:mm')}</time>
 
           {/* Copy button for AI messages */}
           {!isUser && (
@@ -99,11 +95,7 @@ export function ConversationMessage({ message, isStreaming = false }: Conversati
               onClick={handleCopy}
               aria-label="Copy message"
             >
-              {copied ? (
-                <Check className="h-3 w-3 text-green-600" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
+              {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
             </Button>
           )}
 
@@ -133,10 +125,7 @@ function MessageContent({ content }: { content: string }) {
         // Inline code
         if (part.startsWith('`') && part.endsWith('`') && !part.startsWith('```')) {
           return (
-            <code
-              key={index}
-              className="bg-muted/50 px-1.5 py-0.5 rounded text-sm font-mono"
-            >
+            <code key={index} className="bg-muted/50 px-1.5 py-0.5 rounded text-sm font-mono">
               {part.slice(1, -1)}
             </code>
           );
@@ -149,10 +138,7 @@ function MessageContent({ content }: { content: string }) {
           const code = lines.slice(1).join('\n');
 
           return (
-            <pre
-              key={index}
-              className="bg-muted/50 rounded-md p-4 overflow-x-auto my-2"
-            >
+            <pre key={index} className="bg-muted/50 rounded-md p-4 overflow-x-auto my-2">
               <code className="text-sm font-mono">{code}</code>
             </pre>
           );

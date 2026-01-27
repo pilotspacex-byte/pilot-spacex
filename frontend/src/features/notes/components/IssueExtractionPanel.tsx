@@ -161,7 +161,12 @@ export const IssueExtractionPanel = observer(function IssueExtractionPanel({
               {selectedIssues.length} of {issueExtraction.extractedIssues.length} selected
             </span>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleExtract} disabled={issueExtraction.isLoading}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExtract}
+                disabled={issueExtraction.isLoading}
+              >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Extract Again
               </Button>

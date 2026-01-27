@@ -668,6 +668,30 @@ async def get_ai_config_or_demo(
 # ============================================================================
 
 
+async def get_redis_client(request: Request) -> RedisClient:
+    """Get Redis client from app state.
+
+    Args:
+        request: FastAPI request with app state.
+
+    Returns:
+        RedisClient instance.
+
+    Raises:
+        RuntimeError: If container not initialized or Redis not configured.
+    """
+    if not hasattr(request.app.state, "container"):
+        raise RuntimeError("DI container not initialized. Check app startup.")
+
+    container = request.app.state.container
+    redis = container.redis_client()
+
+    if redis is None:
+        raise RuntimeError("Redis not configured. Check REDIS_URL environment variable.")
+
+    return redis
+
+
 async def get_session_manager(request: Request) -> SessionManager | None:
     """Get session manager from app state.
 
@@ -952,10 +976,12 @@ if TYPE_CHECKING:
     from pilot_space.ai.sdk_orchestrator import SDKOrchestrator
     from pilot_space.ai.session.session_manager import SessionManager
     from pilot_space.ai.tools.mcp_server import ToolRegistry
+    from pilot_space.infrastructure.cache.redis import RedisClient
 
 # Type aliases for AI dependencies (using string forward references)
 OrchestratorDep = Annotated["SDKOrchestrator", Depends(get_sdk_orchestrator)]
 SessionManagerDep = Annotated["SessionManager | None", Depends(get_session_manager)]
+RedisDep = Annotated["RedisClient", Depends(get_redis_client)]
 ProviderSelectorDep = Annotated["ProviderSelector", Depends(get_provider_selector)]
 ResilientExecutorDep = Annotated["ResilientExecutor", Depends(get_resilient_executor)]
 ToolRegistryDep = Annotated["ToolRegistry", Depends(get_tool_registry)]

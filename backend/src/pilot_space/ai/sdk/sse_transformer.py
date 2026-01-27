@@ -150,26 +150,43 @@ class SSETransformer:
         progress: float,
         status: Literal["pending", "running", "completed", "failed"],
         message: str | None = None,
+        task_id: str | None = None,
+        current_step: str | None = None,
+        total_steps: int | None = None,
     ) -> SSEEvent:
         """Transform task progress event.
+
+        Enhanced for T073 with task_id and step tracking.
 
         Args:
             task_name: Name of the task.
             progress: Progress percentage (0.0-1.0).
             status: Current task status.
             message: Optional status message.
+            task_id: Optional task UUID for progress tracking.
+            current_step: Optional current step description.
+            total_steps: Optional total steps count.
 
         Returns:
             SSEEvent for task_progress.
         """
+        data: dict[str, Any] = {
+            "task_name": task_name,
+            "progress": progress,
+            "status": status,
+            "message": message,
+        }
+
+        if task_id:
+            data["task_id"] = task_id
+        if current_step:
+            data["current_step"] = current_step
+        if total_steps:
+            data["total_steps"] = total_steps
+
         return SSEEvent(
             event="task_progress",
-            data={
-                "task_name": task_name,
-                "progress": progress,
-                "status": status,
-                "message": message,
-            },
+            data=data,
         )
 
     @staticmethod

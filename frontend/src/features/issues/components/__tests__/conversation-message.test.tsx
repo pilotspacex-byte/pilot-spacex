@@ -79,9 +79,7 @@ describe('ConversationMessage', () => {
 
     await user.click(copyButton);
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      'I am doing well, thank you!'
-    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('I am doing well, thank you!');
   });
 
   it('should not show copy button for user messages', () => {

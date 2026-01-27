@@ -34,7 +34,11 @@ export const MarginAnnotationList = observer(function MarginAnnotationList({
   }
 
   return (
-    <div className="margin-annotation-list relative h-full" role="complementary" aria-label="Annotations">
+    <div
+      className="margin-annotation-list relative h-full"
+      role="complementary"
+      aria-label="Annotations"
+    >
       {blockPositions.map((block) => {
         const annotations = annotationsByBlock.get(block.blockId) || [];
         if (annotations.length === 0) return null;

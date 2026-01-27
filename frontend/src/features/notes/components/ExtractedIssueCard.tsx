@@ -47,11 +47,7 @@ export const ExtractedIssueCard = observer(function ExtractedIssueCard({
     >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <Checkbox
-            checked={selected}
-            className="mt-1"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <Checkbox checked={selected} className="mt-1" onClick={(e) => e.stopPropagation()} />
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -59,18 +55,13 @@ export const ExtractedIssueCard = observer(function ExtractedIssueCard({
               <ConfidenceTagBadge tag={issue.confidence_tag} score={issue.confidence_score} />
             </div>
 
-            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-              {issue.description}
-            </p>
+            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{issue.description}</p>
 
             <div className="flex flex-wrap gap-2 items-center">
               {issue.labels && issue.labels.length > 0 && (
                 <div className="flex gap-1 flex-wrap">
                   {issue.labels.map((label, i) => (
-                    <span
-                      key={i}
-                      className="text-xs bg-muted px-2 py-0.5 rounded-md font-medium"
-                    >
+                    <span key={i} className="text-xs bg-muted px-2 py-0.5 rounded-md font-medium">
                       {label}
                     </span>
                   ))}
@@ -85,9 +76,7 @@ export const ExtractedIssueCard = observer(function ExtractedIssueCard({
             </div>
 
             {issue.rationale && (
-              <p className="text-xs text-muted-foreground mt-2 italic">
-                {issue.rationale}
-              </p>
+              <p className="text-xs text-muted-foreground mt-2 italic">{issue.rationale}</p>
             )}
           </div>
         </div>

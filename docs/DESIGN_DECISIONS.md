@@ -2,7 +2,7 @@
 
 Architecture decision record optimized for AI context retrieval. Full rationale in expandable sections.
 
-**Document Version**: 3.2 | **Last Updated**: 2026-01-23 | **Decisions**: 85
+**Document Version**: 3.3 | **Last Updated**: 2026-01-28 | **Decisions**: 88
 
 ---
 
@@ -42,6 +42,9 @@ Architecture decision record optimized for AI context retrieval. Full rationale 
 | DD-069 | Background Job Configuration | Accepted | Infra |
 | DD-070 | Embedding & Search Configuration | Accepted | AI |
 | DD-071–085 | User Story Clarifications | Accepted | Features |
+| DD-086 | Conversational Agent Architecture | Accepted | AI |
+| DD-087 | Skill System Design | Accepted | AI |
+| DD-088 | MCP Tool Registry | Accepted | AI |
 
 ---
 

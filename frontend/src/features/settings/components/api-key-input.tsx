@@ -76,10 +76,7 @@ export function APIKeyInput({
             disabled={disabled}
             aria-invalid={!!error}
             aria-describedby={error ? errorId : undefined}
-            className={cn(
-              'pr-20',
-              error && 'border-destructive focus-visible:ring-destructive/20'
-            )}
+            className={cn('pr-20', error && 'border-destructive focus-visible:ring-destructive/20')}
             autoComplete="off"
             data-provider={provider}
           />
@@ -106,11 +103,7 @@ export function APIKeyInput({
               type="button"
               aria-label={showKey ? 'Hide API key' : 'Show API key'}
             >
-              {showKey ? (
-                <EyeOff className="h-3.5 w-3.5" />
-              ) : (
-                <Eye className="h-3.5 w-3.5" />
-              )}
+              {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
             </Button>
           </div>
         </div>

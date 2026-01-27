@@ -135,6 +135,8 @@ Pilot Space uses **Supabase** as the unified backend platform, consolidating 10+
 | [Backend Architecture](./backend-architecture.md) | FastAPI + Clean Architecture + CQRS-lite |
 | [Frontend Architecture](./frontend-architecture.md) | Next.js App Router + MobX |
 | [AI Layer](./ai-layer.md) | AI orchestration and 16 agents |
+| [**PilotSpace Agent Architecture**](./pilotspace-agent-architecture.md) | **Centralized conversational AI with subagent orchestration** |
+| [Claude Agent SDK Architecture](./claude-agent-sdk-architecture.md) | SDK integration patterns |
 | [Infrastructure](./infrastructure.md) | Supabase platform, Docker, deployment |
 | [Supabase Integration](./supabase-integration.md) | Detailed Supabase patterns |
 | [Design Patterns](./design-patterns.md) | Patterns and conventions |
@@ -235,6 +237,7 @@ This index helps AI assistants quickly locate specific information across all ar
 | **Layer Dependencies** | [README.md](#layer-dependency-rule) | Layer Dependency Rule | Dependency flow diagram |
 | **CQRS Pattern** | [backend-architecture.md](./backend-architecture.md#cqrs-lite-pattern) | CQRS-lite Pattern | Command/Query separation |
 | **AI Agents** | [ai-layer.md](./ai-layer.md) | All sections | 9 primary + 7 helper agents, providers, orchestration |
+| **PilotSpace Agent** | [pilotspace-agent-architecture.md](./pilotspace-agent-architecture.md) | All sections | Centralized conversational AI, subagents, skills, chat UI |
 | **Frontend State** | [frontend-architecture.md](./frontend-architecture.md#state-management) | State Management | MobX + TanStack Query patterns |
 | **Note Canvas** | [frontend-architecture.md](./frontend-architecture.md#tiptap-editor-integration) | TipTap Editor Integration | Block editor, Ghost Text extension |
 | **RLS Policies** | [rls-patterns.md](./rls-patterns.md) | All sections | Row-level security patterns |
