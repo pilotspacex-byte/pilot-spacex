@@ -1,5 +1,6 @@
 /**
  * TaskList - List of tasks with filtering
+ * T071-T074: Pass progress data to TaskItem
  */
 
 import { memo } from 'react';
@@ -41,7 +42,14 @@ export const TaskList = memo<TaskListProps>(({ tasks, activeTasks, completedTask
           ) : (
             <div className="space-y-2 pr-4">
               {activeTasks.map((task) => (
-                <TaskItem key={task.id} task={task} />
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  progress={task.progress}
+                  currentStep={task.currentStep}
+                  totalSteps={task.totalSteps}
+                  estimatedSecondsRemaining={task.estimatedSecondsRemaining}
+                />
               ))}
             </div>
           )}

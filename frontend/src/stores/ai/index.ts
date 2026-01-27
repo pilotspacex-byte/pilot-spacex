@@ -15,6 +15,7 @@ export { IssueExtractionStore } from './IssueExtractionStore';
 export { MarginAnnotationStore } from './MarginAnnotationStore';
 export { CostStore } from './CostStore';
 export { PilotSpaceStore } from './PilotSpaceStore';
+export { SessionListStore } from './SessionListStore';
 
 // Types
 export type { AIContextPhase, AIContextResult } from './AIContextStore';
@@ -37,6 +38,7 @@ export type {
   NoteContext,
   IssueContext,
 } from './PilotSpaceStore';
+export type { SessionSummary } from './SessionListStore';
 
 // Conversational Agent Types
 export * from './types';

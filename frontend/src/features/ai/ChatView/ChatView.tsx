@@ -8,12 +8,14 @@
  * - Approval overlay for human-in-the-loop (DD-003)
  * - Chat input with skill/agent menus
  * - Context management (note, issue, project)
+ * - Session persistence (T075-T079)
  */
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { observer } from 'mobx-react-lite';
 import { cn } from '@/lib/utils';
 import type { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
+import { SessionListStore } from '@/stores/ai/SessionListStore';
 import type { AgentTask } from './types';
 import { ChatHeader } from './ChatHeader';
 import { MessageList } from './MessageList/MessageList';
@@ -32,7 +34,17 @@ export const ChatView = observer<ChatViewProps>(({ store, userName, userAvatar, 
   const [inputValue, setInputValue] = useState('');
   const [taskPanelOpen, setTaskPanelOpen] = useState(true);
 
-  // Convert TaskState to AgentTask for TaskPanel
+  // Initialize SessionListStore (T075-T079)
+  const [sessionListStore] = useState(
+    () => new SessionListStore(store as unknown as import('@/stores/ai/AIStore').AIStore)
+  );
+
+  // Fetch sessions on mount
+  useEffect(() => {
+    sessionListStore.fetchSessions();
+  }, [sessionListStore]);
+
+  // Convert TaskState to AgentTask for TaskPanel with progress data
   const agentTasks = useMemo((): AgentTask[] => {
     return Array.from(store.tasks.values()).map((task) => ({
       id: task.id,
@@ -43,6 +55,11 @@ export const ChatView = observer<ChatViewProps>(({ store, userName, userAvatar, 
       status: task.status === 'blocked' ? 'pending' : task.status,
       createdAt: task.createdAt,
       completedAt: task.status === 'completed' ? task.updatedAt : undefined,
+      // Include progress data for T071-T074
+      progress: task.progress,
+      currentStep: task.currentStep,
+      totalSteps: task.totalSteps,
+      estimatedSecondsRemaining: task.estimatedSecondsRemaining,
     }));
   }, [store.tasks]);
 
@@ -126,15 +143,41 @@ export const ChatView = observer<ChatViewProps>(({ store, userName, userAvatar, 
     [store]
   );
 
+  const handleNewSession = useCallback(() => {
+    store.clear();
+    setInputValue('');
+  }, [store]);
+
+  const handleSelectSession = useCallback(
+    async (sessionId: string) => {
+      await sessionListStore.resumeSession(sessionId);
+    },
+    [sessionListStore]
+  );
+
+  // Prepare recent sessions for dropdown
+  const recentSessions = useMemo(
+    () =>
+      sessionListStore.activeSessions.slice(0, 5).map((s) => ({
+        sessionId: s.sessionId,
+        title: s.title,
+        updatedAt: s.updatedAt,
+      })),
+    [sessionListStore.activeSessions]
+  );
+
   return (
     <div className={cn('flex flex-col h-full bg-background', className)}>
-      {/* Header */}
+      {/* Header with session selector (T075-T079) */}
       <ChatHeader
         title="PilotSpace AI"
         isStreaming={store.isStreaming}
         activeTaskCount={store.activeTasks.length}
         sessionId={store.sessionId}
+        recentSessions={recentSessions}
         onClear={handleClearConversation}
+        onNewSession={handleNewSession}
+        onSelectSession={handleSelectSession}
       />
 
       {/* Main content area */}
