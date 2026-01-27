@@ -22,6 +22,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pilot_space.infrastructure.database.base import Base, WorkspaceScopedMixin
 
 if TYPE_CHECKING:
+    from pilot_space.infrastructure.database.models.ai_message import AIMessage
+    from pilot_space.infrastructure.database.models.ai_task import AITask
     from pilot_space.infrastructure.database.models.user import User
     from pilot_space.infrastructure.database.models.workspace import Workspace
 
@@ -132,6 +134,20 @@ class AISession(Base, WorkspaceScopedMixin):
 
     user: Mapped[User] = relationship(
         "User",
+        lazy="selectin",
+    )
+
+    messages: Mapped[list[AIMessage]] = relationship(
+        "AIMessage",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    tasks: Mapped[list[AITask]] = relationship(
+        "AITask",
+        back_populates="session",
+        cascade="all, delete-orphan",
         lazy="selectin",
     )
 

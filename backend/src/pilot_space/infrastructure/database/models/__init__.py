@@ -33,7 +33,10 @@ from pilot_space.infrastructure.database.models.ai_configuration import (
 )
 from pilot_space.infrastructure.database.models.ai_context import AIContext
 from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
+from pilot_space.infrastructure.database.models.ai_message import AIMessage, MessageRole
 from pilot_space.infrastructure.database.models.ai_session import AISession
+from pilot_space.infrastructure.database.models.ai_task import AITask, TaskStatus
+from pilot_space.infrastructure.database.models.ai_tool_call import AIToolCall, ToolCallStatus
 from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
 from pilot_space.infrastructure.database.models.discussion_comment import (
     DiscussionComment,
@@ -84,7 +87,10 @@ __all__ = [
     "AIConfiguration",
     "AIContext",
     "AICostRecord",
+    "AIMessage",
     "AISession",
+    "AITask",
+    "AIToolCall",
     "Activity",
     "ActivityType",
     "AnnotationStatus",
@@ -107,6 +113,7 @@ __all__ = [
     "IssuePriority",
     "LLMProvider",
     "Label",
+    "MessageRole",
     "Module",
     "ModuleStatus",
     "Note",
@@ -118,9 +125,11 @@ __all__ = [
     "SoftDeleteMixin",
     "State",
     "StateGroup",
+    "TaskStatus",
     "Template",
     "ThreadedDiscussion",
     "TimestampMixin",
+    "ToolCallStatus",
     "User",
     "Workspace",
     "WorkspaceAPIKey",
