@@ -14,6 +14,7 @@
  * @see UI Spec v3.3 Section 7 - Issue Box Specifications
  */
 import { useCallback, useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { Bug, Wrench, Zap, CheckSquare, Check, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -122,6 +123,9 @@ function PriorityBars({ priority }: { priority: IssuePriority }) {
  * InlineIssueComponent renders an inline issue reference with rainbow border
  */
 export function InlineIssueComponent({ node }: NodeViewProps) {
+  const params = useParams<{ workspaceSlug: string }>();
+  const workspaceSlug = params.workspaceSlug ?? '';
+
   const attrs = node.attrs as InlineIssueAttributes;
   const {
     issueId,
@@ -225,7 +229,7 @@ export function InlineIssueComponent({ node }: NodeViewProps) {
                 <span className="font-mono text-sm font-semibold text-foreground">{issueKey}</span>
               </div>
               <Button variant="ghost" size="sm" className="h-7 px-2 -mr-2" asChild>
-                <Link href={`/issues/${issueId}`}>
+                <Link href={`/${workspaceSlug}/issues/${issueId}`}>
                   Open <ExternalLink className="ml-1 h-3 w-3" />
                 </Link>
               </Button>

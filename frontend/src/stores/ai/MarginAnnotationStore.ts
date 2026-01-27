@@ -94,13 +94,16 @@ export class MarginAnnotationStore {
 
     // Prepare request body
     const blockIds = blocks.map((b) => b.id);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+    const authHeaders = await getAuthHeaders();
 
     this.sseClient = new SSEClient({
-      url: `/api/v1/ai/notes/${noteId}/annotations`,
+      url: `${apiUrl}/ai/notes/${noteId}/annotations`,
       body: {
         block_ids: blockIds,
         context_blocks: 3,
       },
+      headers: authHeaders,
       onMessage: (event) => {
         if (event.type === 'annotation') {
           runInAction(() => {
@@ -246,7 +249,7 @@ export class MarginAnnotationStore {
    * Used by MarginAnnotationAutoTriggerExtension when content changes.
    * Debounced to prevent excessive API calls.
    */
-  autoTriggerAnnotations(noteId: string, blockIds: string[]): void {
+  autoTriggerAnnotations(noteId: string, blockIds: string[], workspaceId?: string): void {
     if (!this.enabled || this.isGenerating || blockIds.length === 0) {
       return;
     }
@@ -267,7 +270,7 @@ export class MarginAnnotationStore {
 
     // Debounce the actual generation
     this.autoTriggerTimer = setTimeout(() => {
-      this.generateAnnotationsInternal(noteId, blockIds);
+      this.generateAnnotationsInternal(noteId, blockIds, workspaceId);
     }, this.autoTriggerDebounce);
   }
 
@@ -275,7 +278,11 @@ export class MarginAnnotationStore {
    * Internal method to generate annotations via SSE.
    * Called by autoTriggerAnnotations after debounce.
    */
-  private async generateAnnotationsInternal(noteId: string, blockIds: string[]): Promise<void> {
+  private async generateAnnotationsInternal(
+    noteId: string,
+    blockIds: string[],
+    workspaceId?: string
+  ): Promise<void> {
     // Abort any existing generation
     this.abort();
 
@@ -283,11 +290,18 @@ export class MarginAnnotationStore {
     this.error = null;
     this.generatingNoteId = noteId;
 
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+    const authHeaders = await getAuthHeaders();
+
     this.sseClient = new SSEClient({
-      url: `/api/v1/ai/notes/${noteId}/annotations/auto`,
+      url: `${apiUrl}/ai/notes/${noteId}/annotations`,
       body: {
         block_ids: blockIds,
         context_blocks: 3,
+      },
+      headers: {
+        ...authHeaders,
+        ...(workspaceId ? { 'X-Workspace-ID': workspaceId } : {}),
       },
       onMessage: (event) => {
         if (event.type === 'annotation') {

@@ -300,13 +300,13 @@ def generate_extracted_issues(input_data: Any) -> Any:
 @MockResponseRegistry.register("MarginAnnotationAgent")
 @MockResponseRegistry.register("MarginAnnotationAgentSDK")
 def generate_margin_annotations(input_data: dict[str, Any]) -> Any:
-    """Generate mock margin annotations.
+    """Generate mock margin annotations covering all types.
 
     Args:
         input_data: Dict or dataclass with note_id, block_ids
 
     Returns:
-        MarginAnnotationOutput dataclass.
+        MarginAnnotationOutput dataclass with all 5 annotation types.
     """
     from pilot_space.ai.agents.margin_annotation_agent_sdk import (
         Annotation,
@@ -318,44 +318,67 @@ def generate_margin_annotations(input_data: dict[str, Any]) -> Any:
     if hasattr(input_data, "block_ids"):
         block_ids = input_data.block_ids  # type: ignore[union-attr]
     else:
-        block_ids = input_data.get("block_ids", ["block-1", "block-2"])
+        block_ids = input_data.get(
+            "block_ids", ["block-1", "block-2", "block-3", "block-4", "block-5"]
+        )
 
-    annotations = []
-    for i, block_id in enumerate(block_ids[:3]):  # Limit to 3 for mock
-        if i == 0:
-            annotations.append(
-                Annotation(
-                    block_id=block_id,
-                    type=AnnotationType.SUGGESTION,
-                    title="Consider adding error handling",
-                    content="This section could benefit from try-catch blocks for robust error handling.",
-                    confidence=0.85,
-                    action_label="Show example",
-                    action_payload={"type": "code_example"},
-                )
-            )
-        elif i == 1:
-            annotations.append(
-                Annotation(
-                    block_id=block_id,
-                    type=AnnotationType.REFERENCE,
-                    title="Related architecture doc",
-                    content="See authentication architecture decision in ADR-003",
-                    confidence=0.92,
-                    action_label="Open doc",
-                    action_payload={"type": "link", "doc_id": "adr-003"},
-                )
-            )
-        else:
-            annotations.append(
-                Annotation(
-                    block_id=block_id,
-                    type=AnnotationType.INSIGHT,
-                    title="Best practice",
-                    content="Using async/await here aligns with project patterns",
-                    confidence=0.78,
-                )
-            )
+    # Ensure at least 5 block_ids for testing all types
+    while len(block_ids) < 5:
+        block_ids.append(f"block-{len(block_ids) + 1}")
+
+    # All 5 annotation types with varying confidence levels
+    annotations: list[Annotation] = [
+        Annotation(
+            block_id=block_ids[0],
+            type=AnnotationType.SUGGESTION,
+            title="Consider adding error handling",
+            content="This section could benefit from try-catch blocks for robust error handling. "
+            "Wrap the async operation in a try-catch block to gracefully handle network failures.",
+            confidence=0.92,  # Recommended (>0.8)
+            action_label="Apply suggestion",
+            action_payload={"type": "code_example", "template": "try-catch"},
+        ),
+        Annotation(
+            block_id=block_ids[1],
+            type=AnnotationType.WARNING,
+            title="Potential security issue",
+            content="User input is used directly without sanitization. "
+            "Consider validating and sanitizing the input to prevent XSS attacks.",
+            confidence=0.88,  # Recommended
+            action_label="Show fix",
+            action_payload={"type": "security_fix"},
+        ),
+        Annotation(
+            block_id=block_ids[2],
+            type=AnnotationType.QUESTION,
+            title="Clarification needed",
+            content="The acceptance criteria for this feature are ambiguous. "
+            "Should the notification also be sent via email, or only in-app?",
+            confidence=0.65,  # Default (0.5-0.8)
+            action_label=None,
+            action_payload=None,
+        ),
+        Annotation(
+            block_id=block_ids[3],
+            type=AnnotationType.INSIGHT,
+            title="Performance optimization",
+            content="This database query runs on every render. "
+            "Consider memoizing the result or using React Query for automatic caching.",
+            confidence=0.75,  # Default
+            action_label="Learn more",
+            action_payload={"type": "link", "url": "https://tanstack.com/query"},
+        ),
+        Annotation(
+            block_id=block_ids[4],
+            type=AnnotationType.REFERENCE,
+            title="Related architecture decision",
+            content="See ADR-003 for the authentication architecture decision "
+            "that relates to this implementation approach.",
+            confidence=0.45,  # Alternative (<0.5)
+            action_label="Open ADR",
+            action_payload={"type": "link", "doc_id": "adr-003"},
+        ),
+    ]
 
     return MarginAnnotationOutput(
         annotations=annotations,

@@ -1,5 +1,5 @@
 import { apiClient, type PaginatedResponse } from './client';
-import type { Project, Label } from '@/types';
+import type { Project } from '@/types';
 
 interface CreateProjectData {
   name: string;
@@ -14,72 +14,34 @@ interface UpdateProjectData {
 }
 
 export const projectsApi = {
-  list(workspaceId: string, page = 1, pageSize = 50): Promise<PaginatedResponse<Project>> {
-    return apiClient.get<PaginatedResponse<Project>>(`/workspaces/${workspaceId}/projects`, {
-      params: { page: String(page), pageSize: String(pageSize) },
+  list(workspaceId: string, _page = 1, pageSize = 50): Promise<PaginatedResponse<Project>> {
+    // Backend uses cursor-based pagination with workspace_id as query param
+    return apiClient.get<PaginatedResponse<Project>>('/projects', {
+      params: {
+        workspace_id: workspaceId,
+        page_size: String(pageSize),
+      },
     });
   },
 
-  get(workspaceId: string, projectId: string): Promise<Project> {
-    return apiClient.get<Project>(`/workspaces/${workspaceId}/projects/${projectId}`);
-  },
-
-  getBySlug(workspaceId: string, slug: string): Promise<Project> {
-    return apiClient.get<Project>(`/workspaces/${workspaceId}/projects/by-slug/${slug}`);
+  get(projectId: string): Promise<Project> {
+    return apiClient.get<Project>(`/projects/${projectId}`);
   },
 
   create(workspaceId: string, data: CreateProjectData): Promise<Project> {
-    return apiClient.post<Project>(`/workspaces/${workspaceId}/projects`, data);
-  },
-
-  update(workspaceId: string, projectId: string, data: UpdateProjectData): Promise<Project> {
-    return apiClient.patch<Project>(`/workspaces/${workspaceId}/projects/${projectId}`, data);
-  },
-
-  delete(workspaceId: string, projectId: string): Promise<void> {
-    return apiClient.delete<void>(`/workspaces/${workspaceId}/projects/${projectId}`);
-  },
-
-  addMember(workspaceId: string, projectId: string, userId: string): Promise<Project> {
-    return apiClient.post<Project>(`/workspaces/${workspaceId}/projects/${projectId}/members`, {
-      userId,
+    return apiClient.post<Project>('/projects', {
+      ...data,
+      workspace_id: workspaceId,
     });
   },
 
-  removeMember(workspaceId: string, projectId: string, userId: string): Promise<Project> {
-    return apiClient.delete<Project>(
-      `/workspaces/${workspaceId}/projects/${projectId}/members/${userId}`
-    );
+  update(projectId: string, data: UpdateProjectData): Promise<Project> {
+    return apiClient.patch<Project>(`/projects/${projectId}`, data);
   },
 
-  // Labels
-  getLabels(workspaceId: string, projectId: string): Promise<Label[]> {
-    return apiClient.get<Label[]>(`/workspaces/${workspaceId}/projects/${projectId}/labels`);
+  delete(projectId: string): Promise<void> {
+    return apiClient.delete<void>(`/projects/${projectId}`);
   },
 
-  createLabel(
-    workspaceId: string,
-    projectId: string,
-    data: { name: string; color: string }
-  ): Promise<Label> {
-    return apiClient.post<Label>(`/workspaces/${workspaceId}/projects/${projectId}/labels`, data);
-  },
-
-  updateLabel(
-    workspaceId: string,
-    projectId: string,
-    labelId: string,
-    data: { name?: string; color?: string }
-  ): Promise<Label> {
-    return apiClient.patch<Label>(
-      `/workspaces/${workspaceId}/projects/${projectId}/labels/${labelId}`,
-      data
-    );
-  },
-
-  deleteLabel(workspaceId: string, projectId: string, labelId: string): Promise<void> {
-    return apiClient.delete<void>(
-      `/workspaces/${workspaceId}/projects/${projectId}/labels/${labelId}`
-    );
-  },
+  // Note: addMember, removeMember, and label endpoints are not yet implemented in backend
 };

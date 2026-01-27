@@ -166,6 +166,7 @@ export const NoteCanvas = observer(function NoteCanvas({
   const [extractedIssues, setExtractedIssues] = useState<ExtractedIssue[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [showExtractionPanel, setShowExtractionPanel] = useState(false);
+  const [extractionInsertPos, setExtractionInsertPos] = useState<number | null>(null);
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -197,14 +198,27 @@ export const NoteCanvas = observer(function NoteCanvas({
     [noteId, aiStore.ghostText]
   );
 
-  // TODO: Add margin annotation auto-trigger once MarginAnnotationExtension supports it
-  // const handleAnnotationTrigger = useCallback(
-  //   (context: MarginAnnotationContext) => {
-  //     if (!noteId) return;
-  //     aiStore.marginAnnotation.autoTriggerAnnotations(noteId, context.blockIds);
-  //   },
-  //   [noteId, aiStore.marginAnnotation]
-  // );
+  // Auto-trigger margin annotations when content changes (debounced in store)
+  const handleAnnotationAutoTrigger = useCallback(
+    (editor: Editor) => {
+      if (!noteId || !editor || editor.isDestroyed) return;
+
+      // Extract blockIds from the editor's document
+      const blockIds: string[] = [];
+      editor.state.doc.descendants((node) => {
+        const blockId = node.attrs?.id || node.attrs?.blockId;
+        if (blockId) {
+          blockIds.push(blockId);
+        }
+        return true; // Continue traversal
+      });
+
+      if (blockIds.length > 0) {
+        aiStore.marginAnnotation.autoTriggerAnnotations(noteId, blockIds, workspaceId);
+      }
+    },
+    [noteId, workspaceId, aiStore.marginAnnotation]
+  );
 
   // State to track when editor is ready for MobX reactions
   const [isEditorReady, setIsEditorReady] = useState(false);
@@ -278,6 +292,12 @@ export const NoteCanvas = observer(function NoteCanvas({
       setIsExtracting(true);
       setShowExtractionPanel(true);
       setExtractedIssues([]); // Clear previous issues
+
+      // Capture insertion position (end of current selection or cursor position)
+      // Find the end of the current paragraph/block for insertion
+      const { $to } = currentEditor.state.selection;
+      const endOfBlock = $to.end($to.depth);
+      setExtractionInsertPos(endOfBlock);
 
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
@@ -469,6 +489,8 @@ export const NoteCanvas = observer(function NoteCanvas({
         const json = ed.getJSON();
         onChange(json as JSONContent);
       }
+      // Auto-trigger margin annotations after content changes (debounced in store)
+      handleAnnotationAutoTrigger(ed);
     },
     onCreate: ({ editor: ed }) => {
       setEditorError(null);
@@ -608,19 +630,140 @@ export const NoteCanvas = observer(function NoteCanvas({
     [workspaceSlug, noteId, aiStore.marginAnnotation]
   );
 
-  // Issue extraction panel handlers
-  const handleCreateIssue = useCallback(async (issue: ExtractedIssue) => {
-    // TODO: Create issue via API
-    toast.success(`Issue created: ${issue.title}`);
-    setExtractedIssues((prev) => prev.filter((i) => i.id !== issue.id));
-  }, []);
+  // Issue extraction panel handlers - create issues in backend and insert into note
+  const handleCreateIssue = useCallback(
+    async (issue: ExtractedIssue) => {
+      const currentEditor = editorRef.current;
+      if (!currentEditor || currentEditor.isDestroyed) return;
+      if (!workspaceId) {
+        toast.error('Workspace not found');
+        return;
+      }
+
+      try {
+        // Map priority string to IssuePriority type
+        const priorityMap: Record<string, 'urgent' | 'high' | 'medium' | 'low' | 'none'> = {
+          high: 'high',
+          medium: 'medium',
+          low: 'low',
+        };
+
+        // Create the issue in the backend (backend auto-selects project if not provided)
+        const { issuesApi } = await import('@/services/api/issues');
+        const createdIssue = await issuesApi.create(workspaceId, {
+          title: issue.title,
+          description: issue.description,
+          priority: priorityMap[issue.priority] || 'medium',
+          type: 'task',
+          state: 'backlog',
+          labels: issue.suggestedLabels,
+          sourceNoteId: noteId,
+        });
+
+        // Insert at stored position or current cursor
+        const insertPos = extractionInsertPos ?? currentEditor.state.selection.to;
+
+        // Insert inline issue node with real issue data
+        currentEditor
+          .chain()
+          .focus()
+          .insertContentAt(insertPos, [
+            {
+              type: 'inlineIssue',
+              attrs: {
+                issueId: createdIssue.id,
+                issueKey: createdIssue.identifier,
+                title: createdIssue.title,
+                type: createdIssue.type || 'task',
+                state: createdIssue.state,
+                priority: createdIssue.priority,
+                sourceBlockId: issue.sourceBlockId || null,
+                isNew: true,
+              },
+            },
+            { type: 'text', text: ' ' }, // Add space after issue
+          ])
+          .run();
+
+        // Update insertion position for next issue
+        setExtractionInsertPos((prev) => (prev ?? insertPos) + 2);
+
+        toast.success(`Issue created: ${createdIssue.identifier}`);
+        setExtractedIssues((prev) => prev.filter((i) => i.id !== issue.id));
+      } catch (err) {
+        console.error('Failed to create issue:', err);
+        toast.error('Failed to create issue');
+      }
+    },
+    [extractionInsertPos, workspaceId, noteId]
+  );
 
   const handleCreateAllIssues = useCallback(async () => {
-    // TODO: Create all issues via API
-    toast.success(`Created ${extractedIssues.length} issues`);
-    setExtractedIssues([]);
-    setShowExtractionPanel(false);
-  }, [extractedIssues.length]);
+    const currentEditor = editorRef.current;
+    if (!currentEditor || currentEditor.isDestroyed || extractedIssues.length === 0) return;
+    if (!workspaceId) {
+      toast.error('Workspace not found');
+      return;
+    }
+
+    try {
+      // Map priority string to IssuePriority type
+      const priorityMap: Record<string, 'urgent' | 'high' | 'medium' | 'low' | 'none'> = {
+        high: 'high',
+        medium: 'medium',
+        low: 'low',
+      };
+
+      // Create all issues in backend (backend auto-selects project if not provided)
+      const { issuesApi } = await import('@/services/api/issues');
+      const createdIssues = await Promise.all(
+        extractedIssues.map((issue) =>
+          issuesApi.create(workspaceId, {
+            title: issue.title,
+            description: issue.description,
+            priority: priorityMap[issue.priority] || 'medium',
+            type: 'task',
+            state: 'backlog',
+            labels: issue.suggestedLabels,
+            sourceNoteId: noteId,
+          })
+        )
+      );
+
+      // Build inline issue nodes with real issue data
+      const issueNodes: Array<{ type: string; attrs?: Record<string, unknown>; text?: string }> = [];
+      createdIssues.forEach((createdIssue, index) => {
+        const originalIssue = extractedIssues[index];
+        issueNodes.push({
+          type: 'inlineIssue',
+          attrs: {
+            issueId: createdIssue.id,
+            issueKey: createdIssue.identifier,
+            title: createdIssue.title,
+            type: createdIssue.type || 'task',
+            state: createdIssue.state,
+            priority: createdIssue.priority,
+            sourceBlockId: originalIssue?.sourceBlockId || null,
+            isNew: true,
+          },
+        });
+        // Add space between issues
+        issueNodes.push({ type: 'text', text: ' ' });
+      });
+
+      // Insert at stored position or end of document
+      const insertPos = extractionInsertPos ?? currentEditor.state.doc.content.size;
+      currentEditor.chain().focus().insertContentAt(insertPos, issueNodes).run();
+
+      toast.success(`Created ${createdIssues.length} issues`);
+      setExtractedIssues([]);
+      setShowExtractionPanel(false);
+      setExtractionInsertPos(null);
+    } catch (err) {
+      console.error('Failed to insert issues:', err);
+      toast.error('Failed to add issues to note');
+    }
+  }, [extractedIssues, extractionInsertPos, workspaceId, noteId]);
 
   const handleDismissIssue = useCallback((issueId: string) => {
     setExtractedIssues((prev) => prev.filter((i) => i.id !== issueId));
@@ -670,7 +813,7 @@ export const NoteCanvas = observer(function NoteCanvas({
         )}
 
         {/* Editor Toolbar - AI controls and formatting options */}
-        {!readOnly && <EditorToolbar noteId={noteId} workspaceId={workspaceId} />}
+        {/* {!readOnly && <EditorToolbar noteId={noteId} workspaceId={workspaceId} />} */}
 
         {/* Scrollable Editor Area */}
         <div ref={editorContainerRef} className="relative flex-1 overflow-auto bg-background">

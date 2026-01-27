@@ -220,6 +220,57 @@ DbSession = Annotated[AsyncSession, Depends(get_session)]
 
 
 # ============================================================================
+# User Sync Dependencies
+# ============================================================================
+
+
+async def ensure_user_synced(
+    current_user: Annotated[TokenPayload, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> UUID:
+    """Ensure authenticated user exists in the local database.
+
+    Syncs user from Supabase Auth to local users table on first access.
+    This is necessary because Supabase Auth and local DB are separate.
+
+    Args:
+        current_user: The validated token payload from Supabase Auth.
+        session: Database session.
+
+    Returns:
+        User UUID (synced to local DB).
+    """
+    from pilot_space.infrastructure.database.models.user import User
+    from pilot_space.infrastructure.database.repositories.user_repository import (
+        UserRepository,
+    )
+
+    user_repo = UserRepository(session=session)
+
+    # Check if user exists by ID first (fast path)
+    existing = await user_repo.get_by_id(current_user.user_id)
+    if existing:
+        return current_user.user_id
+
+    # User doesn't exist - create from JWT claims
+    email = current_user.email or f"user-{current_user.user_id}@placeholder.local"
+    user = User(
+        id=current_user.user_id,
+        email=email,
+        full_name=None,
+        avatar_url=None,
+    )
+    await user_repo.create(user)
+    await session.commit()
+
+    return current_user.user_id
+
+
+# Dependency that ensures user is synced before operations requiring owner_id
+SyncedUserId = Annotated[UUID, Depends(ensure_user_synced)]
+
+
+# ============================================================================
 # Workspace Context Dependencies
 # ============================================================================
 

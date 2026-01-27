@@ -30,7 +30,7 @@ export interface Issue {
 export interface CreateIssueData {
   title: string;
   description?: string;
-  projectId: string;
+  projectId?: string; // Optional - backend uses first workspace project if not provided
   state?: IssueState;
   priority?: IssuePriority;
   type?: IssueType;

@@ -26,7 +26,7 @@ from pilot_space.api.v1.schemas.note import (
     NoteUpdate,
     TipTapContentSchema,
 )
-from pilot_space.dependencies import CurrentUserId, DbSession
+from pilot_space.dependencies import CurrentUserId, DbSession, SyncedUserId
 from pilot_space.infrastructure.database.models.note import Note
 from pilot_space.infrastructure.database.models.note_annotation import NoteAnnotation
 from pilot_space.infrastructure.database.models.workspace import Workspace
@@ -267,7 +267,7 @@ async def get_workspace_note(
 async def create_workspace_note(
     workspace_id: WorkspaceIdOrSlug,
     note_data: NoteCreate,
-    current_user_id: CurrentUserId,
+    current_user_id: SyncedUserId,
     session: DbSession,
     note_repo: NoteRepo,
     workspace_repo: WorkspaceRepo,

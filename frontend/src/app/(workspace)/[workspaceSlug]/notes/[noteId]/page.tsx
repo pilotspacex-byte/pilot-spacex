@@ -4,7 +4,7 @@
  * Note Detail Page - T114
  * Loads note via NoteStore, renders NoteCanvas, handles 404
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useRouter, useParams } from 'next/navigation';
 import { motion } from 'motion/react';
@@ -106,6 +106,9 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   const noteStore = useNoteStore();
   const workspaceStore = useWorkspaceStore();
 
+  // Local state for content that triggers autosave (updated by editor onChange)
+  const [localContent, setLocalContent] = useState<JSONContent | null>(null);
+
   // Get workspace ID from store or slug
   const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
 
@@ -122,6 +125,28 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     noteId,
     enabled: hasValidParams,
   });
+
+  // Track previous noteId to detect navigation
+  const prevNoteIdRef = useRef<string | null>(null);
+  // Flag to enable autosave only after content is initialized AND baseline is set
+  const [isAutosaveReady, setIsAutosaveReady] = useState(false);
+
+  // Reset state when noteId changes
+  useEffect(() => {
+    if (prevNoteIdRef.current !== null && prevNoteIdRef.current !== noteId) {
+      // Note changed, reset everything
+      setLocalContent(null);
+      setIsAutosaveReady(false);
+    }
+    prevNoteIdRef.current = noteId;
+  }, [noteId]);
+
+  // Initialize local content when note loads
+  useEffect(() => {
+    if (note?.content && localContent === null) {
+      setLocalContent(note.content);
+    }
+  }, [note?.content, localContent]);
 
   // Note: Annotations are fetched by NoteCanvas via MobX store (aiStore.marginAnnotation)
   // to prevent duplicate API requests
@@ -160,26 +185,42 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     onSuccess: () => setShowVersionHistory(false),
   });
 
-  // Auto-save for content
+  // Auto-save for content - watches localContent which is updated by editor onChange
+  // Only enabled after content is initialized to prevent saving initial load as a change
   const {
     status: _saveStatus,
     save: manualSave,
     reset: resetAutoSave,
   } = useAutoSave({
-    data: note?.content,
+    data: localContent,
     onSave: async (content) => {
       if (content) {
         await updateNote.mutateAsync({ content: content as JSONContent });
       }
     },
-    enabled: !!note,
+    enabled: !!note && isAutosaveReady,
     debounceMs: 2000,
   });
 
-  // Reset auto-save when noteId changes to prevent saving old content to new note
+  // Store resetAutoSave in ref to avoid dependency issues
+  const resetAutoSaveRef = useRef(resetAutoSave);
   useEffect(() => {
-    resetAutoSave();
-  }, [noteId, resetAutoSave]);
+    resetAutoSaveRef.current = resetAutoSave;
+  }, [resetAutoSave]);
+
+  // After content is set, reset autosave baseline and enable it
+  // This ensures savedDataRef.current = localContent before autosave starts watching
+  useEffect(() => {
+    if (localContent !== null && !isAutosaveReady) {
+      // Use ref to avoid stale closure issues
+      resetAutoSaveRef.current();
+      // Small delay to ensure React state has settled
+      const timer = setTimeout(() => {
+        setIsAutosaveReady(true);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [localContent, isAutosaveReady]);
 
   // Set page title
   useEffect(() => {
@@ -201,10 +242,9 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     };
   }, [note, noteStore]);
 
-  // Handle content change
-  const handleContentChange = useCallback((_content: JSONContent) => {
-    // Content changes are auto-saved via useAutoSave
-    // This callback could be used for additional local state if needed
+  // Handle content change - update local state to trigger autosave
+  const handleContentChange = useCallback((content: JSONContent) => {
+    setLocalContent(content);
   }, []);
 
   // Handle manual save (Cmd+S)
