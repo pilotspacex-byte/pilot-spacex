@@ -14,12 +14,15 @@ Design Decisions: DD-003 (Human-in-the-Loop), DD-048 (Confidence Tags)
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
+
+# Import Claude Agent SDK (required dependency)
+from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, query
 
 from pilot_space.ai.agents.sdk_base import AgentContext, StreamingSDKBaseAgent
 
@@ -32,29 +35,7 @@ if TYPE_CHECKING:
     from pilot_space.ai.tools.mcp_server import ToolRegistry
 
 
-class IntentType(StrEnum):
-    """Intent types for user input routing."""
-
-    SKILL = "skill"
-    SUBAGENT = "subagent"
-    NATURAL = "natural"
-
-
-@dataclass
-class ParsedIntent:
-    """Parsed user intent with routing information.
-
-    Attributes:
-        intent_type: Type of intent (skill, subagent, natural)
-        target: Skill or agent name if applicable
-        args: Remaining message content after intent prefix
-        original_message: Full original message
-    """
-
-    intent_type: IntentType
-    target: str | None
-    args: str
-    original_message: str
+# Removed IntentType, ParsedIntent - SDK handles intent parsing via .claude/ directory
 
 
 @dataclass
@@ -95,27 +76,7 @@ class ChatOutput:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
-class TaskEntry:
-    """Task tracking entry for complex operations.
-
-    Attributes:
-        task_id: Unique task identifier
-        subject: Task subject/title
-        description: Task description
-        status: Current status (pending, in_progress, completed, failed)
-        dependencies: List of task IDs this depends on
-        output: Task output if completed
-        error: Error message if failed
-    """
-
-    task_id: str
-    subject: str
-    description: str
-    status: str = "pending"
-    dependencies: list[str] = field(default_factory=list)
-    output: str | None = None
-    error: str | None = None
+# Removed TaskEntry - SDK handles task tracking natively
 
 
 class SkillRegistry:
@@ -264,288 +225,131 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._session_handler = session_handler
         self._skill_registry = skill_registry
         self._subagents = subagents or {}
-        self._tasks: dict[str, TaskEntry] = {}
 
-    def _parse_intent(self, message: str) -> ParsedIntent:
-        """Parse user message to determine intent and routing.
+    # Removed old routing methods (_parse_intent, _execute_skill, _spawn_subagent,
+    # _plan_tasks, _handle_natural_language) - SDK handles all routing via .claude/
 
-        Intent patterns:
-        - `\\skill-name [args]` → Skill execution
-        - `@agent-name [args]` → Subagent delegation
-        - Natural language → Direct handling
+    async def _get_api_key(self, workspace_id: UUID | None) -> str:
+        """Get Anthropic API key from workspace settings.
 
         Args:
-            message: User message content
+            workspace_id: Workspace UUID
 
         Returns:
-            ParsedIntent with routing information
+            Decrypted API key
+
+        Raises:
+            ValueError: If API key not found
         """
-        message_stripped = message.strip()
+        if not workspace_id:
+            # Use environment variable as fallback
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                msg = "No workspace_id provided and ANTHROPIC_API_KEY not set"
+                raise ValueError(msg)
+            return api_key
 
-        # Check for skill invocation: \\skill-name
-        if message_stripped.startswith("\\\\"):
-            parts = message_stripped[1:].split(None, 1)
-            skill_name = parts[0] if parts else ""
-            args = parts[1] if len(parts) > 1 else ""
-
-            return ParsedIntent(
-                intent_type=IntentType.SKILL,
-                target=skill_name,
-                args=args,
-                original_message=message,
+        # TODO: Integrate with SecureKeyStorage when available
+        # For now, use environment variable
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            msg = (
+                f"Anthropic API key not found for workspace {workspace_id}. "
+                "Please set ANTHROPIC_API_KEY environment variable or "
+                "configure in workspace settings."
             )
+            raise ValueError(msg)
+        return api_key
 
-        # Check for subagent mention: @agent-name
-        if message_stripped.startswith("@"):
-            parts = message_stripped[1:].split(None, 1)
-            agent_name = parts[0] if parts else ""
-            args = parts[1] if len(parts) > 1 else ""
+    def _transform_sdk_message(  # noqa: PLR0911  # Many returns needed for message types
+        self, message: Any, context: AgentContext
+    ) -> str | None:
+        """Transform Claude SDK message to frontend SSE event.
 
-            return ParsedIntent(
-                intent_type=IntentType.SUBAGENT,
-                target=agent_name,
-                args=args,
-                original_message=message,
-            )
-
-        # Natural language processing
-        return ParsedIntent(
-            intent_type=IntentType.NATURAL,
-            target=None,
-            args=message,
-            original_message=message,
-        )
-
-    async def _execute_skill(
-        self,
-        skill_name: str,
-        args: str,  # noqa: ARG002
-        context: AgentContext,  # noqa: ARG002
-        chat_context: dict[str, Any],
-    ) -> AsyncIterator[str]:
-        """Execute a skill with given arguments.
-
-        Workflow:
-        1. Load skill instructions from registry
-        2. Build prompt with skill template + context
-        3. Execute via Claude SDK with skill context
-        4. Stream structured output with confidence tags (DD-048)
+        SDK Message Types (from claude-agent-sdk):
+        - StreamEvent with type: "text_delta", "tool_use", "tool_result"
+        - SystemMessage with subtype: "init"
+        - AssistantMessage, UserMessage, ResultMessage
 
         Args:
-            skill_name: Name of skill to execute
-            args: Additional arguments for skill
-            context: Agent execution context
-            chat_context: Current working context (note, issue, etc.)
-
-        Yields:
-            SSE chunks with skill execution results
-        """
-        # Load skill instructions
-        instructions = self._skill_registry.get_skill_instructions(skill_name)
-        if not instructions:
-            yield f"ERROR: Skill '{skill_name}' not found\n"
-            yield f"Available skills: {', '.join(self._skill_registry.get_available_skills())}\n"
-            return
-
-        # Build context-aware prompt
-        yield f"🔧 Executing skill: {skill_name}\n"
-
-        # Extract note content if available
-        note_content = chat_context.get("note_content", "")
-        selected_text = chat_context.get("selected_text", "")
-
-        # Build execution prompt (will be used when integrating ClaudeSDKClient)
-        # TODO: Integrate with ClaudeSDKClient for actual skill execution
-        # execution_prompt will include: instructions, args, note_content, selected_text
-
-        # Stream execution (placeholder for actual SDK integration)
-        yield "\n📝 Processing with skill instructions...\n"
-        yield f"Context: {len(note_content)} chars note content, {len(selected_text)} chars selected\n"
-        yield "\n✅ Skill execution complete\n"
-
-    async def _spawn_subagent(
-        self,
-        agent_name: str,
-        args: str,  # noqa: ARG002
-        context: AgentContext,
-        chat_context: dict[str, Any],  # noqa: ARG002
-    ) -> AsyncIterator[str]:
-        """Spawn a subagent for complex multi-turn tasks.
-
-        Workflow:
-        1. Map agent name to subagent class
-        2. Create subagent instance with shared context
-        3. Delegate execution and stream results
-        4. Track task progress
-
-        Subagent mapping:
-        - @pr-review → PRReviewSubagent
-        - @ai-context → AIContextSubagent
-        - @doc-gen → DocGeneratorSubagent
-
-        Args:
-            agent_name: Name of subagent to spawn
-            args: Arguments for subagent
-            context: Agent execution context
-            chat_context: Current working context
-
-        Yields:
-            SSE chunks with subagent output
-        """
-        # Check if subagent exists
-        if agent_name not in self.SUBAGENT_MAP:
-            yield f"ERROR: Unknown subagent '{agent_name}'\n"
-            yield f"Available subagents: {', '.join(self.SUBAGENT_MAP.keys())}\n"
-            return
-
-        subagent_class = self.SUBAGENT_MAP[agent_name]
-        subagent = self._subagents.get(agent_name)
-
-        if not subagent:
-            yield f"ERROR: Subagent '{agent_name}' not initialized\n"
-            return
-
-        # Create task entry
-        task_id = f"task-{agent_name}-{context.operation_id or 'default'}"
-        task = TaskEntry(
-            task_id=task_id,
-            subject=f"Execute {agent_name}",
-            description=f"Subagent: {subagent_class}",
-            status="in_progress",
-        )
-        self._tasks[task_id] = task
-
-        yield f"🤖 Spawning subagent: {agent_name}\n"
-        yield f"📋 Task created: {task_id}\n"
-
-        # Stream subagent execution
-        try:
-            # Subagent-specific input construction
-            if agent_name == "pr-review":
-                # Extract PR info from args or context
-                yield "🔍 Analyzing PR...\n"
-                # TODO: Call PRReviewSubagent.stream()
-
-            elif agent_name == "ai-context":
-                # Extract issue info from args or context
-                yield "🔍 Aggregating context...\n"
-                # TODO: Call AIContextSubagent.stream()
-
-            elif agent_name == "doc-gen":
-                # Extract doc generation info
-                yield "📝 Generating documentation...\n"
-                # TODO: Call DocGeneratorSubagent.stream()
-
-            task.status = "completed"
-            task.output = f"Subagent {agent_name} completed"
-            yield f"\n✅ Task completed: {task_id}\n"
-
-        except Exception as e:
-            task.status = "failed"
-            task.error = str(e)
-            yield f"\n❌ Task failed: {task_id} - {e}\n"
-
-    async def _plan_tasks(
-        self,
-        message: str,
-        context: AgentContext,
-    ) -> list[TaskEntry]:
-        """Break complex request into executable tasks.
-
-        For complex requests, decompose into:
-        1. Subtasks with dependencies
-        2. Task status tracking (pending → in_progress → completed)
-        3. Emit TaskUpdate SSE events
-
-        Args:
-            message: Complex user request
+            message: SDK message object (StreamEvent, AssistantMessage, etc.)
             context: Agent execution context
 
         Returns:
-            List of TaskEntry objects with dependencies
+            SSE-formatted string or None if message should be ignored
         """
-        # Simple heuristic: multiple action verbs = complex request
-        action_verbs = [
-            "create",
-            "update",
-            "analyze",
-            "review",
-            "generate",
-            "extract",
-            "find",
-        ]
-        verb_matches = [verb for verb in action_verbs if verb in message.lower()]
+        # Handle StreamEvent messages
+        if hasattr(message, "type"):
+            msg_type = getattr(message, "type", None)
 
-        # Single action = no task breakdown needed
-        if len(verb_matches) <= 1:
-            return []
+            # Session initialization
+            if msg_type == "system" and hasattr(message, "subtype"):
+                if message.subtype == "init" and hasattr(message, "session_id"):
+                    session_id = message.session_id
+                    return f"data: {{'type': 'message_start', 'session_id': '{session_id}'}}\n\n"
 
-        # Create tasks for each action
-        tasks: list[TaskEntry] = []
-        for idx, verb in enumerate(verb_matches):
-            task_id = f"task-{context.operation_id or 'default'}-{idx}"
-            task = TaskEntry(
-                task_id=task_id,
-                subject=f"{verb.capitalize()} operation",
-                description=f"Extracted from: {message[:100]}...",
-                status="pending",
-                dependencies=[tasks[-1].task_id] if tasks else [],
-            )
-            tasks.append(task)
-            self._tasks[task_id] = task
+            # Text streaming
+            elif msg_type == "text_delta" and hasattr(message, "delta"):
+                content = message.delta
+                # Escape single quotes for JSON
+                content_escaped = content.replace("'", "\\'").replace("\n", "\\n")
+                return f"data: {{'type': 'text_delta', 'content': '{content_escaped}'}}\n\n"
 
-        return tasks
+            # Tool use
+            elif msg_type == "tool_use" and hasattr(message, "id"):
+                tool_call_id = message.id
+                tool_name = getattr(message, "name", "")
+                return (
+                    f"data: {{'type': 'tool_use', 'tool_call_id': '{tool_call_id}', "
+                    f"'tool_name': '{tool_name}'}}\n\n"
+                )
 
-    async def _handle_natural_language(
-        self,
-        message: str,
-        context: AgentContext,
-        chat_context: dict[str, Any],
-    ) -> AsyncIterator[str]:
-        """Handle natural language query with context awareness.
+            # Tool result
+            elif msg_type == "tool_result" and hasattr(message, "tool_use_id"):
+                tool_call_id = message.tool_use_id
+                is_error = getattr(message, "is_error", False)
+                status = "failed" if is_error else "completed"
+                return (
+                    f"data: {{'type': 'tool_result', 'tool_call_id': '{tool_call_id}', "
+                    f"'status': '{status}'}}\n\n"
+                )
 
-        Args:
-            message: User message
-            context: Agent execution context
-            chat_context: Current working context
+            # Message stop
+            elif msg_type == "stop":
+                session_id = str(context.operation_id) if context.operation_id else "unknown"
+                return f"data: {{'type': 'message_stop', 'session_id': '{session_id}'}}\n\n"
 
-        Yields:
-            Response chunks
-        """
-        yield "💬 Processing natural language query...\n"
+        # Handle AssistantMessage (final response)
+        if hasattr(message, "content") and hasattr(message, "role"):
+            if message.role == "assistant":
+                # This is a complete assistant message
+                content = message.content
+                if isinstance(content, list):
+                    # Join text blocks
+                    text_content = " ".join(
+                        block.get("text", "") for block in content if isinstance(block, dict)
+                    )
+                else:
+                    text_content = str(content)
 
-        # Check if this needs task planning
-        tasks = await self._plan_tasks(message, context)
-        if tasks:
-            yield f"\n📋 Created {len(tasks)} tasks:\n"
-            for task in tasks:
-                yield f"  - {task.subject} ({task.status})\n"
+                text_escaped = text_content.replace("'", "\\'").replace("\n", "\\n")
+                return f"data: {{'type': 'text_delta', 'content': '{text_escaped}'}}\n\n"
 
-        # Build context-aware response
-        note_id = chat_context.get("note_id")
-        issue_id = chat_context.get("issue_id")
-
-        if note_id:
-            yield f"\n📄 Context: Working in note {note_id}\n"
-        if issue_id:
-            yield f"\n🎫 Context: Viewing issue {issue_id}\n"
-
-        # TODO: Integrate with ClaudeSDKClient for actual natural language response
-        yield f'\n🤔 Analyzing your request: "{message[:100]}..."\n'
-        yield "\n✨ Response generation would happen here via Claude SDK\n"
+        # Unknown message type - ignore
+        return None
 
     async def stream(
         self,
         input_data: ChatInput,
         context: AgentContext,
     ) -> AsyncIterator[str]:
-        """Execute conversational agent with streaming output.
+        """Execute conversational agent with streaming output using Claude SDK.
 
-        Main routing logic:
-        1. Parse intent from message
-        2. Route to skill, subagent, or natural language handler
-        3. Stream results as SSE events
-        4. Handle approval flow per DD-003
+        Uses Claude Agent SDK's query() function to handle:
+        - Skill execution (via .claude/skills/ filesystem discovery)
+        - Subagent spawning (via Task tool)
+        - Natural language responses (via Claude's reasoning)
+        - Permission handling (via hooks)
 
         Args:
             input_data: Chat input with message and context
@@ -554,39 +358,87 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         Yields:
             SSE chunks with response content
         """
-        # Parse user intent
-        intent = self._parse_intent(input_data.message)
+        # Build SDK options
+        try:
+            # Get API key from workspace settings
+            api_key = await self._get_api_key(context.workspace_id)
 
-        yield f"data: {{'type': 'message_start', 'session_id': '{input_data.session_id}'}}\n\n"
+            # Build subagent definitions for SDK
+            subagent_definitions = {
+                "pr-review": AgentDefinition(
+                    description="Expert code reviewer for GitHub PRs",
+                    prompt="Analyze pull requests for architecture, security, and performance",
+                    tools=["Read", "Glob", "Grep", "WebFetch"],
+                ),
+                "ai-context": AgentDefinition(
+                    description="Aggregates context for issues from notes, code, and tasks",
+                    prompt="Find related notes, code snippets, and similar issues",
+                    tools=["Read", "Glob", "Grep"],
+                ),
+                "doc-generator": AgentDefinition(
+                    description="Generates technical documentation from code",
+                    prompt="Create comprehensive documentation with examples",
+                    tools=["Read", "Glob", "Write"],
+                ),
+            }
 
-        # Route based on intent type
-        if intent.intent_type == IntentType.SKILL:
-            async for chunk in self._execute_skill(
-                skill_name=intent.target or "",
-                args=intent.args,
-                context=context,
-                chat_context=input_data.context,
-            ):
-                yield f"data: {{'type': 'text_delta', 'content': '{chunk}'}}\n\n"
+            # Handle session resumption
+            session_id_str = None
+            if input_data.session_id:
+                # Try to get existing session
+                existing_session = await self._session_handler.get_session(input_data.session_id)
+                if existing_session:
+                    session_id_str = str(existing_session.session_id)
 
-        elif intent.intent_type == IntentType.SUBAGENT:
-            async for chunk in self._spawn_subagent(
-                agent_name=intent.target or "",
-                args=intent.args,
-                context=context,
-                chat_context=input_data.context,
-            ):
-                yield f"data: {{'type': 'text_delta', 'content': '{chunk}'}}\n\n"
+            # SDK options configuration
+            sdk_options = ClaudeAgentOptions(  # type: ignore[call-arg]
+                model=self.DEFAULT_MODEL,
+                # Enable built-in tools (use allowed_tools parameter)
+                allowed_tools=[
+                    "Read",
+                    "Write",
+                    "Edit",
+                    "Bash",
+                    "Glob",
+                    "Grep",
+                    "Skill",  # For skill execution
+                    "Task",  # For subagent spawning
+                    "AskUserQuestion",  # For clarifications
+                    "WebFetch",
+                    "WebSearch",
+                ],
+                # Load .claude/ directory for project context
+                setting_sources=["project"],  # type: ignore[call-arg]
+                # Register subagents
+                agents=subagent_definitions,  # type: ignore[call-arg]
+                # Permission handling
+                permission_mode="default",  # type: ignore[call-arg]
+                # Session resumption
+                resume=session_id_str,  # type: ignore[call-arg]
+            )
 
-        elif intent.intent_type == IntentType.NATURAL:
-            async for chunk in self._handle_natural_language(
-                message=intent.args,
-                context=context,
-                chat_context=input_data.context,
-            ):
-                yield f"data: {{'type': 'text_delta', 'content': '{chunk}'}}\n\n"
+            # Set environment variable for API key (SDK reads from env)
+            original_api_key = os.getenv("ANTHROPIC_API_KEY")
+            os.environ["ANTHROPIC_API_KEY"] = api_key
 
-        yield f"data: {{'type': 'message_stop', 'session_id': '{input_data.session_id}'}}\n\n"
+            try:
+                # Stream from Claude SDK
+                async for message in query(prompt=input_data.message, options=sdk_options):
+                    # Transform SDK message to SSE event
+                    sse_event = self._transform_sdk_message(message, context)
+                    if sse_event:
+                        yield sse_event
+            finally:
+                # Restore original API key
+                if original_api_key:
+                    os.environ["ANTHROPIC_API_KEY"] = original_api_key
+                elif "ANTHROPIC_API_KEY" in os.environ:
+                    del os.environ["ANTHROPIC_API_KEY"]
+
+        except Exception as e:
+            # Error handling
+            error_msg = str(e).replace("'", "\\'")
+            yield f"data: {{'type': 'error', 'error_type': 'sdk_error', 'message': '{error_msg}'}}\n\n"
 
     async def execute(
         self,
@@ -615,14 +467,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             session_id=input_data.session_id
             or context.operation_id
             or UUID("00000000-0000-0000-0000-000000000000"),
-            tasks=[
-                {
-                    "task_id": task.task_id,
-                    "subject": task.subject,
-                    "status": task.status,
-                }
-                for task in self._tasks.values()
-            ],
+            tasks=[],  # SDK handles task tracking internally
             metadata={
                 "agent": self.AGENT_NAME,
                 "model": self.DEFAULT_MODEL,
@@ -633,9 +478,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 __all__ = [
     "ChatInput",
     "ChatOutput",
-    "IntentType",
-    "ParsedIntent",
     "PilotSpaceAgent",
     "SkillRegistry",
-    "TaskEntry",
 ]
