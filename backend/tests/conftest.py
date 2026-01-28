@@ -790,14 +790,115 @@ def guest_user(sample_workspace: Workspace) -> tuple[User, WorkspaceMember]:
     return user, membership
 
 
+# ============================================================================
+# E2E Test Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def test_api_key() -> str:
+    """Generate test API key for E2E tests.
+
+    Returns:
+        API key string.
+    """
+    return "test-api-key-12345"
+
+
+@pytest.fixture
+def auth_headers(test_api_key: str, test_workspace_id: UUID) -> dict[str, str]:
+    """Create authentication headers for E2E tests.
+
+    Args:
+        test_api_key: API key for authentication.
+        test_workspace_id: Workspace UUID.
+
+    Returns:
+        Dictionary with Authorization and X-Workspace-ID headers.
+    """
+    return {
+        "Authorization": f"Bearer {test_api_key}",
+        "X-Workspace-ID": str(test_workspace_id),
+        "X-API-Key": test_api_key,
+    }
+
+
+@pytest.fixture
+async def e2e_client(
+    app: Any,
+    auth_headers: dict[str, str],
+) -> AsyncGenerator[AsyncClient, None]:
+    """Create E2E test client with authentication.
+
+    Args:
+        app: FastAPI application.
+        auth_headers: Authentication headers.
+
+    Yields:
+        AsyncClient configured for E2E testing.
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers=auth_headers,
+    ) as ac:
+        yield ac
+
+
+@pytest.fixture
+async def test_workspace(
+    db_session: AsyncSession,
+    sample_workspace: Workspace,
+) -> Workspace:
+    """Create test workspace in database for E2E tests.
+
+    Args:
+        db_session: Database session.
+        sample_workspace: Workspace factory instance.
+
+    Returns:
+        Persisted workspace instance.
+    """
+    db_session.add(sample_workspace)
+    await db_session.commit()
+    await db_session.refresh(sample_workspace)
+    return sample_workspace
+
+
+@pytest.fixture
+async def test_issue(
+    db_session: AsyncSession,
+    sample_issue: Issue,
+    test_workspace: Workspace,
+) -> Issue:
+    """Create test issue in database for E2E tests.
+
+    Args:
+        db_session: Database session.
+        sample_issue: Issue factory instance.
+        test_workspace: Workspace for issue.
+
+    Returns:
+        Persisted issue instance.
+    """
+    sample_issue.workspace_id = test_workspace.id
+    db_session.add(sample_issue)
+    await db_session.commit()
+    await db_session.refresh(sample_issue)
+    return sample_issue
+
+
 __all__ = [
     "app",
+    "auth_headers",
     "authenticated_client",
     "authenticated_user",
     "client",
     "client_with_workspace",
     "db_session",
     "db_session_committed",
+    "e2e_client",
     "event_loop",
     "faker_instance",
     "issue_factory",
@@ -817,11 +918,14 @@ __all__ = [
     "sample_user",
     "sample_workspace",
     "state_factory",
+    "test_api_key",
     "test_database_url",
     "test_engine",
+    "test_issue",
     "test_scenario",
     "test_user_email",
     "test_user_id",
+    "test_workspace",
     "test_workspace_id",
     "user_factory",
     "workspace_factory",

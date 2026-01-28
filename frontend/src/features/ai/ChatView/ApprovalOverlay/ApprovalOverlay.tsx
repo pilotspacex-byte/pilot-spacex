@@ -69,7 +69,7 @@ export const ApprovalOverlay = observer<ApprovalOverlayProps>(
     return (
       <>
         {/* Floating indicator */}
-        <div className={cn('fixed bottom-4 left-4 z-50', className)}>
+        <div className={cn('fixed bottom-4 left-4 z-50', className)} data-testid="approval-overlay">
           <Button
             variant="default"
             size="lg"

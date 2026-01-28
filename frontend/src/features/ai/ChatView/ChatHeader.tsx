@@ -46,7 +46,7 @@ export const ChatHeader = observer<ChatHeaderProps>(
     className,
   }) => {
     return (
-      <div className={cn('border-b bg-background', className)}>
+      <div className={cn('border-b bg-background', className)} data-testid="chat-header">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center h-9 w-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500">
@@ -58,7 +58,11 @@ export const ChatHeader = observer<ChatHeaderProps>(
 
               <div className="flex items-center gap-2">
                 {isStreaming && (
-                  <Badge variant="secondary" className="gap-1.5 text-xs">
+                  <Badge
+                    variant="secondary"
+                    className="gap-1.5 text-xs"
+                    data-testid="streaming-indicator"
+                  >
                     <Loader2 className="h-3 w-3 animate-spin" />
                     Streaming
                   </Badge>
@@ -82,7 +86,7 @@ export const ChatHeader = observer<ChatHeaderProps>(
             {/* Session selector dropdown */}
             {recentSessions.length > 0 && (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger asChild data-testid="session-dropdown">
                   <Button variant="outline" size="sm" className="gap-1.5">
                     <MessageSquare className="h-3 w-3" />
                     {sessionId ? `Session: ${sessionId.slice(0, 8)}` : 'Select Session'}
@@ -94,7 +98,11 @@ export const ChatHeader = observer<ChatHeaderProps>(
                   <DropdownMenuSeparator />
                   {onNewSession && (
                     <>
-                      <DropdownMenuItem onClick={onNewSession} className="gap-2">
+                      <DropdownMenuItem
+                        onClick={onNewSession}
+                        className="gap-2"
+                        data-testid="new-session-button"
+                      >
                         <Plus className="h-4 w-4" />
                         <span>New Session</span>
                       </DropdownMenuItem>
@@ -106,6 +114,7 @@ export const ChatHeader = observer<ChatHeaderProps>(
                       key={session.sessionId}
                       onClick={() => onSelectSession?.(session.sessionId)}
                       className={cn('gap-2', sessionId === session.sessionId && 'bg-accent')}
+                      data-testid="session-item"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">
@@ -135,7 +144,13 @@ export const ChatHeader = observer<ChatHeaderProps>(
             )}
 
             {onClear && (
-              <Button variant="ghost" size="icon" onClick={onClear} disabled={isStreaming}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClear}
+                disabled={isStreaming}
+                data-testid="clear-conversation-button"
+              >
                 <X className="h-4 w-4" />
                 <span className="sr-only">Clear conversation</span>
               </Button>

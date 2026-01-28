@@ -17,10 +17,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.issue import Issue
@@ -42,7 +43,7 @@ class AIContext(WorkspaceScopedModel):
 
     Attributes:
         issue_id: FK to the issue this context belongs to (one-to-one).
-        content: JSONB containing the structured context data.
+        content: JSONBCompat containing the structured context data.
         claude_code_prompt: Generated prompt for Claude Code.
         related_issues: List of related issue references with relevance scores.
         related_notes: List of related note references with excerpts.
@@ -67,7 +68,7 @@ class AIContext(WorkspaceScopedModel):
 
     # Structured content (primary context data)
     content: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         default=dict,
     )
@@ -92,7 +93,7 @@ class AIContext(WorkspaceScopedModel):
 
     # Related items (denormalized for performance)
     related_issues: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         default=list,
     )
@@ -109,7 +110,7 @@ class AIContext(WorkspaceScopedModel):
     # ]
 
     related_notes: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         default=list,
     )
@@ -124,7 +125,7 @@ class AIContext(WorkspaceScopedModel):
     # ]
 
     related_pages: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         default=list,
     )
@@ -140,7 +141,7 @@ class AIContext(WorkspaceScopedModel):
 
     # Code references from linked commits/PRs
     code_references: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         default=list,
     )
@@ -159,7 +160,7 @@ class AIContext(WorkspaceScopedModel):
 
     # Implementation tasks checklist
     tasks_checklist: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         default=list,
     )
@@ -177,7 +178,7 @@ class AIContext(WorkspaceScopedModel):
 
     # Conversation history for multi-turn refinement
     conversation_history: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         default=list,
     )

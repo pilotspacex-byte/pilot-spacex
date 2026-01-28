@@ -16,10 +16,11 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import Base, WorkspaceScopedMixin
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.ai_message import AIMessage
@@ -98,7 +99,7 @@ class AISession(Base, WorkspaceScopedMixin):
 
     # Session state
     session_data: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         doc="Conversation history, context, and state",
     )

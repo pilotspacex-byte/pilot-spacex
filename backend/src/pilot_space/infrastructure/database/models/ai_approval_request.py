@@ -18,10 +18,11 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import Base, WorkspaceScopedMixin
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.ai_message import AIMessage
@@ -127,7 +128,7 @@ class AIApprovalRequest(Base, WorkspaceScopedMixin):
     )
 
     affected_entities: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=True,
         doc="List of entities that will be modified [{type, id, name}]",
     )
@@ -141,26 +142,26 @@ class AIApprovalRequest(Base, WorkspaceScopedMixin):
 
     # Action payload
     payload: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         doc="Action-specific data (issue content, PR details, etc.)",
     )
 
     context: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=True,
         doc="Optional context for the reviewer (related entities, history)",
     )
 
     # Approve-with-modifications support
     proposed_content: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=True,
         doc="Original AI proposal (for approve-with-modifications flow)",
     )
 
     modified_content: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=True,
         doc="User modifications (for modified status)",
     )

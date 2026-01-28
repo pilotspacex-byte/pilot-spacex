@@ -99,8 +99,8 @@ class AICostRecord(WorkspaceScopedModel):
     )
 
     # Indexes for efficient queries
+    # Note: workspace_id index is automatically created by WorkspaceScopedMixin
     __table_args__ = (
-        Index("ix_ai_cost_records_workspace_id", "workspace_id"),
         Index("ix_ai_cost_records_user_id", "user_id"),
         Index("ix_ai_cost_records_agent_name", "agent_name"),
         Index("ix_ai_cost_records_provider", "provider"),

@@ -25,7 +25,7 @@ export const UserMessage = memo<UserMessageProps>(
       .slice(0, 2);
 
     return (
-      <div className={cn('flex items-start gap-3 px-4 py-3', className)}>
+      <div className={cn('flex items-start gap-3 px-4 py-3', className)} data-testid="message-user">
         <Avatar className="h-8 w-8 shrink-0">
           {userAvatar && <AvatarImage src={userAvatar} alt={userName} />}
           <AvatarFallback className="bg-primary text-primary-foreground text-xs">

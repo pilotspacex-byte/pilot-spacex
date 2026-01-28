@@ -13,8 +13,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy import select
 
-from pilot_space.domain.models import Issue, Label
-from pilot_space.infrastructure.database.models import ActivityModel, IssueModel
+from pilot_space.domain.models import Activity, Issue, Label
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -145,7 +144,7 @@ class TestIssueCRUD:
         assert response.status_code == 204
 
         # Verify soft deleted
-        stmt = select(IssueModel).where(IssueModel.id == test_issue.id)
+        stmt = select(Issue).where(Issue.id == test_issue.id)
         result = await db_session.execute(stmt)
         issue = result.scalar_one_or_none()
         assert issue is not None
@@ -209,9 +208,9 @@ class TestIssueStateMachine:
         assert response.status_code == 200
 
         # Check activity was created
-        stmt = select(ActivityModel).where(
-            ActivityModel.entity_id == test_issue.id,
-            ActivityModel.action == "state_changed",
+        stmt = select(Activity).where(
+            Activity.entity_id == test_issue.id,
+            Activity.action == "state_changed",
         )
         result = await db_session.execute(stmt)
         activity = result.scalar_one_or_none()
@@ -367,9 +366,9 @@ class TestIssueActivityLogging:
         issue_id = response.json()["id"]
 
         # Check activity log
-        stmt = select(ActivityModel).where(
-            ActivityModel.entity_id == uuid.UUID(issue_id),
-            ActivityModel.action == "created",
+        stmt = select(Activity).where(
+            Activity.entity_id == uuid.UUID(issue_id),
+            Activity.action == "created",
         )
         result = await db_session.execute(stmt)
         activity = result.scalar_one_or_none()

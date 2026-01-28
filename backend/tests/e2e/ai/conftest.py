@@ -6,13 +6,17 @@ Provides fixtures for testing complete AI workflows with SSE streaming.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING, Any
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from pilot_space.main import app
+
+if TYPE_CHECKING:
+    from pilot_space.infrastructure.auth import TokenPayload
 
 
 @pytest.fixture
@@ -151,9 +155,69 @@ def test_approval() -> MagicMock:
     )
 
 
+@pytest.fixture
+def mock_e2e_auth(mock_token_payload: TokenPayload) -> Any:
+    """Mock authentication for E2E tests.
+
+    Patches auth dependencies to allow test API keys.
+
+    Args:
+        mock_token_payload: Token payload fixture.
+
+    Yields:
+        Mock auth context.
+    """
+    with (
+        patch(
+            "pilot_space.api.dependencies.get_current_user",
+            return_value=mock_token_payload,
+        ),
+        patch(
+            "pilot_space.api.dependencies.verify_api_key",
+            return_value=mock_token_payload,
+        ),
+        patch(
+            "pilot_space.dependencies.get_current_user",
+            return_value=mock_token_payload,
+        ),
+        patch(
+            "pilot_space.dependencies.verify_api_key",
+            return_value=mock_token_payload,
+        ),
+    ):
+        yield
+
+
+@pytest.fixture
+async def e2e_client_with_mock_auth(
+    app: Any,
+    auth_headers: dict[str, str],
+    mock_e2e_auth: Any,
+) -> AsyncGenerator[AsyncClient, None]:
+    """Create E2E client with mocked auth.
+
+    Args:
+        app: FastAPI app.
+        auth_headers: Auth headers.
+        mock_e2e_auth: Mock auth fixture.
+
+    Yields:
+        Authenticated AsyncClient.
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers=auth_headers,
+    ) as ac:
+        yield ac
+
+
 __all__ = [
     "auth_headers",
     "e2e_client",
+    "e2e_client_with_mock_auth",
+    "mock_e2e_auth",
     "test_approval",
     "test_issue",
     "test_note",

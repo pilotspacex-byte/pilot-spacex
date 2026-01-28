@@ -16,10 +16,11 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import Base
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.ai_session import AISession
@@ -124,7 +125,7 @@ class AITask(Base):
     # Additional data
     task_metadata: Mapped[dict[str, Any] | None] = mapped_column(
         "metadata",  # Column name in DB
-        JSONB,
+        JSONBCompat,
         nullable=True,
         doc="Additional task-specific data",
     )

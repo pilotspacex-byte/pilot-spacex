@@ -10,10 +10,11 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import BaseModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.ai_approval_request import (
@@ -67,9 +68,9 @@ class Workspace(BaseModel):
         nullable=True,
     )
 
-    # Settings (JSONB for flexibility)
+    # Settings (JSONBCompat for flexibility)
     settings: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=True,
         default=dict,
     )

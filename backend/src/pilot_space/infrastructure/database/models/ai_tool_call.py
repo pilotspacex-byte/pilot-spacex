@@ -16,10 +16,11 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import Base
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.ai_message import AIMessage
@@ -84,13 +85,13 @@ class AIToolCall(Base):
     )
 
     tool_input: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         doc="Tool arguments as JSON",
     )
 
     tool_output: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=True,
         doc="Tool result as JSON (null if failed)",
     )

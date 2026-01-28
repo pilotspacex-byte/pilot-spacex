@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from pilot_space.ai.infrastructure.approval import AIApprovalRequest, ApprovalStatus
+from pilot_space.domain.models import AIApprovalRequest, ApprovalStatus
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

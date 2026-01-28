@@ -18,10 +18,11 @@ from sqlalchemy import (
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.note_annotation import (
@@ -66,7 +67,7 @@ class Note(WorkspaceScopedModel):
 
     # TipTap JSON content (ProseMirror document structure)
     content: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         default=dict,
         server_default=text("'{}'::jsonb"),

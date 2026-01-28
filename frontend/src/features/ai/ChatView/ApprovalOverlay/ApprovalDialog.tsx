@@ -82,8 +82,10 @@ export const ApprovalDialog = memo<ApprovalDialogProps>(
           <DialogHeader>
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 space-y-2">
-                <DialogTitle>Approval Required</DialogTitle>
-                <DialogDescription>{approval.actionType}</DialogDescription>
+                <DialogTitle data-testid="approval-title">Approval Required</DialogTitle>
+                <DialogDescription data-testid="approval-action">
+                  {approval.actionType}
+                </DialogDescription>
               </div>
 
               <Badge
@@ -118,7 +120,9 @@ export const ApprovalDialog = memo<ApprovalDialogProps>(
             {approval.reasoning && (
               <div className="space-y-2">
                 <span className="text-sm font-medium">Reasoning</span>
-                <p className="text-sm text-muted-foreground">{approval.reasoning}</p>
+                <p className="text-sm text-muted-foreground" data-testid="approval-reasoning">
+                  {approval.reasoning}
+                </p>
               </div>
             )}
 
@@ -190,6 +194,7 @@ export const ApprovalDialog = memo<ApprovalDialogProps>(
             ) : (
               <>
                 <Button
+                  data-testid="reject-button"
                   variant="outline"
                   onClick={() => setShowRejectForm(true)}
                   disabled={isApproving || isRejecting}
@@ -197,7 +202,11 @@ export const ApprovalDialog = memo<ApprovalDialogProps>(
                   <XCircle className="h-4 w-4 mr-2" />
                   Reject
                 </Button>
-                <Button onClick={handleApprove} disabled={isApproving || isRejecting}>
+                <Button
+                  data-testid="approve-button"
+                  onClick={handleApprove}
+                  disabled={isApproving || isRejecting}
+                >
                   {isApproving ? (
                     'Approving...'
                   ) : (

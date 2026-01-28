@@ -9,10 +9,10 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Enum, Index, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.workspace import Workspace
@@ -64,7 +64,7 @@ class AIConfiguration(WorkspaceScopedModel):
 
     # Provider-specific settings
     settings: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=True,
         default=dict,
         doc="Provider-specific settings (default model, temperature, etc.)",
@@ -72,7 +72,7 @@ class AIConfiguration(WorkspaceScopedModel):
 
     # Usage limits
     usage_limits: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=True,
         doc="Optional usage limits (daily_tokens, monthly_budget, etc.)",
     )

@@ -9,10 +9,10 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import Boolean, Index, String, Text, text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 
 class Template(WorkspaceScopedModel):
@@ -43,7 +43,7 @@ class Template(WorkspaceScopedModel):
 
     # TipTap JSON content (ProseMirror document structure)
     content: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         default=dict,
         server_default=text("'{}'::jsonb"),

@@ -124,6 +124,10 @@ filterwarnings = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
+    "infrastructure: marks tests as infrastructure tests (database, redis, meilisearch, auth, sandbox)",
+    "api: marks tests as API endpoint tests",
+    "e2e: marks tests as end-to-end tests",
+    "performance: marks tests as performance benchmarks",
 ]
 
 [tool.coverage.run]

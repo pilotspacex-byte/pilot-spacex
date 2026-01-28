@@ -17,7 +17,10 @@ interface AssistantMessageProps {
 
 export const AssistantMessage = memo<AssistantMessageProps>(({ message, className }) => {
   return (
-    <div className={cn('flex items-start gap-3 px-4 py-3 bg-muted/30', className)}>
+    <div
+      className={cn('flex items-start gap-3 px-4 py-3 bg-muted/30', className)}
+      data-testid="message-assistant"
+    >
       <Avatar className="h-8 w-8 shrink-0 bg-gradient-to-br from-purple-500 to-pink-500">
         <AvatarFallback className="bg-transparent">
           <Sparkles className="h-4 w-4 text-white" />

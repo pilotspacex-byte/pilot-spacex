@@ -142,6 +142,7 @@ export const ChatInput = observer<ChatInputProps>(
           <div className="flex items-end gap-2">
             <div className="flex-1 relative">
               <Textarea
+                data-testid="chat-input"
                 ref={textareaRef}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
@@ -193,6 +194,7 @@ export const ChatInput = observer<ChatInputProps>(
             {/* Submit/Abort button */}
             {isStreaming ? (
               <Button
+                data-testid="abort-button"
                 type="button"
                 variant="destructive"
                 size="icon"
@@ -204,6 +206,7 @@ export const ChatInput = observer<ChatInputProps>(
               </Button>
             ) : (
               <Button
+                data-testid="send-button"
                 type="button"
                 size="icon"
                 onClick={handleSubmitClick}

@@ -18,10 +18,11 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.issue import Issue
@@ -150,7 +151,7 @@ class Activity(WorkspaceScopedModel):
     # Additional metadata (renamed to avoid conflict with SQLAlchemy's metadata)
     activity_metadata: Mapped[dict[str, Any] | None] = mapped_column(
         "metadata",  # Column name in DB
-        JSONB,
+        JSONBCompat,
         nullable=True,
         default=dict,
     )

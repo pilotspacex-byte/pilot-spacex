@@ -167,7 +167,7 @@ export const ChatView = observer<ChatViewProps>(({ store, userName, userAvatar, 
   );
 
   return (
-    <div className={cn('flex flex-col h-full bg-background', className)}>
+    <div className={cn('flex flex-col h-full bg-background', className)} data-testid="chat-view">
       {/* Header with session selector (T075-T079) */}
       <ChatHeader
         title="PilotSpace AI"
@@ -208,7 +208,10 @@ export const ChatView = observer<ChatViewProps>(({ store, userName, userAvatar, 
         {/* Error display */}
         {store.error && (
           <div className="px-4 pb-4">
-            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+            <div
+              className="rounded-lg border border-destructive/50 bg-destructive/10 p-3"
+              data-testid="error-message"
+            >
               <p className="text-sm text-destructive">{store.error}</p>
             </div>
           </div>

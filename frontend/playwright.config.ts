@@ -43,6 +43,9 @@ export default defineConfig({
 
     /* Record video on failure */
     video: 'on-first-retry',
+
+    /* Run with visible browser for debugging */
+    headless: process.env.CI ? true : false,
   },
 
   /* Configure projects for major browsers */
@@ -108,12 +111,20 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  webServer: [
+    {
+      command: 'cd ../backend && uv run uvicorn pilot_space.main:app --port 8000',
+      url: 'http://localhost:8000/health',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+    },
+    {
+      command: 'pnpm dev',
+      url: 'http://localhost:3000',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+    },
+  ],
 
   /* Global timeout for each test */
   timeout: 30 * 1000,

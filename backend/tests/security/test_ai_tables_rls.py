@@ -17,10 +17,13 @@ from typing import TYPE_CHECKING
 import pytest
 from sqlalchemy import select
 
-from pilot_space.ai.infrastructure.approval import AIApprovalRequest, ApprovalStatus
-from pilot_space.ai.infrastructure.cost_tracker import AICostRecord
-from pilot_space.ai.session.session_manager import AISession
-from pilot_space.infrastructure.database.models import WorkspaceAPIKey
+from pilot_space.domain.models import (
+    AIApprovalRequest,
+    AICostRecord,
+    AISession,
+    ApprovalStatus,
+    WorkspaceAPIKey,
+)
 from pilot_space.infrastructure.database.rls import set_rls_context
 
 if TYPE_CHECKING:
