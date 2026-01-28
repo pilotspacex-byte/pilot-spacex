@@ -205,7 +205,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         cost_tracker: CostTracker,
         resilient_executor: ResilientExecutor,
         permission_handler: PermissionHandler,
-        session_handler: SessionHandler,
+        session_handler: SessionHandler | None,
         skill_registry: SkillRegistry,
         subagents: dict[str, Any] | None = None,
     ) -> None:
@@ -217,7 +217,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             cost_tracker: Cost tracking service
             resilient_executor: Retry and circuit breaker service
             permission_handler: Permission and approval handler
-            session_handler: Session management handler
+            session_handler: Session management handler (None if Redis not configured)
             skill_registry: Skill loading registry
             subagents: Optional dict of subagent instances
         """
@@ -390,8 +390,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
             # Handle session resumption
             session_id_str = None
-            if input_data.session_id:
-                # Try to get existing session
+            if input_data.session_id and self._session_handler:
+                # Try to get existing session (only if session handler available)
                 existing_session = await self._session_handler.get_session(input_data.session_id)
                 if existing_session:
                     session_id_str = str(existing_session.session_id)

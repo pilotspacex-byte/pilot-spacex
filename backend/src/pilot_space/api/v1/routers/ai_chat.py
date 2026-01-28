@@ -14,8 +14,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.dependencies import (
     CurrentUserIdOrDemo,
     DbSession,
@@ -28,7 +29,7 @@ from pilot_space.dependencies import (
 router = APIRouter(tags=["ai-chat"])
 
 
-class ChatContext(BaseModel):
+class ChatContext(BaseSchema):
     """Context for AI chat request.
 
     Provides optional context about the current workspace, note, issue,
@@ -41,7 +42,7 @@ class ChatContext(BaseModel):
     selected_text: str | None = Field(None, description="Selected text from editor")
 
 
-class ChatRequest(BaseModel):
+class ChatRequest(BaseSchema):
     """Request for AI chat interaction.
 
     Attributes:
@@ -87,7 +88,14 @@ async def chat(
     Returns:
         StreamingResponse with SSE events.
     """
+    import logging
+
     from pilot_space.api.v1.middleware import extract_ai_context
+
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"Chat request received: message='{chat_request.message[:50]}', workspace_id={chat_request.context.workspace_id}"
+    )
 
     # Extract full AI context (loads Note/Issue objects if IDs provided)
     ai_context = await extract_ai_context(
@@ -98,6 +106,7 @@ async def chat(
         workspace_id=chat_request.context.workspace_id,
         selected_text=chat_request.context.selected_text,
     )
+    logger.info(f"AI context extracted: keys={list(ai_context.keys())}")
 
     # Get or create conversation session
     conv_session = None
@@ -143,6 +152,10 @@ async def chat(
         except Exception as e:
             # Send error event in SSE format
             import json
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.exception("Chat endpoint error")
 
             error_data = {"type": "error", "error_type": "internal_error", "message": str(e)}
             yield f"data: {json.dumps(error_data)}\n\n"
@@ -155,6 +168,102 @@ async def chat(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",  # Disable nginx buffering
         },
+    )
+
+
+class SkillListItem(BaseSchema):
+    """Skill metadata for frontend display."""
+
+    name: str = Field(..., description="Skill identifier (e.g., 'extract-issues')")
+    description: str = Field(..., description="Brief description of skill purpose")
+    when_to_use: str = Field(default="", description="Usage guidance")
+
+
+class SkillListResponse(BaseSchema):
+    """List of available skills."""
+
+    skills: list[SkillListItem] = Field(default_factory=list, description="Available skills")
+    total: int = Field(..., ge=0, description="Total skill count")
+
+
+@router.get("/skills", response_model=SkillListResponse)
+async def list_skills(
+    skill_registry: SkillRegistryDep,
+) -> SkillListResponse:
+    """List available AI skills for autocomplete.
+
+    Returns:
+        List of skill definitions with metadata.
+    """
+    skills = skill_registry.list_skills()
+
+    return SkillListResponse(
+        skills=[
+            SkillListItem(
+                name=s.name,
+                description=s.description or "",
+                when_to_use=(s.when_to_use[:200] + "...")
+                if s.when_to_use and len(s.when_to_use) > 200
+                else (s.when_to_use or ""),
+            )
+            for s in skills
+        ],
+        total=len(skills),
+    )
+
+
+class AgentListItem(BaseSchema):
+    """Agent metadata for frontend display."""
+
+    name: str = Field(..., description="Agent identifier")
+    description: str = Field(default="", description="Agent description")
+
+
+class AgentListResponse(BaseSchema):
+    """List of registered agents."""
+
+    agents: list[AgentListItem] = Field(default_factory=list, description="Registered agents")
+    total: int = Field(..., ge=0, description="Total agent count")
+
+
+# Agent descriptions for display
+AGENT_DESCRIPTIONS: dict[str, str] = {
+    "ghost_text": "Real-time writing suggestions",
+    "margin_annotation": "Document margin suggestions",
+    "issue_extractor": "Extract issues from notes",
+    "ai_context": "Generate issue context",
+    "conversation": "General AI assistant",
+    "issue_enhancer": "Enhance issue details",
+    "assignee_recommender": "Recommend issue assignees",
+    "duplicate_detector": "Find duplicate issues",
+    "pr_review": "Review pull requests",
+    "commit_linker": "Link commits to issues",
+    "doc_generator": "Generate documentation",
+    "task_decomposer": "Break down issues into tasks",
+    "diagram_generator": "Generate diagrams",
+}
+
+
+@router.get("/agents", response_model=AgentListResponse)
+async def list_agents(
+    orchestrator: OrchestratorDep,
+) -> AgentListResponse:
+    """List registered AI agents for autocomplete.
+
+    Returns:
+        List of agent names with descriptions.
+    """
+    agent_names = orchestrator.list_agents()
+
+    return AgentListResponse(
+        agents=[
+            AgentListItem(
+                name=name,
+                description=AGENT_DESCRIPTIONS.get(name, ""),
+            )
+            for name in agent_names
+        ],
+        total=len(agent_names),
     )
 
 
@@ -177,21 +286,27 @@ async def _execute_agent_stream(
     Yields:
         SSE-formatted strings from PilotSpaceAgent
     """
+    import logging
     from uuid import UUID as parse_uuid
 
     from pilot_space.ai.agents.pilotspace_agent import ChatInput, PilotSpaceAgent
     from pilot_space.ai.agents.sdk_base import AgentContext
 
+    logger = logging.getLogger(__name__)
+
     # Get PilotSpaceAgent from orchestrator
     # Try multiple possible names for compatibility
+    logger.info(f"Getting agent '{agent_name}' from orchestrator")
     agent = orchestrator.get_agent("conversation")
     if agent is None:
         agent = orchestrator.get_agent("pilotspace_agent")
     if agent is None:
+        logger.error("PilotSpaceAgent not registered in orchestrator")
         yield "data: {'type': 'error', 'message': 'PilotSpaceAgent not registered in orchestrator'}\n\n"
         return
 
     if not isinstance(agent, PilotSpaceAgent):
+        logger.error(f"Agent is not PilotSpaceAgent instance, got {type(agent)}")
         yield "data: {'type': 'error', 'message': 'Agent is not PilotSpaceAgent instance'}\n\n"
         return
 

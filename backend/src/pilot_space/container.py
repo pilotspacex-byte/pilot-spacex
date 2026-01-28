@@ -116,15 +116,20 @@ class Container(containers.DeclarativeContainer):
 
     @staticmethod
     def _create_session_manager(redis_client: RedisClient | None) -> SessionManager | None:
-        """Create session manager if Redis is available.
+        """Create session manager if Redis is available and connected.
 
         Args:
             redis_client: Redis client instance.
 
         Returns:
-            SessionManager instance or None if Redis not configured.
+            SessionManager instance or None if Redis not configured or not connected.
         """
         if redis_client is None:
+            return None
+
+        # Check if Redis client is actually connected
+        # (RedisClient may be instantiated but not connected)
+        if not redis_client.is_connected:
             return None
 
         from pilot_space.ai.session.session_manager import SessionManager
@@ -265,7 +270,12 @@ def register_sdk_agents(orchestrator: Any) -> None:
     from pilot_space.ai.sdk import PermissionHandler, SessionHandler
 
     permission_handler = PermissionHandler(approval_service=orchestrator._approval_service)  # noqa: SLF001
-    session_handler = SessionHandler(session_manager=orchestrator._session_manager)  # noqa: SLF001
+    # SessionHandler is None if Redis not configured (session_manager=None)
+    session_handler = (
+        SessionHandler(session_manager=orchestrator._session_manager)  # noqa: SLF001
+        if orchestrator._session_manager  # noqa: SLF001
+        else None
+    )
 
     # Get skills directory from backend/.claude/skills
     backend_dir = Path(__file__).parent.parent
