@@ -127,36 +127,24 @@ async def chat(
     # Stream response from conversation agent
     async def stream_response():
         """Generate SSE stream from agent responses."""
-        from pilot_space.ai.sdk import SSETransformer
-
-        transformer = SSETransformer()
-
         try:
-            # Execute conversation agent with streaming
-            # Note: execute_stream method needs to be added to SDKOrchestrator
-            # For now, we'll use a placeholder that will be implemented
-            async for event in _execute_stream_placeholder(
+            # Execute PilotSpaceAgent with streaming
+            async for sse_chunk in _execute_agent_stream(
                 orchestrator,
                 agent_name="conversation",
                 input_data=agent_input,
                 context=ai_context,
             ):
-                # Transform Claude SDK events to PilotSpace SSE format
-                sse_event = _transform_event(event, transformer)
-                if sse_event:
-                    yield sse_event.to_sse_string()
-
-            # Send message_stop at end
-            stop_event = transformer.message_stop(stop_reason="end_turn")
-            yield stop_event.to_sse_string()
+                # Events are already SSE-formatted by PilotSpaceAgent.stream()
+                # including message_start, text_delta, and message_stop events
+                yield sse_chunk
 
         except Exception as e:
-            # Send error event
-            error_event = transformer.error(
-                error_type="internal_error",
-                message=str(e),
-            )
-            yield error_event.to_sse_string()
+            # Send error event in SSE format
+            import json
+
+            error_data = {"type": "error", "error_type": "internal_error", "message": str(e)}
+            yield f"data: {json.dumps(error_data)}\n\n"
 
     return StreamingResponse(
         stream_response(),
@@ -169,73 +157,60 @@ async def chat(
     )
 
 
-async def _execute_stream_placeholder(
+async def _execute_agent_stream(
     orchestrator: Any,
     agent_name: str,
     input_data: dict[str, Any],
     context: dict[str, Any],
 ):
-    """Placeholder for streaming execution.
+    """Execute PilotSpaceAgent with streaming output.
 
-    TODO: Implement execute_stream in SDKOrchestrator.
-    For now, this is a stub that will be replaced.
-    """
-    # This will be implemented when we add streaming support to orchestrator
-    if False:
-        yield {}
-
-
-def _transform_event(event: dict[str, Any], transformer: Any):
-    """Transform orchestrator event to SSE event.
+    Bridges the FastAPI endpoint to PilotSpaceAgent.stream() method.
 
     Args:
-        event: Event from orchestrator.
-        transformer: SSE transformer.
+        orchestrator: SDK orchestrator instance
+        agent_name: Agent name (should be "conversation" for PilotSpaceAgent)
+        input_data: Dict with message, context, session_id, user_id, workspace_id
+        context: AI context dict (currently unused, included for compatibility)
 
-    Returns:
-        SSEEvent or None if event should be skipped.
+    Yields:
+        SSE-formatted strings from PilotSpaceAgent
     """
-    from pilot_space.ai.sdk import transform_claude_event
+    from uuid import UUID as parse_uuid
 
-    event_type = event.get("type")
+    from pilot_space.ai.agents.pilotspace_agent import ChatInput, PilotSpaceAgent
+    from pilot_space.ai.agents.sdk_base import AgentContext
 
-    # Text delta events
-    if event_type == "text":
-        return transformer.text_delta(event.get("text", ""))
+    # Get PilotSpaceAgent from orchestrator
+    # Try multiple possible names for compatibility
+    agent = orchestrator.get_agent("conversation")
+    if agent is None:
+        agent = orchestrator.get_agent("pilotspace_agent")
+    if agent is None:
+        yield "data: {'type': 'error', 'message': 'PilotSpaceAgent not registered in orchestrator'}\n\n"
+        return
 
-    # Tool use events
-    if event_type == "tool_use":
-        return transformer.tool_use(
-            tool_name=event["tool_name"],
-            tool_input=event["tool_input"],
-            tool_use_id=event["tool_use_id"],
-        )
+    if not isinstance(agent, PilotSpaceAgent):
+        yield "data: {'type': 'error', 'message': 'Agent is not PilotSpaceAgent instance'}\n\n"
+        return
 
-    # Tool result events
-    if event_type == "tool_result":
-        return transformer.tool_result(
-            tool_use_id=event["tool_use_id"],
-            result=event["result"],
-            is_error=event.get("is_error", False),
-        )
+    # Build ChatInput from input_data
+    chat_input = ChatInput(
+        message=input_data["message"],
+        session_id=parse_uuid(input_data["session_id"]) if input_data.get("session_id") else None,
+        context=input_data.get("context", {}),
+        user_id=parse_uuid(input_data["user_id"]) if input_data.get("user_id") else None,
+        workspace_id=parse_uuid(input_data["workspace_id"])
+        if input_data.get("workspace_id")
+        else None,
+    )
 
-    # Approval request events
-    if event_type == "approval_request":
-        return transformer.approval_request(
-            approval_id=event["approval_id"],
-            action_name=event["action_name"],
-            description=event["description"],
-            proposed_changes=event["proposed_changes"],
-        )
+    # Build AgentContext
+    agent_context = AgentContext(
+        workspace_id=parse_uuid(input_data["workspace_id"]),
+        user_id=parse_uuid(input_data["user_id"]),
+    )
 
-    # Task progress events
-    if event_type == "task_progress":
-        return transformer.task_progress(
-            task_name=event["task_name"],
-            progress=event["progress"],
-            status=event["status"],
-            message=event.get("message"),
-        )
-
-    # Try to transform Claude SDK events directly
-    return transform_claude_event(event)
+    # Stream events (already SSE-formatted by PilotSpaceAgent)
+    async for sse_chunk in agent.stream(chat_input, agent_context):
+        yield sse_chunk

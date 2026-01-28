@@ -225,7 +225,6 @@ def register_sdk_agents(orchestrator: Any) -> None:
         AssigneeRecommenderAgent,
     )
     from pilot_space.ai.agents.commit_linker_agent_sdk import CommitLinkerAgent
-    from pilot_space.ai.agents.conversation_agent_sdk import ConversationAgent
     from pilot_space.ai.agents.diagram_generator_agent import DiagramGeneratorAgent
     from pilot_space.ai.agents.doc_generator_agent import DocGeneratorAgent
 
@@ -239,6 +238,7 @@ def register_sdk_agents(orchestrator: Any) -> None:
     from pilot_space.ai.agents.margin_annotation_agent_sdk import (
         MarginAnnotationAgentSDK,
     )
+    from pilot_space.ai.agents.pilotspace_agent import PilotSpaceAgent
     from pilot_space.ai.agents.pr_review_agent import PRReviewAgent
     from pilot_space.ai.agents.task_decomposer_agent import TaskDecomposerAgent
     from pilot_space.ai.sdk_orchestrator import AgentName
@@ -257,6 +257,20 @@ def register_sdk_agents(orchestrator: Any) -> None:
         **deps_base,
         "key_storage": orchestrator._key_storage,  # noqa: SLF001
     }
+
+    # Create SDK wrappers for PilotSpaceAgent
+    from pathlib import Path
+
+    from pilot_space.ai.agents.pilotspace_agent import SkillRegistry
+    from pilot_space.ai.sdk import PermissionHandler, SessionHandler
+
+    permission_handler = PermissionHandler(approval_service=orchestrator._approval_service)  # noqa: SLF001
+    session_handler = SessionHandler(session_manager=orchestrator._session_manager)  # noqa: SLF001
+
+    # Get skills directory from backend/.claude/skills
+    backend_dir = Path(__file__).parent.parent
+    skills_dir = backend_dir / ".claude" / "skills"
+    skill_registry = SkillRegistry(skills_dir)
 
     # Register all SDK agents
     # Note-related agents (no key_storage needed)
@@ -279,10 +293,19 @@ def register_sdk_agents(orchestrator: Any) -> None:
         AgentName.AI_CONTEXT,
         AIContextAgent(**deps_base),
     )
-    # Conversation agent needs key_storage for API key access
+    # PilotSpaceAgent: Main conversational agent with skill/subagent routing
     orchestrator.register_agent(
         AgentName.CONVERSATION,
-        ConversationAgent(**deps_with_key),
+        PilotSpaceAgent(
+            tool_registry=orchestrator._tool_registry,  # noqa: SLF001
+            provider_selector=orchestrator._provider_selector,  # noqa: SLF001
+            cost_tracker=orchestrator._cost_tracker,  # noqa: SLF001
+            resilient_executor=orchestrator._resilient_executor,  # noqa: SLF001
+            permission_handler=permission_handler,
+            session_handler=session_handler,
+            skill_registry=skill_registry,
+            subagents={},  # Subagents can be registered separately if needed
+        ),
     )
     # Issue enhancer needs key_storage
     orchestrator.register_agent(
