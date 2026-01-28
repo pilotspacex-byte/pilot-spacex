@@ -561,15 +561,43 @@ def test_scenario() -> dict[str, Any]:
 
 
 @pytest.fixture
-async def app() -> AsyncGenerator[Any, None]:
-    """Create FastAPI test application.
+async def app(redis_cache: dict[str, Any]) -> AsyncGenerator[Any, None]:
+    """Create FastAPI test application with mocked Redis.
+
+    Args:
+        redis_cache: In-memory cache dict for Redis mock.
 
     Yields:
-        FastAPI application instance.
+        FastAPI application instance with Redis mocked.
     """
+    # Override Redis client with mock
+    # This ensures SessionManager and other Redis-dependent services use mock
+    from unittest.mock import MagicMock
+
+    from pilot_space.container import Container
     from pilot_space.main import app
 
-    return app
+    mock_redis_client = MagicMock()
+    mock_redis_client.get = AsyncMock(side_effect=lambda key: redis_cache.get(key))
+
+    def mock_set(key: str, value: Any, **_kwargs: Any) -> bool:
+        redis_cache[key] = value
+        return True
+
+    mock_redis_client.set = AsyncMock(side_effect=mock_set)
+    mock_redis_client.delete = AsyncMock(
+        side_effect=lambda key: redis_cache.pop(key, None) is not None
+    )
+    mock_redis_client.expire = AsyncMock(return_value=True)
+
+    # Override the container's redis_client provider
+    Container.redis_client.override(mock_redis_client)
+
+    try:
+        yield app
+    finally:
+        # Reset override after test
+        Container.redis_client.reset_override()
 
 
 @pytest.fixture

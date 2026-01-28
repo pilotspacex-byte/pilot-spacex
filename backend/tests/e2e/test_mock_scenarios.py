@@ -13,32 +13,8 @@ Reference: tests/fixtures/mock_responses.py
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
-
 import pytest
-from httpx import ASGITransport, AsyncClient
-
-
-@pytest.fixture
-async def test_e2e_client() -> AsyncGenerator[AsyncClient, None]:
-    """Create async HTTP client for E2E testing with proper DI container setup.
-
-    Yields:
-        AsyncClient for making requests.
-    """
-    from pilot_space.container import get_container
-    from pilot_space.main import app
-
-    # Reset and reinitialize DI container to ensure fresh state
-    app.state.container = get_container()
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-
-    # Clean up app state after test
-    if hasattr(app.state, "container"):
-        delattr(app.state, "container")
+from httpx import AsyncClient
 
 
 class TestBasicConversationScenarios:
