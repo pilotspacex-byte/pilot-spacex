@@ -73,6 +73,8 @@ export interface MessageMetadata {
  * Determines which data sources are accessible to the agent.
  */
 export interface ConversationContext {
+  /** Current workspace ID (required for backend API) */
+  workspaceId: string;
   /** Current note ID if conversation is within a note */
   noteId: string | null;
   /** Current issue ID if conversation is within an issue */

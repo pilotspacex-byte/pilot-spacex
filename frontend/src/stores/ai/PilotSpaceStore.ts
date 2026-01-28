@@ -177,6 +177,9 @@ export class PilotSpaceStore {
   /** Current issue context */
   issueContext: IssueContext | null = null;
 
+  /** Current workspace ID */
+  workspaceId: string | null = null;
+
   /** Error state */
   error: string | null = null;
 
@@ -244,7 +247,12 @@ export class PilotSpaceStore {
    * Used as input to backend /api/v1/ai/chat endpoint.
    */
   get conversationContext(): ConversationContext {
+    if (!this.workspaceId) {
+      throw new Error('Cannot create conversation context: workspaceId not set');
+    }
+
     return {
+      workspaceId: this.workspaceId,
       noteId: this.noteContext?.noteId ?? null,
       issueId: this.issueContext?.issueId ?? null,
       projectId: null, // TODO: Extract from workspace context
@@ -441,6 +449,15 @@ export class PilotSpaceStore {
   // ========================================
   // Actions - Context Management
   // ========================================
+
+  /**
+   * Set workspace ID for AI operations.
+   * Required before sending messages.
+   * @param workspaceId - Workspace UUID
+   */
+  setWorkspaceId(workspaceId: string | null): void {
+    this.workspaceId = workspaceId;
+  }
 
   /**
    * Set note context for AI operations.
@@ -848,6 +865,7 @@ export class PilotSpaceStore {
   reset(): void {
     this.clear();
     this.clearContext();
+    this.workspaceId = null;
     this.skills = [];
   }
 }
