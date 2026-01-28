@@ -104,7 +104,6 @@ class NoteIssueLink(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_note_issue_links_workspace_id", "workspace_id"),
         Index("ix_note_issue_links_note_id", "note_id"),
         Index("ix_note_issue_links_issue_id", "issue_id"),
         Index("ix_note_issue_links_link_type", "link_type"),

@@ -25,6 +25,12 @@ from uuid import UUID
 from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, query
 
 from pilot_space.ai.agents.sdk_base import AgentContext, StreamingSDKBaseAgent
+from pilot_space.ai.context import (
+    clear_context,
+    get_api_key_lock,
+    set_api_key,
+    set_workspace_context,
+)
 
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
@@ -417,23 +423,31 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 resume=session_id_str,  # type: ignore[call-arg]
             )
 
-            # Set environment variable for API key (SDK reads from env)
-            original_api_key = os.getenv("ANTHROPIC_API_KEY")
-            os.environ["ANTHROPIC_API_KEY"] = api_key
+            # Set context for observability and debugging
+            set_api_key(api_key)
+            set_workspace_context(context.workspace_id, context.user_id)
 
-            try:
-                # Stream from Claude SDK
-                async for message in query(prompt=input_data.message, options=sdk_options):
-                    # Transform SDK message to SSE event
-                    sse_event = self._transform_sdk_message(message, context)
-                    if sse_event:
-                        yield sse_event
-            finally:
-                # Restore original API key
-                if original_api_key:
-                    os.environ["ANTHROPIC_API_KEY"] = original_api_key
-                elif "ANTHROPIC_API_KEY" in os.environ:
-                    del os.environ["ANTHROPIC_API_KEY"]
+            # CRITICAL: Acquire lock before setting os.environ to prevent race conditions
+            # Multiple concurrent requests from different workspaces must not clobber each other's API keys
+            async with get_api_key_lock():
+                original_api_key = os.getenv("ANTHROPIC_API_KEY")
+                os.environ["ANTHROPIC_API_KEY"] = api_key
+
+                try:
+                    # Stream from Claude SDK (SDK reads API key from os.environ)
+                    async for message in query(prompt=input_data.message, options=sdk_options):
+                        # Transform SDK message to SSE event
+                        sse_event = self._transform_sdk_message(message, context)
+                        if sse_event:
+                            yield sse_event
+                finally:
+                    # Restore original API key
+                    if original_api_key:
+                        os.environ["ANTHROPIC_API_KEY"] = original_api_key
+                    elif "ANTHROPIC_API_KEY" in os.environ:
+                        del os.environ["ANTHROPIC_API_KEY"]
+                    # Clear context variables
+                    clear_context()
 
         except Exception as e:
             # Error handling

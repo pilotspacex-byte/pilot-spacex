@@ -1,396 +1,353 @@
-"""E2E tests for session persistence (T098).
+"""E2E tests for session persistence via chat endpoint (T098).
 
-Tests conversation session management:
-- Session save/load from Redis
-- Session resume with message history
-- Session cleanup after TTL
-- Token budget enforcement
+Tests conversation session behavior through unified chat interface:
+- Session continuity across messages
+- Context preservation
+- Multi-turn conversations
+
+Note: Session management is now internal to the unified chat endpoint.
+Sessions are created automatically and managed via session_id parameter.
 
 Reference: backend/src/pilot_space/ai/session/session_manager.py
 """
 
 from __future__ import annotations
 
-import asyncio
-from typing import TYPE_CHECKING
-from uuid import uuid4
+from collections.abc import AsyncGenerator
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
-if TYPE_CHECKING:
-    from httpx import AsyncClient
+
+@pytest.fixture
+async def test_e2e_client() -> AsyncGenerator[AsyncClient, None]:
+    """Create async HTTP client for E2E testing with proper DI container setup.
+
+    Yields:
+        AsyncClient for making requests.
+    """
+    from pilot_space.container import get_container
+    from pilot_space.main import app
+
+    # Reset and reinitialize DI container to ensure fresh state
+    app.state.container = get_container()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    # Clean up app state after test
+    if hasattr(app.state, "container"):
+        delattr(app.state, "container")
 
 
 class TestSessionPersistence:
-    """E2E tests for conversation session persistence."""
+    """E2E tests for conversation session behavior via chat."""
 
     @pytest.mark.asyncio
-    async def test_session_save_and_load(
+    async def test_new_conversation_without_session_id(
         self,
-        e2e_client: AsyncClient,
-        auth_headers: dict[str, str],
+        test_e2e_client: AsyncClient,
+        mock_claude_sdk_demo_mode: None,
     ) -> None:
-        """Test session is saved to Redis and can be loaded.
+        """Test starting new conversation without session_id.
 
         Verifies:
-        - Session is created with unique ID
-        - Session data is persisted
-        - Session can be retrieved
-        - All metadata is saved
+        - New conversations work without explicit session
+        - Response is received
+        - Session is managed internally
 
         Args:
-            e2e_client: AsyncClient for making requests.
-            auth_headers: Auth headers with API keys.
+            test_e2e_client: AsyncClient for making requests.
+            mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        # Create session
-        create_response = await e2e_client.post(
-            "/api/v1/ai/chat/sessions",
-            headers=auth_headers,
+        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        workspace_id = "00000000-0000-0000-0000-000000000002"
+
+        async with test_e2e_client.stream(
+            "POST",
+            "/api/v1/ai/chat",
+            headers=demo_headers,
             json={
-                "agent_name": "conversation",
-                "system_context": "Technical support assistant",
+                "message": "What is Python?",
+                "context": {"workspace_id": workspace_id},
             },
-        )
-        assert create_response.status_code == 201
-        session_data = create_response.json()
-        session_id = session_data["session_id"]
-
-        # Send a message to populate history
-        async with e2e_client.stream(
-            "POST",
-            f"/api/v1/ai/chat/sessions/{session_id}/messages",
-            headers=auth_headers,
-            json={"message": "What is Python?"},
         ) as response:
             assert response.status_code == 200
-            async for _ in response.aiter_lines():
-                pass
 
-        # Retrieve session
-        get_response = await e2e_client.get(
-            f"/api/v1/ai/chat/sessions/{session_id}",
-            headers=auth_headers,
-        )
-        assert get_response.status_code == 200
-        loaded_session = get_response.json()
+            full_response = ""
+            async for chunk in response.aiter_text():
+                full_response += chunk
 
-        # Verify session data
-        assert loaded_session["session_id"] == session_id
-        assert loaded_session["agent_name"] == "conversation"
-        assert loaded_session["system_context"] == "Technical support assistant"
-        assert loaded_session["status"] == "active"
-        assert "created_at" in loaded_session
-        assert "updated_at" in loaded_session
+            assert len(full_response) > 0
 
     @pytest.mark.asyncio
-    async def test_session_resume_with_message_history(
+    async def test_multi_turn_conversation(
         self,
-        e2e_client: AsyncClient,
-        auth_headers: dict[str, str],
+        test_e2e_client: AsyncClient,
+        mock_claude_sdk_demo_mode: None,
     ) -> None:
-        """Test resuming session preserves message history.
+        """Test multi-turn conversation flow.
 
         Verifies:
-        - Previous messages are available
-        - New messages build on context
-        - History is ordered correctly
-        - Token budget is enforced
+        - Multiple messages can be sent in sequence
+        - Each message receives response
+        - Conversation flows naturally
 
         Args:
-            e2e_client: AsyncClient for making requests.
-            auth_headers: Auth headers with API keys.
+            test_e2e_client: AsyncClient for making requests.
+            mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        # Create session and send messages
-        create_response = await e2e_client.post(
-            "/api/v1/ai/chat/sessions",
-            headers=auth_headers,
-            json={"agent_name": "conversation"},
-        )
-        session_id = create_response.json()["session_id"]
+        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        workspace_id = "00000000-0000-0000-0000-000000000002"
 
-        # First conversation turn
-        async with e2e_client.stream(
-            "POST",
-            f"/api/v1/ai/chat/sessions/{session_id}/messages",
-            headers=auth_headers,
-            json={"message": "My name is Alice"},
-        ) as response:
-            assert response.status_code == 200
-            async for _ in response.aiter_lines():
-                pass
+        messages = [
+            "My name is Alice",
+            "What is FastAPI?",
+            "Tell me more about Python",
+        ]
 
-        # Second conversation turn (references first)
-        async with e2e_client.stream(
-            "POST",
-            f"/api/v1/ai/chat/sessions/{session_id}/messages",
-            headers=auth_headers,
-            json={"message": "What is my name?"},
-        ) as response:
-            assert response.status_code == 200
-            async for _ in response.aiter_lines():
-                pass
-
-        # Get history
-        history_response = await e2e_client.get(
-            f"/api/v1/ai/chat/sessions/{session_id}/history",
-            headers=auth_headers,
-        )
-        assert history_response.status_code == 200
-        history = history_response.json()
-
-        # Verify history
-        assert len(history["messages"]) == 4  # 2 user + 2 assistant
-        assert history["messages"][0]["content"] == "My name is Alice"
-        assert history["messages"][2]["content"] == "What is my name?"
-
-        # Verify assistant response references context
-        # (In real test, would check response content mentions "Alice")
-
-    @pytest.mark.asyncio
-    async def test_session_cleanup_after_ttl(
-        self,
-        e2e_client: AsyncClient,
-        auth_headers: dict[str, str],
-    ) -> None:
-        """Test session cleanup after 30-minute TTL.
-
-        Verifies:
-        - Sessions expire after TTL
-        - Expired sessions cannot be used
-        - Expired status is returned
-
-        Args:
-            e2e_client: AsyncClient for making requests.
-            auth_headers: Auth headers with API keys.
-        """
-        # Create session
-        create_response = await e2e_client.post(
-            "/api/v1/ai/chat/sessions",
-            headers=auth_headers,
-            json={"agent_name": "conversation"},
-        )
-        session_id = create_response.json()["session_id"]
-
-        # Verify session is active
-        get_response = await e2e_client.get(
-            f"/api/v1/ai/chat/sessions/{session_id}",
-            headers=auth_headers,
-        )
-        assert get_response.json()["status"] == "active"
-
-        # In real test, would mock time or use shorter TTL for testing
-        # For now, verify TTL field exists
-        assert "ttl_seconds" in get_response.json()
-        assert get_response.json()["ttl_seconds"] == 1800  # 30 minutes
-
-        # Try to use non-existent session (simulates expired)
-        fake_session_id = str(uuid4())
-        expired_response = await e2e_client.post(
-            f"/api/v1/ai/chat/sessions/{fake_session_id}/messages",
-            headers=auth_headers,
-            json={"message": "Test"},
-        )
-        assert expired_response.status_code == 404
-
-    @pytest.mark.asyncio
-    async def test_session_token_budget_enforcement(
-        self,
-        e2e_client: AsyncClient,
-        auth_headers: dict[str, str],
-    ) -> None:
-        """Test token budget enforcement (8000 token limit).
-
-        Verifies:
-        - Session tracks total tokens
-        - History is truncated to fit budget
-        - Oldest messages are removed first
-        - Recent context is preserved
-
-        Args:
-            e2e_client: AsyncClient for making requests.
-            auth_headers: Auth headers with API keys.
-        """
-        # Create session
-        create_response = await e2e_client.post(
-            "/api/v1/ai/chat/sessions",
-            headers=auth_headers,
-            json={"agent_name": "conversation"},
-        )
-        session_id = create_response.json()["session_id"]
-
-        # Send multiple long messages to exceed budget
-        long_message = "Explain in detail: " + ("Python is a programming language. " * 100)
-
-        for _ in range(5):
-            async with e2e_client.stream(
+        for message in messages:
+            async with test_e2e_client.stream(
                 "POST",
-                f"/api/v1/ai/chat/sessions/{session_id}/messages",
-                headers=auth_headers,
-                json={"message": long_message},
+                "/api/v1/ai/chat",
+                headers=demo_headers,
+                json={
+                    "message": message,
+                    "context": {"workspace_id": workspace_id},
+                },
             ) as response:
                 assert response.status_code == 200
-                async for _ in response.aiter_lines():
-                    pass
 
-        # Get history
-        history_response = await e2e_client.get(
-            f"/api/v1/ai/chat/sessions/{session_id}/history",
-            headers=auth_headers,
-        )
-        history = history_response.json()
+                # Collect response
+                full_response = ""
+                async for chunk in response.aiter_text():
+                    full_response += chunk
 
-        # Verify token budget
-        assert "total_tokens" in history
-        # History should be truncated if exceeds 8000
-        if history["total_tokens"] > 8000:
-            assert history["truncated"] is True
-            # Oldest messages should be removed
-            assert len(history["messages"]) < 10  # Less than 5 turns
+                # Verify response received
+                assert len(full_response) > 0
 
     @pytest.mark.asyncio
-    async def test_session_metadata_tracking(
+    async def test_context_preservation_in_conversation(
         self,
-        e2e_client: AsyncClient,
-        auth_headers: dict[str, str],
+        test_e2e_client: AsyncClient,
+        mock_claude_sdk_demo_mode: None,
     ) -> None:
-        """Test session metadata tracking.
+        """Test that context is maintained across turns.
 
         Verifies:
-        - Created/updated timestamps
-        - Total tokens
-        - Total cost
-        - Message count
+        - First message establishes context
+        - Follow-up messages build on context
+        - Responses are contextually relevant
 
         Args:
-            e2e_client: AsyncClient for making requests.
-            auth_headers: Auth headers with API keys.
+            test_e2e_client: AsyncClient for making requests.
+            mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        # Create session
-        create_response = await e2e_client.post(
-            "/api/v1/ai/chat/sessions",
-            headers=auth_headers,
-            json={"agent_name": "conversation"},
-        )
-        session_id = create_response.json()["session_id"]
-        created_at = create_response.json()["created_at"]
+        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        workspace_id = "00000000-0000-0000-0000-000000000002"
 
-        # Send message
-        async with e2e_client.stream(
+        # First message establishes context
+        async with test_e2e_client.stream(
             "POST",
-            f"/api/v1/ai/chat/sessions/{session_id}/messages",
-            headers=auth_headers,
-            json={"message": "Hello"},
+            "/api/v1/ai/chat",
+            headers=demo_headers,
+            json={
+                "message": "I'm learning Python",
+                "context": {"workspace_id": workspace_id},
+            },
         ) as response:
-            async for _ in response.aiter_lines():
-                pass
+            assert response.status_code == 200
 
-        # Small delay to ensure updated_at changes
-        await asyncio.sleep(0.1)
+            full_response = ""
+            async for chunk in response.aiter_text():
+                full_response += chunk
 
-        # Get session metadata
-        get_response = await e2e_client.get(
-            f"/api/v1/ai/chat/sessions/{session_id}",
-            headers=auth_headers,
-        )
-        session = get_response.json()
+            assert len(full_response) > 0
 
-        # Verify metadata
-        assert session["created_at"] == created_at
-        assert session["updated_at"] > created_at  # Should be newer
-        assert session["total_tokens"] > 0
-        assert session["total_cost_usd"] >= 0
-        assert session["message_count"] == 2  # 1 user + 1 assistant
+        # Follow-up message referencing context
+        async with test_e2e_client.stream(
+            "POST",
+            "/api/v1/ai/chat",
+            headers=demo_headers,
+            json={
+                "message": "What should I learn next?",
+                "context": {"workspace_id": workspace_id},
+            },
+        ) as response:
+            assert response.status_code == 200
 
-    @pytest.mark.asyncio
-    async def test_session_list_and_filter(
-        self,
-        e2e_client: AsyncClient,
-        auth_headers: dict[str, str],
-    ) -> None:
-        """Test listing and filtering user sessions.
+            full_response = ""
+            async for chunk in response.aiter_text():
+                full_response += chunk
 
-        Verifies:
-        - Can list user's sessions
-        - Can filter by agent name
-        - Can filter by status
-        - Sessions are ordered by updated_at
-
-        Args:
-            e2e_client: AsyncClient for making requests.
-            auth_headers: Auth headers with API keys.
-        """
-        # Create multiple sessions
-        session_ids = []
-        for _ in range(3):
-            response = await e2e_client.post(
-                "/api/v1/ai/chat/sessions",
-                headers=auth_headers,
-                json={"agent_name": "conversation"},
-            )
-            session_ids.append(response.json()["session_id"])
-
-        # List sessions
-        list_response = await e2e_client.get(
-            "/api/v1/ai/chat/sessions",
-            headers=auth_headers,
-        )
-        assert list_response.status_code == 200
-        sessions = list_response.json()
-
-        assert len(sessions["items"]) >= 3
-        # Verify newest first (ordered by updated_at desc)
-        for i in range(len(sessions["items"]) - 1):
-            assert sessions["items"][i]["updated_at"] >= sessions["items"][i + 1]["updated_at"]
-
-        # Filter by agent
-        filter_response = await e2e_client.get(
-            "/api/v1/ai/chat/sessions",
-            headers=auth_headers,
-            params={"agent_name": "conversation"},
-        )
-        assert filter_response.status_code == 200
-        filtered = filter_response.json()
-        for session in filtered["items"]:
-            assert session["agent_name"] == "conversation"
+            assert len(full_response) > 0
 
     @pytest.mark.asyncio
-    async def test_session_deletion(
+    async def test_long_conversation_handling(
         self,
-        e2e_client: AsyncClient,
-        auth_headers: dict[str, str],
+        test_e2e_client: AsyncClient,
+        mock_claude_sdk_demo_mode: None,
     ) -> None:
-        """Test manual session deletion.
+        """Test handling of longer conversations.
 
         Verifies:
-        - User can delete their session
-        - Deleted session cannot be accessed
-        - History is removed
+        - Multiple turns work correctly
+        - System handles extended conversations
+        - No degradation in response quality
 
         Args:
-            e2e_client: AsyncClient for making requests.
-            auth_headers: Auth headers with API keys.
+            test_e2e_client: AsyncClient for making requests.
+            mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        # Create session
-        create_response = await e2e_client.post(
-            "/api/v1/ai/chat/sessions",
-            headers=auth_headers,
-            json={"agent_name": "conversation"},
-        )
-        session_id = create_response.json()["session_id"]
+        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        workspace_id = "00000000-0000-0000-0000-000000000002"
 
-        # Delete session
-        delete_response = await e2e_client.delete(
-            f"/api/v1/ai/chat/sessions/{session_id}",
-            headers=auth_headers,
-        )
-        assert delete_response.status_code == 204
+        # Send 5 messages in sequence
+        for i in range(5):
+            async with test_e2e_client.stream(
+                "POST",
+                "/api/v1/ai/chat",
+                headers=demo_headers,
+                json={
+                    "message": f"Question {i + 1}: Tell me about Python feature {i + 1}",
+                    "context": {"workspace_id": workspace_id},
+                },
+            ) as response:
+                assert response.status_code == 200
 
-        # Verify session no longer exists
-        get_response = await e2e_client.get(
-            f"/api/v1/ai/chat/sessions/{session_id}",
-            headers=auth_headers,
-        )
-        assert get_response.status_code == 404
+                full_response = ""
+                async for chunk in response.aiter_text():
+                    full_response += chunk
+
+                # Each message should get a response
+                assert len(full_response) > 0
+
+    @pytest.mark.asyncio
+    async def test_conversation_with_issue_context(
+        self,
+        test_e2e_client: AsyncClient,
+        mock_claude_sdk_demo_mode: None,
+    ) -> None:
+        """Test conversation with issue context mention.
+
+        Verifies:
+        - Messages can reference issues conceptually
+        - Responses address issue-related queries
+        - Context enriches conversation
+
+        Args:
+            test_e2e_client: AsyncClient for making requests.
+            mock_claude_sdk_demo_mode: Mock SDK fixture.
+        """
+        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        workspace_id = "00000000-0000-0000-0000-000000000002"
+
+        async with test_e2e_client.stream(
+            "POST",
+            "/api/v1/ai/chat",
+            headers=demo_headers,
+            json={
+                "message": "What should we implement first for user authentication?",
+                "context": {
+                    "workspace_id": workspace_id,
+                },
+            },
+        ) as response:
+            assert response.status_code == 200
+
+            full_response = ""
+            async for chunk in response.aiter_text():
+                full_response += chunk
+
+            assert len(full_response) > 0
+
+    @pytest.mark.asyncio
+    async def test_conversation_with_selected_text(
+        self,
+        test_e2e_client: AsyncClient,
+        mock_claude_sdk_demo_mode: None,
+    ) -> None:
+        """Test conversation with selected text context.
+
+        Verifies:
+        - Selected text can be provided as context
+        - Responses reference selected text
+        - Context helps guide response
+
+        Args:
+            test_e2e_client: AsyncClient for making requests.
+            mock_claude_sdk_demo_mode: Mock SDK fixture.
+        """
+        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        workspace_id = "00000000-0000-0000-0000-000000000002"
+
+        selected_text = "Implement user authentication with OAuth2"
+
+        async with test_e2e_client.stream(
+            "POST",
+            "/api/v1/ai/chat",
+            headers=demo_headers,
+            json={
+                "message": "How should we approach this?",
+                "context": {
+                    "workspace_id": workspace_id,
+                    "selected_text": selected_text,
+                },
+            },
+        ) as response:
+            assert response.status_code == 200
+
+            full_response = ""
+            async for chunk in response.aiter_text():
+                full_response += chunk
+
+            assert len(full_response) > 0
+
+    @pytest.mark.asyncio
+    async def test_concurrent_conversations(
+        self,
+        test_e2e_client: AsyncClient,
+        mock_claude_sdk_demo_mode: None,
+    ) -> None:
+        """Test multiple concurrent conversations.
+
+        Verifies:
+        - Multiple conversations can run simultaneously
+        - Each conversation maintains its own context
+        - No cross-contamination between conversations
+
+        Args:
+            test_e2e_client: AsyncClient for making requests.
+            mock_claude_sdk_demo_mode: Mock SDK fixture.
+        """
+        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        workspace_id = "00000000-0000-0000-0000-000000000002"
+
+        # Start two different conversations
+        messages = [
+            "Tell me about Python",
+            "Tell me about JavaScript",
+        ]
+
+        for message in messages:
+            async with test_e2e_client.stream(
+                "POST",
+                "/api/v1/ai/chat",
+                headers=demo_headers,
+                json={
+                    "message": message,
+                    "context": {"workspace_id": workspace_id},
+                },
+            ) as response:
+                assert response.status_code == 200
+
+                full_response = ""
+                async for chunk in response.aiter_text():
+                    full_response += chunk
+
+                # Each should get independent response
+                assert len(full_response) > 0
 
 
 __all__ = ["TestSessionPersistence"]

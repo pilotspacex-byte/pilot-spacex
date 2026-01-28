@@ -111,7 +111,6 @@ class State(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_states_workspace_id", "workspace_id"),
         Index("ix_states_project_id", "project_id"),
         Index("ix_states_group", "group"),
         Index("ix_states_sequence", "sequence"),

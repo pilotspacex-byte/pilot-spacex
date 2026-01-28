@@ -71,7 +71,6 @@ class Label(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_labels_workspace_id", "workspace_id"),
         Index("ix_labels_project_id", "project_id"),
         Index("ix_labels_name", "name"),
         Index("ix_labels_is_deleted", "is_deleted"),

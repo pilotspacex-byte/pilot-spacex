@@ -150,7 +150,6 @@ class NoteAnnotation(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_note_annotations_workspace_id", "workspace_id"),
         Index("ix_note_annotations_note_id", "note_id"),
         Index("ix_note_annotations_block_id", "block_id"),
         Index("ix_note_annotations_type", "type"),

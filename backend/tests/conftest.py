@@ -52,6 +52,14 @@ from .factories import (
     create_default_states,
     create_test_scenario,
 )
+from .fixtures.anthropic_mock import (
+    MOCK_CHAT_RESPONSES,
+    MOCK_STREAMING_CHUNKS,
+    mock_anthropic_api,
+    mock_anthropic_skill_responses,
+    mock_anthropic_streaming,
+    mock_claude_sdk_demo_mode,
+)
 
 # Initialize faker for generating test data
 fake = Faker()
@@ -890,6 +898,8 @@ async def test_issue(
 
 
 __all__ = [
+    "MOCK_CHAT_RESPONSES",
+    "MOCK_STREAMING_CHUNKS",
     "app",
     "auth_headers",
     "authenticated_client",
@@ -903,7 +913,11 @@ __all__ = [
     "faker_instance",
     "issue_factory",
     "mock_ai_client",
+    "mock_anthropic_api",
+    "mock_anthropic_skill_responses",
+    "mock_anthropic_streaming",
     "mock_auth",
+    "mock_claude_sdk_demo_mode",
     "mock_duplicate_detector",
     "mock_redis",
     "mock_token_payload",

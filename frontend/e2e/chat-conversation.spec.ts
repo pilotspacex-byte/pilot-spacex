@@ -9,15 +9,13 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Chat Conversation Flow', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to chat view - auth state is pre-loaded via storageState
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    // Navigate directly to chat page
+    // Auth state is pre-loaded via storageState (see playwright.config.ts)
+    // Using 'pilot-space-demo' workspace from test data
+    await page.goto('/pilot-space-demo/chat', { waitUntil: 'domcontentloaded' });
 
-    // Navigate to AI chat (adjust based on actual routing)
-    const chatLink = page.locator('[data-testid="nav-ai-chat"]');
-    if (await chatLink.isVisible()) {
-      await chatLink.click();
-    }
+    // Wait for chat view to be ready (don't wait for networkidle due to SSE connections)
+    await page.waitForSelector('[data-testid="chat-view"]', { timeout: 10000 });
   });
 
   test('INT-001: complete chat roundtrip with SSE streaming', async ({ page }) => {

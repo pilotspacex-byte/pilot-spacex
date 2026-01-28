@@ -86,7 +86,6 @@ class WorkspaceMember(BaseModel):
     # Indexes and constraints
     __table_args__ = (
         Index("ix_workspace_members_user_id", "user_id"),
-        Index("ix_workspace_members_workspace_id", "workspace_id"),
         Index("ix_workspace_members_role", "role"),
         UniqueConstraint(
             "user_id",

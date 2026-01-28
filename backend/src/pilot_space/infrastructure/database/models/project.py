@@ -123,7 +123,6 @@ class Project(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_projects_workspace_id", "workspace_id"),
         Index("ix_projects_identifier", "identifier"),
         Index("ix_projects_lead_id", "lead_id"),
         Index("ix_projects_is_deleted", "is_deleted"),

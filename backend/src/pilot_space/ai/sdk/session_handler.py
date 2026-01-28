@@ -12,15 +12,18 @@ Design Decisions: DD-058 (SDK mode for streaming)
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
-from uuid import UUID, uuid4
+from uuid import UUID
+
+from pilot_space.ai.session.session_manager import AIMessage, SessionNotFoundError
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from pilot_space.ai.session.session_manager import SessionManager
+    from pilot_space.ai.session.session_manager import AISession, SessionManager
     from pilot_space.infrastructure.database.models.ai_task import TaskStatus
 
 
@@ -165,9 +168,76 @@ class SessionHandler:
         self._session_manager = session_manager
         self._db_session = db_session
 
-    # Note: The following methods are placeholders pending SessionManager interface finalization
-    # The existing SessionManager uses AISession, not ConversationSession
-    # These methods provide the interface for the SDK integration layer
+    # Type Conversion Adapters
+    # Bridge between AISession (SessionManager) ↔ ConversationSession (SessionHandler)
+
+    def _to_conversation_session(self, ai_session: AISession) -> ConversationSession:
+        """Convert AISession to ConversationSession.
+
+        Args:
+            ai_session: AISession from SessionManager
+
+        Returns:
+            ConversationSession for SDK integration layer
+        """
+        # Convert AIMessage to ConversationMessage
+        messages = [
+            ConversationMessage(
+                role=msg.role,
+                content=msg.content,
+                timestamp=msg.timestamp,
+                tokens=msg.tokens or 0,
+                metadata={"cost_usd": msg.cost_usd} if msg.cost_usd else {},
+            )
+            for msg in ai_session.messages
+        ]
+
+        # Calculate total tokens from messages
+        total_tokens = sum(msg.tokens for msg in messages)
+
+        return ConversationSession(
+            session_id=ai_session.id,
+            workspace_id=ai_session.workspace_id,
+            user_id=ai_session.user_id,
+            agent_name=ai_session.agent_name,
+            messages=messages,
+            created_at=ai_session.created_at,
+            updated_at=ai_session.updated_at,
+            total_tokens=total_tokens,
+            total_cost_usd=ai_session.total_cost_usd,
+            metadata=ai_session.context,  # Map context → metadata
+        )
+
+    def _to_ai_message(
+        self,
+        role: str,
+        content: str | list[dict[str, Any]],
+        tokens: int = 0,
+        metadata: dict[str, Any] | None = None,
+    ) -> AIMessage:
+        """Convert message parameters to AIMessage.
+
+        Args:
+            role: Message role (user, assistant, system)
+            content: Message content (str or structured blocks)
+            tokens: Token count
+            metadata: Additional metadata (e.g., cost_usd)
+
+        Returns:
+            AIMessage for SessionManager
+        """
+        # Convert content to string if it's structured (list of blocks)
+        content_str = content if isinstance(content, str) else json.dumps(content)
+
+        # Extract cost from metadata if present
+        cost_usd = metadata.get("cost_usd") if metadata else None
+
+        return AIMessage(
+            role=role,
+            content=content_str,
+            tokens=tokens,
+            cost_usd=cost_usd,
+        )
 
     async def create_session(
         self,
@@ -178,26 +248,47 @@ class SessionHandler:
     ) -> ConversationSession:
         """Create new conversation session.
 
-        Note: This is a placeholder. Implementation will use SessionManager.create()
-        once interface is finalized to bridge AISession <-> ConversationSession.
-        """
-        return ConversationSession(
-            session_id=uuid4(),
-            workspace_id=workspace_id,
-            user_id=user_id,
-            agent_name=agent_name,
-            metadata=metadata or {},
-        )
-        # Actual implementation will create AISession via SessionManager.create()
+        Args:
+            workspace_id: Workspace UUID for RLS
+            user_id: User UUID for attribution
+            agent_name: Agent this session belongs to
+            metadata: Additional session metadata (maps to AISession.context)
 
-    async def get_session(self, _session_id: UUID) -> ConversationSession | None:
+        Returns:
+            ConversationSession with new session_id
+
+        Raises:
+            AIError: If session creation fails
+        """
+        # Create AISession via SessionManager
+        ai_session = await self._session_manager.create_session(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            agent_name=agent_name,
+            initial_context=metadata or {},
+        )
+
+        # Convert to ConversationSession
+        return self._to_conversation_session(ai_session)
+
+    async def get_session(self, session_id: UUID) -> ConversationSession | None:
         """Retrieve existing session by ID.
 
-        Note: This is a placeholder. Will use SessionManager.get() to retrieve
-        AISession and convert to ConversationSession.
+        Args:
+            session_id: Session UUID
+
+        Returns:
+            ConversationSession if found and not expired, None if not found
+
+        Note:
+            Returns None instead of raising SessionNotFoundError to match
+            expected interface for SDK integration layer.
         """
-        # Actual implementation will fetch AISession and convert
-        return None
+        try:
+            ai_session = await self._session_manager.get_session(session_id)
+            return self._to_conversation_session(ai_session)
+        except SessionNotFoundError:
+            return None
 
     async def add_message(
         self,
@@ -209,9 +300,25 @@ class SessionHandler:
     ) -> None:
         """Add message to session.
 
-        Note: This is a placeholder. Will use SessionManager.add_message().
+        Args:
+            session_id: Session UUID
+            role: Message role (user, assistant, system)
+            content: Message content (str or structured blocks)
+            tokens: Token count for this message
+            metadata: Additional metadata (e.g., cost_usd)
+
+        Raises:
+            SessionNotFoundError: If session doesn't exist
+            SessionExpiredError: If session has expired
         """
-        # Actual implementation will add message to AISession
+        # Convert to AIMessage
+        ai_message = self._to_ai_message(role, content, tokens, metadata)
+
+        # Update session via SessionManager
+        await self._session_manager.update_session(
+            session_id,
+            message=ai_message,
+        )
 
     async def update_cost(
         self,
@@ -220,17 +327,36 @@ class SessionHandler:
     ) -> None:
         """Update session cost.
 
-        Note: This is a placeholder. Will update AISession cost.
-        """
-        # Actual implementation will update AISession
+        Args:
+            session_id: Session UUID
+            cost_usd: Cost delta to add to total
 
-    async def delete_session(self, _session_id: UUID) -> bool:
+        Raises:
+            SessionNotFoundError: If session doesn't exist
+            SessionExpiredError: If session has expired
+        """
+        # Update session cost via SessionManager
+        await self._session_manager.update_session(
+            session_id,
+            cost_delta=cost_usd,
+        )
+
+    async def delete_session(self, session_id: UUID) -> bool:
         """Delete session.
 
-        Note: This is a placeholder. Will use SessionManager.delete().
+        Args:
+            session_id: Session UUID to delete
+
+        Returns:
+            True if session was deleted, False if session not found
+
+        Note:
+            Uses end_session() from SessionManager which marks session as ended.
         """
-        # Actual implementation will delete AISession
-        return False
+        try:
+            return await self._session_manager.end_session(session_id)
+        except SessionNotFoundError:
+            return False
 
     # Task Progress Management (T072)
 

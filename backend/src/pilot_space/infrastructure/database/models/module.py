@@ -119,7 +119,6 @@ class Module(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_modules_workspace_id", "workspace_id"),
         Index("ix_modules_project_id", "project_id"),
         Index("ix_modules_status", "status"),
         Index("ix_modules_lead_id", "lead_id"),

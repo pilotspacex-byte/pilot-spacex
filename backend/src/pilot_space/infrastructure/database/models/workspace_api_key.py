@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Index, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import Base, TimestampMixin, WorkspaceScopedMixin
@@ -44,7 +44,6 @@ class WorkspaceAPIKey(Base, TimestampMixin, WorkspaceScopedMixin):
         UniqueConstraint(
             "workspace_id", "provider", name="uq_workspace_api_keys_workspace_provider"
         ),
-        Index("ix_workspace_api_keys_workspace_id", "workspace_id"),
         {"schema": None},
     )
 

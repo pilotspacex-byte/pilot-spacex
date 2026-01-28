@@ -79,7 +79,6 @@ class DiscussionComment(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_discussion_comments_workspace_id", "workspace_id"),
         Index("ix_discussion_comments_discussion_id", "discussion_id"),
         Index("ix_discussion_comments_author_id", "author_id"),
         Index("ix_discussion_comments_is_ai_generated", "is_ai_generated"),

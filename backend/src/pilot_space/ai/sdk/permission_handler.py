@@ -14,7 +14,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar
-from uuid import UUID, uuid4
+from uuid import UUID
+
+from pilot_space.ai.infrastructure.approval import ActionType
 
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.approval import ApprovalService
@@ -220,12 +222,12 @@ class PermissionHandler:
 
     async def check_permission(
         self,
-        _workspace_id: UUID,
-        _user_id: UUID,
-        _agent_name: str,
+        workspace_id: UUID,
+        user_id: UUID,
+        agent_name: str,
         action_name: str,
-        _description: str,
-        _proposed_changes: dict[str, Any],
+        description: str,
+        proposed_changes: dict[str, Any],
     ) -> PermissionResult:
         """Check if action requires approval.
 
@@ -252,15 +254,31 @@ class PermissionHandler:
                 reason=f"Action '{action_name}' is classified as auto-execute"
             )
 
-        # Create approval request for non-auto actions
-        # Note: ApprovalService.create_approval expects different parameters
-        # We create the request ID here and will pass it to the service
-        approval_id = uuid4()
+        # Create approval request via ApprovalService
+        # Map action_name to ActionType (use action_name directly if it matches)
+        try:
+            action_type = ActionType(action_name)
+        except ValueError:
+            # Fallback: if action_name doesn't match ActionType enum,
+            # use a generic type based on classification
+            if classification == ActionClassification.CRITICAL_REQUIRE_APPROVAL:
+                action_type = ActionType.DELETE_ISSUE  # Generic critical action
+            else:
+                action_type = ActionType.CREATE_SUB_ISSUES  # Generic default action
 
-        # ApprovalService expects: workspace_id, user_id, action_type, action_data, requested_by_agent
-        # We'll need to await a properly structured call
-        # For now, store minimal info for the approval request
-        # The actual implementation will be completed when ApprovalService interface is finalized
+        # Create approval request
+        approval_id = await self._approval_service.create_approval_request(
+            workspace_id=workspace_id,
+            user_id=user_id,
+            action_type=action_type,
+            action_data={
+                "action_name": action_name,
+                "description": description,
+                "proposed_changes": proposed_changes,
+            },
+            requested_by_agent=agent_name,
+            context={"classification": classification.value},
+        )
 
         return PermissionResult.requires_approval_result(
             approval_id=approval_id,
@@ -268,32 +286,67 @@ class PermissionHandler:
             reason=f"Action '{action_name}' requires {classification.value} approval",
         )
 
-    # Note: The following methods are placeholders pending ApprovalService interface finalization
-    # Once the ApprovalService interface is updated with get_approval_request and update_approval_request,
-    # these methods can be uncommented and used
+    async def get_approval_status(
+        self,
+        approval_id: UUID,
+    ) -> ApprovalStatus:
+        """Get current approval status.
 
-    # async def get_approval_status(
-    #     self,
-    #     approval_id: UUID,
-    # ) -> ApprovalStatus:
-    #     """Get current approval status."""
-    #     # Implementation pending ApprovalService interface update
-    #     raise NotImplementedError("Pending ApprovalService interface update")
+        Args:
+            approval_id: UUID of approval request
 
-    # async def approve_request(
-    #     self,
-    #     approval_id: UUID,
-    #     reviewed_by: UUID,
-    # ) -> None:
-    #     """Approve an approval request."""
-    #     # Implementation pending ApprovalService interface update
-    #     raise NotImplementedError("Pending ApprovalService interface update")
+        Returns:
+            ApprovalStatus (PENDING, APPROVED, REJECTED, EXPIRED)
 
-    # async def reject_request(
-    #     self,
-    #     approval_id: UUID,
-    #     reviewed_by: UUID,
-    # ) -> None:
-    #     """Reject an approval request."""
-    #     # Implementation pending ApprovalService interface update
-    #     raise NotImplementedError("Pending ApprovalService interface update")
+        Raises:
+            ValueError: If approval request not found
+        """
+        request = await self._approval_service.get_request(approval_id)
+        if not request:
+            raise ValueError(f"Approval request not found: {approval_id}")
+
+        # Map database status to ApprovalStatus enum
+        return ApprovalStatus(request.status.value)
+
+    async def approve_request(
+        self,
+        approval_id: UUID,
+        reviewed_by: UUID,
+    ) -> None:
+        """Approve an approval request.
+
+        Args:
+            approval_id: UUID of approval request to approve
+            reviewed_by: UUID of user approving the request
+
+        Raises:
+            ValueError: If request not found or already resolved
+        """
+        await self._approval_service.resolve(
+            request_id=approval_id,
+            approved=True,
+            resolved_by=reviewed_by,
+        )
+
+    async def reject_request(
+        self,
+        approval_id: UUID,
+        reviewed_by: UUID,
+        reason: str | None = None,
+    ) -> None:
+        """Reject an approval request.
+
+        Args:
+            approval_id: UUID of approval request to reject
+            reviewed_by: UUID of user rejecting the request
+            reason: Optional reason for rejection
+
+        Raises:
+            ValueError: If request not found or already resolved
+        """
+        await self._approval_service.resolve(
+            request_id=approval_id,
+            approved=False,
+            resolved_by=reviewed_by,
+            resolution_note=reason,
+        )

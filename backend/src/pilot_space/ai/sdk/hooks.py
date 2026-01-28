@@ -181,12 +181,12 @@ class PermissionCheckHook(PreToolUseHook):
 
         # Check permission for mapped action
         permission_result = await self._permission_handler.check_permission(
-            _workspace_id=context.workspace_id,
-            _user_id=context.user_id,
-            _agent_name=context.agent_name,
+            workspace_id=context.workspace_id,
+            user_id=context.user_id,
+            agent_name=context.agent_name,
             action_name=action_name,
-            _description=self._build_description(context),
-            _proposed_changes=context.tool_input,
+            description=self._build_description(context),
+            proposed_changes=context.tool_input,
         )
 
         if permission_result.requires_approval:

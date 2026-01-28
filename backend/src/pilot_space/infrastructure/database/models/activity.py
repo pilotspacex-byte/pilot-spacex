@@ -183,7 +183,6 @@ class Activity(WorkspaceScopedModel):
 
     # Indexes
     __table_args__ = (
-        Index("ix_activities_workspace_id", "workspace_id"),
         Index("ix_activities_issue_id", "issue_id"),
         Index("ix_activities_actor_id", "actor_id"),
         Index("ix_activities_activity_type", "activity_type"),

@@ -63,7 +63,6 @@ class Template(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_templates_workspace_id", "workspace_id"),
         Index("ix_templates_category", "category"),
         Index("ix_templates_is_default", "is_default"),
         Index("ix_templates_is_deleted", "is_deleted"),

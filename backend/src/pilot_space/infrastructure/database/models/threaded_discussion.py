@@ -109,7 +109,6 @@ class ThreadedDiscussion(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_threaded_discussions_workspace_id", "workspace_id"),
         Index("ix_threaded_discussions_note_id", "note_id"),
         Index("ix_threaded_discussions_block_id", "block_id"),
         Index("ix_threaded_discussions_status", "status"),

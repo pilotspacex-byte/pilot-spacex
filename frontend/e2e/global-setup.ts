@@ -1,14 +1,15 @@
 /**
  * Playwright global setup for E2E tests.
  *
- * Creates a test user in Supabase and stores authenticated state
+ * Creates a test user in Supabase using the Admin API and stores authenticated state
  * for reuse across all test files.
  *
- * NOTE: For local development, disable email confirmation in Supabase:
- * Supabase Dashboard -> Authentication -> Email -> Disable "Confirm email"
+ * This approach uses the Supabase service role key to programmatically create
+ * the test user with auto-confirmed email, then logs in to capture session tokens.
  */
 
 import { chromium, type FullConfig } from '@playwright/test';
+import { createClient } from '@supabase/supabase-js';
 import path from 'path';
 import fs from 'fs';
 
@@ -19,6 +20,10 @@ const TEST_USER = {
 };
 
 const AUTH_STATE_PATH = path.join(__dirname, '.auth/user.json');
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:18000';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Ensure .auth directory exists
 function ensureAuthDir(): void {
@@ -45,123 +50,138 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     throw new Error('baseURL not configured in playwright.config.ts');
   }
 
-  // Create empty auth state as fallback
-  createEmptyAuthState();
+  // Validate required environment variables
+  if (!SUPABASE_SERVICE_KEY) {
+    console.error('❌ SUPABASE_SERVICE_ROLE_KEY not found in environment');
+    console.log('   Set it in frontend/.env.local to enable E2E authentication');
+    createEmptyAuthState();
+    return;
+  }
 
-  const browser = await chromium.launch();
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  if (!SUPABASE_ANON_KEY) {
+    console.error('❌ NEXT_PUBLIC_SUPABASE_ANON_KEY not found in environment');
+    console.log('   Set it in frontend/.env.local to enable E2E authentication');
+    createEmptyAuthState();
+    return;
+  }
+
+  console.log('🔧 Global setup: Using Supabase Admin API to create test user');
+  console.log(`   Supabase URL: ${SUPABASE_URL}`);
+  console.log(`   Test user: ${TEST_USER.email}`);
 
   try {
-    // Navigate to login page
-    await page.goto(`${baseURL}/login`, { waitUntil: 'networkidle' });
+    // Step 1: Create admin client with service role key
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
-    // Check if we're already on a logged-in page (from previous state)
-    const currentUrl = page.url();
-    if (!currentUrl.includes('/login') && !currentUrl.includes('/signup')) {
-      console.log('✅ Global setup: Already authenticated');
-      await context.storageState({ path: AUTH_STATE_PATH });
-      await browser.close();
-      return;
-    }
+    // Step 2: Create test user with auto-confirmed email (bypasses confirmation)
+    console.log('📝 Global setup: Creating test user with admin API...');
+    const { data: user, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email: TEST_USER.email,
+      password: TEST_USER.password,
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        name: TEST_USER.name,
+      },
+    });
 
-    // Check if login page loaded
-    const emailInput = page.locator('#email');
-    const hasLoginForm = await emailInput.isVisible({ timeout: 5000 }).catch(() => false);
+    let userId: string | undefined;
 
-    if (!hasLoginForm) {
-      console.log('⚠️ Global setup: Login form not found, using empty auth state');
-      await browser.close();
-      return;
-    }
+    if (createError) {
+      // Check if user already exists (common case - ignore error)
+      const errorMsg = createError.message.toLowerCase();
+      if (
+        errorMsg.includes('already registered') ||
+        errorMsg.includes('email_exists') ||
+        createError.code === 'email_exists'
+      ) {
+        console.log('✅ Global setup: Test user already exists');
 
-    // Try to login first (user may already exist)
-    console.log('🔐 Global setup: Attempting login with test user...');
-    await page.fill('#email', TEST_USER.email);
-    await page.fill('#password', TEST_USER.password);
-    await page.click('button[type="submit"]');
+        // Get existing user and confirm their email
+        console.log('🔧 Global setup: Confirming email for existing user...');
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUser = existingUsers?.users.find((u) => u.email === TEST_USER.email);
 
-    // Wait for either success redirect or error
-    const result = await Promise.race([
-      page
-        .waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 })
-        .then(() => 'success'),
-      page.waitForSelector('.bg-destructive\\/10', { timeout: 8000 }).then(() => 'error'),
-    ]).catch(() => 'timeout');
+        if (existingUser) {
+          userId = existingUser.id;
 
-    if (result === 'success') {
-      // Login succeeded, save auth state
-      await page.waitForLoadState('networkidle');
-      await context.storageState({ path: AUTH_STATE_PATH });
-      console.log('✅ Global setup: Logged in existing test user');
-      await browser.close();
-      return;
-    }
-
-    // User doesn't exist or wrong password, try to sign up
-    console.log('📝 Global setup: Login failed, trying to create new test user...');
-
-    // The login and signup are on the same page - click "Sign up" button to toggle
-    const signupToggle = page.getByRole('button', { name: 'Sign up' });
-    await signupToggle.click();
-
-    // Wait for name field to appear (indicates signup mode)
-    const nameInput = page.locator('#name');
-    const hasNameField = await nameInput.isVisible({ timeout: 3000 }).catch(() => false);
-
-    if (!hasNameField) {
-      console.log('⚠️ Global setup: Signup form not found, using empty auth state');
-      await browser.close();
-      return;
-    }
-
-    // Fill signup form
-    await page.fill('#name', TEST_USER.name);
-    // Email and password may still be filled from previous attempt, clear and re-fill
-    await page.fill('#email', TEST_USER.email);
-    await page.fill('#password', TEST_USER.password);
-    await page.click('button[type="submit"]');
-
-    // Wait for result
-    const signupResult = await Promise.race([
-      page
-        .waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 })
-        .then(() => 'success'),
-      page.waitForSelector('text=Check your email', { timeout: 5000 }).then(() => 'confirmation'),
-      page.waitForSelector('text=already registered', { timeout: 5000 }).then(() => 'exists'),
-      page.waitForSelector('.bg-destructive\\/10', { timeout: 5000 }).then(() => 'error'),
-    ]).catch(() => 'timeout');
-
-    if (signupResult === 'success') {
-      await page.waitForLoadState('networkidle');
-      await context.storageState({ path: AUTH_STATE_PATH });
-      console.log('✅ Global setup: Created and logged in test user');
-    } else if (signupResult === 'confirmation') {
-      console.log('⚠️ Global setup: Email confirmation required.');
-      console.log('   To run E2E tests with authentication:');
-      console.log('   1. Go to Supabase Dashboard -> Authentication -> Email');
-      console.log('   2. Disable "Confirm email" option');
-      console.log('   3. Run tests again');
-      console.log('   Tests will run but authentication-required features will fail.');
-    } else if (signupResult === 'exists') {
-      console.log('⚠️ Global setup: User exists with different credentials.');
-      console.log('   Set E2E_TEST_EMAIL and E2E_TEST_PASSWORD environment variables.');
-    } else {
-      console.log('⚠️ Global setup: Signup timed out or failed');
-      // Try to get error message
-      const errorMsg = await page
-        .locator('.bg-destructive\\/10')
-        .textContent()
-        .catch(() => null);
-      if (errorMsg) {
-        console.log(`   Error: ${errorMsg}`);
+          // Update user to confirm email
+          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+            email_confirm: true,
+          });
+          console.log('✅ Global setup: Email confirmed for existing user');
+        }
+      } else {
+        console.error('❌ Global setup: Failed to create user:', createError);
+        createEmptyAuthState();
+        return;
       }
+    } else {
+      console.log('✅ Global setup: Test user created successfully');
+      userId = user?.user?.id;
+    }
+
+    // Step 3: Login as test user with anon client to get session tokens
+    console.log('🔐 Global setup: Logging in to capture session tokens...');
+    const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const { data: sessionData, error: loginError } = await supabaseAnon.auth.signInWithPassword({
+      email: TEST_USER.email,
+      password: TEST_USER.password,
+    });
+
+    if (loginError || !sessionData.session) {
+      console.error('❌ Global setup: Failed to login:', loginError);
+      createEmptyAuthState();
+      return;
+    }
+
+    console.log('✅ Global setup: Login successful, session captured');
+
+    // Step 4: Set up browser with auth session in localStorage
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    // Navigate to the app to establish origin
+    await page.goto(baseURL, { waitUntil: 'domcontentloaded' });
+
+    // Inject Supabase session into localStorage
+    // Supabase stores session in localStorage with key pattern: sb-{project-ref}-auth-token
+    const storageKey = `sb-localhost-auth-token`; // For local development
+    await page.evaluate(
+      ({ key, session }) => {
+        localStorage.setItem(key, JSON.stringify(session));
+      },
+      { key: storageKey, session: sessionData.session }
+    );
+
+    console.log('✅ Global setup: Auth session injected into localStorage');
+
+    // Save storage state to file
+    await context.storageState({ path: AUTH_STATE_PATH });
+    console.log(`✅ Global setup: Auth state saved to ${AUTH_STATE_PATH}`);
+
+    await browser.close();
+
+    // Verify auth state file has content
+    const authState = JSON.parse(fs.readFileSync(AUTH_STATE_PATH, 'utf-8'));
+    const hasOrigins = authState.origins && authState.origins.length > 0;
+    const hasLocalStorage = hasOrigins && authState.origins[0].localStorage;
+
+    if (hasLocalStorage && hasLocalStorage.length > 0) {
+      console.log('✅ Global setup: Auth state verified - localStorage contains session');
+    } else {
+      console.log('⚠️ Global setup: Auth state may be incomplete - no localStorage entries found');
     }
   } catch (error) {
     console.error('❌ Global setup failed:', error);
     console.log('   Tests will run with empty auth state.');
-  } finally {
-    await browser.close();
+    createEmptyAuthState();
   }
 }
 

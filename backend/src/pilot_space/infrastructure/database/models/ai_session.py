@@ -53,7 +53,6 @@ class AISession(Base, WorkspaceScopedMixin):
         ),
         Index("ix_ai_sessions_expires_at", "expires_at"),
         Index("ix_ai_sessions_user_agent", "user_id", "agent_name"),
-        Index("ix_ai_sessions_workspace_id", "workspace_id"),
         {"schema": None},
     )
 

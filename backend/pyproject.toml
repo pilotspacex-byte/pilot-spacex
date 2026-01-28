@@ -81,6 +81,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "pytest-xdist>=3.5.0",
     "httpx>=0.28.0",
+    "respx>=0.21.0",
     "factory-boy>=3.3.0",
     "faker>=33.0.0",
 
@@ -149,8 +150,3 @@ exclude_lines = [
 ]
 fail_under = 80
 show_missing = true
-
-[dependency-groups]
-dev = [
-    "aiosqlite>=0.22.1",
-]

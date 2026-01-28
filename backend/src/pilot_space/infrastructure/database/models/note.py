@@ -153,7 +153,6 @@ class Note(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_notes_workspace_id", "workspace_id"),
         Index("ix_notes_project_id", "project_id"),
         Index("ix_notes_workspace_project", "workspace_id", "project_id"),
         Index("ix_notes_owner_id", "owner_id"),

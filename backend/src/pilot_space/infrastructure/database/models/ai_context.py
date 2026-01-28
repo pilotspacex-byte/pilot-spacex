@@ -218,7 +218,6 @@ class AIContext(WorkspaceScopedModel):
     # Indexes and constraints
     __table_args__ = (
         UniqueConstraint("issue_id", name="uq_ai_contexts_issue_id"),
-        Index("ix_ai_contexts_workspace_id", "workspace_id"),
         Index("ix_ai_contexts_issue_id", "issue_id"),
         Index("ix_ai_contexts_generated_at", "generated_at"),
         Index("ix_ai_contexts_is_deleted", "is_deleted"),

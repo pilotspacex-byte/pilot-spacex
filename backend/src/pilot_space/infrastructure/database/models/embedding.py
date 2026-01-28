@@ -131,7 +131,6 @@ class Embedding(WorkspaceScopedModel):
 
     # Indexes
     __table_args__ = (
-        Index("ix_embeddings_workspace_id", "workspace_id"),
         Index("ix_embeddings_content_type", "content_type"),
         Index("ix_embeddings_content_id", "content_id"),
         Index("ix_embeddings_content_hash", "content_hash"),

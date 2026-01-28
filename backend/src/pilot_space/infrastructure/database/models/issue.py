@@ -288,7 +288,6 @@ class Issue(WorkspaceScopedModel):
             name="uq_issues_project_sequence",
         ),
         # Common query indexes
-        Index("ix_issues_workspace_id", "workspace_id"),
         Index("ix_issues_project_id", "project_id"),
         Index("ix_issues_state_id", "state_id"),
         Index("ix_issues_assignee_id", "assignee_id"),

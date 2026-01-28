@@ -135,7 +135,6 @@ class Cycle(WorkspaceScopedModel):
 
     # Indexes and constraints
     __table_args__ = (
-        Index("ix_cycles_workspace_id", "workspace_id"),
         Index("ix_cycles_project_id", "project_id"),
         Index("ix_cycles_status", "status"),
         Index("ix_cycles_start_date", "start_date"),
