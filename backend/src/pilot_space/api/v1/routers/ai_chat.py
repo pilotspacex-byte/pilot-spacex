@@ -12,12 +12,12 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from pilot_space.dependencies import (
-    CurrentUserId,
+    CurrentUserIdOrDemo,
     DbSession,
     OrchestratorDep,
     PermissionHandlerDep,
@@ -25,7 +25,7 @@ from pilot_space.dependencies import (
     SkillRegistryDep,
 )
 
-router = APIRouter(prefix="/ai", tags=["ai-chat"])
+router = APIRouter(tags=["ai-chat"])
 
 
 class ChatContext(BaseModel):
@@ -57,8 +57,9 @@ class ChatRequest(BaseModel):
 
 @router.post("/chat")
 async def chat(
-    request: ChatRequest,
-    user_id: CurrentUserId,
+    chat_request: ChatRequest,
+    fastapi_request: Request,
+    user_id: CurrentUserIdOrDemo,
     session: DbSession,
     orchestrator: OrchestratorDep,
     session_handler: SessionHandlerDep,
@@ -90,38 +91,38 @@ async def chat(
 
     # Extract full AI context (loads Note/Issue objects if IDs provided)
     ai_context = await extract_ai_context(
-        request=request,  # type: ignore[arg-type]
+        request=fastapi_request,
         session=session,
-        note_id=request.context.note_id,
-        issue_id=request.context.issue_id,
-        workspace_id=request.context.workspace_id,
-        selected_text=request.context.selected_text,
+        note_id=chat_request.context.note_id,
+        issue_id=chat_request.context.issue_id,
+        workspace_id=chat_request.context.workspace_id,
+        selected_text=chat_request.context.selected_text,
     )
 
     # Get or create conversation session
     conv_session = None
     if session_handler is not None:
-        if request.session_id:
+        if chat_request.session_id:
             # Resume existing session
             from uuid import UUID as parse_uuid
 
-            session_id_uuid = parse_uuid(request.session_id)
+            session_id_uuid = parse_uuid(chat_request.session_id)
             conv_session = await session_handler.get_session(session_id_uuid)
         else:
             # Create new session
             conv_session = await session_handler.create_session(
-                workspace_id=request.context.workspace_id,
+                workspace_id=chat_request.context.workspace_id,
                 user_id=user_id,
                 agent_name="conversation",
             )
 
     # Build agent input
     agent_input = {
-        "message": request.message,
+        "message": chat_request.message,
         "context": ai_context,
-        "session_id": conv_session.session_id if conv_session else None,
+        "session_id": str(conv_session.session_id) if conv_session else None,
         "user_id": str(user_id),
-        "workspace_id": str(request.context.workspace_id),
+        "workspace_id": str(chat_request.context.workspace_id),
     }
 
     # Stream response from conversation agent
