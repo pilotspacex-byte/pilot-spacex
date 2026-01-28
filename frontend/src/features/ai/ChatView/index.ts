@@ -4,6 +4,7 @@
  */
 
 export { ChatView } from './ChatView';
+export { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
 export { ChatHeader } from './ChatHeader';
 
 // MessageList components

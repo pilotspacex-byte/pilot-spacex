@@ -22,6 +22,7 @@ import { MessageList } from './MessageList/MessageList';
 import { TaskPanel } from './TaskPanel/TaskPanel';
 import { ApprovalOverlay } from './ApprovalOverlay/ApprovalOverlay';
 import { ChatInput } from './ChatInput/ChatInput';
+import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
 
 interface ChatViewProps {
   store: PilotSpaceStore;
@@ -30,7 +31,7 @@ interface ChatViewProps {
   className?: string;
 }
 
-export const ChatView = observer<ChatViewProps>(({ store, userName, userAvatar, className }) => {
+const ChatViewInternal = observer<ChatViewProps>(({ store, userName, userAvatar, className }) => {
   const [inputValue, setInputValue] = useState('');
   const [taskPanelOpen, setTaskPanelOpen] = useState(true);
 
@@ -258,6 +259,24 @@ export const ChatView = observer<ChatViewProps>(({ store, userName, userAvatar, 
         onReject={handleRejectAction}
       />
     </div>
+  );
+});
+
+ChatViewInternal.displayName = 'ChatViewInternal';
+
+// Wrap with error boundary
+export const ChatView = observer<ChatViewProps>((props) => {
+  const handleRetry = useCallback(() => {
+    // Clear store error state on retry
+    if (props.store.error) {
+      props.store.clear();
+    }
+  }, [props.store]);
+
+  return (
+    <ChatViewErrorBoundary onRetry={handleRetry}>
+      <ChatViewInternal {...props} />
+    </ChatViewErrorBoundary>
   );
 });
 
