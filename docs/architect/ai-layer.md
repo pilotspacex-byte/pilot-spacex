@@ -274,6 +274,263 @@ class ClaudeSDKProvider(LLMProvider):
 
 ---
 
+## Note Sync Workflow
+
+The Note-AI Chat Integration enables the PilotSpace Agent to read, modify, and enhance note content in real-time through conversational interaction. The workflow synchronizes note content between the database (TipTap JSON) and the agent's workspace (Markdown files).
+
+### Architecture Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ChatView
+    participant Backend
+    participant NoteSpaceSync
+    participant Workspace
+    participant ClaudeSDK
+    participant MCP_Tools
+    participant Frontend
+    participant TipTap
+
+    User->>ChatView: "Enhance this text"
+    ChatView->>Backend: POST /api/v1/ai/chat (noteContext)
+
+    Backend->>NoteSpaceSync: sync_note_to_space()
+    NoteSpaceSync->>Workspace: Load note from DB
+    NoteSpaceSync->>Workspace: Convert TipTap → Markdown
+    NoteSpaceSync->>Workspace: Write notes/note-{uuid}.md
+
+    Backend->>ClaudeSDK: query(prompt, space)
+    ClaudeSDK->>Workspace: Read note-{uuid}.md
+    ClaudeSDK->>MCP_Tools: enhance_text(note_id, block_id, markdown)
+    MCP_Tools->>ClaudeSDK: Return operation payload
+
+    ClaudeSDK->>Backend: SSE: tool_result event
+    Backend->>Backend: transform_sdk_message()
+    Backend->>Frontend: SSE: content_update event
+
+    Frontend->>TipTap: useContentUpdates hook
+    TipTap->>TipTap: Apply JSONContent patch
+    TipTap->>User: Display updated content
+```
+
+### Bidirectional Sync Flow
+
+**To Space (DB → Workspace)**:
+```python
+# Before agent query
+sync = NoteSpaceSync()
+file_path = await sync.sync_note_to_space(
+    space_path=agent.space_path,
+    note_id=note_id,
+    session=db_session
+)
+# Creates: {space_path}/notes/note-{uuid}.md with block ID comments
+```
+
+**From Space (Workspace → DB)**:
+```python
+# After agent modifications
+changes = await sync.sync_space_to_note(
+    space_path=agent.space_path,
+    note_id=note_id,
+    session=db_session
+)
+# Returns: List[BlockChange] for review/application
+```
+
+### Content Conversion
+
+**TipTap → Markdown**:
+```python
+converter = ContentConverter()
+markdown = converter.tiptap_to_markdown({
+    "type": "doc",
+    "content": [
+        {
+            "type": "heading",
+            "attrs": {"id": "block-abc", "level": 1},
+            "content": [{"type": "text", "text": "Title"}]
+        },
+        {
+            "type": "paragraph",
+            "attrs": {"id": "block-def"},
+            "content": [
+                {"type": "text", "text": "Link to "},
+                {
+                    "type": "inlineIssue",
+                    "attrs": {
+                        "issueId": "uuid",
+                        "issueKey": "PS-99",
+                        "title": "Fix bug"
+                    }
+                }
+            ]
+        }
+    ]
+})
+
+# Output:
+# <!-- block:block-abc -->
+# # Title
+#
+# <!-- block:block-def -->
+# Link to [PS-99](issue:uuid "Fix bug")
+```
+
+**Markdown → TipTap**:
+```python
+tiptap_json = converter.markdown_to_tiptap(markdown)
+# Preserves block IDs from <!-- block:uuid --> comments
+# Parses [PS-99](issue:uuid "title") back to inlineIssue nodes
+```
+
+### 6 MCP Tools for Note Manipulation
+
+| Tool | Category | Operation | Example |
+|------|----------|-----------|---------|
+| `update_note_block` | Write | replace/append | `update_note_block("note-1", "block-abc", "## New Title", "replace")` |
+| `enhance_text` | Write | replace | `enhance_text("note-1", "block-abc", "Improved prose...")` |
+| `summarize_note` | Read | analyze | `summarize_note("note-1")` → Returns full content |
+| `extract_issues` | Write | create+link | `extract_issues("note-1", ["block-1"], [{"title": "Fix X", "priority": "high"}])` |
+| `create_issue_from_note` | Write | create+link | `create_issue_from_note("note-1", "block-abc", "Bug title", "desc", "high", "bug")` |
+| `link_existing_issues` | Write | search+link | `link_existing_issues("note-1", "authentication", "workspace-1")` |
+
+**Tool Return Format**:
+```python
+# Tools return operation payloads, not direct DB mutations
+{
+    "tool": "enhance_text",
+    "note_id": "uuid",
+    "operation": "replace_block",
+    "block_id": "block-abc",
+    "markdown": "Enhanced content...",
+    "status": "pending_apply"
+}
+```
+
+### SSE Transform Pipeline
+
+**Backend Transform**:
+```python
+# ai/agents/pilotspace_agent.py - transform_sdk_message()
+async for sdk_message in client.receive_response():
+    if sdk_message.type == "tool_result":
+        result = sdk_message.result
+
+        # Detect note tool results
+        if result.get("tool") in NOTE_TOOLS:
+            # Convert markdown to TipTap JSON
+            converter = ContentConverter()
+            tiptap_content = converter.markdown_to_tiptap(
+                result["markdown"]
+            )
+
+            # Apply update via NoteAIUpdateService
+            update_service = NoteAIUpdateService(session)
+            await update_service.execute(AIUpdatePayload(
+                note_id=result["note_id"],
+                operation=result["operation"],
+                block_id=result["block_id"],
+                content=tiptap_content
+            ))
+
+            # Emit content_update SSE event
+            yield {
+                "event": "content_update",
+                "data": {
+                    "noteId": result["note_id"],
+                    "operation": result["operation"],
+                    "blockId": result["block_id"],
+                    "content": tiptap_content
+                }
+            }
+```
+
+**Frontend Handler**:
+```typescript
+// stores/ai/PilotSpaceStore.ts
+handleContentUpdate(event: ContentUpdateEvent) {
+    this.pendingContentUpdates.push(event);
+}
+
+// features/notes/editor/hooks/useContentUpdates.ts
+useEffect(() => {
+    reaction(
+        () => store.pendingContentUpdates.filter(e => e.noteId === noteId),
+        (updates) => {
+            updates.forEach(update => {
+                // Conflict check: skip if user editing same block
+                if (isUserEditingBlock(update.blockId)) {
+                    return;
+                }
+
+                // Apply update to TipTap
+                const pos = findBlockPosition(update.blockId);
+                editor.chain()
+                    .setNodeSelection(pos)
+                    .insertContent(update.content)
+                    .run();
+
+                // Remove from queue
+                store.removePendingUpdate(update);
+            });
+        }
+    );
+}, [editor, noteId]);
+```
+
+### Conflict Detection
+
+**Cursor-Based Conflict Detection**:
+```typescript
+function isUserEditingBlock(blockId: string): boolean {
+    const { selection } = editor.state;
+    const currentBlockId = findBlockIdAtPosition(selection.from);
+    return currentBlockId === blockId;
+}
+```
+
+**AI Yields to User**:
+- If user cursor is in block being updated → skip AI change
+- Notify user in chat: "Skipped updating block X (you're editing it)"
+- User can manually apply suggestion later
+
+### Agent Instructions
+
+**CLAUDE.md Template Addition**:
+```markdown
+## Note Manipulation
+
+You have access to note files in the `notes/` directory:
+- File format: `notes/note-{uuid}.md`
+- Block IDs are preserved via HTML comments: `<!-- block:uuid -->`
+- NEVER remove block ID comments - they ensure round-trip fidelity
+
+### Available MCP Tools
+
+**update_note_block**: Replace or append content to a specific block
+**enhance_text**: Rewrite/improve text in place
+**summarize_note**: Read full note content for analysis
+**extract_issues**: Find actionable items and create linked issues
+**create_issue_from_note**: Create single issue from note content
+**link_existing_issues**: Search and link existing issues
+
+### When to Replace vs Append
+
+- **Replace**: Enhance, improve, rewrite existing content
+- **Append**: Add new sections, extract issues as new blocks
+
+### Multi-Turn Protocol
+
+If user request is ambiguous:
+1. Ask clarifying questions before modifying
+2. Show what you plan to change
+3. Wait for confirmation for large changes
+```
+
+---
+
 ## Custom MCP Tools
 
 ### Database Access Tools
