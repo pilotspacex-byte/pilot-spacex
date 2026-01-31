@@ -14,7 +14,7 @@ TODO(refactor): This file has 843 lines (exceeds 700-line limit).
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
@@ -827,67 +827,6 @@ async def get_cost_tracker_dep(
     return CostTracker(session=session)
 
 
-async def get_sdk_orchestrator(
-    request: Request,
-    session: Annotated[AsyncSession, Depends(get_session)],
-    session_manager: Annotated[..., Depends(get_session_manager)],
-    provider_selector: Annotated[..., Depends(get_provider_selector)],
-    resilient_executor: Annotated[..., Depends(get_resilient_executor)],
-    tool_registry: Annotated[..., Depends(get_tool_registry)],
-):
-    """Get SDK orchestrator with all dependencies.
-
-    The orchestrator is created per-request with request-scoped session
-    for session-dependent services.
-
-    Args:
-        request: FastAPI request with app state.
-        session: Database session.
-        session_manager: Session manager (may be None if Redis not configured).
-        provider_selector: Provider selector.
-        resilient_executor: Resilient executor.
-        tool_registry: Tool registry.
-
-    Returns:
-        Configured SDKOrchestrator instance.
-
-    Raises:
-        RuntimeError: If container not initialized.
-    """
-    from pilot_space.ai.infrastructure.approval import ApprovalService
-    from pilot_space.ai.infrastructure.cost_tracker import CostTracker
-    from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
-    from pilot_space.ai.sdk_orchestrator import SDKOrchestrator
-
-    if not hasattr(request.app.state, "container"):
-        raise RuntimeError("DI container not initialized. Check app startup.")
-
-    container = request.app.state.container
-    encryption_key = container.encryption_key()
-
-    # Create session-dependent services
-    key_storage = SecureKeyStorage(db=session, master_secret=encryption_key)
-    approval_service = ApprovalService(session=session)
-    cost_tracker = CostTracker(session=session)
-
-    orchestrator = SDKOrchestrator(
-        key_storage=key_storage,
-        approval_service=approval_service,
-        cost_tracker=cost_tracker,
-        session_manager=session_manager,  # type: ignore[arg-type]
-        provider_selector=provider_selector,
-        resilient_executor=resilient_executor,
-        tool_registry=tool_registry,
-    )
-
-    # Register all SDK agents
-    from pilot_space.container import register_sdk_agents
-
-    register_sdk_agents(orchestrator)
-
-    return orchestrator
-
-
 # ============================================================================
 # SDK Configuration Dependencies
 # ============================================================================
@@ -937,49 +876,72 @@ async def get_session_handler_dep(request: Request) -> SessionHandler | None:
     return SessionHandler(session_manager=session_manager)
 
 
-async def get_skill_registry_dep(request: Request) -> SkillRegistry:
+async def get_skill_registry_dep(request: Request) -> Any:
     """Get skill registry for SDK agents.
+
+    SkillRegistry was removed during 005-conversational-agent-arch migration.
+    Skills are now loaded by PilotSpaceAgent from space's .claude/skills/ directory.
 
     Args:
         request: FastAPI request with app state.
 
     Returns:
-        SkillRegistry instance with cached skills.
+        None (SkillRegistry has been removed).
     """
-    from pathlib import Path
+    return None
 
-    from pilot_space.ai.sdk import SkillRegistry
 
-    # Cache skill registry in app state for reuse
-    if not hasattr(request.app.state, "skill_registry"):
-        # Get skills directory from backend/.claude/skills
-        backend_dir = Path(__file__).parent.parent.parent
-        skills_dir = backend_dir / ".claude" / "skills"
+# ============================================================================
+# PilotSpaceAgent Dependencies
+# ============================================================================
 
-        skill_registry = SkillRegistry(skills_dir)
-        # Pre-load skills for faster access
-        skill_registry.list_skills()
 
-        request.app.state.skill_registry = skill_registry
+async def get_pilotspace_agent(request: Request) -> PilotSpaceAgent:
+    """Get PilotSpaceAgent from DI container.
 
-    return request.app.state.skill_registry  # type: ignore[no-any-return]
+    Args:
+        request: FastAPI request with app state.
+
+    Returns:
+        Fully initialized PilotSpaceAgent.
+
+    Raises:
+        RuntimeError: If DI container not initialized.
+    """
+    if not hasattr(request.app.state, "container"):
+        raise RuntimeError("DI container not initialized. Check app startup.")
+    return request.app.state.container.pilotspace_agent()
+
+
+async def get_queue_client(request: Request) -> SupabaseQueueClient | None:
+    """Get queue client from DI container.
+
+    Args:
+        request: FastAPI request with app state.
+
+    Returns:
+        SupabaseQueueClient instance or None if not configured.
+    """
+    if not hasattr(request.app.state, "container"):
+        return None
+    return request.app.state.container.queue_client()
 
 
 # Type imports for service return types (must be before type aliases)
 if TYPE_CHECKING:
+    from pilot_space.ai.agents.pilotspace_agent import PilotSpaceAgent
     from pilot_space.ai.infrastructure.approval import ApprovalService
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
     from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
-    from pilot_space.ai.sdk import PermissionHandler, SessionHandler, SkillRegistry
-    from pilot_space.ai.sdk_orchestrator import SDKOrchestrator
+    from pilot_space.ai.sdk import PermissionHandler, SessionHandler
     from pilot_space.ai.session.session_manager import SessionManager
     from pilot_space.ai.tools.mcp_server import ToolRegistry
     from pilot_space.infrastructure.cache.redis import RedisClient
+    from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
 
 # Type aliases for AI dependencies (using string forward references)
-OrchestratorDep = Annotated["SDKOrchestrator", Depends(get_sdk_orchestrator)]
 SessionManagerDep = Annotated["SessionManager | None", Depends(get_session_manager)]
 RedisDep = Annotated["RedisClient", Depends(get_redis_client)]
 ProviderSelectorDep = Annotated["ProviderSelector", Depends(get_provider_selector)]
@@ -989,10 +951,11 @@ KeyStorageDep = Annotated["SecureKeyStorage", Depends(get_key_storage)]
 ApprovalServiceDep = Annotated["ApprovalService", Depends(get_approval_service_dep)]
 CostTrackerDep = Annotated["CostTracker", Depends(get_cost_tracker_dep)]
 
-# SDK Configuration dependencies
 PermissionHandlerDep = Annotated["PermissionHandler", Depends(get_permission_handler_dep)]
 SessionHandlerDep = Annotated["SessionHandler | None", Depends(get_session_handler_dep)]
-SkillRegistryDep = Annotated["SkillRegistry", Depends(get_skill_registry_dep)]
+SkillRegistryDep = Annotated[Any, Depends(get_skill_registry_dep)]
+PilotSpaceAgentDep = Annotated["PilotSpaceAgent", Depends(get_pilotspace_agent)]
+QueueClientDep = Annotated["SupabaseQueueClient | None", Depends(get_queue_client)]
 
 
 # Additional type imports for other services

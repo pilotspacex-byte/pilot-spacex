@@ -4,9 +4,10 @@ Uses Pydantic Settings for environment variable loading and validation.
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import DirectoryPath, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -100,6 +101,12 @@ class Settings(BaseSettings):
     ai_ghost_text_debounce_ms: int = Field(default=500, ge=100, le=2000)
     ai_ghost_text_max_tokens: int = Field(default=50, ge=10, le=200)
 
+    # Queue-based async chat mode
+    ai_queue_mode: bool = Field(
+        default=False,
+        description="Enable queue-based async chat. False = legacy blocking SSE.",
+    )
+
     # Fake AI Mode (development only - no external API calls)
     ai_fake_mode: bool = Field(
         default=False,
@@ -135,6 +142,16 @@ class Settings(BaseSettings):
     encryption_key: SecretStr = Field(
         default=SecretStr(""),
         description="Fernet encryption key for API key storage (32-byte base64-encoded)",
+    )
+
+    # Space Configuration (Agent Isolation)
+    space_storage_root: DirectoryPath = Field(
+        default=Path("/tmp/pilot-space/spaces"),
+        description="Root directory for user workspace storage",
+    )
+    system_templates_dir: DirectoryPath = Field(
+        default=Path(__file__).parent / "templates",
+        description="Directory containing system-provided .claude templates",
     )
 
     # GitHub OAuth Integration

@@ -21,7 +21,7 @@ from uuid import uuid4
 import pytest
 
 from pilot_space.ai.agents.ghost_text_agent import GhostTextAgent, GhostTextInput
-from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.agents.agent_base import AgentContext
 
 
 @pytest.fixture
@@ -251,12 +251,11 @@ class TestGhostTextAgentStreaming:
         )
 
         # Mock Anthropic client to simulate timeout
-        with patch("pilot_space.ai.agents.ghost_text_agent.AsyncAnthropic") as mock_anthropic:
-            mock_stream = AsyncMock()
-            mock_stream.__aenter__.side_effect = TimeoutError()
-            mock_client = AsyncMock()
-            mock_client.messages.stream.return_value = mock_stream
-            mock_anthropic.return_value = mock_client
+        with patch.object(agent, "sdk_stream_text") as mock_sdk:
+            async def timeout_stream(*args: object, **kwargs: object) -> AsyncIterator[str]:
+                raise TimeoutError()
+                yield ""  # Make it a generator
+            mock_sdk.return_value = timeout_stream()
 
             chunks: list[str] = []
 
@@ -281,11 +280,12 @@ class TestGhostTextAgentStreaming:
             cursor_position=5,
         )
 
-        # Mock Anthropic client to simulate error
-        with patch("pilot_space.ai.agents.ghost_text_agent.AsyncAnthropic") as mock_anthropic:
-            mock_client = AsyncMock()
-            mock_client.messages.stream.side_effect = Exception("API Error")
-            mock_anthropic.return_value = mock_client
+        # Mock SDK stream to simulate error
+        with patch.object(agent, "sdk_stream_text") as mock_sdk:
+            async def error_stream(*args: object, **kwargs: object) -> AsyncIterator[str]:
+                raise Exception("API Error")
+                yield ""  # Make it a generator
+            mock_sdk.return_value = error_stream()
 
             chunks: list[str] = []
             async for chunk in agent.stream(input_data, agent_context):
@@ -330,15 +330,11 @@ class TestGhostTextAgentStreaming:
             def __aiter__(self) -> AsyncIterator[MockEvent]:
                 return mock_stream_iter()
 
-        with patch("pilot_space.ai.agents.ghost_text_agent.AsyncAnthropic") as mock_anthropic:
-            # Create a proper mock client
-            mock_messages = MagicMock()
-            mock_messages.stream = MagicMock(return_value=MockStream())
-
-            mock_client = MagicMock()
-            mock_client.messages = mock_messages
-
-            mock_anthropic.return_value = mock_client
+        with patch.object(agent, "sdk_stream_text") as mock_sdk:
+            async def mock_stream_gen(*args: object, **kwargs: object) -> AsyncIterator[str]:
+                yield " world"
+                yield "!"
+            mock_sdk.return_value = mock_stream_gen()
 
             chunks: list[str] = []
             async for chunk in agent.stream(input_data, agent_context):

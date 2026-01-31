@@ -19,7 +19,7 @@ import {
   Clock,
   Loader2,
 } from 'lucide-react';
-import { useUIStore, useWorkspaceStore } from '@/stores';
+import { useUIStore, useWorkspaceStore, useNoteStore } from '@/stores';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -35,21 +35,10 @@ const navigationItems = [
   { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects' },
 ];
 
-// Note: These are demo items - in production, these would come from the store
-const pinnedNotesDemo = [
-  { id: '1', title: 'Auth Refactor' },
-  { id: '2', title: 'API Design' },
-];
-
-const recentNotesDemo = [
-  { id: '3', title: 'Sprint 12 Planning' },
-  { id: '4', title: 'Bug Triage Notes' },
-  { id: '5', title: 'Feature Spec: Search' },
-];
-
 export const Sidebar = observer(function Sidebar() {
   const uiStore = useUIStore();
   const workspaceStore = useWorkspaceStore();
+  const noteStore = useNoteStore();
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = uiStore.sidebarCollapsed;
@@ -74,21 +63,26 @@ export const Sidebar = observer(function Sidebar() {
     }));
   }, [workspaceSlug]);
 
-  // Build pinned notes links
+  // Build pinned notes links from store
   const pinnedNotes = useMemo(() => {
-    return pinnedNotesDemo.map((note) => ({
-      ...note,
+    return noteStore.pinnedNotes.slice(0, 5).map((note) => ({
+      id: note.id,
+      title: note.title,
       href: `/${workspaceSlug}/notes/${note.id}`,
     }));
-  }, [workspaceSlug]);
+  }, [noteStore.pinnedNotes, workspaceSlug]);
 
-  // Build recent notes links
+  // Build recent notes links from store
   const recentNotes = useMemo(() => {
-    return recentNotesDemo.map((note) => ({
-      ...note,
-      href: `/${workspaceSlug}/notes/${note.id}`,
-    }));
-  }, [workspaceSlug]);
+    return noteStore.recentNotes
+      .filter((note) => !noteStore.pinnedNotes.some((p) => p.id === note.id))
+      .slice(0, 5)
+      .map((note) => ({
+        id: note.id,
+        title: note.title,
+        href: `/${workspaceSlug}/notes/${note.id}`,
+      }));
+  }, [noteStore.recentNotes, noteStore.pinnedNotes, workspaceSlug]);
 
   // Handle new note creation
   const handleNewNote = useCallback(() => {

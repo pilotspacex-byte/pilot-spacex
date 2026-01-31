@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from dependency_injector import containers, providers
 
+from pilot_space.ai.agents.pilotspace_agent import PilotSpaceAgent
 from pilot_space.config import get_settings
 from pilot_space.infrastructure.auth.supabase_auth import SupabaseAuth
 from pilot_space.infrastructure.database.engine import (
@@ -28,6 +29,7 @@ from pilot_space.infrastructure.database.repositories.user_repository import (
 from pilot_space.infrastructure.database.repositories.workspace_repository import (
     WorkspaceRepository,
 )
+from pilot_space.spaces.manager import SpaceManager
 
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
@@ -209,154 +211,85 @@ class Container(containers.DeclarativeContainer):
 
     tool_registry = providers.Singleton(_create_tool_registry)
 
-    # SDK orchestrator not yet fully integrated
-    # Will be implemented in P12-P15 with proper AsyncSession handling
-    sdk_orchestrator = providers.Object(None)
 
+    @staticmethod
+    def _create_space_manager() -> Any:
+        """Create SpaceManager for agent isolation.
 
-def register_sdk_agents(orchestrator: Any) -> None:
-    """Register all SDK agents in the orchestrator.
+        Returns:
+            SpaceManager instance configured from settings.
+        """
+        from pilot_space.spaces import ProjectBootstrapper, SpaceManager
 
-    NOTE: Some agents require key_storage which is session-dependent.
-    For now, we pass orchestrator._key_storage to those agents.
-    This works because the orchestrator is created per-request with
-    a session-scoped key_storage instance.
+        settings = get_settings()
 
-    Args:
-        orchestrator: SDKOrchestrator instance.
-    """
-    from pilot_space.ai.agents.ai_context_agent import AIContextAgent
-    from pilot_space.ai.agents.assignee_recommender_agent_sdk import (
-        AssigneeRecommenderAgent,
-    )
-    from pilot_space.ai.agents.commit_linker_agent_sdk import CommitLinkerAgent
-    from pilot_space.ai.agents.diagram_generator_agent import DiagramGeneratorAgent
-    from pilot_space.ai.agents.doc_generator_agent import DocGeneratorAgent
+        bootstrapper = ProjectBootstrapper(templates_dir=settings.system_templates_dir)
+        return SpaceManager(
+            storage_root=settings.space_storage_root,
+            bootstrapper=bootstrapper,
+        )
 
-    # DuplicateDetectorAgent requires AsyncSession - cannot register at init time
-    # from pilot_space.ai.agents.duplicate_detector_agent_sdk import (
-    #     DuplicateDetectorAgent,
-    # )
-    from pilot_space.ai.agents.ghost_text_agent import GhostTextAgent
-    from pilot_space.ai.agents.issue_enhancer_agent_sdk import IssueEnhancerAgent
-    from pilot_space.ai.agents.issue_extractor_sdk_agent import IssueExtractorAgent
-    from pilot_space.ai.agents.margin_annotation_agent_sdk import (
-        MarginAnnotationAgentSDK,
-    )
-    from pilot_space.ai.agents.pilotspace_agent import PilotSpaceAgent
-    from pilot_space.ai.agents.pr_review_agent import PRReviewAgent
-    from pilot_space.ai.agents.task_decomposer_agent import TaskDecomposerAgent
-    from pilot_space.ai.sdk_orchestrator import AgentName
+    space_manager = providers.Singleton(_create_space_manager)
 
-    # Access orchestrator's protected members for agent initialization
-    # These are design decisions per DD-002 (infrastructure injection)
-    deps_base = {
-        "tool_registry": orchestrator._tool_registry,  # noqa: SLF001
-        "provider_selector": orchestrator._provider_selector,  # noqa: SLF001
-        "cost_tracker": orchestrator._cost_tracker,  # noqa: SLF001
-        "resilient_executor": orchestrator._resilient_executor,  # noqa: SLF001
-    }
+    @staticmethod
+    def _create_pilotspace_agent(
+        tool_registry: ToolRegistry,
+        provider_selector: ProviderSelector,
+        resilient_executor: ResilientExecutor,
+        session_manager: SessionManager | None,
+        space_manager: SpaceManager,
+    ) -> PilotSpaceAgent:
+        """Create PilotSpaceAgent with all dependencies.
 
-    # Extended deps for agents that need key_storage
-    deps_with_key = {
-        **deps_base,
-        "key_storage": orchestrator._key_storage,  # noqa: SLF001
-    }
+        Args:
+            tool_registry: MCP tool registry.
+            provider_selector: Provider/model selection service.
+            resilient_executor: Retry and circuit breaker service.
+            session_manager: Session manager (None if Redis not configured).
+            space_manager: Space management service.
 
-    # Create SDK wrappers for PilotSpaceAgent
-    from pathlib import Path
+        Returns:
+            Fully initialized PilotSpaceAgent.
+        """
+        from pilot_space.ai.infrastructure.approval import ApprovalService
+        from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+        from pilot_space.ai.sdk.permission_handler import PermissionHandler
 
-    from pilot_space.ai.agents.pilotspace_agent import SkillRegistry
-    from pilot_space.ai.sdk import PermissionHandler, SessionHandler
+        # CostTracker and ApprovalService require a DB session for persistence.
+        # In singleton context (worker), pass None — cost/approval tracking
+        # is only active in request-scoped contexts with a live session.
+        cost_tracker = CostTracker(session=None)  # type: ignore[arg-type]
+        approval_service = ApprovalService(session=None)  # type: ignore[arg-type]
+        permission_handler = PermissionHandler(approval_service=approval_service)
 
-    permission_handler = PermissionHandler(approval_service=orchestrator._approval_service)  # noqa: SLF001
-    # SessionHandler is None if Redis not configured (session_manager=None)
-    session_handler = (
-        SessionHandler(session_manager=orchestrator._session_manager)  # noqa: SLF001
-        if orchestrator._session_manager  # noqa: SLF001
-        else None
-    )
+        # SkillRegistry was removed during 005-conversational-agent-arch migration.
+        # Skills are now loaded by PilotSpaceAgent from the space's .claude/skills/ directory.
+        skill_registry = None  # type: ignore[arg-type]
 
-    # Get skills directory from backend/.claude/skills
-    backend_dir = Path(__file__).parent.parent
-    skills_dir = backend_dir / ".claude" / "skills"
-    skill_registry = SkillRegistry(skills_dir)
+        session_handler = None
+        if session_manager is not None:
+            from pilot_space.ai.sdk.session_handler import SessionHandler
 
-    # Register all SDK agents
-    # Note-related agents (no key_storage needed)
-    orchestrator.register_agent(
-        AgentName.GHOST_TEXT,
-        GhostTextAgent(**deps_base),
-    )
-    orchestrator.register_agent(
-        AgentName.MARGIN_ANNOTATION,
-        MarginAnnotationAgentSDK(**deps_base),
-    )
-    # Issue extractor needs key_storage for API key access
-    orchestrator.register_agent(
-        AgentName.ISSUE_EXTRACTOR,
-        IssueExtractorAgent(**deps_with_key),
-    )
+            session_handler = SessionHandler(session_manager=session_manager)
 
-    # Issue-related agents
-    orchestrator.register_agent(
-        AgentName.AI_CONTEXT,
-        AIContextAgent(**deps_base),
-    )
-    # PilotSpaceAgent: Main conversational agent with skill/subagent routing
-    orchestrator.register_agent(
-        AgentName.CONVERSATION,
-        PilotSpaceAgent(
-            tool_registry=orchestrator._tool_registry,  # noqa: SLF001
-            provider_selector=orchestrator._provider_selector,  # noqa: SLF001
-            cost_tracker=orchestrator._cost_tracker,  # noqa: SLF001
-            resilient_executor=orchestrator._resilient_executor,  # noqa: SLF001
+        return PilotSpaceAgent(
+            tool_registry=tool_registry,
+            provider_selector=provider_selector,
+            cost_tracker=cost_tracker,
+            resilient_executor=resilient_executor,
             permission_handler=permission_handler,
             session_handler=session_handler,
             skill_registry=skill_registry,
-            subagents={},  # Subagents can be registered separately if needed
-        ),
-    )
-    # Issue enhancer needs key_storage
-    orchestrator.register_agent(
-        AgentName.ISSUE_ENHANCER,
-        IssueEnhancerAgent(**deps_with_key),
-    )
-    # Assignee recommender needs key_storage
-    orchestrator.register_agent(
-        AgentName.ASSIGNEE_RECOMMENDER,
-        AssigneeRecommenderAgent(**deps_with_key),
-    )
-    # TODO(T036): DuplicateDetectorAgent requires AsyncSession parameter
-    # which is per-request. Need to refactor to lazy instantiation or
-    # pass session via context. Skipping registration for now.
-    # orchestrator.register_agent(
-    #     AgentName.DUPLICATE_DETECTOR,
-    #     DuplicateDetectorAgent(**deps_with_key, session=???),
-    # )
+            space_manager=space_manager,
+        )
 
-    # PR/Code agents (need key_storage for API access)
-    orchestrator.register_agent(
-        AgentName.PR_REVIEW,
-        PRReviewAgent(**deps_with_key),
-    )
-    orchestrator.register_agent(
-        AgentName.COMMIT_LINKER,
-        CommitLinkerAgent(**deps_with_key),
-    )
-
-    # Documentation agents (no key_storage needed)
-    orchestrator.register_agent(
-        AgentName.DOC_GENERATOR,
-        DocGeneratorAgent(**deps_base),
-    )
-    orchestrator.register_agent(
-        AgentName.TASK_DECOMPOSER,
-        TaskDecomposerAgent(**deps_base),
-    )
-    orchestrator.register_agent(
-        AgentName.DIAGRAM_GENERATOR,
-        DiagramGeneratorAgent(**deps_base),
+    pilotspace_agent = providers.Singleton(
+        _create_pilotspace_agent,
+        tool_registry=tool_registry,
+        provider_selector=provider_selector,
+        resilient_executor=resilient_executor,
+        session_manager=session_manager,
+        space_manager=space_manager,
     )
 
 

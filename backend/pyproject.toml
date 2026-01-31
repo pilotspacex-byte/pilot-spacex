@@ -24,53 +24,42 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "python-multipart>=0.0.12",
-
     # Database
     "sqlalchemy[asyncio]>=2.0.36",
     "alembic>=1.14.0",
     "asyncpg>=0.30.0",
     "pgvector>=0.3.6",
-
     # Validation & Settings
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
     "email-validator>=2.2.0",
-
     # Cache & Queue
     "redis>=5.2.0",
-
     # Search
     "meilisearch>=0.31.0",
-
     # Supabase
     "supabase>=2.10.0",
     "gotrue>=2.10.0",
     "postgrest>=0.17.0",
     "storage3>=0.8.0",
-
     # AI Providers
     "anthropic>=0.40.0",
     "openai>=1.55.0",
     "google-generativeai>=0.8.0",
-
     # Claude Agent SDK
     "claude-agent-sdk>=0.1.0,<1.0",
-
     # Dependency Injection
     "dependency-injector>=4.43.0",
-
     # Logging & Monitoring
     "structlog>=24.4.0",
-
     # HTTP Client
     "httpx>=0.28.0",
-
     # Utilities
     "python-dateutil>=2.9.0",
     "orjson>=3.10.0",
-
     # Security
     "cryptography>=43.0.0",
+    "psycopg2-binary>=2.9.11",
 ]
 
 [project.optional-dependencies]

@@ -1,7 +1,14 @@
 """Unified AI chat endpoint for conversational agents.
 
-Provides a single endpoint for all AI chat interactions with streaming
-responses via SSE (Server-Sent Events).
+Provides endpoints for AI chat interactions with streaming responses via SSE.
+Supports both queue-based async mode and direct blocking SSE mode.
+
+Queue mode (AI_QUEUE_MODE=true):
+    POST /chat → enqueue job → return {job_id, session_id, stream_url}
+    GET /chat/stream/{job_id} → Redis pub/sub SSE stream
+
+Direct mode (AI_QUEUE_MODE=false):
+    POST /chat → PilotSpaceAgent.stream() → SSE StreamingResponse
 
 Reference: docs/architect/pilotspace-agent-architecture.md
 Design Decisions: DD-058 (SSE streaming), DD-003 (Approval flow)
@@ -9,9 +16,11 @@ Design Decisions: DD-058 (SSE streaming), DD-003 (Approval flow)
 
 from __future__ import annotations
 
+import logging
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
+import orjson
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import Field
@@ -20,21 +29,20 @@ from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.dependencies import (
     CurrentUserIdOrDemo,
     DbSession,
-    OrchestratorDep,
-    PermissionHandlerDep,
+    PilotSpaceAgentDep,
+    QueueClientDep,
+    RedisDep,
     SessionHandlerDep,
     SkillRegistryDep,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["ai-chat"])
 
 
 class ChatContext(BaseSchema):
-    """Context for AI chat request.
-
-    Provides optional context about the current workspace, note, issue,
-    or selected text to inform AI responses.
-    """
+    """Context for AI chat request."""
 
     workspace_id: UUID = Field(..., description="Workspace ID for context")
     note_id: UUID | None = Field(None, description="Note ID if chatting within note")
@@ -43,58 +51,48 @@ class ChatContext(BaseSchema):
 
 
 class ChatRequest(BaseSchema):
-    """Request for AI chat interaction.
-
-    Attributes:
-        message: User message to send to AI.
-        session_id: Optional session ID to resume existing conversation.
-        context: Context about current workspace/note/issue.
-    """
+    """Request for AI chat interaction."""
 
     message: str = Field(..., min_length=1, max_length=10000, description="User message")
     session_id: str | None = Field(None, description="Session ID to resume conversation")
     context: ChatContext = Field(..., description="Context for AI response")
 
 
-@router.post("/chat")
+class ChatQueueResponse(BaseSchema):
+    """Response when queue mode is enabled."""
+
+    job_id: str = Field(..., description="Queue job identifier")
+    session_id: str = Field(..., description="Conversation session ID")
+    stream_url: str = Field(..., description="URL to connect for SSE stream")
+
+
+@router.post("/chat", response_model=None)
 async def chat(
     chat_request: ChatRequest,
     fastapi_request: Request,
     user_id: CurrentUserIdOrDemo,
     session: DbSession,
-    orchestrator: OrchestratorDep,
     session_handler: SessionHandlerDep,
-    permission_handler: PermissionHandlerDep,
-    skill_registry: SkillRegistryDep,
-) -> StreamingResponse:
+    agent: PilotSpaceAgentDep,
+    queue_client: QueueClientDep,
+) -> StreamingResponse | ChatQueueResponse:
     """Unified AI chat endpoint with streaming responses.
 
     Supports:
     - Multi-turn conversations via session_id
     - Context-aware responses (note, issue, workspace)
-    - Real-time streaming via SSE
-    - Tool calls with approval flow
-    - Skill discovery and invocation
-
-    Args:
-        request: Chat request with message and context.
-        user_id: Current user ID.
-        session: Database session.
-        orchestrator: SDK orchestrator for agent execution.
-        session_handler: Session handler for multi-turn conversations.
-        permission_handler: Permission handler for approval flow.
-        skill_registry: Skill registry for skill discovery.
+    - Queue-based async mode (AI_QUEUE_MODE=true)
+    - Direct SSE streaming mode (AI_QUEUE_MODE=false)
 
     Returns:
-        StreamingResponse with SSE events.
+        StreamingResponse (direct mode) or ChatQueueResponse (queue mode).
     """
-    import logging
-
     from pilot_space.api.v1.middleware import extract_ai_context
 
-    logger = logging.getLogger(__name__)
     logger.info(
-        f"Chat request received: message='{chat_request.message[:50]}', workspace_id={chat_request.context.workspace_id}"
+        "Chat request: message='%s', workspace_id=%s",
+        chat_request.message[:50],
+        chat_request.context.workspace_id,
     )
 
     # Extract full AI context (loads Note/Issue objects if IDs provided)
@@ -106,59 +104,64 @@ async def chat(
         workspace_id=chat_request.context.workspace_id,
         selected_text=chat_request.context.selected_text,
     )
-    logger.info(f"AI context extracted: keys={list(ai_context.keys())}")
 
     # Get or create conversation session
     conv_session = None
     if session_handler is not None:
         if chat_request.session_id:
-            # Resume existing session
-            from uuid import UUID as parse_uuid
-
-            session_id_uuid = parse_uuid(chat_request.session_id)
+            session_id_uuid = UUID(chat_request.session_id)
             conv_session = await session_handler.get_session(session_id_uuid)
         else:
-            # Create new session
             conv_session = await session_handler.create_session(
                 workspace_id=chat_request.context.workspace_id,
                 user_id=user_id,
                 agent_name="conversation",
             )
 
-    # Build agent input
+    # Queue mode: enqueue and return job reference
+    from pilot_space.config import get_settings
+    from pilot_space.infrastructure.queue.models import QueueName
+
+    settings = get_settings()
+    if settings.ai_queue_mode and queue_client is not None:
+        job_id = str(uuid4())
+        await queue_client.enqueue(QueueName.AI_CHAT, {
+            "job_id": job_id,
+            "message": chat_request.message,
+            "session_id": str(conv_session.session_id) if conv_session else None,
+            "workspace_id": str(chat_request.context.workspace_id),
+            "user_id": str(user_id),
+            "context": ai_context,
+        })
+        return ChatQueueResponse(
+            job_id=job_id,
+            session_id=str(conv_session.session_id) if conv_session else "",
+            stream_url=f"/api/v1/ai/chat/stream/{job_id}",
+        )
+
+    # Direct mode: blocking SSE stream
+    # session_id: tracking ID for all conversations (new or resumed)
+    # resume_session_id: only set when resuming an existing conversation
     agent_input = {
         "message": chat_request.message,
         "context": ai_context,
         "session_id": str(conv_session.session_id) if conv_session else None,
+        "resume_session_id": chat_request.session_id,  # None for new conversations
         "user_id": str(user_id),
         "workspace_id": str(chat_request.context.workspace_id),
     }
 
-    # Stream response from conversation agent
     async def stream_response():
         """Generate SSE stream from agent responses."""
         try:
-            # Execute PilotSpaceAgent with streaming
             async for sse_chunk in _execute_agent_stream(
-                orchestrator,
-                agent_name="conversation",
-                input_data=agent_input,
-                context=ai_context,
+                agent, input_data=agent_input, context=ai_context
             ):
-                # Events are already SSE-formatted by PilotSpaceAgent.stream()
-                # including message_start, text_delta, and message_stop events
                 yield sse_chunk
-
         except Exception as e:
-            # Send error event in SSE format
-            import json
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.exception("Chat endpoint error")
-
-            error_data = {"type": "error", "error_type": "internal_error", "message": str(e)}
-            yield f"data: {json.dumps(error_data)}\n\n"
+            logger.exception("Chat endpoint error: %s", e)
+            error_data = {"errorCode": "api_error", "message": str(e), "retryable": False}
+            yield f"event: error\ndata: {orjson.dumps(error_data).decode()}\n\n"
 
     return StreamingResponse(
         stream_response(),
@@ -166,9 +169,60 @@ async def chat(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
+            "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/chat/stream/{job_id}")
+async def stream_job(job_id: str, redis_client: RedisDep) -> StreamingResponse:
+    """SSE stream endpoint for queue-mode chat jobs.
+
+    Clients connect here after receiving a job_id from POST /chat.
+    Delivers stored events (catch-up) then live events via Redis pub/sub.
+
+    Args:
+        job_id: Queue job identifier.
+        redis_client: Redis client for pub/sub.
+
+    Returns:
+        StreamingResponse with SSE events.
+    """
+
+    async def event_stream():
+        # 1. Catch up on stored events (for reconnection or late connect)
+        stored = await redis_client.lrange(f"stream:events:{job_id}", 0, -1)
+        for event_bytes in stored:
+            yield event_bytes.decode()
+
+        # 2. Subscribe to live events
+        pubsub = await redis_client.subscribe(f"chat:stream:{job_id}")
+        try:
+            async for msg in pubsub.listen():
+                if msg["type"] == "message":
+                    data = msg["data"]
+                    event_str = data.decode() if isinstance(data, bytes) else data
+                    yield event_str
+                    if '"stream_end"' in event_str or '"error"' in event_str:
+                        break
+        finally:
+            await pubsub.unsubscribe(f"chat:stream:{job_id}")
+            await pubsub.aclose()
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ============================================================================
+# Skills & Agents listing endpoints
+# ============================================================================
 
 
 class SkillListItem(BaseSchema):
@@ -190,11 +244,10 @@ class SkillListResponse(BaseSchema):
 async def list_skills(
     skill_registry: SkillRegistryDep,
 ) -> SkillListResponse:
-    """List available AI skills for autocomplete.
+    """List available AI skills for autocomplete."""
+    if skill_registry is None:
+        return SkillListResponse(skills=[], total=0)
 
-    Returns:
-        List of skill definitions with metadata.
-    """
     skills = skill_registry.list_skills()
 
     return SkillListResponse(
@@ -226,7 +279,6 @@ class AgentListResponse(BaseSchema):
     total: int = Field(..., ge=0, description="Total agent count")
 
 
-# Agent descriptions for display
 AGENT_DESCRIPTIONS: dict[str, str] = {
     "ghost_text": "Real-time writing suggestions",
     "margin_annotation": "Document margin suggestions",
@@ -244,89 +296,46 @@ AGENT_DESCRIPTIONS: dict[str, str] = {
 }
 
 
-@router.get("/agents", response_model=AgentListResponse)
-async def list_agents(
-    orchestrator: OrchestratorDep,
-) -> AgentListResponse:
-    """List registered AI agents for autocomplete.
-
-    Returns:
-        List of agent names with descriptions.
-    """
-    agent_names = orchestrator.list_agents()
-
-    return AgentListResponse(
-        agents=[
-            AgentListItem(
-                name=name,
-                description=AGENT_DESCRIPTIONS.get(name, ""),
-            )
-            for name in agent_names
-        ],
-        total=len(agent_names),
-    )
+# ============================================================================
+# Internal helpers
+# ============================================================================
 
 
 async def _execute_agent_stream(
-    orchestrator: Any,
-    agent_name: str,
+    agent: Any,
     input_data: dict[str, Any],
-    context: dict[str, Any],
+    context: dict[str, Any],  # kept for API compatibility
 ):
     """Execute PilotSpaceAgent with streaming output.
 
     Bridges the FastAPI endpoint to PilotSpaceAgent.stream() method.
 
     Args:
-        orchestrator: SDK orchestrator instance
-        agent_name: Agent name (should be "conversation" for PilotSpaceAgent)
-        input_data: Dict with message, context, session_id, user_id, workspace_id
-        context: AI context dict (currently unused, included for compatibility)
+        agent: PilotSpaceAgent instance.
+        input_data: Dict with message, context, session_id, user_id, workspace_id.
+        context: AI context dict (included for compatibility).
 
     Yields:
-        SSE-formatted strings from PilotSpaceAgent
+        SSE-formatted strings from PilotSpaceAgent.
     """
-    import logging
-    from uuid import UUID as parse_uuid
+    from pilot_space.ai.agents.agent_base import AgentContext
+    from pilot_space.ai.agents.pilotspace_agent import ChatInput
 
-    from pilot_space.ai.agents.pilotspace_agent import ChatInput, PilotSpaceAgent
-    from pilot_space.ai.agents.sdk_base import AgentContext
-
-    logger = logging.getLogger(__name__)
-
-    # Get PilotSpaceAgent from orchestrator
-    # Try multiple possible names for compatibility
-    logger.info(f"Getting agent '{agent_name}' from orchestrator")
-    agent = orchestrator.get_agent("conversation")
-    if agent is None:
-        agent = orchestrator.get_agent("pilotspace_agent")
-    if agent is None:
-        logger.error("PilotSpaceAgent not registered in orchestrator")
-        yield "data: {'type': 'error', 'message': 'PilotSpaceAgent not registered in orchestrator'}\n\n"
-        return
-
-    if not isinstance(agent, PilotSpaceAgent):
-        logger.error(f"Agent is not PilotSpaceAgent instance, got {type(agent)}")
-        yield "data: {'type': 'error', 'message': 'Agent is not PilotSpaceAgent instance'}\n\n"
-        return
-
-    # Build ChatInput from input_data
     chat_input = ChatInput(
         message=input_data["message"],
-        session_id=parse_uuid(input_data["session_id"]) if input_data.get("session_id") else None,
+        session_id=UUID(input_data["session_id"]) if input_data.get("session_id") else None,
+        resume_session_id=input_data.get("resume_session_id"),
         context=input_data.get("context", {}),
-        user_id=parse_uuid(input_data["user_id"]) if input_data.get("user_id") else None,
-        workspace_id=parse_uuid(input_data["workspace_id"])
+        user_id=UUID(input_data["user_id"]) if input_data.get("user_id") else None,
+        workspace_id=UUID(input_data["workspace_id"])
         if input_data.get("workspace_id")
         else None,
     )
 
-    # Build AgentContext
     agent_context = AgentContext(
-        workspace_id=parse_uuid(input_data["workspace_id"]),
-        user_id=parse_uuid(input_data["user_id"]),
+        workspace_id=UUID(input_data["workspace_id"]),
+        user_id=UUID(input_data["user_id"]),
     )
 
-    # Stream events (already SSE-formatted by PilotSpaceAgent)
     async for sse_chunk in agent.stream(chat_input, agent_context):
         yield sse_chunk

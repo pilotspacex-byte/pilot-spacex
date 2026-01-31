@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 from pilot_space.config import get_settings
 
 if TYPE_CHECKING:
-    from pilot_space.ai.agents.sdk_base import AgentContext, AgentResult, SDKBaseAgent
+    from pilot_space.ai.agents.agent_base import AgentContext, AgentResult, SDKBaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +226,7 @@ class MockProvider:
         Raises:
             ValueError: If no generator registered for agent.
         """
-        from pilot_space.ai.agents.sdk_base import AgentResult
+        from pilot_space.ai.agents.agent_base import AgentResult
 
         agent_name = agent.__class__.__name__
         settings = get_settings()

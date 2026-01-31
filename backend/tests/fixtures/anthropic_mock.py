@@ -173,41 +173,44 @@ def mock_anthropic_api(respx_mock: respx.MockRouter) -> respx.MockRouter:
 
 @pytest.fixture
 def mock_anthropic_streaming() -> AsyncGenerator[AsyncMock, None]:
-    """Mock Claude Agent SDK streaming responses.
+    """Mock Claude Agent SDK ClaudeSDKClient streaming responses.
 
-    Patches the query() function from claude-agent-sdk to return
-    mock streaming events instead of calling the real API.
+    Patches ClaudeSDKClient to return mock streaming events
+    instead of spawning a real subprocess.
 
     Yields:
-        AsyncMock that simulates streaming events.
+        AsyncMock of ClaudeSDKClient with simulated streaming events.
 
     Example:
         async def test_streaming(mock_anthropic_streaming):
-            async for message in query("Hello"):
+            client = ClaudeSDKClient(options)
+            await client.connect()
+            await client.send_message("Hello")
+            async for message in client.receive_messages():
                 assert message  # Mock events will be yielded
     """
+    mock_events = [
+        type("StreamEvent", (), {"type": "text_delta", "delta": "Hello"}),
+        type("StreamEvent", (), {"type": "text_delta", "delta": "!"}),
+        type("StreamEvent", (), {"type": "text_delta", "delta": " I'm"}),
+        type("StreamEvent", (), {"type": "text_delta", "delta": " Claude"}),
+        type("StreamEvent", (), {"type": "stop"}),
+    ]
 
-    async def mock_query_stream(prompt: str, options: Any = None) -> AsyncGenerator[Any, None]:
-        """Mock streaming query function."""
-        # Yield mock streaming events
-        events = [
-            type(
-                "StreamEvent",
-                (),
-                {"type": "system", "subtype": "init", "session_id": "test-session-123"},
-            ),
-            type("StreamEvent", (), {"type": "text_delta", "delta": "Hello"}),
-            type("StreamEvent", (), {"type": "text_delta", "delta": "!"}),
-            type("StreamEvent", (), {"type": "text_delta", "delta": " I'm"}),
-            type("StreamEvent", (), {"type": "text_delta", "delta": " Claude"}),
-            type("StreamEvent", (), {"type": "stop"}),
-        ]
-
-        for event in events:
+    async def mock_receive_messages() -> AsyncGenerator[Any, None]:
+        for event in mock_events:
             yield event
 
-    with patch("claude_agent_sdk.query", side_effect=mock_query_stream):
-        yield AsyncMock(side_effect=mock_query_stream)
+    mock_client = AsyncMock()
+    mock_client.connect = AsyncMock()
+    mock_client.disconnect = AsyncMock()
+    mock_client.query = AsyncMock()
+    mock_client.receive_response = mock_receive_messages
+    mock_client.receive_messages = mock_receive_messages
+    mock_client.interrupt = AsyncMock()
+
+    with patch("claude_agent_sdk.ClaudeSDKClient", return_value=mock_client):
+        yield mock_client
 
 
 @pytest.fixture

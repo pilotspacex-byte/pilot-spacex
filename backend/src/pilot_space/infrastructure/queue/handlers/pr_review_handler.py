@@ -25,7 +25,7 @@ from pilot_space.ai.agents.pr_review_agent import (
     ReviewComment,
     ReviewSeverity,
 )
-from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.prompts.pr_review import format_review_as_markdown
 from pilot_space.infrastructure.queue.models import QueueName
 

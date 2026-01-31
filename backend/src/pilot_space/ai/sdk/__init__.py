@@ -36,10 +36,24 @@ Usage:
     hook_result = await hook.should_execute(tool_context)
 """
 
+from pilot_space.ai.sdk.command_registry import (
+    CommandDefinition,
+    CommandParameter,
+    CommandRegistry,
+)
 from pilot_space.ai.sdk.config import (
     ClaudeAgentOptions,
     create_agent_options,
     get_model_for_task,
+)
+from pilot_space.ai.sdk.file_hooks import (
+    FileBasedHookExecutor,
+    HookDefinition,
+    HookMatcher,
+    HookResponse,
+    HooksConfiguration,
+    HookType,
+    PermissionDecision,
 )
 from pilot_space.ai.sdk.hooks import (
     CompositeHook,
@@ -56,17 +70,20 @@ from pilot_space.ai.sdk.permission_handler import (
     PermissionHandler,
     PermissionResult,
 )
+from pilot_space.ai.sdk.sandbox_config import (
+    DANGEROUS_BASH_PATTERNS,
+    PROTECTED_FILE_PATTERNS,
+    SAFE_BASH_PATTERNS,
+    SandboxSettings,
+    SDKConfiguration,
+    configure_sdk_for_space,
+    is_bash_command_safe,
+    is_file_protected,
+)
 from pilot_space.ai.sdk.session_handler import (
     ConversationMessage,
     ConversationSession,
     SessionHandler,
-)
-from pilot_space.ai.sdk.skill_registry import SkillDefinition, SkillRegistry
-from pilot_space.ai.sdk.skill_validator import (
-    SkillValidator,
-    ValidationError,
-    ValidationResult,
-    validate_skill_file,
 )
 from pilot_space.ai.sdk.sse_transformer import (
     SSEEvent,
@@ -75,30 +92,50 @@ from pilot_space.ai.sdk.sse_transformer import (
 )
 
 __all__ = [
+    # Sandbox
+    "DANGEROUS_BASH_PATTERNS",
+    "PROTECTED_FILE_PATTERNS",
+    "SAFE_BASH_PATTERNS",
+    # Permissions
     "ActionClassification",
     "ApprovalRequest",
     "ApprovalStatus",
+    # Config
     "ClaudeAgentOptions",
+    # Command registry
+    "CommandDefinition",
+    "CommandParameter",
+    "CommandRegistry",
+    # Hooks
     "CompositeHook",
+    # Session
     "ConversationMessage",
     "ConversationSession",
+    # File-based hooks
+    "FileBasedHookExecutor",
+    "HookDefinition",
+    "HookMatcher",
+    "HookResponse",
     "HookResult",
+    "HookType",
+    "HooksConfiguration",
     "PermissionCheckHook",
+    "PermissionDecision",
     "PermissionHandler",
     "PermissionResult",
     "PreToolUseHook",
+    "SDKConfiguration",
+    # SSE
     "SSEEvent",
     "SSETransformer",
+    "SandboxSettings",
     "SessionHandler",
-    "SkillDefinition",
-    "SkillRegistry",
-    "SkillValidator",
     "ToolCallContext",
-    "ValidationError",
     "ValidationHook",
-    "ValidationResult",
+    "configure_sdk_for_space",
     "create_agent_options",
     "get_model_for_task",
+    "is_bash_command_safe",
+    "is_file_protected",
     "transform_claude_event",
-    "validate_skill_file",
 ]

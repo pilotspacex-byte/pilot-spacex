@@ -1,7 +1,7 @@
 """Create AI conversational tables for Wave 2.
 
 Revision ID: 020_create_ai_conversational_tables
-Revises: 019_extend_annotation_type_enum
+Revises: 019_annotation_enum_enum
 Create Date: 2026-01-28
 
 Creates tables for:
@@ -17,8 +17,8 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "020_create_ai_conversational_tables"
-down_revision: str | None = "019_extend_annotation_type_enum"
+revision: str = "020_create_ai_conv"
+down_revision: str | None = "019_annotation_enum"
 branch_labels: tuple[str, ...] | None = None
 depends_on: tuple[str, ...] | None = None
 

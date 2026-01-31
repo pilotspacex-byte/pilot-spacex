@@ -31,7 +31,7 @@ from pilot_space.ai.agents.pr_review_agent import (
     _is_priority_file,
     _should_partial_review,
 )
-from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.agents.agent_base import AgentContext
 
 
 @pytest.fixture

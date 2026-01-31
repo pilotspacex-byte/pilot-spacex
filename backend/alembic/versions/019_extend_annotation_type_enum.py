@@ -1,6 +1,6 @@
 """Extend annotation_type enum with new values.
 
-Revision ID: 019_extend_annotation_type
+Revision ID: 019_annotation_enum
 Revises: 20260126_1650_018_fix_ai_cost_records_schema
 Create Date: 2026-01-26
 
@@ -13,7 +13,7 @@ Adds new annotation type values to support AI agent output:
 from alembic import op
 
 # revision identifiers, used by Alembic
-revision = "019_extend_annotation_type"
+revision = "019_annotation_enum"
 down_revision = "018_fix_ai_cost_records"
 branch_labels = None
 depends_on = None

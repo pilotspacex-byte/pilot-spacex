@@ -17,7 +17,7 @@ from pilot_space.ai.agents.ai_context_agent import (
     CodeReference,
     RelatedItem,
 )
-from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.agents.agent_base import AgentContext
 
 
 @pytest.fixture

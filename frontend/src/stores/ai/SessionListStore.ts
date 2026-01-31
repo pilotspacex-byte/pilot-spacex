@@ -14,6 +14,12 @@ import { makeAutoObservable, runInAction } from 'mobx';
 import type { AIStore } from './AIStore';
 
 /**
+ * API base URL for backend requests.
+ * Falls back to localhost if not configured.
+ */
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+
+/**
  * Session summary for list display.
  */
 export interface SessionSummary {
@@ -109,9 +115,8 @@ export class SessionListStore {
     });
 
     try {
-      // TODO: Replace with actual API endpoint when backend implements sessions list
-      // For now, mock the response
-      const response = await fetch(`/api/v1/ai/chat/sessions?limit=${limit}`, {
+      // Get sessions list from backend
+      const response = await fetch(`${API_BASE}/ai/sessions?limit=${limit}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -156,10 +161,11 @@ export class SessionListStore {
     }
 
     try {
-      // Fetch session history
-      const response = await fetch(`/api/v1/ai/chat/sessions/${sessionId}/messages`, {
-        method: 'GET',
+      // Resume session to fetch session history
+      const response = await fetch(`${API_BASE}/ai/sessions/${sessionId}/resume`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
@@ -206,7 +212,7 @@ export class SessionListStore {
    */
   async deleteSession(sessionId: string): Promise<void> {
     try {
-      const response = await fetch(`/api/v1/ai/chat/sessions/${sessionId}`, {
+      const response = await fetch(`${API_BASE}/ai/sessions/${sessionId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
       });

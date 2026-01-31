@@ -92,7 +92,7 @@ class TestAIContextAgentMigration:
 
     def test_sdk_base_import(self) -> None:
         """Verify SDK base classes can be imported."""
-        from pilot_space.ai.agents.sdk_base import (
+        from pilot_space.ai.agents.agent_base import (
             AgentContext,
             AgentResult,
             SDKBaseAgent,
