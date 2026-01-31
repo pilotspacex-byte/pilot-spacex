@@ -6,6 +6,7 @@
 import { memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FileText, ListTodo, FolderOpen, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NoteContext, IssueContext, ProjectContext } from '../types';
@@ -35,25 +36,47 @@ export const ContextIndicator = memo<ContextIndicatorProps>(
     if (!hasContext) return null;
 
     return (
-      <div className={cn('flex flex-wrap items-center gap-2', className)}>
+      <div
+        data-testid="context-indicator"
+        className={cn('flex flex-wrap items-center gap-2', className)}
+      >
         <span className="text-xs text-muted-foreground">Context:</span>
 
         {noteContext && (
-          <Badge variant="secondary" className="gap-1.5">
-            <FileText className="h-3 w-3" />
-            <span className="truncate max-w-[120px]">Note: {noteContext.noteId.slice(0, 8)}</span>
-            {onClearNoteContext && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-3 w-3 p-0 hover:bg-transparent"
-                onClick={onClearNoteContext}
-              >
-                <X className="h-2.5 w-2.5" />
-                <span className="sr-only">Clear note context</span>
-              </Button>
-            )}
-          </Badge>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="secondary" className="gap-1.5">
+                <FileText className="h-3 w-3" />
+                <span className="truncate max-w-[200px]">
+                  Note: {noteContext.noteTitle || noteContext.noteId.slice(0, 8)}
+                  {noteContext.selectedBlockIds && noteContext.selectedBlockIds.length > 0 && (
+                    <span className="ml-1 text-muted-foreground">
+                      ({noteContext.selectedBlockIds.length}{' '}
+                      {noteContext.selectedBlockIds.length === 1 ? 'block' : 'blocks'})
+                    </span>
+                  )}
+                </span>
+                {onClearNoteContext && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-3 w-3 p-0 hover:bg-transparent"
+                    onClick={onClearNoteContext}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                    <span className="sr-only">Clear note context</span>
+                  </Button>
+                )}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                {noteContext.selectedBlockIds && noteContext.selectedBlockIds.length > 0
+                  ? `AI will use the ${noteContext.selectedBlockIds.length} selected block${noteContext.selectedBlockIds.length === 1 ? '' : 's'} as context for your request`
+                  : 'AI will use the entire note content as context for your request'}
+              </p>
+            </TooltipContent>
+          </Tooltip>
         )}
 
         {issueContext && (
