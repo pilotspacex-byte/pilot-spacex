@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
-from pilot_space.spaces.base import SpaceContext, SpaceError, SpacePreparationError
+from pilot_space.spaces.base import SpaceContext
 from pilot_space.spaces.bootstrapper import ProjectBootstrapper
 from pilot_space.spaces.local import LocalFileSystemSpace
 from pilot_space.spaces.manager import SpaceManager, create_space_manager
@@ -168,6 +168,60 @@ class TestProjectBootstrapper:
         assert "Claude Instructions" in claude_file.read_text()
 
     @pytest.mark.asyncio
+    async def test_claude_md_includes_note_tools(self, temp_target_dir: Path) -> None:
+        """Test CLAUDE.md template includes note tool instructions."""
+        # Use the real template from the source
+        from pilot_space.ai.templates import CLAUDE_MD_PATH
+
+        bootstrapper = ProjectBootstrapper(CLAUDE_MD_PATH.parent)
+        await bootstrapper.hydrate(temp_target_dir)
+
+        claude_file = temp_target_dir / ".claude" / "CLAUDE.md"
+        content = claude_file.read_text()
+
+        # Verify note tools section exists
+        assert "### Note Tools (6 tools)" in content
+
+        # Verify all 6 note tools are documented
+        assert "summarize_note(note_id)" in content
+        assert "update_note_block(note_id, block_id, new_content_markdown, operation)" in content
+        assert "enhance_text(note_id, block_id, enhanced_markdown)" in content
+        assert "extract_issues(note_id, block_ids, issues)" in content
+        assert (
+            "create_issue_from_note(note_id, block_id, title, description, priority, issue_type)"
+            in content
+        )
+        assert "link_existing_issues(note_id, search_query, workspace_id)" in content
+
+        # Verify workflow guidance exists
+        assert "Note Tools Workflow" in content
+        assert "Always call this first" in content
+
+    @pytest.mark.asyncio
+    async def test_claude_md_tool_names_match_registered_tools(self, temp_target_dir: Path) -> None:
+        """Test CLAUDE.md tool names match tools registered in note_tools.py."""
+        from pilot_space.ai.templates import CLAUDE_MD_PATH
+
+        bootstrapper = ProjectBootstrapper(CLAUDE_MD_PATH.parent)
+        await bootstrapper.hydrate(temp_target_dir)
+
+        claude_file = temp_target_dir / ".claude" / "CLAUDE.md"
+        content = claude_file.read_text()
+
+        # Tool names from note_tools.py @register_tool decorators
+        expected_tools = [
+            "summarize_note",
+            "update_note_block",
+            "enhance_text",
+            "extract_issues",
+            "create_issue_from_note",
+            "link_existing_issues",
+        ]
+
+        for tool_name in expected_tools:
+            assert tool_name in content, f"Tool {tool_name} not found in CLAUDE.md"
+
+    @pytest.mark.asyncio
     async def test_hydrate_is_idempotent(
         self, temp_templates_dir: Path, temp_target_dir: Path
     ) -> None:
@@ -191,9 +245,7 @@ class TestProjectBootstrapper:
         assert (temp_target_dir / ".claude" / "skills" / "test-skill" / "SKILL.md").exists()
 
     @pytest.mark.asyncio
-    async def test_hydrate_with_missing_templates_dir(
-        self, temp_target_dir: Path
-    ) -> None:
+    async def test_hydrate_with_missing_templates_dir(self, temp_target_dir: Path) -> None:
         """Test hydrate handles missing templates directory gracefully."""
         bootstrapper = ProjectBootstrapper(Path("/nonexistent/path"))
 
@@ -421,11 +473,13 @@ class TestSpaceManager:
         """Create temp storage root and templates directory."""
         import tempfile
 
-        with tempfile.TemporaryDirectory() as storage_root:
-            with tempfile.TemporaryDirectory() as templates:
-                templates_path = Path(templates)
-                (templates_path / "CLAUDE.md").write_text("# Test")
-                yield Path(storage_root), templates_path
+        with (
+            tempfile.TemporaryDirectory() as storage_root,
+            tempfile.TemporaryDirectory() as templates,
+        ):
+            templates_path = Path(templates)
+            (templates_path / "CLAUDE.md").write_text("# Test")
+            yield Path(storage_root), templates_path
 
     @pytest.fixture
     def manager(self, temp_dirs: tuple[Path, Path]) -> SpaceManager:
@@ -434,17 +488,13 @@ class TestSpaceManager:
         bootstrapper = ProjectBootstrapper(templates)
         return SpaceManager(bootstrapper, storage_root=storage_root)
 
-    def test_get_space_returns_local_filesystem_space(
-        self, manager: SpaceManager
-    ) -> None:
+    def test_get_space_returns_local_filesystem_space(self, manager: SpaceManager) -> None:
         """Test get_space returns LocalFileSystemSpace in local mode."""
         space = manager.get_space(uuid4(), uuid4())
 
         assert isinstance(space, LocalFileSystemSpace)
 
-    def test_get_space_with_container_mode_raises(
-        self, temp_dirs: tuple[Path, Path]
-    ) -> None:
+    def test_get_space_with_container_mode_raises(self, temp_dirs: tuple[Path, Path]) -> None:
         """Test get_space raises NotImplementedError for container mode."""
         storage_root, templates = temp_dirs
         bootstrapper = ProjectBootstrapper(templates)
@@ -475,9 +525,7 @@ class TestSpaceManager:
         assert workspaces == []
 
     @pytest.mark.asyncio
-    async def test_list_workspaces_after_creating_spaces(
-        self, manager: SpaceManager
-    ) -> None:
+    async def test_list_workspaces_after_creating_spaces(self, manager: SpaceManager) -> None:
         """Test list_workspaces returns workspace IDs after creation."""
         ws1 = uuid4()
         ws2 = uuid4()
@@ -517,17 +565,13 @@ class TestSpaceManager:
         assert user2 in users
 
     @pytest.mark.asyncio
-    async def test_get_existing_space_returns_none_for_new(
-        self, manager: SpaceManager
-    ) -> None:
+    async def test_get_existing_space_returns_none_for_new(self, manager: SpaceManager) -> None:
         """Test get_existing_space returns None for non-existent space."""
         result = manager.get_existing_space(uuid4(), uuid4())
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_existing_space_returns_space_if_exists(
-        self, manager: SpaceManager
-    ) -> None:
+    async def test_get_existing_space_returns_space_if_exists(self, manager: SpaceManager) -> None:
         """Test get_existing_space returns space if it exists."""
         ws = uuid4()
         user = uuid4()
