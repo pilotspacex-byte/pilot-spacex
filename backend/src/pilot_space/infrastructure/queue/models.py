@@ -25,6 +25,9 @@ class QueueName(StrEnum):
     AI_NORMAL = "ai_normal"  # Embedding generation, duplicate detection
     AI_LOW = "ai_low"  # Knowledge graph recalculation
 
+    # Conversational AI (10-min visibility timeout)
+    AI_CHAT = "ai_chat"
+
     # Legacy alias
     AI_TASKS = "ai_tasks"
 

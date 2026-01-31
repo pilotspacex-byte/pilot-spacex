@@ -44,7 +44,6 @@ async def test_real_chat_simple_query(real_sdk_client: AsyncClient) -> None:
             "message": "What is 2 + 2? Please answer with just the number.",
             "workspace_id": workspace_id,
             "user_id": user_id,
-            "agent_name": "pilotspace",
         },
         headers={"Accept": "text/event-stream"},
     )

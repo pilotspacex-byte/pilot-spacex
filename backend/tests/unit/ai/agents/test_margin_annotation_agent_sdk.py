@@ -18,7 +18,7 @@ from pilot_space.ai.agents.margin_annotation_agent_sdk import (
     MarginAnnotationInput,
     MarginAnnotationOutput,
 )
-from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.agents.agent_base import AgentContext
 
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker

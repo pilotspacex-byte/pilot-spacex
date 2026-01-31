@@ -16,7 +16,7 @@ from pilot_space.ai.agents.issue_extractor_sdk_agent import (
     IssueExtractorInput,
     IssueExtractorOutput,
 )
-from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.agents.agent_base import AgentContext
 
 
 @pytest.fixture

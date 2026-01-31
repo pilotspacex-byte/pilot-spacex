@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.agents.task_decomposer_agent import (
     TaskDecomposerAgent,
     TaskDecomposerInput,

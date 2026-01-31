@@ -14,17 +14,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from pilot_space.ai.agents.sdk_base import AgentContext
 from pilot_space.ai.infrastructure.approval import ApprovalService
-from pilot_space.ai.sdk_orchestrator import SDKOrchestrator
 from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
 from pilot_space.api.utils.sse import SSEResponse, SSEStreamBuilder
-from pilot_space.api.v1.schemas.note import extract_text_from_tiptap
 from pilot_space.dependencies import (
     CurrentUserIdOrDemo,
     DbSession,
     get_approval_service_dep,
-    get_sdk_orchestrator,
 )
 
 logger = logging.getLogger(__name__)
@@ -109,7 +105,6 @@ async def extract_issues_stream(
     extract_request: ExtractIssuesRequest,
     current_user_id: CurrentUserIdOrDemo,
     request: Request,
-    orchestrator: Annotated[SDKOrchestrator, Depends(get_sdk_orchestrator)],
     approval_service: Annotated[ApprovalService, Depends(get_approval_service_dep)],
     session: DbSession,
 ) -> SSEResponse:
@@ -140,138 +135,21 @@ async def extract_issues_stream(
     _ = correlation_id  # Used for tracing
 
     async def generate_events():
-        import time
-
-        from pilot_space.ai.agents.issue_extractor_sdk_agent import IssueExtractorInput
-        from pilot_space.ai.sdk_orchestrator import AgentName
-
         builder = SSEStreamBuilder()
-        start_time = time.perf_counter()
 
-        try:
-            # Emit start event
-            yield builder.event(
-                "progress",
-                {"status": "analyzing", "message": "Reading note content..."},
-            )
-
-            # Extract text from TipTap JSON
-            note_text = extract_text_from_tiptap(extract_request.note_content)
-            if not note_text.strip():
-                yield builder.event(
-                    "error",
-                    {"code": "EMPTY_NOTE", "message": "Note content is empty"},
-                )
-                return
-
-            yield builder.event(
-                "progress",
-                {"status": "extracting", "message": "Extracting issues with AI..."},
-            )
-
-            # Build input for agent
-            project_id = (
-                UUID(extract_request.project_id)
-                if extract_request.project_id
-                else UUID("00000000-0000-0000-0000-000000000000")
-            )
-
-            input_data = IssueExtractorInput(
-                note_id=UUID(note_id),
-                project_id=project_id,
-                max_issues=extract_request.max_issues,
-                min_confidence=0.5,
-            )
-
-            # Create agent context with note text in metadata
-            context = AgentContext(
-                workspace_id=workspace_id,
-                user_id=UUID(str(current_user_id)),
-                metadata={
-                    "note_text": note_text,
-                    "note_title": extract_request.note_title,
-                    "project_context": extract_request.project_context or "",
-                    "available_labels": extract_request.available_labels or [],
-                },
-            )
-
-            # Execute extraction via orchestrator
-            result = await orchestrator.execute(
-                AgentName.ISSUE_EXTRACTOR,
-                input_data,
-                context,
-            )
-
-            if not result.success:
-                yield builder.event(
-                    "error",
-                    {
-                        "code": "EXTRACTION_FAILED",
-                        "message": result.error or "Issue extraction failed",
-                    },
-                )
-                return
-
-            # Get output
-            output = result.output
-            if not output or not hasattr(output, "issues"):
-                yield builder.event(
-                    "error",
-                    {"code": "NO_ISSUES", "message": "No issues could be extracted"},
-                )
-                return
-
-            # Stream each extracted issue
-            issues_data = []
-            for idx, issue in enumerate(output.issues):
-                issue_dict = issue.to_dict() if hasattr(issue, "to_dict") else issue
-                issue_dict["index"] = idx
-                issues_data.append(issue_dict)
-
-                yield builder.event("issue", issue_dict)
-
-            # Create approval request if issues were extracted
-            from pilot_space.ai.infrastructure.approval import ActionType
-
-            approval_id = None
-            if issues_data:
-                request_id = await approval_service.create_approval_request(
-                    workspace_id=workspace_id,
-                    user_id=UUID(str(current_user_id)),
-                    action_type=ActionType.EXTRACT_ISSUES,
-                    action_data={
-                        "note_id": note_id,
-                        "issues": issues_data,
-                    },
-                    requested_by_agent="issue_extractor",
-                    context={
-                        "note_title": extract_request.note_title,
-                        "project_id": str(project_id),
-                    },
-                )
-                approval_id = str(request_id)
-
-            # Calculate processing time
-            elapsed_ms = (time.perf_counter() - start_time) * 1000
-
-            # Emit completion
-            yield builder.event(
-                "complete",
-                {
-                    "status": "complete",
-                    "total_issues": len(issues_data),
-                    "recommended_count": output.recommended_count,
-                    "summary": output.extraction_summary or f"Extracted {len(issues_data)} issues",
-                    "approval_id": approval_id,
-                    "requires_approval": approval_id is not None,
-                    "cost_usd": result.cost_usd or 0.0,
-                    "processing_time_ms": elapsed_ms,
-                },
-            )
-
-        except Exception as e:
-            logger.exception("Failed to extract issues", extra={"note_id": note_id})
-            yield builder.error(str(e), type(e).__name__)
+        # SDKOrchestrator has been removed in the conversational agent architecture.
+        # Issue extraction will be migrated to PilotSpaceAgent skill-based execution.
+        # See: specs/005-conversational-agent-arch/plan.md
+        yield builder.event(
+            "error",
+            {
+                "code": "NOT_IMPLEMENTED",
+                "message": (
+                    "Issue extraction is being migrated to the conversational agent architecture. "
+                    "Use POST /ai/chat with extraction instructions instead."
+                ),
+            },
+        )
 
     return SSEResponse(generate_events())
 

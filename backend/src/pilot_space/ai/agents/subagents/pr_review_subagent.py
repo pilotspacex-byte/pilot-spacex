@@ -13,20 +13,16 @@ Design Decision: DD-006 (Unified AI PR Review)
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from claude_agent_sdk import ClaudeAgentOptions, query
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
-from pilot_space.ai.agents.sdk_base import AgentContext, StreamingSDKBaseAgent
-from pilot_space.ai.context import (
-    clear_context,
-    get_api_key_lock,
-    set_api_key,
-    set_workspace_context,
-)
+from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
+from pilot_space.ai.context import clear_context, set_workspace_context
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -261,59 +257,46 @@ Be constructive and focus on production reliability, security, and maintainabili
     ) -> str | None:
         """Transform Claude SDK message to SSE event.
 
+        Handles real Claude Agent SDK message types:
+        - SystemMessage: skip (init event)
+        - AssistantMessage: content is list[TextBlock]
+        - ResultMessage: completion signal
+
         Args:
-            message: SDK message object
+            message: SDK message object (SystemMessage | AssistantMessage | ResultMessage)
             context: Agent execution context
 
         Returns:
             SSE-formatted string or None if message should be ignored
         """
-        # Handle StreamEvent messages
-        if hasattr(message, "type"):
-            msg_type = getattr(message, "type", None)
+        msg_type = type(message).__name__
 
-            # Text streaming
-            if msg_type == "text_delta" and hasattr(message, "delta"):
-                content = message.delta
-                content_escaped = content.replace("'", "\\'").replace("\n", "\\n")
-                return f"data: {{'type': 'text_delta', 'content': '{content_escaped}'}}\n\n"
+        # SystemMessage: skip (init event)
+        if msg_type == "SystemMessage":
+            return None
 
-            # Tool use
-            if msg_type == "tool_use" and hasattr(message, "id"):
-                tool_call_id = message.id
-                tool_name = getattr(message, "name", "")
-                return (
-                    f"data: {{'type': 'tool_use', 'tool_call_id': '{tool_call_id}', "
-                    f"'tool_name': '{tool_name}'}}\n\n"
-                )
+        # AssistantMessage: content is list[TextBlock]
+        if msg_type == "AssistantMessage":
+            content = getattr(message, "content", None)
+            if content is None:
+                return None
+            if isinstance(content, list):
+                parts = []
+                for block in content:
+                    if isinstance(block, dict):
+                        parts.append(block.get("text", ""))
+                    elif hasattr(block, "text"):
+                        parts.append(block.text)
+                text_content = " ".join(parts)
+            else:
+                text_content = str(content)
+            if not text_content.strip():
+                return None
+            return f"event: text_delta\ndata: {json.dumps({'messageId': str(uuid4()), 'delta': text_content})}\n\n"
 
-            # Tool result
-            if msg_type == "tool_result" and hasattr(message, "tool_use_id"):
-                tool_call_id = message.tool_use_id
-                is_error = getattr(message, "is_error", False)
-                status = "failed" if is_error else "completed"
-                return (
-                    f"data: {{'type': 'tool_result', 'tool_call_id': '{tool_call_id}', "
-                    f"'status': '{status}'}}\n\n"
-                )
-
-            # Message stop
-            if msg_type == "stop":
-                return "data: {'type': 'message_stop'}\n\n"
-
-        # Handle AssistantMessage (final response)
-        if hasattr(message, "content") and hasattr(message, "role"):
-            if message.role == "assistant":
-                content = message.content
-                if isinstance(content, list):
-                    text_content = " ".join(
-                        block.get("text", "") for block in content if isinstance(block, dict)
-                    )
-                else:
-                    text_content = str(content)
-
-                text_escaped = text_content.replace("'", "\\'").replace("\n", "\\n")
-                return f"data: {{'type': 'text_delta', 'content': '{text_escaped}'}}\n\n"
+        # ResultMessage: completion
+        if msg_type == "ResultMessage":
+            return f"event: message_stop\ndata: {json.dumps({'messageId': str(uuid4()), 'stopReason': 'end_turn'})}\n\n"
 
         return None
 
@@ -338,34 +321,28 @@ Be constructive and focus on production reliability, security, and maintainabili
             # Build prompt specific to PR review
             prompt = self._build_prompt(input_data)
 
-            # Create SDK options
+            # Create SDK options with env parameter (no os.environ mutation)
             sdk_options = self._create_agent_options(context)
+            sdk_env: dict[str, str] = {"ANTHROPIC_API_KEY": api_key}
+            if "PATH" not in sdk_env:
+                sdk_env["PATH"] = os.environ.get("PATH", "")
+            sdk_options.env = sdk_env
 
             # Set context for observability
-            set_api_key(api_key)
             set_workspace_context(context.workspace_id, context.user_id)
 
-            # CRITICAL: Acquire lock before setting os.environ
-            async with get_api_key_lock():
-                original_api_key = os.getenv("ANTHROPIC_API_KEY")
-                os.environ["ANTHROPIC_API_KEY"] = api_key
-
-                try:
-                    # Stream from Claude SDK
-                    async for message in query(prompt=prompt, options=sdk_options):
-                        # Transform SDK message to SSE event
-                        sse_event = self._transform_sdk_message(message, context)
-                        if sse_event:
-                            yield sse_event
-                finally:
-                    # Restore original API key
-                    if original_api_key:
-                        os.environ["ANTHROPIC_API_KEY"] = original_api_key
-                    elif "ANTHROPIC_API_KEY" in os.environ:
-                        del os.environ["ANTHROPIC_API_KEY"]
-                    clear_context()
+            client = ClaudeSDKClient(sdk_options)
+            try:
+                await client.connect()
+                await client.query(prompt)
+                async for message in client.receive_response():
+                    sse_event = self._transform_sdk_message(message, context)
+                    if sse_event:
+                        yield sse_event
+            finally:
+                await client.disconnect()
+                clear_context()
 
         except Exception as e:
-            # Error handling
             error_msg = str(e).replace("'", "\\'")
             yield f"data: {{'type': 'error', 'error_type': 'pr_review_error', 'message': '{error_msg}'}}\n\n"

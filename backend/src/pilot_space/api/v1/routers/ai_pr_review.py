@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 from pilot_space.ai.agents.pr_review_agent import (
     PRReviewInput,
 )
-from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.api.v1.streaming import format_sse_event
 from pilot_space.dependencies import get_current_user_id, get_sdk_orchestrator
 

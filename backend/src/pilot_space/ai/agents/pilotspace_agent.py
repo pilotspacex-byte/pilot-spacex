@@ -14,23 +14,22 @@ Design Decisions: DD-003 (Human-in-the-Loop), DD-048 (Confidence Tags)
 
 from __future__ import annotations
 
+import json
+import logging
 import os
+import shutil
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
-from uuid import UUID
+from uuid import UUID, uuid4
 
 # Import Claude Agent SDK (required dependency)
-from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, query
+from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, ClaudeSDKClient, Message
 
-from pilot_space.ai.agents.sdk_base import AgentContext, StreamingSDKBaseAgent
-from pilot_space.ai.context import (
-    clear_context,
-    get_api_key_lock,
-    set_api_key,
-    set_workspace_context,
-)
+from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
+from pilot_space.ai.context import clear_context, set_workspace_context
+from pilot_space.ai.sdk.sandbox_config import configure_sdk_for_space
+from pilot_space.spaces.manager import SpaceManager
 
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
@@ -38,11 +37,13 @@ if TYPE_CHECKING:
     from pilot_space.ai.providers.provider_selector import ProviderSelector
     from pilot_space.ai.sdk.permission_handler import PermissionHandler
     from pilot_space.ai.sdk.session_handler import SessionHandler
+    from pilot_space.ai.sdk.skill_registry import SkillRegistry
     from pilot_space.ai.tools.mcp_server import ToolRegistry
 
 
 # Removed IntentType, ParsedIntent - SDK handles intent parsing via .claude/ directory
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class ChatInput:
@@ -58,6 +59,7 @@ class ChatInput:
 
     message: str
     session_id: UUID | None = None
+    resume_session_id: str | None = None
     context: dict[str, Any] = field(default_factory=dict)
     user_id: UUID | None = None
     workspace_id: UUID | None = None
@@ -80,90 +82,6 @@ class ChatOutput:
     tasks: list[dict[str, Any]] = field(default_factory=list)
     approvals: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
-
-
-# Removed TaskEntry - SDK handles task tracking natively
-
-
-class SkillRegistry:
-    """Registry for loading and managing skill definitions.
-
-    Skills are defined in `.claude/skills/{skill-name}/SKILL.md` files.
-    Uses progressive loading: metadata at startup, instructions on demand.
-    """
-
-    def __init__(self, skills_dir: Path):
-        """Initialize registry with skills directory.
-
-        Args:
-            skills_dir: Path to .claude/skills directory
-        """
-        self._skills_dir = skills_dir
-        self._metadata_cache: dict[str, dict[str, str]] = {}
-        self._loaded_skills: dict[str, str] = {}
-
-    def load_metadata(self) -> dict[str, dict[str, str]]:
-        """Load metadata for all skills.
-
-        Parses YAML frontmatter from SKILL.md files.
-
-        Returns:
-            Dict mapping skill name to metadata (name, description)
-        """
-        if self._metadata_cache:
-            return self._metadata_cache
-
-        for skill_dir in self._skills_dir.iterdir():
-            if not skill_dir.is_dir():
-                continue
-
-            skill_file = skill_dir / "SKILL.md"
-            if not skill_file.exists():
-                continue
-
-            # Parse YAML frontmatter
-            content = skill_file.read_text()
-            if content.startswith("---"):
-                parts = content.split("---", 2)
-                if len(parts) >= 3:
-                    frontmatter = parts[1].strip()
-                    metadata = {}
-                    for line in frontmatter.split("\n"):
-                        if ":" in line:
-                            key, value = line.split(":", 1)
-                            metadata[key.strip()] = value.strip()
-
-                    self._metadata_cache[skill_dir.name] = metadata
-
-        return self._metadata_cache
-
-    def get_skill_instructions(self, skill_name: str) -> str | None:
-        """Load full skill instructions on demand.
-
-        Args:
-            skill_name: Name of skill to load
-
-        Returns:
-            Full SKILL.md content or None if not found
-        """
-        if skill_name in self._loaded_skills:
-            return self._loaded_skills[skill_name]
-
-        skill_file = self._skills_dir / skill_name / "SKILL.md"
-        if not skill_file.exists():
-            return None
-
-        content = skill_file.read_text()
-        self._loaded_skills[skill_name] = content
-        return content
-
-    def get_available_skills(self) -> list[str]:
-        """Get list of available skill names.
-
-        Returns:
-            List of skill names
-        """
-        return list(self.load_metadata().keys())
 
 
 class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
@@ -207,6 +125,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         permission_handler: PermissionHandler,
         session_handler: SessionHandler | None,
         skill_registry: SkillRegistry,
+        space_manager: SpaceManager | None = None,
         subagents: dict[str, Any] | None = None,
     ) -> None:
         """Initialize PilotSpace agent with dependencies.
@@ -219,6 +138,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             permission_handler: Permission and approval handler
             session_handler: Session management handler (None if Redis not configured)
             skill_registry: Skill loading registry
+            space_manager: Space management service (None for legacy mode)
             subagents: Optional dict of subagent instances
         """
         super().__init__(
@@ -230,10 +150,36 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._permission_handler = permission_handler
         self._session_handler = session_handler
         self._skill_registry = skill_registry
+        self._space_manager = space_manager
         self._subagents = subagents or {}
+        self._current_message_id: str | None = None
 
     # Removed old routing methods (_parse_intent, _execute_skill, _spawn_subagent,
     # _plan_tasks, _handle_natural_language) - SDK handles all routing via .claude/
+
+    def _build_subagent_definitions(self) -> dict[str, AgentDefinition]:
+        """Build subagent definitions for SDK agent spawning.
+
+        Returns:
+            Dict of agent name to AgentDefinition for SDK's Task tool.
+        """
+        return {
+            "pr-review": AgentDefinition(
+                description="Expert code reviewer for GitHub PRs",
+                prompt="Analyze pull requests for architecture, security, and performance",
+                tools=["Read", "Glob", "Grep", "WebFetch"],
+            ),
+            "ai-context": AgentDefinition(
+                description="Aggregates context for issues from notes, code, and tasks",
+                prompt="Find related notes, code snippets, and similar issues",
+                tools=["Read", "Glob", "Grep"],
+            ),
+            "doc-generator": AgentDefinition(
+                description="Generates technical documentation from code",
+                prompt="Create comprehensive documentation with examples",
+                tools=["Read", "Glob", "Write"],
+            ),
+        }
 
     async def _get_api_key(self, workspace_id: UUID | None) -> str:
         """Get Anthropic API key from workspace settings.
@@ -267,81 +213,104 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             raise ValueError(msg)
         return api_key
 
-    def _transform_sdk_message(  # noqa: PLR0911  # Many returns needed for message types
-        self, message: Any, context: AgentContext
+    def transform_sdk_message(  # noqa: PLR0911
+        self, message: Message, context: AgentContext  # noqa: ARG002
     ) -> str | None:
         """Transform Claude SDK message to frontend SSE event.
 
-        SDK Message Types (from claude-agent-sdk):
-        - StreamEvent with type: "text_delta", "tool_use", "tool_result"
-        - SystemMessage with subtype: "init"
-        - AssistantMessage, UserMessage, ResultMessage
+        SDK Message Types (actual attributes from claude-agent-sdk):
+        - SystemMessage: data(dict), subtype — init message with session_id
+        - AssistantMessage: content(list[TextBlock]), error, model — AI response
+        - ResultMessage: session_id, is_error, result, usage — completion signal
+
+        Output format matches frontend SSEEvent expectations:
+        - ``event: <type>\\ndata: <json>\\n\\n`` (proper SSE with event prefix)
+        - camelCase field names (messageId, sessionId, delta, stopReason)
 
         Args:
-            message: SDK message object (StreamEvent, AssistantMessage, etc.)
+            message: SDK message object
             context: Agent execution context
 
         Returns:
             SSE-formatted string or None if message should be ignored
         """
-        # Handle StreamEvent messages
-        if hasattr(message, "type"):
-            msg_type = getattr(message, "type", None)
+        msg_type = type(message).__name__
 
-            # Session initialization
-            if msg_type == "system" and hasattr(message, "subtype"):
-                if message.subtype == "init" and hasattr(message, "session_id"):
-                    session_id = message.session_id
-                    return f"data: {{'type': 'message_start', 'session_id': '{session_id}'}}\n\n"
+        # SystemMessage: data is a dict with type/subtype/session_id
+        if msg_type == "SystemMessage":
+            raw_data = getattr(message, "data", None)
+            if isinstance(raw_data, dict) and raw_data.get("type") == "system":
+                subtype = raw_data.get("subtype")
+                if subtype == "init":
+                    session_id = raw_data.get("session_id", "")
+                    # Generate messageId for this conversation turn
+                    self._current_message_id = str(uuid4())
+                    data = {
+                        "messageId": self._current_message_id,
+                        "sessionId": str(session_id),
+                    }
+                    return f"event: message_start\ndata: {json.dumps(data)}\n\n"
+            return None
 
-            # Text streaming
-            elif msg_type == "text_delta" and hasattr(message, "delta"):
-                content = message.delta
-                # Escape single quotes for JSON
-                content_escaped = content.replace("'", "\\'").replace("\n", "\\n")
-                return f"data: {{'type': 'text_delta', 'content': '{content_escaped}'}}\n\n"
+        # AssistantMessage: content is list[TextBlock], no role attribute
+        if msg_type == "AssistantMessage":
+            content = getattr(message, "content", None)
+            if content is None:
+                return None
+            if isinstance(content, list):
+                parts = []
+                for block in content:
+                    if isinstance(block, dict):
+                        parts.append(block.get("text", ""))
+                    elif hasattr(block, "text"):
+                        parts.append(block.text)
+                text_content = " ".join(parts)
+            else:
+                text_content = str(content)
 
-            # Tool use
-            elif msg_type == "tool_use" and hasattr(message, "id"):
-                tool_call_id = message.id
-                tool_name = getattr(message, "name", "")
-                return (
-                    f"data: {{'type': 'tool_use', 'tool_call_id': '{tool_call_id}', "
-                    f"'tool_name': '{tool_name}'}}\n\n"
-                )
+            if not text_content.strip():
+                return None
+            message_id = getattr(self, "_current_message_id", str(uuid4()))
+            data = {
+                "messageId": message_id,
+                "delta": text_content,
+            }
+            return f"event: text_delta\ndata: {json.dumps(data)}\n\n"
 
-            # Tool result
-            elif msg_type == "tool_result" and hasattr(message, "tool_use_id"):
-                tool_call_id = message.tool_use_id
-                is_error = getattr(message, "is_error", False)
-                status = "failed" if is_error else "completed"
-                return (
-                    f"data: {{'type': 'tool_result', 'tool_call_id': '{tool_call_id}', "
-                    f"'status': '{status}'}}\n\n"
-                )
+        # ResultMessage: completion signal with session_id and usage
+        if msg_type == "ResultMessage":
+            session_id = getattr(message, "session_id", "")
+            is_error = getattr(message, "is_error", False)
+            usage = getattr(message, "usage", None)
+            message_id = getattr(self, "_current_message_id", str(uuid4()))
 
-            # Message stop
-            elif msg_type == "stop":
-                session_id = str(context.operation_id) if context.operation_id else "unknown"
-                return f"data: {{'type': 'message_stop', 'session_id': '{session_id}'}}\n\n"
+            if is_error:
+                result = getattr(message, "result", "")
+                error_data: dict[str, Any] = {
+                    "errorCode": "api_error",
+                    "message": str(result) if result else "Unknown error",
+                    "retryable": False,
+                }
+                return f"event: error\ndata: {json.dumps(error_data)}\n\n"
 
-        # Handle AssistantMessage (final response)
-        if hasattr(message, "content") and hasattr(message, "role"):
-            if message.role == "assistant":
-                # This is a complete assistant message
-                content = message.content
-                if isinstance(content, list):
-                    # Join text blocks
-                    text_content = " ".join(
-                        block.get("text", "") for block in content if isinstance(block, dict)
-                    )
-                else:
-                    text_content = str(content)
+            data_stop: dict[str, Any] = {
+                "messageId": message_id,
+                "stopReason": "end_turn",
+            }
+            if usage:
+                data_stop["usage"] = {
+                    "inputTokens": getattr(usage, "input_tokens", 0),
+                    "outputTokens": getattr(usage, "output_tokens", 0),
+                    "totalTokens": (
+                        getattr(usage, "input_tokens", 0)
+                        + getattr(usage, "output_tokens", 0)
+                    ),
+                }
+                total_cost = getattr(usage, "total_cost_usd", None)
+                if total_cost is not None:
+                    data_stop["costUsd"] = total_cost
+            return f"event: message_stop\ndata: {json.dumps(data_stop)}\n\n"
 
-                text_escaped = text_content.replace("'", "\\'").replace("\n", "\\n")
-                return f"data: {{'type': 'text_delta', 'content': '{text_escaped}'}}\n\n"
-
-        # Unknown message type - ignore
         return None
 
     async def stream(
@@ -351,11 +320,16 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
     ) -> AsyncIterator[str]:
         """Execute conversational agent with streaming output using Claude SDK.
 
-        Uses Claude Agent SDK's query() function to handle:
+        Uses ClaudeSDKClient for persistent subprocess to handle:
         - Skill execution (via .claude/skills/ filesystem discovery)
         - Subagent spawning (via Task tool)
         - Natural language responses (via Claude's reasoning)
         - Permission handling (via hooks)
+
+        Architecture:
+        - If SpaceManager is configured, uses isolated space with sandbox settings
+        - API key is injected via SDK's env parameter, not os.environ mutation
+        - Enables multi-tenant concurrent requests without race conditions
 
         Args:
             input_data: Chat input with message and context
@@ -364,95 +338,222 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         Yields:
             SSE chunks with response content
         """
-        # Build SDK options
         try:
             # Get API key from workspace settings
             api_key = await self._get_api_key(context.workspace_id)
 
             # Build subagent definitions for SDK
-            subagent_definitions = {
-                "pr-review": AgentDefinition(
-                    description="Expert code reviewer for GitHub PRs",
-                    prompt="Analyze pull requests for architecture, security, and performance",
-                    tools=["Read", "Glob", "Grep", "WebFetch"],
-                ),
-                "ai-context": AgentDefinition(
-                    description="Aggregates context for issues from notes, code, and tasks",
-                    prompt="Find related notes, code snippets, and similar issues",
-                    tools=["Read", "Glob", "Grep"],
-                ),
-                "doc-generator": AgentDefinition(
-                    description="Generates technical documentation from code",
-                    prompt="Create comprehensive documentation with examples",
-                    tools=["Read", "Glob", "Write"],
-                ),
-            }
+            subagent_definitions = self._build_subagent_definitions()
 
-            # Handle session resumption
-            session_id_str = None
-            if input_data.session_id and self._session_handler:
-                # Try to get existing session (only if session handler available)
-                existing_session = await self._session_handler.get_session(input_data.session_id)
+            # Session tracking ID (for frontend, always set)
+            session_id_str = str(input_data.session_id) if input_data.session_id else None
+
+            # SDK resume ID (only set when continuing an existing conversation)
+            resume_id: str | None = None
+            if input_data.resume_session_id and self._session_handler:
+                existing_session = await self._session_handler.get_session(
+                    UUID(input_data.resume_session_id)
+                )
                 if existing_session:
-                    session_id_str = str(existing_session.session_id)
+                    resume_id = str(existing_session.session_id)
 
-            # SDK options configuration
-            sdk_options = ClaudeAgentOptions(  # type: ignore[call-arg]
-                model=self.DEFAULT_MODEL,
-                # Enable built-in tools (use allowed_tools parameter)
-                allowed_tools=[
-                    "Read",
-                    "Write",
-                    "Edit",
-                    "Bash",
-                    "Glob",
-                    "Grep",
-                    "Skill",  # For skill execution
-                    "Task",  # For subagent spawning
-                    "AskUserQuestion",  # For clarifications
-                    "WebFetch",
-                    "WebSearch",
-                ],
-                # Load .claude/ directory for project context
-                setting_sources=["project"],  # type: ignore[call-arg]
-                # Register subagents
-                agents=subagent_definitions,  # type: ignore[call-arg]
-                # Permission handling
-                permission_mode="default",  # type: ignore[call-arg]
-                # Session resumption
-                resume=session_id_str,  # type: ignore[call-arg]
-            )
-
-            # Set context for observability and debugging
-            set_api_key(api_key)
-            set_workspace_context(context.workspace_id, context.user_id)
-
-            # CRITICAL: Acquire lock before setting os.environ to prevent race conditions
-            # Multiple concurrent requests from different workspaces must not clobber each other's API keys
-            async with get_api_key_lock():
-                original_api_key = os.getenv("ANTHROPIC_API_KEY")
-                os.environ["ANTHROPIC_API_KEY"] = api_key
-
-                try:
-                    # Stream from Claude SDK (SDK reads API key from os.environ)
-                    async for message in query(prompt=input_data.message, options=sdk_options):
-                        # Transform SDK message to SSE event
-                        sse_event = self._transform_sdk_message(message, context)
-                        if sse_event:
-                            yield sse_event
-                finally:
-                    # Restore original API key
-                    if original_api_key:
-                        os.environ["ANTHROPIC_API_KEY"] = original_api_key
-                    elif "ANTHROPIC_API_KEY" in os.environ:
-                        del os.environ["ANTHROPIC_API_KEY"]
-                    # Clear context variables
-                    clear_context()
+            # Require SpaceManager for isolated execution
+            if not (self._space_manager and context.workspace_id and context.user_id):
+                raise ValueError(  # noqa: TRY301
+                    "SpaceManager, workspace_id, and user_id are required. "
+                    "Legacy mode has been removed."
+                )
+            async for chunk in self._stream_with_space(
+                input_data=input_data,
+                context=context,
+                api_key=api_key,
+                subagent_definitions=subagent_definitions,
+                session_id_str=session_id_str,
+                resume_id=resume_id,
+            ):
+                yield chunk
 
         except Exception as e:
-            # Error handling
-            error_msg = str(e).replace("'", "\\'")
-            yield f"data: {{'type': 'error', 'error_type': 'sdk_error', 'message': '{error_msg}'}}\n\n"
+            error_data = {"type": "error", "error_type": "sdk_error", "message": str(e)}
+            yield f"data: {json.dumps(error_data)}\n\n"
+
+    async def _stream_with_space(
+        self,
+        input_data: ChatInput,
+        context: AgentContext,
+        api_key: str,
+        subagent_definitions: dict[str, AgentDefinition],
+        session_id_str: str | None,
+        resume_id: str | None = None,
+    ) -> AsyncIterator[str]:
+        """Stream using SpaceManager for isolated execution.
+
+        Creates an isolated space for the workspace/user pair with:
+        - Sandboxed filesystem access
+        - API key injection via env parameter
+        - Proper cleanup on completion
+        """
+        assert self._space_manager is not None
+        assert context.workspace_id is not None
+        assert context.user_id is not None
+
+        # Get space for this workspace/user
+        space = self._space_manager.get_space(context.workspace_id, context.user_id)
+
+        async with space.session() as space_context:
+            # Load file-based hooks if hooks.json exists
+            hook_executor = None
+            if space_context.hooks_file.exists():
+                from pilot_space.ai.sdk.file_hooks import FileBasedHookExecutor
+
+                hook_executor = FileBasedHookExecutor(
+                    space_context.hooks_file,
+                    cwd=space_context.path,
+                )
+                logger.debug(
+                    f"[SDK/Space] Loaded hooks from {space_context.hooks_file}"
+                )
+
+            # Configure SDK for this space (with hooks if available)
+            sdk_config = configure_sdk_for_space(
+                space_context,
+                permission_mode="default",
+                model="kimi-k2.5:cloud",
+                additional_env={
+                    "ANTHROPIC_API_KEY": api_key,
+                    "ANTHROPIC_BASE_URL": "http://localhost:11434",
+                    "ANTHROPIC_AUTH_TOKEN": "dummy-token",
+                },
+                hook_executor=hook_executor,
+            )
+
+            # Build SDK options from space config
+            sdk_params = sdk_config.to_sdk_params()
+
+            # Ensure PATH is inherited so subprocess can find claude binary
+            sdk_env = sdk_params.get("env", {})
+            if "PATH" not in sdk_env:
+                sdk_env["PATH"] = os.environ.get("PATH", "")
+
+            sdk_options = ClaudeAgentOptions(
+                model=sdk_params.get("model", self.DEFAULT_MODEL),
+                cwd=sdk_params.get("cwd"),
+                setting_sources=sdk_params.get("setting_sources", ["project"]),
+                allowed_tools=sdk_params.get("allowed_tools", []),
+                sandbox=sdk_params.get("sandbox"),
+                permission_mode=sdk_params.get("permission_mode", "default"),
+                env=sdk_env,
+                hooks=sdk_params.get("hooks"),  # SDK-native hooks from hooks.json
+                agents=subagent_definitions,
+                resume=resume_id,
+            )
+
+            # Set context for observability
+            set_workspace_context(context.workspace_id, context.user_id)
+
+            logger.info(
+                "[SDK/Space] Config: cwd=%s, env_keys=%s, claude_bin=%s",
+                sdk_params.get("cwd"),
+                list(sdk_env.keys()),
+                shutil.which("claude"),
+            )
+
+            client = ClaudeSDKClient(sdk_options)
+            try:
+                await client.connect()
+
+                # Use session_id_str for multi-turn, fallback to "default"
+                query_session_id = session_id_str or "default"
+
+                logger.info(
+                    "[SDK/Space] Client connected (session=%s, resume=%s)",
+                    query_session_id,
+                    resume_id,
+                )
+
+                await client.query(input_data.message, session_id=query_session_id)
+
+                sdk_event_count = 0
+                transformed_count = 0
+
+                async for message in client.receive_response():
+                    sdk_event_count += 1
+                    sse_event = self.transform_sdk_message(message, context)
+                    if sse_event:
+                        transformed_count += 1
+                        yield sse_event
+
+                logger.info(
+                    "[SDK/Space] Query finished: %d events, %d transformed",
+                    sdk_event_count,
+                    transformed_count,
+                )
+
+            finally:
+                await client.disconnect()
+                clear_context()
+
+    async def create_client(
+        self,
+        input_data: ChatInput,
+        context: AgentContext,
+    ) -> tuple[ClaudeSDKClient, str]:
+        """Create a configured ClaudeSDKClient for the given context.
+
+        Used by ConversationWorker to manage client lifecycle externally.
+        Client is NOT connected — caller must call connect()/disconnect().
+
+        Args:
+            input_data: Chat input with session context
+            context: Agent execution context
+
+        Returns:
+            Tuple of (unconnected ClaudeSDKClient, session_id for query())
+        """
+        api_key = await self._get_api_key(context.workspace_id)
+        subagent_definitions = self._build_subagent_definitions()
+
+        session_id_str = "default"
+        if input_data.session_id and self._session_handler:
+            existing = await self._session_handler.get_session(input_data.session_id)
+            if existing:
+                session_id_str = str(existing.session_id)
+
+        if not (self._space_manager and context.workspace_id and context.user_id):
+            msg = (
+                "SpaceManager, workspace_id, and user_id are required. "
+                "Legacy mode has been removed."
+            )
+            raise ValueError(msg)
+
+        space = self._space_manager.get_space(context.workspace_id, context.user_id)
+        space_context = await space.session().__aenter__()
+
+        sdk_config = configure_sdk_for_space(
+            space_context,
+            permission_mode="default",
+            additional_env={"ANTHROPIC_API_KEY": api_key},
+        )
+        sdk_params = sdk_config.to_sdk_params()
+
+        sdk_env = sdk_params.get("env", {})
+        if "PATH" not in sdk_env:
+            sdk_env["PATH"] = os.environ.get("PATH", "")
+
+        sdk_options = ClaudeAgentOptions(
+            model=sdk_params.get("model", self.DEFAULT_MODEL),
+            cwd=sdk_params.get("cwd"),
+            setting_sources=sdk_params.get("setting_sources", ["project"]),
+            allowed_tools=sdk_params.get("allowed_tools", []),
+            sandbox=sdk_params.get("sandbox"),
+            permission_mode=sdk_params.get("permission_mode", "default"),
+            env=sdk_env,
+            hooks=sdk_params.get("hooks"),
+            agents=subagent_definitions,
+            resume=session_id_str if session_id_str != "default" else None,
+        )
+
+        return ClaudeSDKClient(sdk_options), session_id_str
 
     async def execute(
         self,
@@ -493,5 +594,4 @@ __all__ = [
     "ChatInput",
     "ChatOutput",
     "PilotSpaceAgent",
-    "SkillRegistry",
 ]

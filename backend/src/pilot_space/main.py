@@ -2,10 +2,10 @@
 
 Entry point for the FastAPI application.
 """
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,11 +13,13 @@ from pilot_space.api.middleware.request_context import RequestContextMiddleware
 from pilot_space.api.v1.routers import (
     ai_annotations_router,
     ai_approvals_router,
+    ai_chat_router,
     ai_configuration_router,
     ai_costs_router,
     ai_extraction_router,
     ai_pr_review_router,
     ai_router,
+    ai_sessions_router,
     auth_router,
     cycles_router,
     debug_router,
@@ -35,18 +37,58 @@ from pilot_space.api.v1.routers import (
     workspaces_router,
 )
 
+dotenv.load_dotenv()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan handler for startup/shutdown events."""
-    # Startup: Initialize DI container and connections
+    import asyncio
+
+    from pilot_space.config import get_settings
     from pilot_space.container import get_container
 
+    # Startup: Initialize DI container and connections
     app.state.container = get_container()
+    settings = get_settings()
 
-    # These will be implemented in Phase 2 (Foundation)
+    # Connect to Redis for session management
+    redis_client = app.state.container.redis_client()
+    if redis_client is not None:
+        await redis_client.connect()
+
+    # Start conversation worker if queue mode enabled
+    worker_task: asyncio.Task[None] | None = None
+    worker = None
+    if settings.ai_queue_mode:
+        queue_client = app.state.container.queue_client()
+        if queue_client and redis_client:
+            from pilot_space.infrastructure.queue.models import QueueName
+
+            await queue_client.create_queue(QueueName.AI_CHAT)
+
+            from pilot_space.ai.workers.conversation_worker import ConversationWorker
+
+            agent = app.state.container.pilotspace_agent()
+            session_handler = None
+            session_manager = app.state.container.session_manager()
+            if session_manager is not None:
+                from pilot_space.ai.sdk.session_handler import SessionHandler
+
+                session_handler = SessionHandler(session_manager=session_manager)
+
+            worker = ConversationWorker(queue_client, redis_client, agent, session_handler)
+            worker_task = asyncio.create_task(worker.start())
+
     yield
-    # Shutdown: Clean up connections
+
+    # Shutdown: Clean up worker and connections
+    if worker:
+        await worker.stop()
+    if worker_task:
+        worker_task.cancel()
+    if redis_client is not None:
+        await redis_client.disconnect()
 
 
 app = FastAPI(
@@ -114,15 +156,21 @@ app.include_router(issues_ai_router, prefix=API_V1_PREFIX)
 app.include_router(issues_ai_context_router, prefix=API_V1_PREFIX)
 app.include_router(issues_ai_context_streaming_router, prefix=API_V1_PREFIX)
 app.include_router(notes_router, prefix=API_V1_PREFIX)
-app.include_router(notes_ai_router, prefix=API_V1_PREFIX)
+if notes_ai_router is not None:
+    app.include_router(notes_ai_router, prefix=API_V1_PREFIX)
 app.include_router(cycles_router, prefix=API_V1_PREFIX)
-app.include_router(ai_router, prefix=API_V1_PREFIX)
-app.include_router(ai_annotations_router, prefix=API_V1_PREFIX)
+if ai_router is not None:
+    app.include_router(ai_router, prefix=API_V1_PREFIX)
+if ai_annotations_router is not None:
+    app.include_router(ai_annotations_router, prefix=API_V1_PREFIX)
 app.include_router(ai_approvals_router, prefix=API_V1_PREFIX)
+app.include_router(ai_chat_router, prefix=f"{API_V1_PREFIX}/ai")
 app.include_router(ai_configuration_router, prefix=API_V1_PREFIX)
 app.include_router(ai_costs_router, prefix=API_V1_PREFIX)
 app.include_router(ai_extraction_router, prefix=API_V1_PREFIX)
-app.include_router(ai_pr_review_router, prefix=API_V1_PREFIX)
+if ai_pr_review_router is not None:
+    app.include_router(ai_pr_review_router, prefix=API_V1_PREFIX)
+app.include_router(ai_sessions_router, prefix=API_V1_PREFIX)
 app.include_router(integrations_router, prefix=API_V1_PREFIX)
 app.include_router(webhooks_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")

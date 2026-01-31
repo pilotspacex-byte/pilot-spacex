@@ -15,7 +15,7 @@ from uuid import uuid4
 
 import pytest
 
-from pilot_space.ai.agents.sdk_base import AgentContext
+from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.providers.mock import MockProvider, MockResponseRegistry
 from pilot_space.config import Settings
 
