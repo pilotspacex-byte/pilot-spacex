@@ -12,7 +12,10 @@
  */
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
+import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { InlineIssueComponent } from './InlineIssueComponent';
+import type { MarkdownNodeSpec } from 'tiptap-markdown';
+import type { MarkdownSerializerState } from 'prosemirror-markdown';
 
 /**
  * Issue type options
@@ -132,6 +135,115 @@ export const InlineIssueExtension = Node.create<InlineIssueOptions>({
       onIssueHover: undefined,
       onIssueUnlink: undefined,
       HTMLAttributes: {},
+    };
+  },
+
+  /**
+   * Markdown serialization/parsing
+   * Syntax: [PS-99](issue:uuid "title")
+   */
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: MarkdownSerializerState, node: ProseMirrorNode) {
+          const attrs = node.attrs as InlineIssueAttributes;
+          if (!attrs) return;
+
+          const key = attrs.issueKey || '';
+          const id = attrs.issueId || '';
+          const title = attrs.title || '';
+
+          // Format: [PS-99](issue:uuid "title")
+          if (title) {
+            state.write(`[${key}](issue:${id} "${title.replace(/"/g, '\\"')}")`);
+          } else {
+            state.write(`[${key}](issue:${id})`);
+          }
+        },
+        parse: {
+          // Custom markdown-it rule to parse [XX-NNN](issue:uuid "title")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setup(markdownit: any) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            markdownit.inline.ruler.before('link', 'inline_issue', (state: any) => {
+              const start = state.pos;
+              const max = state.posMax;
+
+              // Must start with [
+              if (state.src.charCodeAt(start) !== 0x5b /* [ */) {
+                return false;
+              }
+
+              // Find closing ]
+              let labelEnd = -1;
+              for (let i = start + 1; i < max; i++) {
+                if (state.src.charCodeAt(i) === 0x5d /* ] */) {
+                  labelEnd = i;
+                  break;
+                }
+              }
+
+              if (labelEnd === -1) return false;
+
+              // Check for (issue: pattern
+              const linkStart = labelEnd + 1;
+              if (
+                linkStart >= max ||
+                state.src.charCodeAt(linkStart) !== 0x28 /* ( */ ||
+                !state.src.startsWith('issue:', linkStart + 1)
+              ) {
+                return false;
+              }
+
+              // Extract issue key
+              const issueKey = state.src.slice(start + 1, labelEnd);
+              if (!/^[A-Z]+-\d+$/.test(issueKey)) {
+                return false;
+              }
+
+              // Find closing )
+              let linkEnd = -1;
+              let issueId = '';
+              let title = '';
+
+              for (let i = linkStart + 7; i < max; i++) {
+                if (state.src.charCodeAt(i) === 0x29 /* ) */) {
+                  linkEnd = i;
+                  const linkContent = state.src.slice(linkStart + 7, linkEnd);
+
+                  // Parse "uuid" or "uuid "title""
+                  const titleMatch = linkContent.match(/^(\S+)\s+"(.*)"/);
+                  if (titleMatch) {
+                    issueId = titleMatch[1];
+                    title = titleMatch[2];
+                  } else {
+                    issueId = linkContent.trim();
+                  }
+                  break;
+                }
+              }
+
+              if (linkEnd === -1 || !issueId) {
+                return false;
+              }
+
+              // Create inline issue node
+              const token = state.push('inline_issue', '', 0);
+              token.attrs = [
+                ['issueId', issueId],
+                ['issueKey', issueKey],
+                ['title', title],
+                ['type', 'task'],
+                ['state', 'backlog'],
+                ['priority', 'medium'],
+              ];
+
+              state.pos = linkEnd + 1;
+              return true;
+            });
+          },
+        },
+      } as MarkdownNodeSpec,
     };
   },
 

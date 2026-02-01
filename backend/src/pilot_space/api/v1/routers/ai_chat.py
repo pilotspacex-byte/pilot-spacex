@@ -47,7 +47,12 @@ class ChatContext(BaseSchema):
     workspace_id: UUID = Field(..., description="Workspace ID for context")
     note_id: UUID | None = Field(None, description="Note ID if chatting within note")
     issue_id: UUID | None = Field(None, description="Issue ID if chatting about issue")
+    project_id: UUID | None = Field(None, description="Project ID if chatting about project")
     selected_text: str | None = Field(None, description="Selected text from editor")
+    selected_block_ids: list[str] = Field(
+        default_factory=list,
+        description="Block IDs selected in editor",
+    )
 
 
 class ChatRequest(BaseSchema):
@@ -105,6 +110,10 @@ async def chat(
         selected_text=chat_request.context.selected_text,
     )
 
+    # Forward selected block IDs for tool calls
+    if chat_request.context.selected_block_ids:
+        ai_context["selected_block_ids"] = chat_request.context.selected_block_ids
+
     # Get or create conversation session
     conv_session = None
     if session_handler is not None:
@@ -125,14 +134,17 @@ async def chat(
     settings = get_settings()
     if settings.ai_queue_mode and queue_client is not None:
         job_id = str(uuid4())
-        await queue_client.enqueue(QueueName.AI_CHAT, {
-            "job_id": job_id,
-            "message": chat_request.message,
-            "session_id": str(conv_session.session_id) if conv_session else None,
-            "workspace_id": str(chat_request.context.workspace_id),
-            "user_id": str(user_id),
-            "context": ai_context,
-        })
+        await queue_client.enqueue(
+            QueueName.AI_CHAT,
+            {
+                "job_id": job_id,
+                "message": chat_request.message,
+                "session_id": str(conv_session.session_id) if conv_session else None,
+                "workspace_id": str(chat_request.context.workspace_id),
+                "user_id": str(user_id),
+                "context": ai_context,
+            },
+        )
         return ChatQueueResponse(
             job_id=job_id,
             session_id=str(conv_session.session_id) if conv_session else "",
@@ -327,9 +339,7 @@ async def _execute_agent_stream(
         resume_session_id=input_data.get("resume_session_id"),
         context=input_data.get("context", {}),
         user_id=UUID(input_data["user_id"]) if input_data.get("user_id") else None,
-        workspace_id=UUID(input_data["workspace_id"])
-        if input_data.get("workspace_id")
-        else None,
+        workspace_id=UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None,
     )
 
     agent_context = AgentContext(

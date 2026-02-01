@@ -235,7 +235,61 @@ def extract_text_from_tiptap(
     return "\n\n".join(block["content"] for block in blocks)
 
 
+# ============================================================
+# AI Update Schemas
+# ============================================================
+
+
+class AIUpdateRequest(BaseSchema):
+    """Schema for AI-initiated note content update.
+
+    Separate endpoint from user autosave for audit trails and conflict detection.
+    """
+
+    operation: str = Field(
+        description="Update operation type: replace_block, append_blocks, or insert_inline_issue"
+    )
+    block_id: str | None = Field(
+        default=None,
+        description="Target block ID (required for replace_block and insert_inline_issue)",
+    )
+    content: dict[str, Any] | None = Field(  # pyright: ignore[reportUnknownVariableType]
+        default=None,
+        description="New content for the block or blocks",
+    )
+    after_block_id: str | None = Field(
+        default=None,
+        description="Insert position for append_blocks operation",
+    )
+    issue_data: dict[str, Any] | None = Field(  # pyright: ignore[reportUnknownVariableType]
+        default=None,
+        description="Issue node data for insert_inline_issue operation",
+    )
+    agent_session_id: str | None = Field(
+        default=None,
+        description="Agent session ID for audit trail",
+    )
+    source_tool: str | None = Field(
+        default=None,
+        description="MCP tool that triggered this update",
+    )
+
+
+class AIUpdateResponse(BaseSchema):
+    """Schema for AI update response."""
+
+    success: bool = Field(description="Whether the update succeeded")
+    note_id: str = Field(description="The updated note ID")
+    affected_block_ids: list[str] = Field(description="List of block IDs that were modified")
+    conflict: bool = Field(
+        default=False,
+        description="Whether a conflict was detected",
+    )
+
+
 __all__ = [
+    "AIUpdateRequest",
+    "AIUpdateResponse",
     "NoteBlockSchema",
     "NoteCreate",
     "NoteDetailResponse",

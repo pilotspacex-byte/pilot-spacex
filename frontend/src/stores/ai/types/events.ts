@@ -23,6 +23,7 @@ export type SSEEventType =
   | 'tool_result'
   | 'task_progress'
   | 'approval_request'
+  | 'content_update'
   | 'message_stop'
   | 'error';
 
@@ -214,6 +215,54 @@ export interface AffectedEntity {
 }
 
 /**
+ * Content update event data.
+ * Data payload for content_update SSE event.
+ */
+export interface ContentUpdateData {
+  /** Note ID to update */
+  noteId: string;
+  /** Update operation type */
+  operation: 'replace_block' | 'append_blocks' | 'insert_inline_issue';
+  /** Block ID for replace_block operation (null for other operations) */
+  blockId: string | null;
+  /** Markdown content from AI agent (preferred over JSONContent) */
+  markdown: string | null;
+  /** TipTap JSONContent for block content (fallback, null for insert_inline_issue) */
+  content: Record<string, unknown> | null;
+  /** Issue data for insert_inline_issue operation (null for other operations) */
+  issueData: {
+    /** Issue identifier (optional — created by frontend if missing) */
+    issueId?: string;
+    /** Issue key e.g. PROJ-42 (optional — created by frontend if missing) */
+    issueKey?: string;
+    /** Issue title */
+    title: string;
+    /** Issue description (optional — used when creating issue) */
+    description?: string;
+    /** Issue type */
+    type?: 'bug' | 'improvement' | 'feature' | 'task';
+    /** Issue state */
+    state?: 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
+    /** Issue priority */
+    priority?: 'urgent' | 'high' | 'medium' | 'low' | 'none';
+    /** Source block ID where issue was extracted from */
+    sourceBlockId?: string;
+  } | null;
+  /** Block ID to insert after (for append_blocks operation) */
+  afterBlockId: string | null;
+}
+
+/**
+ * Content update event.
+ * AI agent proposing content changes to a note.
+ * Used for block replacement, appending blocks, or inserting inline issues.
+ */
+export interface ContentUpdateEvent extends SSEEvent {
+  type: 'content_update';
+  data: ContentUpdateData;
+}
+
+/**
  * Message stop event.
  * Signals the end of message streaming.
  */
@@ -316,6 +365,41 @@ export function isTaskProgressEvent(event: SSEEvent): event is TaskProgressEvent
 
 export function isApprovalRequestEvent(event: SSEEvent): event is ApprovalRequestEvent {
   return event.type === 'approval_request';
+}
+
+export function isContentUpdateEvent(event: unknown): event is ContentUpdateEvent {
+  if (!event || typeof event !== 'object') {
+    return false;
+  }
+
+  const e = event as { type?: string; data?: unknown };
+
+  // Must have type 'content_update'
+  if (e.type !== 'content_update') {
+    return false;
+  }
+
+  // Must have data field
+  if (!e.data || typeof e.data !== 'object') {
+    return false;
+  }
+
+  const data = e.data as Record<string, unknown>;
+
+  // Must have required fields in data
+  if (!data.noteId || typeof data.noteId !== 'string') {
+    return false;
+  }
+
+  if (
+    !data.operation ||
+    !['replace_block', 'append_blocks', 'insert_inline_issue'].includes(data.operation as string)
+  ) {
+    return false;
+  }
+
+  // All required fields present and valid
+  return true;
 }
 
 export function isMessageStopEvent(event: SSEEvent): event is MessageStopEvent {

@@ -247,10 +247,32 @@ export function useContentUpdates(
 /**
  * Handle replace_block operation.
  * Finds node by blockId and replaces its content.
+ *
+ * Critical safety: validates content is non-empty BEFORE deleting the block.
+ * Without this guard, empty/invalid AI responses would delete blocks with no
+ * replacement, progressively clearing the document.
  */
 function handleReplaceBlock(editor: Editor, update: ContentUpdateData): void {
   if (!update.blockId) {
     console.warn('[AI] replace_block operation missing blockId');
+    return;
+  }
+
+  // Validate replacement content BEFORE deleting — prevents content clearing
+  // when AI sends empty markdown or missing content
+  const hasMarkdown =
+    update.markdown && typeof update.markdown === 'string' && update.markdown.trim().length > 0;
+  const hasContent = update.content && typeof update.content === 'object';
+
+  if (!hasMarkdown && !hasContent) {
+    console.warn(
+      '[AI] replace_block: no valid content to insert, skipping to prevent content loss',
+      {
+        blockId: update.blockId,
+        markdown: update.markdown,
+        contentType: typeof update.content,
+      }
+    );
     return;
   }
 
@@ -273,21 +295,21 @@ function handleReplaceBlock(editor: Editor, update: ContentUpdateData): void {
     return;
   }
 
-  // Use markdown if available (preferred), otherwise JSONContent fallback
-  if (update.markdown) {
+  try {
+    // Use markdown if available (preferred), otherwise JSONContent fallback
+    // tiptap-markdown extension overrides insertContentAt to parse markdown→HTML
+    const contentSource = hasMarkdown ? update.markdown : update.content;
     editor
       .chain()
       .deleteRange({ from: targetPos, to: targetPos + targetSize })
-      .insertContentAt(targetPos, update.markdown)
+      .insertContentAt(targetPos, contentSource!)
       .run();
-  } else if (update.content) {
-    editor
-      .chain()
-      .deleteRange({ from: targetPos, to: targetPos + targetSize })
-      .insertContentAt(targetPos, update.content)
-      .run();
-  } else {
-    console.warn('[AI] replace_block operation missing both markdown and content');
+  } catch (error) {
+    console.error('[AI] Failed to apply replace_block:', error, {
+      blockId: update.blockId,
+      targetPos,
+      targetSize,
+    });
   }
 }
 
@@ -311,12 +333,20 @@ function handleAppendBlocks(editor: Editor, update: ContentUpdateData): void {
   }
 
   // Use markdown if available (preferred), otherwise JSONContent fallback
-  if (update.markdown) {
-    editor.commands.insertContentAt(insertPos, update.markdown);
-  } else if (update.content) {
-    editor.commands.insertContentAt(insertPos, update.content);
-  } else {
-    console.warn('[AI] append_blocks operation missing both markdown and content');
+  // tiptap-markdown extension overrides insertContentAt to parse markdown→HTML
+  try {
+    if (update.markdown) {
+      editor.commands.insertContentAt(insertPos, update.markdown);
+    } else if (update.content) {
+      editor.commands.insertContentAt(insertPos, update.content);
+    } else {
+      console.warn('[AI] append_blocks operation missing both markdown and content');
+    }
+  } catch (error) {
+    console.error('[AI] Failed to apply append_blocks:', error, {
+      afterBlockId: update.afterBlockId,
+      insertPos,
+    });
   }
 }
 

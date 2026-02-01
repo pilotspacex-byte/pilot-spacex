@@ -20,6 +20,8 @@ export interface AskPilotInputProps {
   workspaceId?: string;
   /** Callback when user submits a question */
   onSubmit?: (question: string) => Promise<void>;
+  /** Callback to open ChatView panel */
+  onChatViewOpen?: () => void;
   /** Placeholder text */
   placeholder?: string;
   /** Whether input is disabled */
@@ -46,6 +48,7 @@ export function AskPilotInput({
   noteId,
   workspaceId,
   onSubmit,
+  onChatViewOpen,
   placeholder = 'Ask Pilot...',
   disabled = false,
   className,
@@ -62,12 +65,13 @@ export function AskPilotInput({
     setIsSubmitting(true);
 
     try {
+      onChatViewOpen?.();
       await onSubmit?.(question);
     } finally {
       setIsSubmitting(false);
       inputRef.current?.focus();
     }
-  }, [value, isSubmitting, disabled, onSubmit]);
+  }, [value, isSubmitting, disabled, onSubmit, onChatViewOpen]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {

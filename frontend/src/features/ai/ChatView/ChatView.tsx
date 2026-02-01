@@ -28,239 +28,245 @@ interface ChatViewProps {
   store: PilotSpaceStore;
   userName?: string;
   userAvatar?: string;
+  /** Auto-focus the chat input when the view becomes visible */
+  autoFocus?: boolean;
   className?: string;
 }
 
-const ChatViewInternal = observer<ChatViewProps>(({ store, userName, userAvatar, className }) => {
-  const [inputValue, setInputValue] = useState('');
-  const [taskPanelOpen, setTaskPanelOpen] = useState(true);
+const ChatViewInternal = observer<ChatViewProps>(
+  ({ store, userName, userAvatar, autoFocus, className }) => {
+    const [inputValue, setInputValue] = useState('');
+    const [taskPanelOpen, setTaskPanelOpen] = useState(true);
 
-  // Initialize SessionListStore (T075-T079)
-  const [sessionListStore] = useState(
-    () => new SessionListStore(store as unknown as import('@/stores/ai/AIStore').AIStore)
-  );
+    // Initialize SessionListStore (T075-T079)
+    const [sessionListStore] = useState(
+      () => new SessionListStore(store as unknown as import('@/stores/ai/AIStore').AIStore)
+    );
 
-  // Fetch sessions on mount
-  useEffect(() => {
-    sessionListStore.fetchSessions();
-  }, [sessionListStore]);
+    // Fetch sessions on mount
+    useEffect(() => {
+      sessionListStore.fetchSessions();
+    }, [sessionListStore]);
 
-  // Convert TaskState to AgentTask for TaskPanel with progress data
-  const agentTasks = useMemo((): AgentTask[] => {
-    return Array.from(store.tasks.values()).map((task) => ({
-      id: task.id,
-      subject: task.subject,
-      description: task.description || '',
-      activeForm: task.currentStep || task.subject,
-      // Map 'blocked' to 'pending' since AgentTask doesn't support blocked
-      status: task.status === 'blocked' ? 'pending' : task.status,
-      createdAt: task.createdAt,
-      completedAt: task.status === 'completed' ? task.updatedAt : undefined,
-      // Include progress data for T071-T074
-      progress: task.progress,
-      currentStep: task.currentStep,
-      totalSteps: task.totalSteps,
-      estimatedSecondsRemaining: task.estimatedSecondsRemaining,
-    }));
-  }, [store.tasks]);
+    // Convert TaskState to AgentTask for TaskPanel with progress data
+    const agentTasks = useMemo((): AgentTask[] => {
+      return Array.from(store.tasks.values()).map((task) => ({
+        id: task.id,
+        subject: task.subject,
+        description: task.description || '',
+        activeForm: task.currentStep || task.subject,
+        // Map 'blocked' to 'pending' since AgentTask doesn't support blocked
+        status: task.status === 'blocked' ? 'pending' : task.status,
+        createdAt: task.createdAt,
+        completedAt: task.status === 'completed' ? task.updatedAt : undefined,
+        // Include progress data for T071-T074
+        progress: task.progress,
+        currentStep: task.currentStep,
+        totalSteps: task.totalSteps,
+        estimatedSecondsRemaining: task.estimatedSecondsRemaining,
+      }));
+    }, [store.tasks]);
 
-  const activeAgentTasks = useMemo(
-    () => agentTasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
-    [agentTasks]
-  );
+    const activeAgentTasks = useMemo(
+      () => agentTasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
+      [agentTasks]
+    );
 
-  const completedAgentTasks = useMemo(
-    () => agentTasks.filter((t) => t.status === 'completed'),
-    [agentTasks]
-  );
+    const completedAgentTasks = useMemo(
+      () => agentTasks.filter((t) => t.status === 'completed'),
+      [agentTasks]
+    );
 
-  // Convert ApprovalRequest to ChatView ApprovalRequest
-  const chatViewApprovals = useMemo(() => {
-    return store.pendingApprovals.map((req) => ({
-      id: req.requestId,
-      agentName: '', // TODO: Extract from context when available
-      actionType: req.actionType,
-      status: 'pending' as const,
-      contextPreview: req.description,
-      payload: req.proposedContent as Record<string, unknown> | undefined,
-      createdAt: req.createdAt,
-      expiresAt: req.expiresAt,
-      reasoning: req.consequences,
-    }));
-  }, [store.pendingApprovals]);
+    // Convert ApprovalRequest to ChatView ApprovalRequest
+    const chatViewApprovals = useMemo(() => {
+      return store.pendingApprovals.map((req) => ({
+        id: req.requestId,
+        agentName: '', // TODO: Extract from context when available
+        actionType: req.actionType,
+        status: 'pending' as const,
+        contextPreview: req.description,
+        payload: req.proposedContent as Record<string, unknown> | undefined,
+        createdAt: req.createdAt,
+        expiresAt: req.expiresAt,
+        reasoning: req.consequences,
+      }));
+    }, [store.pendingApprovals]);
 
-  // Auto-open task panel when tasks exist
-  useEffect(() => {
-    if (store.tasks.size > 0 && !taskPanelOpen) {
-      setTaskPanelOpen(true);
-    }
-  }, [store.tasks.size, taskPanelOpen]);
+    // Auto-open task panel when tasks exist
+    useEffect(() => {
+      if (store.tasks.size > 0 && !taskPanelOpen) {
+        setTaskPanelOpen(true);
+      }
+    }, [store.tasks.size, taskPanelOpen]);
 
-  const handleSubmit = useCallback(async () => {
-    if (!inputValue.trim() || store.isStreaming) return;
+    const handleSubmit = useCallback(async () => {
+      if (!inputValue.trim() || store.isStreaming) return;
 
-    try {
-      await store.sendMessage(inputValue.trim());
+      try {
+        await store.sendMessage(inputValue.trim());
+        setInputValue('');
+      } catch (error) {
+        console.error('Failed to send message:', error);
+      }
+    }, [inputValue, store]);
+
+    const handleClearConversation = useCallback(() => {
+      if (confirm('Are you sure you want to clear this conversation?')) {
+        store.clearConversation();
+        setInputValue('');
+      }
+    }, [store]);
+
+    const handleAbort = useCallback(() => {
+      store.abort();
+    }, [store]);
+
+    const handleClearNoteContext = useCallback(() => {
+      store.setNoteContext(null);
+    }, [store]);
+
+    const handleClearIssueContext = useCallback(() => {
+      store.setIssueContext(null);
+    }, [store]);
+
+    const handleClearProjectContext = useCallback(() => {
+      store.setProjectContext(null);
+    }, [store]);
+
+    const handleApproveAction = useCallback(
+      async (id: string, modifications?: Record<string, unknown>) => {
+        await store.approveAction(id, modifications);
+      },
+      [store]
+    );
+
+    const handleRejectAction = useCallback(
+      async (id: string, reason: string) => {
+        await store.rejectAction(id, reason);
+      },
+      [store]
+    );
+
+    const handleNewSession = useCallback(() => {
+      store.clear();
       setInputValue('');
-    } catch (error) {
-      console.error('Failed to send message:', error);
-    }
-  }, [inputValue, store]);
+    }, [store]);
 
-  const handleClearConversation = useCallback(() => {
-    if (confirm('Are you sure you want to clear this conversation?')) {
-      store.clearConversation();
-      setInputValue('');
-    }
-  }, [store]);
+    const handleSelectSession = useCallback(
+      async (sessionId: string) => {
+        await sessionListStore.resumeSession(sessionId);
+      },
+      [sessionListStore]
+    );
 
-  const handleAbort = useCallback(() => {
-    store.abort();
-  }, [store]);
+    // Prepare recent sessions for dropdown
+    const recentSessions = useMemo(
+      () =>
+        sessionListStore.activeSessions.slice(0, 5).map((s) => ({
+          sessionId: s.sessionId,
+          title: s.title,
+          updatedAt: s.updatedAt,
+        })),
+      [sessionListStore.activeSessions]
+    );
 
-  const handleClearNoteContext = useCallback(() => {
-    store.setNoteContext(null);
-  }, [store]);
-
-  const handleClearIssueContext = useCallback(() => {
-    store.setIssueContext(null);
-  }, [store]);
-
-  const handleClearProjectContext = useCallback(() => {
-    store.setProjectContext(null);
-  }, [store]);
-
-  const handleApproveAction = useCallback(
-    async (id: string, modifications?: Record<string, unknown>) => {
-      await store.approveAction(id, modifications);
-    },
-    [store]
-  );
-
-  const handleRejectAction = useCallback(
-    async (id: string, reason: string) => {
-      await store.rejectAction(id, reason);
-    },
-    [store]
-  );
-
-  const handleNewSession = useCallback(() => {
-    store.clear();
-    setInputValue('');
-  }, [store]);
-
-  const handleSelectSession = useCallback(
-    async (sessionId: string) => {
-      await sessionListStore.resumeSession(sessionId);
-    },
-    [sessionListStore]
-  );
-
-  // Prepare recent sessions for dropdown
-  const recentSessions = useMemo(
-    () =>
-      sessionListStore.activeSessions.slice(0, 5).map((s) => ({
-        sessionId: s.sessionId,
-        title: s.title,
-        updatedAt: s.updatedAt,
-      })),
-    [sessionListStore.activeSessions]
-  );
-
-  return (
-    <div className={cn('flex flex-col h-full bg-background', className)} data-testid="chat-view">
-      {/* Header with session selector (T075-T079) */}
-      <ChatHeader
-        title="PilotSpace AI"
-        isStreaming={store.isStreaming}
-        activeTaskCount={store.activeTasks.length}
-        sessionId={store.sessionId}
-        recentSessions={recentSessions}
-        onClear={handleClearConversation}
-        onNewSession={handleNewSession}
-        onSelectSession={handleSelectSession}
-      />
-
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Messages */}
-        <MessageList
-          messages={store.messages}
+    return (
+      <div className={cn('flex flex-col h-full bg-background', className)} data-testid="chat-view">
+        {/* Header with session selector (T075-T079) */}
+        <ChatHeader
+          title="PilotSpace AI"
           isStreaming={store.isStreaming}
-          streamContent={store.streamContent}
-          userName={userName}
-          userAvatar={userAvatar}
-          className="flex-1"
+          activeTaskCount={store.activeTasks.length}
+          sessionId={store.sessionId}
+          recentSessions={recentSessions}
+          onClear={handleClearConversation}
+          onNewSession={handleNewSession}
+          onSelectSession={handleSelectSession}
         />
 
-        {/* Task panel */}
-        {store.tasks.size > 0 && (
-          <div className="px-4 pb-4">
-            <TaskPanel
-              tasks={agentTasks}
-              activeTasks={activeAgentTasks}
-              completedTasks={completedAgentTasks}
-              isOpen={taskPanelOpen}
-              onToggle={() => setTaskPanelOpen(!taskPanelOpen)}
-            />
-          </div>
-        )}
+        {/* Main content area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Messages */}
+          <MessageList
+            messages={store.messages}
+            isStreaming={store.isStreaming}
+            streamContent={store.streamContent}
+            userName={userName}
+            userAvatar={userAvatar}
+            className="flex-1"
+          />
 
-        {/* Error display */}
-        {store.error && (
-          <div className="px-4 pb-4">
-            <div
-              className="rounded-lg border border-destructive/50 bg-destructive/10 p-3"
-              data-testid="error-message"
-            >
-              <p className="text-sm text-destructive">{store.error}</p>
+          {/* Task panel */}
+          {store.tasks.size > 0 && (
+            <div className="px-4 pb-4">
+              <TaskPanel
+                tasks={agentTasks}
+                activeTasks={activeAgentTasks}
+                completedTasks={completedAgentTasks}
+                isOpen={taskPanelOpen}
+                onToggle={() => setTaskPanelOpen(!taskPanelOpen)}
+              />
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Error display */}
+          {store.error && (
+            <div className="px-4 pb-4">
+              <div
+                className="rounded-lg border border-destructive/50 bg-destructive/10 p-3"
+                data-testid="error-message"
+              >
+                <p className="text-sm text-destructive">{store.error}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <ChatInput
+          value={inputValue}
+          onChange={setInputValue}
+          onSubmit={handleSubmit}
+          autoFocus={autoFocus}
+          isStreaming={store.isStreaming}
+          isDisabled={store.hasUnresolvedApprovals}
+          noteContext={
+            store.noteContext
+              ? {
+                  noteId: store.noteContext.noteId,
+                  noteTitle: store.noteContext.noteTitle,
+                  selectedText: store.noteContext.selectedText,
+                  selectedBlockIds: store.noteContext.selectedBlockIds,
+                }
+              : null
+          }
+          issueContext={
+            store.issueContext
+              ? {
+                  issueId: store.issueContext.issueId,
+                  projectId: '', // TODO: Add projectId to store.issueContext
+                  title: store.issueContext.issueTitle || '',
+                  description: '',
+                }
+              : null
+          }
+          projectContext={null} // TODO: Add projectContext to store
+          onClearNoteContext={handleClearNoteContext}
+          onClearIssueContext={handleClearIssueContext}
+          onClearProjectContext={handleClearProjectContext}
+          onAbort={handleAbort}
+        />
+
+        {/* Approval overlay */}
+        <ApprovalOverlay
+          approvals={chatViewApprovals}
+          onApprove={handleApproveAction}
+          onReject={handleRejectAction}
+        />
       </div>
-
-      {/* Input */}
-      <ChatInput
-        value={inputValue}
-        onChange={setInputValue}
-        onSubmit={handleSubmit}
-        isStreaming={store.isStreaming}
-        isDisabled={store.hasUnresolvedApprovals}
-        noteContext={
-          store.noteContext
-            ? {
-                noteId: store.noteContext.noteId,
-                selectedText: store.noteContext.selectedText,
-                selectedBlockIds: store.noteContext.selectedBlockIds,
-              }
-            : null
-        }
-        issueContext={
-          store.issueContext
-            ? {
-                issueId: store.issueContext.issueId,
-                projectId: '', // TODO: Add projectId to store.issueContext
-                title: store.issueContext.issueTitle || '',
-                description: '',
-              }
-            : null
-        }
-        projectContext={null} // TODO: Add projectContext to store
-        onClearNoteContext={handleClearNoteContext}
-        onClearIssueContext={handleClearIssueContext}
-        onClearProjectContext={handleClearProjectContext}
-        onAbort={handleAbort}
-      />
-
-      {/* Approval overlay */}
-      <ApprovalOverlay
-        approvals={chatViewApprovals}
-        onApprove={handleApproveAction}
-        onReject={handleRejectAction}
-      />
-    </div>
-  );
-});
+    );
+  }
+);
 
 ChatViewInternal.displayName = 'ChatViewInternal';
 

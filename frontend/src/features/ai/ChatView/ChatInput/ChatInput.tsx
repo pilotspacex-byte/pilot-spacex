@@ -26,6 +26,8 @@ interface ChatInputProps {
   onSubmit: () => void;
   isStreaming?: boolean;
   isDisabled?: boolean;
+  /** Auto-focus textarea when component mounts or becomes visible */
+  autoFocus?: boolean;
   noteContext?: NoteContext | null;
   issueContext?: IssueContext | null;
   projectContext?: ProjectContext | null;
@@ -43,6 +45,7 @@ export const ChatInput = observer<ChatInputProps>(
     onSubmit,
     isStreaming = false,
     isDisabled = false,
+    autoFocus = false,
     noteContext,
     issueContext,
     projectContext,
@@ -55,6 +58,13 @@ export const ChatInput = observer<ChatInputProps>(
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [skillMenuOpen, setSkillMenuOpen] = useState(false);
     const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+
+    // Auto-focus textarea when requested
+    useEffect(() => {
+      if (autoFocus && textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, [autoFocus]);
 
     // Auto-resize textarea
     useEffect(() => {

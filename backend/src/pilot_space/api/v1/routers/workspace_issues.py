@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 
 from pilot_space.api.v1.schemas.base import BaseSchema, DeleteResponse, PaginatedResponse
-from pilot_space.dependencies import CurrentUserId, DbSession
+from pilot_space.dependencies import DbSession, SyncedUserId
 from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
 from pilot_space.infrastructure.database.models.project import Project
 from pilot_space.infrastructure.database.models.state import State
@@ -201,7 +201,7 @@ def _issue_to_response(issue: Issue) -> WorkspaceIssueResponse:
 )
 async def list_workspace_issues(
     workspace_id: WorkspaceIdOrSlug,
-    current_user_id: CurrentUserId,
+    current_user_id: SyncedUserId,
     issue_repo: IssueRepo,
     workspace_repo: WorkspaceRepo,
     project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
@@ -252,7 +252,7 @@ async def list_workspace_issues(
 async def get_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
-    current_user_id: CurrentUserId,
+    current_user_id: SyncedUserId,
     issue_repo: IssueRepo,
     workspace_repo: WorkspaceRepo,
 ) -> WorkspaceIssueResponse:
@@ -279,7 +279,7 @@ async def get_workspace_issue(
 async def create_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_data: WorkspaceIssueCreateRequest,
-    current_user_id: CurrentUserId,
+    current_user_id: SyncedUserId,
     session: DbSession,
     issue_repo: IssueRepo,
     workspace_repo: WorkspaceRepo,
@@ -306,11 +306,13 @@ async def create_workspace_issue(
     normalized_state = state_name_map.get(state_name.lower(), state_name)
 
     state_result = await session.execute(
-        select(State).where(
+        select(State)
+        .where(
             State.workspace_id == workspace.id,
             State.name == normalized_state,
             State.is_deleted.is_(False),
         )
+        .limit(1)
     )
     state = state_result.scalar_one_or_none()
     if not state:
@@ -394,7 +396,7 @@ async def update_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
     issue_data: WorkspaceIssueUpdateRequest,
-    current_user_id: CurrentUserId,
+    current_user_id: SyncedUserId,
     session: DbSession,
     issue_repo: IssueRepo,
     workspace_repo: WorkspaceRepo,
@@ -476,7 +478,7 @@ async def update_workspace_issue_state(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
     body: StateUpdateRequest,
-    current_user_id: CurrentUserId,
+    current_user_id: SyncedUserId,
     session: DbSession,
     issue_repo: IssueRepo,
     workspace_repo: WorkspaceRepo,
@@ -541,7 +543,7 @@ async def update_workspace_issue_state(
 async def delete_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
-    current_user_id: CurrentUserId,
+    current_user_id: SyncedUserId,
     session: DbSession,
     issue_repo: IssueRepo,
     workspace_repo: WorkspaceRepo,

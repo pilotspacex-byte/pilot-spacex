@@ -26,6 +26,7 @@ export function useSelectionContext(
   editor: Editor | null,
   store: PilotSpaceStore,
   noteId: string,
+  noteTitle?: string,
   debounceMs = 300
 ): SelectionContext | null {
   const updateContext = useCallback(() => {
@@ -52,15 +53,16 @@ export function useSelectionContext(
       cursorPosition: from,
     };
 
-    // Update store context
+    // Update store context with note title
     store.setNoteContext({
       noteId,
+      noteTitle: noteTitle || store.noteContext?.noteTitle,
       selectedText: selectedText || undefined,
       selectedBlockIds: selectedBlockIds.length > 0 ? selectedBlockIds : undefined,
     });
 
     return context;
-  }, [editor, store, noteId]);
+  }, [editor, store, noteId, noteTitle]);
 
   // Track selection changes with debouncing
   useEffect(() => {

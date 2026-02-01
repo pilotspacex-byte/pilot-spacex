@@ -150,7 +150,7 @@ class Settings(BaseSettings):
         description="Root directory for user workspace storage",
     )
     system_templates_dir: DirectoryPath = Field(
-        default=Path(__file__).parent / "templates",
+        default=Path(__file__).parent / "ai" / "templates",
         description="Directory containing system-provided .claude templates",
     )
 

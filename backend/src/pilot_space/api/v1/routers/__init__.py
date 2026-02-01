@@ -4,6 +4,7 @@ Available routers:
 - auth: Authentication and authorization
 - workspaces: Workspace management
 - workspace_notes: Workspace-scoped note routes
+- workspace_notes_ai: AI-specific note operations (content updates)
 - projects: Project management
 - issues: Issue tracking with AI enhancement
 - notes: Note canvas
@@ -41,6 +42,7 @@ from pilot_space.api.v1.routers.projects import router as projects_router
 from pilot_space.api.v1.routers.webhooks import router as webhooks_router
 from pilot_space.api.v1.routers.workspace_issues import router as workspace_issues_router
 from pilot_space.api.v1.routers.workspace_notes import router as workspace_notes_router
+from pilot_space.api.v1.routers.workspace_notes_ai import router as workspace_notes_ai_router
 from pilot_space.api.v1.routers.workspaces import router as workspaces_router
 from pilot_space.config import get_settings
 
@@ -112,6 +114,7 @@ __all__ = [
     "projects_router",
     "webhooks_router",
     "workspace_issues_router",
+    "workspace_notes_ai_router",
     "workspace_notes_router",
     "workspaces_router",
 ]

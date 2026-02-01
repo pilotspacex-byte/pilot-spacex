@@ -66,6 +66,7 @@ export interface ApprovalRequest {
  */
 export interface NoteContext {
   noteId: string;
+  noteTitle?: string;
   selectedText?: string;
   selectedBlockIds?: string[];
   cursorPosition?: number;

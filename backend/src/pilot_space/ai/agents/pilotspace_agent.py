@@ -14,20 +14,32 @@ Design Decisions: DD-003 (Human-in-the-Loop), DD-048 (Confidence Tags)
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import shutil
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
-from uuid import UUID, uuid4
+from uuid import UUID
 
 # Import Claude Agent SDK (required dependency)
 from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, ClaudeSDKClient, Message
 
 from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
+from pilot_space.ai.agents.note_space_sync import NoteSpaceSync
+from pilot_space.ai.agents.pilotspace_agent_helpers import (
+    build_contextual_message,
+    transform_sdk_message as transform_sdk_message_helper,
+)
 from pilot_space.ai.context import clear_context, set_workspace_context
+from pilot_space.ai.mcp.note_server import (
+    SERVER_NAME as NOTE_SERVER_NAME,
+    TOOL_NAMES as NOTE_TOOL_NAMES,
+    create_note_tools_server,
+)
 from pilot_space.ai.sdk.sandbox_config import configure_sdk_for_space
 from pilot_space.spaces.manager import SpaceManager
 
@@ -44,6 +56,7 @@ if TYPE_CHECKING:
 # Removed IntentType, ParsedIntent - SDK handles intent parsing via .claude/ directory
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ChatInput:
@@ -152,7 +165,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._skill_registry = skill_registry
         self._space_manager = space_manager
         self._subagents = subagents or {}
-        self._current_message_id: str | None = None
+        self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
 
     # Removed old routing methods (_parse_intent, _execute_skill, _spawn_subagent,
     # _plan_tasks, _handle_natural_language) - SDK handles all routing via .claude/
@@ -213,19 +226,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             raise ValueError(msg)
         return api_key
 
-    def transform_sdk_message(  # noqa: PLR0911
-        self, message: Message, context: AgentContext  # noqa: ARG002
+    def transform_sdk_message(
+        self,
+        message: Message,
+        context: AgentContext,  # noqa: ARG002
     ) -> str | None:
         """Transform Claude SDK message to frontend SSE event.
-
-        SDK Message Types (actual attributes from claude-agent-sdk):
-        - SystemMessage: data(dict), subtype — init message with session_id
-        - AssistantMessage: content(list[TextBlock]), error, model — AI response
-        - ResultMessage: session_id, is_error, result, usage — completion signal
-
-        Output format matches frontend SSEEvent expectations:
-        - ``event: <type>\\ndata: <json>\\n\\n`` (proper SSE with event prefix)
-        - camelCase field names (messageId, sessionId, delta, stopReason)
 
         Args:
             message: SDK message object
@@ -234,84 +240,65 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         Returns:
             SSE-formatted string or None if message should be ignored
         """
-        msg_type = type(message).__name__
+        return transform_sdk_message_helper(message, self._message_id_holder)
 
-        # SystemMessage: data is a dict with type/subtype/session_id
-        if msg_type == "SystemMessage":
-            raw_data = getattr(message, "data", None)
-            if isinstance(raw_data, dict) and raw_data.get("type") == "system":
-                subtype = raw_data.get("subtype")
-                if subtype == "init":
-                    session_id = raw_data.get("session_id", "")
-                    # Generate messageId for this conversation turn
-                    self._current_message_id = str(uuid4())
-                    data = {
-                        "messageId": self._current_message_id,
-                        "sessionId": str(session_id),
-                    }
-                    return f"event: message_start\ndata: {json.dumps(data)}\n\n"
-            return None
+    async def _sync_note_if_present(
+        self,
+        input_data: ChatInput,
+        space_path: Path,
+    ) -> None:
+        """Sync note to workspace if note context is present.
 
-        # AssistantMessage: content is list[TextBlock], no role attribute
-        if msg_type == "AssistantMessage":
-            content = getattr(message, "content", None)
-            if content is None:
-                return None
-            if isinstance(content, list):
-                parts = []
-                for block in content:
-                    if isinstance(block, dict):
-                        parts.append(block.get("text", ""))
-                    elif hasattr(block, "text"):
-                        parts.append(block.text)
-                text_content = " ".join(parts)
-            else:
-                text_content = str(content)
+        Checks if input_data.context contains a note_id and syncs the latest
+        note content from database to the workspace markdown file.
 
-            if not text_content.strip():
-                return None
-            message_id = getattr(self, "_current_message_id", str(uuid4()))
-            data = {
-                "messageId": message_id,
-                "delta": text_content,
-            }
-            return f"event: text_delta\ndata: {json.dumps(data)}\n\n"
+        This ensures the agent always works with fresh note content.
 
-        # ResultMessage: completion signal with session_id and usage
-        if msg_type == "ResultMessage":
-            session_id = getattr(message, "session_id", "")
-            is_error = getattr(message, "is_error", False)
-            usage = getattr(message, "usage", None)
-            message_id = getattr(self, "_current_message_id", str(uuid4()))
+        Args:
+            input_data: Chat input with context
+            space_path: Path to workspace root
 
-            if is_error:
-                result = getattr(message, "result", "")
-                error_data: dict[str, Any] = {
-                    "errorCode": "api_error",
-                    "message": str(result) if result else "Unknown error",
-                    "retryable": False,
-                }
-                return f"event: error\ndata: {json.dumps(error_data)}\n\n"
+        Raises:
+            No exceptions - errors are logged but don't block agent execution
+        """
+        # Check if note context is present
+        note = input_data.context.get("note")
+        if note is None:
+            return
 
-            data_stop: dict[str, Any] = {
-                "messageId": message_id,
-                "stopReason": "end_turn",
-            }
-            if usage:
-                data_stop["usage"] = {
-                    "inputTokens": getattr(usage, "input_tokens", 0),
-                    "outputTokens": getattr(usage, "output_tokens", 0),
-                    "totalTokens": (
-                        getattr(usage, "input_tokens", 0)
-                        + getattr(usage, "output_tokens", 0)
-                    ),
-                }
-                total_cost = getattr(usage, "total_cost_usd", None)
-                if total_cost is not None:
-                    data_stop["costUsd"] = total_cost
-            return f"event: message_stop\ndata: {json.dumps(data_stop)}\n\n"
+        # Extract note_id from the note object
+        note_id = getattr(note, "id", None)
+        if note_id is None:
+            logger.warning("[NoteSync] Note object missing 'id' attribute, skipping sync")
+            return
 
-        return None
+        # Sync note to workspace
+        try:
+            from pilot_space.infrastructure.database import get_db_session
+
+            sync_service = NoteSpaceSync()
+
+            # Create a new database session for sync
+            async with get_db_session() as session:
+                file_path = await sync_service.sync_note_to_space(
+                    space_path=space_path,
+                    note_id=note_id,
+                    session=session,
+                )
+                logger.info(
+                    "[NoteSync] Synced note %s to workspace: %s",
+                    note_id,
+                    file_path,
+                )
+
+        except Exception as e:
+            # Log error but don't block agent execution (graceful degradation)
+            logger.error(
+                "[NoteSync] Failed to sync note %s to workspace: %s",
+                note_id,
+                str(e),
+                exc_info=True,
+            )
 
     async def stream(
         self,
@@ -410,15 +397,25 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     space_context.hooks_file,
                     cwd=space_context.path,
                 )
-                logger.debug(
-                    f"[SDK/Space] Loaded hooks from {space_context.hooks_file}"
-                )
+                logger.debug(f"[SDK/Space] Loaded hooks from {space_context.hooks_file}")
+
+            # Create event queue for tool-generated SSE events
+            tool_event_queue: asyncio.Queue[str] = asyncio.Queue()
+
+            # Create in-process MCP server with note tools
+            # Pass context_note_id to prevent LLM UUID corruption
+            context_note_id = input_data.context.get("note_id")
+            note_tools_server = create_note_tools_server(
+                tool_event_queue,
+                context_note_id=str(context_note_id) if context_note_id else None,
+            )
 
             # Configure SDK for this space (with hooks if available)
             sdk_config = configure_sdk_for_space(
                 space_context,
                 permission_mode="default",
                 model="kimi-k2.5:cloud",
+                additional_tools=NOTE_TOOL_NAMES,
                 additional_env={
                     "ANTHROPIC_API_KEY": api_key,
                     "ANTHROPIC_BASE_URL": "http://localhost:11434",
@@ -440,6 +437,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 cwd=sdk_params.get("cwd"),
                 setting_sources=sdk_params.get("setting_sources", ["project"]),
                 allowed_tools=sdk_params.get("allowed_tools", []),
+                mcp_servers={NOTE_SERVER_NAME: note_tools_server},
                 sandbox=sdk_params.get("sandbox"),
                 permission_mode=sdk_params.get("permission_mode", "default"),
                 env=sdk_env,
@@ -458,6 +456,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 shutil.which("claude"),
             )
 
+            # Sync note to workspace if note_id in context
+            await self._sync_note_if_present(
+                input_data=input_data,
+                space_path=space_context.path,
+            )
+
             client = ClaudeSDKClient(sdk_options)
             try:
                 await client.connect()
@@ -471,10 +475,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     resume_id,
                 )
 
-                await client.query(input_data.message, session_id=query_session_id)
+                enriched_message = build_contextual_message(input_data)
+                await client.query(enriched_message, session_id=query_session_id)
 
                 sdk_event_count = 0
                 transformed_count = 0
+                tool_event_count = 0
 
                 async for message in client.receive_response():
                     sdk_event_count += 1
@@ -483,10 +489,21 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         transformed_count += 1
                         yield sse_event
 
+                    # Drain tool-generated events after each SDK message
+                    while not tool_event_queue.empty():
+                        tool_event_count += 1
+                        yield tool_event_queue.get_nowait()
+
+                # Drain any remaining tool events after SDK stream ends
+                while not tool_event_queue.empty():
+                    tool_event_count += 1
+                    yield tool_event_queue.get_nowait()
+
                 logger.info(
-                    "[SDK/Space] Query finished: %d events, %d transformed",
+                    "[SDK/Space] Query finished: %d sdk_events, %d transformed, %d tool_events",
                     sdk_event_count,
                     transformed_count,
+                    tool_event_count,
                 )
 
             finally:

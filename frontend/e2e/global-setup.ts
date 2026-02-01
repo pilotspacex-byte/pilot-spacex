@@ -162,6 +162,46 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
 
     console.log('✅ Global setup: Auth session injected into localStorage');
 
+    // Step 5: Create default workspace if it doesn't exist
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+    const token = sessionData.session.access_token;
+
+    console.log('🔧 Global setup: Ensuring default workspace exists...');
+    const wsListRes = await fetch(`${API_URL}/workspaces`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const wsList = await wsListRes.json();
+    const hasWorkspace = wsList.items?.some((w: { slug: string }) => w.slug === 'workspace');
+
+    if (!hasWorkspace) {
+      console.log('📝 Global setup: Creating "workspace" workspace...');
+      const createRes = await fetch(`${API_URL}/workspaces`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Pilot Space',
+          slug: 'workspace',
+          description: 'E2E test workspace',
+        }),
+      });
+
+      if (createRes.ok) {
+        console.log('✅ Global setup: Workspace created successfully');
+      } else if (createRes.status === 409) {
+        console.log('✅ Global setup: Workspace already exists (409)');
+      } else {
+        const errBody = await createRes.text();
+        console.warn(
+          `⚠️ Global setup: Workspace creation returned ${createRes.status}: ${errBody}`
+        );
+      }
+    } else {
+      console.log('✅ Global setup: Workspace "workspace" already exists');
+    }
+
     // Save storage state to file
     await context.storageState({ path: AUTH_STATE_PATH });
     console.log(`✅ Global setup: Auth state saved to ${AUTH_STATE_PATH}`);

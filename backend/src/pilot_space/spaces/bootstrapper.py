@@ -70,6 +70,13 @@ class ProjectBootstrapper:
                 shutil.copy2(src_claude, dst_claude)
                 logger.debug(f"Copied CLAUDE.md to {dst_claude}")
 
+        # Remove stale .mcp.json from previous file-based MCP approach
+        # (note tools are now in-process SDK custom tools)
+        stale_mcp = target_path / ".mcp.json"
+        if stale_mcp.exists():
+            stale_mcp.unlink()
+            logger.debug(f"Removed stale .mcp.json from {target_path}")
+
         logger.info(f"Hydrated workspace at {target_path}")
 
     async def _copy_if_exists(self, subdir: str, claude_dir: Path) -> None:

@@ -29,6 +29,7 @@ import type {
   ToolResultEvent,
   TaskProgressEvent,
   ApprovalRequestEvent,
+  ContentUpdateEvent,
   MessageStopEvent,
   ErrorEvent,
   TaskStatus,
@@ -176,6 +177,9 @@ export class PilotSpaceStore {
 
   /** Pending approval requests */
   pendingApprovals: ApprovalRequest[] = [];
+
+  /** Pending content updates from AI (FIFO buffer, max 100) */
+  pendingContentUpdates: ContentUpdateEvent['data'][] = [];
 
   /** Current note context */
   noteContext: NoteContext | null = null;
@@ -450,6 +454,43 @@ export class PilotSpaceStore {
 
   clearConversation(): void {
     this.clear();
+  }
+
+  // ========================================
+  // Actions - Content Update Management
+  // ========================================
+
+  /**
+   * Handle content_update event from AI.
+   * Adds to pending updates buffer (max 100, FIFO eviction).
+   *
+   * @param event - Content update event
+   */
+  handleContentUpdate(event: ContentUpdateEvent): void {
+    runInAction(() => {
+      // FIFO buffer, max 100
+      if (this.pendingContentUpdates.length >= 100) {
+        this.pendingContentUpdates.shift();
+      }
+      this.pendingContentUpdates.push(event.data);
+    });
+  }
+
+  /**
+   * Consume (remove) a pending content update for a specific note.
+   * Returns the first matching update and removes it from the queue.
+   *
+   * @param noteId - Note ID to find update for
+   * @returns Content update event data or undefined if not found
+   */
+  consumeContentUpdate(noteId: string): ContentUpdateEvent['data'] | undefined {
+    return runInAction(() => {
+      const idx = this.pendingContentUpdates.findIndex((u) => u.noteId === noteId);
+      if (idx >= 0) {
+        return this.pendingContentUpdates.splice(idx, 1)[0];
+      }
+      return undefined;
+    });
   }
 
   // ========================================
@@ -728,7 +769,7 @@ export class PilotSpaceStore {
    */
   private parseSSEBuffer(buffer: string): SSEEvent[] {
     const events: SSEEvent[] = [];
-    const eventBlocks = buffer.split('\n\n').filter(block => block.trim());
+    const eventBlocks = buffer.split('\n\n').filter((block) => block.trim());
 
     for (const block of eventBlocks) {
       const lines = block.split('\n');
@@ -795,6 +836,7 @@ export class PilotSpaceStore {
         | ToolResultEvent
         | TaskProgressEvent
         | ApprovalRequestEvent
+        | ContentUpdateEvent
         | MessageStopEvent
         | ErrorEvent;
 
@@ -811,6 +853,9 @@ export class PilotSpaceStore {
         this.handleTaskUpdate(event);
       } else if (isApprovalRequestEvent(event)) {
         this.handleApprovalRequired(event);
+      } else if (event.type === 'content_update') {
+        // Handle content_update event
+        this.handleContentUpdate(event as ContentUpdateEvent);
       } else if (isMessageStopEvent(event)) {
         this.handleTextComplete(event);
       } else if (isErrorEvent(event)) {
@@ -1045,6 +1090,7 @@ export class PilotSpaceStore {
     this.sessionId = null;
     this.tasks.clear();
     this.pendingApprovals = [];
+    this.pendingContentUpdates = [];
     this.error = null;
   }
 

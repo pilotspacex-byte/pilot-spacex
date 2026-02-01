@@ -2,29 +2,29 @@
 
 /**
  * NoteCanvas - Main editor component for notes
- * Two-column layout: editor (left), pilot suggestions with TOC (right)
+ * Two-column layout: editor (left), AI ChatView panel (right)
  * Per UI Spec v3.3 / Prototype v4: Note-First design with merged header
  * Integrates TipTap with all extensions and virtualization for 1000+ blocks
  *
  * Responsive behavior:
- * - Ultra-large (2xl+): Wider content, larger suggestions panel, more padding
+ * - Ultra-large (2xl+): Wider content, larger ChatView panel, more padding
  * - Large desktop (xl-2xl): Standard wide layout
- * - Desktop (lg-xl): Side-by-side layout with suggestions panel
- * - Tablet (md-lg): Collapsible suggestions, full-width editor
- * - Mobile (<md): Overlay suggestions panel, compact header
+ * - Desktop (lg-xl): Side-by-side layout with ChatView panel
+ * - Tablet (md-lg): Collapsible ChatView, full-width editor
+ * - Mobile (<md): Overlay ChatView panel, compact header
  */
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { Content, Editor } from '@tiptap/core';
 import { observer } from 'mobx-react-lite';
 import { reaction } from 'mobx';
-import { AlertTriangle, X, Sparkles, MessageSquare } from 'lucide-react';
+import { AlertTriangle, X, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
-import { IssueExtractionPanel, type ExtractedIssue } from './IssueExtractionPanel';
 import type { GhostTextContext } from '@/features/notes/editor/extensions/GhostTextExtension';
 import { motion, AnimatePresence } from 'motion/react';
 import { getAIStore } from '@/stores/ai/AIStore';
 import { useSelectionContext } from '@/features/notes/editor/hooks/useSelectionContext';
+import { useContentUpdates } from '@/features/notes/editor/hooks/useContentUpdates';
 import { ChatView } from '@/features/ai/ChatView/ChatView';
 
 import { Button } from '@/components/ui/button';
@@ -33,10 +33,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 import { createEditorExtensions } from '@/features/notes/editor/extensions';
 import { useResponsive } from '@/hooks/useMediaQuery';
-import type { JSONContent, NoteAnnotation } from '@/types';
-import { MarginAnnotations } from './MarginAnnotations';
+import { useWorkspaceStore } from '@/stores/RootStore';
+import type { JSONContent } from '@/types';
 import { SelectionToolbar } from './SelectionToolbar';
-import { AskPilotInput } from './AskPilotInput';
 import { InlineNoteHeader } from './InlineNoteHeader';
 import { NoteTitleBlock } from './NoteTitleBlock';
 import type { User } from '@/types';
@@ -74,8 +73,6 @@ export interface NoteCanvasProps {
   isAIAssisted?: boolean;
   /** Workspace slug for breadcrumb */
   workspaceSlug?: string;
-  /** Whether right suggestions panel is collapsed by default */
-  suggestionsCollapsed?: boolean;
   /** Callback when title changes */
   onTitleChange?: (title: string) => void;
   /** Callback for share action */
@@ -154,7 +151,6 @@ export const NoteCanvas = observer(function NoteCanvas({
   isPinned = false,
   isAIAssisted = false,
   workspaceSlug = '',
-  suggestionsCollapsed: initialSuggestionsCollapsed = false,
   onTitleChange,
   onShare,
   onExport,
@@ -163,11 +159,6 @@ export const NoteCanvas = observer(function NoteCanvas({
   onVersionHistory,
 }: NoteCanvasProps) {
   const [editorError, setEditorError] = useState<string | null>(null);
-  const [isSuggestionsCollapsed, setIsSuggestionsCollapsed] = useState(initialSuggestionsCollapsed);
-  const [extractedIssues, setExtractedIssues] = useState<ExtractedIssue[]>([]);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [showExtractionPanel, setShowExtractionPanel] = useState(false);
-  const [extractionInsertPos, setExtractionInsertPos] = useState<number | null>(null);
   const [isChatViewOpen, setIsChatViewOpen] = useState(false);
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -175,20 +166,37 @@ export const NoteCanvas = observer(function NoteCanvas({
 
   // Ref to track current editor for ghost text callback
   const editorRef = useRef<Editor | null>(null);
-  const aiStore = getAIStore();
+  // Refs for values needed in extension callbacks (avoids useMemo dep changes)
+  const noteIdRef = useRef(noteId);
+  noteIdRef.current = noteId;
+  const titleRef = useRef(title);
+  titleRef.current = title;
 
-  // Get annotations from store instead of props
-  const annotations = aiStore.marginAnnotation.getAnnotationsForNote(noteId);
+  const aiStore = getAIStore();
+  const workspaceStore = useWorkspaceStore();
+
+  // Demo workspace UUID fallback (matches /chat page pattern)
+  const DEMO_WORKSPACE_ID = '00000000-0000-0000-0000-000000000002';
+
+  // Resolve workspace UUID with cascading fallback:
+  // 1. workspaceId prop if already UUID
+  // 2. Slug lookup from workspace store
+  // 3. currentWorkspace from store
+  // 4. Demo workspace ID (development fallback)
+  const isUUID = workspaceId && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(workspaceId);
+  const resolvedWorkspaceId = isUUID
+    ? workspaceId
+    : (workspaceId && workspaceStore.getWorkspaceBySlug(workspaceId)?.id) ||
+      workspaceStore.currentWorkspace?.id ||
+      DEMO_WORKSPACE_ID;
+
+  // Set workspace context on PilotSpaceStore so chat messages include workspaceId
+  useEffect(() => {
+    aiStore.pilotSpace.setWorkspaceId(resolvedWorkspaceId);
+  }, [resolvedWorkspaceId, aiStore.pilotSpace]);
 
   // Responsive breakpoints
   const { isSmallScreen, isLargeDesktop } = useResponsive();
-
-  // Auto-collapse suggestions on smaller screens (only when transitioning to small screen)
-  useEffect(() => {
-    if (isSmallScreen) {
-      setIsSuggestionsCollapsed(true);
-    }
-  }, [isSmallScreen]);
 
   // Ghost text trigger function - delegates to GhostTextStore
   const handleGhostTextTrigger = useCallback(
@@ -285,148 +293,6 @@ export const NoteCanvas = observer(function NoteCanvas({
     return () => disposer();
   }, [isEditorReady, noteId, aiStore.marginAnnotation]);
 
-  // Issue extraction handler - calls backend API with SSE streaming
-  const handleExtractIssues = useCallback(
-    async (selectedText?: string) => {
-      const currentEditor = editorRef.current;
-      if (!currentEditor || currentEditor.isDestroyed) return;
-
-      setIsExtracting(true);
-      setShowExtractionPanel(true);
-      setExtractedIssues([]); // Clear previous issues
-
-      // Capture insertion position (end of current selection or cursor position)
-      // Find the end of the current paragraph/block for insertion
-      const { $to } = currentEditor.state.selection;
-      const endOfBlock = $to.end($to.depth);
-      setExtractionInsertPos(endOfBlock);
-
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
-        const noteContent = currentEditor.getJSON();
-
-        const response = await fetch(`${apiUrl}/notes/${noteId}/extract-issues`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(workspaceId ? { 'X-Workspace-ID': workspaceId } : {}),
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            note_id: noteId,
-            note_title: title,
-            note_content: noteContent,
-            selected_text: selectedText,
-            available_labels: [],
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to extract issues (${response.status}): ${errorText}`);
-        }
-
-        // Parse SSE stream
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('No response body');
-
-        const decoder = new TextDecoder();
-        const extractedIssues: ExtractedIssue[] = [];
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-          let currentEventType = '';
-          for (const line of lines) {
-            if (line.startsWith('event:')) {
-              currentEventType = line.slice(6).trim();
-            } else if (line.startsWith('data:') && currentEventType === 'issue') {
-              try {
-                const issueData = JSON.parse(line.slice(5).trim());
-                const issue: ExtractedIssue = {
-                  id: crypto.randomUUID(),
-                  title: issueData.title,
-                  description: issueData.description,
-                  suggestedLabels: issueData.labels || [],
-                  priority: (issueData.priority === 1
-                    ? 'high'
-                    : issueData.priority === 2
-                      ? 'medium'
-                      : 'low') as ExtractedIssue['priority'],
-                  confidence: issueData.confidence_score || 0,
-                  confidenceTag: issueData.confidence_tag as ExtractedIssue['confidenceTag'],
-                  sourceBlockId: issueData.source_block_ids?.[0] || '',
-                  sourceText: issueData.rationale || '',
-                };
-                extractedIssues.push(issue);
-                setExtractedIssues([...extractedIssues]); // Update state incrementally
-              } catch {
-                // Skip invalid JSON
-              }
-            } else if (line.startsWith('data:') && currentEventType === 'error') {
-              try {
-                const errorData = JSON.parse(line.slice(5).trim());
-                throw new Error(errorData.message || 'Extraction failed');
-              } catch {
-                // Skip invalid JSON
-              }
-            }
-          }
-        }
-
-        if (extractedIssues.length > 0) {
-          toast.success(
-            `Found ${extractedIssues.length} potential issue${extractedIssues.length > 1 ? 's' : ''}`
-          );
-        } else {
-          toast.info('No issues found in the selected content');
-        }
-      } catch (err) {
-        console.error('Issue extraction error:', err);
-        toast.error(err instanceof Error ? err.message : 'Failed to extract issues');
-      } finally {
-        setIsExtracting(false);
-      }
-    },
-    [workspaceId, title, noteId]
-  );
-
-  // AI command handler for slash commands
-  const handleAICommand = useCallback(
-    async (command: string, editor: Editor) => {
-      if (command === 'extract-issues') {
-        const selectedText = editor.state.selection.empty
-          ? undefined
-          : editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to);
-        await handleExtractIssues(selectedText);
-      } else if (command === 'improve') {
-        toast.info('AI text improvement coming soon');
-      } else if (command === 'summarize') {
-        toast.info('AI summarization coming soon');
-      }
-    },
-    [handleExtractIssues]
-  );
-
-  // Handle annotation click to scroll to block
-  const handleAnnotationClick = useCallback((annotation: NoteAnnotation) => {
-    // Scroll to the block in the editor
-    if (editorContainerRef.current) {
-      const blockElement = editorContainerRef.current.querySelector(
-        `[data-blockId="${annotation.blockId}"]`
-      );
-      if (blockElement) {
-        blockElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }, []);
-
   // Create editor extensions with ghost text and margin annotations
   const extensions = useMemo(
     () =>
@@ -443,28 +309,49 @@ export const NoteCanvas = observer(function NoteCanvas({
         },
         marginAnnotation: {
           annotations: new Map(),
-          onClick: (blockId: string) => {
-            // Scroll to annotation in margin panel
-            const annotation = aiStore.marginAnnotation
-              .getAnnotationsForNote(noteId)
-              .find((a) => a.blockId === blockId);
-            if (annotation) {
-              handleAnnotationClick(annotation);
-            }
+          onClick: (_blockId: string) => {
+            // Annotations handled via ChatView now
           },
         },
         slashCommand: {
-          onAICommand: handleAICommand,
+          onAICommand: async (command: string, cmdEditor: Editor) => {
+            // Route all AI slash commands through ChatView
+            setIsChatViewOpen(true);
+
+            // Build a message from the command and selected text
+            const selectedText = cmdEditor.state.selection.empty
+              ? undefined
+              : cmdEditor.state.doc.textBetween(
+                  cmdEditor.state.selection.from,
+                  cmdEditor.state.selection.to
+                );
+
+            // Ensure note context is set before sending (useSelectionContext
+            // may not have fired yet if the slash command was typed quickly)
+            if (noteIdRef.current) {
+              aiStore.pilotSpace.setNoteContext({
+                noteId: noteIdRef.current,
+                noteTitle: titleRef.current || 'Untitled',
+                selectedText: selectedText || undefined,
+              });
+            }
+
+            const commandMessages: Record<string, string> = {
+              'extract-issues': `Extract issues from this note${selectedText ? `: "${selectedText}"` : ''}`,
+              improve: `Improve this text${selectedText ? `: "${selectedText}"` : ''}`,
+              summarize: `Summarize this note${selectedText ? `: "${selectedText}"` : ''}`,
+            };
+
+            const message = commandMessages[command] ?? `AI command: ${command}`;
+
+            // Send through ChatView after a tick (let ChatView open first)
+            setTimeout(() => {
+              aiStore.pilotSpace.sendMessage(message);
+            }, 100);
+          },
         },
       }),
-    [
-      readOnly,
-      handleGhostTextTrigger,
-      handleAICommand,
-      noteId,
-      aiStore.marginAnnotation,
-      handleAnnotationClick,
-    ]
+    [readOnly, handleGhostTextTrigger, aiStore.pilotSpace]
   );
 
   // Initialize TipTap editor
@@ -524,7 +411,23 @@ export const NoteCanvas = observer(function NoteCanvas({
   }, [noteId, workspaceSlug, editor, aiStore.marginAnnotation]);
 
   // Track selection context for ChatView
-  useSelectionContext(editor, aiStore.pilotSpace, noteId);
+  useSelectionContext(editor, aiStore.pilotSpace, noteId, title);
+
+  // Apply AI content updates from PilotSpace
+  useContentUpdates(editor, aiStore.pilotSpace, noteId, resolvedWorkspaceId ?? undefined);
+
+  // Open ChatView and set note context
+  const handleChatViewOpen = useCallback(() => {
+    setIsChatViewOpen(true);
+    if (noteId) {
+      aiStore.pilotSpace.setNoteContext({
+        noteId,
+        noteTitle: title || 'Untitled',
+        selectedText: aiStore.pilotSpace.noteContext?.selectedText,
+        selectedBlockIds: aiStore.pilotSpace.noteContext?.selectedBlockIds,
+      });
+    }
+  }, [noteId, title, aiStore.pilotSpace]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -535,250 +438,19 @@ export const NoteCanvas = observer(function NoteCanvas({
         onSave?.();
       }
       // Cmd/Ctrl + Shift + P to toggle ChatView
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p') {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
-        setIsChatViewOpen((prev) => !prev);
+        if (isChatViewOpen) {
+          setIsChatViewOpen(false);
+        } else {
+          handleChatViewOpen();
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editor, aiStore.pilotSpace, noteId, onSave]);
-
-  // Handle annotation actions
-  const handleAnnotationAccept = useCallback(
-    async (annotation: NoteAnnotation) => {
-      if (!editor || !workspaceSlug || annotation.type !== 'suggestion') return;
-
-      try {
-        // Find the block position in the editor by blockId
-        let blockPos: number | null = null;
-        let blockEndPos: number | null = null;
-
-        editor.state.doc.descendants((node, pos) => {
-          if (node.attrs?.id === annotation.blockId || node.attrs?.blockId === annotation.blockId) {
-            blockPos = pos;
-            blockEndPos = pos + node.nodeSize;
-            return false; // Stop iteration
-          }
-          return true;
-        });
-
-        // Insert the suggestion content after the block
-        if (blockPos !== null && blockEndPos !== null) {
-          // Create a new paragraph with the suggestion content
-          editor
-            .chain()
-            .focus()
-            .insertContentAt(blockEndPos, {
-              type: 'paragraph',
-              content: [{ type: 'text', text: annotation.content }],
-            })
-            .run();
-        } else {
-          // Fallback: Insert at the end of the document if block not found
-          editor
-            .chain()
-            .focus()
-            .insertContentAt(editor.state.doc.content.size, {
-              type: 'paragraph',
-              content: [{ type: 'text', text: annotation.content }],
-            })
-            .run();
-        }
-
-        // Update status in backend
-        await aiStore.marginAnnotation.updateAnnotationStatus(
-          workspaceSlug,
-          noteId,
-          annotation.id,
-          'accepted'
-        );
-
-        toast.success('Suggestion applied', {
-          description: `Added: "${annotation.content.substring(0, 50)}${annotation.content.length > 50 ? '...' : ''}"`,
-        });
-      } catch (_err) {
-        toast.error('Failed to apply suggestion');
-      }
-    },
-    [editor, workspaceSlug, noteId, aiStore.marginAnnotation]
-  );
-
-  const handleAnnotationReject = useCallback(
-    async (annotation: NoteAnnotation) => {
-      if (!workspaceSlug) return;
-      try {
-        await aiStore.marginAnnotation.updateAnnotationStatus(
-          workspaceSlug,
-          noteId,
-          annotation.id,
-          'rejected'
-        );
-        toast.info('Suggestion dismissed');
-      } catch (_err) {
-        toast.error('Failed to dismiss suggestion');
-      }
-    },
-    [workspaceSlug, noteId, aiStore.marginAnnotation]
-  );
-
-  const handleAnnotationDismiss = useCallback(
-    async (annotation: NoteAnnotation) => {
-      if (!workspaceSlug) return;
-      try {
-        await aiStore.marginAnnotation.updateAnnotationStatus(
-          workspaceSlug,
-          noteId,
-          annotation.id,
-          'dismissed'
-        );
-      } catch (err) {
-        console.error('Failed to dismiss annotation:', err);
-      }
-    },
-    [workspaceSlug, noteId, aiStore.marginAnnotation]
-  );
-
-  // Issue extraction panel handlers - create issues in backend and insert into note
-  const handleCreateIssue = useCallback(
-    async (issue: ExtractedIssue) => {
-      const currentEditor = editorRef.current;
-      if (!currentEditor || currentEditor.isDestroyed) return;
-      if (!workspaceId) {
-        toast.error('Workspace not found');
-        return;
-      }
-
-      try {
-        // Map priority string to IssuePriority type
-        const priorityMap: Record<string, 'urgent' | 'high' | 'medium' | 'low' | 'none'> = {
-          high: 'high',
-          medium: 'medium',
-          low: 'low',
-        };
-
-        // Create the issue in the backend (backend auto-selects project if not provided)
-        const { issuesApi } = await import('@/services/api/issues');
-        const createdIssue = await issuesApi.create(workspaceId, {
-          title: issue.title,
-          description: issue.description,
-          priority: priorityMap[issue.priority] || 'medium',
-          type: 'task',
-          state: 'backlog',
-          labels: issue.suggestedLabels,
-          sourceNoteId: noteId,
-        });
-
-        // Insert at stored position or current cursor
-        const insertPos = extractionInsertPos ?? currentEditor.state.selection.to;
-
-        // Insert inline issue node with real issue data
-        currentEditor
-          .chain()
-          .focus()
-          .insertContentAt(insertPos, [
-            {
-              type: 'inlineIssue',
-              attrs: {
-                issueId: createdIssue.id,
-                issueKey: createdIssue.identifier,
-                title: createdIssue.title,
-                type: createdIssue.type || 'task',
-                state: createdIssue.state,
-                priority: createdIssue.priority,
-                sourceBlockId: issue.sourceBlockId || null,
-                isNew: true,
-              },
-            },
-            { type: 'text', text: ' ' }, // Add space after issue
-          ])
-          .run();
-
-        // Update insertion position for next issue
-        setExtractionInsertPos((prev) => (prev ?? insertPos) + 2);
-
-        toast.success(`Issue created: ${createdIssue.identifier}`);
-        setExtractedIssues((prev) => prev.filter((i) => i.id !== issue.id));
-      } catch (err) {
-        console.error('Failed to create issue:', err);
-        toast.error('Failed to create issue');
-      }
-    },
-    [extractionInsertPos, workspaceId, noteId]
-  );
-
-  const handleCreateAllIssues = useCallback(async () => {
-    const currentEditor = editorRef.current;
-    if (!currentEditor || currentEditor.isDestroyed || extractedIssues.length === 0) return;
-    if (!workspaceId) {
-      toast.error('Workspace not found');
-      return;
-    }
-
-    try {
-      // Map priority string to IssuePriority type
-      const priorityMap: Record<string, 'urgent' | 'high' | 'medium' | 'low' | 'none'> = {
-        high: 'high',
-        medium: 'medium',
-        low: 'low',
-      };
-
-      // Create all issues in backend (backend auto-selects project if not provided)
-      const { issuesApi } = await import('@/services/api/issues');
-      const createdIssues = await Promise.all(
-        extractedIssues.map((issue) =>
-          issuesApi.create(workspaceId, {
-            title: issue.title,
-            description: issue.description,
-            priority: priorityMap[issue.priority] || 'medium',
-            type: 'task',
-            state: 'backlog',
-            labels: issue.suggestedLabels,
-            sourceNoteId: noteId,
-          })
-        )
-      );
-
-      // Build inline issue nodes with real issue data
-      const issueNodes: Array<{ type: string; attrs?: Record<string, unknown>; text?: string }> =
-        [];
-      createdIssues.forEach((createdIssue, index) => {
-        const originalIssue = extractedIssues[index];
-        issueNodes.push({
-          type: 'inlineIssue',
-          attrs: {
-            issueId: createdIssue.id,
-            issueKey: createdIssue.identifier,
-            title: createdIssue.title,
-            type: createdIssue.type || 'task',
-            state: createdIssue.state,
-            priority: createdIssue.priority,
-            sourceBlockId: originalIssue?.sourceBlockId || null,
-            isNew: true,
-          },
-        });
-        // Add space between issues
-        issueNodes.push({ type: 'text', text: ' ' });
-      });
-
-      // Insert at stored position or end of document
-      const insertPos = extractionInsertPos ?? currentEditor.state.doc.content.size;
-      currentEditor.chain().focus().insertContentAt(insertPos, issueNodes).run();
-
-      toast.success(`Created ${createdIssues.length} issues`);
-      setExtractedIssues([]);
-      setShowExtractionPanel(false);
-      setExtractionInsertPos(null);
-    } catch (err) {
-      console.error('Failed to insert issues:', err);
-      toast.error('Failed to add issues to note');
-    }
-  }, [extractedIssues, extractionInsertPos, workspaceId, noteId]);
-
-  const handleDismissIssue = useCallback((issueId: string) => {
-    setExtractedIssues((prev) => prev.filter((i) => i.id !== issueId));
-  }, []);
+  }, [isChatViewOpen, handleChatViewOpen, onSave]);
 
   // Retry on error
   const handleRetry = useCallback(() => {
@@ -833,7 +505,7 @@ export const NoteCanvas = observer(function NoteCanvas({
             editor={editor}
             workspaceId={workspaceId}
             noteId={noteId}
-            onExtractIssue={handleExtractIssues}
+            onChatViewOpen={handleChatViewOpen}
           />
 
           {/* Editor Content - Responsive padding and width */}
@@ -863,232 +535,33 @@ export const NoteCanvas = observer(function NoteCanvas({
           </div>
         </div>
 
-        {/* Ask Pilot Input - Fixed at bottom of canvas */}
-        <AskPilotInput
-          noteId={noteId}
-          workspaceId={workspaceId}
-          onSubmit={async (question) => {
-            toast.info(
-              `Asking Pilot: "${question.substring(0, 50)}${question.length > 50 ? '...' : ''}"`
-            );
-            // TODO: Integrate with AI service
-          }}
-          className="border-t border-border"
-        />
+        {/* Chat trigger bar - opens ChatView sidebar */}
+        {!isChatViewOpen && (
+          <button
+            onClick={handleChatViewOpen}
+            className={cn(
+              'sticky bottom-0 w-full border-t border-border',
+              'bg-background/80 backdrop-blur-sm',
+              'px-4 py-2.5 text-left text-sm text-muted-foreground',
+              'hover:text-foreground hover:bg-muted/50 transition-colors'
+            )}
+            data-testid="chat-trigger"
+            aria-label="Open AI Chat"
+          >
+            <div className="max-w-[800px] mx-auto flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+              <span>Ask Pilot...</span>
+              <kbd className="ml-auto hidden sm:inline-flex items-center gap-0.5 rounded border bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                ⌘⇧P
+              </kbd>
+            </div>
+          </button>
+        )}
       </div>
 
-      {/* Right Panel: Issue Extraction or Pilot Suggestions */}
+      {/* Right Panel: ChatView Sidebar */}
       <AnimatePresence mode="wait">
-        {showExtractionPanel ? (
-          /* Issue Extraction Panel - Show when extracting issues */
-          <>
-            {isSmallScreen ? (
-              <>
-                {/* Backdrop */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
-                  onClick={() => setShowExtractionPanel(false)}
-                  aria-hidden="true"
-                />
-                {/* Slide-over panel */}
-                <motion.aside
-                  initial={{ x: '100%' }}
-                  animate={{ x: 0 }}
-                  exit={{ x: '100%' }}
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className={cn(
-                    'fixed inset-y-0 right-0 z-50 lg:hidden',
-                    'w-full max-w-[320px] sm:max-w-[360px]',
-                    'bg-background border-l border-border shadow-xl'
-                  )}
-                >
-                  {/* Close button for mobile */}
-                  <div className="absolute top-3 right-3 z-10">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setShowExtractionPanel(false)}
-                      className="h-8 w-8 rounded-full"
-                    >
-                      <X className="h-4 w-4" />
-                      <span className="sr-only">Close extraction panel</span>
-                    </Button>
-                  </div>
-                  <div className="h-full overflow-hidden">
-                    <IssueExtractionPanel
-                      issues={extractedIssues}
-                      isExtracting={isExtracting}
-                      onCreateIssue={handleCreateIssue}
-                      onCreateAll={handleCreateAllIssues}
-                      onDismiss={handleDismissIssue}
-                    />
-                  </div>
-                </motion.aside>
-              </>
-            ) : (
-              <motion.aside
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: isLargeDesktop ? 340 : 288, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className="hidden lg:flex flex-shrink-0 overflow-hidden border-l border-border"
-              >
-                <div className={cn('h-full', isLargeDesktop ? 'w-[340px]' : 'w-72')}>
-                  <div className="flex items-center justify-between p-2 border-b border-border">
-                    <span className="text-sm font-medium">Issue Extraction</span>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setShowExtractionPanel(false)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <IssueExtractionPanel
-                    issues={extractedIssues}
-                    isExtracting={isExtracting}
-                    onCreateIssue={handleCreateIssue}
-                    onCreateAll={handleCreateAllIssues}
-                    onDismiss={handleDismissIssue}
-                  />
-                </div>
-              </motion.aside>
-            )}
-          </>
-        ) : !isSuggestionsCollapsed ? (
-          /* Pilot Suggestions - Desktop sidebar or Mobile overlay */
-          <>
-            {/* Mobile/Tablet: Full-screen overlay */}
-            {isSmallScreen ? (
-              <>
-                {/* Backdrop */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
-                  onClick={() => setIsSuggestionsCollapsed(true)}
-                  aria-hidden="true"
-                />
-                {/* Slide-over panel */}
-                <motion.aside
-                  initial={{ x: '100%' }}
-                  animate={{ x: 0 }}
-                  exit={{ x: '100%' }}
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className={cn(
-                    'fixed inset-y-0 right-0 z-50 lg:hidden',
-                    'w-full max-w-[320px] sm:max-w-[360px]',
-                    'bg-background border-l border-border shadow-xl'
-                  )}
-                >
-                  {/* Close button for mobile */}
-                  <div className="absolute top-3 right-3 z-10">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setIsSuggestionsCollapsed(true)}
-                      className="h-8 w-8 rounded-full"
-                    >
-                      <X className="h-4 w-4" />
-                      <span className="sr-only">Close suggestions</span>
-                    </Button>
-                  </div>
-                  <div className="h-full overflow-hidden">
-                    <MarginAnnotations
-                      annotations={annotations}
-                      editor={editor}
-                      isCollapsed={isSuggestionsCollapsed}
-                      onToggleCollapse={() => setIsSuggestionsCollapsed(!isSuggestionsCollapsed)}
-                      onAnnotationClick={handleAnnotationClick}
-                      onAccept={handleAnnotationAccept}
-                      onReject={handleAnnotationReject}
-                      onDismiss={handleAnnotationDismiss}
-                    />
-                  </div>
-                </motion.aside>
-              </>
-            ) : (
-              /* Desktop: Side-by-side panel - wider on ultra-large screens */
-              <motion.aside
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: isLargeDesktop ? 340 : 288, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className="hidden lg:flex flex-shrink-0 overflow-hidden h-full"
-              >
-                <div
-                  className={cn('h-full overflow-hidden', isLargeDesktop ? 'w-[340px]' : 'w-72')}
-                >
-                  <MarginAnnotations
-                    annotations={annotations}
-                    editor={editor}
-                    isCollapsed={isSuggestionsCollapsed}
-                    onToggleCollapse={() => setIsSuggestionsCollapsed(!isSuggestionsCollapsed)}
-                    onAnnotationClick={handleAnnotationClick}
-                    onAccept={handleAnnotationAccept}
-                    onReject={handleAnnotationReject}
-                    onDismiss={handleAnnotationDismiss}
-                  />
-                </div>
-              </motion.aside>
-            )}
-          </>
-        ) : null}
-      </AnimatePresence>
-
-      {/* Collapsed Suggestions indicator - Responsive */}
-      {isSuggestionsCollapsed && (
-        <>
-          {/* Desktop: Vertical edge toggle */}
-          <div className="hidden lg:flex flex-shrink-0 border-l border-border bg-ai-muted/20">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsSuggestionsCollapsed(false)}
-                  className="h-full w-10 rounded-none text-ai hover:text-ai hover:bg-ai-muted/50"
-                >
-                  <span className="writing-mode-vertical text-xs font-medium">Suggestions</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="left">Show suggestions</TooltipContent>
-            </Tooltip>
-          </div>
-
-          {/* Mobile/Tablet: Floating action button */}
-          <div className="lg:hidden fixed bottom-20 right-4 z-30">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="default"
-                  size="icon"
-                  onClick={() => setIsSuggestionsCollapsed(false)}
-                  className={cn(
-                    'h-12 w-12 rounded-full shadow-lg',
-                    'bg-primary hover:bg-primary/90',
-                    'text-primary-foreground'
-                  )}
-                >
-                  <Sparkles className="h-5 w-5" />
-                  <span className="sr-only">Show suggestions</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="left">Show Pilot suggestions</TooltipContent>
-            </Tooltip>
-          </div>
-        </>
-      )}
-
-      {/* ChatView Sidebar - Toggleable right panel for conversational AI */}
-      <AnimatePresence mode="wait">
-        {isChatViewOpen && (
+        {isChatViewOpen ? (
           <>
             {isSmallScreen ? (
               <>
@@ -1127,7 +600,7 @@ export const NoteCanvas = observer(function NoteCanvas({
                     </Button>
                   </div>
                   <div className="h-full overflow-hidden">
-                    <ChatView store={aiStore.pilotSpace} />
+                    <ChatView store={aiStore.pilotSpace} autoFocus />
                   </div>
                 </motion.aside>
               </>
@@ -1146,36 +619,57 @@ export const NoteCanvas = observer(function NoteCanvas({
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <ChatView store={aiStore.pilotSpace} className="h-[calc(100%-48px)]" />
+                  <ChatView store={aiStore.pilotSpace} autoFocus className="h-[calc(100%-48px)]" />
                 </div>
               </motion.aside>
             )}
           </>
-        )}
+        ) : null}
       </AnimatePresence>
 
-      {/* ChatView Toggle Button - Floating action button */}
+      {/* Collapsed ChatView indicator */}
       {!isChatViewOpen && (
-        <div className="fixed bottom-4 right-4 z-30">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="default"
-                size="icon"
-                onClick={() => setIsChatViewOpen(true)}
-                className={cn(
-                  'h-12 w-12 rounded-full shadow-lg',
-                  'bg-primary hover:bg-primary/90',
-                  'text-primary-foreground'
-                )}
-              >
-                <MessageSquare className="h-5 w-5" />
-                <span className="sr-only">Open ChatView</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">Open PilotSpace AI (Cmd+Shift+P)</TooltipContent>
-          </Tooltip>
-        </div>
+        <>
+          {/* Desktop: Vertical edge toggle */}
+          <div className="hidden lg:flex flex-shrink-0 border-l border-border bg-ai-muted/20">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleChatViewOpen}
+                  className="h-full w-10 rounded-none text-ai hover:text-ai hover:bg-ai-muted/50"
+                >
+                  <span className="writing-mode-vertical text-xs font-medium">AI Chat</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">Open PilotSpace AI (Cmd+Shift+P)</TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Mobile/Tablet: Floating action button */}
+          <div className="lg:hidden fixed bottom-4 right-4 z-30">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="default"
+                  size="icon"
+                  data-testid="chat-fab-button"
+                  onClick={handleChatViewOpen}
+                  className={cn(
+                    'h-12 w-12 rounded-full shadow-lg',
+                    'bg-primary hover:bg-primary/90',
+                    'text-primary-foreground'
+                  )}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  <span className="sr-only">Open ChatView</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">Open PilotSpace AI (Cmd+Shift+P)</TooltipContent>
+            </Tooltip>
+          </div>
+        </>
       )}
     </div>
   );

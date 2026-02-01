@@ -3,17 +3,24 @@
 /**
  * SelectionToolbar - Floating toolbar on text selection
  * Provides formatting and AI actions
+ *
+ * Integrated with PilotSpace AI for selection-based actions:
+ * - Ask Pilot: Opens ChatView with selection context
+ * - Enhance: Improves selected text with AI
+ * - Extract Issues: Extracts actionable items from selection
  */
 import { useCallback, useEffect, useState, useRef } from 'react';
 import type { Editor } from '@tiptap/react';
 import { observer } from 'mobx-react-lite';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bold, Italic, Link2, MessageSquare, Wand2, FileText, TicketPlus } from 'lucide-react';
+import { Bold, Italic, Link2, MessageSquare, Wand2, TicketPlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useSelectionAIActions } from '@/features/notes/editor/hooks/useSelectionAIActions';
+import { getAIStore } from '@/stores/ai/AIStore';
 
 export interface SelectionToolbarProps {
   /** TipTap editor instance */
@@ -22,8 +29,8 @@ export interface SelectionToolbarProps {
   workspaceId?: string;
   /** Note ID for AI actions */
   noteId?: string;
-  /** Callback to trigger issue extraction */
-  onExtractIssue?: (selectedText: string) => void;
+  /** Callback to open ChatView */
+  onChatViewOpen?: () => void;
 }
 
 interface ToolbarPosition {
@@ -37,12 +44,21 @@ interface ToolbarPosition {
 export const SelectionToolbar = observer(function SelectionToolbar({
   editor,
   workspaceId: _workspaceId,
-  noteId: _noteId,
-  onExtractIssue,
+  noteId,
+  onChatViewOpen,
 }: SelectionToolbarProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState<ToolbarPosition>({ top: 0, left: 0 });
   const toolbarRef = useRef<HTMLDivElement>(null);
+
+  // Get AI store and selection actions
+  const aiStore = getAIStore();
+  const { askPilot, enhanceSelection, extractIssues } = useSelectionAIActions(
+    editor,
+    aiStore.pilotSpace,
+    noteId || '',
+    onChatViewOpen
+  );
 
   // Calculate toolbar position
   const updatePosition = useCallback(() => {
@@ -114,44 +130,22 @@ export const SelectionToolbar = observer(function SelectionToolbar({
     console.log('Add comment');
   }, []);
 
-  // AI actions
-  const improveText = useCallback(async () => {
-    if (!editor) return;
-
-    const selectedText = editor.state.doc.textBetween(
-      editor.state.selection.from,
-      editor.state.selection.to
-    );
-
-    // This would call the AI service
-    console.log('Improve text:', selectedText);
-  }, [editor]);
-
-  const summarizeText = useCallback(async () => {
-    if (!editor) return;
-
-    const selectedText = editor.state.doc.textBetween(
-      editor.state.selection.from,
-      editor.state.selection.to
-    );
-
-    // This would call the AI service
-    console.log('Summarize:', selectedText);
-  }, [editor]);
-
-  const extractIssue = useCallback(async () => {
-    if (!editor) return;
-
-    const selectedText = editor.state.doc.textBetween(
-      editor.state.selection.from,
-      editor.state.selection.to
-    );
-
-    if (onExtractIssue) {
-      onExtractIssue(selectedText);
-    }
+  // AI actions - Wire to new hooks
+  const handleAskPilot = useCallback(async () => {
+    await askPilot();
     setIsVisible(false);
-  }, [editor, onExtractIssue]);
+  }, [askPilot]);
+
+  const handleEnhance = useCallback(async () => {
+    await enhanceSelection();
+    setIsVisible(false);
+  }, [enhanceSelection]);
+
+  const handleExtractIssues = useCallback(async () => {
+    // Use new AI-based extraction
+    await extractIssues();
+    setIsVisible(false);
+  }, [extractIssues]);
 
   if (!editor) return null;
 
@@ -177,6 +171,7 @@ export const SelectionToolbar = observer(function SelectionToolbar({
           )}
           role="toolbar"
           aria-label="Text formatting toolbar"
+          data-testid="selection-toolbar"
         >
           {/* Formatting actions */}
           <Tooltip>
@@ -232,19 +227,35 @@ export const SelectionToolbar = observer(function SelectionToolbar({
 
           <Separator orientation="vertical" className="mx-1 h-6" />
 
-          {/* AI actions */}
+          {/* AI actions - Integrated with PilotSpace */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ai-subtle"
                 size="icon-sm"
-                onClick={improveText}
-                aria-label="Improve with AI"
+                data-testid="ask-pilot-button"
+                onClick={handleAskPilot}
+                aria-label="Ask Pilot"
+              >
+                <MessageSquare className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Ask Pilot about selection</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ai-subtle"
+                size="icon-sm"
+                data-testid="enhance-button"
+                onClick={handleEnhance}
+                aria-label="Enhance with AI"
               >
                 <Wand2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Improve with AI</TooltipContent>
+            <TooltipContent>Enhance with AI</TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -252,27 +263,14 @@ export const SelectionToolbar = observer(function SelectionToolbar({
               <Button
                 variant="ai-subtle"
                 size="icon-sm"
-                onClick={summarizeText}
-                aria-label="Summarize"
-              >
-                <FileText className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Summarize</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ai-subtle"
-                size="icon-sm"
-                onClick={extractIssue}
-                aria-label="Extract issue"
+                data-testid="extract-issues-button"
+                onClick={handleExtractIssues}
+                aria-label="Extract issues"
               >
                 <TicketPlus className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Extract as issue</TooltipContent>
+            <TooltipContent>Extract actionable issues</TooltipContent>
           </Tooltip>
         </motion.div>
       )}
