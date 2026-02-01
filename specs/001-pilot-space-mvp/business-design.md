@@ -1,17 +1,38 @@
 # Pilot Space Business Design Specification
 
-**Version**: 1.0
-**Date**: 2026-01-23
-**Status**: Draft
-**References**: PROJECT_VISION.md, DESIGN_DECISIONS.md (DD-001 to DD-085), AI_CAPABILITIES.md, spec.md v3.2
+**Version**: 2.0.0
+**Date**: 2026-02-01
+**Status**: Active
+**References**: PROJECT_VISION.md, DESIGN_DECISIONS.md (DD-001 to DD-088), AI_CAPABILITIES.md, spec.md v3.2, feature-story-mapping.md
 
 ---
 
-## Executive Summary
+## Table of Contents
+
+1. [Executive Summary](#1-executive-summary)
+2. [Market Positioning Analysis](#2-market-positioning-analysis)
+3. [Value Proposition Canvas](#3-value-proposition-canvas)
+4. [Target Customer Definition](#4-target-customer-definition)
+5. [User Journey Maps](#5-user-journey-maps)
+6. [Business Model Design](#6-business-model-design)
+7. [Feature-Business Mapping](#7-feature-business-mapping)
+8. [Go-to-Market Strategy](#8-go-to-market-strategy)
+9. [Success Metrics Framework](#9-success-metrics-framework)
+10. [Business Rules Matrix](#10-business-rules-matrix)
+11. [Competitive Moat Analysis](#11-competitive-moat-analysis)
+12. [Integration Strategy](#12-integration-strategy)
+13. [Risk Assessment & Mitigations](#13-risk-assessment--mitigations)
+14. [Success Playbook](#14-success-playbook)
+15. [Business Model Canvas](#15-business-model-canvas)
+16. [Document Cross-References](#16-document-cross-references)
+
+---
+
+## 1. Executive Summary
 
 ### Strategic Position
 
-Pilot Space creates a new category: **"AI Writing Partner for Software Development Teams"**—attacking the fundamental assumption that structure should precede thinking in project management.
+Pilot Space creates a new category: **"AI Writing Partner for Software Development Teams"** -- attacking the fundamental assumption that structure should precede thinking in project management.
 
 ### Key Strategic Decisions
 
@@ -19,10 +40,21 @@ Pilot Space creates a new category: **"AI Writing Partner for Software Developme
 |----------|--------|-----------|
 | **Category** | "AI Writing Partner for Dev Teams" | DD-013 |
 | **Pricing Model** | Support Tiers Only (all features free) | DD-010 |
-| **AI Orchestration** | Claude Agent SDK (BYOK: Anthropic + OpenAI required) | DD-002, DD-058 |
+| **AI Orchestration** | 1 PilotSpaceAgent + 3 subagents + 8 skills + 6 MCP Note Tools | DD-086, DD-087, DD-088 |
 | **GTM** | Developer community-first PLG | PS-001 |
-| **North Star** | Weekly Active Writing Minutes | SC-010 |
-| **MVP Scope** | 18 User Stories, 123 FRs | spec.md v3.1 |
+| **North Star** | Weekly Active Writing Minutes (WAWM) | SC-010 |
+| **MVP Scope** | 18 User Stories, 123 FRs | spec.md v3.2 |
+| **BYOK Model** | Anthropic + OpenAI required, Gemini recommended | DD-002, DD-058 |
+
+### AI Architecture (DD-086/087/088)
+
+| Component | Count | Purpose |
+|-----------|-------|---------|
+| PilotSpaceAgent orchestrator | 1 | Multi-turn conversational agent via Claude Agent SDK |
+| Subagents | 3 | PRReview, AIContext, DocGenerator (streaming SDK base) |
+| Skills | 8 | One-shot structured tasks (extract-issues, improve-writing, etc.) |
+| GhostText agent | 1 | Independent fast path, <2s latency |
+| MCP Note Tools | 6 | update_note_block, enhance_text, summarize_note, extract_issues, create_issue_from_note, link_existing_issues |
 
 ### 90-Day Priority
 
@@ -30,27 +62,25 @@ Validate "Note-First" resonance with 50 teams through closed beta before buildin
 
 ---
 
-## 1. Market Positioning Analysis
+## 2. Market Positioning Analysis
 
-### 1.1 Competitive Landscape
+### 2.1 Competitive Landscape
 
 ```
                     HIGH STRUCTURE
-                         │
-              Jira ──────┼────── Height
-              │          │          │
-              │          │          │
-    ENTERPRISE ─────────────────────────── STARTUP
-              │          │          │
-              │          │          │
-           Notion ───────┼────── Linear
-                         │
+                         |
+              Jira ------+------ Height
+              |          |          |
+    ENTERPRISE -----------------------  STARTUP
+              |          |          |
+           Notion -------+------ Linear
+                         |
                     LOW STRUCTURE
 
-    Pilot Space enters: HIGH AI × LOW INITIAL STRUCTURE
+    Pilot Space enters: HIGH AI x LOW INITIAL STRUCTURE
 ```
 
-### 1.2 Competitive Analysis
+### 2.2 Competitive Analysis
 
 | Tool | Strengths | Weaknesses | Pilot Space Advantage |
 |------|-----------|------------|----------------------|
@@ -60,26 +90,25 @@ Validate "Note-First" resonance with 50 teams through closed beta before buildin
 | **GitHub Projects** | Tight VCS integration | Limited PM features | Full PM + AI + multi-VCS |
 | **Notion** | Flexible docs + tasks | Not built for SDLC | SDLC-specific AI assistance |
 
-*Source: PROJECT_VISION.md - Competitive Positioning*
-
-### 1.3 Unique Differentiators (Defensibility Analysis)
+### 2.3 Unique Differentiators (Defensibility Analysis)
 
 | Differentiator | Defensibility | Why Hard to Copy |
 |----------------|---------------|------------------|
 | **Note-First Workflow** | HIGH | Requires complete product rethink, not a feature add-on |
 | **Embedded AI Partner** | MEDIUM | Others can add AI, but bolted-on feels different than native |
-| **Ghost Text @ 500ms** | HIGH | Deep TipTap integration + context assembly is complex |
-| **Claude Agent SDK Orchestrator** | HIGH | 9 primary agents (16 total with helpers) via MCP tools (DD-058) |
-| **16 AI Capabilities** | HIGH | Unified orchestration layer vs. bolted-on AI |
+| **Ghost Text @ 500ms** | HIGH | Deep TipTap integration + context assembly is complex (DD-067) |
+| **PilotSpaceAgent Orchestrator** | HIGH | 1 orchestrator + 3 subagents + 8 skills via MCP tools (DD-086) |
+| **6 MCP Note Tools** | HIGH | Unified note manipulation layer vs. bolted-on AI (DD-088) |
+| **Session Persistence** | HIGH | Multi-turn context builds relationship with AI (DD-086) |
 
-*Reference: DD-013 (Note-First), DD-002 (Claude Agent SDK), DD-058 (Agent Architecture)*
+*Reference: DD-013, DD-002, DD-086, DD-087, DD-088*
 
-### 1.4 Category Creation
+### 2.4 Category Creation
 
 **Current Categories** (avoid):
-- "Project Management" (Jira) — too broad, commodity
-- "Issue Tracker" (Linear) — too narrow, feature war
-- "Team Knowledge" (Notion) — adjacent, not competitive
+- "Project Management" (Jira) -- too broad, commodity
+- "Issue Tracker" (Linear) -- too narrow, feature war
+- "Team Knowledge" (Notion) -- adjacent, not competitive
 
 **Pilot Space Category**: **"AI Writing Partner for Development Teams"**
 
@@ -88,46 +117,37 @@ This reframes competition entirely:
 - Competing on *how developers think and create*
 - Note Canvas as home, not dashboard (DD-013)
 
-### 1.5 Positioning Statement
+### 2.5 Positioning Statement
 
 > For software development teams (5-100 engineers) frustrated with form-heavy ticketing systems, **Pilot Space is the AI writing partner** that lets you think first and structure later, unlike Linear or Jira which impose templates before you've figured out what to build, because our Note-First workflow with embedded AI turns rough thinking into refined issues automatically.
 
 ---
 
-## 2. Value Proposition Canvas
+## 3. Value Proposition Canvas
 
-### 2.1 Customer Jobs-to-Be-Done
+### 3.1 Customer Jobs-to-Be-Done
 
 | Type | Job | Pilot Space Feature |
 |------|-----|---------------------|
-| **Functional** | Plan sprints, track issues, review PRs, document decisions | Cycles, Issues, AI PR Review, Notes |
-| **Functional** | Get implementation context quickly | AI Context (PS-017) |
+| **Functional** | Plan sprints, track issues, review PRs | Cycles, Issues, AI PR Review |
+| **Functional** | Get implementation context quickly | AI Context (US-12) |
+| **Functional** | Refine rough ideas into actionable work | Note-First + extract_issues tool |
 | **Emotional** | Feel in control of chaotic projects | Note-First clarity |
-| **Emotional** | Reduce anxiety of missing things | AI duplicate detection |
+| **Emotional** | Reduce anxiety of missing things | AI duplicate detection (find-duplicates skill) |
 | **Social** | Look organized to stakeholders | Module progress tracking |
 | **Social** | Demonstrate team velocity | Sprint analytics |
 
-### 2.2 Customer Pains (Current Alternatives)
+### 3.2 Customer Pains & Relievers
 
-| Pain | Severity | Evidence | Pilot Space Solution |
-|------|----------|----------|---------------------|
-| Form fatigue before thinking | HIGH | Teams skip issue creation, work from Slack | Note Canvas home (DD-013) |
-| Context switching | HIGH | Notion + Linear = fragmented workflow | Unified workspace |
-| AI feels bolted-on | MEDIUM | GitHub Copilot for code, nothing for planning | Ghost text in context (FR-013) |
-| Ticket graveyards | HIGH | "Let's declare bankruptcy" | AI cleanup suggestions |
-| Duplication | MEDIUM | Similar issues filed unknowingly | 70%+ similarity detection (FR-024) |
+| Pain | Severity | Pilot Space Solution | Reference |
+|------|----------|---------------------|-----------|
+| Form fatigue before thinking | HIGH | Start with blank note, AI suggests structure | DD-013 |
+| Context switching | HIGH | Notes -> Issues in same canvas | FR-017, FR-018 |
+| AI feels bolted-on | MEDIUM | Ghost text after 500ms, 6 MCP Note Tools | DD-067, DD-088 |
+| Ticket graveyards | HIGH | AI flags dormant issues, suggests cleanup | AIContext subagent |
+| Duplication | MEDIUM | 70%+ similarity detection via find-duplicates skill | FR-024, DD-087 |
 
-### 2.3 Pain Relievers
-
-| Customer Pain | Pilot Space Feature | Reference |
-|---------------|---------------------|-----------|
-| Form fatigue | Start with blank note, AI suggests structure | DD-013 |
-| Context switching | Notes → Issues in same canvas | FR-017, FR-018 |
-| Bolted-on AI | Ghost text after 500ms pause | FR-013, FR-014 |
-| Stale tickets | AI flags dormant issues, suggests cleanup | AI Context Agent |
-| Duplication | 0.70+ similarity threshold detection | FR-024 |
-
-### 2.4 Gain Creators
+### 3.3 Gain Creators
 
 | Customer Gain | Pilot Space Feature | Metric |
 |---------------|---------------------|--------|
@@ -135,81 +155,147 @@ This reframes competition entirely:
 | Contextual AI | RAG over project history, code, docs | SC-006: <2s search |
 | Single tool | Note-First workflow end-to-end | NFR-014: 2-3 services |
 | Fewer meetings | Async AI-enriched docs | SC-005: 30% planning reduction |
+| AI trust | Human-in-the-loop approval model | DD-003: Critical-only approval |
 
 ---
 
-## 3. Target Customer Definition
+## 4. Target Customer Definition
 
-### 3.1 Ideal Customer Profile (ICP)
+### 4.1 Ideal Customer Profile (ICP)
 
-| Attribute | Specification | Rationale | Reference |
-|-----------|---------------|-----------|-----------|
-| **Team Size** | 5-100 engineers | Per workspace assumption | spec.md Assumptions #8 |
-| **Issue Volume** | Up to 50,000 issues | MVP scale target | spec.md Assumptions #9 |
-| **Stage** | Series A - C | Budget exists, decisions move fast | - |
-| **Tech Stack** | GitHub-centric | Primary integration (DD-004) | DD-004 |
-| **Culture** | Documentation-valued | Note-First requires writing culture | - |
-| **Current Pain** | Jira refugees OR Notion+Linear splitters | Validated frustration | - |
+| Attribute | Specification | Rationale |
+|-----------|---------------|-----------|
+| **Team Size** | 5-100 engineers | Per workspace assumption (spec.md #8) |
+| **Issue Volume** | Up to 50,000 issues | MVP scale target (spec.md #9) |
+| **Stage** | Series A - C | Budget exists, decisions move fast |
+| **Tech Stack** | GitHub-centric | Primary integration (DD-004) |
+| **Culture** | Documentation-valued | Note-First requires writing culture |
+| **Current Pain** | Jira refugees OR Notion+Linear splitters | Validated frustration |
 
-### 3.2 Buyer Personas
+### 4.2 Buyer Personas
 
-#### Persona 1: Engineering Manager (Primary Buyer)
+**Sarah -- Engineering Manager (Primary Buyer)**
 
 | Attribute | Detail |
 |-----------|--------|
 | **Title** | Engineering Manager, 5-15 direct reports |
-| **Age** | 28-38 |
 | **Motivations** | Reduce meeting overhead, demonstrate velocity to leadership |
 | **Objections** | "Another tool? My team just learned Linear" |
-| **Trigger Event** | New quarter planning reveals stale backlog |
 | **Success Criteria** | Sprint planning in 30% less time (SC-005) |
-| **Pilot Space Value** | AI task decomposition, AI sprint assistant |
+| **Key Features** | AI task decomposition (decompose-tasks skill), sprint analytics |
 
-#### Persona 2: Tech Lead (Champion)
+**Marcus -- Tech Lead (Champion)**
 
 | Attribute | Detail |
 |-----------|--------|
 | **Title** | Staff Engineer / Tech Lead |
-| **Age** | 30-42 |
 | **Motivations** | Spend time on architecture, not ticket grooming |
 | **Objections** | "AI will suggest wrong things, create cleanup work" |
-| **Trigger Event** | Spent 4 hours on RFC that should've been 1 |
 | **Success Criteria** | AI PR Review saves 50% review time (SC-003: <5 min) |
-| **Pilot Space Value** | AI PR Review (DD-006), AI Context (PS-017) |
+| **Key Features** | PRReview subagent (DD-006), AIContext subagent (US-12) |
 
-#### Persona 3: CTO/VP Engineering (Decision Maker)
+**Elena -- Product Manager (Stakeholder)**
 
 | Attribute | Detail |
 |-----------|--------|
-| **Title** | CTO or VP Engineering |
-| **Age** | 32-45 |
-| **Motivations** | Team productivity, modern tooling as recruiting signal |
-| **Objections** | "Can't migrate 2 years of Jira history" |
-| **Trigger Event** | Lost candidate who asked "Do you still use Jira?" |
-| **Success Criteria** | NPS > 50 for internal tools (SC-011: 4.0/5.0) |
-| **Pilot Space Value** | Open source, BYOK cost control |
+| **Title** | Product Manager / Technical PM |
+| **Motivations** | Visibility into team progress, async planning |
+| **Objections** | "Can I still do sprint planning my way?" |
+| **Success Criteria** | Planning time reduced 30%, velocity visible |
+| **Key Features** | Cycles, modules, summarize skill, extract-issues skill |
 
-### 3.3 Anti-Personas (Do Not Target)
+**Dev -- Junior Developer (End User)**
 
-| Profile | Why Exclude | Reference |
-|---------|-------------|-----------|
-| **Enterprise 500+** | Procurement cycles, legacy integration | Phase 3 |
-| **Solo developers** | No collaboration value, free tier abuse | - |
-| **Non-technical teams** | Won't value GitHub integration | DD-004 |
-| **Highly regulated** | BYOK + cloud AI = compliance complexity | Assumptions #11 |
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Software Engineer, 1-3 years experience |
+| **Motivations** | Get implementation guidance, understand codebase |
+| **Objections** | "Is the AI actually helpful or just noise?" |
+| **Success Criteria** | AI Context provides useful guidance on every issue |
+| **Key Features** | AIContext subagent, Claude Code prompts, ghost text |
+
+### 4.3 Anti-Personas (Do Not Target)
+
+| Profile | Why Exclude |
+|---------|-------------|
+| **Enterprise 500+** | Procurement cycles, legacy integration (Phase 3) |
+| **Solo developers** | No collaboration value, free tier abuse |
+| **Non-technical teams** | Won't value GitHub integration (DD-004) |
+| **Highly regulated** | BYOK + cloud AI = compliance complexity |
 
 ---
 
-## 4. Business Model Design
+## 5. User Journey Maps
 
-### 4.1 Pricing Philosophy: Support Tiers Only
+### 5.1 Sarah (Architect) -- Architecture Decision Flow
+
+| Step | Action | Feature Used | AI Involvement |
+|------|--------|-------------|----------------|
+| 1 | Opens Pilot Space | Notes home (DD-013) | None |
+| 2 | Creates note "API Gateway Decision" | Note canvas | AI greeting + templates (DD-016) |
+| 3 | Writes analysis of options | TipTap editor | Ghost text suggests completions (DD-067) |
+| 4 | Reviews margin annotations | MarginAnnotationPanel | AI suggests considerations she missed |
+| 5 | Shares note, team adds threaded comments | Note collaboration | None (async refinement) |
+| 6 | Requests issue extraction | extract_issues MCP tool | AI identifies 3 action items from note |
+| 7 | Reviews and approves extracted issues | Issue approval flow | Human-in-the-loop (DD-003) |
+| 8 | Opens issue, generates AI Context | AIContext subagent (US-12) | Related docs, code refs, Claude Code prompts |
+| 9 | Team submits PR | GitHub integration (US-18) | Auto-linked via commit message |
+| 10 | Reviews PR with AI assistance | PRReview subagent (DD-006) | Architecture + security + quality review |
+
+**Outcome**: Architecture decision captured, issues tracked, PR reviewed -- all from a single note.
+
+### 5.2 Marcus (Tech Lead) -- Issue Resolution Flow
+
+| Step | Action | Feature Used | AI Involvement |
+|------|--------|-------------|----------------|
+| 1 | Opens issue PS-42 "Optimize API latency" | Issue detail view | None |
+| 2 | Generates AI Context | AIContext subagent | Related notes, code refs, similar issues |
+| 3 | Copies Claude Code prompts | ClaudeCodePromptPanel | Pre-formatted implementation prompts |
+| 4 | Decomposes into subtasks | decompose-tasks skill (DD-087) | AI suggests 4 subtasks with estimates |
+| 5 | Assigns subtasks to team | Issue management | recommend-assignee skill suggests assignees |
+| 6 | Reviews incoming PR | PRReview subagent | Severity-tagged inline comments |
+| 7 | Checks sprint burndown | CycleBoard (US-04) | None |
+| 8 | PR merged, issue auto-completes | GitHub integration (DD-084) | Auto state transition |
+
+**Outcome**: Complex issue decomposed, delegated, reviewed, and completed with AI assistance at every step.
+
+### 5.3 Elena (PM) -- Sprint Planning Flow
+
+| Step | Action | Feature Used | AI Involvement |
+|------|--------|-------------|----------------|
+| 1 | Opens note "Sprint 12 Planning" | Note canvas | None |
+| 2 | Writes sprint goals and priorities | TipTap editor | Ghost text + improve-writing skill |
+| 3 | Extracts issues from planning note | extract_issues MCP tool | AI identifies 8 action items |
+| 4 | Moves issues to cycle board | CycleBoard (US-04) | None |
+| 5 | Reviews velocity and capacity | VelocityChart | Historical data from last 6 cycles |
+| 6 | Generates sprint summary | summarize skill | AI condenses goals for stakeholder update |
+| 7 | Shares via Slack | Slack integration (US-09) | Formatted rich block message |
+
+**Outcome**: Sprint planned in 30% less time, stakeholders informed asynchronously.
+
+### 5.4 Dev (Junior) -- Implementation Flow
+
+| Step | Action | Feature Used | AI Involvement |
+|------|--------|-------------|----------------|
+| 1 | Assigned issue PS-99 "Fix login timeout" | Notification (US-17) | AI-prioritized notification |
+| 2 | Opens issue, reads AI Context | AIContext subagent | Related code, docs, similar resolved issues |
+| 3 | Copies Claude Code prompts | ClaudeCodePromptPanel | Implementation guidance |
+| 4 | Reads linked notes for background | Note -> Issue links | None |
+| 5 | Submits PR | GitHub integration | Auto-linked to PS-99 |
+| 6 | AI reviews PR automatically | PRReview subagent | Inline feedback with fix suggestions |
+| 7 | Addresses review comments, PR merged | GitHub integration | Issue auto-transitions to Completed |
+
+**Outcome**: Junior developer gets senior-level guidance through AI Context, reduces ramp-up time.
+
+---
+
+## 6. Business Model Design
+
+### 6.1 Pricing Philosophy: Support Tiers Only
 
 **Critical Decision (DD-010)**: All features are 100% free. Paid tiers are for **support and SLA only**.
 
-> "Self-hosted is always 100% free with full features. Paid tiers are for support and SLA guarantees only. No feature gating based on payment."
-> — DD-010: Support Tiers Pricing Model
-
-### 4.2 Pricing Tiers
+### 6.2 Pricing Tiers
 
 | Tier | Price | Support Level | SLA |
 |------|-------|---------------|-----|
@@ -218,59 +304,36 @@ This reframes competition entirely:
 | **Business Support** | $18/seat/month | Priority support, dedicated Slack | 24h response |
 | **Enterprise** | Custom | Dedicated support, consulting | Custom SLA |
 
-*Source: DD-010, PROJECT_VISION.md*
-
-### 4.3 Feature Availability (All Tiers)
-
-**All features are available to all users, including self-hosted Community Edition:**
-
-| Feature | Community | Pro | Business | Enterprise |
-|---------|-----------|-----|----------|------------|
-| Note-First Canvas (18 scenarios) | ✅ | ✅ | ✅ | ✅ |
-| AI Issue Enhancement | ✅ | ✅ | ✅ | ✅ |
-| AI PR Review (DD-006) | ✅ | ✅ | ✅ | ✅ |
-| AI Task Decomposition | ✅ | ✅ | ✅ | ✅ |
-| AI Context (PS-017) | ✅ | ✅ | ✅ | ✅ |
-| Semantic Search | ✅ | ✅ | ✅ | ✅ |
-| GitHub Integration (DD-004) | ✅ | ✅ | ✅ | ✅ |
-| Slack Integration (DD-004) | ✅ | ✅ | ✅ | ✅ |
-| Knowledge Graph (DD-037) | ✅ | ✅ | ✅ | ✅ |
-| Basic RBAC (DD-007) | ✅ | ✅ | ✅ | ✅ |
-| SSO (SAML 2.0) | ✅ | ✅ | ✅ | ✅ |
-
-*Source: PILOT_SPACE_FEATURES.md - Subscription Tiers*
-
-### 4.4 BYOK Model Economics
+### 6.3 BYOK Model Economics
 
 **API Key Requirements (DD-002, DD-058)**:
 
-| Provider | Status | Use Case |
-|----------|--------|----------|
-| **Anthropic** | Required | Claude Agent SDK orchestration for all agentic tasks |
-| **OpenAI** | Required | Embeddings (3072-dim text-embedding-3-large) |
-| **Google Gemini** | Recommended | Ghost text, margin annotations (low latency) |
-| **Azure OpenAI** | Optional | Enterprise data residency |
+| Provider | Status | Use Case | Cost per 1M tokens |
+|----------|--------|----------|---------------------|
+| **Anthropic** | Required | PilotSpaceAgent orchestration, subagents, skills | Opus: $15 in / $75 out; Sonnet: $3/$15; Haiku: $0.25/$1.25 |
+| **OpenAI** | Required | Embeddings (3072-dim text-embedding-3-large) | $0.13/1M tokens |
+| **Google Gemini** | Recommended | Ghost text, margin annotations (low latency) | Flash: $0.10/1M; Pro: $1.25/1M |
 
-*Source: AI_CAPABILITIES.md, DD-002, DD-058*
+**Estimated AI Cost Per User Per Month (BYOK)**:
 
-**Cost Structure (per 1,000 active users)**:
+| Usage Tier | Monthly AI Cost | Breakdown |
+|------------|-----------------|-----------|
+| **Light** (5 notes/week, 10 ghost texts/day) | ~$2 | Haiku for skills, Flash for ghost text |
+| **Medium** (15 notes/week, 30 ghost texts/day, 2 PR reviews) | ~$8 | Mix of Sonnet + Haiku + Flash |
+| **Heavy** (30+ notes/week, 50 ghost texts/day, 5 PR reviews, AIContext daily) | ~$20 | Sonnet-heavy, multiple subagent calls |
 
-| Cost Center | Monthly | Notes |
-|-------------|---------|-------|
-| Infrastructure (Supabase) | $2,000 | Scales with storage/compute |
-| AI API costs | $0 | BYOK - user pays directly |
-| Support | $1,500 | 1 support engineer per 1,000 |
-| Development | $15,000 | 3 engineers amortized |
+**Infrastructure Cost Scaling**:
 
-**BYOK Advantage**: Gross margins remain 80%+ regardless of AI usage intensity.
+| Users | Infrastructure/mo | Support/mo | Total Operational/mo | Break-Even MRR |
+|-------|-------------------|-----------|----------------------|----------------|
+| 100 | $500 | $0 | $500 | 50 paid seats |
+| 1,000 | $2,000 | $1,500 | $3,500 | 250 paid seats |
+| 5,000 | $6,000 | $4,500 | $10,500 | 750 paid seats |
+| 10,000 | $10,000 | $7,500 | $17,500 | 1,250 paid seats |
 
-### 4.5 Revenue Projections (24 Months)
+**BYOK Advantage**: Gross margins remain 80%+ regardless of AI usage intensity. Zero AI API cost exposure.
 
-**Assumptions**:
-- Launch beta Q1 2026, GA Q2 2026
-- 5% MoM growth post-launch
-- 15% free-to-paid support tier conversion
-- $14 blended ARPU (mix of Pro/Business support)
+### 6.4 Revenue Projections (24 Months)
 
 | Quarter | Users | Paid Support | MRR | ARR |
 |---------|-------|--------------|-----|-----|
@@ -283,13 +346,34 @@ This reframes competition entirely:
 | Q7 | 12,000 | 1,800 | $25,200 | $302K |
 | Q8 | 18,000 | 2,700 | $37,800 | $454K |
 
-**Year 1 ARR**: ~$63K | **Year 2 ARR**: ~$454K
+*Assumptions: 5% MoM growth, 15% free-to-paid conversion, $14 blended ARPU*
 
 ---
 
-## 5. Go-to-Market Strategy
+## 7. Feature-Business Mapping
 
-### 5.1 Launch Phases
+| Feature | Business Value | Metric Impact | Revenue Impact | User Story |
+|---------|---------------|---------------|----------------|------------|
+| **Note-First Canvas** | Category differentiator | WAWM +40% | Activation +25% | US-01 |
+| **Ghost Text** | Productivity booster | Time saved 30% | Retention +15% | US-01 |
+| **Issue Extraction** (MCP tool) | Workflow automation | Issues/user +60% | Activation +20% | US-01, US-02 |
+| **AI PR Review** (subagent) | Quality assurance | Review time -50% | Expansion +10% | US-03 |
+| **AI Context** (subagent) | Implementation velocity | Task completion +35% | Retention +20% | US-12 |
+| **Sprint Planning** | Team coordination | Planning time -30% | Team adoption +25% | US-04 |
+| **Human-in-the-Loop** | Trust building | AI acceptance +40% | NPS +15 | DD-003 |
+| **BYOK Model** | Cost transparency | Margin 80%+ | Enterprise appeal | DD-002 |
+| **MCP Note Tools** (6 tools) | Extensibility | Developer adoption +30% | Platform effect | DD-088 |
+| **Skill System** (8 skills) | AI depth | Feature coverage +60% | Differentiation | DD-087 |
+| **Session Persistence** | Conversation quality | Multi-turn satisfaction +45% | Retention +10% | DD-086 |
+| **Knowledge Graph** | Discovery value | Cross-reference usage +50% | Stickiness +20% | US-14 |
+| **GitHub Integration** | Developer workflow center | PR automation 95% | Activation +15% | US-18 |
+| **Slack Integration** | Team bridge | Notification delivery 99% | Team adoption +10% | US-09 |
+
+---
+
+## 8. Go-to-Market Strategy
+
+### 8.1 Launch Phases
 
 | Phase | Duration | Focus | Success Metric |
 |-------|----------|-------|----------------|
@@ -298,7 +382,7 @@ This reframes competition entirely:
 | **Public Beta** | Ongoing | Open signups, PLG motion | 500 WAU |
 | **GA** | Q2 2026 | Support tiers enforced | $5K MRR |
 
-### 5.2 Acquisition Channels
+### 8.2 Acquisition Channels
 
 | Channel | CAC Estimate | Priority | Rationale |
 |---------|--------------|----------|-----------|
@@ -309,41 +393,30 @@ This reframes competition entirely:
 | **Referral program** | $75 | P1 | "Give a month, get a month" |
 | **Paid search** | $150 | P2 | Post-PMF scale only |
 
-### 5.3 Activation Metrics
+### 8.3 Activation Metrics
 
-**Aha Moment**: User accepts 3+ ghost text suggestions in first note
+**Aha Moment**: User accepts 3+ ghost text suggestions in first note.
 
 **Activation Criteria** (must hit all within 14 days):
 1. Create first note with >500 characters
-2. Accept at least 1 ghost text suggestion (FR-014)
-3. Create first issue from note (FR-017)
+2. Accept at least 1 ghost text suggestion (DD-067)
+3. Create first issue from note (extract_issues or create_issue_from_note MCP tool)
 4. Invite 1 teammate
 
-*Reference: SC-010 (70% use AI features weekly)*
+### 8.4 Content Strategy Pillars
 
-### 5.4 Content Strategy Pillars
-
-| Pillar | Content Types | Cadence | Reference |
-|--------|---------------|---------|-----------|
-| **"Note-First" Philosophy** | Blog posts, manifestos | Weekly | DD-013 |
-| **AI in Dev Workflow** | Tutorials, demos | Bi-weekly | AI_CAPABILITIES.md |
-| **Team Stories** | Case studies | Monthly | - |
-| **Technical Deep Dives** | Architecture, OSS | Monthly | PROJECT_VISION.md |
-
-### 5.5 Community Building
-
-| Initiative | Platform | Goal |
-|------------|----------|------|
-| Discord server | Discord | Support + feedback |
-| Monthly "Office Hours" | YouTube Live | Build trust |
-| Open-source components | GitHub | Developer credibility |
-| "Note-First" newsletter | Email | Thought leadership |
+| Pillar | Content Types | Cadence |
+|--------|---------------|---------|
+| **"Note-First" Philosophy** | Blog posts, manifestos | Weekly |
+| **AI in Dev Workflow** | Tutorials, demos of skills + subagents | Bi-weekly |
+| **Team Stories** | Case studies | Monthly |
+| **Technical Deep Dives** | Architecture, MCP tools, OSS | Monthly |
 
 ---
 
-## 6. Success Metrics Framework
+## 9. Success Metrics Framework
 
-### 6.1 North Star Metric
+### 9.1 North Star Metric
 
 **Weekly Active Writing Minutes (WAWM)**
 
@@ -353,30 +426,20 @@ This reframes competition entirely:
 - Hard to game without delivering value
 - Aligns with 70% AI feature adoption target (SC-010)
 
-### 6.2 Metrics Hierarchy
+### 9.2 Metrics Hierarchy
 
 ```
                     WAWM (North Star)
-                         │
-        ┌────────────────┼────────────────┐
-        ▼                ▼                ▼
+                         |
+        +----------------+----------------+
+        v                v                v
   Notes Created    Ghost Accepts    Issues Extracted
-        │                │                │
-        ▼                ▼                ▼
-   Signups ←──── Activations ────→ Team Invites
+        |                |                |
+        v                v                v
+   Signups <---- Activations ----> Team Invites
 ```
 
-### 6.3 Input Metrics (Drive North Star)
-
-| Metric | 90-Day Target | 12-Month Target | Reference |
-|--------|---------------|-----------------|-----------|
-| Weekly signups | 50 | 500 | - |
-| Activation rate | 25% | 40% | - |
-| Ghost text accept rate | 15% | 30% | FR-014 |
-| Notes → Issues conversion | 20% | 35% | FR-017 |
-| Team invite rate | 30% | 50% | - |
-
-### 6.4 Success Criteria (from spec.md)
+### 9.3 Success Criteria (from spec.md)
 
 | Criterion | Target | Reference |
 |-----------|--------|-----------|
@@ -396,202 +459,322 @@ This reframes competition entirely:
 | Zero data loss (normal ops) | 100% | SC-014 |
 | Soft-delete recovery window | 30 days | SC-015 |
 | Activity log coverage | 100% | SC-016 |
-| Infrastructure services | 2-3 | SC-017 |
-| Dev setup time | <5 minutes | SC-018 |
 | RLS enforcement | 100% | SC-019 |
-| Job retry success rate | 95% | SC-020 |
 
-### 6.5 Guardrail Metrics
+### 9.4 Guardrail Metrics
 
 | Metric | Threshold | Alert If |
 |--------|-----------|----------|
 | Note quality (avg words) | >200 | <100 = junk notes |
 | Ghost text dismissal rate | <60% | >80% = bad suggestions |
-| AI label rejection rate | <20% | >40% = poor label model (SC-004 inverse) |
+| AI label rejection rate | <20% | >40% = poor model (SC-004 inverse) |
 | Issue completion rate | >40% | <20% = orphan issues |
 | Churn rate | <5%/month | >8% = retention crisis |
+| Subagent latency (p95) | <10s | >15s = orchestration bottleneck |
+| MCP tool error rate | <2% | >5% = tool reliability issue |
 
 ---
 
-## 7. Risk Assessment & Mitigations
+## 10. Business Rules Matrix
 
-### 7.1 Risk Matrix
+### 10.1 Issue State Transitions (DD-062)
+
+| From | To | Allowed | Trigger |
+|------|----|----|---------|
+| unstarted | started | Yes | Manual or PR opened |
+| started | completed | Yes | Manual or PR merged (DD-084) |
+| completed | started | Yes | Reopen |
+| any | cancelled | Yes | Manual |
+| cancelled | any | No | Terminal state |
+| unstarted | completed | No | Cannot skip started |
+
+### 10.2 AI Approval Thresholds (DD-003)
+
+| Action | Behavior | Configurable | Approval Level |
+|--------|----------|--------------|----------------|
+| Suggest labels/priority | Auto-apply in UI | Yes | None |
+| Auto-transition on PR | Auto + notify | Yes | None |
+| Ghost text suggestions | Auto-display | No | None |
+| Margin annotations | Auto-display | Yes | None |
+| Create sub-issues | Require approval | Yes | User confirmation |
+| Extract issues from note | Require approval | No | User confirmation |
+| Delete/archive | **Always approval** | No | User + admin |
+
+### 10.3 BYOK Requirements (DD-002, DD-058)
+
+| Provider | Status | If Missing |
+|----------|--------|------------|
+| Anthropic | **Required** | Core AI features disabled (no subagents, no skills) |
+| OpenAI | **Required** | Semantic search disabled, no embeddings |
+| Google Gemini | **Recommended** | Ghost text falls back to Haiku (slower) |
+| Azure OpenAI | Optional | Enterprise data residency alternative |
+
+### 10.4 Workspace Constraints
+
+| Rule | Limit | Reference |
+|------|-------|-----------|
+| Max workspace size | 50,000 issues | spec.md Assumption #9 |
+| Max note size | 5,000+ blocks (virtual scroll) | DD-046 |
+| Rate limit (standard) | 1,000 req/min per workspace | DD-059 |
+| Rate limit (AI endpoints) | 100 req/min per workspace | DD-059 |
+| Soft deletion recovery | 30 days | DD-062, SC-015 |
+| Session TTL | 30 minutes (Redis hot + PostgreSQL persistent) | DD-086 |
+| Token budget per session | 8,000 tokens | DD-086 |
+| Ghost text max | 1-2 sentences, ~50 tokens | DD-067 |
+| Ghost text trigger | 500ms typing pause | DD-067 |
+| Word boundary buffering | Buffer until whitespace/punctuation | DD-067 |
+| Autosave debounce | 1-2 seconds | DD-049 |
+| Embedding regeneration | >20% content diff triggers | DD-070 |
+
+### 10.5 Security & Data Rules
+
+| Rule | Enforcement | Reference |
+|------|-------------|-----------|
+| RLS workspace isolation | 100% of queries through RLS policies | DD-061, SC-019 |
+| API key encryption | AES-256-GCM via Supabase Vault | DD-061 |
+| Token rotation | Access 1h + Refresh 7d, rotate on refresh | DD-061 |
+| AI cost tracking | Per-provider, per-agent, per-user | DD-086 |
+| Activity logging | 100% of state changes logged | SC-016 |
+
+---
+
+## 11. Competitive Moat Analysis
+
+### 11.1 Defensibility Layers
+
+| Layer | Moat Type | Depth | Time to Copy |
+|-------|-----------|-------|-------------|
+| **Note-First philosophy** | Product architecture | Deep | 12-18 months (requires full product rethink) |
+| **1 orchestrator + 3 subagents + 8 skills** | AI depth | Deep | 6-12 months (vs "add AI button" approach) |
+| **MCP Tool ecosystem** (6 note tools + DB/GitHub/Search) | Developer platform | Medium | 6-9 months |
+| **Session persistence** | Relationship AI | Medium | 3-6 months |
+| **Knowledge graph** | Cumulative value | Deep | Grows with usage, never replicable |
+| **BYOK model** | Trust architecture | Medium | 3 months to copy, hard to retrofit |
+
+### 11.2 Why Competitors Cannot Easily Respond
+
+**Linear adding AI**: Would need to rebuild around notes, not issues. Their data model is issue-first. Adding ghost text to an issue form is not the same as AI-augmented brainstorming.
+
+**Notion adding SDLC**: Notion is general-purpose. Adding PR review, commit linking, sprint velocity requires deep GitHub integration and SDLC-specific AI training. Their AI is document-generic, not code-aware.
+
+**Jira adding AI**: Atlassian Intelligence exists but is bolted onto a 20-year-old architecture. Note-First requires starting from scratch, which Atlassian cannot do without abandoning their installed base.
+
+**New entrants**: Must build all three layers simultaneously (editor + PM + AI). Building any two is table stakes. The third is the moat.
+
+### 11.3 Cumulative Advantages
+
+| Advantage | Mechanism | Growth Rate |
+|-----------|-----------|-------------|
+| Knowledge graph density | Every note, issue, PR adds edges | Exponential with team size |
+| AI suggestion quality | User feedback loop (accept/dismiss) | Improves per workspace |
+| Template library | System + user + AI-generated | Network effect across workspaces |
+| MCP tool ecosystem | Third-party tools possible (Phase 3) | Platform effect |
+
+---
+
+## 12. Integration Strategy
+
+### 12.1 MVP Integrations (DD-004)
+
+| Integration | Business Case | User Stories | Revenue Impact |
+|-------------|---------------|-------------|----------------|
+| **GitHub** | Developer workflow center: commit linking, PR review automation, branch suggestions | US-03, US-18 | Activation +15%, core differentiator |
+| **Slack** | Team communication bridge: async notifications, `/pilot` commands, rich messages | US-09, US-17 | Team adoption +10%, reduces context switching |
+
+### 12.2 Phase 2 Integrations
+
+| Integration | Business Case | Target Users |
+|-------------|---------------|-------------|
+| **GitLab** | Enterprise alternative VCS, expands TAM by 30% | Enterprise teams using GitLab |
+| **Discord** | Community-first teams, OSS projects | Startup teams, open source |
+
+### 12.3 Phase 3 Integrations
+
+| Integration | Business Case | Target Users |
+|-------------|---------------|-------------|
+| **VS Code extension** | IDE integration for AI Context, in-editor issue views | Individual developers |
+| **CI/CD display** | Build status on issues, deployment tracking | DevOps-focused teams |
+
+### 12.4 Integration Architecture (DD-088)
+
+All integrations use MCP tool registry pattern:
+- GitHub tools: `get_pr_diff`, `get_pr_files`, `link_commit_to_issue`
+- Database tools: RLS-enforced CRUD operations
+- Search tools: `semantic_search`, `search_codebase`
+
+---
+
+## 13. Risk Assessment & Mitigations
+
+### 13.1 Risk Matrix
 
 | Risk | Probability | Impact | Severity | Mitigation |
 |------|-------------|--------|----------|------------|
-| **"Note-First" doesn't resonate** | Medium | Critical | HIGH | Templates as scaffolding |
-| **AI suggestions generic/wrong** | Medium | High | HIGH | Confidence gating (≥80%) |
-| **Linear/Notion add AI features** | High | Medium | MEDIUM | Philosophy moat, depth > breadth |
+| **"Note-First" doesn't resonate** | Medium | Critical | HIGH | Templates as scaffolding (DD-033) |
+| **AI suggestions generic/wrong** | Medium | High | HIGH | Confidence gating >= 80% (DD-048) |
+| **Linear/Notion add AI features** | High | Medium | MEDIUM | Philosophy moat + AI depth |
 | **BYOK friction kills activation** | Medium | Medium | MEDIUM | Clear onboarding, key validation |
-| **Pricing too high** | Low | Medium | LOW | All features free (DD-010) |
+| **Claude Agent SDK dependency** | Medium | High | HIGH | Abstraction layer, fallback paths |
+| **MCP tool complexity vs adoption** | Medium | Medium | MEDIUM | Progressive disclosure, defaults |
+| **Session persistence reliability** | Low | High | MEDIUM | Redis + PostgreSQL dual-write |
+| **Subagent orchestration latency** | Medium | Medium | MEDIUM | Streaming SSE, token budget (DD-086) |
+| **Cost tracking accuracy for BYOK** | Medium | Medium | MEDIUM | Per-call metering, user dashboard |
 
-### 7.2 Risk #1: "Note-First" Doesn't Resonate
+### 13.2 Risk: Claude Agent SDK Dependency (NEW)
 
-**Scenario**: Users prefer structured forms; Note-First feels unguided.
+**Scenario**: Anthropic changes SDK terms, pricing, or breaks compatibility.
 
 **Early Warning Signs**:
-- <10% of users create second note
-- Feedback: "I don't know where to start"
-- Users immediately jump to issue creation (bypass notes)
+- SDK deprecation notices
+- Pricing increases >50%
+- Community reports of instability
 
 **Mitigation Strategy**:
-1. **Templates as scaffolding** (DD-033): System + User + AI templates
-2. **Guided onboarding** (DD-045): Sample project with realistic content
-3. **AI greeting** (DD-016): Prompt input + recommended templates on new note
+1. **Abstraction layer**: PilotSpaceAgent wraps SDK, not direct coupling
+2. **Skill system**: Skills are SDK-independent (structured input/output)
+3. **Fallback**: Skills can fall back to direct Anthropic API calls
+4. **Multi-provider**: Gemini handles latency-critical paths independently
+
+### 13.3 Risk: Note-First Doesn't Resonate
+
+**Early Warning Signs**: <10% create second note, users bypass notes for issue creation
+
+**Mitigation**:
+1. Templates as scaffolding (DD-033): System + User + AI templates
+2. Guided onboarding (DD-045): Sample project with realistic content
+3. AI greeting (DD-016): Prompt input + recommended templates
 4. **Pivot path**: If 60-day data shows <20% Note-First adoption, add "Quick Issue" as co-equal entry point
 
-*Reference: DD-016, DD-033, DD-045*
+### 13.4 Risk: AI Suggestions Feel Generic
 
-### 7.3 Risk #2: AI Suggestions Feel Generic/Wrong
+**Early Warning Signs**: Ghost text accept rate <10%, users disable AI features
 
-**Scenario**: Ghost text and enhancements don't reflect project context.
-
-**Early Warning Signs**:
-- Ghost text accept rate <10%
-- Feedback: "AI doesn't understand our codebase"
-- Users disable AI features
-
-**Mitigation Strategy**:
-1. **Progressive context**: Current block + 3 previous + sections + user history (spec.md clarification)
-2. **Confidence gating** (DD-048): Only show "Recommended" tag for ≥80% confidence
-3. **Feedback loop**: 👍/👎 on every suggestion
+**Mitigation**:
+1. Progressive context: Current block + 3 previous + sections + user history (DD-067)
+2. Confidence gating (DD-048): Only show "Recommended" tag for >= 80%
+3. Feedback loop: Accept/dismiss signals improve per workspace
 4. **Fallback**: If accept rate <15% after 30 days, default AI off, make opt-in
 
-*Reference: DD-048, FR-075*
+### 13.5 Risk: Incumbents Add AI Features
 
-### 7.4 Risk #3: Incumbents Add AI Features
-
-**Scenario**: Linear announces "Linear AI" with ghost text capabilities.
-
-**Early Warning Signs**:
-- Competitor press releases
-- User feedback: "Linear has this now"
-
-**Mitigation Strategy**:
-1. **Speed advantage**: AI-native architecture means faster iteration
-2. **Depth over breadth**: 9 primary agents (16 total) vs. generic "AI assistant"
-3. **Philosophy moat**: "Note-First" is product philosophy, not feature
-4. **Community lock-in**: Templates, integrations, team workflows
-
-*Reference: AI_CAPABILITIES.md - 9 Primary Agents (16 Total)*
+**Mitigation**: 1 orchestrator + 3 subagents + 8 skills depth vs. generic "AI assistant". Philosophy moat (Note-First) requires complete product rethink, not feature addition.
 
 ---
 
-## 8. One-Page Business Model Canvas
+## 14. Success Playbook
+
+### Days 1-30: Validate Note-First Hypothesis
+
+| Week | Actions | Success Criteria | Deliverables |
+|------|---------|------------------|-------------|
+| 1-2 | Interview 15 teams using Linear/Notion split | 10+ express Note-First resonance | Interview synthesis doc |
+| 2-3 | Build landing page with Note-First positioning | 500 waitlist signups | Landing page live |
+| 3-4 | Create 5-min demo: note -> ghost text -> extract issue -> PR review | 1,000 views, 20% completion | Demo video published |
+| 4 | Run 3 live demos with waitlist leads | 2+ say "I'd pay for support" | Feedback captured |
+
+### Days 31-60: Alpha with 10 Teams
+
+| Week | Actions | Success Criteria | Deliverables |
+|------|---------|------------------|-------------|
+| 5-6 | Onboard 10 alpha teams (hand-selected) | 8+ complete BYOK setup | Alpha cohort active |
+| 6-7 | Daily feedback calls, rapid iteration | Ship 20+ improvements | Feedback log |
+| 7-8 | Measure ghost text accept rate | >15% accept rate | Quality baseline |
+| 8 | Measure MCP tool usage (extract_issues, enhance_text) | >30% use Note Tools weekly | Tool adoption metrics |
+
+### Days 61-90: Beta Launch (200 Users)
+
+| Week | Actions | Success Criteria | Deliverables |
+|------|---------|------------------|-------------|
+| 9-10 | Implement top 5 alpha feedback items | Alpha NPS > 30 | Feature improvements |
+| 10-11 | Build referral mechanics | Technical implementation complete | Referral system live |
+| 11-12 | Prepare launch assets (blog, changelog, HN draft) | Content reviewed and ready | Launch content |
+| 12 | Soft launch to 200 beta users | 100 activated in first week | Beta cohort active |
+
+### Days 91-120: Public Beta, Measure WAWM
+
+| Week | Actions | Success Criteria | Deliverables |
+|------|---------|------------------|-------------|
+| 13-14 | Open signups, HN launch | 1,000 signups in first week | Public beta live |
+| 14-16 | Measure WAWM baseline | >30 min/user/week average | WAWM dashboard |
+| 15-16 | Iterate on activation funnel | 25% activation rate | Funnel optimization |
+| 16 | Measure AI skill adoption | >50% use 3+ skills | Skill usage report |
+
+### Days 121-150: Support Tier Launch
+
+| Week | Actions | Success Criteria | Deliverables |
+|------|---------|------------------|-------------|
+| 17-18 | Launch Pro Support tier | 50 paid seats | Billing system live |
+| 19-20 | Build case studies from beta teams | 3 published case studies | Marketing content |
+| 20 | Launch Business Support tier | 10 business accounts | Enterprise pipeline |
+
+### Days 151-180: First $5K MRR Milestone
+
+| Week | Actions | Success Criteria | Deliverables |
+|------|---------|------------------|-------------|
+| 21-22 | Scale community (Discord, Office Hours) | 500 Discord members | Community active |
+| 23-24 | Double down on highest-converting channel | $5K MRR reached | Revenue milestone |
+| 24 | Plan Phase 2 features based on usage data | Phase 2 roadmap published | Product roadmap |
+
+---
+
+## 15. Business Model Canvas
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                        PILOT SPACE BUSINESS MODEL                          │
-├──────────────────┬─────────────────────────┬───────────────────────────────┤
-│ KEY PARTNERS     │ KEY ACTIVITIES          │ VALUE PROPOSITIONS            │
-│                  │                         │                               │
-│ • Anthropic      │ • Claude Agent SDK      │ "Think First, Structure Later"│
-│   (Orchestrator) │   orchestration         │                               │
-│ • GitHub         │ • Editor UX polish      │ • Note-First workflow (DD-013)│
-│   (Integration)  │ • Community building    │ • 9 primary agents (16 total) │
-│ • Supabase       │ • Content marketing     │ • GitHub-native integration   │
-│   (Platform)     │                         │ • Single tool for devs        │
-├──────────────────┼─────────────────────────┼───────────────────────────────┤
-│ KEY RESOURCES    │ CHANNELS                │ CUSTOMER RELATIONSHIPS        │
-│                  │                         │                               │
-│ • Claude Agent   │ • Developer content     │ • Self-serve PLG              │
-│   SDK (orch.)    │ • Twitter/X community   │ • Discord community           │
-│ • TipTap/Editor  │ • Hacker News           │ • Office Hours (trust)        │
-│   integration    │ • GitHub Marketplace    │ • Case study co-creation      │
-│ • RAG pipeline   │ • Referral program      │                               │
-├──────────────────┴─────────────────────────┼───────────────────────────────┤
-│ COST STRUCTURE                             │ REVENUE STREAMS               │
-│                                            │                               │
-│ • Engineering (60%): 3-5 engineers         │ • Support subscriptions       │
-│ • Infrastructure (15%): Supabase, hosting  │   - Pro: $10/seat/mo          │
-│ • Marketing (15%): Content, community      │   - Business: $18/seat/mo     │
-│ • Support (10%): 1 per 1000 users          │   - Enterprise: Custom        │
-│                                            │                               │
-│ BYOK = 0 AI API costs = 80%+ gross margin  │ ALL FEATURES FREE (DD-010)    │
-└────────────────────────────────────────────┴───────────────────────────────┘
++-------------------------------------------------------------------+
+|                    PILOT SPACE BUSINESS MODEL                      |
++-----------------+------------------------+------------------------+
+| KEY PARTNERS    | KEY ACTIVITIES         | VALUE PROPOSITIONS     |
+|                 |                        |                        |
+| * Anthropic     | * PilotSpaceAgent      | "Think First,          |
+|   (Orchestrator)|   orchestration        |  Structure Later"      |
+| * GitHub        | * Editor UX polish     |                        |
+|   (Integration) | * MCP tool development | * Note-First (DD-013)  |
+| * Supabase      | * Community building   | * 1+3+8 AI system      |
+|   (Platform)    | * Content marketing    | * 6 MCP Note Tools     |
+|                 |                        | * GitHub-native        |
++-----------------+------------------------+------------------------+
+| KEY RESOURCES   | CHANNELS               | CUSTOMER RELATIONSHIPS |
+|                 |                        |                        |
+| * Claude Agent  | * Developer content    | * Self-serve PLG       |
+|   SDK (DD-086)  | * Twitter/X community  | * Discord community    |
+| * TipTap/Editor | * Hacker News          | * Office Hours (trust) |
+| * Skill System  | * GitHub Marketplace   | * Case study co-create |
+|   (DD-087)      | * Referral program     |                        |
+| * MCP Registry  |                        |                        |
+|   (DD-088)      |                        |                        |
++-----------------+------------------------+------------------------+
+| COST STRUCTURE                          | REVENUE STREAMS        |
+|                                         |                        |
+| * Engineering (60%): 3-5 engineers      | * Support subscriptions |
+| * Infrastructure (15%): Supabase        |   - Pro: $10/seat/mo   |
+| * Marketing (15%): Content, community   |   - Business: $18/mo   |
+| * Support (10%): 1 per 1000 users       |   - Enterprise: Custom |
+|                                         |                        |
+| BYOK = 0 AI API costs = 80%+ margin    | ALL FEATURES FREE      |
++-----------------------------------------+------------------------+
 ```
 
 ---
 
-## 9. 30-60-90 Day Action Plan
-
-### Days 1-30: Validate Core Hypothesis
-
-| Week | Actions | Success Criteria |
-|------|---------|------------------|
-| **1-2** | Interview 15 teams using Linear/Notion split | 10+ express "Note-First" resonance |
-| **2-3** | Build landing page with "Note-First" positioning | 500 waitlist signups |
-| **3-4** | Create 5-minute demo video showing workflow | 1000 views, 20% watch completion |
-| **4** | Run 3 live demos with waitlist leads | 2+ say "I'd pay for support" |
-
-**Key Deliverables**:
-- [ ] Customer interview synthesis document
-- [ ] Landing page live at pilotspace.dev
-- [ ] Demo video published
-- [ ] 500 waitlist signups
-
-### Days 31-60: Alpha Product Validation
-
-| Week | Actions | Success Criteria |
-|------|---------|------------------|
-| **5-6** | Onboard 10 alpha teams (hand-selected) | 8+ complete onboarding |
-| **6-7** | Daily feedback calls, rapid iteration | Ship 20+ improvements |
-| **7-8** | Measure activation metrics | 30%+ create 3+ notes |
-| **8** | Ghost text accept rate analysis | >15% accept rate (DD-048) |
-
-**Key Deliverables**:
-- [ ] 10 alpha teams active
-- [ ] Activation funnel documented
-- [ ] Ghost text quality baseline established
-- [ ] Top 10 feature requests prioritized
-
-### Days 61-90: Beta Launch Preparation
-
-| Week | Actions | Success Criteria |
-|------|---------|------------------|
-| **9-10** | Implement top 5 alpha feedback items | Alpha NPS > 30 |
-| **10-11** | Build referral mechanics | Technical implementation complete |
-| **11-12** | Prepare beta launch assets | Blog post, changelog, HN draft |
-| **12** | Soft launch to 200 beta users | 100 activated in first week |
-
-**Key Deliverables**:
-- [ ] Beta-ready product (18 user stories implemented)
-- [ ] Referral system live
-- [ ] Launch content prepared
-- [ ] 200 beta users onboarded
-
----
-
-## 10. Document Cross-References
+## 16. Document Cross-References
 
 | Topic | Document | Key Decisions |
 |-------|----------|---------------|
 | Core Philosophy | PROJECT_VISION.md | Note-First, 7 Principles |
-| Technical Decisions | DESIGN_DECISIONS.md | DD-001 to DD-085 |
-| Feature Specs | PILOT_SPACE_FEATURES.md | PS-001 to PS-017 |
-| AI Architecture | AI_CAPABILITIES.md | 9 Primary Agents (16 Total), BYOK, Claude SDK Orchestrator |
-| User Stories | specs/001-pilot-space-mvp/spec.md | 18 Stories, 123 FRs, 20 SCs |
-| UI/UX Design | specs/001-pilot-space-mvp/ui-design-spec.md | Component specs |
-| Data Model | specs/001-pilot-space-mvp/data-model.md | 21 Entities |
-| Implementation | specs/001-pilot-space-mvp/plan.md | Phase breakdown |
+| Technical Decisions | DESIGN_DECISIONS.md | DD-001 to DD-088 |
+| Feature Specs | spec.md v3.2 | 18 Stories, 123 FRs, 20 SCs |
+| AI Architecture | AI_CAPABILITIES.md | 1 orchestrator + 3 subagents + 8 skills |
+| Agent Architecture | DD-086, DD-087, DD-088 | Conversational, Skills, MCP Tools |
+| UI/UX Design | ui-design-spec.md | Component specs |
+| Data Model | data-model.md | 21 Entities |
+| Feature Mapping | feature-story-mapping.md | 18 US -> architecture components |
+| Implementation | plan.md | Phase breakdown |
 
 ---
 
-## 11. Self-Evaluation
-
-| Criterion | Score | Assessment |
-|-----------|-------|------------|
-| **Completeness** | 0.95 | All 7 strategy sections covered with doc references |
-| **Alignment** | 0.97 | Every decision traced to DD/PS/FR reference |
-| **Clarity** | 0.94 | Tables and structured format enable quick communication |
-| **Practicality** | 0.92 | 90-day plan executable by small team |
-| **Differentiation** | 0.93 | "Note-First" philosophy provides clear separation |
-| **Edge Cases** | 0.90 | Top 3 risks with mitigation strategies |
-
----
-
-*Document Version: 1.1*
-*Last Updated: 2026-01-23*
+*Document Version: 2.0.0*
+*Last Updated: 2026-02-01*
 *Author: Pilot Space Strategy Team*
-*Changes v1.1: Standardized agent count terminology (9 primary + 7 helper = 16 total), added complete Success Criteria (SC-001 to SC-020)*
-*Changes v1.0: Initial version synthesizing PROJECT_VISION.md, DESIGN_DECISIONS.md (DD-001 to DD-085), AI_CAPABILITIES.md, and spec.md v3.1*
+*Changes v2.0: Updated AI architecture from 13 siloed agents to 1+3+8 consolidated system (DD-086/087/088); Added user journey maps for 4 personas; Added business rules matrix; Added feature-business mapping; Added BYOK economics deep dive; Added competitive moat analysis; Added integration strategy; Added success playbook (180-day milestones); Updated risk assessment with SDK dependency and orchestration risks*
+*Changes v1.1: Standardized agent count, added SC-001 to SC-020*
+*Changes v1.0: Initial version*
