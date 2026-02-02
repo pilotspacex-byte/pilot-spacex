@@ -164,12 +164,22 @@ async def chat(
     }
 
     async def stream_response():
-        """Generate SSE stream from agent responses."""
+        """Generate SSE stream from agent responses.
+
+        Checks for client disconnect after each yielded chunk.
+        When disconnect is detected, the generator exits which triggers
+        the agent's finally block to interrupt the Claude SDK process.
+        """
         try:
             async for sse_chunk in _execute_agent_stream(
                 agent, input_data=agent_input, context=ai_context
             ):
                 yield sse_chunk
+
+                # Detect client disconnect after each chunk
+                if await fastapi_request.is_disconnected():
+                    logger.info("Client disconnected during chat stream, stopping")
+                    break
         except Exception as e:
             logger.exception("Chat endpoint error: %s", e)
             error_data = {"errorCode": "api_error", "message": str(e), "retryable": False}
@@ -183,6 +193,44 @@ async def chat(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+class AbortRequest(BaseSchema):
+    """Request to abort an active chat session."""
+
+    session_id: str = Field(..., description="Session ID to abort")
+
+
+class AbortResponse(BaseSchema):
+    """Response from abort request."""
+
+    status: str = Field(..., description="'interrupted' or 'not_found'")
+    session_id: str = Field(..., description="Session ID that was targeted")
+
+
+@router.post("/chat/abort", response_model=AbortResponse)
+async def abort_chat(
+    abort_request: AbortRequest,
+    agent: PilotSpaceAgentDep,
+) -> AbortResponse:
+    """Abort an active chat session.
+
+    Sends interrupt signal to the Claude SDK subprocess, stopping
+    the current turn gracefully. Called by frontend before closing
+    SSE connection to ensure clean shutdown.
+
+    Args:
+        abort_request: Contains session_id to abort.
+        agent: PilotSpaceAgent instance.
+
+    Returns:
+        AbortResponse with status.
+    """
+    interrupted = await agent.interrupt_session(abort_request.session_id)
+    return AbortResponse(
+        status="interrupted" if interrupted else "not_found",
+        session_id=abort_request.session_id,
     )
 
 

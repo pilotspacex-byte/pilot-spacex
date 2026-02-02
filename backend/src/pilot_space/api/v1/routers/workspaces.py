@@ -84,10 +84,13 @@ async def _resolve_workspace(
         workspace_repo: Workspace repository.
         load_members: If True, eagerly load members relationship.
     """
-    if load_members:
-        workspace = await workspace_repo.get_with_members(workspace_id_or_slug)
-    elif _is_valid_uuid(workspace_id_or_slug):
-        workspace = await workspace_repo.get_by_id(UUID(workspace_id_or_slug))
+    if _is_valid_uuid(workspace_id_or_slug):
+        if load_members:
+            workspace = await workspace_repo.get_with_members(UUID(workspace_id_or_slug))
+        else:
+            workspace = await workspace_repo.get_by_id(UUID(workspace_id_or_slug))
+    elif load_members:
+        workspace = await workspace_repo.get_by_slug_with_members(workspace_id_or_slug)
     else:
         workspace = await workspace_repo.get_by_slug(workspace_id_or_slug)
 

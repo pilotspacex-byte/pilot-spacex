@@ -11,9 +11,12 @@
  * - Session persistence (T075-T079)
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Square } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
 import { SessionListStore } from '@/stores/ai/SessionListStore';
 import type { AgentTask } from './types';
@@ -66,6 +69,16 @@ const ChatViewInternal = observer<ChatViewProps>(
     useEffect(() => {
       sessionListStore.fetchSessions();
     }, [sessionListStore]);
+
+    // Load conversation history for note context when ChatView opens
+    const loadedContextRef = useRef<string | null>(null);
+    useEffect(() => {
+      const noteId = store.noteContext?.noteId;
+      if (!noteId || store.messages.length > 0 || loadedContextRef.current === noteId) return;
+
+      loadedContextRef.current = noteId;
+      sessionListStore.resumeSessionForContext(noteId, 'note');
+    }, [store.noteContext?.noteId, store.messages.length, sessionListStore]);
 
     // Convert TaskState to AgentTask for TaskPanel with progress data
     const agentTasks = useMemo((): AgentTask[] => {
@@ -139,7 +152,6 @@ const ChatViewInternal = observer<ChatViewProps>(
 
       try {
         await store.sendMessage(inputValue.trim());
-        setInputValue('');
       } catch (error) {
         console.error('Failed to send message:', error);
       }
@@ -220,8 +232,8 @@ const ChatViewInternal = observer<ChatViewProps>(
           onSelectSession={handleSelectSession}
         />
 
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Main content area - relative for floating abort button */}
+        <div className="flex-1 flex flex-col overflow-hidden relative">
           {/* Messages */}
           <MessageList
             messages={store.messages}
@@ -232,9 +244,38 @@ const ChatViewInternal = observer<ChatViewProps>(
             className="flex-1"
           />
 
+          {/* Floating abort button - overlays bottom of message area */}
+          <AnimatePresence>
+            {store.isStreaming && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.15 }}
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10"
+              >
+                <Button
+                  data-testid="abort-button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleAbort}
+                  className={cn(
+                    'gap-1.5 rounded-full shadow-lg',
+                    'border border-border/60 bg-background/90 backdrop-blur-sm',
+                    'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30',
+                    'transition-colors'
+                  )}
+                >
+                  <Square className="h-3 w-3 fill-current" />
+                  <span className="text-xs font-medium">Stop</span>
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Task panel */}
           {store.tasks.size > 0 && (
-            <div className="px-4 pb-4">
+            <div className="px-4 pb-3">
               <TaskPanel
                 tasks={agentTasks}
                 activeTasks={activeAgentTasks}
@@ -247,12 +288,12 @@ const ChatViewInternal = observer<ChatViewProps>(
 
           {/* Error display */}
           {store.error && (
-            <div className="px-4 pb-4">
+            <div className="px-3 pb-3">
               <div
-                className="rounded-lg border border-destructive/50 bg-destructive/10 p-3"
+                className="rounded-lg border border-destructive/50 bg-destructive/10 p-2.5"
                 data-testid="error-message"
               >
-                <p className="text-sm text-destructive">{store.error}</p>
+                <p className="text-xs text-destructive">{store.error}</p>
               </div>
             </div>
           )}
@@ -300,7 +341,6 @@ const ChatViewInternal = observer<ChatViewProps>(
           onClearNoteContext={handleClearNoteContext}
           onClearIssueContext={handleClearIssueContext}
           onClearProjectContext={handleClearProjectContext}
-          onAbort={handleAbort}
         />
 
         {/* Modal overlay only for destructive actions (DD-003) */}
