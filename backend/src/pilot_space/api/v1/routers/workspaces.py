@@ -28,7 +28,7 @@ from pilot_space.api.v1.schemas.workspace import (
     WorkspaceResponse,
     WorkspaceUpdate,
 )
-from pilot_space.dependencies import CurrentUser, CurrentUserId, DbSession
+from pilot_space.dependencies import CurrentUser, CurrentUserId, CurrentUserIdOrDemo, DbSession
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.database.repositories.label_repository import (
@@ -387,14 +387,14 @@ async def delete_workspace(
 )
 async def list_workspace_members(
     workspace_id: WorkspaceIdOrSlug,
-    current_user: CurrentUser,
+    current_user_id: CurrentUserIdOrDemo,
     workspace_repo: WorkspaceRepo,
 ) -> list[WorkspaceMemberResponse]:
     """List workspace members.
 
     Args:
         workspace_id: Workspace identifier (UUID or slug).
-        current_user: Authenticated user.
+        current_user_id: Authenticated user ID (falls back to demo user in dev).
         workspace_repo: Workspace repository.
 
     Returns:
@@ -406,7 +406,7 @@ async def list_workspace_members(
     workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
     # Check membership
-    is_member = any(m.user_id == current_user.user_id for m in (workspace.members or []))
+    is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
     if not is_member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -629,7 +629,7 @@ async def remove_workspace_member(
 )
 async def list_workspace_labels(
     workspace_id: WorkspaceIdOrSlug,
-    current_user: CurrentUser,
+    current_user_id: CurrentUserIdOrDemo,
     workspace_repo: WorkspaceRepo,
     label_repo: LabelRepo,
     project_id: Annotated[UUID | None, Query(description="Filter by project ID")] = None,
@@ -641,7 +641,7 @@ async def list_workspace_labels(
 
     Args:
         workspace_id: Workspace identifier (UUID or slug).
-        current_user: Authenticated user.
+        current_user_id: Authenticated user ID (falls back to demo user in dev).
         workspace_repo: Workspace repository.
         label_repo: Label repository.
         project_id: Optional project filter.
@@ -655,7 +655,7 @@ async def list_workspace_labels(
     workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
     # Check membership
-    is_member = any(m.user_id == current_user.user_id for m in (workspace.members or []))
+    is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
     if not is_member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
