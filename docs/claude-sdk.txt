@@ -13,17 +13,6 @@ https://platform.claude.com
 The full documentation is available in the following languages on https://platform.claude.com/docs:
 
 - English (en) - 532 pages - /docs - Content included below
-- German (Deutsch) (de) - 181 pages - /docs/de - Visit website for content
-- Spanish (Español) (es) - 181 pages - /docs/es - Visit website for content
-- French (Français) (fr) - 181 pages - /docs/fr - Visit website for content
-- Italian (Italiano) (it) - 181 pages - /docs/it - Visit website for content
-- Japanese (日本語) (ja) - 181 pages - /docs/ja - Visit website for content
-- Korean (한국어) (ko) - 181 pages - /docs/ko - Visit website for content
-- Portuguese (Português) (pt-BR) - 181 pages - /docs/pt-BR - Visit website for content
-- Russian (Русский) (ru) - 181 pages - /docs/ru - Visit website for content
-- Chinese Simplified (简体中文) (zh-CN) - 181 pages - /docs/zh-CN - Visit website for content
-- Chinese Traditional (繁體中文) (zh-TW) - 181 pages - /docs/zh-TW - Visit website for content
-- Indonesian (Bahasa Indonesia) (id) - 181 pages - /docs/id - Visit website for content
 
 ---
 

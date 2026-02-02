@@ -746,3 +746,7 @@ async def chat_stream(message: str, session_id: str):
 - **Non-destructive**: Auto-execute, notify user (labels, annotations, auto-transitions). No approval required.
 - **Content creation**: Require approval, configurable (create issues, PR comments). User can enable/disable per operation type.
 - **Destructive**: Always require approval (delete issues, merge PRs, archive workspaces). Cannot be disabled.
+
+### Claude Agent SDK Documentation
+
+Read index at `docs/claude-sdk.txt` for full documentation.
