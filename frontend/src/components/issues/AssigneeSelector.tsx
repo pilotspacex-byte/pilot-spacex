@@ -247,33 +247,31 @@ export function AssigneeSelector({
 
               {/* All members group */}
               <CommandGroup heading="Team Members">
-                {filteredMembers.map((member) => {
-                  const isSelected = value?.id === member.id;
-                  const hasRecommendation = recommendations.some((r) => r.userId === member.id);
+                {filteredMembers
+                  .filter((member) => !recommendations.some((r) => r.userId === member.id))
+                  .map((member) => {
+                    const isSelected = value?.id === member.id;
 
-                  // Skip if already shown in recommendations
-                  if (hasRecommendation) return null;
-
-                  return (
-                    <CommandItem
-                      key={member.id}
-                      value={member.email}
-                      onSelect={() => handleSelect(member)}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="flex items-center gap-2">
-                        <Avatar className="size-6">
-                          <AvatarImage src={member.avatarUrl} alt={member.name} />
-                          <AvatarFallback className="text-[10px]">
-                            {getInitials(member.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span>{member.name}</span>
-                      </span>
-                      {isSelected && <Check className="size-4" />}
-                    </CommandItem>
-                  );
-                })}
+                    return (
+                      <CommandItem
+                        key={member.id}
+                        value={member.email}
+                        onSelect={() => handleSelect(member)}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Avatar className="size-6">
+                            <AvatarImage src={member.avatarUrl} alt={member.name} />
+                            <AvatarFallback className="text-[10px]">
+                              {getInitials(member.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span>{member.name}</span>
+                        </span>
+                        {isSelected && <Check className="size-4" />}
+                      </CommandItem>
+                    );
+                  })}
               </CommandGroup>
 
               {/* Unassign option */}

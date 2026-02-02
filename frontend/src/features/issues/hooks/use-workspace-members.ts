@@ -6,15 +6,14 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/services/api';
-import type { User } from '@/types';
 
 export interface WorkspaceMember {
-  id: string;
-  userId: string;
-  workspaceId: string;
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
   role: 'owner' | 'admin' | 'member' | 'guest';
-  user: User;
-  joinedAt: string;
+  joined_at: string;
 }
 
 export const workspaceMembersKeys = {

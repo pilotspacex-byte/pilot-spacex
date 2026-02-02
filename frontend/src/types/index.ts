@@ -9,12 +9,13 @@ export interface Issue {
   id: string;
   identifier: string;
   name: string;
-  title: string;
+  /** @deprecated Use `name` instead. Present for backward compatibility. */
+  title?: string;
   description?: string;
   descriptionHtml?: string;
   state: StateBrief;
   priority: IssuePriority;
-  type: IssueType;
+  type?: IssueType;
   projectId: string;
   workspaceId: string;
   sequenceId: number;
@@ -31,7 +32,7 @@ export interface Issue {
   parentId?: string;
   subIssueCount: number;
   project: ProjectBrief;
-  aiGenerated: boolean;
+  aiGenerated?: boolean;
   hasAiEnhancements: boolean;
   aiMetadata?: Record<string, unknown>;
   createdAt: string;

@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 
 from pilot_space.api.v1.schemas.base import BaseSchema, DeleteResponse, PaginatedResponse
+from pilot_space.api.v1.schemas.issue import IssueResponse
 from pilot_space.dependencies import DbSession, SyncedUserId
 from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
 from pilot_space.infrastructure.database.models.project import Project
@@ -93,15 +94,25 @@ class WorkspaceIssueCreateRequest(BaseSchema):
 class WorkspaceIssueUpdateRequest(BaseSchema):
     """Update issue request matching frontend UpdateIssueData."""
 
-    title: str | None = None
+    name: str | None = None
     description: str | None = None
-    state: str | None = None
+    description_html: str | None = None
     priority: str | None = None
-    type: str | None = None
+    state_id: UUID | None = None
     assignee_id: UUID | None = None
-    labels: list[str] | None = None
-    due_date: str | None = None
-    estimated_hours: int | None = None
+    cycle_id: UUID | None = None
+    estimate_points: int | None = None
+    start_date: str | None = None
+    target_date: str | None = None
+    sort_order: int | None = None
+    label_ids: list[UUID] | None = None
+
+    # Clear flags
+    clear_assignee: bool = False
+    clear_cycle: bool = False
+    clear_estimate: bool = False
+    clear_start_date: bool = False
+    clear_target_date: bool = False
 
 
 class StateUpdateRequest(BaseModel):
@@ -245,7 +256,7 @@ async def list_workspace_issues(
 
 @router.get(
     "/{workspace_id}/issues/{issue_id}",
-    response_model=WorkspaceIssueResponse,
+    response_model=IssueResponse,
     tags=["workspace-issues"],
     summary="Get issue by ID",
 )
@@ -255,18 +266,18 @@ async def get_workspace_issue(
     current_user_id: SyncedUserId,
     issue_repo: IssueRepo,
     workspace_repo: WorkspaceRepo,
-) -> WorkspaceIssueResponse:
+) -> IssueResponse:
     """Get a specific issue by ID."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    issue = await issue_repo.get_by_id(issue_id)
+    issue = await issue_repo.get_by_id_with_relations(issue_id)
     if not issue or issue.workspace_id != workspace.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Issue not found",
         )
 
-    return _issue_to_response(issue)
+    return IssueResponse.from_issue(issue)
 
 
 @router.post(
@@ -388,7 +399,7 @@ async def create_workspace_issue(
 
 @router.patch(
     "/{workspace_id}/issues/{issue_id}",
-    response_model=WorkspaceIssueResponse,
+    response_model=IssueResponse,
     tags=["workspace-issues"],
     summary="Update an issue",
 )
@@ -400,49 +411,26 @@ async def update_workspace_issue(
     session: DbSession,
     issue_repo: IssueRepo,
     workspace_repo: WorkspaceRepo,
-) -> WorkspaceIssueResponse:
+) -> IssueResponse:
     """Update an existing issue."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    issue = await issue_repo.get_by_id(issue_id)
+    issue = await issue_repo.get_by_id_with_relations(issue_id)
     if not issue or issue.workspace_id != workspace.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Issue not found",
         )
 
-    # Update fields
+    # Update fields from request (exclude_unset respects only fields sent)
     update_data = issue_data.model_dump(exclude_unset=True)
 
-    if "title" in update_data:
-        issue.name = update_data["title"]
+    if "name" in update_data:
+        issue.name = update_data["name"]
     if "description" in update_data:
         issue.description = update_data["description"]
-    if "state" in update_data:
-        # Look up state by name
-        state_name = update_data["state"]
-        state_name_map = {
-            "backlog": "Backlog",
-            "todo": "Todo",
-            "in_progress": "In Progress",
-            "in-progress": "In Progress",
-            "in_review": "In Review",
-            "in-review": "In Review",
-            "done": "Done",
-            "cancelled": "Cancelled",
-            "canceled": "Cancelled",
-        }
-        normalized_state = state_name_map.get(state_name.lower(), state_name)
-        state_result = await session.execute(
-            select(State).where(
-                State.workspace_id == workspace.id,
-                State.name == normalized_state,
-                State.is_deleted.is_(False),
-            )
-        )
-        new_state = state_result.scalar_one_or_none()
-        if new_state:
-            issue.state_id = new_state.id
+    if "description_html" in update_data:
+        issue.description_html = update_data["description_html"]
     if "priority" in update_data:
         priority_map = {
             "urgent": IssuePriority.URGENT,
@@ -452,20 +440,62 @@ async def update_workspace_issue(
             "none": IssuePriority.NONE,
         }
         issue.priority = priority_map.get(update_data["priority"].lower(), IssuePriority.NONE)
-    if "assignee_id" in update_data:
+    if "state_id" in update_data:
+        issue.state_id = update_data["state_id"]
+    if "sort_order" in update_data:
+        issue.sort_order = update_data["sort_order"]
+
+    # Assignee: handle clear flag or update
+    if update_data.get("clear_assignee"):
+        issue.assignee_id = None
+    elif "assignee_id" in update_data:
         issue.assignee_id = update_data["assignee_id"]
-    if "estimated_hours" in update_data:
-        issue.estimate_points = update_data["estimated_hours"]
+
+    # Cycle: handle clear flag or update
+    if update_data.get("clear_cycle"):
+        issue.cycle_id = None
+    elif "cycle_id" in update_data:
+        issue.cycle_id = update_data["cycle_id"]
+
+    # Estimate: handle clear flag or update
+    if update_data.get("clear_estimate"):
+        issue.estimate_points = None
+    elif "estimate_points" in update_data:
+        issue.estimate_points = update_data["estimate_points"]
+
+    # Start date: handle clear flag or update
+    if update_data.get("clear_start_date"):
+        issue.start_date = None
+    elif start_date_val := update_data.get("start_date"):
+        from datetime import date as date_type
+
+        issue.start_date = date_type.fromisoformat(start_date_val)
+
+    # Target date: handle clear flag or update
+    if update_data.get("clear_target_date"):
+        issue.target_date = None
+    elif target_date_val := update_data.get("target_date"):
+        from datetime import date as date_type
+
+        issue.target_date = date_type.fromisoformat(target_date_val)
+
+    # Labels: replace all labels for this issue
+    if "label_ids" in update_data:
+        label_ids = update_data["label_ids"]
+        await issue_repo.bulk_update_labels(issue.id, label_ids)
 
     issue = await issue_repo.update(issue)
     await session.commit()
+
+    # Reload with all relations for response
+    issue = await issue_repo.get_by_id_with_relations(issue_id)
 
     logger.info(
         "Issue updated",
         extra={"issue_id": str(issue_id), "workspace_id": str(workspace.id)},
     )
 
-    return _issue_to_response(issue)
+    return IssueResponse.from_issue(issue)
 
 
 @router.patch(

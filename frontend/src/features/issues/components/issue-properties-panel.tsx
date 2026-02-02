@@ -207,8 +207,24 @@ export function IssuePropertiesPanel({
   // Derive IssueState from StateBrief.group
   const currentIssueState = STATE_GROUP_MAP[issue.state.group] ?? 'backlog';
 
-  // Map members -> User[] for AssigneeSelector
-  const memberUsers = useMemo<User[]>(() => members.map((m) => m.user), [members]);
+  // Map members -> User[] for AssigneeSelector (deduplicate by user_id)
+  const memberUsers = useMemo<User[]>(() => {
+    const seen = new Set<string>();
+    return members
+      .filter((m) => {
+        if (!m.user_id || seen.has(m.user_id)) return false;
+        seen.add(m.user_id);
+        return true;
+      })
+      .map((m) => ({
+        id: m.user_id,
+        email: m.email,
+        name: m.full_name ?? m.email,
+        avatarUrl: m.avatar_url ?? undefined,
+        createdAt: m.joined_at,
+        updatedAt: m.joined_at,
+      }));
+  }, [members]);
 
   // Map issue.assignee (UserBrief | null) -> User | null
   const assigneeUser = useMemo<User | null>(
@@ -249,10 +265,9 @@ export function IssuePropertiesPanel({
     [wrapPriority, onUpdate]
   );
 
-  useSaveStatus('type');
   const handleTypeChange = useCallback((_type: IssueType) => {
-    // UpdateIssueData does not expose a `type` field in the current schema.
-    // This is a visual-only selector until the API supports type updates.
+    // Backend Issue model does not have a type column.
+    // Type selector is read-only until schema supports it.
     void _type;
   }, []);
 
@@ -331,9 +346,9 @@ export function IssuePropertiesPanel({
 
         <PropertyRow label="Type" fieldName="type">
           <IssueTypeSelect
-            value={issue.type}
+            value={issue.type ?? 'task'}
             onChange={handleTypeChange}
-            disabled={disabled}
+            disabled
             className="h-8 flex-1"
           />
         </PropertyRow>

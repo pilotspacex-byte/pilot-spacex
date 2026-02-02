@@ -9,8 +9,9 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.api.v1.schemas.issue import IssueBriefResponse, UserBriefSchema
 from pilot_space.infrastructure.database.models import CycleStatus
 
@@ -22,7 +23,7 @@ __all__: list[str] = []  # Defined at end of file
 # ============================================================================
 
 
-class CycleCreateRequest(BaseModel):
+class CycleCreateRequest(BaseSchema):
     """Request to create a cycle."""
 
     name: str = Field(..., min_length=1, max_length=255)
@@ -34,7 +35,7 @@ class CycleCreateRequest(BaseModel):
     status: CycleStatus = CycleStatus.DRAFT
 
 
-class CycleUpdateRequest(BaseModel):
+class CycleUpdateRequest(BaseSchema):
     """Request to update a cycle."""
 
     name: str | None = Field(None, min_length=1, max_length=255)
@@ -51,19 +52,19 @@ class CycleUpdateRequest(BaseModel):
     clear_owner: bool = False
 
 
-class AddIssueToCycleRequest(BaseModel):
+class AddIssueToCycleRequest(BaseSchema):
     """Request to add an issue to a cycle."""
 
     issue_id: UUID
 
 
-class BulkAddIssuesToCycleRequest(BaseModel):
+class BulkAddIssuesToCycleRequest(BaseSchema):
     """Request to add multiple issues to a cycle."""
 
     issue_ids: list[UUID] = Field(..., min_length=1, max_length=100)
 
 
-class RolloverCycleRequest(BaseModel):
+class RolloverCycleRequest(BaseSchema):
     """Request to rollover a cycle."""
 
     target_cycle_id: UUID
@@ -77,17 +78,15 @@ class RolloverCycleRequest(BaseModel):
 # ============================================================================
 
 
-class ProjectBriefSchema(BaseModel):
+class ProjectBriefSchema(BaseSchema):
     """Brief project information for nested responses."""
 
     id: UUID
     name: str
     identifier: str
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class CycleMetricsResponse(BaseModel):
+class CycleMetricsResponse(BaseSchema):
     """Cycle metrics response."""
 
     cycle_id: UUID
@@ -100,10 +99,8 @@ class CycleMetricsResponse(BaseModel):
     completion_percentage: float
     velocity: float  # Points per day
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class CycleResponse(BaseModel):
+class CycleResponse(BaseSchema):
     """Full cycle response."""
 
     id: UUID
@@ -126,8 +123,6 @@ class CycleResponse(BaseModel):
 
     # Issue count (for list views)
     issue_count: int = 0
-
-    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def from_cycle(
@@ -179,7 +174,7 @@ class CycleResponse(BaseModel):
         )
 
 
-class CycleListResponse(BaseModel):
+class CycleListResponse(BaseSchema):
     """Paginated cycle list response."""
 
     items: list[CycleResponse]
@@ -191,7 +186,7 @@ class CycleListResponse(BaseModel):
     page_size: int
 
 
-class CycleBriefResponse(BaseModel):
+class CycleBriefResponse(BaseSchema):
     """Brief cycle response for lists and references."""
 
     id: UUID
@@ -200,10 +195,8 @@ class CycleBriefResponse(BaseModel):
     start_date: date | None
     end_date: date | None
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class RolloverCycleResponse(BaseModel):
+class RolloverCycleResponse(BaseSchema):
     """Response from cycle rollover."""
 
     source_cycle: CycleResponse
@@ -218,7 +211,7 @@ class RolloverCycleResponse(BaseModel):
 # ============================================================================
 
 
-class BurndownDataPoint(BaseModel):
+class BurndownDataPoint(BaseSchema):
     """Single data point for burndown chart."""
 
     date: date
@@ -228,7 +221,7 @@ class BurndownDataPoint(BaseModel):
     ideal_issues: float
 
 
-class BurndownChartResponse(BaseModel):
+class BurndownChartResponse(BaseSchema):
     """Burndown chart data response."""
 
     cycle_id: UUID
@@ -244,7 +237,7 @@ class BurndownChartResponse(BaseModel):
 # ============================================================================
 
 
-class VelocityDataPoint(BaseModel):
+class VelocityDataPoint(BaseSchema):
     """Single data point for velocity chart."""
 
     cycle_id: UUID
@@ -254,7 +247,7 @@ class VelocityDataPoint(BaseModel):
     velocity: float  # Points per day
 
 
-class VelocityChartResponse(BaseModel):
+class VelocityChartResponse(BaseSchema):
     """Velocity chart data across cycles."""
 
     project_id: UUID

@@ -9,8 +9,9 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.infrastructure.database.models import IssuePriority, StateGroup
 
 # ============================================================================
@@ -18,17 +19,15 @@ from pilot_space.infrastructure.database.models import IssuePriority, StateGroup
 # ============================================================================
 
 
-class UserBriefSchema(BaseModel):
+class UserBriefSchema(BaseSchema):
     """Brief user information for nested responses."""
 
     id: UUID
     email: str
     display_name: str | None = None
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class StateBriefSchema(BaseModel):
+class StateBriefSchema(BaseSchema):
     """Brief state information for nested responses."""
 
     id: UUID
@@ -36,27 +35,21 @@ class StateBriefSchema(BaseModel):
     color: str
     group: StateGroup
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class LabelBriefSchema(BaseModel):
+class LabelBriefSchema(BaseSchema):
     """Brief label information for nested responses."""
 
     id: UUID
     name: str
     color: str
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class ProjectBriefSchema(BaseModel):
+class ProjectBriefSchema(BaseSchema):
     """Brief project information for nested responses."""
 
     id: UUID
     name: str
     identifier: str
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -64,7 +57,7 @@ class ProjectBriefSchema(BaseModel):
 # ============================================================================
 
 
-class IssueCreateRequest(BaseModel):
+class IssueCreateRequest(BaseSchema):
     """Request to create an issue."""
 
     name: str = Field(..., min_length=1, max_length=255)
@@ -86,7 +79,7 @@ class IssueCreateRequest(BaseModel):
     enhance_with_ai: bool = False
 
 
-class IssueUpdateRequest(BaseModel):
+class IssueUpdateRequest(BaseSchema):
     """Request to update an issue."""
 
     name: str | None = Field(None, min_length=1, max_length=255)
@@ -114,7 +107,7 @@ class IssueUpdateRequest(BaseModel):
     clear_target_date: bool = False
 
 
-class IssueResponse(BaseModel):
+class IssueResponse(BaseSchema):
     """Full issue response."""
 
     id: UUID
@@ -132,6 +125,13 @@ class IssueResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # Foreign key IDs (needed by frontend for update operations)
+    project_id: UUID
+    assignee_id: UUID | None
+    reporter_id: UUID
+    cycle_id: UUID | None
+    parent_id: UUID | None
+
     # Relations
     project: ProjectBriefSchema
     state: StateBriefSchema
@@ -145,8 +145,6 @@ class IssueResponse(BaseModel):
 
     # Counts
     sub_issue_count: int = 0
-
-    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def from_issue(cls, issue: Any) -> IssueResponse:
@@ -166,6 +164,11 @@ class IssueResponse(BaseModel):
             sort_order=issue.sort_order,
             created_at=issue.created_at,
             updated_at=issue.updated_at,
+            project_id=issue.project_id,
+            assignee_id=issue.assignee_id,
+            reporter_id=issue.reporter_id,
+            cycle_id=issue.cycle_id,
+            parent_id=issue.parent_id,
             project=ProjectBriefSchema.model_validate(issue.project),
             state=StateBriefSchema.model_validate(issue.state),
             assignee=UserBriefSchema.model_validate(issue.assignee) if issue.assignee else None,
@@ -177,7 +180,7 @@ class IssueResponse(BaseModel):
         )
 
 
-class IssueListResponse(BaseModel):
+class IssueListResponse(BaseSchema):
     """Paginated issue list response."""
 
     items: list[IssueResponse]
@@ -189,7 +192,7 @@ class IssueListResponse(BaseModel):
     page_size: int
 
 
-class IssueBriefResponse(BaseModel):
+class IssueBriefResponse(BaseSchema):
     """Brief issue response for lists and references."""
 
     id: UUID
@@ -199,15 +202,13 @@ class IssueBriefResponse(BaseModel):
     state: StateBriefSchema
     assignee: UserBriefSchema | None
 
-    model_config = ConfigDict(from_attributes=True)
-
 
 # ============================================================================
 # Activity Schemas
 # ============================================================================
 
 
-class ActivityResponse(BaseModel):
+class ActivityResponse(BaseSchema):
     """Activity response for timeline."""
 
     id: UUID
@@ -220,17 +221,15 @@ class ActivityResponse(BaseModel):
     created_at: datetime
     actor: UserBriefSchema | None
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class ActivityTimelineResponse(BaseModel):
+class ActivityTimelineResponse(BaseSchema):
     """Activity timeline response."""
 
     activities: list[ActivityResponse]
     total: int
 
 
-class CommentCreateRequest(BaseModel):
+class CommentCreateRequest(BaseSchema):
     """Request to add a comment."""
 
     content: str = Field(..., min_length=1, max_length=10000)
@@ -241,7 +240,7 @@ class CommentCreateRequest(BaseModel):
 # ============================================================================
 
 
-class IssueFilterParams(BaseModel):
+class IssueFilterParams(BaseSchema):
     """Query parameters for issue filtering."""
 
     project_id: UUID | None = None

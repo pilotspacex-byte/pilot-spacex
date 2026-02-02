@@ -28,7 +28,13 @@ from pilot_space.api.v1.schemas.workspace import (
     WorkspaceResponse,
     WorkspaceUpdate,
 )
-from pilot_space.dependencies import CurrentUser, CurrentUserId, CurrentUserIdOrDemo, DbSession
+from pilot_space.dependencies import (
+    DEMO_WORKSPACE_SLUGS,
+    CurrentUser,
+    CurrentUserId,
+    CurrentUserIdOrDemo,
+    DbSession,
+)
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.database.repositories.label_repository import (
@@ -60,6 +66,16 @@ LabelRepo = Annotated[LabelRepository, Depends(get_label_repository)]
 
 # Type alias for endpoints that accept both UUID and slug
 WorkspaceIdOrSlug = Annotated[str, Path(description="Workspace ID (UUID) or slug")]
+
+
+def _is_demo_workspace(workspace_id_or_slug: str) -> bool:
+    """Check if the workspace identifier refers to a demo workspace."""
+    from pilot_space.config import get_settings
+
+    settings = get_settings()
+    if settings.app_env not in ("development", "test"):
+        return False
+    return workspace_id_or_slug in DEMO_WORKSPACE_SLUGS
 
 
 def _is_valid_uuid(value: str) -> bool:
@@ -405,13 +421,14 @@ async def list_workspace_members(
     """
     workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
-    # Check membership
-    is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
-    if not is_member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+    # Check membership (demo workspaces bypass check in dev/test)
+    if not _is_demo_workspace(workspace_id):
+        is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
+        if not is_member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this workspace",
+            )
 
     return [
         WorkspaceMemberResponse(
@@ -654,13 +671,14 @@ async def list_workspace_labels(
     """
     workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
-    # Check membership
-    is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
-    if not is_member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+    # Check membership (demo workspaces bypass check in dev/test)
+    if not _is_demo_workspace(workspace_id):
+        is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
+        if not is_member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this workspace",
+            )
 
     labels = await label_repo.get_workspace_labels(
         workspace.id,

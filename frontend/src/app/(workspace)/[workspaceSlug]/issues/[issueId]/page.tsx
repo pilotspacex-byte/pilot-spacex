@@ -143,7 +143,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
     <div className="flex h-full flex-col">
       <IssueHeader
         identifier={issue.identifier}
-        aiGenerated={issue.aiGenerated}
+        aiGenerated={issue.aiGenerated ?? false}
         showAIContext={aiStore.settings.aiContextEnabled}
         onBack={handleBack}
         onAIContextClick={() => setIsAIContextOpen(true)}

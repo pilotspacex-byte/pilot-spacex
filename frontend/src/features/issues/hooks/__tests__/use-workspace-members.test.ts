@@ -20,32 +20,20 @@ import { apiClient } from '@/services/api';
 
 const mockMembers: WorkspaceMember[] = [
   {
-    id: 'member-1',
-    userId: 'user-1',
-    workspaceId: 'ws-1',
+    user_id: 'user-1',
+    email: 'owner@test.com',
+    full_name: 'Owner',
+    avatar_url: null,
     role: 'owner',
-    user: {
-      id: 'user-1',
-      email: 'owner@test.com',
-      name: 'Owner',
-      createdAt: '2025-01-01T00:00:00Z',
-      updatedAt: '2025-01-01T00:00:00Z',
-    },
-    joinedAt: '2025-01-01T00:00:00Z',
+    joined_at: '2025-01-01T00:00:00Z',
   },
   {
-    id: 'member-2',
-    userId: 'user-2',
-    workspaceId: 'ws-1',
+    user_id: 'user-2',
+    email: 'member@test.com',
+    full_name: 'Member',
+    avatar_url: null,
     role: 'member',
-    user: {
-      id: 'user-2',
-      email: 'member@test.com',
-      name: 'Member',
-      createdAt: '2025-01-01T00:00:00Z',
-      updatedAt: '2025-01-01T00:00:00Z',
-    },
-    joinedAt: '2025-01-02T00:00:00Z',
+    joined_at: '2025-01-02T00:00:00Z',
   },
 ];
 

@@ -138,7 +138,7 @@ export class IssueStore {
       const query = this.searchQuery.toLowerCase();
       issues = issues.filter(
         (i) =>
-          i.title.toLowerCase().includes(query) ||
+          (i.title ?? i.name).toLowerCase().includes(query) ||
           i.identifier.toLowerCase().includes(query) ||
           i.description?.toLowerCase().includes(query)
       );
@@ -215,7 +215,7 @@ export class IssueStore {
           comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
           break;
         case 'title':
-          comparison = a.title.localeCompare(b.title);
+          comparison = (a.title ?? a.name).localeCompare(b.title ?? b.name);
           break;
       }
 

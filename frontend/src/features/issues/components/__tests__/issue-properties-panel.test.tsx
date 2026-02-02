@@ -186,26 +186,20 @@ function createIssue(overrides?: Partial<Issue>): Issue {
 
 const mockMembers: WorkspaceMember[] = [
   {
-    id: 'member-1',
-    userId: 'user-1',
-    workspaceId: 'ws-1',
+    user_id: 'user-1',
+    email: 'john@test.com',
+    full_name: 'John Doe',
+    avatar_url: null,
     role: 'admin',
-    user: { id: 'user-1', email: 'john@test.com', name: 'John Doe', createdAt: '', updatedAt: '' },
-    joinedAt: '2025-01-01',
+    joined_at: '2025-01-01',
   },
   {
-    id: 'member-2',
-    userId: 'user-2',
-    workspaceId: 'ws-1',
+    user_id: 'user-2',
+    email: 'jane@test.com',
+    full_name: 'Jane Smith',
+    avatar_url: null,
     role: 'member',
-    user: {
-      id: 'user-2',
-      email: 'jane@test.com',
-      name: 'Jane Smith',
-      createdAt: '',
-      updatedAt: '',
-    },
-    joinedAt: '2025-01-02',
+    joined_at: '2025-01-02',
   },
 ];
 
