@@ -7,6 +7,15 @@ export type { IssuePrioritySelectProps, PrioritySuggestion } from './IssuePriori
 export { IssueStateSelect } from './IssueStateSelect';
 export type { IssueStateSelectProps } from './IssueStateSelect';
 
+export { IssueTypeSelect } from './IssueTypeSelect';
+export type { IssueTypeSelectProps } from './IssueTypeSelect';
+
+export { CycleSelector } from './CycleSelector';
+export type { CycleSelectorProps } from './CycleSelector';
+
+export { EstimateSelector } from './EstimateSelector';
+export type { EstimateSelectorProps } from './EstimateSelector';
+
 export { LabelSelector } from './LabelSelector';
 export type { LabelSelectorProps, LabelSuggestion } from './LabelSelector';
 

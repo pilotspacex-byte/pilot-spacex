@@ -93,8 +93,15 @@ export class IssueStore {
   // View state
   viewMode: 'board' | 'list' | 'table' = 'board';
 
+  // Per-field save status for inline editing (T014)
+  saveStatus: Map<string, 'idle' | 'saving' | 'saved' | 'error'> = new Map();
+  /** @internal Not observable — cleanup timers only. */
+  private _saveStatusTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+
   constructor() {
-    makeAutoObservable(this);
+    makeAutoObservable<IssueStore, '_saveStatusTimers'>(this, {
+      _saveStatusTimers: false,
+    });
   }
 
   // Computed
@@ -527,6 +534,42 @@ export class IssueStore {
     this.assigneeRecommendations = [];
   }
 
+  // ============================================================================
+  // Per-field Save Status Methods (T014)
+  // ============================================================================
+
+  /**
+   * Set save status for a specific field. Auto-clears to 'idle' after 2s when 'saved'.
+   */
+  setSaveStatus(field: string, status: 'idle' | 'saving' | 'saved' | 'error') {
+    this.saveStatus.set(field, status);
+
+    // Clear any existing auto-reset timer for this field
+    const existing = this._saveStatusTimers.get(field);
+    if (existing) {
+      clearTimeout(existing);
+      this._saveStatusTimers.delete(field);
+    }
+
+    // Auto-clear to 'idle' after 2s when status is 'saved'
+    if (status === 'saved') {
+      const timer = setTimeout(() => {
+        runInAction(() => {
+          this.saveStatus.set(field, 'idle');
+        });
+        this._saveStatusTimers.delete(field);
+      }, 2000);
+      this._saveStatusTimers.set(field, timer);
+    }
+  }
+
+  /**
+   * Get save status for a specific field. Defaults to 'idle' if not tracked.
+   */
+  getSaveStatus(field: string): 'idle' | 'saving' | 'saved' | 'error' {
+    return this.saveStatus.get(field) ?? 'idle';
+  }
+
   // Reset
   reset() {
     this.issues.clear();
@@ -549,6 +592,10 @@ export class IssueStore {
     this.isCheckingDuplicates = false;
     this.assigneeRecommendations = [];
     this.isLoadingRecommendations = false;
+    // Save status (T014)
+    this.saveStatus.clear();
+    this._saveStatusTimers.forEach((timer) => clearTimeout(timer));
+    this._saveStatusTimers.clear();
   }
 }
 

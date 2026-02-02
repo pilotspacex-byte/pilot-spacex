@@ -1,5 +1,12 @@
 import { apiClient, type PaginatedResponse } from './client';
-import type { Issue, CreateIssueData, UpdateIssueData, IssuePriority } from '@/types';
+import type {
+  Issue,
+  CreateIssueData,
+  UpdateIssueData,
+  IssuePriority,
+  Activity,
+  ActivityTimelineResponse,
+} from '@/types';
 
 interface IssueFilters {
   projectId?: string;
@@ -116,6 +123,27 @@ export const issuesApi = {
     return apiClient.delete<Issue>(
       `/workspaces/${workspaceId}/issues/${issueId}/labels/${labelId}`
     );
+  },
+
+  // Activity & Comment endpoints
+
+  listActivities(
+    workspaceId: string,
+    issueId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<ActivityTimelineResponse> {
+    const params: Record<string, string> = {};
+    if (options?.limit !== undefined) params.limit = String(options.limit);
+    if (options?.offset !== undefined) params.offset = String(options.offset);
+
+    return apiClient.get<ActivityTimelineResponse>(
+      `/workspaces/${workspaceId}/issues/${issueId}/activities`,
+      { params }
+    );
+  },
+
+  addComment(workspaceId: string, issueId: string, data: { content: string }): Promise<Activity> {
+    return apiClient.post<Activity>(`/workspaces/${workspaceId}/issues/${issueId}/comments`, data);
   },
 
   // AI Enhancement endpoints
