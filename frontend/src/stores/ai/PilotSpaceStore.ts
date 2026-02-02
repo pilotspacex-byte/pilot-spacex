@@ -1069,8 +1069,23 @@ export class PilotSpaceStore {
 
   /**
    * Abort current streaming response.
+   *
+   * Sends interrupt signal to backend (Claude SDK process) before
+   * closing the SSE connection for graceful shutdown.
    */
   abort(): void {
+    // Send abort signal to backend to interrupt Claude SDK process.
+    // Fire-and-forget: don't await, SSE close handles cleanup regardless.
+    if (this.sessionId) {
+      fetch(`${API_BASE}/ai/chat/abort`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: this.sessionId }),
+      }).catch(() => {
+        // Ignore errors - SSE disconnect will also trigger cleanup
+      });
+    }
+
     this.client?.abort();
     this.client = null;
 

@@ -207,6 +207,32 @@ export class SessionListStore {
   }
 
   /**
+   * Find and resume the most recent session for a given context (e.g., a note).
+   * If no matching session exists, does nothing.
+   * @param contextId - The context ID (e.g., noteId)
+   * @param contextType - The context type ('note' | 'issue' | 'project')
+   */
+  async resumeSessionForContext(
+    contextId: string,
+    contextType: 'note' | 'issue' | 'project'
+  ): Promise<void> {
+    // Ensure sessions are loaded
+    if (this.sessions.length === 0 && !this.isLoading) {
+      await this.fetchSessions();
+    }
+
+    // Find the most recent active session matching this context
+    const now = new Date();
+    const matchingSession = this.recentSessions.find(
+      (s) => s.contextId === contextId && s.contextType === contextType && s.expiresAt > now
+    );
+
+    if (matchingSession) {
+      await this.resumeSession(matchingSession.sessionId);
+    }
+  }
+
+  /**
    * Delete session.
    * @param sessionId - Session identifier to delete
    */

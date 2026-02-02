@@ -166,6 +166,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._space_manager = space_manager
         self._subagents = subagents or {}
         self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
+        # Track active SDK clients by session ID for interrupt support
+        self._active_clients: dict[str, ClaudeSDKClient] = {}
 
     # Removed old routing methods (_parse_intent, _execute_skill, _spawn_subagent,
     # _plan_tasks, _handle_natural_language) - SDK handles all routing via .claude/
@@ -225,6 +227,35 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             )
             raise ValueError(msg)
         return api_key
+
+    async def interrupt_session(self, session_id: str) -> bool:
+        """Interrupt active SDK client for a given session.
+
+        Sends interrupt control request to Claude subprocess, stopping
+        the current turn gracefully per Claude Agent SDK guidelines.
+
+        Args:
+            session_id: Session identifier to interrupt.
+
+        Returns:
+            True if interrupt was sent, False if no active client found.
+        """
+        client = self._active_clients.get(session_id)
+        if not client:
+            logger.debug("[SDK/Interrupt] No active client for session %s", session_id)
+            return False
+
+        try:
+            await asyncio.wait_for(client.interrupt(), timeout=3.0)
+            logger.info("[SDK/Interrupt] Interrupted session %s", session_id)
+            return True
+        except (TimeoutError, Exception) as e:
+            logger.warning(
+                "[SDK/Interrupt] Failed to interrupt session %s: %s",
+                session_id,
+                e,
+            )
+            return False
 
     def transform_sdk_message(
         self,
@@ -463,17 +494,19 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             )
 
             client = ClaudeSDKClient(sdk_options)
+            query_session_id = session_id_str or "default"
+            stream_completed = False
             try:
                 await client.connect()
-
-                # Use session_id_str for multi-turn, fallback to "default"
-                query_session_id = session_id_str or "default"
 
                 logger.info(
                     "[SDK/Space] Client connected (session=%s, resume=%s)",
                     query_session_id,
                     resume_id,
                 )
+
+                # Track active client for external interrupt support
+                self._active_clients[query_session_id] = client
 
                 enriched_message = build_contextual_message(input_data)
                 await client.query(enriched_message, session_id=query_session_id)
@@ -499,6 +532,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     tool_event_count += 1
                     yield tool_event_queue.get_nowait()
 
+                stream_completed = True
                 logger.info(
                     "[SDK/Space] Query finished: %d sdk_events, %d transformed, %d tool_events",
                     sdk_event_count,
@@ -507,6 +541,21 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 )
 
             finally:
+                # Remove from active clients
+                self._active_clients.pop(query_session_id, None)
+
+                # If stream was interrupted (not completed naturally),
+                # send interrupt signal to Claude subprocess before disconnect
+                if not stream_completed:
+                    try:
+                        await asyncio.wait_for(client.interrupt(), timeout=2.0)
+                        logger.info(
+                            "[SDK/Space] Sent interrupt to Claude process (session=%s)",
+                            query_session_id,
+                        )
+                    except (TimeoutError, Exception) as e:
+                        logger.debug("[SDK/Space] Interrupt during cleanup failed: %s", e)
+
                 await client.disconnect()
                 clear_context()
 
