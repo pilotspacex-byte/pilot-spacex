@@ -203,7 +203,7 @@ export const Header = observer(function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full">
               <Avatar className="h-8 w-8 border border-border">
-                <AvatarImage src="/avatars/user.png" alt="User" />
+                <AvatarImage src="" alt="User" />
                 <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
                   TD
                 </AvatarFallback>

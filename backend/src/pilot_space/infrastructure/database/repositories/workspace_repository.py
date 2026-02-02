@@ -60,6 +60,36 @@ class WorkspaceRepository(BaseRepository[Workspace]):
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_with_members(
+        self,
+        id_or_slug: str,
+        *,
+        include_deleted: bool = False,
+    ) -> Workspace | None:
+        """Get workspace by UUID or slug with members eagerly loaded.
+
+        Args:
+            id_or_slug: UUID string or slug.
+            include_deleted: Whether to include soft-deleted workspaces.
+
+        Returns:
+            The workspace with members loaded, or None.
+        """
+        try:
+            from uuid import UUID as _UUID
+
+            parsed_id = _UUID(id_or_slug)
+            query = select(Workspace).where(Workspace.id == parsed_id)
+        except ValueError:
+            query = select(Workspace).where(Workspace.slug == id_or_slug)
+
+        if not include_deleted:
+            query = query.where(Workspace.is_deleted == False)  # noqa: E712
+
+        query = query.options(joinedload(Workspace.members).joinedload(WorkspaceMember.user))
+        result = await self.session.execute(query)
+        return result.unique().scalar_one_or_none()
+
     async def slug_exists(
         self,
         slug: str,

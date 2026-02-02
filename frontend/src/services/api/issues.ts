@@ -136,14 +136,11 @@ export const issuesApi = {
     if (options?.limit !== undefined) params.limit = String(options.limit);
     if (options?.offset !== undefined) params.offset = String(options.offset);
 
-    return apiClient.get<ActivityTimelineResponse>(
-      `/workspaces/${workspaceId}/issues/${issueId}/activities`,
-      { params }
-    );
+    return apiClient.get<ActivityTimelineResponse>(`/issues/${issueId}/activities`, { params });
   },
 
   addComment(workspaceId: string, issueId: string, data: { content: string }): Promise<Activity> {
-    return apiClient.post<Activity>(`/workspaces/${workspaceId}/issues/${issueId}/comments`, data);
+    return apiClient.post<Activity>(`/issues/${issueId}/comments`, data);
   },
 
   // AI Enhancement endpoints

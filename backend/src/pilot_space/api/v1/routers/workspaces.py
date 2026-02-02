@@ -74,9 +74,19 @@ def _is_valid_uuid(value: str) -> bool:
 async def _resolve_workspace(
     workspace_id_or_slug: str,
     workspace_repo: WorkspaceRepository,
+    *,
+    load_members: bool = False,
 ) -> Workspace:
-    """Resolve workspace by UUID or slug."""
-    if _is_valid_uuid(workspace_id_or_slug):
+    """Resolve workspace by UUID or slug.
+
+    Args:
+        workspace_id_or_slug: UUID string or slug.
+        workspace_repo: Workspace repository.
+        load_members: If True, eagerly load members relationship.
+    """
+    if load_members:
+        workspace = await workspace_repo.get_with_members(workspace_id_or_slug)
+    elif _is_valid_uuid(workspace_id_or_slug):
         workspace = await workspace_repo.get_by_id(UUID(workspace_id_or_slug))
     else:
         workspace = await workspace_repo.get_by_slug(workspace_id_or_slug)
@@ -390,7 +400,7 @@ async def list_workspace_members(
     Raises:
         HTTPException: If workspace not found or user not a member.
     """
-    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
     # Check membership
     is_member = any(m.user_id == current_user.user_id for m in (workspace.members or []))
@@ -639,7 +649,7 @@ async def list_workspace_labels(
     Raises:
         HTTPException: If workspace not found or user not a member.
     """
-    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
     # Check membership
     is_member = any(m.user_id == current_user.user_id for m in (workspace.members or []))
