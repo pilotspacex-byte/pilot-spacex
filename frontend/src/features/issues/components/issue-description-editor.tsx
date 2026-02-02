@@ -54,6 +54,7 @@ export function IssueDescriptionEditor({
   const updateIssue = useUpdateIssue(workspaceId, issueId);
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: createIssueEditorExtensions(),
     content: content ?? '',
     editable: !disabled,
@@ -101,10 +102,13 @@ export function IssueDescriptionEditor({
     const handleUpdate = () => {
       clearDebounce();
       const html = editor.getHTML();
-      const text = editor.getText();
+      const markdown =
+        (
+          editor.storage as unknown as Record<string, { getMarkdown?: () => string }>
+        ).markdown?.getMarkdown?.() ?? editor.getText();
 
       debounceTimerRef.current = setTimeout(() => {
-        void saveDescription(html, text);
+        void saveDescription(html, markdown);
       }, DEBOUNCE_MS);
     };
 
@@ -120,6 +124,22 @@ export function IssueDescriptionEditor({
       editor.setEditable(!disabled);
     }
   }, [editor, disabled]);
+
+  // Listen for force-save event (Cmd/Ctrl+S)
+  useEffect(() => {
+    const handleForceSave = () => {
+      if (!editor) return;
+      clearDebounce();
+      const html = editor.getHTML();
+      const markdown =
+        (
+          editor.storage as unknown as Record<string, { getMarkdown?: () => string }>
+        ).markdown?.getMarkdown?.() ?? editor.getText();
+      void saveDescription(html, markdown);
+    };
+    document.addEventListener('issue-force-save', handleForceSave);
+    return () => document.removeEventListener('issue-force-save', handleForceSave);
+  }, [editor, clearDebounce, saveDescription]);
 
   // Cleanup debounce timer on unmount
   useEffect(() => clearDebounce, [clearDebounce]);

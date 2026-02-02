@@ -22,6 +22,8 @@ export interface IssueBoardProps {
   issuesByState: Record<IssueState, Issue[]>;
   /** Called when an issue is clicked */
   onIssueClick?: (issue: Issue) => void;
+  /** Called to navigate to issue detail page */
+  onOpenIssue?: (issue: Issue) => void;
   /** Called when an issue is dropped on a column */
   onIssueDrop?: (issueId: string, newState: IssueState) => void;
   /** Called when creating a new issue in a column */
@@ -100,6 +102,7 @@ const columns: ColumnConfig[] = [
 export const IssueBoard = observer(function IssueBoard({
   issuesByState,
   onIssueClick,
+  onOpenIssue,
   onIssueDrop,
   onCreateIssue,
   isLoading = false,
@@ -191,6 +194,7 @@ export const IssueBoard = observer(function IssueBoard({
                       key={issue.id}
                       issue={issue}
                       onClick={onIssueClick}
+                      onOpenIssue={onOpenIssue}
                       onDragStart={handleDragStart}
                       isDragging={draggedIssue?.id === issue.id}
                       compact

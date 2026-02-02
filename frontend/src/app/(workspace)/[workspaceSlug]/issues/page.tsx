@@ -244,6 +244,7 @@ const IssuesPage = observer(function IssuesPage() {
           <IssueBoard
             issuesByState={issueStore.issuesByState}
             onIssueClick={handleEditIssue}
+            onOpenIssue={(issue) => router.push(`/${workspaceSlug}/issues/${issue.id}`)}
             onIssueDrop={handleIssueDrop}
             onCreateIssue={handleCreateIssue}
             isLoading={issueStore.isLoading}
@@ -299,6 +300,9 @@ const IssuesPage = observer(function IssuesPage() {
           }
         }}
         onSave={handleSaveIssue}
+        onOpenIssue={(issue) => {
+          router.push(`/${workspaceSlug}/issues/${issue.id}`);
+        }}
         onViewDuplicate={(issueId) => {
           router.push(`/${workspaceSlug}/issues/${issueId}`);
         }}

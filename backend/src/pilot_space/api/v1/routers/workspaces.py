@@ -9,9 +9,10 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from pilot_space.api.v1.schemas.base import DeleteResponse, PaginatedResponse
+from pilot_space.api.v1.schemas.issue import LabelBriefSchema
 from pilot_space.api.v1.schemas.workspace import (
     AIFeatureToggles,
     KeyValidationResult,
@@ -30,6 +31,9 @@ from pilot_space.api.v1.schemas.workspace import (
 from pilot_space.dependencies import CurrentUser, CurrentUserId, DbSession
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
+from pilot_space.infrastructure.database.repositories.label_repository import (
+    LabelRepository,
+)
 from pilot_space.infrastructure.database.repositories.workspace_repository import (
     WorkspaceRepository,
 )
@@ -45,6 +49,44 @@ def get_workspace_repository(session: DbSession) -> WorkspaceRepository:
 
 
 WorkspaceRepo = Annotated[WorkspaceRepository, Depends(get_workspace_repository)]
+
+
+def get_label_repository(session: DbSession) -> LabelRepository:
+    """Get label repository with session."""
+    return LabelRepository(session=session)
+
+
+LabelRepo = Annotated[LabelRepository, Depends(get_label_repository)]
+
+# Type alias for endpoints that accept both UUID and slug
+WorkspaceIdOrSlug = Annotated[str, Path(description="Workspace ID (UUID) or slug")]
+
+
+def _is_valid_uuid(value: str) -> bool:
+    """Check if a string is a valid UUID."""
+    try:
+        UUID(value)
+        return True
+    except ValueError:
+        return False
+
+
+async def _resolve_workspace(
+    workspace_id_or_slug: str,
+    workspace_repo: WorkspaceRepository,
+) -> Workspace:
+    """Resolve workspace by UUID or slug."""
+    if _is_valid_uuid(workspace_id_or_slug):
+        workspace = await workspace_repo.get_by_id(UUID(workspace_id_or_slug))
+    else:
+        workspace = await workspace_repo.get_by_slug(workspace_id_or_slug)
+
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found",
+        )
+    return workspace
 
 
 def _workspace_to_response(
@@ -331,14 +373,14 @@ async def delete_workspace(
     "/{workspace_id}/members", response_model=list[WorkspaceMemberResponse], tags=["workspaces"]
 )
 async def list_workspace_members(
-    workspace_id: UUID,
+    workspace_id: WorkspaceIdOrSlug,
     current_user: CurrentUser,
     workspace_repo: WorkspaceRepo,
 ) -> list[WorkspaceMemberResponse]:
     """List workspace members.
 
     Args:
-        workspace_id: Workspace identifier.
+        workspace_id: Workspace identifier (UUID or slug).
         current_user: Authenticated user.
         workspace_repo: Workspace repository.
 
@@ -348,12 +390,7 @@ async def list_workspace_members(
     Raises:
         HTTPException: If workspace not found or user not a member.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
     # Check membership
     is_member = any(m.user_id == current_user.user_id for m in (workspace.members or []))
@@ -565,6 +602,60 @@ async def remove_workspace_member(
         "Workspace member removed",
         extra={"workspace_id": str(workspace_id), "user_id": str(user_id)},
     )
+
+
+# ============================================================================
+# Label Management Endpoints
+# ============================================================================
+
+
+@router.get(
+    "/{workspace_id}/labels",
+    response_model=list[LabelBriefSchema],
+    tags=["workspaces", "labels"],
+)
+async def list_workspace_labels(
+    workspace_id: WorkspaceIdOrSlug,
+    current_user: CurrentUser,
+    workspace_repo: WorkspaceRepo,
+    label_repo: LabelRepo,
+    project_id: Annotated[UUID | None, Query(description="Filter by project ID")] = None,
+) -> list[LabelBriefSchema]:
+    """List labels available in a workspace.
+
+    Returns workspace-wide labels and optionally project-specific labels.
+    Requires workspace membership.
+
+    Args:
+        workspace_id: Workspace identifier (UUID or slug).
+        current_user: Authenticated user.
+        workspace_repo: Workspace repository.
+        label_repo: Label repository.
+        project_id: Optional project filter.
+
+    Returns:
+        List of labels.
+
+    Raises:
+        HTTPException: If workspace not found or user not a member.
+    """
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+
+    # Check membership
+    is_member = any(m.user_id == current_user.user_id for m in (workspace.members or []))
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this workspace",
+        )
+
+    labels = await label_repo.get_workspace_labels(
+        workspace.id,
+        include_project_labels=True,
+        project_id=project_id,
+    )
+
+    return [LabelBriefSchema.model_validate(label) for label in labels]
 
 
 # ============================================================================

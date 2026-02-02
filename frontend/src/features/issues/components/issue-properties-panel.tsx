@@ -218,12 +218,12 @@ export function IssuePropertiesPanel({
 
   // Map issue.labels (LabelBrief[]) -> Label[]
   const selectedLabels = useMemo<Label[]>(
-    () => issue.labels.map((lb) => toLabel(lb, issue.projectId)),
+    () => (issue.labels ?? []).map((lb) => toLabel(lb, issue.projectId)),
     [issue.labels, issue.projectId]
   );
 
   // Reporter display
-  const reporterName = issue.reporter.displayName ?? issue.reporter.email;
+  const reporterName = issue.reporter?.displayName ?? issue.reporter?.email ?? 'Unknown';
 
   // ---- Handlers (each wraps onUpdate with per-field save status) ----
 

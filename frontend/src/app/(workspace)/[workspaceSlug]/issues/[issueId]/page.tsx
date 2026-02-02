@@ -90,8 +90,8 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const issueId = params.issueId as string;
 
   const { workspaceStore, aiStore, issueStore } = useStore();
-  const workspace = workspaceStore.currentWorkspace;
-  const workspaceId = workspace?.id ?? '';
+  // Backend accepts both UUID and slug — use slug as fallback when store isn't hydrated
+  const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
 
   // -- TanStack Query hooks --------------------------------------------------
   const { data: issue, isLoading, isError } = useIssueDetail(workspaceId, issueId);
@@ -104,8 +104,13 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const [isAIContextOpen, setIsAIContextOpen] = React.useState(false);
 
   // -- Keyboard shortcuts (T045) ---------------------------------------------
+  const handleForceSave = React.useCallback(() => {
+    document.dispatchEvent(new CustomEvent('issue-force-save'));
+  }, []);
+
   useIssueKeyboardShortcuts({
     onCloseAISidebar: () => setIsAIContextOpen(false),
+    onForceSave: handleForceSave,
   });
 
   // -- Handlers --------------------------------------------------------------
@@ -178,18 +183,14 @@ const IssueDetailPage = observer(function IssueDetailPage() {
 
             <Separator />
 
-            {issue.subIssueCount > 0 && (
-              <>
-                <SubIssuesList
-                  parentId={issue.id}
-                  workspaceId={workspaceId}
-                  workspaceSlug={workspaceSlug}
-                  projectId={issue.project.id}
-                  subIssues={[]}
-                />
-                <Separator />
-              </>
-            )}
+            <SubIssuesList
+              parentId={issue.id}
+              workspaceId={workspaceId}
+              workspaceSlug={workspaceSlug}
+              projectId={issue.project?.id ?? ''}
+              subIssues={[]}
+            />
+            <Separator />
 
             <ActivityTimeline issueId={issueId} workspaceId={workspaceId} />
           </div>

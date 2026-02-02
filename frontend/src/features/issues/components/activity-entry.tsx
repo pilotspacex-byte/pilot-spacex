@@ -8,7 +8,7 @@
  */
 'use client';
 
-import { Settings } from 'lucide-react';
+import { Settings, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Activity } from '@/types';
 
@@ -59,6 +59,16 @@ function formatRelativeTime(dateStr: string): string {
   return `${months[date.getMonth()]} ${date.getDate()}`;
 }
 
+function isAIGenerated(activity: Activity): boolean {
+  if (!activity.metadata) return false;
+  return (
+    activity.metadata.ai === true ||
+    activity.metadata.isAiGenerated === true ||
+    activity.metadata.agent != null ||
+    activity.metadata.source === 'ai'
+  );
+}
+
 function buildDescription(activity: Activity): string {
   const actor = getActorName(activity.actor);
   const { activityType, field, oldValue, newValue } = activity;
@@ -87,6 +97,7 @@ function buildDescription(activity: Activity): string {
 export function ActivityEntry({ activity, isLast = false }: ActivityEntryProps) {
   const isComment = activity.activityType === 'comment';
   const actor = activity.actor;
+  const isAI = isAIGenerated(activity);
 
   return (
     <div className="relative flex gap-3">
@@ -99,13 +110,21 @@ export function ActivityEntry({ activity, isLast = false }: ActivityEntryProps) 
       <div
         className={cn(
           'relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium',
-          actor
-            ? 'bg-primary/10 text-primary border border-primary/20'
-            : 'bg-muted text-muted-foreground border border-border'
+          isAI
+            ? 'bg-[#6B8FAD]/15 text-[#6B8FAD] border border-[#6B8FAD]/30'
+            : actor
+              ? 'bg-primary/10 text-primary border border-primary/20'
+              : 'bg-muted text-muted-foreground border border-border'
         )}
         aria-hidden="true"
       >
-        {actor ? getInitial(actor) : <Settings className="h-3.5 w-3.5" />}
+        {isAI ? (
+          <Sparkles className="h-3.5 w-3.5" />
+        ) : actor ? (
+          getInitial(actor)
+        ) : (
+          <Settings className="h-3.5 w-3.5" />
+        )}
       </div>
 
       {/* Content */}

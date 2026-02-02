@@ -155,6 +155,19 @@ export function IssueTitle({ title, issueId, workspaceId, disabled = false }: Is
     [confirmAndExit, cancelAndExit]
   );
 
+  // Listen for force-save event (Cmd/Ctrl+S)
+  useEffect(() => {
+    const handleForceSave = () => {
+      clearDebounce();
+      const trimmed = editValue.trim();
+      if (!validate(trimmed) && trimmed !== lastSavedRef.current) {
+        void saveTitle(trimmed);
+      }
+    };
+    document.addEventListener('issue-force-save', handleForceSave);
+    return () => document.removeEventListener('issue-force-save', handleForceSave);
+  }, [clearDebounce, editValue, validate, saveTitle]);
+
   // Cleanup debounce on unmount
   useEffect(() => clearDebounce, [clearDebounce]);
 

@@ -14,9 +14,11 @@ import {
   User,
   Calendar,
   Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Issue, IssuePriority, IssueType } from '@/types';
@@ -24,6 +26,8 @@ import type { Issue, IssuePriority, IssueType } from '@/types';
 export interface IssueCardProps {
   issue: Issue;
   onClick?: (issue: Issue) => void;
+  /** Navigate to issue detail page */
+  onOpenIssue?: (issue: Issue) => void;
   onDragStart?: (e: React.DragEvent, issue: Issue) => void;
   isDragging?: boolean;
   compact?: boolean;
@@ -99,6 +103,7 @@ function formatRelativeDate(dateStr: string): string {
 export const IssueCard = observer(function IssueCard({
   issue,
   onClick,
+  onOpenIssue,
   onDragStart,
   isDragging = false,
   compact = false,
@@ -157,6 +162,20 @@ export const IssueCard = observer(function IssueCard({
         </div>
 
         <div className="flex items-center gap-1">
+          {onOpenIssue && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenIssue(issue);
+              }}
+              aria-label={`Open issue ${issue.identifier}`}
+            >
+              <ExternalLink className="size-3.5" />
+            </Button>
+          )}
           {issue.aiGenerated && (
             <TooltipProvider>
               <Tooltip>
