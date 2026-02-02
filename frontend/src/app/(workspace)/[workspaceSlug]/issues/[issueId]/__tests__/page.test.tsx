@@ -52,7 +52,9 @@ vi.mock('@/features/issues/components', () => ({
   IssueTitle: (props: Record<string, unknown>) => (
     <div data-testid="issue-title">{String(props.title)}</div>
   ),
-  IssueDescriptionEditor: () => <div data-testid="issue-description-editor" />,
+  IssueDescriptionEditor: (props: Record<string, unknown>) => (
+    <div data-testid="issue-description-editor" data-content={(props.content as string) ?? ''} />
+  ),
   SubIssuesList: () => <div data-testid="sub-issues-list" />,
   ActivityTimeline: (props: Record<string, unknown>) => (
     <div data-testid="activity-timeline" data-workspace-id={props.workspaceId} />
@@ -180,10 +182,25 @@ describe('IssueDetailPage', () => {
     expect(title).toHaveTextContent('Test Issue');
   });
 
-  it('renders IssueDescriptionEditor', () => {
+  it('renders IssueDescriptionEditor with descriptionHtml', () => {
     render(<IssueDetailPage />);
 
-    expect(screen.getByTestId('issue-description-editor')).toBeInTheDocument();
+    const editor = screen.getByTestId('issue-description-editor');
+    expect(editor).toBeInTheDocument();
+    expect(editor).toHaveAttribute('data-content', '<p>Test description</p>');
+  });
+
+  it('falls back to plain description when descriptionHtml is null', () => {
+    mockUseIssueDetail.mockReturnValue({
+      data: { ...mockIssue, descriptionHtml: null, description: 'Plain text description' },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(<IssueDetailPage />);
+
+    const editor = screen.getByTestId('issue-description-editor');
+    expect(editor).toHaveAttribute('data-content', 'Plain text description');
   });
 
   it('renders ActivityTimeline', () => {
@@ -198,19 +215,7 @@ describe('IssueDetailPage', () => {
     expect(screen.getByTestId('issue-properties-panel')).toBeInTheDocument();
   });
 
-  it('does NOT render SubIssuesList when subIssueCount is 0', () => {
-    render(<IssueDetailPage />);
-
-    expect(screen.queryByTestId('sub-issues-list')).not.toBeInTheDocument();
-  });
-
-  it('renders SubIssuesList when subIssueCount > 0', () => {
-    mockUseIssueDetail.mockReturnValue({
-      data: { ...mockIssue, subIssueCount: 3 },
-      isLoading: false,
-      isError: false,
-    });
-
+  it('renders SubIssuesList', () => {
     render(<IssueDetailPage />);
 
     expect(screen.getByTestId('sub-issues-list')).toBeInTheDocument();

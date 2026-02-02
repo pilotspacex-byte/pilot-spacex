@@ -176,7 +176,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
             <IssueTitle title={issue.name} issueId={issueId} workspaceId={workspaceId} />
 
             <IssueDescriptionEditor
-              content={issue.descriptionHtml}
+              content={issue.descriptionHtml ?? issue.description}
               issueId={issueId}
               workspaceId={workspaceId}
             />
