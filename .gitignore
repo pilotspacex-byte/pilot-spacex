@@ -324,8 +324,6 @@ build/
 *.log
 logs/
 docs/dev-pattern/*
-.claude/*
-.specify/*
 .serena/*
 **/playwright-report/*
 
