@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Select, and_, asc, desc, func, or_, select, text
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload, lazyload, selectinload
 
 from pilot_space.infrastructure.database.models import Issue, IssuePriority, StateGroup
 from pilot_space.infrastructure.database.repositories.base import BaseRepository, CursorPage
@@ -92,6 +92,48 @@ class IssueRepository(BaseRepository[Issue]):
                 selectinload(Issue.labels),
                 selectinload(Issue.sub_issues),
                 selectinload(Issue.note_links),
+            )
+            .where(Issue.id == issue_id)
+        )
+        if not include_deleted:
+            query = query.where(Issue.is_deleted == False)  # noqa: E712
+        result = await self.session.execute(query)
+        return result.unique().scalar_one_or_none()
+
+    async def get_by_id_for_response(
+        self,
+        issue_id: UUID,
+        *,
+        include_deleted: bool = False,
+    ) -> Issue | None:
+        """Get issue with only the relations needed for IssueResponse.
+
+        Overrides the model's default eager loading (6 selectin + 4 joined)
+        to load only what IssueResponse.from_issue() actually uses:
+        project, state, assignee, reporter, labels, sub_issues.
+
+        Skips: cycle, module, parent, note_links, ai_context, activities.
+
+        Args:
+            issue_id: Issue UUID.
+            include_deleted: Whether to include soft-deleted issues.
+
+        Returns:
+            Issue with response relations or None.
+        """
+        query = (
+            select(Issue)
+            .options(
+                # Override all default eager loading to lazy
+                lazyload("*"),
+                # Then explicitly load only what IssueResponse needs
+                joinedload(Issue.project),
+                joinedload(Issue.state),
+                joinedload(Issue.assignee),
+                joinedload(Issue.reporter),
+                selectinload(Issue.labels),
+                # Load sub_issues but prevent cascading eager loads on children
+                selectinload(Issue.sub_issues).lazyload("*"),
             )
             .where(Issue.id == issue_id)
         )
@@ -485,29 +527,31 @@ class IssueRepository(BaseRepository[Issue]):
         issue_id: UUID,
         label_ids: list[UUID],
     ) -> None:
-        """Replace all labels for an issue.
+        """Replace all labels for an issue using bulk SQL operations.
+
+        Uses direct DELETE + INSERT on the junction table instead of
+        loading the full issue with relations. Reduces from ~14 queries
+        to 2 queries regardless of label count.
 
         Args:
             issue_id: Issue UUID.
             label_ids: New label UUIDs.
         """
-        issue = await self.get_by_id_with_relations(issue_id)
-        if not issue:
-            return
+        from sqlalchemy import delete, insert
 
-        from pilot_space.infrastructure.database.models import Label
+        from pilot_space.infrastructure.database.models.issue_label import issue_labels
 
-        # Clear existing labels
-        issue.labels = []
-        await self.session.flush()
+        # Bulk delete all existing labels for this issue
+        await self.session.execute(delete(issue_labels).where(issue_labels.c.issue_id == issue_id))
 
-        # Add new labels
+        # Bulk insert new labels
         if label_ids:
-            query = select(Label).where(Label.id.in_(label_ids))
-            result = await self.session.execute(query)
-            labels = result.scalars().all()
-            issue.labels = list(labels)
-            await self.session.flush()
+            await self.session.execute(
+                insert(issue_labels),
+                [{"issue_id": issue_id, "label_id": lid} for lid in label_ids],
+            )
+
+        await self.session.flush()
 
     def _apply_issue_filters(
         self,

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { motion, AnimatePresence } from 'motion/react';
 import { useUIStore } from '@/stores';
@@ -14,6 +15,10 @@ interface AppShellProps {
 
 export const AppShell = observer(function AppShell({ children }: AppShellProps) {
   const uiStore = useUIStore();
+
+  useEffect(() => {
+    uiStore.hydrate();
+  }, [uiStore]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">

@@ -157,11 +157,16 @@ async def _resolve_workspace(
     workspace_id_or_slug: str,
     workspace_repo: WorkspaceRepository,
 ) -> Workspace:
-    """Resolve workspace by UUID or slug."""
+    """Resolve workspace by UUID or slug (scalar-only, no relationships).
+
+    Uses lazyload to prevent the Workspace model's 7 default selectin
+    relationships from firing. Only scalar columns (id, slug, name, etc.)
+    are loaded. Use this for validation/ownership checks.
+    """
     if _is_valid_uuid(workspace_id_or_slug):
-        workspace = await workspace_repo.get_by_id(UUID(workspace_id_or_slug))
+        workspace = await workspace_repo.get_by_id_scalar(UUID(workspace_id_or_slug))
     else:
-        workspace = await workspace_repo.get_by_slug(workspace_id_or_slug)
+        workspace = await workspace_repo.get_by_slug_scalar(workspace_id_or_slug)
 
     if not workspace:
         raise HTTPException(
@@ -270,7 +275,7 @@ async def get_workspace_issue(
     """Get a specific issue by ID."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    issue = await issue_repo.get_by_id_with_relations(issue_id)
+    issue = await issue_repo.get_by_id_for_response(issue_id)
     if not issue or issue.workspace_id != workspace.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -415,7 +420,9 @@ async def update_workspace_issue(
     """Update an existing issue."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    issue = await issue_repo.get_by_id_with_relations(issue_id)
+    # Scalar-only load for validation (no relationships loaded)
+    issue = await issue_repo.get_by_id_scalar(issue_id)
+
     if not issue or issue.workspace_id != workspace.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -479,16 +486,16 @@ async def update_workspace_issue(
 
         issue.target_date = date_type.fromisoformat(target_date_val)
 
-    # Labels: replace all labels for this issue
+    # Labels: replace all labels for this issue (bulk SQL, no extra load)
     if "label_ids" in update_data:
         label_ids = update_data["label_ids"]
         await issue_repo.bulk_update_labels(issue.id, label_ids)
 
-    issue = await issue_repo.update(issue)
+    await session.flush()
     await session.commit()
 
-    # Reload with all relations for response
-    issue = await issue_repo.get_by_id_with_relations(issue_id)
+    # Load only relations needed for response serialization
+    issue = await issue_repo.get_by_id_for_response(issue_id)
 
     logger.info(
         "Issue updated",

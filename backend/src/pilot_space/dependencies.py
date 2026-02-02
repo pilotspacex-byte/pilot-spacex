@@ -247,8 +247,8 @@ async def ensure_user_synced(
 
     user_repo = UserRepository(session=session)
 
-    # Check if user exists by ID first (fast path)
-    existing = await user_repo.get_by_id(current_user.user_id)
+    # Check if user exists by ID (scalar-only, no relationship loading)
+    existing = await user_repo.get_by_id_scalar(current_user.user_id)
     if existing:
         return current_user.user_id
 

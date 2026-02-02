@@ -37,6 +37,7 @@ export class UIStore {
   theme: Theme = 'system';
   commandPaletteOpen = false;
   searchModalOpen = false;
+  hydrated = false;
 
   modals: Map<string, ModalState> = new Map();
   toasts: Toast[] = [];
@@ -50,8 +51,13 @@ export class UIStore {
       hasOpenModal: computed,
     });
 
-    this.loadFromStorage();
     this.setupPersistence();
+  }
+
+  hydrate(): void {
+    if (this.hydrated) return;
+    this.loadFromStorage();
+    this.hydrated = true;
   }
 
   get activeToasts(): Toast[] {

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID
 
 from sqlalchemy import Select, and_, asc, desc, func, or_, select
+from sqlalchemy.orm import lazyload
 
 from pilot_space.infrastructure.database.base import BaseModel
 
@@ -85,6 +86,33 @@ class BaseRepository[T: BaseModel]:
             The entity if found, None otherwise.
         """
         query = select(self.model_class).where(self.model_class.id == entity_id)
+        if not include_deleted:
+            query = query.where(self.model_class.is_deleted == False)  # noqa: E712
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_id_scalar(
+        self,
+        entity_id: UUID,
+        *,
+        include_deleted: bool = False,
+    ) -> T | None:
+        """Get entity by ID loading only scalar columns (no relationships).
+
+        Overrides model-level eager loading (selectin/joined) to prevent
+        unnecessary relationship queries. Use for validation checks where
+        only scalar fields (id, workspace_id, etc.) are needed.
+
+        Args:
+            entity_id: The entity UUID.
+            include_deleted: Whether to include soft-deleted entities.
+
+        Returns:
+            The entity with scalar columns only, or None.
+        """
+        query = (
+            select(self.model_class).options(lazyload("*")).where(self.model_class.id == entity_id)
+        )
         if not include_deleted:
             query = query.where(self.model_class.is_deleted == False)  # noqa: E712
         result = await self.session.execute(query)

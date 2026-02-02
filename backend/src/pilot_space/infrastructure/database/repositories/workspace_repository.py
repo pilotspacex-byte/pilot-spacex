@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, lazyload
 
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_member import (
@@ -55,6 +55,30 @@ class WorkspaceRepository(BaseRepository[Workspace]):
             The workspace if found, None otherwise.
         """
         query = select(Workspace).where(Workspace.slug == slug)
+        if not include_deleted:
+            query = query.where(Workspace.is_deleted == False)  # noqa: E712
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_slug_scalar(
+        self,
+        slug: str,
+        *,
+        include_deleted: bool = False,
+    ) -> Workspace | None:
+        """Get workspace by slug loading only scalar columns.
+
+        Overrides model-level eager loading (7 selectin relationships)
+        to prevent unnecessary queries when only workspace ID/slug is needed.
+
+        Args:
+            slug: The workspace's URL-friendly identifier.
+            include_deleted: Whether to include soft-deleted workspaces.
+
+        Returns:
+            Workspace with scalar columns only, or None.
+        """
+        query = select(Workspace).options(lazyload("*")).where(Workspace.slug == slug)
         if not include_deleted:
             query = query.where(Workspace.is_deleted == False)  # noqa: E712
         result = await self.session.execute(query)
