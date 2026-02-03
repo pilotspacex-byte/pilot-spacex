@@ -445,13 +445,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             sdk_config = configure_sdk_for_space(
                 space_context,
                 permission_mode="default",
-                model="kimi-k2.5:cloud",
                 additional_tools=NOTE_TOOL_NAMES,
-                additional_env={
-                    "ANTHROPIC_API_KEY": api_key,
-                    "ANTHROPIC_BASE_URL": "http://localhost:11434",
-                    "ANTHROPIC_AUTH_TOKEN": "dummy-token",
-                },
+                additional_env={"ANTHROPIC_API_KEY": api_key},
                 hook_executor=hook_executor,
             )
 
@@ -496,6 +491,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             client = ClaudeSDKClient(sdk_options)
             query_session_id = session_id_str or "default"
             stream_completed = False
+            response_chunks: list[str] = []
             try:
                 await client.connect()
 
@@ -521,6 +517,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     if sse_event:
                         transformed_count += 1
                         yield sse_event
+                        # Accumulate text content for session persistence
+                        if sse_event.startswith("data: "):
+                            response_chunks.append(sse_event[6:])
 
                     # Drain tool-generated events after each SDK message
                     while not tool_event_queue.empty():
@@ -555,6 +554,31 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         )
                     except (TimeoutError, Exception) as e:
                         logger.debug("[SDK/Space] Interrupt during cleanup failed: %s", e)
+
+                # Persist conversation messages to session storage
+                if stream_completed and self._session_handler and input_data.session_id:
+                    try:
+                        await self._session_handler.add_message(
+                            session_id=input_data.session_id,
+                            role="user",
+                            content=input_data.message,
+                        )
+                        full_response = "".join(response_chunks)
+                        if full_response:
+                            await self._session_handler.add_message(
+                                session_id=input_data.session_id,
+                                role="assistant",
+                                content=full_response,
+                            )
+                        logger.debug(
+                            "[SDK/Space] Persisted messages to session %s",
+                            input_data.session_id,
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "[SDK/Space] Failed to persist session messages: %s",
+                            e,
+                        )
 
                 await client.disconnect()
                 clear_context()
@@ -629,6 +653,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         """Execute agent and collect full output.
 
         Non-streaming version that collects all chunks.
+        Persists user and assistant messages to session storage.
 
         Args:
             input_data: Chat input
@@ -643,8 +668,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             processed_chunk = chunk[6:] if chunk.startswith("data: ") else chunk
             chunks.append(processed_chunk)
 
+        full_response = "".join(chunks)
+
+        # Session persistence is handled in _stream_with_space finally block.
+        # For execute(), stream() already persisted messages, so no duplicate needed.
+
         return ChatOutput(
-            response="".join(chunks),
+            response=full_response,
             session_id=input_data.session_id
             or context.operation_id
             or UUID("00000000-0000-0000-0000-000000000000"),
