@@ -223,6 +223,10 @@ class SDKConfiguration:
     enable_file_checkpointing: bool = False
     betas: list[str] = field(default_factory=list)
     system_prompt_base: str | None = None  # SDK-native prompt caching
+    # T61: Sandboxed code execution
+    code_execution_enabled: bool = False
+    # T62: Streaming input for large documents
+    streaming_input_mode: bool = False
 
     def to_sdk_params(self) -> dict[str, Any]:
         """Convert to parameters for Claude SDK."""
@@ -274,6 +278,12 @@ class SDKConfiguration:
                 "content": self.system_prompt_base,
                 "cache_control": "ephemeral",
             }
+        # T61: Code execution tool
+        if self.code_execution_enabled:
+            params["code_execution"] = True
+        # T62: Streaming input for large documents
+        if self.streaming_input_mode:
+            params["streaming_input"] = True
         return params
 
 
@@ -297,6 +307,8 @@ def configure_sdk_for_space(
     enable_file_checkpointing: bool = False,
     betas: list[str] | None = None,
     system_prompt_base: str | None = None,
+    code_execution_enabled: bool = False,
+    streaming_input_mode: bool = False,
 ) -> SDKConfiguration:
     """Configure Claude SDK with space-rooted sandbox settings.
 
@@ -361,6 +373,10 @@ def configure_sdk_for_space(
     ]
 
     allowed_tools = base_tools + (additional_tools or [])
+
+    # T61: Add CodeExecution tool when code execution is enabled
+    if code_execution_enabled and "CodeExecution" not in allowed_tools:
+        allowed_tools.append("CodeExecution")
 
     # Build environment
     env = space_context.to_sdk_env()
@@ -429,6 +445,8 @@ def configure_sdk_for_space(
         enable_file_checkpointing=enable_file_checkpointing,
         betas=betas or [],
         system_prompt_base=system_prompt_base,
+        code_execution_enabled=code_execution_enabled,
+        streaming_input_mode=streaming_input_mode,
     )
 
 

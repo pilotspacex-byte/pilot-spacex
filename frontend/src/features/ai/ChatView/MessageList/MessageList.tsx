@@ -1,12 +1,13 @@
 /**
- * MessageList - Auto-scrolling conversation container
- * Follows shadcn/ui AI conversation component pattern with scroll-to-bottom
+ * MessageList - Virtualized auto-scrolling conversation container (T60)
+ * Uses react-virtuoso for efficient rendering of 1000+ messages.
+ * Follows shadcn/ui AI conversation component pattern with scroll-to-bottom.
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/stores/ai/types/conversation';
@@ -62,77 +63,80 @@ export const MessageList = observer<MessageListProps>(
     userAvatar,
     className,
   }) => {
-    const scrollRef = useRef<HTMLDivElement>(null);
+    const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
-    const [autoScroll, setAutoScroll] = useState(true);
-
-    // Auto-scroll to bottom on new messages or streaming
-    useEffect(() => {
-      if (autoScroll && scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    }, [messages, streamContent, autoScroll]);
-
-    // Detect manual scroll away from bottom
-    const handleScroll = useCallback(() => {
-      if (!scrollRef.current) return;
-
-      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-
-      setAutoScroll(isNearBottom);
-      setShowScrollButton(!isNearBottom);
-    }, []);
+    const [atBottom, setAtBottom] = useState(true);
 
     const scrollToBottom = useCallback(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        setAutoScroll(true);
-      }
+      virtuosoRef.current?.scrollToIndex({
+        index: 'LAST',
+        behavior: 'smooth',
+      });
+    }, []);
+
+    const handleAtBottomChange = useCallback((bottom: boolean) => {
+      setAtBottom(bottom);
+      setShowScrollButton(!bottom);
     }, []);
 
     const messageGroups = groupMessagesByRole(messages);
 
+    // Total items: message groups + optional streaming footer
+    const hasStreamingFooter = isStreaming && (streamContent || thinkingContent);
+    const totalCount = messageGroups.length + (hasStreamingFooter ? 1 : 0);
+
     return (
       <div className={cn('relative flex-1', className)}>
-        <ScrollArea className="h-full" onScrollCapture={handleScroll}>
-          <div ref={scrollRef} className="space-y-0">
-            {messageGroups.length === 0 && !isStreaming && (
-              <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-4">
-                  <span className="text-2xl">✨</span>
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  Ask me anything about your notes, issues, or code. Use{' '}
-                  <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">\skill</code>{' '}
-                  to invoke skills or{' '}
-                  <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">@agent</code>{' '}
-                  to call specialized agents.
-                </p>
-              </div>
-            )}
-
-            {messageGroups.map((group, idx) => (
-              <MessageGroup
-                key={`group-${idx}`}
-                messages={group}
-                userName={userName}
-                userAvatar={userAvatar}
-              />
-            ))}
-
-            {isStreaming && (streamContent || thinkingContent) && (
-              <div className="px-4 py-3 bg-muted/30">
-                <StreamingContent
-                  content={streamContent ?? ''}
-                  thinkingContent={thinkingContent}
-                  isThinking={isThinking}
-                />
-              </div>
-            )}
+        {totalCount === 0 && !isStreaming ? (
+          <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-4">
+              <span className="text-2xl">✨</span>
+            </div>
+            <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Ask me anything about your notes, issues, or code. Use{' '}
+              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">\skill</code>{' '}
+              to invoke skills or{' '}
+              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">@agent</code>{' '}
+              to call specialized agents.
+            </p>
           </div>
-        </ScrollArea>
+        ) : (
+          <Virtuoso
+            ref={virtuosoRef}
+            style={{ height: '100%' }}
+            totalCount={totalCount}
+            followOutput={atBottom ? 'smooth' : false}
+            atBottomStateChange={handleAtBottomChange}
+            atBottomThreshold={100}
+            itemContent={(index) => {
+              // Streaming footer is the last item
+              if (hasStreamingFooter && index === messageGroups.length) {
+                return (
+                  <div className="px-4 py-3 bg-muted/30">
+                    <StreamingContent
+                      content={streamContent ?? ''}
+                      thinkingContent={thinkingContent}
+                      isThinking={isThinking}
+                    />
+                  </div>
+                );
+              }
+
+              const group = messageGroups[index];
+              if (!group) return null;
+
+              return (
+                <MessageGroup
+                  key={`group-${index}`}
+                  messages={group}
+                  userName={userName}
+                  userAvatar={userAvatar}
+                />
+              );
+            }}
+          />
+        )}
 
         {/* Scroll to bottom button */}
         {showScrollButton && (

@@ -62,15 +62,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ChatInput:
-    """Input for PilotSpace conversational agent.
-
-    Attributes:
-        message: User message content
-        session_id: Optional session ID for multi-turn conversation
-        context: Current working context (note, issue, project)
-        user_id: User UUID for RLS
-        workspace_id: Workspace UUID for RLS
-    """
+    """Input for PilotSpace conversational agent."""
 
     message: str
     session_id: UUID | None = None
@@ -82,15 +74,7 @@ class ChatInput:
 
 @dataclass
 class ChatOutput:
-    """Output from PilotSpace conversational agent.
-
-    Attributes:
-        response: Agent response text
-        session_id: Session ID for continuation
-        tasks: Created tasks if any
-        approvals: Approval requests if any
-        metadata: Additional metadata (cost, tokens, etc.)
-    """
+    """Output from PilotSpace conversational agent."""
 
     response: str
     session_id: UUID
@@ -434,6 +418,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             # Classify effort for latency optimization (T7/G-09)
             effort = _classify_effort(input_data.message)
 
+            # T62: Auto-detect large context for streaming input mode
+            streaming_input = _estimate_tokens(input_data) > 30_000
+
             # Configure SDK for this space (with hooks if available)
             # Model selection per DD-011: DEFAULT_MODEL (Sonnet) for orchestration
             sdk_config = configure_sdk_for_space(
@@ -452,6 +439,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 output_format=output_format,
                 enable_file_checkpointing=True,
                 effort=effort,
+                streaming_input_mode=streaming_input,
             )
 
             # Build SDK options from space config
@@ -692,6 +680,17 @@ def _detect_skill_from_message(message: str) -> str | None:
         parts = msg_stripped[1:].split(None, 1)
         return parts[0] if parts else None
     return None
+
+
+def _estimate_tokens(input_data: ChatInput) -> int:
+    """Rough token estimate for context size detection (T62).
+
+    Uses ~4 chars per token heuristic. Counts message + context fields.
+    """
+    total_chars = len(input_data.message)
+    for value in input_data.context.values():
+        total_chars += len(str(value))
+    return total_chars // 4
 
 
 __all__ = [
