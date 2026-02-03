@@ -87,11 +87,11 @@ class AuditLogHook:
                 duration_ms = round(elapsed * 1000, 1)
 
             audit_entry = {
-                "tool_use_id": tool_use_id or "unknown",
-                "tool_name": tool_name,
-                "input_summary": _truncate(json.dumps(tool_input, default=str)),
-                "output_summary": _truncate(str(tool_output)),
-                "duration_ms": duration_ms,
+                "toolUseId": tool_use_id or "unknown",
+                "toolName": tool_name,
+                "inputSummary": _truncate(json.dumps(tool_input, default=str)),
+                "outputSummary": _truncate(str(tool_output)),
+                "durationMs": duration_ms,
             }
             logger.info("Tool audit: %s", json.dumps(audit_entry))
 

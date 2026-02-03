@@ -115,7 +115,7 @@ class TestAuditLogHook:
         event = await queue.get()
         assert "tool_audit" in event
         data = json.loads(event.split("data: ")[1].strip())
-        assert data["tool_name"] == "Write"
+        assert data["toolName"] == "Write"
 
     @pytest.mark.asyncio
     async def test_duration_tracking(self) -> None:

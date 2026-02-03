@@ -459,15 +459,15 @@ export interface ToolAuditEvent extends SSEEvent {
   type: 'tool_audit';
   data: {
     /** Tool use identifier */
-    tool_use_id: string;
+    toolUseId: string;
     /** Tool name */
-    tool_name: string;
+    toolName: string;
     /** Truncated input summary */
-    input_summary: string;
+    inputSummary: string;
     /** Truncated output summary */
-    output_summary: string;
+    outputSummary: string;
     /** Execution duration in milliseconds */
-    duration_ms: number | null;
+    durationMs: number | null;
   };
 }
 
@@ -526,6 +526,8 @@ export interface CitationEvent extends SSEEvent {
 export interface MemoryUpdateEvent extends SSEEvent {
   type: 'memory_update';
   data: {
+    /** Message ID for correlation (T68) */
+    messageId?: string;
     operation: 'write' | 'read' | 'delete';
     key: string;
     value?: unknown;

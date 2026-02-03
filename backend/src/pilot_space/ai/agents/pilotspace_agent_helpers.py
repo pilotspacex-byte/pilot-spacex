@@ -164,7 +164,9 @@ def transform_sdk_message(  # noqa: PLR0911
                 return f"event: message_start\ndata: {json.dumps(data)}\n\n"
             # T57: Memory update events from cross-session memory tool
             if subtype == "memory":
+                message_id = current_message_id_holder.get("_current_message_id") or ""
                 memory_data: dict[str, Any] = {
+                    "messageId": message_id,
                     "operation": raw_data.get("operation", "write"),
                     "key": raw_data.get("key", ""),
                     "value": raw_data.get("value"),
@@ -434,15 +436,25 @@ def _extract_citation(block: Any) -> dict[str, Any] | None:
     if not source and not cited_text:
         return None
 
-    source_dict = source if isinstance(source, dict) else {}
-    return {
+    if source and not isinstance(source, dict):
+        logger.warning("Citation source is not a dict: %s (type=%s)", source, type(source).__name__)
+        source = {}
+
+    source_dict: dict[str, Any] = source if isinstance(source, dict) else {}
+    result: dict[str, Any] = {
         "sourceType": source_dict.get("type", "document"),
         "sourceId": source_dict.get("id", ""),
         "sourceTitle": source_dict.get("title", ""),
         "citedText": str(cited_text),
-        "startIndex": source_dict.get("start_index"),
-        "endIndex": source_dict.get("end_index"),
     }
+    # Only include index fields when present (T70 — reduce JSON noise)
+    start_idx = source_dict.get("start_index")
+    end_idx = source_dict.get("end_index")
+    if start_idx is not None:
+        result["startIndex"] = start_idx
+    if end_idx is not None:
+        result["endIndex"] = end_idx
+    return result
 
 
 def transform_tool_result(message: Message) -> str | None:

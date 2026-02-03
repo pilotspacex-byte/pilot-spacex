@@ -114,6 +114,27 @@ class TestMemoryUpdateEvent:
         assert payload["key"] == "preference"
         assert payload["value"] is None
 
+    def test_memory_update_includes_message_id(self) -> None:
+        holder = _holder()
+        holder["_current_message_id"] = "msg-123"
+
+        message = _make_message(
+            "SystemMessage",
+            data={
+                "type": "system",
+                "subtype": "memory",
+                "operation": "write",
+                "key": "pref",
+                "value": "dark",
+            },
+        )
+
+        result = transform_sdk_message(message, holder)
+
+        assert result is not None
+        payload = json.loads(result.split("data: ", 1)[1].strip())
+        assert payload["messageId"] == "msg-123"
+
 
 class TestCitationBlocks:
     """T58: Citation SSE events from AssistantMessage content blocks."""
@@ -274,8 +295,28 @@ class TestExtractCitationHelper:
         assert result["sourceType"] == "note"
         assert result["sourceId"] == ""
         assert result["sourceTitle"] == ""
-        assert result["startIndex"] is None
-        assert result["endIndex"] is None
+        assert "startIndex" not in result
+        assert "endIndex" not in result
+
+    def test_extract_citation_omits_none_indices(self) -> None:
+        block = {
+            "type": "citation",
+            "source": {
+                "type": "document",
+                "id": "doc-999",
+                "title": "Test Doc",
+            },
+            "cited_text": "quoted text",
+        }
+
+        result = _extract_citation(block)
+
+        assert result is not None
+        assert result["sourceType"] == "document"
+        assert result["sourceId"] == "doc-999"
+        assert result["citedText"] == "quoted text"
+        assert "startIndex" not in result
+        assert "endIndex" not in result
 
 
 class TestConfigureSDKMemoryAndCitations:

@@ -52,6 +52,7 @@ vi.mock('mobx-react-lite', () => ({
 // Mock lucide-react icons
 vi.mock('lucide-react', () => ({
   ArrowDown: () => <span data-testid="arrow-down-icon" />,
+  Sparkles: () => <span data-testid="sparkles-icon" />,
 }));
 
 import { MessageList } from '../MessageList';

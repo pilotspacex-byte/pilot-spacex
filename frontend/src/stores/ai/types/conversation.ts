@@ -30,6 +30,8 @@ export interface ToolCall {
   status?: 'pending' | 'completed' | 'failed';
   /** Error message if execution failed */
   errorMessage?: string;
+  /** Accumulated partial JSON input from tool_input_delta streaming (T65) */
+  partialInput?: string;
   /** Parent tool use ID for subagent correlation (G12) */
   parentToolUseId?: string;
   /** Execution duration in milliseconds (from tool_audit) */

@@ -144,16 +144,7 @@ describe('PilotSpaceStreamHandler', () => {
       expect(store.streamingState.isThinking).toBe(false);
     });
 
-    it('should route tool_use and attach to current message', () => {
-      // First create a message that tool_use can attach to
-      store.addMessage({
-        id: 'msg-1',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-      });
-      store.streamingState.currentMessageId = 'msg-1';
-
+    it('should route tool_use and buffer as pending tool call', () => {
       handler.handleSSEEvent({
         type: 'tool_use',
         data: {
@@ -163,13 +154,33 @@ describe('PilotSpaceStreamHandler', () => {
         },
       });
 
-      const msg = store.messages.find((m) => m.id === 'msg-1');
-      expect(msg?.toolCalls).toHaveLength(1);
-      expect(msg?.toolCalls?.[0]?.name).toBe('extract_issues');
-      expect(msg?.toolCalls?.[0]?.status).toBe('pending');
+      // Tool call should be in pending buffer, not in messages[]
+      const pending = store.findPendingToolCall('tc-1');
+      expect(pending).toBeDefined();
+      expect(pending?.name).toBe('extract_issues');
+      expect(pending?.status).toBe('pending');
     });
 
-    it('should route tool_result and update tool call status', () => {
+    it('should route tool_result and update pending tool call status', () => {
+      // Buffer a tool call first (simulates tool_use during streaming)
+      store.addPendingToolCall({ id: 'tc-1', name: 'extract_issues', input: {}, status: 'pending' });
+
+      handler.handleSSEEvent({
+        type: 'tool_result',
+        data: {
+          toolCallId: 'tc-1',
+          status: 'completed',
+          output: { issues: [] },
+        },
+      });
+
+      const pending = store.findPendingToolCall('tc-1');
+      expect(pending?.status).toBe('completed');
+      expect(pending?.output).toEqual({ issues: [] });
+    });
+
+    it('should route tool_result and update finalized message tool call', () => {
+      // Tool call already finalized in messages[]
       store.addMessage({
         id: 'msg-1',
         role: 'assistant',
@@ -193,20 +204,14 @@ describe('PilotSpaceStreamHandler', () => {
     });
 
     it('should route tool_result with cancelled status to failed', () => {
-      store.addMessage({
-        id: 'msg-1',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        toolCalls: [{ id: 'tc-1', name: 'test_tool', input: {}, status: 'pending' }],
-      });
+      store.addPendingToolCall({ id: 'tc-1', name: 'test_tool', input: {}, status: 'pending' });
 
       handler.handleSSEEvent({
         type: 'tool_result',
         data: { toolCallId: 'tc-1', status: 'cancelled' },
       });
 
-      expect(store.messages[0]?.toolCalls?.[0]?.status).toBe('failed');
+      expect(store.findPendingToolCall('tc-1')?.status).toBe('failed');
     });
 
     it('should route task_progress and update task state', () => {
@@ -393,15 +398,6 @@ describe('PilotSpaceStreamHandler', () => {
         data: { index: 0, contentType: 'tool_use', parentToolUseId: 'parent-tc-1' },
       });
 
-      // Verify it's stored by creating a tool call afterward
-      store.addMessage({
-        id: 'msg-1',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-      });
-      store.streamingState.currentMessageId = 'msg-1';
-
       handler.handleSSEEvent({
         type: 'tool_use',
         data: {
@@ -411,8 +407,9 @@ describe('PilotSpaceStreamHandler', () => {
         },
       });
 
-      const msg = store.messages.find((m) => m.id === 'msg-1');
-      expect(msg?.toolCalls?.[0]?.parentToolUseId).toBe('parent-tc-1');
+      // Tool call buffered in pending with parent ID
+      const pending = store.findPendingToolCall('child-tc-1');
+      expect(pending?.parentToolUseId).toBe('parent-tc-1');
     });
   });
 
@@ -431,14 +428,6 @@ describe('PilotSpaceStreamHandler', () => {
       });
 
       // Tool call after reset should not have parentToolUseId
-      store.streamingState.currentMessageId = 'msg-2';
-      store.addMessage({
-        id: 'msg-2',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-      });
-
       handler.handleSSEEvent({
         type: 'tool_use',
         data: {
@@ -448,8 +437,8 @@ describe('PilotSpaceStreamHandler', () => {
         },
       });
 
-      const msg = store.messages.find((m) => m.id === 'msg-2');
-      expect(msg?.toolCalls?.[0]?.parentToolUseId).toBeUndefined();
+      const pending = store.findPendingToolCall('tc-2');
+      expect(pending?.parentToolUseId).toBeUndefined();
     });
 
     it('should attach parentToolUseId to tool calls from subagent blocks', () => {
@@ -459,16 +448,7 @@ describe('PilotSpaceStreamHandler', () => {
         data: { index: 0, contentType: 'tool_use', parentToolUseId: 'subagent-parent' },
       });
 
-      // Set up message for tool attachment
-      store.addMessage({
-        id: 'msg-3',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-      });
-      store.streamingState.currentMessageId = 'msg-3';
-
-      // Tool call should get parent ID
+      // Tool call should get parent ID (buffered in pending)
       handler.handleSSEEvent({
         type: 'tool_use',
         data: {
@@ -478,8 +458,8 @@ describe('PilotSpaceStreamHandler', () => {
         },
       });
 
-      const msg = store.messages.find((m) => m.id === 'msg-3');
-      expect(msg?.toolCalls?.[0]?.parentToolUseId).toBe('subagent-parent');
+      const pending = store.findPendingToolCall('tc-3');
+      expect(pending?.parentToolUseId).toBe('subagent-parent');
     });
   });
 
@@ -511,13 +491,28 @@ describe('PilotSpaceStreamHandler', () => {
   });
 
   describe('tool_audit handler', () => {
-    it('should update durationMs on matching tool call', () => {
-      // Setup: create a message with a tool call
+    it('should update durationMs on pending tool call', () => {
+      // Buffer a tool call (simulates tool_use during streaming)
+      store.addPendingToolCall({ id: 'tc1', name: 'read_note', input: {}, status: 'pending' });
+
+      // Dispatch tool_audit with camelCase fields
       handler.handleSSEEvent({
-        type: 'message_start',
-        data: { messageId: 'm1', sessionId: 's1' },
+        type: 'tool_audit',
+        data: {
+          toolUseId: 'tc1',
+          toolName: 'read_note',
+          inputSummary: '{}',
+          outputSummary: 'ok',
+          durationMs: 150,
+        },
       });
 
+      const pending = store.findPendingToolCall('tc1');
+      expect(pending).toBeDefined();
+      expect(pending?.durationMs).toBe(150);
+    });
+
+    it('should update durationMs on finalized message tool call', () => {
       store.addMessage({
         id: 'm1',
         role: 'assistant',
@@ -526,20 +521,18 @@ describe('PilotSpaceStreamHandler', () => {
         toolCalls: [{ id: 'tc1', name: 'read_note', input: {}, status: 'pending' }],
       });
 
-      // Dispatch tool_audit
       handler.handleSSEEvent({
         type: 'tool_audit',
         data: {
-          tool_use_id: 'tc1',
-          tool_name: 'read_note',
-          input_summary: '{}',
-          output_summary: 'ok',
-          duration_ms: 150,
+          toolUseId: 'tc1',
+          toolName: 'read_note',
+          inputSummary: '{}',
+          outputSummary: 'ok',
+          durationMs: 150,
         },
       });
 
       const msg = store.messages.find((m) => m.toolCalls?.some((tc) => tc.id === 'tc1'));
-      expect(msg).toBeDefined();
       expect(msg?.toolCalls?.[0]?.durationMs).toBe(150);
     });
 
@@ -547,11 +540,11 @@ describe('PilotSpaceStreamHandler', () => {
       handler.handleSSEEvent({
         type: 'tool_audit',
         data: {
-          tool_use_id: 'nonexistent',
-          tool_name: 'read_note',
-          input_summary: '{}',
-          output_summary: 'ok',
-          duration_ms: 100,
+          toolUseId: 'nonexistent',
+          toolName: 'read_note',
+          inputSummary: '{}',
+          outputSummary: 'ok',
+          durationMs: 100,
         },
       });
 

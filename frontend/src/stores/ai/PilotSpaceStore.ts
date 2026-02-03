@@ -18,10 +18,12 @@ import { makeAutoObservable, runInAction, computed } from 'mobx';
 import type { AIStore } from './AIStore';
 import type {
   ChatMessage,
+  ToolCall,
   StreamingState,
   ConversationContext,
   MessageMetadata,
 } from './types/conversation';
+import type { MemoryUpdateEvent } from './types/events';
 import type { ContentUpdateEvent, AgentQuestion, TaskStatus } from './types/events';
 import type { SkillDefinition, ConfidenceTag } from './types/skills';
 import { PilotSpaceStreamHandler } from './PilotSpaceStreamHandler';
@@ -190,6 +192,15 @@ export class PilotSpaceStore {
   /** Pending structured result (set by structured_result event, consumed by message_stop) */
   private pendingStructuredResult: { schemaType: string; data: Record<string, unknown> } | null =
     null;
+
+  /** Pending tool calls buffered during streaming (T63 — consumed by message_stop) */
+  private _pendingToolCalls: ToolCall[] = [];
+
+  /** Pending citations buffered during streaming (T64 — consumed by message_stop) */
+  private _pendingCitations: ChatMessage['citations'] = [];
+
+  /** Last memory update from cross-session memory tool (T73) */
+  lastMemoryUpdate: MemoryUpdateEvent['data'] | null = null;
 
   /** Pending question from agent (requires user response before agent can continue) */
   pendingQuestion: {
@@ -450,6 +461,58 @@ export class PilotSpaceStore {
     const result = this.pendingStructuredResult ?? undefined;
     this.pendingStructuredResult = null;
     return result;
+  }
+
+  // ========================================
+  // Actions - Pending Tool Call Buffer (T63)
+  // ========================================
+
+  /**
+   * Buffer a tool call during streaming.
+   * Tool calls arrive before message_stop, so they must be buffered
+   * and attached to the assistant message on finalization.
+   */
+  addPendingToolCall(tc: ToolCall): void {
+    this._pendingToolCalls.push(tc);
+  }
+
+  /**
+   * Find a pending tool call by ID (for tool_input_delta and tool_result during streaming).
+   */
+  findPendingToolCall(toolUseId: string): ToolCall | undefined {
+    return this._pendingToolCalls.find((tc) => tc.id === toolUseId);
+  }
+
+  /**
+   * Consume and clear all pending tool calls (called on message_stop).
+   */
+  consumePendingToolCalls(): ToolCall[] | undefined {
+    if (this._pendingToolCalls.length === 0) return undefined;
+    const calls = [...this._pendingToolCalls];
+    this._pendingToolCalls = [];
+    return calls;
+  }
+
+  // ========================================
+  // Actions - Pending Citation Buffer (T64)
+  // ========================================
+
+  /**
+   * Buffer citations during streaming.
+   * Citation events arrive before message_stop.
+   */
+  addPendingCitations(citations: NonNullable<ChatMessage['citations']>): void {
+    this._pendingCitations = [...(this._pendingCitations ?? []), ...citations];
+  }
+
+  /**
+   * Consume and clear all pending citations (called on message_stop).
+   */
+  consumePendingCitations(): ChatMessage['citations'] | undefined {
+    if (!this._pendingCitations || this._pendingCitations.length === 0) return undefined;
+    const citations = this._pendingCitations;
+    this._pendingCitations = [];
+    return citations;
   }
 
   // ========================================

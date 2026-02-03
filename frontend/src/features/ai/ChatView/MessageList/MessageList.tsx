@@ -4,11 +4,11 @@
  * Follows shadcn/ui AI conversation component pattern with scroll-to-bottom.
  */
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useMemo } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Button } from '@/components/ui/button';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/stores/ai/types/conversation';
 import { MessageGroup } from './MessageGroup';
@@ -79,7 +79,11 @@ export const MessageList = observer<MessageListProps>(
       setShowScrollButton(!bottom);
     }, []);
 
-    const messageGroups = groupMessagesByRole(messages);
+    const messageGroups = useMemo(
+      () => groupMessagesByRole(messages),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [messages.length]
+    );
 
     // Total items: message groups + optional streaming footer
     const hasStreamingFooter = isStreaming && (streamContent || thinkingContent);
@@ -90,7 +94,7 @@ export const MessageList = observer<MessageListProps>(
         {totalCount === 0 && !isStreaming ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-4">
-              <span className="text-2xl">✨</span>
+              <Sparkles className="h-8 w-8 text-white" />
             </div>
             <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
             <p className="text-sm text-muted-foreground max-w-sm">

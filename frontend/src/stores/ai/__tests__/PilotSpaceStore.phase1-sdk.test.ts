@@ -2,9 +2,9 @@
  * Phase 1 SDK Features (T57-T59) Unit Tests
  *
  * Tests for:
- * - T57: MemoryUpdateEvent type guard + handleMemoryUpdate (no-op pass-through)
- * - T58: CitationEvent type guard + handleCitation (attach citations to message)
- * - T59: ToolInputDeltaEvent type guard + handleToolInputDelta (progressive input rendering)
+ * - T57: MemoryUpdateEvent type guard + handleMemoryUpdate (stores lastMemoryUpdate)
+ * - T58: CitationEvent type guard + handleCitation (buffers citations via pending buffer)
+ * - T59: ToolInputDeltaEvent type guard + handleToolInputDelta (progressive input via pending buffer)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -145,19 +145,11 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
   });
 
   // ========================================
-  // T58: handleCitation
+  // T58: handleCitation (pending buffer)
   // ========================================
 
   describe('handleCitation', () => {
-    it('should attach citations to matching message', () => {
-      // Seed a message in the store
-      store.messages.push({
-        id: 'msg-1',
-        role: 'assistant',
-        content: 'Here is the result.',
-        timestamp: new Date(),
-      });
-
+    it('should buffer citations via addPendingCitations', () => {
       const citationEvent: CitationEvent = {
         type: 'citation',
         data: {
@@ -175,9 +167,9 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
 
       handler.handleCitation(citationEvent);
 
-      const msg = store.messages.find((m) => m.id === 'msg-1');
-      expect(msg?.citations).toHaveLength(1);
-      expect(msg?.citations?.[0]).toEqual({
+      const buffered = store.consumePendingCitations();
+      expect(buffered).toHaveLength(1);
+      expect(buffered?.[0]).toEqual({
         sourceType: 'document',
         sourceId: 'note-123',
         sourceTitle: 'Test Note',
@@ -185,26 +177,26 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
       });
     });
 
-    it('should append citations to existing citations array', () => {
-      store.messages.push({
-        id: 'msg-2',
-        role: 'assistant',
-        content: 'Result with existing citations.',
-        timestamp: new Date(),
-        citations: [
-          {
-            sourceType: 'document',
-            sourceId: 'note-100',
-            sourceTitle: 'First Note',
-            citedText: 'first cited text',
-          },
-        ],
-      });
-
-      const citationEvent: CitationEvent = {
+    it('should accumulate multiple citation events in buffer', () => {
+      const citationEvent1: CitationEvent = {
         type: 'citation',
         data: {
-          messageId: 'msg-2',
+          messageId: 'msg-1',
+          citations: [
+            {
+              sourceType: 'document',
+              sourceId: 'note-100',
+              sourceTitle: 'First Note',
+              citedText: 'first cited text',
+            },
+          ],
+        },
+      };
+
+      const citationEvent2: CitationEvent = {
+        type: 'citation',
+        data: {
+          messageId: 'msg-1',
           citations: [
             {
               sourceType: 'issue',
@@ -216,25 +208,26 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       };
 
-      handler.handleCitation(citationEvent);
+      handler.handleCitation(citationEvent1);
+      handler.handleCitation(citationEvent2);
 
-      const msg = store.messages.find((m) => m.id === 'msg-2');
-      expect(msg?.citations).toHaveLength(2);
-      expect(msg?.citations?.[1].sourceId).toBe('issue-456');
+      const buffered = store.consumePendingCitations();
+      expect(buffered).toHaveLength(2);
+      expect(buffered?.[0].sourceId).toBe('note-100');
+      expect(buffered?.[1].sourceId).toBe('issue-456');
     });
 
-    it('should not crash when message ID does not match', () => {
-      store.messages.push({
-        id: 'msg-existing',
-        role: 'assistant',
-        content: 'Some content.',
-        timestamp: new Date(),
-      });
+    it('should not crash and buffer is empty when no citations sent', () => {
+      // consumePendingCitations should return undefined when buffer is empty
+      const buffered = store.consumePendingCitations();
+      expect(buffered).toBeUndefined();
+    });
 
+    it('should clear buffer after consumePendingCitations', () => {
       const citationEvent: CitationEvent = {
         type: 'citation',
         data: {
-          messageId: 'msg-nonexistent',
+          messageId: 'msg-1',
           citations: [
             {
               sourceType: 'document',
@@ -246,35 +239,30 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       };
 
-      // Should not throw
-      expect(() => handler.handleCitation(citationEvent)).not.toThrow();
+      handler.handleCitation(citationEvent);
 
-      // Existing message should be unaffected
-      const msg = store.messages.find((m) => m.id === 'msg-existing');
-      expect(msg?.citations).toBeUndefined();
+      // First consume drains the buffer
+      const first = store.consumePendingCitations();
+      expect(first).toHaveLength(1);
+
+      // Second consume returns undefined (buffer cleared)
+      const second = store.consumePendingCitations();
+      expect(second).toBeUndefined();
     });
   });
 
   // ========================================
-  // T59: handleToolInputDelta
+  // T59: handleToolInputDelta (pending buffer)
   // ========================================
 
   describe('handleToolInputDelta', () => {
-    it('should append input delta to matching tool call', () => {
-      // Seed a message with a tool call (input starts as empty string for progressive rendering)
-      store.messages.push({
-        id: 'msg-tc',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        toolCalls: [
-          {
-            id: 'tc-1',
-            name: 'extract_issues',
-            input: '' as unknown as Record<string, unknown>,
-            status: 'pending',
-          },
-        ],
+    it('should append input delta to matching pending tool call via partialInput', () => {
+      // Seed a pending tool call in the buffer
+      store.addPendingToolCall({
+        id: 'tc-1',
+        name: 'extract_issues',
+        input: {} as Record<string, unknown>,
+        status: 'pending',
       });
 
       const delta1: ToolInputDeltaEvent = {
@@ -298,25 +286,16 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
       handler.handleToolInputDelta(delta1);
       handler.handleToolInputDelta(delta2);
 
-      const msg = store.messages[store.messages.length - 1];
-      const tc = msg.toolCalls?.find((t) => t.id === 'tc-1');
-      expect(tc?.input).toBe('{"note_id":"note-123"}');
+      const tc = store.findPendingToolCall('tc-1');
+      expect(tc?.partialInput).toBe('{"note_id":"note-123"}');
     });
 
-    it('should initialize input from null/undefined via fallback', () => {
-      store.messages.push({
-        id: 'msg-tc-null',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        toolCalls: [
-          {
-            id: 'tc-2',
-            name: 'summarize_note',
-            input: undefined as unknown as Record<string, unknown>,
-            status: 'pending',
-          },
-        ],
+    it('should initialize partialInput from undefined on first delta', () => {
+      store.addPendingToolCall({
+        id: 'tc-2',
+        name: 'summarize_note',
+        input: {} as Record<string, unknown>,
+        status: 'pending',
       });
 
       const delta: ToolInputDeltaEvent = {
@@ -330,26 +309,16 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
 
       handler.handleToolInputDelta(delta);
 
-      const tc = store.messages[store.messages.length - 1].toolCalls?.find(
-        (t) => t.id === 'tc-2'
-      );
-      expect(tc?.input).toBe('{"text":"hello"}');
+      const tc = store.findPendingToolCall('tc-2');
+      expect(tc?.partialInput).toBe('{"text":"hello"}');
     });
 
-    it('should not crash when no matching tool call exists', () => {
-      store.messages.push({
-        id: 'msg-no-tc',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        toolCalls: [
-          {
-            id: 'tc-other',
-            name: 'other_tool',
-            input: {} as Record<string, unknown>,
-            status: 'pending',
-          },
-        ],
+    it('should not crash when no matching pending tool call exists', () => {
+      store.addPendingToolCall({
+        id: 'tc-other',
+        name: 'other_tool',
+        input: {} as Record<string, unknown>,
+        status: 'pending',
       });
 
       const delta: ToolInputDeltaEvent = {
@@ -364,14 +333,7 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
       expect(() => handler.handleToolInputDelta(delta)).not.toThrow();
     });
 
-    it('should not crash when last message has no tool calls', () => {
-      store.messages.push({
-        id: 'msg-plain',
-        role: 'assistant',
-        content: 'Just text, no tools.',
-        timestamp: new Date(),
-      });
-
+    it('should not crash when pending buffer is empty', () => {
       const delta: ToolInputDeltaEvent = {
         type: 'tool_input_delta',
         data: {
@@ -390,7 +352,7 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
   // ========================================
 
   describe('handleMemoryUpdate', () => {
-    it('should not throw for write operation', () => {
+    it('should store lastMemoryUpdate for write operation', () => {
       const event: MemoryUpdateEvent = {
         type: 'memory_update',
         data: {
@@ -400,10 +362,12 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       };
 
-      expect(() => handler.handleMemoryUpdate(event)).not.toThrow();
+      handler.handleMemoryUpdate(event);
+
+      expect(store.lastMemoryUpdate).toEqual(event.data);
     });
 
-    it('should not throw for read operation', () => {
+    it('should store lastMemoryUpdate for read operation', () => {
       const event: MemoryUpdateEvent = {
         type: 'memory_update',
         data: {
@@ -412,10 +376,12 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       };
 
-      expect(() => handler.handleMemoryUpdate(event)).not.toThrow();
+      handler.handleMemoryUpdate(event);
+
+      expect(store.lastMemoryUpdate).toEqual(event.data);
     });
 
-    it('should not throw for delete operation', () => {
+    it('should store lastMemoryUpdate for delete operation', () => {
       const event: MemoryUpdateEvent = {
         type: 'memory_update',
         data: {
@@ -424,10 +390,37 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       };
 
-      expect(() => handler.handleMemoryUpdate(event)).not.toThrow();
+      handler.handleMemoryUpdate(event);
+
+      expect(store.lastMemoryUpdate).toEqual(event.data);
     });
 
-    it('should not mutate store state', () => {
+    it('should overwrite previous lastMemoryUpdate with latest event', () => {
+      const event1: MemoryUpdateEvent = {
+        type: 'memory_update',
+        data: {
+          operation: 'write',
+          key: 'context',
+          value: 'first',
+        },
+      };
+
+      const event2: MemoryUpdateEvent = {
+        type: 'memory_update',
+        data: {
+          operation: 'write',
+          key: 'context',
+          value: 'second',
+        },
+      };
+
+      handler.handleMemoryUpdate(event1);
+      handler.handleMemoryUpdate(event2);
+
+      expect(store.lastMemoryUpdate).toEqual(event2.data);
+    });
+
+    it('should not mutate messages or error state', () => {
       const messagesBefore = store.messages.length;
       const errorBefore = store.error;
 
@@ -444,6 +437,7 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
 
       expect(store.messages.length).toBe(messagesBefore);
       expect(store.error).toBe(errorBefore);
+      expect(store.lastMemoryUpdate).toEqual(event.data);
     });
   });
 
@@ -452,14 +446,7 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
   // ========================================
 
   describe('handleSSEEvent dispatch', () => {
-    it('should route citation event to handleCitation', () => {
-      store.messages.push({
-        id: 'msg-dispatch',
-        role: 'assistant',
-        content: 'Test',
-        timestamp: new Date(),
-      });
-
+    it('should route citation event to buffer via handleCitation', () => {
       handler.handleSSEEvent({
         type: 'citation',
         data: {
@@ -475,23 +462,18 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       });
 
-      expect(store.messages[0].citations).toHaveLength(1);
+      const buffered = store.consumePendingCitations();
+      expect(buffered).toHaveLength(1);
+      expect(buffered?.[0].sourceId).toBe('doc-1');
     });
 
-    it('should route tool_input_delta event to handleToolInputDelta', () => {
-      store.messages.push({
-        id: 'msg-tid',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        toolCalls: [
-          {
-            id: 'tc-dispatch',
-            name: 'test_tool',
-            input: '' as unknown as Record<string, unknown>,
-            status: 'pending',
-          },
-        ],
+    it('should route tool_input_delta event to pending buffer with partialInput', () => {
+      // Seed pending tool call in buffer
+      store.addPendingToolCall({
+        id: 'tc-dispatch',
+        name: 'test_tool',
+        input: {} as Record<string, unknown>,
+        status: 'pending',
       });
 
       handler.handleSSEEvent({
@@ -503,21 +485,23 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       });
 
-      const tc = store.messages[0].toolCalls?.find((t) => t.id === 'tc-dispatch');
-      expect(tc?.input).toBe('{"key":"val"}');
+      const tc = store.findPendingToolCall('tc-dispatch');
+      expect(tc?.partialInput).toBe('{"key":"val"}');
     });
 
-    it('should route memory_update event to handleMemoryUpdate without error', () => {
-      expect(() =>
-        handler.handleSSEEvent({
-          type: 'memory_update',
-          data: {
-            operation: 'write',
-            key: 'pref',
-            value: 42,
-          },
-        })
-      ).not.toThrow();
+    it('should route memory_update event to store lastMemoryUpdate', () => {
+      const memoryData = {
+        operation: 'write' as const,
+        key: 'pref',
+        value: 42,
+      };
+
+      handler.handleSSEEvent({
+        type: 'memory_update',
+        data: memoryData,
+      });
+
+      expect(store.lastMemoryUpdate).toEqual(memoryData);
     });
   });
 });

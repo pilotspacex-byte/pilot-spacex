@@ -18,6 +18,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -645,12 +646,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
 # Module-level helpers (kept outside class to avoid line bloat)
 
-# Patterns for low-effort queries (T7/G-09)
+# Patterns for low-effort queries (T7/G-09) — pre-compiled for performance (T69)
 _SIMPLE_PATTERNS = [
-    r"^(hi|hello|hey|thanks|thank you|ok|okay)\b",
-    r"^what (can you|do you) do",
-    r"^help\b",
-    r"^(yes|no|sure|yep|nope)\b",
+    re.compile(r"^(hi|hello|hey|thanks|thank you|ok|okay)\b"),
+    re.compile(r"^what (can you|do you) do"),
+    re.compile(r"^help\b"),
+    re.compile(r"^(yes|no|sure|yep|nope)\b"),
 ]
 
 
@@ -659,12 +660,10 @@ def _classify_effort(message: str) -> str | None:
 
     Returns 'low' for simple greetings/confirmations, None for default.
     """
-    import re
-
     msg_lower = message.strip().lower()
     if len(msg_lower) < 50:
         for pattern in _SIMPLE_PATTERNS:
-            if re.match(pattern, msg_lower):
+            if pattern.match(msg_lower):
                 return "low"
     return None
 

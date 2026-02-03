@@ -405,7 +405,7 @@ export class PilotSpaceStreamHandler {
 
   /**
    * Handle tool_use event.
-   * Records tool invocation.
+   * Buffers tool call for attachment on message finalization (T63).
    */
   handleToolUseStart(event: ToolUseEvent): void {
     const { toolCallId, toolName, toolInput } = event.data;
@@ -419,24 +419,15 @@ export class PilotSpaceStreamHandler {
       parentToolUseId: this._lastParentToolUseId ?? undefined,
     };
 
-    // Find or create message to attach tool call
-    const messageId = this.store.streamingState.currentMessageId;
-    if (messageId) {
-      const message = this.store.messages.find((m) => m.id === messageId);
-      if (message) {
-        if (!message.toolCalls) {
-          message.toolCalls = [];
-        }
-        message.toolCalls.push(toolCall);
-      }
-    }
+    // Buffer tool call — message doesn't exist in messages[] during streaming
+    this.store.addPendingToolCall(toolCall);
 
     this.store.streamingState.phase = 'tool_use';
   }
 
   /**
    * Handle tool_result event.
-   * Updates tool call status and result.
+   * Updates tool call status and result. Checks pending buffer first (T66).
    */
   handleToolResult(event: ToolResultEvent): void {
     const { toolCallId, status, output, errorMessage } = event.data;
@@ -445,7 +436,18 @@ export class PilotSpaceStreamHandler {
     const toolCallStatus: 'pending' | 'completed' | 'failed' =
       status === 'cancelled' ? 'failed' : status;
 
-    // Find tool call in messages
+    // Check pending buffer first (tool call may not be in messages[] yet)
+    const pendingTc = this.store.findPendingToolCall(toolCallId);
+    if (pendingTc) {
+      pendingTc.status = toolCallStatus;
+      pendingTc.output = output;
+      if (errorMessage) {
+        pendingTc.errorMessage = errorMessage;
+      }
+      return;
+    }
+
+    // Fallback: search finalized messages
     for (const message of this.store.messages) {
       if (message.toolCalls) {
         const toolCall = message.toolCalls.find((tc) => tc.id === toolCallId);
@@ -553,6 +555,10 @@ export class PilotSpaceStreamHandler {
       ? Date.now() - this.store.streamingState.thinkingStartedAt
       : undefined;
 
+    // Consume buffered data from streaming phase (T63, T64)
+    const toolCalls = this.store.consumePendingToolCalls();
+    const citations = this.store.consumePendingCitations();
+
     // Create completed assistant message
     const assistantMessage: ChatMessage = {
       id: messageId,
@@ -561,6 +567,8 @@ export class PilotSpaceStreamHandler {
       timestamp: new Date(),
       thinkingContent: this.store.streamingState.thinkingContent || undefined,
       thinkingDurationMs,
+      toolCalls,
+      citations,
       structuredResult: this.store.consumePendingStructuredResult(),
       metadata: {
         tokenCount: usage?.totalTokens,
@@ -592,17 +600,24 @@ export class PilotSpaceStreamHandler {
 
   /**
    * Handle tool_audit event.
-   * Updates tool call with audit info (duration).
+   * Updates tool call with audit info (duration). Checks pending buffer first.
    */
   handleToolAudit(event: ToolAuditEvent): void {
-    const { tool_use_id, duration_ms } = event.data;
+    const { toolUseId, durationMs } = event.data;
 
-    // Find the matching tool call and update its duration
+    // Check pending buffer first (tool call may not be in messages[] yet)
+    const pendingTc = this.store.findPendingToolCall(toolUseId);
+    if (pendingTc) {
+      pendingTc.durationMs = durationMs ?? undefined;
+      return;
+    }
+
+    // Fallback: search finalized messages
     for (const message of this.store.messages) {
       if (message.toolCalls) {
-        const toolCall = message.toolCalls.find((tc) => tc.id === tool_use_id);
+        const toolCall = message.toolCalls.find((tc) => tc.id === toolUseId);
         if (toolCall) {
-          toolCall.durationMs = duration_ms ?? undefined;
+          toolCall.durationMs = durationMs ?? undefined;
           break;
         }
       }
@@ -646,35 +661,29 @@ export class PilotSpaceStreamHandler {
   }
 
   /**
-   * Handle citation event — attach citations to current assistant message (T58).
+   * Handle citation event — buffer for attachment on message finalization (T64).
    */
   handleCitation(event: CitationEvent): void {
-    const { messageId, citations } = event.data;
-    const msg = this.store.messages.find((m) => m.id === messageId);
-    if (msg) {
-      msg.citations = [...(msg.citations ?? []), ...citations];
-    }
+    const { citations } = event.data;
+    this.store.addPendingCitations(citations);
   }
 
   /**
-   * Handle memory_update event — notify user of cross-session memory write (T57).
+   * Handle memory_update event — store for UI notification (T73).
    */
-  handleMemoryUpdate(_event: MemoryUpdateEvent): void {
-    // Store memory update for UI notification (toast or status indicator).
-    // Currently a no-op pass-through; the store can observe this via
-    // a dedicated observable if a MemoryPanel is added later.
+  handleMemoryUpdate(event: MemoryUpdateEvent): void {
+    this.store.lastMemoryUpdate = event.data;
   }
 
   /**
-   * Handle tool_input_delta — progressive tool parameter rendering (T59).
+   * Handle tool_input_delta — progressive tool parameter rendering (T65).
+   * Accumulates partial JSON on the pending tool call's partialInput field.
    */
   handleToolInputDelta(event: ToolInputDeltaEvent): void {
     const { toolUseId, inputDelta } = event.data;
-    const currentMsg = this.store.messages[this.store.messages.length - 1];
-    if (!currentMsg?.toolCalls) return;
-    const tc = currentMsg.toolCalls.find((t) => t.id === toolUseId);
+    const tc = this.store.findPendingToolCall(toolUseId);
     if (tc) {
-      tc.input = (tc.input ?? '') + inputDelta;
+      tc.partialInput = (tc.partialInput ?? '') + inputDelta;
     }
   }
 
