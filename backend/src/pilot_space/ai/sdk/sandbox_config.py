@@ -22,16 +22,18 @@ if TYPE_CHECKING:
 class ModelTier(str, Enum):
     """Model tier enum for DD-011 provider routing.
 
-    Users select a tier (sonnet/opus), which resolves to a full model ID
+    Users select a tier (sonnet/opus/haiku), which resolves to a full model ID
     via environment variables. This decouples model selection from hardcoded IDs.
 
     Env vars:
         PILOTSPACE_MODEL_SONNET_DEFAULT: Full model ID for sonnet tier
         PILOTSPACE_MODEL_OPUS_DEFAULT: Full model ID for opus tier
+        PILOTSPACE_MODEL_HAIKU_DEFAULT: Full model ID for haiku tier
     """
 
     SONNET = "sonnet"
     OPUS = "opus"
+    HAIKU = "haiku"
 
     @property
     def model_id(self) -> str:
@@ -39,12 +41,44 @@ class ModelTier(str, Enum):
         defaults = {
             ModelTier.SONNET: "claude-sonnet-4-20250514",
             ModelTier.OPUS: "claude-opus-4-20250514",
+            ModelTier.HAIKU: "claude-haiku-4-5-20251001",
         }
         env_keys = {
             ModelTier.SONNET: "PILOTSPACE_MODEL_SONNET_DEFAULT",
             ModelTier.OPUS: "PILOTSPACE_MODEL_OPUS_DEFAULT",
+            ModelTier.HAIKU: "PILOTSPACE_MODEL_HAIKU_DEFAULT",
         }
         return os.environ.get(env_keys[self], defaults[self])
+
+    @property
+    def default_budget_usd(self) -> float:
+        """Default per-request budget ceiling for this tier."""
+        budgets = {
+            ModelTier.SONNET: 0.50,
+            ModelTier.OPUS: 2.00,
+            ModelTier.HAIKU: 0.10,
+        }
+        return budgets[self]
+
+    @property
+    def fallback_tier(self) -> ModelTier | None:
+        """Automatic fallback tier when this tier's model fails."""
+        fallbacks: dict[ModelTier, ModelTier | None] = {
+            ModelTier.OPUS: ModelTier.SONNET,
+            ModelTier.SONNET: ModelTier.HAIKU,
+            ModelTier.HAIKU: None,
+        }
+        return fallbacks[self]
+
+    @property
+    def default_max_turns(self) -> int:
+        """Default maximum conversation turns for this tier."""
+        limits = {
+            ModelTier.SONNET: 25,
+            ModelTier.OPUS: 15,
+            ModelTier.HAIKU: 50,
+        }
+        return limits[self]
 
 
 def resolve_model(model: str | ModelTier) -> str:
@@ -179,6 +213,16 @@ class SDKConfiguration:
     effort: str | None = None  # "low" | "medium" | "high"
     citations_enabled: bool = False
     memory_enabled: bool = False
+    # Cost & resilience controls (G1-G3)
+    max_budget_usd: float | None = None
+    fallback_model: str | None = None
+    max_turns: int | None = None
+    # Structured output enforcement (G4)
+    output_format: dict[str, Any] | None = None
+    # Advanced SDK features (G5-G7)
+    enable_file_checkpointing: bool = False
+    betas: list[str] = field(default_factory=list)
+    system_prompt_base: str | None = None  # SDK-native prompt caching
 
     def to_sdk_params(self) -> dict[str, Any]:
         """Convert to parameters for Claude SDK."""
@@ -210,6 +254,26 @@ class SDKConfiguration:
             params["citations"] = True
         if self.memory_enabled:
             params["memory"] = True
+        # Cost & resilience controls (G1-G3)
+        if self.max_budget_usd is not None:
+            params["max_budget_usd"] = self.max_budget_usd
+        if self.fallback_model is not None:
+            params["fallback_model"] = self.fallback_model
+        if self.max_turns is not None:
+            params["max_turns"] = self.max_turns
+        # Structured output enforcement (G4)
+        if self.output_format is not None:
+            params["output_format"] = self.output_format
+        # Advanced SDK features (G5-G7)
+        if self.enable_file_checkpointing:
+            params["enable_file_checkpointing"] = True
+        if self.betas:
+            params["betas"] = self.betas
+        if self.system_prompt_base is not None:
+            params["system_prompt"] = {
+                "content": self.system_prompt_base,
+                "cache_control": "ephemeral",
+            }
         return params
 
 
@@ -227,6 +291,12 @@ def configure_sdk_for_space(
     effort: str | None = None,
     citations_enabled: bool = False,
     memory_enabled: bool = False,
+    max_budget_usd: float | None = None,
+    max_turns: int | None = None,
+    output_format: dict[str, Any] | None = None,
+    enable_file_checkpointing: bool = False,
+    betas: list[str] | None = None,
+    system_prompt_base: str | None = None,
 ) -> SDKConfiguration:
     """Configure Claude SDK with space-rooted sandbox settings.
 
@@ -249,6 +319,12 @@ def configure_sdk_for_space(
         effort: Quality/speed tradeoff ("low"|"medium"|"high"|None)
         citations_enabled: Enable source citation tracking
         memory_enabled: Enable cross-session memory persistence
+        max_budget_usd: Per-request cost ceiling (None=use tier default)
+        max_turns: Maximum conversation turns (None=use tier default)
+        output_format: JSON schema dict for structured output enforcement
+        enable_file_checkpointing: Enable SDK file checkpoint/rewind (G5)
+        betas: SDK beta features list (e.g. ["context-1m-2025-08-07"]) (G6)
+        system_prompt_base: Base system prompt for SDK-native caching (G7)
 
     Returns:
         SDKConfiguration ready for SDK initialization.
@@ -307,6 +383,22 @@ def configure_sdk_for_space(
     if effective_thinking_tokens is None and "opus" in resolved_model.lower():
         effective_thinking_tokens = 10000
 
+    # Derive cost/resilience defaults from tier (G1-G3)
+    model_tier = _resolve_tier(model)
+    effective_budget = (
+        max_budget_usd
+        if max_budget_usd is not None
+        else (model_tier.default_budget_usd if model_tier else None)
+    )
+    effective_max_turns = (
+        max_turns
+        if max_turns is not None
+        else (model_tier.default_max_turns if model_tier else None)
+    )
+    effective_fallback = (
+        model_tier.fallback_tier.model_id if model_tier and model_tier.fallback_tier else None
+    )
+
     return SDKConfiguration(
         cwd=str(space_context.path),
         setting_sources=["project"],  # Load from .claude/
@@ -330,7 +422,27 @@ def configure_sdk_for_space(
         effort=effort,
         citations_enabled=citations_enabled,
         memory_enabled=memory_enabled,
+        max_budget_usd=effective_budget,
+        fallback_model=effective_fallback,
+        max_turns=effective_max_turns,
+        output_format=output_format,
+        enable_file_checkpointing=enable_file_checkpointing,
+        betas=betas or [],
+        system_prompt_base=system_prompt_base,
     )
+
+
+def _resolve_tier(model: str | ModelTier) -> ModelTier | None:
+    """Resolve model input to a ModelTier if possible.
+
+    Returns None for custom model strings that don't match a tier.
+    """
+    if isinstance(model, ModelTier):
+        return model
+    try:
+        return ModelTier(model.lower())
+    except ValueError:
+        return None
 
 
 def is_bash_command_safe(command: str) -> bool:

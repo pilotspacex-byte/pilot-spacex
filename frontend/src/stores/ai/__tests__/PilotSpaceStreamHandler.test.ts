@@ -355,6 +355,135 @@ describe('PilotSpaceStreamHandler', () => {
     });
   });
 
+  describe('content_block_start handling (G13)', () => {
+    it('should track currentBlockType from content_block_start', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+
+      expect(store.streamingState.currentBlockType).toBe('text');
+      expect(store.streamingState.currentBlockIndex).toBe(0);
+    });
+
+    it('should track tool_use block type', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'tool_use' },
+      });
+
+      expect(store.streamingState.currentBlockType).toBe('tool_use');
+      expect(store.streamingState.currentBlockIndex).toBe(1);
+    });
+
+    it('should transition phase to content on first text block', () => {
+      // Start with message_start phase
+      store.streamingState.phase = 'message_start';
+
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+
+      expect(store.streamingState.phase).toBe('content');
+    });
+
+    it('should store parentToolUseId when present', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'tool_use', parentToolUseId: 'parent-tc-1' },
+      });
+
+      // Verify it's stored by creating a tool call afterward
+      store.addMessage({
+        id: 'msg-1',
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+      });
+      store.streamingState.currentMessageId = 'msg-1';
+
+      handler.handleSSEEvent({
+        type: 'tool_use',
+        data: {
+          toolCallId: 'child-tc-1',
+          toolName: 'Read',
+          toolInput: { file: 'test.py' },
+        },
+      });
+
+      const msg = store.messages.find((m) => m.id === 'msg-1');
+      expect(msg?.toolCalls?.[0]?.parentToolUseId).toBe('parent-tc-1');
+    });
+  });
+
+  describe('parentToolUseId correlation (G12)', () => {
+    it('should reset parentToolUseId on message_start', () => {
+      // Set parent from a content_block_start
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'tool_use', parentToolUseId: 'old-parent' },
+      });
+
+      // message_start should reset it
+      handler.handleSSEEvent({
+        type: 'message_start',
+        data: { messageId: 'msg-2', sessionId: 'sess-1' },
+      });
+
+      // Tool call after reset should not have parentToolUseId
+      store.streamingState.currentMessageId = 'msg-2';
+      store.addMessage({
+        id: 'msg-2',
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+      });
+
+      handler.handleSSEEvent({
+        type: 'tool_use',
+        data: {
+          toolCallId: 'tc-2',
+          toolName: 'Write',
+          toolInput: { content: 'test' },
+        },
+      });
+
+      const msg = store.messages.find((m) => m.id === 'msg-2');
+      expect(msg?.toolCalls?.[0]?.parentToolUseId).toBeUndefined();
+    });
+
+    it('should attach parentToolUseId to tool calls from subagent blocks', () => {
+      // First, a content_block_start with parent
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'tool_use', parentToolUseId: 'subagent-parent' },
+      });
+
+      // Set up message for tool attachment
+      store.addMessage({
+        id: 'msg-3',
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+      });
+      store.streamingState.currentMessageId = 'msg-3';
+
+      // Tool call should get parent ID
+      handler.handleSSEEvent({
+        type: 'tool_use',
+        data: {
+          toolCallId: 'tc-3',
+          toolName: 'extract_issues',
+          toolInput: { noteId: 'n1' },
+        },
+      });
+
+      const msg = store.messages.find((m) => m.id === 'msg-3');
+      expect(msg?.toolCalls?.[0]?.parentToolUseId).toBe('subagent-parent');
+    });
+  });
+
   describe('abortClient', () => {
     it('should not throw when no client exists', () => {
       expect(() => handler.abortClient()).not.toThrow();

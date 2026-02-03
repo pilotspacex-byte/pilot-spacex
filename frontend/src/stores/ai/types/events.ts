@@ -69,6 +69,8 @@ export interface ContentBlockStartEvent extends SSEEvent {
     index: number;
     /** Content block type */
     contentType: 'text' | 'tool_use';
+    /** Parent tool use ID for subagent content correlation (G12) */
+    parentToolUseId?: string;
   };
 }
 

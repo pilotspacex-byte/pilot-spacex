@@ -18,6 +18,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID, uuid4
 
+from pilot_space.ai.sdk.hooks_lifecycle import (
+    AuditLogHook,
+    BudgetStopHook,
+    ContextPreservationHook,
+    InputValidationHook,
+)
+
 if TYPE_CHECKING:
     from pilot_space.ai.sdk.file_hooks import FileBasedHookExecutor
     from pilot_space.ai.sdk.permission_handler import PermissionHandler
@@ -343,6 +350,7 @@ class PermissionAwareHookExecutor:
         agent_name: str = "PilotSpaceAgent",
         file_hook_executor: FileBasedHookExecutor | None = None,
         event_queue: Any | None = None,
+        max_budget_usd: float | None = None,
     ) -> None:
         """Initialize executor.
 
@@ -353,6 +361,7 @@ class PermissionAwareHookExecutor:
             agent_name: Agent name for permission tracking
             file_hook_executor: Optional file-based hooks to compose with
             event_queue: Optional asyncio.Queue for SSE approval events
+            max_budget_usd: Per-request budget ceiling for BudgetStopHook
         """
         self._permission_hook = PermissionCheckHook(permission_handler)
         self._workspace_id = workspace_id
@@ -360,12 +369,13 @@ class PermissionAwareHookExecutor:
         self._agent_name = agent_name
         self._file_hook_executor = file_hook_executor
         self._event_queue = event_queue
+        self._max_budget_usd = max_budget_usd
 
     def to_sdk_hooks(self) -> dict[str, list[dict[str, Any]]]:
         """Convert to SDK-compatible hooks format.
 
-        Merges file-based hooks with permission check hook and
-        subagent progress hooks for task_progress SSE events.
+        Merges file-based hooks with permission check hook,
+        subagent progress hooks, and lifecycle hooks (G8-G11).
 
         Returns:
             Dict mapping hook event names to matcher lists.
@@ -385,13 +395,38 @@ class PermissionAwareHookExecutor:
         pre_hooks.append(permission_matcher)
         sdk_hooks["PreToolUse"] = pre_hooks
 
-        # Wire SubagentProgressHook for task_progress SSE events (B3)
+        # Wire SubagentProgressHook for task_progress SSE events
         subagent_hook = SubagentProgressHook(event_queue=self._event_queue)
-        subagent_hooks = subagent_hook.to_sdk_hooks()
-        for event_name, matchers in subagent_hooks.items():
-            existing = sdk_hooks.get(event_name, [])
-            existing.extend(matchers)
-            sdk_hooks[event_name] = existing
+
+        # Build lifecycle hooks (G8-G11)
+        lifecycle_hooks: list[
+            AuditLogHook
+            | InputValidationHook
+            | BudgetStopHook
+            | ContextPreservationHook
+            | SubagentProgressHook
+        ] = [
+            subagent_hook,
+            AuditLogHook(event_queue=self._event_queue),
+            InputValidationHook(),
+            ContextPreservationHook(),
+        ]
+
+        # Add BudgetStopHook only when budget is configured
+        if self._max_budget_usd is not None and self._max_budget_usd > 0:
+            lifecycle_hooks.append(
+                BudgetStopHook(
+                    max_budget_usd=self._max_budget_usd,
+                    event_queue=self._event_queue,
+                ),
+            )
+
+        # Merge all lifecycle hooks into sdk_hooks
+        for hook in lifecycle_hooks:
+            for event_name, matchers in hook.to_sdk_hooks().items():
+                existing = sdk_hooks.get(event_name, [])
+                existing.extend(matchers)
+                sdk_hooks[event_name] = existing
 
         return sdk_hooks
 

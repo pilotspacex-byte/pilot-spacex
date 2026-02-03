@@ -30,6 +30,8 @@ export interface ToolCall {
   status?: 'pending' | 'completed' | 'failed';
   /** Error message if execution failed */
   errorMessage?: string;
+  /** Parent tool use ID for subagent correlation (G12) */
+  parentToolUseId?: string;
 }
 
 /**
@@ -140,6 +142,10 @@ export interface StreamingState {
   isThinking?: boolean;
   /** Timestamp when thinking started (for duration display) */
   thinkingStartedAt?: number | null;
+  /** Current content block type from content_block_start (G13) */
+  currentBlockType?: 'text' | 'tool_use';
+  /** Current content block index from content_block_start (G13) */
+  currentBlockIndex?: number;
 }
 
 /**

@@ -56,6 +56,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v
 export class PilotSpaceStreamHandler {
   /** Active SSE client instance */
   private client: SSEClient | null = null;
+  /** Last parent tool use ID from content_block_start for subagent correlation (G12) */
+  private _lastParentToolUseId: string | null = null;
 
   constructor(private store: PilotSpaceStore) {}
 
@@ -295,6 +297,9 @@ export class PilotSpaceStreamHandler {
     // Update session ID
     this.store.setSessionId(sessionId);
 
+    // Reset parent correlation state
+    this._lastParentToolUseId = null;
+
     // Initialize streaming state
     this.store.streamingState = {
       isStreaming: true,
@@ -312,7 +317,16 @@ export class PilotSpaceStreamHandler {
    * Tracks block type (text vs tool_use) for progressive rendering.
    */
   handleContentBlockStart(event: ContentBlockStartEvent): void {
-    const { contentType } = event.data;
+    const { contentType, index, parentToolUseId } = event.data;
+
+    // Track current block type and index for progressive rendering (G13)
+    this.store.streamingState.currentBlockType = contentType;
+    this.store.streamingState.currentBlockIndex = index;
+
+    // Store parentToolUseId for subagent correlation (G12)
+    if (parentToolUseId) {
+      this._lastParentToolUseId = parentToolUseId;
+    }
 
     // Pre-signal thinking phase when a thinking block starts
     if (contentType === 'text' && this.store.streamingState.phase === 'message_start') {
@@ -361,12 +375,13 @@ export class PilotSpaceStreamHandler {
   handleToolUseStart(event: ToolUseEvent): void {
     const { toolCallId, toolName, toolInput } = event.data;
 
-    // Create tool call entry
+    // Create tool call entry with optional parent correlation (G12)
     const toolCall: ToolCall = {
       id: toolCallId,
       name: toolName,
       input: toolInput,
       status: 'pending',
+      parentToolUseId: this._lastParentToolUseId ?? undefined,
     };
 
     // Find or create message to attach tool call
