@@ -76,9 +76,21 @@ class SecureKeyStorage:
         self._fernet = self._create_fernet(master_secret)
 
     def _create_fernet(self, master_secret: str) -> Fernet:
-        """Create Fernet cipher from master secret."""
-        # Derive a 32-byte key from the master secret
-        key = hashlib.sha256(master_secret.encode()).digest()
+        """Create Fernet cipher from master secret using secure KDF.
+
+        Uses PBKDF2-HMAC-SHA256 with 600,000 iterations per OWASP recommendations.
+        A fixed salt is acceptable here since master_secret is per-deployment.
+        """
+        # Use PBKDF2 with high iteration count for key derivation
+        # Fixed salt is acceptable since master_secret varies per deployment
+        salt = b"pilotspace_fernet_kdf_v1"
+        key = hashlib.pbkdf2_hmac(
+            "sha256",
+            master_secret.encode(),
+            salt,
+            iterations=600_000,  # OWASP 2023 recommendation
+            dklen=32,  # 256 bits for AES-256
+        )
         # Fernet requires URL-safe base64 encoded key
         return Fernet(base64.urlsafe_b64encode(key))
 

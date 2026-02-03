@@ -336,5 +336,5 @@ Use available tools to:
                 clear_context()
 
         except Exception as e:
-            error_msg = str(e).replace("'", "\\'")
-            yield f"data: {{'type': 'error', 'error_type': 'doc_generator_error', 'message': '{error_msg}'}}\n\n"
+            error_data = {"type": "error", "error_type": "doc_generator_error", "message": str(e)}
+            yield f"data: {json.dumps(error_data)}\n\n"

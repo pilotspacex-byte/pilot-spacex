@@ -182,10 +182,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 key = await self._key_storage.get_api_key(workspace_id, "anthropic")
                 if key:
                     return key
-            except Exception:
+            except Exception as e:
                 logger.warning(
-                    "Vault lookup failed for workspace %s, falling back to env var",
+                    "Vault lookup failed for workspace %s: %s. Falling back to env var",
                     workspace_id,
+                    str(e),
+                    exc_info=True,
                 )
 
         # Fallback to environment variable
@@ -587,33 +589,34 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             raise ValueError(msg)
 
         space = self._space_manager.get_space(context.workspace_id, context.user_id)
-        space_context = await space.session().__aenter__()
 
-        sdk_config = configure_sdk_for_space(
-            space_context,
-            permission_mode="default",
-            additional_env={"ANTHROPIC_API_KEY": api_key},
-        )
-        sdk_params = sdk_config.to_sdk_params()
+        # Use async context manager properly to ensure cleanup
+        async with space.session() as space_context:
+            sdk_config = configure_sdk_for_space(
+                space_context,
+                permission_mode="default",
+                additional_env={"ANTHROPIC_API_KEY": api_key},
+            )
+            sdk_params = sdk_config.to_sdk_params()
 
-        sdk_env = sdk_params.get("env", {})
-        if "PATH" not in sdk_env:
-            sdk_env["PATH"] = os.environ.get("PATH", "")
+            sdk_env = sdk_params.get("env", {})
+            if "PATH" not in sdk_env:
+                sdk_env["PATH"] = os.environ.get("PATH", "")
 
-        sdk_options = ClaudeAgentOptions(
-            model=sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
-            cwd=sdk_params.get("cwd"),
-            setting_sources=sdk_params.get("setting_sources", ["project"]),
-            allowed_tools=sdk_params.get("allowed_tools", []),
-            sandbox=sdk_params.get("sandbox"),
-            permission_mode=sdk_params.get("permission_mode", "default"),
-            env=sdk_env,
-            hooks=sdk_params.get("hooks"),
-            agents=subagent_definitions,
-            resume=session_id_str if session_id_str != "default" else None,
-        )
+            sdk_options = ClaudeAgentOptions(
+                model=sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
+                cwd=sdk_params.get("cwd"),
+                setting_sources=sdk_params.get("setting_sources", ["project"]),
+                allowed_tools=sdk_params.get("allowed_tools", []),
+                sandbox=sdk_params.get("sandbox"),
+                permission_mode=sdk_params.get("permission_mode", "default"),
+                env=sdk_env,
+                hooks=sdk_params.get("hooks"),
+                agents=subagent_definitions,
+                resume=session_id_str if session_id_str != "default" else None,
+            )
 
-        return ClaudeSDKClient(sdk_options), session_id_str
+            return ClaudeSDKClient(sdk_options), session_id_str
 
     async def execute(
         self,
