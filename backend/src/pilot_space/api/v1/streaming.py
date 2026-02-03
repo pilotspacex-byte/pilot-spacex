@@ -13,7 +13,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import Request  # noqa: TC002
+from fastapi import Request
 from fastapi.responses import StreamingResponse
 
 

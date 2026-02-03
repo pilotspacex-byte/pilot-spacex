@@ -21,7 +21,7 @@ class ConcreteAgent(SDKBaseAgent[str, str]):
     AGENT_NAME = "test_agent"
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
-    async def execute(self, input_data: str, context: AgentContext) -> str:  # noqa: ARG002
+    async def execute(self, input_data: str, context: AgentContext) -> str:
         """Process input and return output."""
         return f"processed: {input_data}"
 
@@ -32,7 +32,7 @@ class ConcreteStreamingAgent(StreamingSDKBaseAgent[str, str]):
     AGENT_NAME = "test_streaming_agent"
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
-    async def stream(self, input_data: str, context: AgentContext):  # noqa: ARG002
+    async def stream(self, input_data: str, context: AgentContext):
         """Stream output word by word."""
         for word in input_data.split():
             yield word + " "

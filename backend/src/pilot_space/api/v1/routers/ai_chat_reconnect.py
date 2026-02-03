@@ -5,7 +5,9 @@ Handles reconnection scenarios when users navigate away and return.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import logging
+from datetime import UTC
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,12 +16,14 @@ from pydantic import BaseModel
 from pilot_space.api.v1.dependencies import get_current_user
 from pilot_space.infrastructure.database.repositories import (
     AgentSessionRepository,
-    ConversationTurnRepository,
     ApprovalRequestRepository,
+    ConversationTurnRepository,
 )
 
 if TYPE_CHECKING:
     from pilot_space.domain.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/ai/chat", tags=["ai-chat-reconnect"])
 
@@ -106,21 +110,15 @@ async def get_conversation_status(
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Conversation {conversation_id} not found"
+            detail=f"Conversation {conversation_id} not found",
         )
 
     # Verify user access
     if session.user_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     # Get recent turns
-    recent_turns = await turn_repo.get_recent_turns(
-        conversation_id=conversation_id,
-        limit=5
-    )
+    recent_turns = await turn_repo.get_recent_turns(conversation_id=conversation_id, limit=5)
 
     # Check for active job (turn with completed_at = NULL)
     active_turn = await turn_repo.get_active_turn(conversation_id)
@@ -135,13 +133,11 @@ async def get_conversation_status(
             can_reconnect=True,
             stream_url=f"/api/v1/ai/chat/stream/{active_turn.job_id}",
             estimated_completion_seconds=_estimate_completion_time(active_turn),
-            partial_response=await _get_partial_response(active_turn.job_id)
+            partial_response=await _get_partial_response(active_turn.job_id),
         )
 
     # Check for pending approvals
-    pending_approvals = await approval_repo.get_pending_approvals(
-        conversation_id=conversation_id
-    )
+    pending_approvals = await approval_repo.get_pending_approvals(conversation_id=conversation_id)
 
     if pending_approvals:
         # Update active_job status if waiting for approval
@@ -153,7 +149,7 @@ async def get_conversation_status(
                 "tool_params": pending_approvals[0].tool_params,
                 "risk_level": pending_approvals[0].risk_level,
                 "requested_at": pending_approvals[0].requested_at.isoformat(),
-                "timeout_at": pending_approvals[0].timeout_at.isoformat()
+                "timeout_at": pending_approvals[0].timeout_at.isoformat(),
             }
 
     return ConversationSnapshot(
@@ -168,7 +164,7 @@ async def get_conversation_status(
                 "content": turn.content,
                 "tool_calls": turn.tool_calls or [],
                 "timestamp": turn.created_at.isoformat(),
-                "completed": turn.completed_at is not None
+                "completed": turn.completed_at is not None,
             }
             for turn in recent_turns
         ],
@@ -178,10 +174,10 @@ async def get_conversation_status(
                 "id": str(approval.id),
                 "tool_name": approval.tool_name,
                 "risk_level": approval.risk_level,
-                "requested_at": approval.requested_at.isoformat()
+                "requested_at": approval.requested_at.isoformat(),
             }
             for approval in pending_approvals
-        ]
+        ],
     )
 
 
@@ -203,18 +199,12 @@ async def get_job_status(
     """
     turn = await turn_repo.get_by_job_id(job_id)
     if not turn:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found")
 
     # Verify user access
     session = await turn_repo.get_session_for_turn(turn.id)
     if session.user_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     # Determine status
     if turn.completed_at:
@@ -226,7 +216,7 @@ async def get_job_status(
             can_reconnect=False,
             response=turn.content,
             token_usage=turn.token_usage,
-            processing_time_ms=turn.processing_time_ms
+            processing_time_ms=turn.processing_time_ms,
         )
 
     # Job still running - check for approval
@@ -243,9 +233,9 @@ async def get_job_status(
                 "approval_id": str(pending_approval.id),
                 "tool_name": pending_approval.tool_name,
                 "tool_params": pending_approval.tool_params,
-                "risk_level": pending_approval.risk_level
+                "risk_level": pending_approval.risk_level,
             },
-            partial_response=await _get_partial_response(job_id)
+            partial_response=await _get_partial_response(job_id),
         )
 
     # Job still processing
@@ -256,7 +246,7 @@ async def get_job_status(
         can_reconnect=True,
         stream_url=f"/api/v1/ai/chat/stream/{job_id}",
         estimated_completion_seconds=_estimate_completion_time(turn),
-        partial_response=await _get_partial_response(job_id)
+        partial_response=await _get_partial_response(job_id),
     )
 
 
@@ -286,19 +276,24 @@ async def get_stream_events(
     connectSSE(jobId);
     ```
     """
+    import json
+
     from pilot_space.infrastructure.cache.redis_client import get_redis
 
-    redis = get_redis()
+    try:
+        redis = get_redis()
 
-    # Get events from Redis (we store them for 5 minutes)
-    events_key = f"stream:events:{job_id}"
-    all_events = await redis.lrange(events_key, 0, -1)
+        # Get events from Redis (we store them for 5 minutes)
+        events_key = f"stream:events:{job_id}"
+        all_events = await redis.lrange(events_key, 0, -1)
+    except Exception:
+        logger.warning("Redis error fetching stream events for job %s", job_id)
+        all_events = []
 
     # Parse and filter events after the specified index
     missed_events = []
     for i, event_json in enumerate(all_events):
         if i > after_event:
-            import json
             missed_events.append(json.loads(event_json))
 
     return {
@@ -306,20 +301,28 @@ async def get_stream_events(
         "total_events": len(all_events),
         "missed_events": len(missed_events),
         "events": missed_events,
-        "can_resume_stream": await _can_resume_stream(job_id)
+        "can_resume_stream": await _can_resume_stream(job_id),
     }
 
 
 # Helper functions
 
-def _estimate_completion_time(turn: ConversationTurn) -> int:
-    """Estimate time until job completion based on average processing time."""
+
+def _estimate_completion_time(turn: Any) -> int:
+    """Estimate time until job completion based on average processing time.
+
+    Args:
+        turn: A conversation turn object with a created_at datetime attribute.
+
+    Returns:
+        Estimated seconds until completion.
+    """
     from datetime import datetime
 
-    elapsed = (datetime.utcnow() - turn.created_at).total_seconds()
+    elapsed = (datetime.now(UTC) - turn.created_at).total_seconds()
 
     # Simple heuristic: most jobs complete in 30s
-    # TODO: Use ML model based on message length, context, etc.
+    # Future: use historical data based on message length, context, etc.
     avg_completion_time = 30
     remaining = max(0, avg_completion_time - elapsed)
 
@@ -330,22 +333,34 @@ async def _get_partial_response(job_id: UUID) -> str | None:
     """Get partial response generated before disconnect.
 
     We store partial responses in Redis as they stream.
+    Returns None gracefully on Redis errors.
     """
-    from pilot_space.infrastructure.cache.redis_client import get_redis
+    try:
+        from pilot_space.infrastructure.cache.redis_client import get_redis
 
-    redis = get_redis()
-    partial_key = f"partial:response:{job_id}"
-    partial = await redis.get(partial_key)
+        redis = get_redis()
+        partial_key = f"partial:response:{job_id}"
+        partial = await redis.get(partial_key)
 
-    return partial.decode() if partial else None
+        return partial.decode() if partial else None
+    except Exception:
+        logger.warning("Redis error fetching partial response for job %s", job_id)
+        return None
 
 
 async def _can_resume_stream(job_id: UUID) -> bool:
-    """Check if SSE stream can still be resumed."""
-    from pilot_space.infrastructure.cache.redis_client import get_redis
+    """Check if SSE stream can still be resumed.
 
-    redis = get_redis()
+    Returns False gracefully on Redis errors.
+    """
+    try:
+        from pilot_space.infrastructure.cache.redis_client import get_redis
 
-    # Check if worker is still processing
-    stream_active_key = f"stream:active:{job_id}"
-    return await redis.exists(stream_active_key) > 0
+        redis = get_redis()
+
+        # Check if worker is still processing
+        stream_active_key = f"stream:active:{job_id}"
+        return await redis.exists(stream_active_key) > 0
+    except Exception:
+        logger.warning("Redis error checking stream status for job %s", job_id)
+        return False

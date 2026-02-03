@@ -16,13 +16,13 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.agents.ai_context_agent import (
     AIContextAgent,
     AIContextInput,
     CodeReference,
     RelatedItem,
 )
-from pilot_space.ai.agents.agent_base import AgentContext
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator

@@ -242,7 +242,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
     def transform_sdk_message(
         self,
         message: Message,
-        context: AgentContext,  # noqa: ARG002
+        context: AgentContext,
     ) -> str | None:
         """Transform Claude SDK message to frontend SSE event.
 
@@ -511,14 +511,20 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         yield sse_event
 
                     # Drain tool-generated events after each SDK message
-                    while not tool_event_queue.empty():
-                        tool_event_count += 1
-                        yield tool_event_queue.get_nowait()
+                    try:
+                        while True:
+                            yield tool_event_queue.get_nowait()
+                            tool_event_count += 1
+                    except asyncio.QueueEmpty:
+                        pass
 
                 # Drain any remaining tool events after SDK stream ends
-                while not tool_event_queue.empty():
-                    tool_event_count += 1
-                    yield tool_event_queue.get_nowait()
+                try:
+                    while True:
+                        yield tool_event_queue.get_nowait()
+                        tool_event_count += 1
+                except asyncio.QueueEmpty:
+                    pass
 
                 stream_completed = True
                 logger.info(

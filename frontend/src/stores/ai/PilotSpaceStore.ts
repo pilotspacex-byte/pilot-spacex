@@ -308,7 +308,7 @@ export class PilotSpaceStore {
    * @param state - Partial streaming state update
    */
   updateStreamingState(state: Partial<StreamingState>): void {
-    Object.assign(this.streamingState, state);
+    this.streamingState = { ...this.streamingState, ...state };
   }
 
   /**

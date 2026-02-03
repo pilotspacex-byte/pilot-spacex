@@ -15,8 +15,8 @@ import { EstimateSelector } from '../EstimateSelector';
 
 const mockOpen = true;
 
-vi.mock('@/components/ui/popover', () => {
-  const React = require('react');
+vi.mock('@/components/ui/popover', async () => {
+  const React = await import('react');
   return {
     Popover: ({
       children,

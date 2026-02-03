@@ -14,7 +14,7 @@ from starlette.middleware.base import (
     BaseHTTPMiddleware,
     RequestResponseEndpoint,
 )
-from starlette.responses import Response  # noqa: TC002
+from starlette.responses import Response
 
 # Demo workspace configuration
 DEMO_WORKSPACE_UUID = uuid.UUID("00000000-0000-0000-0000-000000000002")

@@ -79,7 +79,7 @@ class ToolExecuteResponse(BaseModel):
 @router.get("")
 async def list_tools(
     user_id: CurrentUserId,
-    workspace_id: UUID | None = Query(None, description="Filter by workspace"),  # noqa: B008
+    workspace_id: UUID | None = Query(None, description="Filter by workspace"),
 ) -> ToolListResponse:
     """List all available MCP tools.
 

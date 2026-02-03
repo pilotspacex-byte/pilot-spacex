@@ -69,7 +69,7 @@ describe('PilotSpaceStore - Queue Mode Integration', () => {
       // Mock SSEClient.connect to avoid actual connection
       const { SSEClient } = await import('@/lib/sse-client');
       const mockConnect = vi.fn().mockResolvedValue(undefined);
-      (SSEClient as any).mockImplementation(() => ({
+      vi.mocked(SSEClient).mockImplementation(() => ({
         connect: mockConnect,
         abort: vi.fn(),
       }));

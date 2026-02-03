@@ -45,7 +45,7 @@ class TestAITablesRLS:
     @pytest.mark.asyncio
     async def test_workspace_api_keys_has_rls(
         self,
-        db_session: AsyncSession,  # noqa: ARG002 - Required for test signature
+        db_session: AsyncSession,
     ) -> None:
         """Verify workspace_api_keys table has RLS enabled.
 
@@ -107,7 +107,7 @@ class TestAITablesRLS:
     @pytest.mark.asyncio
     async def test_ai_approval_requests_has_rls(
         self,
-        db_session: AsyncSession,  # noqa: ARG002 - Required for test signature
+        db_session: AsyncSession,
     ) -> None:
         """Verify ai_approval_requests table has RLS enabled.
 
@@ -170,7 +170,7 @@ class TestAITablesRLS:
     @pytest.mark.asyncio
     async def test_ai_cost_records_has_rls(
         self,
-        db_session: AsyncSession,  # noqa: ARG002 - Required for test signature
+        db_session: AsyncSession,
     ) -> None:
         """Verify ai_cost_records table has RLS enabled.
 
@@ -234,7 +234,7 @@ class TestAITablesRLS:
     @pytest.mark.asyncio
     async def test_ai_sessions_has_rls(
         self,
-        db_session: AsyncSession,  # noqa: ARG002 - Required for test signature
+        db_session: AsyncSession,
     ) -> None:
         """Verify ai_sessions table has RLS enabled.
 

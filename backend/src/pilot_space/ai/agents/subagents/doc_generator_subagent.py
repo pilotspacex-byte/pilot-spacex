@@ -21,6 +21,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
 from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
 from pilot_space.ai.context import clear_context, set_workspace_context
+from pilot_space.ai.sdk.config import MODEL_SONNET
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -73,7 +74,7 @@ class DocGeneratorSubagent(StreamingSDKBaseAgent[DocGeneratorInput, DocGenerator
     """
 
     AGENT_NAME = "doc_generator_subagent"
-    DEFAULT_MODEL = "claude-sonnet-4-20250514"
+    DEFAULT_MODEL = MODEL_SONNET
 
     def get_system_prompt(self) -> str:
         """Get system prompt for doc generation.
@@ -170,7 +171,7 @@ Format with proper Markdown:
                 raise ValueError(msg)
             return api_key
 
-        # TODO: Integrate with SecureKeyStorage when available
+        # BYOK: Falls back to env var. Per-workspace vault lookup pending DD-060.
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             msg = (
@@ -226,7 +227,7 @@ Use available tools to:
 3. Review existing documentation for consistency
 4. Generate comprehensive, accurate documentation"""
 
-    def _create_agent_options(self, context: AgentContext) -> ClaudeAgentOptions:  # noqa: ARG002
+    def _create_agent_options(self, context: AgentContext) -> ClaudeAgentOptions:
         """Create Claude SDK options for doc generation.
 
         Args:
@@ -245,9 +246,7 @@ Use available tools to:
             setting_sources=["project"],  # type: ignore[call-arg]
         )
 
-    def _transform_sdk_message(
-        self, message: Any, context: AgentContext  # noqa: ARG002
-    ) -> str | None:
+    def _transform_sdk_message(self, message: Any, context: AgentContext) -> str | None:
         """Transform Claude SDK message to SSE event.
 
         Handles real Claude Agent SDK message types:

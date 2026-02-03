@@ -69,6 +69,9 @@ const ChatViewInternal = observer<ChatViewProps>(
     // Fetch sessions on mount
     useEffect(() => {
       sessionListStore.fetchSessions();
+      return () => {
+        // Cleanup handled by store disposal
+      };
     }, [sessionListStore]);
 
     // Load conversation history for note context when ChatView opens
@@ -157,7 +160,7 @@ const ChatViewInternal = observer<ChatViewProps>(
       try {
         await store.sendMessage(inputValue.trim());
       } catch (error) {
-        console.error('Failed to send message:', error);
+        store.error = error instanceof Error ? error.message : 'Failed to send message';
       }
     }, [inputValue, store]);
 
@@ -173,8 +176,12 @@ const ChatViewInternal = observer<ChatViewProps>(
     }, [store]);
 
     const handleQuestionSubmit = useCallback(
-      (questionId: string, answer: string) => {
-        store.submitQuestionAnswer(questionId, answer);
+      async (questionId: string, answer: string) => {
+        try {
+          await store.submitQuestionAnswer(questionId, answer);
+        } catch (error) {
+          store.error = error instanceof Error ? error.message : 'Failed to submit answer';
+        }
       },
       [store]
     );

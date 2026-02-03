@@ -62,7 +62,7 @@ interface Message {
 interface Approval {
   id: string;
   tool_name: string;
-  tool_params: Record<string, any>;
+  tool_params: Record<string, unknown>;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
   requested_at: string;
   timeout_at?: string;
@@ -70,7 +70,7 @@ interface Approval {
 
 interface SSEEvent {
   type: string;
-  data: any;
+  data: unknown;
   index?: number;
 }
 
@@ -93,14 +93,11 @@ export function useConversationReconnect(conversationId: string) {
     try {
       setReconnecting(true);
 
-      const response = await fetch(
-        `/api/v1/ai/chat/conversations/${conversationId}/status`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-        }
-      );
+      const response = await fetch(`/api/v1/ai/chat/conversations/${conversationId}/status`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to fetch status: ${response.statusText}`);
@@ -393,20 +390,17 @@ export function useConversationReconnect(conversationId: string) {
         },
       ]);
 
-      const response = await fetch(
-        `/api/v1/ai/chat/conversations/${conversationId}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-          body: JSON.stringify({
-            message,
-            stream: true,
-          }),
-        }
-      );
+      const response = await fetch(`/api/v1/ai/chat/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify({
+          message,
+          stream: true,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to send message: ${response.statusText}`);
@@ -432,23 +426,20 @@ export function useConversationReconnect(conversationId: string) {
   const approveAction = async (
     approvalId: string,
     action: 'approve' | 'reject' | 'edit',
-    modifiedParams?: Record<string, any>
+    modifiedParams?: Record<string, unknown>
   ) => {
     try {
-      const response = await fetch(
-        `/api/v1/ai/chat/approvals/${approvalId}/decide`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-          body: JSON.stringify({
-            action,
-            modified_params: modifiedParams,
-          }),
-        }
-      );
+      const response = await fetch(`/api/v1/ai/chat/approvals/${approvalId}/decide`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify({
+          action,
+          modified_params: modifiedParams,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error('Failed to submit approval');
@@ -478,15 +469,12 @@ export function useConversationReconnect(conversationId: string) {
     if (!status?.active_job) return;
 
     try {
-      await fetch(
-        `/api/v1/ai/chat/conversations/${conversationId}/cancel`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-        }
-      );
+      await fetch(`/api/v1/ai/chat/conversations/${conversationId}/cancel`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
 
       // Close SSE connection
       if (eventSourceRef.current) {

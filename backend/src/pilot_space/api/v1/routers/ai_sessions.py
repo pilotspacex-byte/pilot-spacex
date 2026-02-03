@@ -78,7 +78,7 @@ async def list_sessions(
     user_id: CurrentUserIdOrDemo,
     db_session: DbSession,
     session_manager: SessionManagerDep,
-    workspace_id: UUID | None = Query(None, description="Filter by workspace"),  # noqa: B008
+    workspace_id: UUID | None = Query(None, description="Filter by workspace"),
     agent_name: str | None = Query(None, description="Filter by agent"),
     limit: int = Query(50, ge=1, le=100, description="Max results"),
 ) -> SessionListResponse:

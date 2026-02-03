@@ -81,9 +81,9 @@ class SDKDiagnostics:
                 name = proc.info["name"]
                 cmdline = proc.info["cmdline"]
 
-                if name and "claude" in name.lower():
-                    claude_procs.append(proc)
-                elif cmdline and any("claude" in arg.lower() for arg in cmdline):
+                if (name and "claude" in name.lower()) or (
+                    cmdline and any("claude" in arg.lower() for arg in cmdline)
+                ):
                     claude_procs.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
@@ -99,8 +99,7 @@ class SDKDiagnostics:
                 mem = proc.memory_info().rss / 1024 / 1024
 
                 logger.info(
-                    f"  Found: PID={proc.pid} STATUS={status} "
-                    f"CPU={cpu:.1f}% MEM={mem:.1f}MB"
+                    f"  Found: PID={proc.pid} STATUS={status} CPU={cpu:.1f}% MEM={mem:.1f}MB"
                 )
 
                 # Check for zombie
@@ -200,8 +199,7 @@ class SDKDiagnostics:
             return
 
         total_size = sum(
-            sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
-            for d in workspace_dirs
+            sum(f.stat().st_size for f in d.rglob("*") if f.is_file()) for d in workspace_dirs
         )
         total_size_mb = total_size / 1024 / 1024
 

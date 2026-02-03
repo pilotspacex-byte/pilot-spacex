@@ -33,8 +33,10 @@ from pilot_space.api.v1.routers import (
     notes_router,
     projects_router,
     webhooks_router,
+    workspace_ai_settings_router,
     workspace_cycles_router,
     workspace_issues_router,
+    workspace_members_router,
     workspace_notes_ai_router,
     workspace_notes_router,
     workspaces_router,
@@ -176,8 +178,10 @@ if ai_pr_review_router is not None:
 app.include_router(ai_sessions_router, prefix=API_V1_PREFIX)
 app.include_router(integrations_router, prefix=API_V1_PREFIX)
 app.include_router(webhooks_router, prefix=API_V1_PREFIX)
+app.include_router(workspace_ai_settings_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_cycles_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(workspace_members_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_ai_router, prefix=f"{API_V1_PREFIX}/workspaces")
 if debug_router:

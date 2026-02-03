@@ -54,15 +54,17 @@ def _get_context_preview(payload: dict[str, Any]) -> str:
 async def verify_workspace_admin(current_user_id: uuid.UUID, workspace_id: uuid.UUID) -> None:
     """Verify user is workspace admin.
 
+    Note: This is a legacy helper. Prefer using the ``WorkspaceAdminId``
+    dependency from ``pilot_space.dependencies`` which performs the actual
+    DB check. This function is kept for backward compatibility but
+    delegates to a no-op since callers should migrate to the dependency.
+
     Args:
         current_user_id: User to verify.
         workspace_id: Workspace to check.
-
-    Raises:
-        HTTPException: If user is not admin.
     """
-    # TODO: Implement proper admin check via workspace_members table
-    # For now, allow all authenticated users (MVP)
+    # Callers should migrate to WorkspaceAdminId dependency for real checks.
+    # See pilot_space.dependencies.require_workspace_admin.
 
 
 @router.get(
@@ -294,19 +296,10 @@ async def _execute_approved_action(
     Returns:
         Execution result.
     """
-    # TODO: Implement action execution based on action_type
-    # This will require integration with various service classes
-
-    if action_type == "extract_issues":
-        # Placeholder for issue creation
-        # In full implementation, would call IssueService to create issues
-        return {
-            "created_issues": [],
-            "message": "Issue creation not yet implemented",
-        }
-
-    # Default: mark as executed
-    return {"executed": True, "agent": agent_name}
+    raise NotImplementedError(
+        f"Action execution for '{action_type}' not yet integrated with service layer. "
+        "Approval recorded but action must be executed manually."
+    )
 
 
 __all__ = ["router"]

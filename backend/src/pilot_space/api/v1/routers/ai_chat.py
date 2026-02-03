@@ -48,7 +48,9 @@ class ChatContext(BaseSchema):
     note_id: UUID | None = Field(None, description="Note ID if chatting within note")
     issue_id: UUID | None = Field(None, description="Issue ID if chatting about issue")
     project_id: UUID | None = Field(None, description="Project ID if chatting about project")
-    selected_text: str | None = Field(None, description="Selected text from editor")
+    selected_text: str | None = Field(
+        None, max_length=10000, description="Selected text from editor"
+    )
     selected_block_ids: list[str] = Field(
         default_factory=list,
         description="Block IDs selected in editor",

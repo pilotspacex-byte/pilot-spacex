@@ -48,6 +48,7 @@ import {
   isCitationEvent,
   isMemoryUpdateEvent,
   isToolInputDeltaEvent,
+  isContentUpdateEvent,
 } from './types/events';
 import type { PilotSpaceStore } from './PilotSpaceStore';
 
@@ -299,9 +300,8 @@ export class PilotSpaceStreamHandler {
         this.handleApprovalRequired(event);
       } else if (isAskUserQuestionEvent(event)) {
         this.handleAskUserQuestion(event);
-      } else if (event.type === 'content_update') {
-        // Handle content_update event
-        this.store.handleContentUpdate(event as ContentUpdateEvent);
+      } else if (isContentUpdateEvent(event)) {
+        this.store.handleContentUpdate(event);
       } else if (isStructuredResultEvent(event)) {
         this.handleStructuredResult(event);
       } else if (isCitationEvent(event)) {

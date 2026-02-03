@@ -10,19 +10,28 @@
  * - groupMessagesByRole utility logic
  */
 
+import type React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { ChatMessage } from '@/stores/ai/types/conversation';
 
 // Mock react-virtuoso: render all items synchronously for unit testing
 vi.mock('react-virtuoso', () => ({
-  Virtuoso: vi.fn(({ totalCount, itemContent }: any) => (
-    <div data-testid="virtuoso">
-      {Array.from({ length: totalCount }, (_, i) => (
-        <div key={i}>{itemContent(i)}</div>
-      ))}
-    </div>
-  )),
+  Virtuoso: vi.fn(
+    ({
+      totalCount,
+      itemContent,
+    }: {
+      totalCount: number;
+      itemContent: (index: number) => React.ReactNode;
+    }) => (
+      <div data-testid="virtuoso">
+        {Array.from({ length: totalCount }, (_, i) => (
+          <div key={i}>{itemContent(i)}</div>
+        ))}
+      </div>
+    )
+  ),
 }));
 
 // Mock child components to isolate MessageList behavior
