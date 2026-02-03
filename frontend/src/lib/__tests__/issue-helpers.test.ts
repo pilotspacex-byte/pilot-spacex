@@ -23,7 +23,21 @@ describe('stateNameToKey', () => {
     expect(stateNameToKey('In  Progress')).toBe('in_progress');
   });
 
-  it('handles leading/trailing whitespace', () => {
-    expect(stateNameToKey(' In Progress ')).toBe('_in_progress_');
+  it('handles leading/trailing whitespace by trimming', () => {
+    expect(stateNameToKey(' In Progress ')).toBe('in_progress');
+    expect(stateNameToKey('  Done  ')).toBe('done');
+  });
+
+  it('returns backlog for unrecognized state names', () => {
+    expect(stateNameToKey('Unknown')).toBe('backlog');
+    expect(stateNameToKey('custom_state')).toBe('backlog');
+    expect(stateNameToKey('')).toBe('backlog');
+    expect(stateNameToKey('INVALID')).toBe('backlog');
+  });
+
+  it('returns valid state for mixed-case input', () => {
+    expect(stateNameToKey('IN PROGRESS')).toBe('in_progress');
+    expect(stateNameToKey('DONE')).toBe('done');
+    expect(stateNameToKey('in_review')).toBe('in_review');
   });
 });

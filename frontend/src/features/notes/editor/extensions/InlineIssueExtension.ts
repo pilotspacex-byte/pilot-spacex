@@ -16,16 +16,14 @@ import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { InlineIssueComponent } from './InlineIssueComponent';
 import type { MarkdownNodeSpec } from 'tiptap-markdown';
 import type { MarkdownSerializerState } from 'prosemirror-markdown';
+import type { IssueState } from '@/types';
+
+export type { IssueState };
 
 /**
  * Issue type options
  */
 export type IssueType = 'bug' | 'improvement' | 'feature' | 'task';
-
-/**
- * Issue state options
- */
-export type IssueState = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
 
 /**
  * Issue priority options

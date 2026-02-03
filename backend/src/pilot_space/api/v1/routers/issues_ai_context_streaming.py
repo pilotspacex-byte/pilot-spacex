@@ -22,10 +22,12 @@ from pilot_space.dependencies import (
     get_ai_context_service,
     get_current_user,
     get_current_workspace_id,
+    get_redis_client,
     get_refine_ai_context_service,
     get_session,
     get_user_api_keys,
 )
+from pilot_space.infrastructure.cache.redis import RedisClient
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.ai_context import AIContext
@@ -35,39 +37,33 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/issues/{issue_id}/ai-context", tags=["ai-context"])
 
 
-# Rate limiting tracking (simplified - use Redis in production)
-_generation_counts: dict[str, list[float]] = {}
-
-
-def _check_rate_limit(user_id: str, limit: int = 5, window_hours: int = 1) -> bool:
-    """Check if user is within rate limit.
+async def _check_rate_limit(
+    redis: RedisClient,
+    user_id: str,
+    limit: int = 5,
+    window_seconds: int = 3600,
+) -> bool:
+    """Check if user is within rate limit using Redis INCR + TTL.
 
     Args:
+        redis: Redis client instance.
         user_id: User UUID string.
         limit: Max requests per window.
-        window_hours: Time window in hours.
+        window_seconds: Time window in seconds.
 
     Returns:
         True if within limit, False if exceeded.
+        Defaults to allowing the request if Redis is unavailable.
     """
-    import time
-
-    now = time.time()
-    window_seconds = window_hours * 3600
-
-    if user_id not in _generation_counts:
-        _generation_counts[user_id] = []
-
-    # Clean old entries
-    _generation_counts[user_id] = [
-        ts for ts in _generation_counts[user_id] if now - ts < window_seconds
-    ]
-
-    if len(_generation_counts[user_id]) >= limit:
-        return False
-
-    _generation_counts[user_id].append(now)
-    return True
+    key = f"ai_context_ratelimit:{user_id}"
+    current = await redis.incr(key)
+    if current is None:
+        # Redis unavailable — allow the request (fail-open)
+        logger.warning("Redis unavailable for rate limiting, allowing request for user %s", user_id)
+        return True
+    if current == 1:
+        await redis.expire(key, window_seconds)
+    return current <= limit
 
 
 # =============================================================================
@@ -311,12 +307,14 @@ async def stream_ai_context_refinement(
         """Generate SSE events."""
         try:
             async for chunk in service.stream(payload):
-                # Format as SSE
-                yield f"data: {chunk}\n\n"
-            yield "data: [DONE]\n\n"
-        except Exception as e:
+                yield format_sse_event("text_delta", {"delta": chunk})
+            yield format_sse_event("done", {})
+        except Exception:
             logger.exception("Error streaming refinement")
-            yield f"data: [ERROR] {e}\n\n"
+            yield format_sse_event(
+                "error",
+                {"message": "Refinement failed. Please try again.", "type": "refinement_error"},
+            )
 
     return StreamingResponse(
         event_generator(),
@@ -340,6 +338,7 @@ async def stream_ai_context_generation(
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
     session: Annotated[..., Depends(get_session)],
     service: Annotated[..., Depends(get_ai_context_service)],
+    redis: Annotated[RedisClient, Depends(get_redis_client)],
 ):
     """Stream AI context generation with section-based SSE events.
 
@@ -385,7 +384,7 @@ async def stream_ai_context_generation(
                 yield format_sse_event("phase", {"name": phase_name, "status": "pending"})
 
             # Check rate limit
-            if not _check_rate_limit(str(user_id)):
+            if not await _check_rate_limit(redis, str(user_id)):
                 yield format_sse_event(
                     "error",
                     {

@@ -36,6 +36,7 @@ import {
   useIssueKeyboardShortcuts,
 } from '@/features/issues/hooks';
 import { useStore } from '@/stores';
+import { copyToClipboard } from '@/lib/copy-context';
 import type { UpdateIssueData } from '@/types';
 
 const AIContextTab = dynamic(
@@ -43,7 +44,14 @@ const AIContextTab = dynamic(
     import('@/features/issues/components/ai-context-tab').then((mod) => ({
       default: mod.AIContextTab,
     })),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center py-12">
+        <Skeleton className="h-8 w-48" />
+      </div>
+    ),
+  }
 );
 
 // ---------------------------------------------------------------------------
@@ -133,7 +141,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   }, [workspaceId, issue?.id, issueStore, router, workspaceSlug]);
 
   const handleCopyLink = React.useCallback(() => {
-    void navigator.clipboard.writeText(window.location.href);
+    void copyToClipboard(window.location.href);
   }, []);
 
   const handleUpdate = React.useCallback(

@@ -44,7 +44,10 @@ function StatItem({
   count: number;
 }) {
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <div
+      className="flex items-center gap-1.5 text-xs text-muted-foreground"
+      aria-label={`${count} ${label}`}
+    >
       <Icon className="size-3.5" aria-hidden="true" />
       <span className="font-medium text-foreground">{count}</span>
       <span>{label}</span>

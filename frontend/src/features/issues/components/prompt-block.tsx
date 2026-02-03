@@ -16,6 +16,7 @@ export function PromptBlock({ prompt, defaultExpanded }: PromptBlockProps) {
   const [isExpanded, setIsExpanded] = React.useState(defaultExpanded ?? false);
   const [copied, setCopied] = React.useState(false);
   const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+  const contentId = `prompt-content-${prompt.taskId}`;
 
   React.useEffect(() => {
     return () => {
@@ -43,6 +44,7 @@ export function PromptBlock({ prompt, defaultExpanded }: PromptBlockProps) {
           type="button"
           onClick={toggle}
           aria-expanded={isExpanded}
+          aria-controls={contentId}
           className={cn(
             'flex flex-1 items-center gap-2 text-left text-sm font-medium min-w-0',
             'hover:text-foreground transition-colors'
@@ -73,7 +75,7 @@ export function PromptBlock({ prompt, defaultExpanded }: PromptBlockProps) {
       </div>
 
       {isExpanded && (
-        <div className="px-3 pb-3">
+        <div id={contentId} className="px-3 pb-3">
           <pre className="bg-muted rounded-md p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap">
             {prompt.content}
           </pre>

@@ -254,6 +254,12 @@ export const AIContextTab = observer(function AIContextTab({
                 <AITasksSection
                   tasks={contextStore.result.tasks}
                   prompts={contextStore.result.prompts}
+                  onTaskToggle={(taskId, completed) => {
+                    const task = contextStore.result?.tasks.find((t) => t.id === taskId);
+                    if (task) {
+                      task.completed = completed;
+                    }
+                  }}
                 />
               </ContextSection>
             </>

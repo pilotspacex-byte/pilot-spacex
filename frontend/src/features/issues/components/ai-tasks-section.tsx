@@ -13,13 +13,14 @@ import type { ContextTask, ContextPrompt } from '@/stores/ai/AIContextStore';
 export interface AITasksSectionProps {
   tasks: ContextTask[];
   prompts: ContextPrompt[];
+  onTaskToggle?: (taskId: number, completed: boolean) => void;
 }
 
 // ============================================================================
 // Main Component
 // ============================================================================
 
-export function AITasksSection({ tasks, prompts }: AITasksSectionProps) {
+export function AITasksSection({ tasks, prompts, onTaskToggle }: AITasksSectionProps) {
   const [completedTasks, setCompletedTasks] = React.useState<Set<number>>(
     () => new Set(tasks.filter((t) => t.completed).map((t) => t.id))
   );
@@ -36,8 +37,10 @@ export function AITasksSection({ tasks, prompts }: AITasksSectionProps) {
   const toggleTask = (id: number) => {
     setCompletedTasks((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
+      const wasCompleted = next.has(id);
+      if (wasCompleted) next.delete(id);
       else next.add(id);
+      onTaskToggle?.(id, !wasCompleted);
       return next;
     });
   };

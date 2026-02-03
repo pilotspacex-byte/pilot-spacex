@@ -84,6 +84,8 @@ export interface AIContextResult {
 }
 
 export class AIContextStore {
+  private static readonly MAX_CACHE_SIZE = 20;
+
   isLoading = false;
   isEnabled = true;
   error: string | null = null;
@@ -148,7 +150,6 @@ export class AIContextStore {
     this.client = new SSEClient({
       url: aiApi.getAIContextUrl(issueId),
       method: 'POST',
-      retryable: true,
       onMessage: (event: SSEEvent) => {
         if (this.currentIssueId !== streamIssueId) return;
         this.handleEvent(event);
@@ -185,11 +186,12 @@ export class AIContextStore {
 
       switch (event.type) {
         case 'phase': {
+          if (typeof data.name !== 'string' || typeof data.status !== 'string') break;
           const phase = this.phases.find((p) => p.name === data.name);
           if (phase) {
             phase.status = data.status as 'pending' | 'in_progress' | 'complete';
-            if (data.content) {
-              phase.content = data.content as string;
+            if (typeof data.content === 'string') {
+              phase.content = data.content;
             }
           }
           break;
@@ -197,34 +199,69 @@ export class AIContextStore {
         case 'complete':
           this.result = data as unknown as AIContextResult;
           break;
-        case 'context_summary':
+        case 'context_summary': {
+          if (typeof data.issueIdentifier !== 'string' || typeof data.summaryText !== 'string') {
+            this.sectionErrors.set('summary', 'Invalid summary data received');
+            break;
+          }
           this.ensureResult().summary = data as unknown as ContextSummary;
           break;
-        case 'related_issues':
-          this.ensureResult().relatedIssues = (data as { items: ContextRelatedIssue[] }).items;
+        }
+        case 'related_issues': {
+          const items = (data as { items?: unknown }).items;
+          if (!Array.isArray(items)) {
+            this.sectionErrors.set('related_issues', 'Invalid related issues data');
+            break;
+          }
+          this.ensureResult().relatedIssues = items as ContextRelatedIssue[];
           break;
-        case 'related_docs':
-          this.ensureResult().relatedDocs = (data as { items: ContextRelatedDoc[] }).items;
+        }
+        case 'related_docs': {
+          const items = (data as { items?: unknown }).items;
+          if (!Array.isArray(items)) {
+            this.sectionErrors.set('related_docs', 'Invalid related docs data');
+            break;
+          }
+          this.ensureResult().relatedDocs = items as ContextRelatedDoc[];
           break;
-        case 'ai_tasks':
-          this.ensureResult().tasks = (data as { items: ContextTask[] }).items;
+        }
+        case 'ai_tasks': {
+          const items = (data as { items?: unknown }).items;
+          if (!Array.isArray(items)) {
+            this.sectionErrors.set('tasks', 'Invalid tasks data');
+            break;
+          }
+          this.ensureResult().tasks = items as ContextTask[];
           break;
-        case 'ai_prompts':
-          this.ensureResult().prompts = (data as { items: ContextPrompt[] }).items;
+        }
+        case 'ai_prompts': {
+          const items = (data as { items?: unknown }).items;
+          if (!Array.isArray(items)) {
+            this.sectionErrors.set('prompts', 'Invalid prompts data');
+            break;
+          }
+          this.ensureResult().prompts = items as ContextPrompt[];
           break;
+        }
         case 'context_error': {
-          const errorData = data as { section: string; message: string };
-          this.sectionErrors.set(errorData.section, errorData.message);
+          if (typeof data.section === 'string' && typeof data.message === 'string') {
+            this.sectionErrors.set(data.section, data.message);
+          }
           break;
         }
         case 'error':
-          this.error = (data as { message: string }).message ?? 'Unknown error';
+          this.error = (typeof data.message === 'string' ? data.message : null) ?? 'Unknown error';
           this.isLoading = false;
           break;
         case 'context_complete':
           this.isLoading = false;
           this.ensureResult();
           if (this.currentIssueId) {
+            // LRU eviction: remove oldest entry when cache is full
+            if (this.cache.size >= AIContextStore.MAX_CACHE_SIZE) {
+              const oldest = this.cache.keys().next().value;
+              if (oldest) this.cache.delete(oldest);
+            }
             this.cache.set(this.currentIssueId, this.result!);
           }
           break;
@@ -252,8 +289,6 @@ export class AIContextStore {
     this.client = null;
     runInAction(() => {
       this.isLoading = false;
-      this.error = null;
-      this.sectionErrors = new Map();
     });
   }
 
