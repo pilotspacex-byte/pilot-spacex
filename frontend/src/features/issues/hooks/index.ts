@@ -55,3 +55,6 @@ export { useAddComment } from './use-add-comment';
 
 // T045: Keyboard navigation for Issue Detail page
 export { useIssueKeyboardShortcuts } from './use-issue-keyboard-shortcuts';
+
+// Copy-to-clipboard feedback with auto-reset
+export { useCopyFeedback } from './use-copy-feedback';

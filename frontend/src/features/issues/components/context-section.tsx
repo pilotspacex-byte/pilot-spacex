@@ -1,9 +1,10 @@
 'use client';
 
-import * as React from 'react';
+import type * as React from 'react';
 import { Copy, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useCopyFeedback } from '@/features/issues/hooks/use-copy-feedback';
 
 export interface ContextSectionProps {
   icon: React.ElementType;
@@ -22,22 +23,10 @@ export function ContextSection({
   children,
   className,
 }: ContextSectionProps) {
-  const [copied, setCopied] = React.useState(false);
-  const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+  const { copied, handleCopy } = useCopyFeedback();
 
-  React.useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    };
-  }, []);
-
-  const handleCopy = async () => {
-    const success = await onCopy?.();
-    if (success) {
-      setCopied(true);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
-    }
+  const onCopyClick = () => {
+    if (onCopy) void handleCopy(onCopy);
   };
 
   return (
@@ -51,7 +40,7 @@ export function ContextSection({
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleCopy}
+            onClick={onCopyClick}
             aria-label={`Copy ${title} section`}
           >
             {copied ? (

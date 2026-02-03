@@ -168,6 +168,41 @@ class TestMapRelatedIssues:
         assert result[0]["summary"] == "This is the excerpt"
         assert result[0]["status"] == "In Progress"
 
+    def test_extracts_relation_type_from_data(self) -> None:
+        """Verify relation_type is extracted from issue data when present."""
+        context = MagicMock()
+        context.related_issues = [
+            {
+                "id": "uuid-1",
+                "identifier": "PS-10",
+                "title": "Blocker",
+                "excerpt": "Blocks this",
+                "state": "In Progress",
+                "relation_type": "blocks",
+            },
+            {
+                "id": "uuid-2",
+                "identifier": "PS-11",
+                "title": "Blocked",
+                "excerpt": "Blocked by this",
+                "state": "Todo",
+                "relation_type": "blocked_by",
+            },
+            {
+                "id": "uuid-3",
+                "identifier": "PS-12",
+                "title": "No relation key",
+                "excerpt": "Default",
+                "state": "Done",
+            },
+        ]
+
+        result = _map_related_issues(context)
+
+        assert result[0]["relationType"] == "blocks"
+        assert result[1]["relationType"] == "blocked_by"
+        assert result[2]["relationType"] == "relates"
+
     def test_handles_empty_related_issues(self) -> None:
         """Verify empty related_issues returns empty list."""
         context = MagicMock()

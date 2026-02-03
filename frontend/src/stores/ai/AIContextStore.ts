@@ -116,9 +116,12 @@ export class AIContextStore {
     // events from a previous issue corrupting the cached result.
     this.abort();
 
-    // Check cache — must clear stale error/sectionErrors from previous issue
+    // Check cache — must clear stale error/sectionErrors from previous issue.
+    // Delete + re-insert to refresh LRU position (Map iterates by insertion order).
     const cached = this.cache.get(issueId);
     if (cached) {
+      this.cache.delete(issueId);
+      this.cache.set(issueId, cached);
       runInAction(() => {
         this.currentIssueId = issueId;
         this.error = null;

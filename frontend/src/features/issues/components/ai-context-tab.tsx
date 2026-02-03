@@ -13,6 +13,7 @@ import {
   generateSectionMarkdown,
   copyToClipboard,
 } from '@/lib/copy-context';
+import { useCopyFeedback } from '@/features/issues/hooks/use-copy-feedback';
 import { AIContextStreaming } from './ai-context-streaming';
 import { ContextSummaryCard } from './context-summary-card';
 import { ContextSection } from './context-section';
@@ -31,21 +32,13 @@ export const AIContextTab = observer(function AIContextTab({
 }: AIContextTabProps) {
   const { aiStore } = useStore();
   const contextStore = aiStore.aiContext;
-  const [copied, setCopied] = React.useState(false);
-  const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+  const { copied, handleCopy } = useCopyFeedback();
 
   // Auto-generate context on mount and when issueId changes.
   // Store handles cache hits, dedup, and issue switching internally.
   React.useEffect(() => {
     contextStore.generateContext(issueId);
   }, [issueId, contextStore]);
-
-  // P2-4: Clean up copy timeout on unmount
-  React.useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    };
-  }, []);
 
   const handleGenerate = () => {
     contextStore.generateContext(issueId);
@@ -56,15 +49,9 @@ export const AIContextTab = observer(function AIContextTab({
     contextStore.generateContext(issueId);
   };
 
-  // P1-1/P1-2: Properly await clipboard and only show feedback on success
-  const handleCopyAll = async () => {
+  const handleCopyAll = () => {
     if (!contextStore.result) return;
-    const success = await copyToClipboard(generateFullContextMarkdown(contextStore.result));
-    if (success) {
-      setCopied(true);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
-    }
+    void handleCopy(() => copyToClipboard(generateFullContextMarkdown(contextStore.result!)));
   };
 
   const handleCopyRelated = async (): Promise<boolean> => {
@@ -85,7 +72,7 @@ export const AIContextTab = observer(function AIContextTab({
     return copyToClipboard(md.trim());
   };
 
-  // P0-1/P0-2: Combine related_issues and related_docs section errors
+  // Combine related_issues and related_docs section errors
   const relatedSectionError =
     contextStore.sectionErrors.get('related_issues') ??
     contextStore.sectionErrors.get('related_docs') ??
@@ -254,12 +241,6 @@ export const AIContextTab = observer(function AIContextTab({
                 <AITasksSection
                   tasks={contextStore.result.tasks}
                   prompts={contextStore.result.prompts}
-                  onTaskToggle={(taskId, completed) => {
-                    const task = contextStore.result?.tasks.find((t) => t.id === taskId);
-                    if (task) {
-                      task.completed = completed;
-                    }
-                  }}
                 />
               </ContextSection>
             </>

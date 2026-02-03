@@ -122,7 +122,7 @@ def _map_related_issues(context: AIContext) -> list[dict[str, Any]]:
         state_name = issue_data.get("state", "")
         items.append(
             {
-                "relationType": "relates",
+                "relationType": issue_data.get("relation_type", "relates"),
                 "issueId": issue_data.get("id", ""),
                 "identifier": issue_data.get("identifier", ""),
                 "title": issue_data.get("title", ""),

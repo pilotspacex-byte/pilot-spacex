@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { copyToClipboard } from '@/lib/copy-context';
+import { useCopyFeedback } from '@/features/issues/hooks/use-copy-feedback';
 import type { ContextPrompt } from '@/stores/ai/AIContextStore';
 
 export interface PromptBlockProps {
@@ -14,23 +15,11 @@ export interface PromptBlockProps {
 
 export function PromptBlock({ prompt, defaultExpanded }: PromptBlockProps) {
   const [isExpanded, setIsExpanded] = React.useState(defaultExpanded ?? false);
-  const [copied, setCopied] = React.useState(false);
-  const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+  const { copied, handleCopy } = useCopyFeedback();
   const contentId = `prompt-content-${prompt.taskId}`;
 
-  React.useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    };
-  }, []);
-
-  const handleCopy = async () => {
-    const success = await copyToClipboard(prompt.content);
-    if (success) {
-      setCopied(true);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
-    }
+  const onCopyClick = () => {
+    void handleCopy(() => copyToClipboard(prompt.content));
   };
 
   const toggle = () => setIsExpanded((prev) => !prev);
@@ -56,7 +45,7 @@ export function PromptBlock({ prompt, defaultExpanded }: PromptBlockProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleCopy}
+          onClick={onCopyClick}
           aria-label={copied ? 'Copied to clipboard' : 'Copy prompt to clipboard'}
           className="h-7 gap-1.5 px-2 text-xs shrink-0"
         >

@@ -211,68 +211,59 @@ export class SSEClient {
   /**
    * Parse SSE events from buffer.
    * Returns parsed events and any remaining incomplete data.
+   *
+   * Uses double-newline splitting to correctly handle chunk boundaries
+   * where event:/data: lines may be split across ReadableStream chunks.
    */
   private parseEvents(buffer: string): { parsed: SSEEvent[]; remaining: string } {
     const parsed: SSEEvent[] = [];
-    const lines = buffer.split('\n');
-    let remaining = '';
-    let currentEvent: Partial<SSEEvent> = {};
-    let dataBuffer = '';
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line === undefined) continue;
+    // Split on double-newline — each complete SSE event ends with \n\n
+    const segments = buffer.split('\n\n');
 
-      // Empty line marks end of event
-      if (line === '') {
-        if (currentEvent.type !== undefined) {
-          // Parse accumulated data
-          if (dataBuffer) {
-            try {
-              currentEvent.data = JSON.parse(dataBuffer);
-            } catch {
-              currentEvent.data = dataBuffer;
-            }
-          }
+    // Last segment is either empty (buffer ended with \n\n) or incomplete
+    const remaining = segments.pop() ?? '';
 
-          if (currentEvent.type && currentEvent.data !== undefined) {
-            parsed.push(currentEvent as SSEEvent);
-          }
-        }
-        currentEvent = {};
-        dataBuffer = '';
-        continue;
+    for (const segment of segments) {
+      if (!segment.trim()) continue;
+
+      const event = this.parseEventBlock(segment);
+      if (event) {
+        parsed.push(event);
       }
-
-      // Parse field lines
-      if (line.startsWith('event:')) {
-        currentEvent.type = line.slice(6).trim();
-      } else if (line.startsWith('data:')) {
-        const data = line.slice(5).trim();
-        dataBuffer += (dataBuffer ? '\n' : '') + data;
-      } else if (line.startsWith('id:') || line.startsWith('retry:')) {
-        // Ignore id and retry fields for now
-      } else if (line.startsWith(':')) {
-        // Comment line - ignore
-      } else if (i === lines.length - 1 && line !== '') {
-        // Last non-empty line might be incomplete
-        remaining = line;
-      }
-    }
-
-    // Keep incomplete event data in remaining buffer
-    if (currentEvent.type !== undefined || dataBuffer) {
-      const parts: string[] = [];
-      if (currentEvent.type !== undefined) {
-        parts.push(`event:${currentEvent.type}`);
-      }
-      if (dataBuffer) {
-        parts.push(`data:${dataBuffer}`);
-      }
-      remaining = parts.join('\n') + (remaining ? '\n' + remaining : '');
     }
 
     return { parsed, remaining };
+  }
+
+  /**
+   * Parse a single SSE event block (lines between double-newlines).
+   */
+  private parseEventBlock(block: string): SSEEvent | null {
+    let eventType: string | undefined;
+    let dataBuffer = '';
+
+    for (const line of block.split('\n')) {
+      if (line.startsWith('event:')) {
+        eventType = line.slice(6).trim();
+      } else if (line.startsWith('data:')) {
+        const data = line.slice(5).trim();
+        dataBuffer += (dataBuffer ? '\n' : '') + data;
+      } else if (line.startsWith(':') || line.startsWith('id:') || line.startsWith('retry:')) {
+        // Comment, id, retry — ignore
+      }
+    }
+
+    if (!eventType || !dataBuffer) return null;
+
+    let parsedData: unknown;
+    try {
+      parsedData = JSON.parse(dataBuffer);
+    } catch {
+      parsedData = dataBuffer;
+    }
+
+    return { type: eventType, data: parsedData };
   }
 
   /**
