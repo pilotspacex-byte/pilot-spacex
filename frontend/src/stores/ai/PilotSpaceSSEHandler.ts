@@ -12,11 +12,7 @@
  */
 import { runInAction } from 'mobx';
 import { SSEClient, type SSEEvent } from '@/lib/sse-client';
-import type {
-  ChatMessage,
-  MessageRole,
-  ToolCall,
-} from './types/conversation';
+import type { ChatMessage, MessageRole, ToolCall } from './types/conversation';
 import type {
   MessageStartEvent,
   TextDeltaEvent,

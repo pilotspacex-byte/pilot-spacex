@@ -361,7 +361,10 @@ describe('PilotSpaceSSEHandler routing', () => {
     const events = sseHandler.parseSSEBuffer(buffer);
     // The SSE handler's handleSSEEvent is private, so we call it via the store's content update
     // directly to verify the integration works:
-    store.handleContentUpdate({ type: 'content_update', data: sseEvent.data } as ContentUpdateEvent);
+    store.handleContentUpdate({
+      type: 'content_update',
+      data: sseEvent.data,
+    } as ContentUpdateEvent);
 
     expect(store.handleContentUpdate).toHaveBeenCalledTimes(1);
     expect(events).toHaveLength(1);
