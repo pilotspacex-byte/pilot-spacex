@@ -4,7 +4,17 @@ import { AITasksSection } from '../ai-tasks-section';
 import type { ContextTask, ContextPrompt } from '@/stores/ai/AIContextStore';
 
 vi.mock('@/components/ui/checkbox', () => ({
-  Checkbox: ({ checked, onCheckedChange, 'aria-label': ariaLabel, ...props }: any) => (
+  Checkbox: ({
+    checked,
+    onCheckedChange,
+    'aria-label': ariaLabel,
+    ...props
+  }: {
+    checked?: boolean;
+    onCheckedChange?: (checked: boolean) => void;
+    'aria-label'?: string;
+    [key: string]: unknown;
+  }) => (
     <input
       type="checkbox"
       checked={checked}
@@ -16,7 +26,13 @@ vi.mock('@/components/ui/checkbox', () => ({
 }));
 
 vi.mock('../prompt-block', () => ({
-  PromptBlock: ({ prompt, defaultExpanded }: any) => (
+  PromptBlock: ({
+    prompt,
+    defaultExpanded,
+  }: {
+    prompt: ContextPrompt;
+    defaultExpanded?: boolean;
+  }) => (
     <div data-testid={`prompt-${prompt.taskId}`}>
       <span>{prompt.title}</span>
       {defaultExpanded && <span data-testid="expanded" />}

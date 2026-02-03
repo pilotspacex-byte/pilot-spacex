@@ -17,10 +17,7 @@ import type {
   VelocityChartData,
 } from '@/types';
 
-/** Normalize StateBrief.name to IssueState key (e.g. "In Progress" → "in_progress") */
-function stateNameToKey(name: string): IssueState {
-  return name.toLowerCase().replace(/\s+/g, '_') as IssueState;
-}
+import { stateNameToKey } from '@/lib/issue-helpers';
 import { cyclesApi, type CycleListResponse } from '@/services/api';
 
 /**

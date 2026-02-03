@@ -16,10 +16,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { IssueCard } from './IssueCard';
 import type { Issue, IssueState } from '@/types';
-
-/** Convert StateBrief.name to IssueState key (e.g. "In Progress" → "in_progress") */
-const stateNameToKey = (name: string): IssueState =>
-  name.toLowerCase().replace(/\s+/g, '_') as IssueState;
+import { stateNameToKey } from '@/lib/issue-helpers';
 
 export interface IssueBoardProps {
   /** Issues grouped by state */

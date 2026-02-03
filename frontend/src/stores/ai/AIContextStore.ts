@@ -43,9 +43,9 @@ export interface ContextRelatedIssue {
 }
 
 export interface ContextRelatedDoc {
-  docType: 'note' | 'adr' | 'spec';
+  docType: string;
   title: string;
-  summary: string;
+  summary?: string;
   url?: string;
 }
 
@@ -148,6 +148,7 @@ export class AIContextStore {
     this.client = new SSEClient({
       url: aiApi.getAIContextUrl(issueId),
       method: 'POST',
+      retryable: true,
       onMessage: (event: SSEEvent) => {
         if (this.currentIssueId !== streamIssueId) return;
         this.handleEvent(event);

@@ -52,6 +52,7 @@ import {
 } from '@/features/cycles/hooks';
 import type { Issue, IssueState, RolloverCycleData } from '@/types';
 import type { CycleIssue } from '@/stores/features/cycles';
+import { stateNameToKey } from '@/lib/issue-helpers';
 
 // ============================================================================
 // Types
@@ -94,10 +95,6 @@ function getStatusBadgeVariant(
       return 'outline';
   }
 }
-
-/** Convert StateBrief.name to IssueState key (e.g. "In Progress" → "in_progress") */
-const stateNameToKey = (name: string): IssueState =>
-  name.toLowerCase().replace(/\s+/g, '_') as IssueState;
 
 function groupIssuesByState(issues: Issue[]): Record<IssueState, CycleIssue[]> {
   const states: IssueState[] = ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'cancelled'];

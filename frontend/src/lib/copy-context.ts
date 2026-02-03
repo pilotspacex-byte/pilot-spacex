@@ -15,7 +15,7 @@ export interface AIContextResultForCopy {
   relatedDocs: Array<{
     docType: string;
     title: string;
-    summary: string;
+    summary?: string;
   }>;
   tasks: Array<{
     id: number;
@@ -91,7 +91,9 @@ function buildRelatedIssuesSection(issues: AIContextResultForCopy['relatedIssues
 
 function buildRelatedDocsSection(docs: AIContextResultForCopy['relatedDocs']): string {
   if (docs.length === 0) return '';
-  return docs.map((d) => `- [${d.docType}] ${d.title}\n  ${d.summary}`).join('\n');
+  return docs
+    .map((d) => `- [${d.docType}] ${d.title}${d.summary ? `\n  ${d.summary}` : ''}`)
+    .join('\n');
 }
 
 function buildTasksSection(tasks: AIContextResultForCopy['tasks']): string {

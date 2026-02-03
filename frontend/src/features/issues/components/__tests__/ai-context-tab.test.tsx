@@ -81,7 +81,17 @@ vi.mock('@/components/ui/separator', () => ({
 }));
 
 describe('AIContextTab', () => {
-  const mockContextStore = {
+  const mockContextStore: {
+    isLoading: boolean;
+    error: string | null;
+    result: Record<string, unknown> | null;
+    phases: Array<{ name: string; status: string }>;
+    sectionErrors: Map<string, string>;
+    hasStructuredData: boolean;
+    generateContext: ReturnType<typeof vi.fn>;
+    clearCache: ReturnType<typeof vi.fn>;
+    abort: ReturnType<typeof vi.fn>;
+  } = {
     isLoading: false,
     error: null,
     result: null,
@@ -111,7 +121,7 @@ describe('AIContextTab', () => {
     vi.clearAllMocks();
     vi.mocked(useStore).mockReturnValue({
       aiStore: { aiContext: mockContextStore },
-    });
+    } as unknown as ReturnType<typeof useStore>);
     mockContextStore.isLoading = false;
     mockContextStore.error = null;
     mockContextStore.result = null;

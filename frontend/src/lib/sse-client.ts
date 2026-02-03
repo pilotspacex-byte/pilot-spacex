@@ -31,6 +31,8 @@ export interface SSEClientOptions {
   maxRetries?: number;
   /** Base retry delay in ms (default: 1000) */
   retryDelayMs?: number;
+  /** Allow retries even for POST requests (use for idempotent endpoints) */
+  retryable?: boolean;
 }
 
 export interface SSEEvent {
@@ -145,9 +147,10 @@ export class SSEClient {
         return;
       }
 
-      // Retry on recoverable errors — skip for POST to prevent duplicate side effects
+      // Retry on recoverable errors — skip for POST unless explicitly marked retryable
       const method = this.options.method ?? (this.options.body ? 'POST' : 'GET');
-      if (method === 'GET' && this.retryCount < this.maxRetries) {
+      const canRetry = method === 'GET' || this.options.retryable === true;
+      if (canRetry && this.retryCount < this.maxRetries) {
         this.retryCount++;
         const delay = this.retryDelayMs * Math.pow(2, this.retryCount - 1);
         await this.delay(delay);

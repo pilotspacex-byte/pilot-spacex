@@ -35,6 +35,7 @@ import type {
   DuplicateCheckResult,
   AssigneeRecommendation,
 } from '@/stores/features/issues/IssueStore';
+import { stateNameToKey } from '@/lib/issue-helpers';
 
 export interface IssueModalProps {
   /** Whether modal is open */
@@ -110,10 +111,6 @@ export const IssueModal = observer(function IssueModal({
   onRecordDecision,
 }: IssueModalProps) {
   const isEditing = !!issue;
-
-  // Helper to normalize StateBrief.name ("In Progress") to IssueState key ("in_progress")
-  const stateNameToKey = (name: string): IssueState =>
-    name.toLowerCase().replace(/\s+/g, '_') as IssueState;
 
   // Form state
   const [title, setTitle] = React.useState(issue?.name ?? '');
