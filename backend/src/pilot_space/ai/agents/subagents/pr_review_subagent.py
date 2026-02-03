@@ -345,5 +345,5 @@ Be constructive and focus on production reliability, security, and maintainabili
                 clear_context()
 
         except Exception as e:
-            error_msg = str(e).replace("'", "\\'")
-            yield f"data: {{'type': 'error', 'error_type': 'pr_review_error', 'message': '{error_msg}'}}\n\n"
+            error_data = {"type": "error", "error_type": "pr_review_error", "message": str(e)}
+            yield f"data: {json.dumps(error_data)}\n\n"
