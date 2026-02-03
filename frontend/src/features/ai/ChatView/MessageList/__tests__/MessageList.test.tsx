@@ -123,13 +123,7 @@ describe('MessageList (T60 virtualization)', () => {
       createMessage({ id: 'msg-1', role: 'user', content: 'Question' }),
     ];
 
-    render(
-      <MessageList
-        messages={messages}
-        isStreaming={true}
-        streamContent="Hello"
-      />
-    );
+    render(<MessageList messages={messages} isStreaming={true} streamContent="Hello" />);
 
     expect(screen.getByTestId('streaming-content')).toBeInTheDocument();
     expect(screen.getByText('Hello')).toBeInTheDocument();
@@ -140,9 +134,7 @@ describe('MessageList (T60 virtualization)', () => {
   // ========================================
 
   it('hides scroll button when at bottom (default state)', () => {
-    const messages: ChatMessage[] = [
-      createMessage({ id: 'msg-1', role: 'user', content: 'Test' }),
-    ];
+    const messages: ChatMessage[] = [createMessage({ id: 'msg-1', role: 'user', content: 'Test' })];
 
     render(<MessageList messages={messages} />);
 
