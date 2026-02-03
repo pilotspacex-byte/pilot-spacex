@@ -37,6 +37,8 @@ export interface AgentTask {
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
   skill?: string;
   subagent?: string;
+  /** AI model used by this subagent (e.g., "Claude Opus", "Claude Sonnet") */
+  model?: string;
   createdAt?: Date;
   completedAt?: Date;
   // Progress tracking (T071-T074)

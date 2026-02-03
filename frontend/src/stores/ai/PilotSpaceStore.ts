@@ -8,8 +8,8 @@
  * - Approval flow per DD-003 (human-in-the-loop)
  * - Context-aware execution (note, issue, project)
  *
- * SSE handling extracted to PilotSpaceSSEHandler.ts.
- * Approval/task management extracted to PilotSpaceApprovals.ts.
+ * Stream handling delegated to PilotSpaceStreamHandler.
+ * User-facing async actions delegated to PilotSpaceActions.
  *
  * @module stores/ai/PilotSpaceStore
  * @see specs/005-conversational-agent-arch/plan.md (T042-T049)
@@ -18,20 +18,16 @@ import { makeAutoObservable, runInAction, computed } from 'mobx';
 import type { AIStore } from './AIStore';
 import type {
   ChatMessage,
-  MessageRole,
+  ToolCall,
   StreamingState,
   ConversationContext,
   MessageMetadata,
 } from './types/conversation';
-import type { ContentUpdateEvent, TaskStatus } from './types/events';
+import type { MemoryUpdateEvent } from './types/events';
+import type { ContentUpdateEvent, AgentQuestion, TaskStatus } from './types/events';
 import type { SkillDefinition, ConfidenceTag } from './types/skills';
-import { PilotSpaceSSEHandler } from './PilotSpaceSSEHandler';
-import { PilotSpaceApprovals } from './PilotSpaceApprovals';
-
-/**
- * API base URL for backend requests.
- */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+import { PilotSpaceStreamHandler } from './PilotSpaceStreamHandler';
+import { PilotSpaceActions } from './PilotSpaceActions';
 
 /**
  * Task state for long-running operations.
@@ -45,6 +41,11 @@ export interface TaskState {
   currentStep?: string;
   totalSteps?: number;
   estimatedSecondsRemaining?: number;
+  /** Subagent name executing this task */
+  agentName?: string;
+  /** AI model used by this subagent */
+  model?: string;
+  /** Creation timestamp */
   createdAt: Date;
   updatedAt: Date;
 }
@@ -96,27 +97,69 @@ export class PilotSpaceStore {
     isStreaming: false,
     streamContent: '',
     currentMessageId: null,
+    thinkingContent: '',
+    isThinking: false,
+    thinkingStartedAt: null,
   };
   sessionId: string | null = null;
+
+  /** Session ID to fork from (set by prepareFork, consumed on next sendMessage) */
+  forkSessionId: string | null = null;
+
+  /** Long-running tasks */
   tasks = new Map<string, TaskState>();
   pendingApprovals: ApprovalRequest[] = [];
   pendingContentUpdates: ContentUpdateEvent['data'][] = [];
   noteContext: NoteContext | null = null;
   issueContext: IssueContext | null = null;
+
+  /** Current project context */
+  projectContext: { projectId: string; name?: string; slug?: string } | null = null;
+
+  /** Active skill for invocation (consumed on next sendMessage) */
+  activeSkill: { name: string; args?: string } | null = null;
+
+  /** Mentioned agents in current input (consumed on next sendMessage) */
+  mentionedAgents: string[] = [];
+
+  /** Current workspace ID */
   workspaceId: string | null = null;
   error: string | null = null;
+
+  /** Pending structured result (set by structured_result event, consumed by message_stop) */
+  private pendingStructuredResult: { schemaType: string; data: Record<string, unknown> } | null =
+    null;
+
+  /** Pending tool calls buffered during streaming (T63 — consumed by message_stop) */
+  private _pendingToolCalls: ToolCall[] = [];
+
+  /** Pending citations buffered during streaming (T64 — consumed by message_stop) */
+  private _pendingCitations: ChatMessage['citations'] = [];
+
+  /** Last memory update from cross-session memory tool (T73) */
+  lastMemoryUpdate: MemoryUpdateEvent['data'] | null = null;
+
+  /** Pending question from agent (requires user response before agent can continue) */
+  pendingQuestion: {
+    questionId: string;
+    questions: AgentQuestion[];
+    resolvedAnswer?: string;
+  } | null = null;
+
+  /** Available skills registry */
   skills: SkillDefinition[] = [];
 
   // ========================================
   // Delegates
   // ========================================
 
-  private readonly sseHandler: PilotSpaceSSEHandler;
-  private readonly approvalsHandler: PilotSpaceApprovals;
+  private readonly streamHandler: PilotSpaceStreamHandler;
+  private readonly actions: PilotSpaceActions;
 
   constructor(_rootStore: AIStore) {
-    this.sseHandler = new PilotSpaceSSEHandler(this);
-    this.approvalsHandler = new PilotSpaceApprovals(this);
+    this.streamHandler = new PilotSpaceStreamHandler(this);
+    this.actions = new PilotSpaceActions(this, this.streamHandler);
+
     makeAutoObservable(this, {
       activeTasks: computed,
       completedTasks: computed,
@@ -158,7 +201,7 @@ export class PilotSpaceStore {
       workspaceId: this.workspaceId,
       noteId: this.noteContext?.noteId ?? null,
       issueId: this.issueContext?.issueId ?? null,
-      projectId: null,
+      projectId: this.projectContext?.projectId ?? null,
       selectedText: this.noteContext?.selectedText ?? null,
       selectedBlockIds: this.noteContext?.selectedBlockIds ?? [],
     };
@@ -180,12 +223,45 @@ export class PilotSpaceStore {
     this.sessionId = sessionId;
   }
 
+  /**
+   * Set fork session ID for "what-if" exploration.
+   * The next sendMessage will include this in the request body.
+   * @param forkSessionId - Source session to fork from
+   */
+  setForkSessionId(forkSessionId: string | null): void {
+    this.forkSessionId = forkSessionId;
+  }
+
   // ========================================
   // Actions - Task Management (delegated)
   // ========================================
 
   addTask(taskId: string, update: Partial<Omit<TaskState, 'id'>>): void {
-    this.approvalsHandler.addTask(taskId, update);
+    const existing = this.tasks.get(taskId);
+    const now = new Date();
+
+    if (existing) {
+      this.tasks.set(taskId, {
+        ...existing,
+        ...update,
+        updatedAt: now,
+      });
+    } else {
+      this.tasks.set(taskId, {
+        id: taskId,
+        subject: update.subject ?? 'Task',
+        status: update.status ?? 'pending',
+        progress: update.progress ?? 0,
+        description: update.description,
+        currentStep: update.currentStep,
+        totalSteps: update.totalSteps,
+        estimatedSecondsRemaining: update.estimatedSecondsRemaining,
+        agentName: update.agentName,
+        model: update.model,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
   }
 
   updateTaskStatus(taskId: string, status: TaskStatus): void {
@@ -205,23 +281,104 @@ export class PilotSpaceStore {
   }
 
   async approveRequest(requestId: string): Promise<void> {
-    await this.approvalsHandler.approveRequest(requestId);
+    return this.actions.approveRequest(requestId);
   }
 
   async rejectRequest(requestId: string, reason?: string): Promise<void> {
-    await this.approvalsHandler.rejectRequest(requestId, reason);
+    return this.actions.rejectRequest(requestId, reason);
   }
 
-  async approveAction(id: string, _modifications?: Record<string, unknown>): Promise<void> {
-    await this.approveRequest(id);
+  /**
+   * Alias methods to match IPilotSpaceStore interface
+   */
+  async approveAction(id: string, modifications?: Record<string, unknown>): Promise<void> {
+    return this.actions.approveAction(id, modifications);
   }
 
   async rejectAction(id: string, reason: string): Promise<void> {
-    await this.rejectRequest(id, reason);
+    return this.actions.rejectAction(id, reason);
   }
 
   clearConversation(): void {
     this.clear();
+  }
+
+  // ========================================
+  // Actions - Structured Result Management
+  // ========================================
+
+  /**
+   * Set pending structured result (called by stream handler).
+   * @param result - Structured result data
+   */
+  setPendingStructuredResult(
+    result: { schemaType: string; data: Record<string, unknown> } | null
+  ): void {
+    this.pendingStructuredResult = result;
+  }
+
+  /**
+   * Consume pending structured result (called by stream handler on message_stop).
+   * Returns and clears the pending result.
+   */
+  consumePendingStructuredResult():
+    | { schemaType: string; data: Record<string, unknown> }
+    | undefined {
+    const result = this.pendingStructuredResult ?? undefined;
+    this.pendingStructuredResult = null;
+    return result;
+  }
+
+  // ========================================
+  // Actions - Pending Tool Call Buffer (T63)
+  // ========================================
+
+  /**
+   * Buffer a tool call during streaming.
+   * Tool calls arrive before message_stop, so they must be buffered
+   * and attached to the assistant message on finalization.
+   */
+  addPendingToolCall(tc: ToolCall): void {
+    this._pendingToolCalls.push(tc);
+  }
+
+  /**
+   * Find a pending tool call by ID (for tool_input_delta and tool_result during streaming).
+   */
+  findPendingToolCall(toolUseId: string): ToolCall | undefined {
+    return this._pendingToolCalls.find((tc) => tc.id === toolUseId);
+  }
+
+  /**
+   * Consume and clear all pending tool calls (called on message_stop).
+   */
+  consumePendingToolCalls(): ToolCall[] | undefined {
+    if (this._pendingToolCalls.length === 0) return undefined;
+    const calls = [...this._pendingToolCalls];
+    this._pendingToolCalls = [];
+    return calls;
+  }
+
+  // ========================================
+  // Actions - Pending Citation Buffer (T64)
+  // ========================================
+
+  /**
+   * Buffer citations during streaming.
+   * Citation events arrive before message_stop.
+   */
+  addPendingCitations(citations: NonNullable<ChatMessage['citations']>): void {
+    this._pendingCitations = [...(this._pendingCitations ?? []), ...citations];
+  }
+
+  /**
+   * Consume and clear all pending citations (called on message_stop).
+   */
+  consumePendingCitations(): ChatMessage['citations'] | undefined {
+    if (!this._pendingCitations || this._pendingCitations.length === 0) return undefined;
+    const citations = this._pendingCitations;
+    this._pendingCitations = [];
+    return citations;
   }
 
   // ========================================
@@ -266,133 +423,65 @@ export class PilotSpaceStore {
   clearContext(): void {
     this.noteContext = null;
     this.issueContext = null;
+    this.projectContext = null;
+    this.activeSkill = null;
+    this.mentionedAgents = [];
   }
 
-  setProjectContext(_context: { projectId: string; name?: string; slug?: string } | null): void {
-    // No-op until projectContext is needed
+  /**
+   * Set project context for AI operations.
+   * @param context - Project context state
+   */
+  setProjectContext(context: { projectId: string; name?: string; slug?: string } | null): void {
+    this.projectContext = context;
   }
 
   setActiveSkill(skill: string, args?: string): void {
-    console.log('Setting active skill:', skill, args);
+    this.activeSkill = { name: skill, args };
   }
 
   addMentionedAgent(agent: string): void {
-    console.log('Adding mentioned agent:', agent);
+    if (!this.mentionedAgents.includes(agent)) {
+      this.mentionedAgents.push(agent);
+    }
   }
 
   // ========================================
-  // Actions - Message Sending
+  // Delegated Actions (Message Sending + Lifecycle)
   // ========================================
 
+  /**
+   * Send message to AI and stream response via SSE.
+   *
+   * @param content - User message content
+   * @param metadata - Optional message metadata (skill invocation, agent mention)
+   */
   async sendMessage(content: string, metadata?: Partial<MessageMetadata>): Promise<void> {
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user' as MessageRole,
-      content,
-      timestamp: new Date(),
-      metadata,
-    };
-
-    runInAction(() => {
-      this.messages.push(userMessage);
-      this.streamingState = {
-        isStreaming: true,
-        streamContent: '',
-        currentMessageId: null,
-        phase: 'connecting',
-      };
-      this.error = null;
-    });
-
-    try {
-      const authHeaders = await this.sseHandler.getAuthHeaders();
-
-      const response = await fetch(`${API_BASE}/ai/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
-        body: JSON.stringify({
-          message: content,
-          context: this.conversationContext,
-          session_id: this.sessionId,
-          metadata,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Chat request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const contentType = response.headers.get('Content-Type') || '';
-
-      if (contentType.includes('application/json')) {
-        const queueResponse = await response.json();
-        const { session_id, stream_url } = queueResponse;
-
-        if (session_id) {
-          runInAction(() => {
-            this.sessionId = session_id;
-          });
-        }
-
-        await this.sseHandler.connectToStream(stream_url);
-      } else if (contentType.includes('text/event-stream')) {
-        await this.sseHandler.consumeSSEStream(response);
-      } else {
-        throw new Error(`Unexpected response content type: ${contentType}`);
-      }
-    } catch (err) {
-      runInAction(() => {
-        this.streamingState = {
-          isStreaming: false,
-          streamContent: '',
-          currentMessageId: null,
-        };
-        this.error = err instanceof Error ? err.message : 'Failed to send message';
-      });
-    }
+    return this.actions.sendMessage(content, metadata);
   }
 
-  // ========================================
-  // Lifecycle Actions
-  // ========================================
+  /**
+   * Submit an answer to a pending agent question.
+   *
+   * @param questionId - Question identifier (tool call ID)
+   * @param answer - User's answer text
+   */
+  async submitQuestionAnswer(questionId: string, answer: string): Promise<void> {
+    return this.actions.submitQuestionAnswer(questionId, answer);
+  }
 
+  /**
+   * Abort current streaming response.
+   */
   abort(): void {
-    if (this.sessionId) {
-      fetch(`${API_BASE}/ai/chat/abort`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: this.sessionId }),
-      }).catch(() => {
-        // Ignore - SSE disconnect triggers cleanup
-      });
-    }
-
-    this.sseHandler.abort();
-
-    this.streamingState = {
-      isStreaming: false,
-      streamContent: '',
-      currentMessageId: null,
-    };
+    this.actions.abort();
   }
 
   clear(): void {
-    this.abort();
-    this.messages = [];
-    this.sessionId = null;
-    this.tasks.clear();
-    this.pendingApprovals = [];
-    this.pendingContentUpdates = [];
-    this.error = null;
+    this.actions.clear();
   }
 
   reset(): void {
-    this.clear();
-    this.clearContext();
-    this.workspaceId = null;
-    this.skills = [];
+    this.actions.reset();
   }
 }

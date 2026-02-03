@@ -41,6 +41,10 @@ export interface SessionSummary {
   expiresAt: Date;
   /** Session title (derived from context) */
   title?: string;
+  /** Session ID this was forked from (if fork) */
+  forkedFrom?: string;
+  /** Number of forks created from this session */
+  forkCount?: number;
 }
 
 /**
@@ -100,6 +104,31 @@ export class SessionListStore {
     return this.sessions.filter((session) => session.expiresAt > now);
   }
 
+  /**
+   * Get sessions grouped by parent, with forks nested under their source.
+   * Returns root sessions (non-forks) with any child forks attached.
+   */
+  get sessionsWithForks(): Array<{ session: SessionSummary; forks: SessionSummary[] }> {
+    const recent = this.recentSessions;
+    const forksByParent = new Map<string, SessionSummary[]>();
+    const roots: SessionSummary[] = [];
+
+    for (const s of recent) {
+      if (s.forkedFrom) {
+        const existing = forksByParent.get(s.forkedFrom) ?? [];
+        existing.push(s);
+        forksByParent.set(s.forkedFrom, existing);
+      } else {
+        roots.push(s);
+      }
+    }
+
+    return roots.map((session) => ({
+      session,
+      forks: forksByParent.get(session.sessionId) ?? [],
+    }));
+  }
+
   // ========================================
   // Actions - Session Management
   // ========================================
@@ -138,6 +167,8 @@ export class SessionListStore {
           turnCount: s.turn_count,
           expiresAt: new Date(s.expires_at),
           title: s.title,
+          forkedFrom: s.forked_from,
+          forkCount: s.fork_count,
         }));
         this.isLoading = false;
       });
@@ -263,6 +294,21 @@ export class SessionListStore {
   }
 
   /**
+   * Fork a session for "what-if" exploration.
+   * Sets the fork source on PilotSpaceStore so the next sendMessage
+   * includes fork_session_id in the chat request body.
+   * @param sourceSessionId - Session to fork from
+   */
+  prepareFork(sourceSessionId: string): void {
+    const pilotSpaceStore = this.rootStore.pilotSpace;
+    if (!pilotSpaceStore) return;
+
+    // Clear current session so the backend creates a fork (not resumes)
+    pilotSpaceStore.clear();
+    pilotSpaceStore.setForkSessionId(sourceSessionId);
+  }
+
+  /**
    * Clear error state.
    */
   clearError(): void {
@@ -294,6 +340,8 @@ interface SessionSummaryResponse {
   turn_count: number;
   expires_at: string;
   title?: string;
+  forked_from?: string;
+  fork_count?: number;
 }
 
 interface MessageResponse {

@@ -26,6 +26,7 @@ import { TaskPanel } from './TaskPanel/TaskPanel';
 import { ApprovalOverlay } from './ApprovalOverlay/ApprovalOverlay';
 import { ChatInput } from './ChatInput/ChatInput';
 import { SuggestionCard } from './MessageList/SuggestionCard';
+import { QuestionCard } from './MessageList/QuestionCard';
 import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
 
 /**
@@ -96,6 +97,9 @@ const ChatViewInternal = observer<ChatViewProps>(
         currentStep: task.currentStep,
         totalSteps: task.totalSteps,
         estimatedSecondsRemaining: task.estimatedSecondsRemaining,
+        // Subagent identity
+        subagent: task.agentName,
+        model: task.model,
       }));
     }, [store.tasks]);
 
@@ -168,6 +172,13 @@ const ChatViewInternal = observer<ChatViewProps>(
       store.abort();
     }, [store]);
 
+    const handleQuestionSubmit = useCallback(
+      (questionId: string, answer: string) => {
+        store.submitQuestionAnswer(questionId, answer);
+      },
+      [store]
+    );
+
     const handleClearNoteContext = useCallback(() => {
       store.setNoteContext(null);
     }, [store]);
@@ -239,10 +250,25 @@ const ChatViewInternal = observer<ChatViewProps>(
             messages={store.messages}
             isStreaming={store.isStreaming}
             streamContent={store.streamContent}
+            thinkingContent={store.streamingState.thinkingContent}
+            isThinking={store.streamingState.isThinking}
             userName={userName}
             userAvatar={userAvatar}
             className="flex-1"
           />
+
+          {/* Inline question card for AskUserQuestion events */}
+          {store.pendingQuestion && (
+            <div className="px-4 pb-3">
+              <QuestionCard
+                questionId={store.pendingQuestion.questionId}
+                questions={store.pendingQuestion.questions}
+                onSubmit={handleQuestionSubmit}
+                isResolved={!!store.pendingQuestion.resolvedAnswer}
+                resolvedAnswer={store.pendingQuestion.resolvedAnswer}
+              />
+            </div>
+          )}
 
           {/* Floating abort button - overlays bottom of message area */}
           <AnimatePresence>

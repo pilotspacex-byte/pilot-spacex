@@ -22,7 +22,7 @@ vi.mock('@/lib/sse-client', () => ({
 }));
 
 import { PilotSpaceStore } from '../PilotSpaceStore';
-import { PilotSpaceSSEHandler } from '../PilotSpaceSSEHandler';
+import { PilotSpaceStreamHandler } from '../PilotSpaceStreamHandler';
 import type { AIStore } from '../AIStore';
 import { isContentUpdateEvent, type ContentUpdateEvent, type SSEEvent } from '../types/events';
 
@@ -329,15 +329,15 @@ describe('PilotSpaceStore.handleContentUpdate', () => {
   });
 });
 
-describe('PilotSpaceSSEHandler routing', () => {
+describe('PilotSpaceStreamHandler.handleSSEEvent routing', () => {
   let store: PilotSpaceStore;
-  let sseHandler: PilotSpaceSSEHandler;
+  let streamHandler: PilotSpaceStreamHandler;
   let mockRootStore: AIStore;
 
   beforeEach(() => {
     mockRootStore = {} as AIStore;
     store = new PilotSpaceStore(mockRootStore);
-    sseHandler = new PilotSpaceSSEHandler(store);
+    streamHandler = new PilotSpaceStreamHandler(store);
     vi.spyOn(store, 'handleContentUpdate');
   });
 
@@ -355,16 +355,7 @@ describe('PilotSpaceSSEHandler routing', () => {
       },
     };
 
-    // SSE handler has a public parseSSEBuffer but handleSSEEvent is private.
-    // Simulate by calling the event handler indirectly via a minimal SSE buffer.
-    const buffer = `event:content_update\ndata:${JSON.stringify(sseEvent.data)}\n\n`;
-    const events = sseHandler.parseSSEBuffer(buffer);
-    // The SSE handler's handleSSEEvent is private, so we call it via the store's content update
-    // directly to verify the integration works:
-    store.handleContentUpdate({
-      type: 'content_update',
-      data: sseEvent.data,
-    } as ContentUpdateEvent);
+    streamHandler.handleSSEEvent(sseEvent);
 
     expect(store.handleContentUpdate).toHaveBeenCalledTimes(1);
     expect(events).toHaveLength(1);
@@ -383,11 +374,31 @@ describe('PilotSpaceSSEHandler routing', () => {
       afterBlockId: null,
     })}\n\n`;
 
-    const events = sseHandler.parseSSEBuffer(textDeltaBuffer + contentUpdateBuffer);
+    streamHandler.handleSSEEvent(textDeltaEvent);
 
-    expect(events).toHaveLength(2);
-    expect(events[0]?.type).toBe('text_delta');
-    expect(events[1]?.type).toBe('content_update');
+    // Streaming state should be updated
+    expect(store.streamContent).toContain('Hello world');
+
+    // Then send a content_update event
+    const contentUpdateEvent: SSEEvent = {
+      type: 'content_update',
+      data: {
+        noteId: 'note-123',
+        operation: 'replace_block',
+        blockId: 'block-456',
+        markdown: null,
+        content: { type: 'paragraph' },
+        issueData: null,
+        afterBlockId: null,
+      },
+    };
+
+    streamHandler.handleSSEEvent(contentUpdateEvent);
+
+    // Both should work independently
+    expect(store.handleContentUpdate).toHaveBeenCalledTimes(1);
+    expect(store.pendingContentUpdates).toHaveLength(1);
+    expect(store.streamContent).toContain('Hello world'); // Text delta still there
   });
 });
 

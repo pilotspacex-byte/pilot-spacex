@@ -30,6 +30,12 @@ export interface ToolCall {
   status?: 'pending' | 'completed' | 'failed';
   /** Error message if execution failed */
   errorMessage?: string;
+  /** Accumulated partial JSON input from tool_input_delta streaming (T65) */
+  partialInput?: string;
+  /** Parent tool use ID for subagent correlation (G12) */
+  parentToolUseId?: string;
+  /** Execution duration in milliseconds (from tool_audit) */
+  durationMs?: number;
 }
 
 /**
@@ -46,6 +52,24 @@ export interface ChatMessage {
   timestamp: Date;
   /** Tool calls invoked during message generation */
   toolCalls?: ToolCall[];
+  /** Extended thinking content (from Claude Opus reasoning) */
+  thinkingContent?: string;
+  /** Duration of thinking phase in milliseconds */
+  thinkingDurationMs?: number;
+  /** Structured result data (from schema-validated AI responses) */
+  structuredResult?: {
+    schemaType: string;
+    data: Record<string, unknown>;
+  };
+  /** Citation references from source documents (T58) */
+  citations?: Array<{
+    sourceType: string;
+    sourceId: string;
+    sourceTitle: string;
+    citedText: string;
+    startIndex?: number;
+    endIndex?: number;
+  }>;
   /** Additional message metadata */
   metadata?: MessageMetadata;
 }
@@ -125,6 +149,16 @@ export interface StreamingState {
   currentMessageId: string | null;
   /** Current streaming phase */
   phase?: StreamingPhase;
+  /** Accumulated thinking content (thinking deltas from extended thinking) */
+  thinkingContent?: string;
+  /** Whether thinking is actively streaming */
+  isThinking?: boolean;
+  /** Timestamp when thinking started (for duration display) */
+  thinkingStartedAt?: number | null;
+  /** Current content block type from content_block_start (G13) */
+  currentBlockType?: 'text' | 'tool_use';
+  /** Current content block index from content_block_start (G13) */
+  currentBlockIndex?: number;
 }
 
 /**
@@ -135,4 +169,10 @@ export interface StreamingState {
  * - tool_use: Agent is using tools
  * - completing: Backend sent message_stop event
  */
-export type StreamingPhase = 'connecting' | 'message_start' | 'content' | 'tool_use' | 'completing';
+export type StreamingPhase =
+  | 'connecting'
+  | 'message_start'
+  | 'thinking'
+  | 'content'
+  | 'tool_use'
+  | 'completing';

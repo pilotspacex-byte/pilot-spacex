@@ -8,6 +8,8 @@ import { Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/stores/ai/types/conversation';
 import { ToolCallList } from './ToolCallList';
+import { ThinkingBlock } from './ThinkingBlock';
+import { StructuredResultCard } from './StructuredResultCard';
 
 interface AssistantMessageProps {
   message: ChatMessage;
@@ -35,10 +37,25 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
           </time>
         </div>
 
+        {message.thinkingContent && (
+          <ThinkingBlock
+            content={message.thinkingContent}
+            durationMs={message.thinkingDurationMs}
+            isStreaming={false}
+          />
+        )}
+
         {message.content && (
           <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
             {message.content}
           </div>
+        )}
+
+        {message.structuredResult && (
+          <StructuredResultCard
+            schemaType={message.structuredResult.schemaType}
+            data={message.structuredResult.data}
+          />
         )}
 
         {message.toolCalls && message.toolCalls.length > 0 && (

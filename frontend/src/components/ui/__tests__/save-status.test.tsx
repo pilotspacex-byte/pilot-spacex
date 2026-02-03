@@ -15,34 +15,47 @@ describe('SaveStatus', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('should show "Saving..." with pulse animation when status is saving', () => {
+  it('should show spinning loader icon when status is saving', () => {
     render(<SaveStatus status="saving" />);
 
-    const element = screen.getByText('Saving...');
+    const element = screen.getByRole('status');
     expect(element).toBeInTheDocument();
-    expect(element).toHaveClass('animate-pulse');
-    expect(element).toHaveClass('text-foreground-muted');
+    expect(element).toHaveAttribute('aria-label', 'Saving');
+
+    const svg = element.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+    expect(svg).toHaveClass('animate-spin');
+    expect(svg).toHaveClass('text-muted-foreground');
   });
 
-  it('should show "Saved" with primary color when status is saved', () => {
+  it('should show check icon with primary color when status is saved', () => {
     render(<SaveStatus status="saved" />);
 
-    const element = screen.getByText('Saved');
+    const element = screen.getByRole('status');
     expect(element).toBeInTheDocument();
-    expect(element).toHaveClass('text-primary');
+    expect(element).toHaveAttribute('aria-label', 'Saved');
+
+    const svg = element.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+    expect(svg).toHaveClass('text-primary');
   });
 
-  it('should show "Save failed" when status is error without custom message', () => {
+  it('should show alert icon when status is error without custom message', () => {
     render(<SaveStatus status="error" />);
 
-    expect(screen.getByText('Save failed')).toBeInTheDocument();
+    const element = screen.getByRole('status');
+    expect(element).toHaveAttribute('aria-label', 'Save failed');
+
+    const svg = element.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+    expect(svg).toHaveClass('text-destructive');
   });
 
-  it('should show custom error message when provided', () => {
+  it('should use custom error message in aria-label when provided', () => {
     render(<SaveStatus status="error" errorMessage="Network timeout" />);
 
-    expect(screen.getByText('Network timeout')).toBeInTheDocument();
-    expect(screen.queryByText('Save failed')).not.toBeInTheDocument();
+    const element = screen.getByRole('status');
+    expect(element).toHaveAttribute('aria-label', 'Network timeout');
   });
 
   it('should have role="status" and aria-live="polite" for accessibility', () => {
@@ -56,7 +69,7 @@ describe('SaveStatus', () => {
   it('should accept and apply className prop', () => {
     render(<SaveStatus status="saved" className="ml-2 font-medium" />);
 
-    const element = screen.getByText('Saved');
+    const element = screen.getByRole('status');
     expect(element).toHaveClass('ml-2');
     expect(element).toHaveClass('font-medium');
   });
@@ -64,16 +77,8 @@ describe('SaveStatus', () => {
   it('should apply base transition classes for all visible states', () => {
     render(<SaveStatus status="saved" />);
 
-    const element = screen.getByText('Saved');
-    expect(element).toHaveClass('text-xs');
+    const element = screen.getByRole('status');
     expect(element).toHaveClass('transition-opacity');
     expect(element).toHaveClass('duration-300');
-  });
-
-  it('should apply destructive class when status is error', () => {
-    render(<SaveStatus status="error" />);
-
-    const element = screen.getByText('Save failed');
-    expect(element).toHaveClass('text-destructive');
   });
 });

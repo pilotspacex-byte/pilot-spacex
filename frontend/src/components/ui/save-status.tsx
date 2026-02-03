@@ -1,5 +1,6 @@
 'use client';
 
+import { Check, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type SaveStatusState = 'idle' | 'saving' | 'saved' | 'error';
@@ -17,17 +18,18 @@ export function SaveStatus({ status, className, errorMessage }: SaveStatusProps)
     <span
       role="status"
       aria-live="polite"
-      className={cn(
-        'text-xs transition-opacity duration-300',
-        status === 'saving' && 'text-foreground-muted animate-pulse',
-        status === 'saved' && 'text-primary',
-        status === 'error' && 'text-destructive',
-        className
-      )}
+      aria-label={
+        status === 'saving'
+          ? 'Saving'
+          : status === 'saved'
+            ? 'Saved'
+            : errorMessage || 'Save failed'
+      }
+      className={cn('inline-flex items-center transition-opacity duration-300', className)}
     >
-      {status === 'saving' && 'Saving...'}
-      {status === 'saved' && 'Saved'}
-      {status === 'error' && (errorMessage || 'Save failed')}
+      {status === 'saving' && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+      {status === 'saved' && <Check className="size-3.5 text-primary" />}
+      {status === 'error' && <AlertCircle className="size-3.5 text-destructive" />}
     </span>
   );
 }

@@ -14,6 +14,9 @@ export { UserMessage } from './MessageList/UserMessage';
 export { AssistantMessage } from './MessageList/AssistantMessage';
 export { ToolCallList } from './MessageList/ToolCallList';
 export { StreamingContent } from './MessageList/StreamingContent';
+export { ThinkingBlock } from './MessageList/ThinkingBlock';
+export { StructuredResultCard } from './MessageList/StructuredResultCard';
+export { QuestionCard } from './MessageList/QuestionCard';
 
 // TaskPanel components
 export { TaskPanel } from './TaskPanel/TaskPanel';

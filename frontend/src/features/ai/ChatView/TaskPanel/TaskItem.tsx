@@ -125,6 +125,11 @@ export const TaskItem = memo<TaskItemProps>(
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Brain className="h-3 w-3" />
                   <span className="font-mono">{task.subagent}</span>
+                  {task.model && (
+                    <Badge variant="outline" className="ml-1 h-4 px-1.5 text-[10px] font-normal">
+                      {task.model}
+                    </Badge>
+                  )}
                 </div>
               )}
 

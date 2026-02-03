@@ -60,6 +60,10 @@ class ChatRequest(BaseSchema):
 
     message: str = Field(..., min_length=1, max_length=10000, description="User message")
     session_id: str | None = Field(None, description="Session ID to resume conversation")
+    fork_session_id: str | None = Field(
+        None,
+        description="Session ID to fork from (creates a branch for what-if exploration)",
+    )
     context: ChatContext = Field(..., description="Context for AI response")
 
 
@@ -115,12 +119,24 @@ async def chat(
     if chat_request.context.selected_block_ids:
         ai_context["selected_block_ids"] = chat_request.context.selected_block_ids
 
-    # Get or create conversation session
+    # Get, fork, or create conversation session
     conv_session = None
     if session_handler is not None:
-        if chat_request.session_id:
+        if chat_request.fork_session_id:
+            # Fork from existing session (what-if exploration)
+            fork_source = UUID(chat_request.fork_session_id)
+            conv_session = await session_handler.fork_session(
+                source_session_id=fork_source,
+                workspace_id=chat_request.context.workspace_id,
+                user_id=user_id,
+            )
+        elif chat_request.session_id:
             session_id_uuid = UUID(chat_request.session_id)
-            conv_session = await session_handler.get_session(session_id_uuid)
+            conv_session = await session_handler.get_session(
+                session_id_uuid,
+                workspace_id=chat_request.context.workspace_id,
+                user_id=user_id,
+            )
         else:
             conv_session = await session_handler.create_session(
                 workspace_id=chat_request.context.workspace_id,
@@ -254,6 +270,56 @@ async def abort_chat(
         status="interrupted" if interrupted else "not_found",
         session_id=abort_request.session_id,
     )
+
+
+class AnswerRequest(BaseSchema):
+    """Request to submit an answer to an agent question."""
+
+    session_id: str = Field(..., description="Active chat session ID")
+    question_id: str = Field(..., description="Question ID (tool call ID) to answer")
+    answer: str = Field(..., min_length=1, max_length=5000, description="User's answer")
+
+
+class AnswerResponse(BaseSchema):
+    """Response from answer submission."""
+
+    status: str = Field(..., description="'submitted' or 'error'")
+    question_id: str = Field(..., description="Question ID that was answered")
+
+
+@router.post("/chat/answer", response_model=AnswerResponse)
+async def answer_question(
+    answer_request: AnswerRequest,
+    agent: PilotSpaceAgentDep,
+) -> AnswerResponse:
+    """Submit a user answer to an agent's AskUserQuestion.
+
+    The agent pauses execution when it calls AskUserQuestion.
+    This endpoint delivers the user's response so the agent can continue.
+
+    Args:
+        answer_request: Contains session_id, question_id, and answer.
+        agent: PilotSpaceAgent instance.
+
+    Returns:
+        AnswerResponse with submission status.
+    """
+    try:
+        await agent.submit_tool_result(
+            session_id=answer_request.session_id,
+            tool_call_id=answer_request.question_id,
+            result=answer_request.answer,
+        )
+        return AnswerResponse(
+            status="submitted",
+            question_id=answer_request.question_id,
+        )
+    except Exception as e:
+        logger.exception("Failed to submit answer: %s", e)
+        return AnswerResponse(
+            status="error",
+            question_id=answer_request.question_id,
+        )
 
 
 @router.get("/chat/stream/{job_id}")

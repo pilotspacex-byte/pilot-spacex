@@ -107,6 +107,18 @@ export class IssueStore {
   }
 
   // Computed
+
+  /** Aggregate save status across all fields: saving > error > saved > idle. */
+  get aggregateSaveStatus(): 'idle' | 'saving' | 'saved' | 'error' {
+    let hasSaved = false;
+    for (const status of this.saveStatus.values()) {
+      if (status === 'saving') return 'saving';
+      if (status === 'error') return 'error';
+      if (status === 'saved') hasSaved = true;
+    }
+    return hasSaved ? 'saved' : 'idle';
+  }
+
   get currentIssue(): Issue | null {
     return this.currentIssueId ? (this.issues.get(this.currentIssueId) ?? null) : null;
   }
