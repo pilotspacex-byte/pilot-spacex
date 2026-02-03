@@ -55,13 +55,22 @@ export class PilotSpaceActions {
    * @param metadata - Optional message metadata (skill invocation, agent mention)
    */
   async sendMessage(content: string, metadata?: Partial<MessageMetadata>): Promise<void> {
+    // Enrich metadata with active skill/agent context
+    const enrichedMetadata: Partial<MessageMetadata> = { ...metadata };
+    if (this.store.activeSkill) {
+      enrichedMetadata.skillInvoked = this.store.activeSkill.name;
+    }
+    if (this.store.mentionedAgents.length > 0) {
+      enrichedMetadata.agentMentioned = this.store.mentionedAgents[0];
+    }
+
     // Create user message
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user' as MessageRole,
       content,
       timestamp: new Date(),
-      metadata,
+      metadata: enrichedMetadata,
     };
 
     runInAction(() => {
@@ -91,7 +100,7 @@ export class PilotSpaceActions {
           context: this.store.conversationContext,
           session_id: this.store.sessionId,
           fork_session_id: this.store.forkSessionId,
-          metadata,
+          metadata: enrichedMetadata,
         }),
       });
 
@@ -99,9 +108,11 @@ export class PilotSpaceActions {
         throw new Error(`Chat request failed: ${response.status} ${response.statusText}`);
       }
 
-      // Clear fork session ID after successful request (consumed once)
+      // Clear transient state after successful request (consumed once)
       runInAction(() => {
         this.store.forkSessionId = null;
+        this.store.activeSkill = null;
+        this.store.mentionedAgents = [];
       });
 
       // Check Content-Type to determine response mode

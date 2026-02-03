@@ -101,6 +101,25 @@ STRUCTURED_OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
     "duplicate_search_result": DuplicateSearchResult,
 }
 
+# Skill name → JSON schema for SDK output_format enforcement
+SKILL_OUTPUT_FORMATS: dict[str, dict[str, Any]] = {
+    "extract-issues": ExtractionResult.model_json_schema(),
+    "decompose-tasks": DecompositionResult.model_json_schema(),
+    "find-duplicates": DuplicateSearchResult.model_json_schema(),
+}
+
+
+def get_skill_output_format(skill_name: str) -> dict[str, Any] | None:
+    """Get SDK output_format schema for a skill name.
+
+    Args:
+        skill_name: Skill identifier (e.g., 'extract-issues')
+
+    Returns:
+        JSON schema dict for SDK output_format, or None for free-text skills.
+    """
+    return SKILL_OUTPUT_FORMATS.get(skill_name)
+
 
 def get_output_schema(schema_type: str) -> type[BaseModel] | None:
     """Get Pydantic model class for a schema type.

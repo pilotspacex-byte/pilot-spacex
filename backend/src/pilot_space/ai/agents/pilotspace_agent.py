@@ -46,6 +46,7 @@ from pilot_space.spaces.manager import SpaceManager
 
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+    from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
     from pilot_space.ai.sdk.permission_handler import PermissionHandler
@@ -99,26 +100,7 @@ class ChatOutput:
 
 
 class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
-    r"""Main orchestrator agent for PilotSpace.
-
-    Replaces 13 siloed agents with unified conversational interface.
-    Routes requests to skills, subagents, or direct responses based on intent.
-
-    Intent patterns:
-    - `\skill-name` → Skill execution
-    - `@agent-name` → Subagent delegation
-    - Natural language → Direct response with context
-
-    Architecture:
-    - Skills: Lightweight one-shot tasks (8 skills in backend/.claude/skills/)
-    - Subagents: Complex multi-turn tasks (3 subagents: PR review, AI context, doc gen)
-    - Direct: Natural language responses with context awareness
-
-    Usage:
-        agent = PilotSpaceAgent(...)
-        async for chunk in agent.stream(ChatInput(...), context):
-            yield chunk
-    """
+    """Main orchestrator agent — routes to skills, subagents, or direct responses."""
 
     AGENT_NAME = "pilotspace_agent"
     DEFAULT_MODEL_TIER: ClassVar[ModelTier] = ModelTier.SONNET
@@ -154,6 +136,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         skill_registry: SkillRegistry,
         space_manager: SpaceManager | None = None,
         subagents: dict[str, Any] | None = None,
+        key_storage: SecureKeyStorage | None = None,
     ) -> None:
         """Initialize PilotSpace agent with dependencies.
 
@@ -167,6 +150,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             skill_registry: Skill loading registry
             space_manager: Space management service (None for legacy mode)
             subagents: Optional dict of subagent instances
+            key_storage: Secure API key storage (None falls back to env var)
         """
         super().__init__(
             tool_registry=tool_registry,
@@ -179,6 +163,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._skill_registry = skill_registry
         self._space_manager = space_manager
         self._subagents = subagents or {}
+        self._key_storage = key_storage
         self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
         # Track active SDK clients by session ID for interrupt support
         self._active_clients: dict[str, ClaudeSDKClient] = {}
@@ -191,34 +176,37 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         return build_subagent_definitions()
 
     async def _get_api_key(self, workspace_id: UUID | None) -> str:
-        """Get Anthropic API key from workspace settings.
+        """Get Anthropic API key from Vault or environment.
+
+        Lookup order:
+        1. SecureKeyStorage (Supabase Vault) if workspace_id and key_storage available
+        2. ANTHROPIC_API_KEY environment variable (fallback)
 
         Args:
-            workspace_id: Workspace UUID
+            workspace_id: Workspace UUID for per-workspace BYOK lookup
 
         Returns:
             Decrypted API key
 
         Raises:
-            ValueError: If API key not found
+            ValueError: If API key not found in any source
         """
-        if not workspace_id:
-            # Use environment variable as fallback
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not api_key:
-                msg = "No workspace_id provided and ANTHROPIC_API_KEY not set"
-                raise ValueError(msg)
-            return api_key
+        # Try Vault first for per-workspace BYOK keys
+        if workspace_id and self._key_storage:
+            try:
+                key = await self._key_storage.get_api_key(workspace_id, "anthropic")
+                if key:
+                    return key
+            except Exception:
+                logger.warning(
+                    "Vault lookup failed for workspace %s, falling back to env var",
+                    workspace_id,
+                )
 
-        # TODO: Integrate with SecureKeyStorage when available
-        # For now, use environment variable
+        # Fallback to environment variable
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            msg = (
-                f"Anthropic API key not found for workspace {workspace_id}. "
-                "Please set ANTHROPIC_API_KEY environment variable or "
-                "configure in workspace settings."
-            )
+            msg = "Anthropic API key not found. Configure in workspace settings or set ANTHROPIC_API_KEY."
             raise ValueError(msg)
         return api_key
 
@@ -345,26 +333,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         input_data: ChatInput,
         context: AgentContext,
     ) -> AsyncIterator[str]:
-        """Execute conversational agent with streaming output using Claude SDK.
-
-        Uses ClaudeSDKClient for persistent subprocess to handle:
-        - Skill execution (via .claude/skills/ filesystem discovery)
-        - Subagent spawning (via Task tool)
-        - Natural language responses (via Claude's reasoning)
-        - Permission handling (via hooks)
-
-        Architecture:
-        - If SpaceManager is configured, uses isolated space with sandbox settings
-        - API key is injected via SDK's env parameter, not os.environ mutation
-        - Enables multi-tenant concurrent requests without race conditions
-
-        Args:
-            input_data: Chat input with message and context
-            context: Agent execution context
-
-        Yields:
-            SSE chunks with response content
-        """
+        """Execute agent with streaming via Claude SDK subprocess."""
         try:
             # Get API key from workspace settings
             api_key = await self._get_api_key(context.workspace_id)
@@ -413,13 +382,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         session_id_str: str | None,
         resume_id: str | None = None,
     ) -> AsyncIterator[str]:
-        """Stream using SpaceManager for isolated execution.
-
-        Creates an isolated space for the workspace/user pair with:
-        - Sandboxed filesystem access
-        - API key injection via env parameter
-        - Proper cleanup on completion
-        """
+        """Stream using SpaceManager for sandboxed execution."""
         assert self._space_manager is not None
         assert context.workspace_id is not None
         assert context.user_id is not None
@@ -462,6 +425,15 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 context_note_id=str(context_note_id) if context_note_id else None,
             )
 
+            # Detect skill invocation for structured output (T3/G-03)
+            from pilot_space.ai.sdk.output_schemas import get_skill_output_format
+
+            skill_name = _detect_skill_from_message(input_data.message)
+            output_format = get_skill_output_format(skill_name) if skill_name else None
+
+            # Classify effort for latency optimization (T7/G-09)
+            effort = _classify_effort(input_data.message)
+
             # Configure SDK for this space (with hooks if available)
             # Model selection per DD-011: DEFAULT_MODEL (Sonnet) for orchestration
             sdk_config = configure_sdk_for_space(
@@ -475,6 +447,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 hook_executor=hook_executor,
                 include_partial_messages=True,
                 system_prompt_base=self.SYSTEM_PROMPT_BASE,
+                output_format=output_format,
+                enable_file_checkpointing=True,
+                effort=effort,
             )
 
             # Build SDK options from space config
@@ -676,6 +651,45 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 "model": self.DEFAULT_MODEL_TIER.model_id,
             },
         )
+
+
+# Module-level helpers (kept outside class to avoid line bloat)
+
+# Patterns for low-effort queries (T7/G-09)
+_SIMPLE_PATTERNS = [
+    r"^(hi|hello|hey|thanks|thank you|ok|okay)\b",
+    r"^what (can you|do you) do",
+    r"^help\b",
+    r"^(yes|no|sure|yep|nope)\b",
+]
+
+
+def _classify_effort(message: str) -> str | None:
+    """Classify query effort level for latency optimization.
+
+    Returns 'low' for simple greetings/confirmations, None for default.
+    """
+    import re
+
+    msg_lower = message.strip().lower()
+    if len(msg_lower) < 50:
+        for pattern in _SIMPLE_PATTERNS:
+            if re.match(pattern, msg_lower):
+                return "low"
+    return None
+
+
+def _detect_skill_from_message(message: str) -> str | None:
+    """Detect slash-command skill invocation from message content.
+
+    Returns skill name (e.g., 'extract-issues') or None.
+    """
+    msg_stripped = message.strip()
+    if msg_stripped.startswith("/"):
+        # Extract first word after slash
+        parts = msg_stripped[1:].split(None, 1)
+        return parts[0] if parts else None
+    return None
 
 
 __all__ = [

@@ -13,12 +13,15 @@ Design Decisions: DD-058 (SDK mode for streaming)
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pilot_space.ai.session.session_manager import AIMessage, SessionNotFoundError
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -271,24 +274,49 @@ class SessionHandler:
         # Convert to ConversationSession
         return self._to_conversation_session(ai_session)
 
-    async def get_session(self, session_id: UUID) -> ConversationSession | None:
-        """Retrieve existing session by ID.
+    async def get_session(
+        self,
+        session_id: UUID,
+        *,
+        workspace_id: UUID | None = None,
+        user_id: UUID | None = None,
+    ) -> ConversationSession | None:
+        """Retrieve existing session by ID with optional ownership validation.
 
         Args:
             session_id: Session UUID
+            workspace_id: If provided, validates session belongs to this workspace
+            user_id: If provided, validates session belongs to this user
 
         Returns:
-            ConversationSession if found and not expired, None if not found
-
-        Note:
-            Returns None instead of raising SessionNotFoundError to match
-            expected interface for SDK integration layer.
+            ConversationSession if found, valid, and not expired. None otherwise.
         """
         try:
             ai_session = await self._session_manager.get_session(session_id)
-            return self._to_conversation_session(ai_session)
         except SessionNotFoundError:
             return None
+
+        session = self._to_conversation_session(ai_session)
+
+        if workspace_id is not None and session.workspace_id != workspace_id:
+            logger.warning(
+                "Session %s workspace mismatch: expected %s, got %s",
+                session_id,
+                workspace_id,
+                session.workspace_id,
+            )
+            return None
+
+        if user_id is not None and session.user_id != user_id:
+            logger.warning(
+                "Session %s user mismatch: expected %s, got %s",
+                session_id,
+                user_id,
+                session.user_id,
+            )
+            return None
+
+        return session
 
     async def add_message(
         self,

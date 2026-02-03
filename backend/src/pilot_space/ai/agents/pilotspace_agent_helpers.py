@@ -438,6 +438,12 @@ def transform_tool_result(message: Message) -> str | None:
 
         return None
 
+    # Map TodoWrite results to task_progress SSE events (T6/G-07)
+    tool_name = getattr(message, "name", "") or getattr(message, "tool_name", "")
+    todo_event = _transform_todo_to_task_progress(tool_name, result_data, tool_use_id)
+    if todo_event:
+        return todo_event
+
     # Emit generic tool_result event for non-content tools
     is_error = False
     output = result_data
@@ -555,3 +561,39 @@ def emit_issue_creation_events(result_data: dict[str, Any], note_id: str) -> str
         events.append(f"event: content_update\ndata: {json.dumps(event_data)}\n\n")
 
     return "".join(events)
+
+
+def _transform_todo_to_task_progress(
+    tool_name: str, result_data: Any, tool_use_id: Any
+) -> str | None:
+    """Map TodoWrite results to task_progress SSE events."""
+    if tool_name not in ("TodoWrite", "mcp__TodoWrite"):
+        return None
+    if not isinstance(result_data, dict):
+        return None
+
+    todos = result_data.get("todos", [])
+    if not todos:
+        return None
+
+    events = []
+    for todo in todos:
+        status = todo.get("status", "pending")
+        task_data = {
+            "taskId": todo.get("id", str(uuid4())),
+            "subject": todo.get("content", "Task"),
+            "status": _map_todo_status(status),
+            "progress": 100 if status in ("completed", "done") else 0,
+        }
+        events.append(f"event: task_progress\ndata: {json.dumps(task_data)}\n\n")
+    return "".join(events) if events else None
+
+
+def _map_todo_status(status: str) -> str:
+    """Map SDK todo status to frontend TaskStatus."""
+    return {
+        "pending": "pending",
+        "in_progress": "in_progress",
+        "completed": "completed",
+        "done": "completed",
+    }.get(status, "pending")

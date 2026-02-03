@@ -172,6 +172,15 @@ export class PilotSpaceStore {
   /** Current issue context */
   issueContext: IssueContext | null = null;
 
+  /** Current project context */
+  projectContext: { projectId: string; name?: string; slug?: string } | null = null;
+
+  /** Active skill for invocation (consumed on next sendMessage) */
+  activeSkill: { name: string; args?: string } | null = null;
+
+  /** Mentioned agents in current input (consumed on next sendMessage) */
+  mentionedAgents: string[] = [];
+
   /** Current workspace ID */
   workspaceId: string | null = null;
 
@@ -265,7 +274,7 @@ export class PilotSpaceStore {
       workspaceId: this.workspaceId,
       noteId: this.noteContext?.noteId ?? null,
       issueId: this.issueContext?.issueId ?? null,
-      projectId: null, // TODO: Extract from workspace context
+      projectId: this.projectContext?.projectId ?? null,
       selectedText: this.noteContext?.selectedText ?? null,
       selectedBlockIds: this.noteContext?.selectedBlockIds ?? [],
     };
@@ -515,15 +524,17 @@ export class PilotSpaceStore {
   clearContext(): void {
     this.noteContext = null;
     this.issueContext = null;
+    this.projectContext = null;
+    this.activeSkill = null;
+    this.mentionedAgents = [];
   }
 
   /**
    * Set project context for AI operations.
    * @param context - Project context state
    */
-  setProjectContext(_context: { projectId: string; name?: string; slug?: string } | null): void {
-    // TODO: Add projectContext to store state when needed
-    // For now, this is a no-op to satisfy the interface
+  setProjectContext(context: { projectId: string; name?: string; slug?: string } | null): void {
+    this.projectContext = context;
   }
 
   /**
@@ -532,8 +543,7 @@ export class PilotSpaceStore {
    * @param args - Optional skill arguments
    */
   setActiveSkill(skill: string, args?: string): void {
-    // TODO: Track active skill in store state when skill system is implemented
-    console.log('Setting active skill:', skill, args);
+    this.activeSkill = { name: skill, args };
   }
 
   /**
@@ -541,8 +551,9 @@ export class PilotSpaceStore {
    * @param agent - Agent name
    */
   addMentionedAgent(agent: string): void {
-    // TODO: Track mentioned agents in store state when agent mention system is implemented
-    console.log('Adding mentioned agent:', agent);
+    if (!this.mentionedAgents.includes(agent)) {
+      this.mentionedAgents.push(agent);
+    }
   }
 
   // ========================================

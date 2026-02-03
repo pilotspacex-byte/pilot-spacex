@@ -131,7 +131,11 @@ async def chat(
             )
         elif chat_request.session_id:
             session_id_uuid = UUID(chat_request.session_id)
-            conv_session = await session_handler.get_session(session_id_uuid)
+            conv_session = await session_handler.get_session(
+                session_id_uuid,
+                workspace_id=chat_request.context.workspace_id,
+                user_id=user_id,
+            )
         else:
             conv_session = await session_handler.create_session(
                 workspace_id=chat_request.context.workspace_id,
