@@ -99,10 +99,10 @@ export const MessageList = observer<MessageListProps>(
             <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
             <p className="text-sm text-muted-foreground max-w-sm">
               Ask me anything about your notes, issues, or code. Use{' '}
-              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">\skill</code>{' '}
-              to invoke skills or{' '}
-              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">@agent</code>{' '}
-              to call specialized agents.
+              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">\skill</code> to
+              invoke skills or{' '}
+              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">@agent</code> to
+              call specialized agents.
             </p>
           </div>
         ) : (

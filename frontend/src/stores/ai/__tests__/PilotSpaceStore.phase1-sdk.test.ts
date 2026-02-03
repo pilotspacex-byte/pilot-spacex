@@ -11,16 +11,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PilotSpaceStore } from '../PilotSpaceStore';
 import { PilotSpaceStreamHandler } from '../PilotSpaceStreamHandler';
 import type { AIStore } from '../AIStore';
-import {
-  isCitationEvent,
-  isMemoryUpdateEvent,
-  isToolInputDeltaEvent,
-} from '../types/events';
-import type {
-  CitationEvent,
-  MemoryUpdateEvent,
-  ToolInputDeltaEvent,
-} from '../types/events';
+import { isCitationEvent, isMemoryUpdateEvent, isToolInputDeltaEvent } from '../types/events';
+import type { CitationEvent, MemoryUpdateEvent, ToolInputDeltaEvent } from '../types/events';
 
 // Mock SSEClient
 vi.mock('@/lib/sse-client', () => ({

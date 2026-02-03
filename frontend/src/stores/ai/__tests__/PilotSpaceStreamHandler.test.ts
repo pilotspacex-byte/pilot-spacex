@@ -163,7 +163,12 @@ describe('PilotSpaceStreamHandler', () => {
 
     it('should route tool_result and update pending tool call status', () => {
       // Buffer a tool call first (simulates tool_use during streaming)
-      store.addPendingToolCall({ id: 'tc-1', name: 'extract_issues', input: {}, status: 'pending' });
+      store.addPendingToolCall({
+        id: 'tc-1',
+        name: 'extract_issues',
+        input: {},
+        status: 'pending',
+      });
 
       handler.handleSSEEvent({
         type: 'tool_result',
