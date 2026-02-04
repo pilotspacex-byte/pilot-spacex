@@ -73,7 +73,7 @@ export interface ContentBlockStartEvent extends SSEEvent {
     /** Content block index (0-based) */
     index: number;
     /** Content block type */
-    contentType: 'text' | 'tool_use';
+    contentType: 'text' | 'tool_use' | 'thinking';
     /** Parent tool use ID for subagent content correlation (G12) */
     parentToolUseId?: string;
   };
@@ -107,6 +107,12 @@ export interface ThinkingDeltaEvent extends SSEEvent {
     messageId: string;
     /** Thinking content chunk (append to existing thinking content) */
     delta: string;
+    /** Content block index for interleaved thinking ordering (G-07) */
+    blockIndex?: number;
+    /** Whether this block was redacted by safety system (G-04/G-07) */
+    redacted?: boolean;
+    /** Thinking block signature for multi-turn verification (G-06) */
+    signature?: string;
   };
 }
 

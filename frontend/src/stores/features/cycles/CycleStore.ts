@@ -2,44 +2,29 @@
  * CycleStore - MobX store for Sprint Planning feature (US-04).
  *
  * T164: Manages cycle state with TanStack Query for server state.
+ *
+ * Types: ./cycle-store-types.ts
+ * Data loading actions: ./cycle-store-actions.ts
  */
 import { makeAutoObservable, runInAction } from 'mobx';
 import type {
   Cycle,
-  CycleStatus,
   CreateCycleData,
   UpdateCycleData,
   RolloverCycleData,
   RolloverCycleResult,
-  Issue,
   IssueState,
   BurndownChartData,
   VelocityChartData,
 } from '@/types';
 
 import { stateNameToKey } from '@/lib/issue-helpers';
-import { cyclesApi, type CycleListResponse } from '@/services/api';
+import { cyclesApi } from '@/services/api';
+import type { CycleIssue, CycleFilters, SortBy, SortOrder } from './cycle-store-types';
+import * as actions from './cycle-store-actions';
 
-/**
- * Issue display type for cycle board - simplified version
- */
-export interface CycleIssue extends Issue {
-  storyPoints?: number;
-}
-
-/**
- * Filters for cycle list
- */
-interface CycleFilters {
-  status?: CycleStatus | 'all';
-  search?: string;
-}
-
-/**
- * Sort options for cycles
- */
-type SortBy = 'sequence' | 'created_at' | 'start_date';
-type SortOrder = 'asc' | 'desc';
+// Re-export types for consumers
+export type { CycleIssue } from './cycle-store-types';
 
 /**
  * CycleStore manages all cycle-related state for Sprint Planning.
@@ -120,32 +105,24 @@ export class CycleStore {
   // Computed Properties
   // ============================================================================
 
-  /**
-   * Currently selected cycle with full details
-   */
+  /** Currently selected cycle with full details */
   get currentCycle(): Cycle | null {
     return this.currentCycleId ? (this.cycles.get(this.currentCycleId) ?? null) : null;
   }
 
-  /**
-   * All cycles as array
-   */
+  /** All cycles as array */
   get cyclesList(): Cycle[] {
     return Array.from(this.cycles.values());
   }
 
-  /**
-   * Filtered and sorted cycles
-   */
+  /** Filtered and sorted cycles */
   get filteredCycles(): Cycle[] {
     let cycles = this.cyclesList;
 
-    // Apply status filter
     if (this.filters.status && this.filters.status !== 'all') {
       cycles = cycles.filter((c) => c.status === this.filters.status);
     }
 
-    // Apply search filter
     if (this.filters.search) {
       const query = this.filters.search.toLowerCase();
       cycles = cycles.filter(
@@ -153,34 +130,25 @@ export class CycleStore {
       );
     }
 
-    // Apply sorting
     return this.sortCycles(cycles);
   }
 
-  /**
-   * Currently active cycle (status === 'active')
-   */
+  /** Currently active cycle (status === 'active') */
   get activeCycle(): Cycle | null {
     return this.cyclesList.find((c) => c.status === 'active') ?? null;
   }
 
-  /**
-   * Upcoming/planned cycles (status === 'draft' or 'planned')
-   */
+  /** Upcoming/planned cycles (status === 'draft' or 'planned') */
   get upcomingCycles(): Cycle[] {
     return this.filteredCycles.filter((c) => c.status === 'draft' || c.status === 'planned');
   }
 
-  /**
-   * Completed/cancelled cycles
-   */
+  /** Completed/cancelled cycles */
   get pastCycles(): Cycle[] {
     return this.filteredCycles.filter((c) => c.status === 'completed' || c.status === 'cancelled');
   }
 
-  /**
-   * Issues grouped by state for cycle board
-   */
+  /** Issues grouped by state for cycle board */
   get issuesByState(): Record<IssueState, CycleIssue[]> {
     const states: IssueState[] = [
       'backlog',
@@ -201,18 +169,14 @@ export class CycleStore {
     return grouped;
   }
 
-  /**
-   * Incomplete issues (not done or cancelled)
-   */
+  /** Incomplete issues (not done or cancelled) */
   get incompleteIssues(): CycleIssue[] {
     return Array.from(this.cycleIssues.values()).filter(
       (i) => i.state.group !== 'completed' && i.state.group !== 'cancelled'
     );
   }
 
-  /**
-   * Completed issues
-   */
+  /** Completed issues */
   get completedIssues(): CycleIssue[] {
     return Array.from(this.cycleIssues.values()).filter((i) => i.state.group === 'completed');
   }
@@ -221,9 +185,7 @@ export class CycleStore {
   // Private Helpers
   // ============================================================================
 
-  /**
-   * Sort cycles by current sort settings
-   */
+  /** Sort cycles by current sort settings */
   private sortCycles(cycles: Cycle[]): Cycle[] {
     return [...cycles].sort((a, b) => {
       let comparison = 0;
@@ -251,32 +213,24 @@ export class CycleStore {
   // Actions - UI State
   // ============================================================================
 
-  /**
-   * Set current cycle for detail view
-   */
+  /** Set current cycle for detail view */
   setCurrentCycle(cycleId: string | null): void {
     this.currentCycleId = cycleId;
     this.cycleIssues.clear();
     this.burndownData = null;
   }
 
-  /**
-   * Set filters
-   */
+  /** Set filters */
   setFilters(filters: Partial<CycleFilters>): void {
     this.filters = { ...this.filters, ...filters };
   }
 
-  /**
-   * Clear all filters
-   */
+  /** Clear all filters */
   clearFilters(): void {
     this.filters = {};
   }
 
-  /**
-   * Set sort configuration
-   */
+  /** Set sort configuration */
   setSortBy(sortBy: SortBy): void {
     this.sortBy = sortBy;
   }
@@ -286,190 +240,49 @@ export class CycleStore {
   }
 
   // ============================================================================
-  // Actions - Data Loading
+  // Actions - Data Loading (delegated to cycle-store-actions.ts)
   // ============================================================================
 
-  /**
-   * Load cycles for a project
-   */
   async loadCycles(
     workspaceId: string,
     projectId: string,
     options: { includeMetrics?: boolean; loadMore?: boolean } = {}
   ): Promise<void> {
-    const { includeMetrics = true, loadMore = false } = options;
-
-    if (!loadMore) {
-      this.isLoading = true;
-      this.cycles.clear();
-    }
-    this.error = null;
-    this.currentWorkspaceId = workspaceId;
-    this.currentProjectId = projectId;
-
-    try {
-      const response: CycleListResponse = await cyclesApi.list(
-        workspaceId,
-        {
-          projectId,
-          status: this.filters.status !== 'all' ? this.filters.status : undefined,
-          search: this.filters.search,
-          includeMetrics,
-        },
-        {
-          cursor: loadMore ? (this.nextCursor ?? undefined) : undefined,
-          sortBy: this.sortBy,
-          sortOrder: this.sortOrder,
-        }
-      );
-
-      runInAction(() => {
-        response.items.forEach((cycle) => {
-          this.cycles.set(cycle.id, cycle);
-        });
-        this.nextCursor = response.nextCursor;
-        this.hasMore = response.hasNext;
-        this.isLoading = false;
-      });
-    } catch (err) {
-      runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to load cycles';
-        this.isLoading = false;
-      });
-    }
+    return actions.loadCycles(this, workspaceId, projectId, options);
   }
 
-  /**
-   * Load a single cycle by ID
-   */
   async loadCycle(
     workspaceId: string,
     cycleId: string,
     includeMetrics = true
   ): Promise<Cycle | null> {
-    this.isLoading = true;
-    this.error = null;
-
-    try {
-      const cycle = await cyclesApi.get(workspaceId, cycleId, includeMetrics);
-      runInAction(() => {
-        this.cycles.set(cycle.id, cycle);
-        this.currentCycleId = cycle.id;
-        this.isLoading = false;
-      });
-      return cycle;
-    } catch (err) {
-      runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to load cycle';
-        this.isLoading = false;
-      });
-      return null;
-    }
+    return actions.loadCycle(this, workspaceId, cycleId, includeMetrics);
   }
 
-  /**
-   * Load active cycle for a project
-   */
   async loadActiveCycle(workspaceId: string, projectId: string): Promise<Cycle | null> {
-    this.isLoading = true;
-    this.error = null;
-
-    try {
-      const cycle = await cyclesApi.getActive(workspaceId, projectId, true);
-      runInAction(() => {
-        if (cycle) {
-          this.cycles.set(cycle.id, cycle);
-          this.currentCycleId = cycle.id;
-        }
-        this.isLoading = false;
-      });
-      return cycle;
-    } catch (err) {
-      runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to load active cycle';
-        this.isLoading = false;
-      });
-      return null;
-    }
+    return actions.loadActiveCycle(this, workspaceId, projectId);
   }
 
-  /**
-   * Load issues for a cycle
-   */
   async loadCycleIssues(
     workspaceId: string,
     cycleId: string,
     includeCompleted = true
   ): Promise<void> {
-    this.isLoadingIssues = true;
-    this.error = null;
-
-    try {
-      const response = await cyclesApi.getIssues(workspaceId, cycleId, includeCompleted);
-      runInAction(() => {
-        this.cycleIssues.clear();
-        response.items.forEach((issue) => {
-          this.cycleIssues.set(issue.id, issue as CycleIssue);
-        });
-        this.isLoadingIssues = false;
-      });
-    } catch (err) {
-      runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to load cycle issues';
-        this.isLoadingIssues = false;
-      });
-    }
+    return actions.loadCycleIssues(this, workspaceId, cycleId, includeCompleted);
   }
 
-  /**
-   * Load burndown chart data
-   */
   async loadBurndownData(workspaceId: string, cycleId: string): Promise<void> {
-    this.isLoadingBurndown = true;
-    this.error = null;
-
-    try {
-      const data = await cyclesApi.getBurndownData(workspaceId, cycleId);
-      runInAction(() => {
-        this.burndownData = data;
-        this.isLoadingBurndown = false;
-      });
-    } catch (err) {
-      runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to load burndown data';
-        this.isLoadingBurndown = false;
-      });
-    }
+    await actions.loadBurndownData(this, workspaceId, cycleId);
   }
 
-  /**
-   * Load velocity chart data
-   */
   async loadVelocityData(workspaceId: string, projectId: string, limit = 10): Promise<void> {
-    this.isLoadingVelocity = true;
-    this.error = null;
-
-    try {
-      const data = await cyclesApi.getVelocityData(workspaceId, projectId, limit);
-      runInAction(() => {
-        this.velocityData = data;
-        this.isLoadingVelocity = false;
-      });
-    } catch (err) {
-      runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to load velocity data';
-        this.isLoadingVelocity = false;
-      });
-    }
+    await actions.loadVelocityData(this, workspaceId, projectId, limit);
   }
 
   // ============================================================================
   // Actions - CRUD Operations
   // ============================================================================
 
-  /**
-   * Create a new cycle
-   */
   async createCycle(data: CreateCycleData): Promise<Cycle | null> {
     if (!this.currentWorkspaceId) {
       this.error = 'No workspace context';
@@ -495,9 +308,6 @@ export class CycleStore {
     }
   }
 
-  /**
-   * Update an existing cycle
-   */
   async updateCycle(cycleId: string, data: UpdateCycleData): Promise<Cycle | null> {
     if (!this.currentWorkspaceId) {
       this.error = 'No workspace context';
@@ -521,7 +331,6 @@ export class CycleStore {
       });
       return cycle;
     } catch (err) {
-      // Rollback
       runInAction(() => {
         if (original) {
           this.cycles.set(cycleId, original);
@@ -533,16 +342,12 @@ export class CycleStore {
     }
   }
 
-  /**
-   * Delete a cycle
-   */
   async deleteCycle(cycleId: string): Promise<boolean> {
     if (!this.currentWorkspaceId) {
       this.error = 'No workspace context';
       return false;
     }
 
-    // Optimistic remove
     const original = this.cycles.get(cycleId);
     this.cycles.delete(cycleId);
 
@@ -555,7 +360,6 @@ export class CycleStore {
       });
       return true;
     } catch (err) {
-      // Rollback
       runInAction(() => {
         if (original) {
           this.cycles.set(cycleId, original);
@@ -566,23 +370,14 @@ export class CycleStore {
     }
   }
 
-  /**
-   * Activate a cycle (change status to 'active')
-   */
   async activateCycle(cycleId: string): Promise<Cycle | null> {
     return this.updateCycle(cycleId, { status: 'active' });
   }
 
-  /**
-   * Complete a cycle (change status to 'completed')
-   */
   async completeCycle(cycleId: string): Promise<Cycle | null> {
     return this.updateCycle(cycleId, { status: 'completed' });
   }
 
-  /**
-   * Cancel a cycle
-   */
   async cancelCycle(cycleId: string): Promise<Cycle | null> {
     return this.updateCycle(cycleId, { status: 'cancelled' });
   }
@@ -591,9 +386,6 @@ export class CycleStore {
   // Actions - Issue Management
   // ============================================================================
 
-  /**
-   * Add issue to cycle
-   */
   async addIssueToCycle(cycleId: string, issueId: string): Promise<boolean> {
     if (!this.currentWorkspaceId) {
       this.error = 'No workspace context';
@@ -602,7 +394,6 @@ export class CycleStore {
 
     try {
       await cyclesApi.addIssue(this.currentWorkspaceId, cycleId, issueId);
-      // Reload issues to get updated data
       await this.loadCycleIssues(this.currentWorkspaceId, cycleId);
       return true;
     } catch (err) {
@@ -613,9 +404,6 @@ export class CycleStore {
     }
   }
 
-  /**
-   * Add multiple issues to cycle
-   */
   async bulkAddIssuesToCycle(cycleId: string, issueIds: string[]): Promise<boolean> {
     if (!this.currentWorkspaceId) {
       this.error = 'No workspace context';
@@ -634,23 +422,18 @@ export class CycleStore {
     }
   }
 
-  /**
-   * Remove issue from cycle
-   */
   async removeIssueFromCycle(cycleId: string, issueId: string): Promise<boolean> {
     if (!this.currentWorkspaceId) {
       this.error = 'No workspace context';
       return false;
     }
 
-    // Optimistic remove
     this.cycleIssues.delete(issueId);
 
     try {
       await cyclesApi.removeIssue(this.currentWorkspaceId, cycleId, issueId);
       return true;
     } catch (err) {
-      // Rollback - reload issues
       runInAction(() => {
         this.error = err instanceof Error ? err.message : 'Failed to remove issue';
       });
@@ -676,9 +459,6 @@ export class CycleStore {
   // Actions - Rollover
   // ============================================================================
 
-  /**
-   * Rollover incomplete issues to another cycle
-   */
   async rolloverCycle(
     sourceCycleId: string,
     data: RolloverCycleData
@@ -694,9 +474,7 @@ export class CycleStore {
     try {
       const result = await cyclesApi.rollover(this.currentWorkspaceId, sourceCycleId, data);
       runInAction(() => {
-        // Update source cycle
         this.cycles.set(result.sourceCycle.id, result.sourceCycle);
-        // Update target cycle
         this.cycles.set(result.targetCycle.id, result.targetCycle);
         this.isSaving = false;
       });
@@ -714,9 +492,7 @@ export class CycleStore {
   // Reset
   // ============================================================================
 
-  /**
-   * Reset store to initial state
-   */
+  /** Reset store to initial state */
   reset(): void {
     this.cycles.clear();
     this.currentCycleId = null;

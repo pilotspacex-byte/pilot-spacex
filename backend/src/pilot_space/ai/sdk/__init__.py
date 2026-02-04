@@ -87,8 +87,6 @@ from pilot_space.ai.sdk.session_handler import (
 )
 from pilot_space.ai.sdk.sse_transformer import (
     SSEEvent,
-    SSETransformer,
-    transform_claude_event,
 )
 
 __all__ = [
@@ -127,7 +125,6 @@ __all__ = [
     "SDKConfiguration",
     # SSE
     "SSEEvent",
-    "SSETransformer",
     "SandboxSettings",
     "SessionHandler",
     "ToolCallContext",
@@ -137,5 +134,4 @@ __all__ = [
     "get_model_for_task",
     "is_bash_command_safe",
     "is_file_protected",
-    "transform_claude_event",
 ]

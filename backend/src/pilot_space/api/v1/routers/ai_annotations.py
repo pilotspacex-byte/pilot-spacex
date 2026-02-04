@@ -14,10 +14,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, status
 from pydantic import BaseModel, Field
 
+from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.agents.margin_annotation_agent_sdk import (
     MarginAnnotationInput,
 )
-from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.exceptions import AIConfigurationError, RateLimitError
 from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
 from pilot_space.api.utils.sse import SSEResponse, SSEStreamBuilder

@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.ai.sdk.config import MODEL_SONNET
+
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
@@ -99,7 +101,7 @@ class SDKBaseAgent[InputT, OutputT](ABC):
     """
 
     AGENT_NAME: str = "pilot_space_agent"  # Override in subclass
-    DEFAULT_MODEL: str = "claude-sonnet-4-20250514"  # Override in subclass
+    DEFAULT_MODEL: str = MODEL_SONNET  # Override in subclass
 
     def __init__(
         self,

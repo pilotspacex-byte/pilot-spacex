@@ -18,6 +18,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.agents.pr_review_agent import (
     PRReviewAgent,
     PRReviewInput,
@@ -25,7 +26,6 @@ from pilot_space.ai.agents.pr_review_agent import (
     ReviewComment,
     ReviewSeverity,
 )
-from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.prompts.pr_review import format_review_as_markdown
 from pilot_space.infrastructure.queue.models import QueueName
 

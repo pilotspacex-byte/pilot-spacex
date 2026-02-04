@@ -7,6 +7,7 @@ import { memo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThinkingBlock } from './ThinkingBlock';
+import { MarkdownContent } from './MarkdownContent';
 
 interface StreamingContentProps {
   content: string;
@@ -36,12 +37,7 @@ export const StreamingContent = memo<StreamingContentProps>(
           />
         )}
 
-        {content && (
-          <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
-            {content}
-            <span className="inline-block w-1 h-4 bg-primary animate-pulse ml-0.5" />
-          </div>
-        )}
+        {content && <MarkdownContent content={content} isStreaming />}
       </div>
     );
   }

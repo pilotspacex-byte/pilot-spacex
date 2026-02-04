@@ -10,6 +10,8 @@ import type { ChatMessage } from '@/stores/ai/types/conversation';
 import { ToolCallList } from './ToolCallList';
 import { ThinkingBlock } from './ThinkingBlock';
 import { StructuredResultCard } from './StructuredResultCard';
+import { MarkdownContent } from './MarkdownContent';
+import { CitationList } from './CitationList';
 
 interface AssistantMessageProps {
   message: ChatMessage;
@@ -37,25 +39,39 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
           </time>
         </div>
 
-        {message.thinkingContent && (
-          <ThinkingBlock
-            content={message.thinkingContent}
-            durationMs={message.thinkingDurationMs}
-            isStreaming={false}
-          />
-        )}
+        {/* G-12: Render multiple thinking blocks for interleaved thinking, fallback to single */}
+        {message.thinkingBlocks && message.thinkingBlocks.length > 0
+          ? message.thinkingBlocks.map((block) => (
+              <ThinkingBlock
+                key={block.blockIndex}
+                content={block.content}
+                durationMs={
+                  block === message.thinkingBlocks![message.thinkingBlocks!.length - 1]
+                    ? message.thinkingDurationMs
+                    : undefined
+                }
+                isStreaming={false}
+              />
+            ))
+          : message.thinkingContent && (
+              <ThinkingBlock
+                content={message.thinkingContent}
+                durationMs={message.thinkingDurationMs}
+                isStreaming={false}
+              />
+            )}
 
-        {message.content && (
-          <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
-            {message.content}
-          </div>
-        )}
+        {message.content && <MarkdownContent content={message.content} />}
 
         {message.structuredResult && (
           <StructuredResultCard
             schemaType={message.structuredResult.schemaType}
             data={message.structuredResult.data}
           />
+        )}
+
+        {message.citations && message.citations.length > 0 && (
+          <CitationList citations={message.citations} />
         )}
 
         {message.toolCalls && message.toolCalls.length > 0 && (

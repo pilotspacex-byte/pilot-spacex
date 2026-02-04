@@ -29,6 +29,8 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { SSEClient, type SSEEvent } from '@/lib/sse-client';
 
 interface ConversationStatus {
   conversation_id: string;
@@ -62,16 +64,35 @@ interface Message {
 interface Approval {
   id: string;
   tool_name: string;
-  tool_params: Record<string, any>;
+  tool_params: Record<string, unknown>;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
   requested_at: string;
   timeout_at?: string;
 }
 
-interface SSEEvent {
+interface SSEEventData {
   type: string;
-  data: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: Record<string, any>;
   index?: number;
+}
+
+/**
+ * Get Supabase auth headers for authenticated requests.
+ */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session?.access_token) {
+      return { Authorization: `Bearer ${session.access_token}` };
+    }
+  } catch {
+    console.warn('Failed to get auth session for reconnect request');
+  }
+  return {};
 }
 
 export function useConversationReconnect(conversationId: string) {
@@ -81,194 +102,20 @@ export function useConversationReconnect(conversationId: string) {
   const [error, setError] = useState<string | null>(null);
 
   // SSE connection refs
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const sseClientRef = useRef<SSEClient | null>(null);
   const lastEventIndexRef = useRef(0);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  /**
-   * Step 1: Fetch conversation status on mount or return from navigation
-   */
-  const fetchConversationStatus = useCallback(async () => {
-    try {
-      setReconnecting(true);
-
-      const response = await fetch(
-        `/api/v1/ai/chat/conversations/${conversationId}/status`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch status: ${response.statusText}`);
-      }
-
-      const data: ConversationStatus = await response.json();
-      setStatus(data);
-      setMessages(data.recent_turns);
-
-      console.log('[Reconnect] Conversation status:', data.session_status);
-
-      // Handle different states
-      if (data.active_job) {
-        await handleActiveJob(data.active_job);
-      }
-
-      setReconnecting(false);
-    } catch (err) {
-      console.error('[Reconnect] Failed to fetch status:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setReconnecting(false);
-    }
-  }, [conversationId]);
-
-  /**
-   * Step 2: Handle active job (processing or waiting approval)
-   */
-  const handleActiveJob = async (job: JobStatus) => {
-    console.log('[Reconnect] Active job detected:', job.status);
-
-    // Show partial response while reconnecting
-    if (job.partial_response) {
-      setMessages((prev) => [
-        ...prev.filter((m) => m.id !== 'partial'),
-        {
-          id: 'partial',
-          role: 'assistant',
-          content: job.partial_response!,
-          timestamp: new Date().toISOString(),
-          completed: false,
-        },
-      ]);
-    }
-
-    if (job.status === 'WAITING_APPROVAL') {
-      // User needs to approve - no need to reconnect stream
-      console.log('[Reconnect] Waiting for approval, showing UI');
-      return;
-    }
-
-    if (job.status === 'PROCESSING' && job.can_reconnect && job.stream_url) {
-      // Fetch missed events
-      await fetchMissedEvents(job.job_id);
-
-      // Reconnect to SSE stream
-      await connectSSE(job.stream_url, job.job_id);
-    }
-
-    if (job.status === 'COMPLETED' && job.response) {
-      // Job finished while user was away
-      console.log('[Reconnect] Job completed, showing result');
-      setMessages((prev) => [
-        ...prev.filter((m) => m.id !== 'partial'),
-        {
-          id: job.job_id,
-          role: 'assistant',
-          content: job.response!,
-          timestamp: new Date().toISOString(),
-          completed: true,
-        },
-      ]);
-    }
-  };
-
-  /**
-   * Step 3: Fetch events that occurred during disconnect
-   */
-  const fetchMissedEvents = async (jobId: string) => {
-    try {
-      console.log('[Reconnect] Fetching missed events from index', lastEventIndexRef.current);
-
-      const response = await fetch(
-        `/api/v1/ai/chat/stream/${jobId}/events?after_event=${lastEventIndexRef.current}`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch missed events');
-      }
-
-      const data = await response.json();
-
-      console.log('[Reconnect] Missed events:', data.missed_events);
-
-      // Replay missed events
-      data.events.forEach((event: SSEEvent) => {
-        handleSSEEvent(event, jobId);
-
-        // Update last event index
-        if (event.index !== undefined) {
-          lastEventIndexRef.current = Math.max(lastEventIndexRef.current, event.index);
-        }
-      });
-    } catch (err) {
-      console.error('[Reconnect] Failed to fetch missed events:', err);
-      // Continue with reconnection anyway
-    }
-  };
-
-  /**
-   * Step 4: Connect to SSE stream with automatic retry
-   */
-  const connectSSE = async (streamUrl: string, jobId: string) => {
-    // Close existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    console.log('[Reconnect] Connecting to SSE:', streamUrl);
-
-    try {
-      const eventSource = new EventSource(streamUrl);
-      eventSourceRef.current = eventSource;
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          handleSSEEvent(data, jobId);
-
-          // Store last event index for recovery
-          if (data.index !== undefined) {
-            lastEventIndexRef.current = data.index;
-            localStorage.setItem(`last_event_${jobId}`, String(data.index));
-          }
-
-          // Reset reconnect attempts on successful event
-          reconnectAttemptsRef.current = 0;
-        } catch (err) {
-          console.error('[Reconnect] Failed to parse SSE event:', err);
-        }
-      };
-
-      eventSource.onerror = (err) => {
-        console.error('[Reconnect] SSE error:', err);
-        eventSource.close();
-
-        // Attempt to reconnect with exponential backoff
-        scheduleReconnect(streamUrl, jobId);
-      };
-
-      eventSource.addEventListener('message_stop', () => {
-        console.log('[Reconnect] Stream completed');
-        eventSource.close();
-      });
-    } catch (err) {
-      console.error('[Reconnect] Failed to connect SSE:', err);
-      scheduleReconnect(streamUrl, jobId);
-    }
-  };
+  // Refs to hold the latest callbacks so SSEClient/setTimeout callbacks are stable
+  const handleSSEEventRef = useRef<(event: SSEEventData, jobId: string) => void>(() => undefined);
+  const connectSSERef = useRef<(streamUrl: string, jobId: string) => Promise<void>>(
+    async () => undefined
+  );
 
   /**
    * Step 5: Handle SSE events (update UI)
    */
-  const handleSSEEvent = (event: SSEEvent, jobId: string) => {
+  const handleSSEEvent = useCallback((event: SSEEventData, jobId: string) => {
     switch (event.type) {
       case 'message_start':
         console.log('[SSE] Message started');
@@ -296,7 +143,6 @@ export function useConversationReconnect(conversationId: string) {
 
       case 'tool_use':
         console.log('[SSE] Tool use:', event.data.tool_name);
-        // Could show tool indicator in UI
         break;
 
       case 'approval_required':
@@ -309,8 +155,8 @@ export function useConversationReconnect(conversationId: string) {
                   {
                     id: event.data.approval_id,
                     tool_name: event.data.tool,
-                    tool_params: event.data.params,
-                    risk_level: event.data.risk_level,
+                    tool_params: event.data.params as unknown as Record<string, unknown>,
+                    risk_level: event.data.risk_level as Approval['risk_level'],
                     requested_at: new Date().toISOString(),
                   },
                 ],
@@ -330,7 +176,7 @@ export function useConversationReconnect(conversationId: string) {
 
       case 'error':
         console.error('[SSE] Error:', event.data.message);
-        setError(event.data.message);
+        setError(String(event.data.message ?? 'Unknown error'));
         break;
 
       case 'cancelled':
@@ -344,12 +190,15 @@ export function useConversationReconnect(conversationId: string) {
         );
         break;
     }
-  };
+  }, []);
+
+  // Keep ref in sync for SSEClient callbacks
+  handleSSEEventRef.current = handleSSEEvent;
 
   /**
    * Step 6: Schedule reconnect with exponential backoff
    */
-  const scheduleReconnect = (streamUrl: string, jobId: string) => {
+  const scheduleReconnect = useCallback((streamUrl: string, jobId: string) => {
     reconnectAttemptsRef.current += 1;
 
     const maxAttempts = 5;
@@ -369,10 +218,189 @@ export function useConversationReconnect(conversationId: string) {
     reconnectTimeoutRef.current = setTimeout(() => {
       console.log('[Reconnect] Attempting reconnect...');
       setReconnecting(true);
-      connectSSE(streamUrl, jobId);
+      connectSSERef.current(streamUrl, jobId);
       setReconnecting(false);
     }, delay);
-  };
+  }, []);
+
+  /**
+   * Step 4: Connect to SSE stream using project SSEClient (supports auth headers)
+   */
+  const connectSSE = useCallback(
+    async (streamUrl: string, jobId: string) => {
+      // Close existing connection
+      if (sseClientRef.current) {
+        sseClientRef.current.abort();
+      }
+
+      console.log('[Reconnect] Connecting to SSE:', streamUrl);
+
+      try {
+        const client = new SSEClient({
+          url: streamUrl,
+          method: 'GET',
+          onMessage: (event: SSEEvent) => {
+            const sseEvent = event as unknown as SSEEventData;
+            handleSSEEventRef.current(sseEvent, jobId);
+
+            // Store last event index for recovery
+            if (sseEvent.index !== undefined) {
+              lastEventIndexRef.current = sseEvent.index;
+            }
+
+            // Reset reconnect attempts on successful event
+            reconnectAttemptsRef.current = 0;
+          },
+          onComplete: () => {
+            console.log('[Reconnect] Stream completed');
+          },
+          onError: (err) => {
+            console.error('[Reconnect] SSE error:', err);
+            scheduleReconnect(streamUrl, jobId);
+          },
+        });
+
+        sseClientRef.current = client;
+        await client.connect();
+      } catch (err) {
+        console.error('[Reconnect] Failed to connect SSE:', err);
+        scheduleReconnect(streamUrl, jobId);
+      }
+    },
+    [scheduleReconnect]
+  );
+
+  // Keep ref in sync for setTimeout callbacks
+  connectSSERef.current = connectSSE;
+
+  /**
+   * Step 3: Fetch events that occurred during disconnect
+   */
+  const fetchMissedEvents = useCallback(
+    async (jobId: string) => {
+      try {
+        console.log('[Reconnect] Fetching missed events from index', lastEventIndexRef.current);
+
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch(
+          `/api/v1/ai/chat/stream/${jobId}/events?after_event=${lastEventIndexRef.current}`,
+          {
+            headers: authHeaders,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch missed events');
+        }
+
+        const data = await response.json();
+
+        console.log('[Reconnect] Missed events:', data.missed_events);
+
+        // Replay missed events
+        data.events.forEach((event: SSEEventData) => {
+          handleSSEEvent(event, jobId);
+
+          // Update last event index
+          if (event.index !== undefined) {
+            lastEventIndexRef.current = Math.max(lastEventIndexRef.current, event.index);
+          }
+        });
+      } catch (err) {
+        console.error('[Reconnect] Failed to fetch missed events:', err);
+        // Continue with reconnection anyway
+      }
+    },
+    [handleSSEEvent]
+  );
+
+  /**
+   * Step 2: Handle active job (processing or waiting approval)
+   */
+  const handleActiveJob = useCallback(
+    async (job: JobStatus) => {
+      console.log('[Reconnect] Active job detected:', job.status);
+
+      // Show partial response while reconnecting
+      if (job.partial_response) {
+        setMessages((prev) => [
+          ...prev.filter((m) => m.id !== 'partial'),
+          {
+            id: 'partial',
+            role: 'assistant',
+            content: job.partial_response!,
+            timestamp: new Date().toISOString(),
+            completed: false,
+          },
+        ]);
+      }
+
+      if (job.status === 'WAITING_APPROVAL') {
+        // User needs to approve - no need to reconnect stream
+        console.log('[Reconnect] Waiting for approval, showing UI');
+        return;
+      }
+
+      if (job.status === 'PROCESSING' && job.can_reconnect && job.stream_url) {
+        // Fetch missed events
+        await fetchMissedEvents(job.job_id);
+
+        // Reconnect to SSE stream
+        await connectSSE(job.stream_url, job.job_id);
+      }
+
+      if (job.status === 'COMPLETED' && job.response) {
+        // Job finished while user was away
+        console.log('[Reconnect] Job completed, showing result');
+        setMessages((prev) => [
+          ...prev.filter((m) => m.id !== 'partial'),
+          {
+            id: job.job_id,
+            role: 'assistant',
+            content: job.response!,
+            timestamp: new Date().toISOString(),
+            completed: true,
+          },
+        ]);
+      }
+    },
+    [fetchMissedEvents, connectSSE]
+  );
+
+  /**
+   * Step 1: Fetch conversation status on mount or return from navigation
+   */
+  const fetchConversationStatus = useCallback(async () => {
+    try {
+      setReconnecting(true);
+
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`/api/v1/ai/chat/conversations/${conversationId}/status`, {
+        headers: authHeaders,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch status: ${response.statusText}`);
+      }
+
+      const data: ConversationStatus = await response.json();
+      setStatus(data);
+      setMessages(data.recent_turns);
+
+      console.log('[Reconnect] Conversation status:', data.session_status);
+
+      // Handle different states
+      if (data.active_job) {
+        await handleActiveJob(data.active_job);
+      }
+
+      setReconnecting(false);
+    } catch (err) {
+      console.error('[Reconnect] Failed to fetch status:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setReconnecting(false);
+    }
+  }, [conversationId, handleActiveJob]);
 
   /**
    * Send a new message
@@ -393,20 +421,18 @@ export function useConversationReconnect(conversationId: string) {
         },
       ]);
 
-      const response = await fetch(
-        `/api/v1/ai/chat/conversations/${conversationId}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-          body: JSON.stringify({
-            message,
-            stream: true,
-          }),
-        }
-      );
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`/api/v1/ai/chat/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          message,
+          stream: true,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to send message: ${response.statusText}`);
@@ -416,7 +442,6 @@ export function useConversationReconnect(conversationId: string) {
 
       // Reset event index for new job
       lastEventIndexRef.current = 0;
-      localStorage.setItem(`last_event_${data.job_id}`, '0');
 
       // Connect to SSE stream
       await connectSSE(data.stream_url, data.job_id);
@@ -432,23 +457,21 @@ export function useConversationReconnect(conversationId: string) {
   const approveAction = async (
     approvalId: string,
     action: 'approve' | 'reject' | 'edit',
-    modifiedParams?: Record<string, any>
+    modifiedParams?: Record<string, unknown>
   ) => {
     try {
-      const response = await fetch(
-        `/api/v1/ai/chat/approvals/${approvalId}/decide`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-          body: JSON.stringify({
-            action,
-            modified_params: modifiedParams,
-          }),
-        }
-      );
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`/api/v1/ai/chat/approvals/${approvalId}/decide`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          action,
+          modified_params: modifiedParams,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error('Failed to submit approval');
@@ -478,19 +501,15 @@ export function useConversationReconnect(conversationId: string) {
     if (!status?.active_job) return;
 
     try {
-      await fetch(
-        `/api/v1/ai/chat/conversations/${conversationId}/cancel`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-        }
-      );
+      const authHeaders = await getAuthHeaders();
+      await fetch(`/api/v1/ai/chat/conversations/${conversationId}/cancel`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      });
 
       // Close SSE connection
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      if (sseClientRef.current) {
+        sseClientRef.current.abort();
       }
     } catch (err) {
       console.error('[Cancel] Failed:', err);
@@ -508,15 +527,15 @@ export function useConversationReconnect(conversationId: string) {
     return () => {
       console.log('[Reconnect] Component unmounting, closing SSE');
 
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      if (sseClientRef.current) {
+        sseClientRef.current.abort();
       }
 
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [conversationId]);
+  }, [conversationId, fetchConversationStatus]);
 
   /**
    * Page visibility: Reconnect when user returns to tab

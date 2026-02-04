@@ -264,7 +264,7 @@ class SupabaseAuth:
     def verify_workspace_access(
         self,
         token: str,
-        workspace_id: UUID,  # noqa: ARG002
+        workspace_id: UUID,
     ) -> bool:
         """Verify user has access to workspace.
 

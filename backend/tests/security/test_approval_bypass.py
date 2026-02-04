@@ -28,7 +28,7 @@ class TestApprovalBypassPrevention:
     @pytest.mark.asyncio
     async def test_cannot_create_issue_without_approval_when_ai_source(
         self,
-        db_session: AsyncSession,  # noqa: ARG002 - Required for test signature
+        db_session: AsyncSession,
     ) -> None:
         """Verify issues extracted by AI require approval before creation.
 
@@ -184,7 +184,7 @@ class TestApprovalBypassPrevention:
     @pytest.mark.asyncio
     async def test_approval_requires_workspace_membership(
         self,
-        db_session: AsyncSession,  # noqa: ARG002 - Required for test signature
+        db_session: AsyncSession,
     ) -> None:
         """Verify only workspace members can approve requests.
 

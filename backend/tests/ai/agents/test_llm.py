@@ -17,13 +17,13 @@ Test coverage requirements:
 
 from __future__ import annotations
 
-import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
 import pytest
 
+from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.agents.llm import (
     AnthropicLLMMixin,
     AnthropicStreamingLLMMixin,
@@ -32,22 +32,16 @@ from pilot_space.ai.agents.llm import (
     DocumentPromptMessageContent,
     ImagePromptMessageContent,
     LLMResult,
-    LLMResultChunk,
-    LLMResultChunkDelta,
-    LLMUsage,
     MessageConverter,
     PromptCachingHandler,
     PromptMessage,
-    StreamingHandler,
     SystemPromptMessage,
     TextPromptMessageContent,
     ToolPromptMessage,
     ToolTransformer,
     UserPromptMessage,
 )
-from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.exceptions import AIConfigurationError
-
 
 # ============================================================================
 # Test Fixtures
@@ -166,9 +160,7 @@ class TestPromptCachingHandler:
     def test_get_system_prompt_multiple_cache_blocks(self) -> None:
         """Test multiple <cache> blocks."""
         messages = [
-            SystemPromptMessage(
-                content="<cache>Block 1</cache>\nMiddle\n<cache>Block 2</cache>"
-            )
+            SystemPromptMessage(content="<cache>Block 1</cache>\nMiddle\n<cache>Block 2</cache>")
         ]
         handler = PromptCachingHandler(messages, enable_system_cache=True)
         system = handler.get_system_prompt()
@@ -431,9 +423,7 @@ class TestToolTransformer:
             "description": "Get weather for location",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "location": {"type": "string", "description": "City name"}
-                },
+                "properties": {"location": {"type": "string", "description": "City name"}},
                 "required": ["location"],
             },
         }
@@ -537,9 +527,7 @@ class TestToolTransformer:
         transformer = ToolTransformer()
         result = transformer.transform_tool(tool)
 
-        priority_schema = result["input_schema"]["properties"]["metadata"]["properties"][
-            "priority"
-        ]
+        priority_schema = result["input_schema"]["properties"]["metadata"]["properties"]["priority"]
         assert priority_schema["type"] == "string"
         assert priority_schema["enum"] == ["high", "low"]
 
@@ -561,17 +549,13 @@ class TestAnthropicLLMMixin:
         class BadAgent(AnthropicLLMMixin):
             """Agent without key storage."""
 
-            pass
-
         agent = BadAgent()
 
         with pytest.raises(AttributeError, match="requires _key_storage"):
             await agent._get_anthropic_client(mock_context)
 
     @pytest.mark.asyncio
-    async def test_get_anthropic_client_missing_api_key(
-        self, mock_context: AgentContext
-    ) -> None:
+    async def test_get_anthropic_client_missing_api_key(self, mock_context: AgentContext) -> None:
         """Test error when API key not configured."""
         storage = AsyncMock()
         storage.get_api_key.return_value = None
@@ -791,13 +775,8 @@ class TestAnthropicStreamingLLMMixin:
             # Mock streaming response
             from anthropic.types import (
                 ContentBlockDeltaEvent,
-                ContentBlockStartEvent,
-                ContentBlockStopEvent,
                 MessageStartEvent,
                 MessageStopEvent,
-                RawContentBlockDeltaEvent,
-                RawMessageStartEvent,
-                RawMessageStopEvent,
                 TextBlock,
                 TextDelta,
             )

@@ -14,9 +14,8 @@ import type { Cycle } from '@/types';
 // Mocks - Radix DropdownMenu
 // ---------------------------------------------------------------------------
 
-vi.mock('@/components/ui/dropdown-menu', () => {
+vi.mock('@/components/ui/dropdown-menu', async () => {
   return {
-    DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => (
       <div data-testid="dropdown-trigger">{children}</div>
     ),

@@ -10,8 +10,15 @@ Design Decisions: DD-002 (BYOK), DD-058 (SDK mode clarification)
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 from uuid import UUID
+
+# Centralized model ID constants (DD-011 provider routing)
+MODEL_SONNET: Final[str] = "claude-sonnet-4-20250514"
+MODEL_OPUS: Final[str] = "claude-opus-4-5-20251101"
+MODEL_HAIKU: Final[str] = "claude-haiku-4-5-20251001"
+MODEL_GEMINI_FLASH: Final[str] = "gemini-2.0-flash"
+MODEL_EMBEDDING: Final[str] = "text-embedding-3-large"
 
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
@@ -42,7 +49,7 @@ class ClaudeAgentOptions:
     """
 
     api_key: str
-    model: str = "claude-sonnet-4-20250514"
+    model: str = MODEL_SONNET
     max_tokens: int = 8192
     temperature: float = 0.7
     system_prompt: str | None = None
@@ -84,7 +91,7 @@ async def create_agent_options(
     workspace_id: str,
     user_id: str,
     key_storage: SecureKeyStorage,
-    model: str = "claude-sonnet-4-20250514",
+    model: str = MODEL_SONNET,
     tool_registry: ToolRegistry | None = None,
     session_manager: SessionManager | None = None,
     **kwargs: Any,
@@ -149,11 +156,11 @@ def get_model_for_task(task_type: str) -> str:
         Model identifier string
     """
     model_mapping = {
-        "code": "claude-sonnet-4-20250514",
-        "architecture": "claude-opus-4-5-20251101",
-        "latency": "gemini-2.0-flash",
-        "embedding": "text-embedding-3-large",
-        "general": "claude-sonnet-4-20250514",
+        "code": MODEL_SONNET,
+        "architecture": MODEL_OPUS,
+        "latency": MODEL_GEMINI_FLASH,
+        "embedding": MODEL_EMBEDDING,
+        "general": MODEL_SONNET,
     }
 
-    return model_mapping.get(task_type, "claude-sonnet-4-20250514")
+    return model_mapping.get(task_type, MODEL_SONNET)

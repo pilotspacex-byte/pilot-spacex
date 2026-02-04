@@ -7,7 +7,7 @@ import { memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { CheckCircle2, Circle, XCircle, ChevronDown, Terminal } from 'lucide-react';
+import { CheckCircle2, Circle, XCircle, ChevronDown, Terminal, GitBranch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ToolCall } from '@/stores/ai/types/conversation';
 
@@ -67,15 +67,25 @@ const ToolCallItem = memo<{ toolCall: ToolCall }>(({ toolCall }) => {
 
         <CollapsibleContent>
           <div className="border-t px-4 py-3 space-y-3">
-            {/* Input */}
-            {Object.keys(toolCall.input).length > 0 && (
+            {/* Input — show partialInput while streaming, full input when complete (G-09) */}
+            {status === 'pending' && toolCall.partialInput ? (
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  Input
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ai" />
+                </span>
+                <pre className="text-xs bg-muted/50 p-2 rounded overflow-x-auto opacity-70">
+                  {toolCall.partialInput}
+                </pre>
+              </div>
+            ) : Object.keys(toolCall.input).length > 0 ? (
               <div className="space-y-1">
                 <span className="text-xs font-medium text-muted-foreground">Input</span>
                 <pre className="text-xs bg-muted/50 p-2 rounded overflow-x-auto">
                   {JSON.stringify(toolCall.input, null, 2)}
                 </pre>
               </div>
-            )}
+            ) : null}
 
             {/* Output */}
             {toolCall.output !== undefined && (
@@ -100,14 +110,24 @@ ToolCallItem.displayName = 'ToolCallItem';
 export const ToolCallList = memo<ToolCallListProps>(({ toolCalls, className }) => {
   if (toolCalls.length === 0) return null;
 
+  const isParallel = toolCalls.length > 1;
+
   return (
     <div className={cn('space-y-2', className)}>
-      <div className="text-xs font-medium text-muted-foreground px-4">
-        Tool Calls ({toolCalls.length})
+      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground px-4">
+        Tool Calls ({toolCalls.length}){/* G-13: Indicate parallel tool execution */}
+        {isParallel && (
+          <span className="inline-flex items-center gap-1 text-ai">
+            <GitBranch className="h-3 w-3" />
+            Parallel
+          </span>
+        )}
       </div>
-      {toolCalls.map((toolCall) => (
-        <ToolCallItem key={toolCall.id} toolCall={toolCall} />
-      ))}
+      <div className={cn('space-y-2', isParallel && 'border-l-2 border-l-ai/20 pl-2')}>
+        {toolCalls.map((toolCall) => (
+          <ToolCallItem key={toolCall.id} toolCall={toolCall} />
+        ))}
+      </div>
     </div>
   );
 });

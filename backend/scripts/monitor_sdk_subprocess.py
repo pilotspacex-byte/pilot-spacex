@@ -68,9 +68,9 @@ class SDKSubprocessMonitor:
                 name = proc.info["name"]
                 cmdline = proc.info["cmdline"]
 
-                if name and "claude" in name.lower():
-                    claude_procs.append(proc)
-                elif cmdline and any("claude" in arg.lower() for arg in cmdline):
+                if (name and "claude" in name.lower()) or (
+                    cmdline and any("claude" in arg.lower() for arg in cmdline)
+                ):
                     claude_procs.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
@@ -181,13 +181,17 @@ class SDKSubprocessMonitor:
 
             print(f"\n--- PID {pid} ({snapshots[0].name}) ---")
             print(f"Snapshots: {len(snapshots)}")
-            print(f"Duration: {(snapshots[-1].timestamp - snapshots[0].timestamp).total_seconds():.1f}s")
+            print(
+                f"Duration: {(snapshots[-1].timestamp - snapshots[0].timestamp).total_seconds():.1f}s"
+            )
 
             cpu_values = [s.cpu_percent for s in snapshots]
             mem_values = [s.memory_mb for s in snapshots]
 
-            print(f"CPU: avg={sum(cpu_values)/len(cpu_values):.1f}% max={max(cpu_values):.1f}%")
-            print(f"Memory: avg={sum(mem_values)/len(mem_values):.1f}MB max={max(mem_values):.1f}MB")
+            print(f"CPU: avg={sum(cpu_values) / len(cpu_values):.1f}% max={max(cpu_values):.1f}%")
+            print(
+                f"Memory: avg={sum(mem_values) / len(mem_values):.1f}MB max={max(mem_values):.1f}MB"
+            )
             print(f"Threads: {snapshots[-1].num_threads}")
             print(f"Final status: {snapshots[-1].status}")
 
@@ -213,26 +217,30 @@ class SDKSubprocessMonitor:
 
         with open(filename, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "timestamp",
-                "pid",
-                "name",
-                "cpu_percent",
-                "memory_mb",
-                "num_threads",
-                "status",
-            ])
+            writer.writerow(
+                [
+                    "timestamp",
+                    "pid",
+                    "name",
+                    "cpu_percent",
+                    "memory_mb",
+                    "num_threads",
+                    "status",
+                ]
+            )
 
             for snap in self.snapshots:
-                writer.writerow([
-                    snap.timestamp.isoformat(),
-                    snap.pid,
-                    snap.name,
-                    snap.cpu_percent,
-                    snap.memory_mb,
-                    snap.num_threads,
-                    snap.status,
-                ])
+                writer.writerow(
+                    [
+                        snap.timestamp.isoformat(),
+                        snap.pid,
+                        snap.name,
+                        snap.cpu_percent,
+                        snap.memory_mb,
+                        snap.num_threads,
+                        snap.status,
+                    ]
+                )
 
         logger.info(f"[Export] Wrote {len(self.snapshots)} snapshots to {filename}")
 

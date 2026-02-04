@@ -333,7 +333,7 @@ class SupabaseQueueClient:
         *,
         error: str | None = None,
         requeue: bool = True,
-        delay_seconds: int = 0,  # noqa: ARG002
+        delay_seconds: int = 0,
     ) -> bool:
         """Negative acknowledge - message processing failed.
 

@@ -63,11 +63,16 @@ ignore = [
     "TRY300",   # Consider moving return to else block (style preference)
     "TRY401",   # Redundant exception in logging.exception (useful for context)
     "ARG001",   # Unused function argument (often needed for interfaces)
+    "ARG002",   # Unused method argument (often needed for interface/base class implementations)
     "TC001",    # Move application import into TYPE_CHECKING (needed at runtime)
+    "TC002",    # Move third-party import into TYPE_CHECKING (needed at runtime for Pydantic/SQLAlchemy)
     "TC003",    # Move standard library import into TYPE_CHECKING (needed at runtime for SQLAlchemy)
     "SIM102",   # Nested if for change detection readability
     "RUF034",   # Useless if-else (sometimes intentional for consistency)
     "PERF401",  # Use list comprehension (sometimes loop is clearer)
+    "B008",     # Function call in default argument (standard FastAPI Depends() pattern)
+    "RUF001",   # Ambiguous unicode character (intentional in prompts/templates)
+    "RUF059",   # Unused unpacked variable (often needed for structure matching)
     "UP046",    # PEP 695 Generic class - not fully supported by pyright for dataclasses
     "UP047",    # PEP 695 Generic function - TypeVar needed for decorator patterns
     "PYI034",   # __new__ returning Self - singleton pattern requires type: ignore
@@ -82,11 +87,18 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [lint.per-file-ignores]
 # Tests can have assertions, unused fixtures, and access private members for unit testing
-"tests/**/*.py" = ["S101", "ARG001", "PLR2004", "SLF001"]
+"tests/**/*.py" = ["S101", "ARG001", "PLR2004", "SLF001", "F841", "PLR0911"]
 # Init files can have unused imports
 "__init__.py" = ["F401"]
 # Alembic migrations have specific patterns
 "alembic/**/*.py" = ["INP001", "E501"]
+# Domain models __all__ is grouped by category, not alphabetical
+"src/pilot_space/domain/models/__init__.py" = ["RUF022"]
+# Complex hook dispatch has many return paths
+"src/pilot_space/ai/sdk/file_hooks.py" = ["PLR0911"]
+"src/pilot_space/ai/sdk/hook_executor.py" = ["PLR0911"]
+# Scripts have relaxed rules
+"scripts/**/*.py" = ["DTZ005", "T20", "INP001", "F841", "PTH123", "RET504", "TRY400", "PLR0911", "RUF022"]
 
 [lint.isort]
 # isort configuration

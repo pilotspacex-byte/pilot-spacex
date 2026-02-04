@@ -13,7 +13,12 @@ Reference: backend/src/pilot_space/ai/session/session_manager.py
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 
 class TestSessionPersistence:

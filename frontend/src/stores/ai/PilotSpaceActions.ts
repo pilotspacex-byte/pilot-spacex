@@ -170,9 +170,10 @@ export class PilotSpaceActions {
 
     try {
       // Send approval to backend via API
+      const authHeaders = await this.streamHandler.getAuthHeaders();
       await fetch(`${API_BASE}/ai/approvals`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           request_id: requestId,
           decision: 'approved',
@@ -207,9 +208,10 @@ export class PilotSpaceActions {
 
     try {
       // Send rejection to backend via API
+      const authHeaders = await this.streamHandler.getAuthHeaders();
       await fetch(`${API_BASE}/ai/approvals`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           request_id: requestId,
           decision: 'rejected',
@@ -233,7 +235,6 @@ export class PilotSpaceActions {
    * Alias for approveRequest to match IPilotSpaceStore interface.
    */
   async approveAction(id: string, _modifications?: Record<string, unknown>): Promise<void> {
-    // TODO: Handle modifications when modify-before-approve is implemented
     await this.approveRequest(id);
   }
 
@@ -296,13 +297,21 @@ export class PilotSpaceActions {
     // Send abort signal to backend to interrupt Claude SDK process.
     // Fire-and-forget: don't await, SSE close handles cleanup regardless.
     if (this.store.sessionId) {
-      fetch(`${API_BASE}/ai/chat/abort`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: this.store.sessionId }),
-      }).catch(() => {
-        // Ignore errors - SSE disconnect will also trigger cleanup
-      });
+      const sessionId = this.store.sessionId;
+      this.streamHandler
+        .getAuthHeaders()
+        .then((authHeaders) => {
+          fetch(`${API_BASE}/ai/chat/abort`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify({ session_id: sessionId }),
+          }).catch(() => {
+            // Ignore errors - SSE disconnect will also trigger cleanup
+          });
+        })
+        .catch(() => {
+          // Ignore auth errors - SSE disconnect will also trigger cleanup
+        });
     }
 
     this.streamHandler.abortClient();

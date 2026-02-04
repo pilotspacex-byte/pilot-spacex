@@ -127,7 +127,7 @@ class TestListApprovals:
         self,
         client: AsyncClient,
         auth_headers: dict[str, str],
-        test_approval: AIApprovalRequest,  # noqa: ARG002
+        test_approval: AIApprovalRequest,
     ) -> None:
         """Verify listing pending approval requests."""
         response = await client.get(
@@ -161,7 +161,7 @@ class TestListApprovals:
         self,
         client: AsyncClient,
         auth_headers: dict[str, str],
-        test_approval: AIApprovalRequest,  # noqa: ARG002
+        test_approval: AIApprovalRequest,
     ) -> None:
         """Verify pagination works."""
         response = await client.get(
@@ -279,7 +279,7 @@ class TestResolveApproval:
         client: AsyncClient,
         auth_headers: dict[str, str],
         test_approval: AIApprovalRequest,
-        db_session: AsyncSession,  # noqa: ARG002
+        db_session: AsyncSession,
     ) -> None:
         """Verify resolving already-resolved request fails."""
         # First resolution

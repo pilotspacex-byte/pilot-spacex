@@ -3,7 +3,7 @@
  * Shows badge indicator and opens dialog for active approvals
  */
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,17 +23,20 @@ export const ApprovalOverlay = observer<ApprovalOverlayProps>(
   ({ approvals, onApprove, onReject, className }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    // Track last seen approval count to detect genuinely new arrivals
+    const lastSeenCountRef = useRef(0);
 
     const currentApproval = approvals[currentIndex] || null;
     const hasApprovals = approvals.length > 0;
 
-    // Auto-open dialog when new approval arrives
+    // Auto-open dialog only when new approvals arrive (not on dismiss)
     useEffect(() => {
-      if (hasApprovals && !isDialogOpen) {
+      if (hasApprovals && approvals.length > lastSeenCountRef.current) {
         setIsDialogOpen(true);
         setCurrentIndex(0);
       }
-    }, [hasApprovals, isDialogOpen]);
+      lastSeenCountRef.current = approvals.length;
+    }, [hasApprovals, approvals.length]);
 
     const handleNext = useCallback(() => {
       if (currentIndex < approvals.length - 1) {
