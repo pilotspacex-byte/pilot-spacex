@@ -234,11 +234,68 @@ class SessionStore:
             logger.exception("Failed to load session %s from database", session_id)
             return None
 
+    async def load_by_context(
+        self,
+        user_id: UUID,
+        agent_name: str,
+        context_id: UUID,
+    ) -> RedisSession | None:
+        """Find most recent active session by context from PostgreSQL.
+
+        Called when Redis index has expired but session may still exist
+        in PostgreSQL (24h TTL). Restores found session to Redis.
+
+        Args:
+            user_id: User UUID.
+            agent_name: Agent name.
+            context_id: Context entity UUID (note_id, issue_id, etc).
+
+        Returns:
+            RedisSession if found and not expired, None otherwise.
+        """
+        try:
+            from sqlalchemy import and_, desc, select
+
+            from pilot_space.infrastructure.database.models.ai_session import (
+                AISession as DBSession,
+            )
+
+            stmt = (
+                select(DBSession)
+                .where(
+                    and_(
+                        DBSession.user_id == user_id,
+                        DBSession.agent_name == agent_name,
+                        DBSession.context_id == context_id,
+                        DBSession.expires_at > datetime.now(UTC),
+                    )
+                )
+                .order_by(desc(DBSession.updated_at))
+                .limit(1)
+            )
+
+            result = await self._db.execute(stmt)
+            db_session = result.scalar_one_or_none()
+
+            if not db_session:
+                return None
+
+            # Reuse load_from_db to restore to Redis
+            return await self.load_from_db(db_session.id)
+
+        except Exception:
+            logger.exception(
+                "Failed to load session by context %s from database",
+                context_id,
+            )
+            return None
+
     async def list_sessions_for_user(
         self,
         user_id: UUID,
         workspace_id: UUID | None = None,
         agent_name: str | None = None,
+        context_id: UUID | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """List sessions for a user.
@@ -247,6 +304,7 @@ class SessionStore:
             user_id: User UUID.
             workspace_id: Optional workspace filter.
             agent_name: Optional agent filter.
+            context_id: Optional context entity filter (note_id, issue_id).
             limit: Maximum sessions to return (default: 50).
 
         Returns:
@@ -266,6 +324,9 @@ class SessionStore:
 
         if agent_name:
             conditions.append(DBSession.agent_name == agent_name)
+
+        if context_id:
+            conditions.append(DBSession.context_id == context_id)
 
         # Filter out expired sessions
         conditions.append(DBSession.expires_at > datetime.now(UTC))

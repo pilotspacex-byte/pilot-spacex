@@ -122,7 +122,10 @@ async def chat(
         ai_context["selected_block_ids"] = chat_request.context.selected_block_ids
 
     # Get, fork, or create conversation session
+    # Priority: fork > explicit session_id > context lookup > create new
     conv_session = None
+    is_existing_session = False
+    context_id = chat_request.context.note_id or chat_request.context.issue_id
     if session_handler is not None:
         if chat_request.fork_session_id:
             # Fork from existing session (what-if exploration)
@@ -139,12 +142,41 @@ async def chat(
                 workspace_id=chat_request.context.workspace_id,
                 user_id=user_id,
             )
-        else:
+            if conv_session:
+                is_existing_session = True
+            else:
+                logger.warning(
+                    "Session %s not found in Redis, trying context lookup",
+                    chat_request.session_id,
+                )
+
+        # Fallback: if explicit session_id failed or not provided, try context
+        if conv_session is None and context_id:
+            conv_session = await session_handler.get_session_by_context(
+                user_id=user_id,
+                workspace_id=chat_request.context.workspace_id,
+                agent_name="conversation",
+                context_id=context_id,
+            )
+            if conv_session:
+                is_existing_session = True
+
+        # Last resort: create new session
+        if conv_session is None:
             conv_session = await session_handler.create_session(
                 workspace_id=chat_request.context.workspace_id,
                 user_id=user_id,
                 agent_name="conversation",
+                context_id=context_id,
             )
+
+    logger.info(
+        "Session resolved: id=%s, existing=%s, context_id=%s, requested=%s",
+        conv_session.session_id if conv_session else None,
+        is_existing_session,
+        context_id,
+        chat_request.session_id,
+    )
 
     # Queue mode: enqueue and return job reference
     from pilot_space.config import get_settings
@@ -180,12 +212,15 @@ async def chat(
 
     # Direct mode: blocking SSE stream
     # session_id: tracking ID for all conversations (new or resumed)
-    # resume_session_id: only set when resuming an existing conversation
+    # resume_session_id: only set when resuming an existing session (triggers
+    # --resume in Claude SDK CLI to restore conversation history)
     agent_input = {
         "message": chat_request.message,
         "context": ai_context,
         "session_id": str(conv_session.session_id) if conv_session else None,
-        "resume_session_id": chat_request.session_id,  # None for new conversations
+        "resume_session_id": (
+            str(conv_session.session_id) if is_existing_session and conv_session else None
+        ),
         "user_id": str(user_id),
         "workspace_id": str(chat_request.context.workspace_id),
     }
@@ -196,6 +231,7 @@ async def chat(
         Checks for client disconnect after each yielded chunk.
         When disconnect is detected, the generator exits which triggers
         the agent's finally block to interrupt the Claude SDK process.
+        After streaming completes, persists the session to PostgreSQL.
         """
         import asyncio
 
@@ -212,12 +248,51 @@ async def chat(
                         break
         except TimeoutError:
             logger.warning("Direct SSE stream timeout")
-            error_data = {"errorCode": "stream_timeout", "message": "Stream exceeded maximum duration", "retryable": False}
+            error_data = {
+                "errorCode": "stream_timeout",
+                "message": "Stream exceeded maximum duration",
+                "retryable": False,
+            }
             yield f"event: error\ndata: {orjson.dumps(error_data).decode()}\n\n"
         except Exception as e:
             logger.exception("Chat endpoint error: %s", e)
-            error_data = {"errorCode": "api_error", "message": "An internal error occurred", "retryable": False}
+            error_data = {
+                "errorCode": "api_error",
+                "message": "An internal error occurred",
+                "retryable": False,
+            }
             yield f"event: error\ndata: {orjson.dumps(error_data).decode()}\n\n"
+
+    async def _persist_session_background() -> None:
+        """Persist session to PostgreSQL after stream completes.
+
+        Runs as a BackgroundTask so the db session is fresh and the
+        StreamingResponse generator has fully completed.
+        """
+        if not conv_session or not session_handler:
+            return
+        try:
+            from pilot_space.infrastructure.database.engine import get_db_session
+
+            async with get_db_session() as fresh_db:
+                from pilot_space.ai.sdk.session_store import SessionStore
+
+                store = SessionStore(
+                    session_handler.session_manager,
+                    fresh_db,
+                )
+                await store.save_to_db(conv_session.session_id)
+                logger.info(
+                    "Persisted session %s to database (background)",
+                    conv_session.session_id,
+                )
+        except Exception:
+            logger.exception(
+                "Failed to persist session %s after stream",
+                conv_session.session_id,
+            )
+
+    from starlette.background import BackgroundTask
 
     return StreamingResponse(
         stream_response(),
@@ -227,6 +302,7 @@ async def chat(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+        background=BackgroundTask(_persist_session_background),
     )
 
 
@@ -387,7 +463,11 @@ async def stream_job(
                     await pubsub.aclose()
         except TimeoutError:
             logger.warning("SSE stream timeout for job %s", job_id)
-            error_data = {"errorCode": "stream_timeout", "message": "Stream exceeded maximum duration", "retryable": False}
+            error_data = {
+                "errorCode": "stream_timeout",
+                "message": "Stream exceeded maximum duration",
+                "retryable": False,
+            }
             yield f"event: error\ndata: {orjson.dumps(error_data).decode()}\n\n"
 
     return StreamingResponse(

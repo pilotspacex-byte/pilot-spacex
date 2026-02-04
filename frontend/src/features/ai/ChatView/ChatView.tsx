@@ -74,24 +74,24 @@ const ChatViewInternal = observer<ChatViewProps>(
     const prefersReducedMotion = useReducedMotion();
 
     // Initialize SessionListStore (T075-T079)
-    const [sessionListStore] = useState(
-      () => new SessionListStore(store as unknown as import('@/stores/ai/AIStore').AIStore)
-    );
+    const [sessionListStore] = useState(() => new SessionListStore(store));
 
     // Fetch sessions on mount
     useEffect(() => {
       sessionListStore.fetchSessions();
     }, [sessionListStore]);
 
-    // Load conversation history for note context when ChatView opens
+    // Load conversation history for note context when ChatView opens or noteId changes
     const loadedContextRef = useRef<string | null>(null);
     useEffect(() => {
       const noteId = store.noteContext?.noteId;
-      if (!noteId || store.messages.length > 0 || loadedContextRef.current === noteId) return;
+      if (!noteId || loadedContextRef.current === noteId) return;
 
+      // Clear previous note's conversation before loading new one
+      store.clearConversation();
       loadedContextRef.current = noteId;
       sessionListStore.resumeSessionForContext(noteId, 'note');
-    }, [store.noteContext?.noteId, store.messages.length, sessionListStore]);
+    }, [store.noteContext?.noteId, sessionListStore, store]);
 
     // Convert TaskState to AgentTask for TaskPanel with progress data
     const agentTasks = useMemo((): AgentTask[] => {
@@ -166,9 +166,12 @@ const ChatViewInternal = observer<ChatViewProps>(
     const handleSubmit = useCallback(async () => {
       if (!inputValue.trim() || store.isStreaming) return;
 
+      const message = inputValue.trim();
       try {
-        await store.sendMessage(inputValue.trim());
+        setInputValue('');
+        await store.sendMessage(message);
       } catch (error) {
+        setInputValue(message);
         store.error = error instanceof Error ? error.message : 'Failed to send message';
       }
     }, [inputValue, store]);

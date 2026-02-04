@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runInAction } from 'mobx';
 import { SessionListStore, type SessionSummary } from '../SessionListStore';
-import type { AIStore } from '../AIStore';
+import type { PilotSpaceStore } from '../PilotSpaceStore';
 
 // ========================================
 // Helpers
@@ -30,14 +30,13 @@ function makeSession(overrides: Partial<SessionSummary> & { sessionId: string })
   };
 }
 
-function createMockRootStore(pilotSpaceMock?: Record<string, unknown>): AIStore {
+function createMockPilotSpaceStore(overrides?: Record<string, unknown>): PilotSpaceStore {
   return {
-    isGloballyEnabled: true,
-    pilotSpace: pilotSpaceMock ?? {
-      clear: vi.fn(),
-      setForkSessionId: vi.fn(),
-    },
-  } as unknown as AIStore;
+    clear: vi.fn(),
+    setForkSessionId: vi.fn(),
+    workspaceId: null,
+    ...overrides,
+  } as unknown as PilotSpaceStore;
 }
 
 // ========================================
@@ -46,11 +45,11 @@ function createMockRootStore(pilotSpaceMock?: Record<string, unknown>): AIStore 
 
 describe('SessionListStore - Fork Features', () => {
   let store: SessionListStore;
-  let mockRootStore: AIStore;
+  let mockRootStore: PilotSpaceStore;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRootStore = createMockRootStore();
+    mockRootStore = createMockPilotSpaceStore();
     store = new SessionListStore(mockRootStore);
   });
 
@@ -158,7 +157,7 @@ describe('SessionListStore - Fork Features', () => {
     it('should call pilotSpaceStore.clear() and setForkSessionId()', () => {
       const mockClear = vi.fn();
       const mockSetForkSessionId = vi.fn();
-      mockRootStore = createMockRootStore({
+      mockRootStore = createMockPilotSpaceStore({
         clear: mockClear,
         setForkSessionId: mockSetForkSessionId,
       });
@@ -173,7 +172,7 @@ describe('SessionListStore - Fork Features', () => {
 
     it('should call clear() before setForkSessionId()', () => {
       const callOrder: string[] = [];
-      mockRootStore = createMockRootStore({
+      mockRootStore = createMockPilotSpaceStore({
         clear: vi.fn(() => callOrder.push('clear')),
         setForkSessionId: vi.fn(() => callOrder.push('setForkSessionId')),
       });
@@ -183,13 +182,6 @@ describe('SessionListStore - Fork Features', () => {
 
       expect(callOrder).toEqual(['clear', 'setForkSessionId']);
     });
-
-    it('should not throw when pilotSpaceStore is null', () => {
-      mockRootStore = { isGloballyEnabled: true, pilotSpace: null } as unknown as AIStore;
-      store = new SessionListStore(mockRootStore);
-
-      expect(() => store.prepareFork('any-id')).not.toThrow();
-    });
   });
 
   describe('fetchSessions fork field mapping', () => {
@@ -197,7 +189,7 @@ describe('SessionListStore - Fork Features', () => {
       const mockResponse = {
         sessions: [
           {
-            session_id: 'sess-1',
+            id: 'sess-1',
             agent_name: 'conversation',
             created_at: '2025-01-01T00:00:00Z',
             updated_at: '2025-01-01T01:00:00Z',
@@ -208,7 +200,7 @@ describe('SessionListStore - Fork Features', () => {
             fork_count: 2,
           },
           {
-            session_id: 'sess-2',
+            id: 'sess-2',
             agent_name: 'conversation',
             created_at: '2025-01-01T02:00:00Z',
             updated_at: '2025-01-01T03:00:00Z',
