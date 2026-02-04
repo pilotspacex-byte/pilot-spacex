@@ -29,11 +29,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from pilot_space.ai.agents.agent_base import AgentContext
-from pilot_space.ai.agents.pr_review_agent import (
+from pilot_space.ai.agents.subagents.pr_review_subagent import (
     PRReviewInput,
 )
 from pilot_space.api.v1.streaming import format_sse_event
-from pilot_space.dependencies import get_current_user_id, get_sdk_orchestrator
+from pilot_space.dependencies import PilotSpaceAgentDep, get_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ async def stream_pr_review(
     repo_id: Annotated[UUID, Path(description="Repository UUID")],
     pr_number: Annotated[int, Path(description="PR number", ge=1)],
     review_request: StreamPRReviewRequest,
-    orchestrator: Annotated[..., Depends(get_sdk_orchestrator)],
+    agent: PilotSpaceAgentDep,
     user_id: Annotated[UUID, Depends(get_current_user_id)],
 ):
     """Stream PR review generation with aspect-by-aspect progress.
@@ -101,7 +101,7 @@ async def stream_pr_review(
         repo_id: Repository UUID.
         pr_number: Pull request number.
         review_request: Request body with repository and force_refresh.
-        orchestrator: SDK orchestrator with registered agents.
+        agent: PilotSpaceAgent instance.
         user_id: Current user ID from auth.
 
     Returns:
@@ -185,7 +185,7 @@ async def stream_pr_review(
 
             # Stream tokens from agent
             try:
-                async for chunk in orchestrator.stream("pr_review", input_data, context):
+                async for chunk in agent.stream(input_data, context):
                     # Check for client disconnect during streaming
                     if await request.is_disconnected():
                         logger.info("Client disconnected during review")

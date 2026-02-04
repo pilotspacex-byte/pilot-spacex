@@ -77,8 +77,11 @@ async def get_task_progress(
         Task progress details.
 
     Raises:
-        HTTPException: 404 if task not found.
+        HTTPException: 404 if task not found or 403 if unauthorized.
     """
+    from sqlalchemy import select
+
+    from pilot_space.infrastructure.database.models.ai_session import AISession
     from pilot_space.infrastructure.database.repositories.ai_task_repository import (
         AITaskRepository,
     )
@@ -88,6 +91,14 @@ async def get_task_progress(
 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+
+    # Verify task ownership via session
+    stmt = select(AISession).where(AISession.id == task.session_id)
+    result = await session.execute(stmt)
+    ai_session = result.scalar_one_or_none()
+
+    if not ai_session or ai_session.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this task")
 
     # Extract metadata fields
     metadata = task.task_metadata or {}

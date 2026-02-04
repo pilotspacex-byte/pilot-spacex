@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/ai/chat", tags=["ai-chat-reconnect"])
+router = APIRouter(prefix="/ai/chat", tags=["ai-chat-reconnect"])
 
 
 class JobStatus(BaseModel):

@@ -15,7 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from pilot_space.dependencies import CurrentUserId, RedisDep
+from pilot_space.dependencies import CurrentUserId, DbSession, RedisDep
 
 router = APIRouter(prefix="/ai/ghost-text", tags=["ghost-text"])
 
@@ -152,6 +152,7 @@ async def generate_ghost_text(
 async def clear_workspace_cache(
     workspace_id: UUID,
     user_id: CurrentUserId,
+    session: DbSession,
     redis: RedisDep,
 ) -> dict[str, Any]:
     """Clear ghost text cache for workspace.
@@ -159,11 +160,33 @@ async def clear_workspace_cache(
     Args:
         workspace_id: Workspace UUID.
         user_id: Current user ID (from auth).
+        session: Database session.
         redis: Redis client.
 
     Returns:
         Cache clear result with count.
+
+    Raises:
+        HTTPException: 403 if user is not a workspace member.
     """
+    from sqlalchemy import exists, select
+
+    from pilot_space.infrastructure.database.models.workspace_member import (
+        WorkspaceMember,
+    )
+
+    # Verify workspace membership
+    stmt = select(
+        exists().where(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == user_id,
+        )
+    )
+    result = await session.execute(stmt)
+    is_member = result.scalar()
+
+    if not is_member:
+        raise HTTPException(status_code=403, detail="Not a member of this workspace")
     from pilot_space.ai.services.ghost_text import GhostTextService
 
     service = GhostTextService(redis)

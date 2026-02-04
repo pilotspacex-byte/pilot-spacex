@@ -11,6 +11,7 @@
  * @see T075-T079 (Session Persistence UI)
  */
 import { makeAutoObservable, runInAction } from 'mobx';
+import { supabase } from '@/lib/supabase';
 import type { AIStore } from './AIStore';
 
 /**
@@ -130,6 +131,28 @@ export class SessionListStore {
   }
 
   // ========================================
+  // Auth Helpers
+  // ========================================
+
+  /**
+   * Get Supabase auth headers for authenticated requests.
+   */
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.access_token) {
+        return { Authorization: `Bearer ${session.access_token}` };
+      }
+    } catch {
+      console.warn('Failed to get auth session for session list request');
+    }
+    return {};
+  }
+
+  // ========================================
   // Actions - Session Management
   // ========================================
 
@@ -145,9 +168,10 @@ export class SessionListStore {
 
     try {
       // Get sessions list from backend
+      const authHeaders = await this.getAuthHeaders();
       const response = await fetch(`${API_BASE}/ai/sessions?limit=${limit}`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
       });
 
       if (!response.ok) {
@@ -193,9 +217,10 @@ export class SessionListStore {
 
     try {
       // Resume session to fetch session history
+      const authHeaders = await this.getAuthHeaders();
       const response = await fetch(`${API_BASE}/ai/sessions/${sessionId}/resume`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({}),
       });
 
@@ -269,9 +294,10 @@ export class SessionListStore {
    */
   async deleteSession(sessionId: string): Promise<void> {
     try {
+      const authHeaders = await this.getAuthHeaders();
       const response = await fetch(`${API_BASE}/ai/sessions/${sessionId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
       });
 
       if (!response.ok) {

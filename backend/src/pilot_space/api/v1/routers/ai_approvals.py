@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import uuid
 from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
@@ -51,20 +52,50 @@ def _get_context_preview(payload: dict[str, Any]) -> str:
     return "Action pending approval"
 
 
-async def verify_workspace_admin(current_user_id: uuid.UUID, workspace_id: uuid.UUID) -> None:
+async def verify_workspace_admin(
+    current_user_id: uuid.UUID,
+    workspace_id: uuid.UUID,
+    session: DbSession,
+) -> None:
     """Verify user is workspace admin.
-
-    Note: This is a legacy helper. Prefer using the ``WorkspaceAdminId``
-    dependency from ``pilot_space.dependencies`` which performs the actual
-    DB check. This function is kept for backward compatibility but
-    delegates to a no-op since callers should migrate to the dependency.
 
     Args:
         current_user_id: User to verify.
         workspace_id: Workspace to check.
+        session: Database session.
+
+    Raises:
+        HTTPException: 403 if user is not an admin/owner.
     """
-    # Callers should migrate to WorkspaceAdminId dependency for real checks.
-    # See pilot_space.dependencies.require_workspace_admin.
+    from pilot_space.config import get_settings
+
+    settings = get_settings()
+
+    # Skip in demo mode
+    if settings.app_env in ("development", "test") and current_user_id == UUID(
+        "00000000-0000-0000-0000-000000000001"
+    ):
+        return
+
+    from sqlalchemy import select
+
+    from pilot_space.infrastructure.database.models.workspace_member import (
+        WorkspaceMember,
+        WorkspaceRole,
+    )
+
+    stmt = select(WorkspaceMember.role).where(
+        WorkspaceMember.workspace_id == workspace_id,
+        WorkspaceMember.user_id == current_user_id,
+    )
+    result = await session.execute(stmt)
+    role = result.scalar()
+
+    if role not in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
 
 
 @router.get(
@@ -102,7 +133,7 @@ async def list_approvals(
     """
 
     # Verify user is workspace admin
-    await verify_workspace_admin(current_user_id, workspace_id)
+    await verify_workspace_admin(current_user_id, workspace_id, session)
 
     # Get approval service
     from pilot_space.ai.infrastructure.approval import ApprovalService
@@ -228,7 +259,7 @@ async def resolve_approval(
     """
 
     # Verify user is workspace admin
-    await verify_workspace_admin(current_user_id, workspace_id)
+    await verify_workspace_admin(current_user_id, workspace_id, session)
 
     from pilot_space.ai.infrastructure.approval import ApprovalService
 
