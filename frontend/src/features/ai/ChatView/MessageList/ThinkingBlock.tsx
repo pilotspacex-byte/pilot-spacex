@@ -15,7 +15,7 @@
 
 'use client';
 
-import { memo, useState, useCallback, useEffect } from 'react';
+import { memo, useState, useCallback, useEffect, useRef } from 'react';
 import { Brain, ChevronDown, ChevronRight, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useElapsedTime } from '@/hooks/useElapsedTime';
@@ -60,28 +60,32 @@ function estimateTokens(text: string): number {
 
 /**
  * Hook to manage auto-collapse of a panel after streaming ends.
- * Open while streaming, auto-collapse after delay when streaming stops.
- * User can manually toggle at any time.
+ * Open while streaming, auto-collapse ONCE after delay when streaming stops.
+ * User can manually toggle at any time without re-triggering auto-collapse.
  */
 function useStreamingCollapse(isStreaming: boolean) {
-  // Track previous streaming state as React state (not ref) to satisfy lint rules
   const [prevStreaming, setPrevStreaming] = useState(isStreaming);
   const [isOpen, setIsOpen] = useState(isStreaming);
+  // Track whether auto-collapse already fired for this streaming cycle.
+  // Starts true when not streaming (no cycle to collapse from).
+  const didAutoCollapse = useRef(!isStreaming);
 
   // Detect streaming transitions via derived state pattern
   if (isStreaming !== prevStreaming) {
     setPrevStreaming(isStreaming);
     if (isStreaming) {
       setIsOpen(true);
+      didAutoCollapse.current = false; // Reset for new streaming cycle
     }
   }
 
-  // Auto-collapse after streaming ends with delay
+  // Auto-collapse ONCE after streaming ends with delay
   useEffect(() => {
-    if (isStreaming || !isOpen) return;
+    if (isStreaming || !isOpen || didAutoCollapse.current) return;
 
     const timer = setTimeout(() => {
       setIsOpen(false);
+      didAutoCollapse.current = true;
     }, AUTO_COLLAPSE_DELAY_MS);
 
     return () => clearTimeout(timer);

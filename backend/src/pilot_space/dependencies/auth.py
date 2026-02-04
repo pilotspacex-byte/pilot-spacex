@@ -1,7 +1,7 @@
 """Authentication and authorization dependencies.
 
 Provides request-scoped dependencies for token validation, user identity,
-workspace membership checks, demo mode fallback, and user sync.
+workspace membership checks, and user sync.
 """
 
 from __future__ import annotations
@@ -133,11 +133,6 @@ def get_current_user_id(
     return current_user.user_id
 
 
-# Demo user ID for development/testing
-DEMO_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-DEMO_WORKSPACE_SLUGS = {"pilot-space-demo", "demo", "test"}
-
-
 async def require_workspace_member(
     workspace_id: UUID,
     current_user: Annotated[TokenPayload, Depends(get_current_user)],
@@ -160,14 +155,7 @@ async def require_workspace_member(
     Raises:
         HTTPException: 403 if user is not a workspace member.
     """
-    from pilot_space.config import get_settings
-
-    settings = get_settings()
     user_id = current_user.user_id
-
-    # Skip in demo mode
-    if settings.app_env in ("development", "test") and user_id == DEMO_USER_ID:
-        return workspace_id
 
     from sqlalchemy import exists, select
 
@@ -210,13 +198,7 @@ async def require_workspace_admin(
     Raises:
         HTTPException: 403 if user is not an admin/owner.
     """
-    from pilot_space.config import get_settings
-
-    settings = get_settings()
     user_id = current_user.user_id
-
-    if settings.app_env in ("development", "test") and user_id == DEMO_USER_ID:
-        return workspace_id
 
     from sqlalchemy import select
 
@@ -240,56 +222,9 @@ async def require_workspace_admin(
     return workspace_id
 
 
-def get_current_user_id_or_demo(
-    request: Request,
-    auth: Annotated[SupabaseAuth, Depends(get_auth)],
-) -> UUID:
-    """Get current user ID with demo mode fallback.
-
-    In development mode with demo workspaces, allows unauthenticated access
-    using a fixed demo user ID. This enables testing without full auth setup.
-
-    Args:
-        request: The current request.
-        auth: Supabase Auth instance.
-
-    Returns:
-        User UUID (real or demo).
-
-    Raises:
-        HTTPException: If not authenticated in production.
-    """
-    from pilot_space.config import get_settings
-
-    settings = get_settings()
-
-    # Check if demo mode is allowed
-    if settings.app_env in ("development", "test"):
-        workspace_slug = request.headers.get("X-Workspace-Id", "")
-        if workspace_slug in DEMO_WORKSPACE_SLUGS:
-            return DEMO_USER_ID
-
-    # Check if already validated by middleware
-    user = getattr(request.state, "user", None)
-    if user is not None:
-        return user.user_id  # type: ignore[no-any-return]
-
-    # Validate token manually
-    try:
-        token = get_token_from_header(request)
-        payload = auth.validate_token(token)
-        return payload.user_id
-    except (HTTPException, TokenExpiredError, SupabaseAuthError):
-        # In development, fall back to demo user if auth fails
-        if settings.app_env in ("development", "test"):
-            return DEMO_USER_ID
-        raise
-
-
 # Type aliases for cleaner dependency injection
 CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]
-CurrentUserIdOrDemo = Annotated[UUID, Depends(get_current_user_id_or_demo)]
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 WorkspaceMemberId = Annotated[UUID, Depends(require_workspace_member)]
 WorkspaceAdminId = Annotated[UUID, Depends(require_workspace_admin)]

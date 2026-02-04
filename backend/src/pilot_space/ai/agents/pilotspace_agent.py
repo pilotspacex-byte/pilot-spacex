@@ -361,6 +361,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 agents=subagent_definitions,
                 resume=resume_id,
                 continue_conversation=resume_id is not None,
+                include_partial_messages=sdk_params.get(
+                    "include_partial_messages",
+                    True,
+                ),
             )
 
             set_workspace_context(context.workspace_id, context.user_id)

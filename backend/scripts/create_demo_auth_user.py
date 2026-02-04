@@ -16,8 +16,8 @@ import uuid
 import httpx
 
 # Demo user credentials (must match seed_demo.py)
-DEMO_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
-DEMO_EMAIL = "tin@pilot-space.dev"
+DEMO_USER_ID = uuid.UUID("77a6813e-0aa3-400c-8d4e-540b6ed2187a")
+DEMO_EMAIL = "test@pilot.space"
 DEMO_PASSWORD = os.getenv("DEMO_USER_PASSWORD", "DemoPassword123!")
 
 # Supabase configuration

@@ -33,7 +33,7 @@ class TestChatWithMocks:
         """
         # Use demo workspace for authentication bypass
         demo_headers = {
-            "X-Workspace-Id": "pilot-space-demo",
+            "X-Workspace-Id": "00000000-0000-0000-0000-000000000002",
         }
         workspace_id = "00000000-0000-0000-0000-000000000002"  # Demo workspace UUID
 
@@ -70,7 +70,7 @@ class TestChatWithMocks:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock Claude SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Stream chat response
@@ -130,7 +130,7 @@ class TestChatWithMocks:
         # Send chat message with selected text context (no note_id required)
         response = await test_e2e_client.post(
             "/api/v1/ai/chat",
-            headers={"X-Workspace-Id": "pilot-space-demo"},
+            headers={"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"},
             json={
                 "message": "Extract issues from this text",
                 "context": {
@@ -164,7 +164,7 @@ class TestChatWithMocks:
         # Send invalid request (missing context)
         response = await test_e2e_client.post(
             "/api/v1/ai/chat",
-            headers={"X-Workspace-Id": "pilot-space-demo"},
+            headers={"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"},
             json={
                 "message": "Hello",
                 # Missing context field
@@ -197,7 +197,7 @@ class TestChatWithMocks:
         async with test_e2e_client.stream(
             "POST",
             "/api/v1/ai/chat",
-            headers={"X-Workspace-Id": "pilot-space-demo"},
+            headers={"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"},
             json={
                 "message": "Hello",
                 "context": {
@@ -256,7 +256,7 @@ class TestChatSkillInvocation:
         # Send skill invocation command
         response = await test_e2e_client.post(
             "/api/v1/ai/chat",
-            headers={"X-Workspace-Id": "pilot-space-demo"},
+            headers={"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"},
             json={
                 "message": "\\extract-issues from this: We need to implement user authentication",
                 "context": {

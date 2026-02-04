@@ -10,16 +10,13 @@ import { ChatView } from '@/features/ai/ChatView';
 import { getAIStore } from '@/stores/ai/AIStore';
 import { useWorkspaceStore } from '@/stores';
 
-// Demo workspace UUID for development/testing
-const DEMO_WORKSPACE_ID = '00000000-0000-0000-0000-000000000002';
-
 export default observer(function ChatPage() {
   const aiStore = getAIStore();
   const store = aiStore.pilotSpace;
   const workspaceStore = useWorkspaceStore();
 
-  // Get workspace ID, fallback to demo UUID
-  const workspaceId = workspaceStore.currentWorkspace?.id || DEMO_WORKSPACE_ID;
+  // Get workspace ID from store (requires real auth)
+  const workspaceId = workspaceStore.currentWorkspace?.id;
 
   // Set workspace ID when component mounts or workspace changes
   useEffect(() => {

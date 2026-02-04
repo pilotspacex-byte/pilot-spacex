@@ -64,8 +64,7 @@ export default function HomePage() {
   const [ideaText, setIdeaText] = React.useState('');
   const [isCreating, setIsCreating] = React.useState(false);
 
-  // Default workspace slug for demo
-  const workspaceSlug = workspaceStore.currentWorkspace?.slug || 'pilot-space-demo';
+  const workspaceSlug = workspaceStore.currentWorkspace?.slug ?? '';
 
   const handleStart = async () => {
     if (!ideaText.trim()) {

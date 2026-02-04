@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
 
@@ -57,11 +57,7 @@ vi.mock('../ChatInput/ChatInput', () => ({
     onSubmit: () => void;
   }) => (
     <div data-testid="chat-input">
-      <input
-        data-testid="chat-textarea"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <input data-testid="chat-textarea" value={value} onChange={(e) => onChange(e.target.value)} />
       <button data-testid="send-button" onClick={onSubmit}>
         Send
       </button>
@@ -78,16 +74,14 @@ vi.mock('../MessageList/QuestionCard', () => ({
 }));
 
 vi.mock('../ChatViewErrorBoundary', () => ({
-  ChatViewErrorBoundary: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
+  ChatViewErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('@/stores/ai/SessionListStore', () => ({
   SessionListStore: vi.fn().mockImplementation(() => ({
-    fetchSessions: vi.fn(),
-    resumeSessionForContext: vi.fn(),
-    resumeSession: vi.fn(),
+    fetchSessions: vi.fn().mockResolvedValue(undefined),
+    resumeSessionForContext: vi.fn().mockResolvedValue(false),
+    resumeSession: vi.fn().mockResolvedValue(undefined),
     recentSessions: [],
     activeSessions: [],
     sessions: [],
@@ -98,9 +92,7 @@ vi.mock('@/stores/ai/SessionListStore', () => ({
 // Import after mocks
 import { ChatView } from '../index';
 
-function createMockStore(
-  overrides: Partial<PilotSpaceStore> = {}
-): PilotSpaceStore {
+function createMockStore(overrides: Partial<PilotSpaceStore> = {}): PilotSpaceStore {
   return {
     messages: [],
     isStreaming: false,
@@ -188,14 +180,14 @@ describe('ChatView', () => {
 
   describe('conversation reset on note navigation', () => {
     it('should clear conversation and reload when noteId changes', async () => {
-      const { SessionListStore: MockSessionListStore } = await import(
-        '@/stores/ai/SessionListStore'
-      );
-      const mockResumeForContext = vi.fn();
+      const { SessionListStore: MockSessionListStore } =
+        await import('@/stores/ai/SessionListStore');
+      const mockResumeForContext = vi.fn().mockResolvedValue(true);
+      const mockFetchSessions = vi.fn().mockResolvedValue(undefined);
       (MockSessionListStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-        fetchSessions: vi.fn(),
+        fetchSessions: mockFetchSessions,
         resumeSessionForContext: mockResumeForContext,
-        resumeSession: vi.fn(),
+        resumeSession: vi.fn().mockResolvedValue(undefined),
         recentSessions: [],
         activeSessions: [],
         sessions: [],
@@ -227,14 +219,13 @@ describe('ChatView', () => {
     });
 
     it('should not reload if noteId is the same', async () => {
-      const { SessionListStore: MockSessionListStore } = await import(
-        '@/stores/ai/SessionListStore'
-      );
-      const mockResumeForContext = vi.fn();
+      const { SessionListStore: MockSessionListStore } =
+        await import('@/stores/ai/SessionListStore');
+      const mockResumeForContext = vi.fn().mockResolvedValue(false);
       (MockSessionListStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-        fetchSessions: vi.fn(),
+        fetchSessions: vi.fn().mockResolvedValue(undefined),
         resumeSessionForContext: mockResumeForContext,
-        resumeSession: vi.fn(),
+        resumeSession: vi.fn().mockResolvedValue(undefined),
         recentSessions: [],
         activeSessions: [],
         sessions: [],
@@ -254,6 +245,32 @@ describe('ChatView', () => {
 
       // Should not call resume again
       expect(mockResumeForContext.mock.calls.length).toBe(firstCallCount);
+    });
+
+    it('should fetch sessions without context on standalone chat page', async () => {
+      const { SessionListStore: MockSessionListStore } =
+        await import('@/stores/ai/SessionListStore');
+      const mockFetchSessions = vi.fn().mockResolvedValue(undefined);
+      const mockResumeForContext = vi.fn().mockResolvedValue(false);
+      (MockSessionListStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        fetchSessions: mockFetchSessions,
+        resumeSessionForContext: mockResumeForContext,
+        resumeSession: vi.fn().mockResolvedValue(undefined),
+        recentSessions: [],
+        activeSessions: [],
+        sessions: [],
+        selectedSessionId: null,
+      }));
+
+      store = createMockStore({
+        noteContext: null,
+      });
+
+      render(<ChatView store={store} />);
+
+      // Without noteContext, should just fetch sessions (standalone chat)
+      expect(mockFetchSessions).toHaveBeenCalled();
+      expect(mockResumeForContext).not.toHaveBeenCalled();
     });
   });
 });

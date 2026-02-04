@@ -199,6 +199,27 @@ describe('ThinkingBlock', () => {
     expect(collapsible).toHaveAttribute('data-open', 'true');
   });
 
+  it('stays open after manual expand on completed block (no re-collapse)', () => {
+    render(<ThinkingBlock content="Completed thinking." isStreaming={false} durationMs={3000} />);
+
+    // Initially collapsed (auto-collapse already fired)
+    act(() => {
+      vi.advanceTimersByTime(350); // 300ms auto-collapse + buffer
+    });
+    expect(screen.getByTestId('collapsible')).toHaveAttribute('data-open', 'false');
+
+    // User manually expands
+    const button = screen.getByTestId('collapsible-trigger').querySelector('button');
+    fireEvent.click(button!);
+    expect(screen.getByTestId('collapsible')).toHaveAttribute('data-open', 'true');
+
+    // Advance timers well past auto-collapse delay — should stay open
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.getByTestId('collapsible')).toHaveAttribute('data-open', 'true');
+  });
+
   // ========================================
   // Streaming cursor
   // ========================================

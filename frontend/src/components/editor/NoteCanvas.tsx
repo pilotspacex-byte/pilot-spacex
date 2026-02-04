@@ -178,24 +178,19 @@ export const NoteCanvas = observer(function NoteCanvas({
   const aiStore = getAIStore();
   const workspaceStore = useWorkspaceStore();
 
-  // Demo workspace UUID fallback (matches /chat page pattern)
-  const DEMO_WORKSPACE_ID = '00000000-0000-0000-0000-000000000002';
-
   // Resolve workspace UUID with cascading fallback:
   // 1. workspaceId prop if already UUID
   // 2. Slug lookup from workspace store
   // 3. currentWorkspace from store
-  // 4. Demo workspace ID (development fallback)
   const isUUID = workspaceId && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(workspaceId);
   const resolvedWorkspaceId = isUUID
     ? workspaceId
     : (workspaceId && workspaceStore.getWorkspaceBySlug(workspaceId)?.id) ||
-      workspaceStore.currentWorkspace?.id ||
-      DEMO_WORKSPACE_ID;
+      workspaceStore.currentWorkspace?.id;
 
   // Set workspace context on PilotSpaceStore so chat messages include workspaceId
   useEffect(() => {
-    aiStore.pilotSpace.setWorkspaceId(resolvedWorkspaceId);
+    aiStore.pilotSpace.setWorkspaceId(resolvedWorkspaceId ?? null);
   }, [resolvedWorkspaceId, aiStore.pilotSpace]);
 
   // Set note context on mount so ChatView can auto-restore conversation history.

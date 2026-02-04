@@ -9,7 +9,6 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from pilot_space.api.middleware.request_context import (
-    DEMO_WORKSPACE_UUID,
     CorrelationId,
     RequestContextMiddleware,
     WorkspaceId,
@@ -71,15 +70,13 @@ def test_workspace_id_uuid(client: TestClient) -> None:
     assert response.json()["workspace_id"] == str(test_workspace_id)
 
 
-def test_workspace_id_demo_slug(client: TestClient) -> None:
-    """Test workspace ID extraction with demo slug."""
-    for slug in ["pilot-space-demo", "demo", "test", "DEMO", "Test"]:
-        response = client.get(
-            "/test-workspace",
-            headers={"X-Workspace-ID": slug},
-        )
-        assert response.status_code == 200, f"Failed for slug: {slug}"
-        assert response.json()["workspace_id"] == str(DEMO_WORKSPACE_UUID)
+def test_workspace_id_invalid_slug(client: TestClient) -> None:
+    """Test workspace ID extraction with non-UUID string."""
+    response = client.get(
+        "/test-workspace",
+        headers={"X-Workspace-ID": "pilot-space-demo"},
+    )
+    assert response.status_code == 400
 
 
 def test_workspace_id_missing(client: TestClient) -> None:

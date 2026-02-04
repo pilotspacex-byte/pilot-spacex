@@ -19,7 +19,7 @@ from pilot_space.api.v1.schemas.workspace import (
 )
 from pilot_space.dependencies import (
     CurrentUser,
-    CurrentUserIdOrDemo,
+    CurrentUserId,
     DbSession,
 )
 from pilot_space.infrastructure.database.models.workspace import Workspace
@@ -42,17 +42,6 @@ def _get_workspace_repository(session: DbSession) -> WorkspaceRepository:
 
 
 WorkspaceRepo = Annotated[WorkspaceRepository, Depends(_get_workspace_repository)]
-
-
-def _is_demo_workspace(workspace_id_or_slug: str) -> bool:
-    """Check if the workspace identifier refers to a demo workspace."""
-    from pilot_space.config import get_settings
-    from pilot_space.dependencies import DEMO_WORKSPACE_SLUGS
-
-    settings = get_settings()
-    if settings.app_env not in ("development", "test"):
-        return False
-    return workspace_id_or_slug in DEMO_WORKSPACE_SLUGS
 
 
 def _is_valid_uuid(value: str) -> bool:
@@ -100,14 +89,14 @@ async def _resolve_workspace_with_members(
 )
 async def list_workspace_members(
     workspace_id: WorkspaceIdOrSlug,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     workspace_repo: WorkspaceRepo,
 ) -> list[WorkspaceMemberResponse]:
     """List workspace members.
 
     Args:
         workspace_id: Workspace identifier (UUID or slug).
-        current_user_id: Authenticated user ID (falls back to demo user in dev).
+        current_user_id: Authenticated user ID.
         workspace_repo: Workspace repository.
 
     Returns:
@@ -118,14 +107,13 @@ async def list_workspace_members(
     """
     workspace = await _resolve_workspace_with_members(workspace_id, workspace_repo)
 
-    # Check membership (demo workspaces bypass check in dev/test)
-    if not _is_demo_workspace(workspace_id):
-        is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
-        if not is_member:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not a member of this workspace",
-            )
+    # Check membership
+    is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this workspace",
+        )
 
     return [
         WorkspaceMemberResponse(

@@ -230,15 +230,11 @@ export class SessionListStore {
 
   /**
    * Resume existing session in PilotSpaceStore.
+   * Fetches message history from backend and loads into store.
+   * Callers are responsible for clearing previous conversation state first.
    * @param sessionId - Session identifier to resume
    */
   async resumeSession(sessionId: string): Promise<void> {
-    const session = this.sessions.find((s) => s.sessionId === sessionId);
-    if (!session) {
-      console.error(`Session ${sessionId} not found`);
-      return;
-    }
-
     try {
       // Resume session to fetch session history
       const authHeaders = await this.getAuthHeaders();
@@ -258,8 +254,8 @@ export class SessionListStore {
       runInAction(() => {
         const pilotSpaceStore = this.rootStore;
         if (pilotSpaceStore) {
-          // Clear current conversation
-          pilotSpaceStore.clear();
+          // Clear messages only (caller already handled full clear if needed)
+          pilotSpaceStore.messages = [];
 
           // Set session ID
           pilotSpaceStore.setSessionId(sessionId);
@@ -280,8 +276,13 @@ export class SessionListStore {
         }
       });
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to resume session';
       runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to resume session';
+        this.error = errorMsg;
+        // Propagate to store for UI visibility
+        if (this.rootStore) {
+          this.rootStore.error = errorMsg;
+        }
       });
     }
   }
@@ -291,11 +292,12 @@ export class SessionListStore {
    * If no matching session exists, does nothing.
    * @param contextId - The context ID (e.g., noteId)
    * @param contextType - The context type ('note' | 'issue' | 'project')
+   * @returns true if a session was found and resumed, false otherwise
    */
   async resumeSessionForContext(
     contextId: string,
     _contextType: 'note' | 'issue' | 'project'
-  ): Promise<void> {
+  ): Promise<boolean> {
     // Always do a targeted fetch filtered by context_id.
     // The mount-time fetchSessions() may still be in-flight (isLoading=true)
     // or may have returned all sessions without this context match, so we
@@ -310,7 +312,10 @@ export class SessionListStore {
 
     if (matchingSession) {
       await this.resumeSession(matchingSession.sessionId);
+      return true;
     }
+
+    return false;
   }
 
   /**

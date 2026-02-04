@@ -6,25 +6,27 @@ Provides fixtures for testing complete AI workflows with SSE streaming.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Any
+from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from pilot_space.infrastructure.auth import TokenPayload
 from pilot_space.main import app
 
-if TYPE_CHECKING:
-    from pilot_space.infrastructure.auth import TokenPayload
+# Test user ID for E2E tests (matches seed_demo.py real user)
+_E2E_TEST_USER_ID = UUID("77a6813e-0aa3-400c-8d4e-540b6ed2187a")
 
 
 @pytest.fixture
 async def e2e_client() -> AsyncGenerator[AsyncClient, None]:
-    """Create async HTTP client for E2E testing.
+    """Create async HTTP client for E2E testing with mocked auth.
 
     Creates a fresh container for each test to avoid event loop issues
-    with SSE streaming tests.
+    with SSE streaming tests. Auth is mocked to return a consistent test user.
 
     Yields:
         AsyncClient for making requests.
@@ -35,11 +37,31 @@ async def e2e_client() -> AsyncGenerator[AsyncClient, None]:
     # Always create a fresh container to avoid event loop contamination
     app.state.container = get_container()
 
+    # Override auth dependencies to return test user (replaces demo user fallback)
+    from pilot_space.dependencies.auth import get_current_user, get_current_user_id
+
+    now = datetime.now(tz=UTC)
+    mock_payload = TokenPayload(
+        sub=str(_E2E_TEST_USER_ID),
+        email="test@pilot.space",
+        role="authenticated",
+        aud="authenticated",
+        exp=int(now.timestamp() + 3600),
+        iat=int(now.timestamp()),
+        app_metadata={},
+        user_metadata={"full_name": "Tin Dang"},
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: mock_payload
+    app.dependency_overrides[get_current_user_id] = lambda: _E2E_TEST_USER_ID
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
-    # Clean up app state after test
+    # Clean up overrides after test
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_current_user_id, None)
     if hasattr(app.state, "container"):
         delattr(app.state, "container")
 
@@ -48,13 +70,11 @@ async def e2e_client() -> AsyncGenerator[AsyncClient, None]:
 def auth_headers() -> dict[str, str]:
     """Create auth headers for E2E tests.
 
-    Uses demo workspace for simplicity.
-
     Returns:
         Dictionary with auth and workspace headers.
     """
     return {
-        "X-Workspace-ID": "pilot-space-demo",
+        "X-Workspace-ID": "00000000-0000-0000-0000-000000000002",
         "X-Anthropic-API-Key": "test-anthropic-key",
         "X-Google-API-Key": "test-google-key",
         "X-OpenAI-API-Key": "test-openai-key",

@@ -14,7 +14,8 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from pilot_space.dependencies import CurrentUserIdOrDemo, DbSession, SessionManagerDep
+from pilot_space.dependencies import CurrentUserId, DbSession, SessionManagerDep
+from pilot_space.infrastructure.database.rls import set_rls_context
 
 router = APIRouter(prefix="/ai/sessions", tags=["ai-sessions"])
 
@@ -75,7 +76,7 @@ class SessionResumeResponse(BaseModel):
 
 @router.get("")
 async def list_sessions(
-    user_id: CurrentUserIdOrDemo,
+    user_id: CurrentUserId,
     db_session: DbSession,
     session_manager: SessionManagerDep,
     workspace_id: UUID | None = Query(None, description="Filter by workspace"),
@@ -103,6 +104,9 @@ async def list_sessions(
     """
     if session_manager is None:
         raise HTTPException(status_code=503, detail="Session manager not available")
+
+    # Set RLS context so PostgreSQL policies allow access
+    await set_rls_context(db_session, user_id)
 
     from pilot_space.ai.sdk.session_store import SessionStore
 
@@ -140,7 +144,7 @@ async def list_sessions(
 @router.post("/{session_id}/resume")
 async def resume_session(
     session_id: UUID,
-    user_id: CurrentUserIdOrDemo,
+    user_id: CurrentUserId,
     db_session: DbSession,
     session_manager: SessionManagerDep,
 ) -> SessionResumeResponse:
@@ -163,6 +167,9 @@ async def resume_session(
     """
     if session_manager is None:
         raise HTTPException(status_code=503, detail="Session manager not available")
+
+    # Set RLS context so PostgreSQL policies allow access
+    await set_rls_context(db_session, user_id)
 
     from pilot_space.ai.sdk.session_store import SessionStore
 
@@ -207,7 +214,7 @@ async def resume_session(
 @router.delete("/{session_id}")
 async def delete_session(
     session_id: UUID,
-    user_id: CurrentUserIdOrDemo,
+    user_id: CurrentUserId,
     db_session: DbSession,
     session_manager: SessionManagerDep,
 ) -> dict[str, str]:
@@ -230,6 +237,9 @@ async def delete_session(
     """
     if session_manager is None:
         raise HTTPException(status_code=503, detail="Session manager not available")
+
+    # Set RLS context so PostgreSQL policies allow access
+    await set_rls_context(db_session, user_id)
 
     from pilot_space.ai.sdk.session_store import SessionStore
 

@@ -77,21 +77,31 @@ const ChatViewInternal = observer<ChatViewProps>(
     // Initialize SessionListStore (T075-T079)
     const [sessionListStore] = useState(() => new SessionListStore(store));
 
-    // Fetch sessions on mount
-    useEffect(() => {
-      sessionListStore.fetchSessions();
-    }, [sessionListStore]);
-
-    // Load conversation history for note context when ChatView opens or noteId changes
+    // Track which note context has been loaded to avoid redundant fetches
     const loadedContextRef = useRef<string | null>(null);
+
+    // Load conversation history for note context, then fetch session list.
+    // Combined into one effect to avoid race conditions where the mount-time
+    // fetchSessions() could replace context-filtered results before resumeSession reads them.
     useEffect(() => {
       const noteId = store.noteContext?.noteId;
-      if (!noteId || loadedContextRef.current === noteId) return;
 
-      // Clear previous note's conversation before loading new one
-      store.clearConversation();
-      loadedContextRef.current = noteId;
-      sessionListStore.resumeSessionForContext(noteId, 'note');
+      if (noteId) {
+        // Note context: load conversation history for this note
+        if (loadedContextRef.current === noteId) return;
+
+        store.clearConversation();
+        loadedContextRef.current = noteId;
+
+        // Sequential: resume context session first, then fetch general sessions
+        sessionListStore.resumeSessionForContext(noteId, 'note').then(() => {
+          sessionListStore.fetchSessions();
+        });
+      } else {
+        // No note context (standalone chat page): just fetch session list
+        loadedContextRef.current = null;
+        sessionListStore.fetchSessions();
+      }
     }, [store.noteContext?.noteId, sessionListStore, store]);
 
     // Convert TaskState to AgentTask for TaskPanel with progress data

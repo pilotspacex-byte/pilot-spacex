@@ -24,7 +24,7 @@ from pilot_space.api.v1.schemas.approval import (
     ApprovalStatus as ApprovalStatusSchema,
 )
 from pilot_space.dependencies import (
-    CurrentUserIdOrDemo,
+    CurrentUserId,
     DbSession,
 )
 
@@ -106,7 +106,7 @@ async def verify_workspace_admin(
 )
 async def list_approvals(
     workspace_id: WorkspaceId,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     session: DbSession,
     status: Annotated[ApprovalStatusSchema | None, Query(description="Filter by status")] = None,
     limit: Annotated[int, Query(ge=1, le=100, description="Maximum results")] = 20,
@@ -180,7 +180,7 @@ async def list_approvals(
 async def get_approval(
     workspace_id: WorkspaceId,
     approval_id: Annotated[uuid.UUID, Path(description="Approval request ID")],
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     session: DbSession,
 ) -> ApprovalDetailResponse:
     """Get approval request details including payload.
@@ -236,7 +236,7 @@ async def resolve_approval(
     workspace_id: WorkspaceId,
     approval_id: Annotated[uuid.UUID, Path(description="Approval request ID")],
     body: ApprovalResolution,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     session: DbSession,
 ) -> ApprovalResolutionResponse:
     """Resolve an approval request.

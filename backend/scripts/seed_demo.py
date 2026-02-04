@@ -21,8 +21,8 @@ from sqlalchemy import text
 
 from pilot_space.infrastructure.database.engine import get_db_session
 
-# Demo IDs
-DEMO_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
+# Demo IDs - synced with real Supabase Auth user (test@pilot.space)
+DEMO_USER_ID = uuid.UUID("77a6813e-0aa3-400c-8d4e-540b6ed2187a")
 DEMO_WORKSPACE_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
 
@@ -71,12 +71,12 @@ async def seed_demo_data() -> None:
             """),
             {
                 "id": DEMO_USER_ID,
-                "email": "tin@pilot-space.dev",
+                "email": "test@pilot.space",
                 "full_name": "Tin Dang",
                 "avatar_url": None,
             },
         )
-        print("✅ Created demo user: Tin Dang (tin@pilot-space.dev)")
+        print("✅ Created demo user: Tin Dang (test@pilot.space)")
 
         # ===================================================================
         # STEP 2: Create Demo Workspace
@@ -928,13 +928,30 @@ async def seed_demo_data() -> None:
         print("   - API: 21 issues (15 done, 2 in progress, 1 in review, 2 todo, 1 backlog)")
         print("   - FE: 18 issues (10 done, 2 in progress, 1 in review, 3 todo, 2 backlog)")
 
+        # ===================================================================
+        # STEP 8: Migrate AI Sessions to Real User ID
+        # ===================================================================
+        # Any existing ai_sessions created with the old demo user ID
+        # (00000000-0000-0000-0000-000000000001) need to be migrated
+        old_demo_user_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+        result = await session.execute(
+            text("""
+                UPDATE ai_sessions SET user_id = :new_id
+                WHERE user_id = :old_id
+            """),
+            {"new_id": DEMO_USER_ID, "old_id": old_demo_user_id},
+        )
+        migrated_sessions = result.rowcount
+        if migrated_sessions > 0:
+            print(f"✅ Migrated {migrated_sessions} AI sessions to real user ID")
+
         await session.commit()
         print("\n" + "=" * 60)
         print("✅ DEMO DATA SEEDED SUCCESSFULLY!")
         print("=" * 60)
         print("\n📊 Summary:")
         print(f"   - Workspace: pilot-space-demo ({DEMO_WORKSPACE_ID})")
-        print("   - User: Tin Dang (tin@pilot-space.dev)")
+        print("   - User: Tin Dang (test@pilot.space)")
         print("   - Projects: 3 (AUTH, API, FE)")
         print("   - Notes: 7 (2 pinned)")
         print(f"   - Issues: {len(issues_data)} across all states")

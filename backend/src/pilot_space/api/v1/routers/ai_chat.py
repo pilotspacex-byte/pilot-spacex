@@ -27,7 +27,7 @@ from pydantic import Field
 
 from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.dependencies import (
-    CurrentUserIdOrDemo,
+    CurrentUserId,
     DbSession,
     PilotSpaceAgentDep,
     QueueClientDep,
@@ -35,6 +35,7 @@ from pilot_space.dependencies import (
     SessionHandlerDep,
     SkillRegistryDep,
 )
+from pilot_space.infrastructure.database.rls import set_rls_context
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ class ChatQueueResponse(BaseSchema):
 async def chat(
     chat_request: ChatRequest,
     fastapi_request: Request,
-    user_id: CurrentUserIdOrDemo,
+    user_id: CurrentUserId,
     session: DbSession,
     session_handler: SessionHandlerDep,
     agent: PilotSpaceAgentDep,
@@ -120,6 +121,9 @@ async def chat(
     # Forward selected block IDs for tool calls
     if chat_request.context.selected_block_ids:
         ai_context["selected_block_ids"] = chat_request.context.selected_block_ids
+
+    # Set RLS context for session DB queries (context lookup, save)
+    await set_rls_context(session, user_id)
 
     # Get, fork, or create conversation session
     # Priority: fork > explicit session_id > context lookup > create new
@@ -275,6 +279,9 @@ async def chat(
             from pilot_space.infrastructure.database.engine import get_db_session
 
             async with get_db_session() as fresh_db:
+                # Set RLS context on fresh session for ai_sessions table access
+                await set_rls_context(fresh_db, user_id)
+
                 from pilot_space.ai.sdk.session_store import SessionStore
 
                 store = SessionStore(
@@ -322,7 +329,7 @@ class AbortResponse(BaseSchema):
 @router.post("/chat/abort", response_model=AbortResponse)
 async def abort_chat(
     abort_request: AbortRequest,
-    user_id: CurrentUserIdOrDemo,
+    user_id: CurrentUserId,
     agent: PilotSpaceAgentDep,
     session_handler: SessionHandlerDep,
 ) -> AbortResponse:
@@ -376,7 +383,7 @@ class AnswerResponse(BaseSchema):
 async def answer_question(
     answer_request: AnswerRequest,
     agent: PilotSpaceAgentDep,
-    _current_user: CurrentUserIdOrDemo,
+    _current_user: CurrentUserId,
 ) -> AnswerResponse:
     """Submit a user answer to an agent's AskUserQuestion.
 
@@ -411,7 +418,7 @@ async def answer_question(
 @router.get("/chat/stream/{job_id}")
 async def stream_job(
     job_id: str,
-    user_id: CurrentUserIdOrDemo,
+    user_id: CurrentUserId,
     redis_client: RedisDep,
 ) -> StreamingResponse:
     """SSE stream endpoint for queue-mode chat jobs.
@@ -504,7 +511,7 @@ class SkillListResponse(BaseSchema):
 @router.get("/skills", response_model=SkillListResponse)
 async def list_skills(
     skill_registry: SkillRegistryDep,
-    _current_user: CurrentUserIdOrDemo,
+    _current_user: CurrentUserId,
 ) -> SkillListResponse:
     """List available AI skills for autocomplete."""
     if skill_registry is None:

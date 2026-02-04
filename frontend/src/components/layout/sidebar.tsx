@@ -43,9 +43,9 @@ export const Sidebar = observer(function Sidebar() {
   const router = useRouter();
   const collapsed = uiStore.sidebarCollapsed;
 
-  // Get workspace slug from store or use default
-  const workspaceSlug = workspaceStore.currentWorkspace?.slug || 'pilot-space-demo';
-  const workspaceId = workspaceStore.currentWorkspace?.id || workspaceSlug;
+  // Get workspace slug from store
+  const workspaceSlug = workspaceStore.currentWorkspace?.slug ?? '';
+  const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
 
   // Create note mutation
   const createNote = useCreateNote({

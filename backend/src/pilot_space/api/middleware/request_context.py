@@ -16,10 +16,6 @@ from starlette.middleware.base import (
 )
 from starlette.responses import Response
 
-# Demo workspace configuration
-DEMO_WORKSPACE_UUID = uuid.UUID("00000000-0000-0000-0000-000000000002")
-DEMO_WORKSPACE_SLUGS = {"pilot-space-demo", "demo", "test"}
-
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     """Middleware to extract and store request context."""
@@ -40,14 +36,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         )
 
         if workspace_id_str:
-            # Check for demo workspace slugs
-            if workspace_id_str.lower() in DEMO_WORKSPACE_SLUGS:
-                request.state.workspace_id = DEMO_WORKSPACE_UUID
-            else:
-                try:
-                    request.state.workspace_id = uuid.UUID(workspace_id_str)
-                except ValueError:
-                    request.state.workspace_id = None
+            try:
+                request.state.workspace_id = uuid.UUID(workspace_id_str)
+            except ValueError:
+                request.state.workspace_id = None
         else:
             request.state.workspace_id = None
 
@@ -104,8 +96,6 @@ CorrelationId = Annotated[str, Depends(get_correlation_id)]
 
 
 __all__ = [
-    "DEMO_WORKSPACE_SLUGS",
-    "DEMO_WORKSPACE_UUID",
     "CorrelationId",
     "RequestContextMiddleware",
     "WorkspaceId",

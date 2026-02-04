@@ -41,7 +41,7 @@ class TestSessionPersistence:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -78,7 +78,7 @@ class TestSessionPersistence:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         messages = [
@@ -124,7 +124,7 @@ class TestSessionPersistence:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # First message establishes context
@@ -180,7 +180,7 @@ class TestSessionPersistence:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Send 5 messages in sequence
@@ -220,7 +220,7 @@ class TestSessionPersistence:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -259,7 +259,7 @@ class TestSessionPersistence:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         selected_text = "Implement user authentication with OAuth2"
@@ -301,7 +301,7 @@ class TestSessionPersistence:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Start two different conversations

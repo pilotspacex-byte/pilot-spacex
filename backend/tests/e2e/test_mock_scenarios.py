@@ -37,7 +37,7 @@ class TestBasicConversationScenarios:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -77,7 +77,7 @@ class TestBasicConversationScenarios:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -121,7 +121,7 @@ class TestToolExecutionScenarios:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -161,7 +161,7 @@ class TestToolExecutionScenarios:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -204,7 +204,7 @@ class TestSkillInvocationScenarios:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -247,7 +247,7 @@ class TestSubagentScenarios:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -290,7 +290,7 @@ class TestErrorScenarios:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Note: Current mock doesn't explicitly trigger error scenario
@@ -335,7 +335,7 @@ class TestExtendedThinking:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
