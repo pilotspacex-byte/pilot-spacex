@@ -48,6 +48,7 @@ import {
   isCitationEvent,
   isMemoryUpdateEvent,
   isToolInputDeltaEvent,
+  isContentUpdateEvent,
 } from './types/events';
 import type { PilotSpaceStore } from './PilotSpaceStore';
 
@@ -299,9 +300,8 @@ export class PilotSpaceStreamHandler {
         this.handleApprovalRequired(event);
       } else if (isAskUserQuestionEvent(event)) {
         this.handleAskUserQuestion(event);
-      } else if (event.type === 'content_update') {
-        // Handle content_update event
-        this.store.handleContentUpdate(event as ContentUpdateEvent);
+      } else if (isContentUpdateEvent(event)) {
+        this.store.handleContentUpdate(event);
       } else if (isStructuredResultEvent(event)) {
         this.handleStructuredResult(event);
       } else if (isCitationEvent(event)) {
@@ -322,10 +322,7 @@ export class PilotSpaceStreamHandler {
     });
   }
 
-  /**
-   * Handle message_start event.
-   * Initializes new assistant message.
-   */
+  /** Handle message_start — initializes new assistant message. */
   handleMessageStart(event: MessageStartEvent): void {
     const { messageId, sessionId } = event.data;
 
@@ -347,10 +344,7 @@ export class PilotSpaceStreamHandler {
     };
   }
 
-  /**
-   * Handle content_block_start event.
-   * Tracks block type (text vs tool_use) for progressive rendering.
-   */
+  /** Handle content_block_start — tracks block type for progressive rendering. */
   handleContentBlockStart(event: ContentBlockStartEvent): void {
     const { contentType, index, parentToolUseId } = event.data;
 
@@ -363,18 +357,21 @@ export class PilotSpaceStreamHandler {
       this._lastParentToolUseId = parentToolUseId;
     }
 
-    // Pre-signal thinking phase when a thinking block starts
-    if (contentType === 'text' && this.store.streamingState.phase === 'message_start') {
+    // Pre-signal phase transitions based on block type (G-01)
+    if (contentType === 'thinking') {
+      this.store.streamingState.phase = 'thinking';
+      this.store.streamingState.isThinking = true;
+      if (!this.store.streamingState.thinkingStartedAt) {
+        this.store.streamingState.thinkingStartedAt = Date.now();
+      }
+    } else if (contentType === 'text' && this.store.streamingState.phase === 'message_start') {
       this.store.streamingState.phase = 'content';
     }
   }
 
-  /**
-   * Handle thinking_delta event.
-   * Appends streaming thinking chunks.
-   */
+  /** Handle thinking_delta — appends streaming thinking chunks. */
   handleThinkingDelta(event: ThinkingDeltaEvent): void {
-    const { delta } = event.data;
+    const { delta, signature, blockIndex, redacted } = event.data;
 
     // Start thinking timer on first delta
     if (!this.store.streamingState.isThinking) {
@@ -382,14 +379,36 @@ export class PilotSpaceStreamHandler {
       this.store.streamingState.thinkingStartedAt = Date.now();
     }
 
+    // Backward-compatible: always accumulate into flat thinkingContent
     this.store.streamingState.thinkingContent += delta;
     this.store.streamingState.phase = 'thinking';
+
+    // G-07: Accumulate per-block thinking entries for interleaved rendering
+    if (blockIndex !== undefined) {
+      if (!this.store.streamingState.thinkingBlocks) {
+        this.store.streamingState.thinkingBlocks = [];
+      }
+      const existing = this.store.streamingState.thinkingBlocks.find(
+        (b) => b.blockIndex === blockIndex
+      );
+      if (existing) {
+        existing.content += delta;
+      } else {
+        this.store.streamingState.thinkingBlocks.push({
+          content: delta,
+          blockIndex,
+          redacted,
+        });
+      }
+    }
+
+    // Capture thinking block signature for multi-turn verification (G-06)
+    if (signature) {
+      this.store.streamingState.thinkingSignature = signature;
+    }
   }
 
-  /**
-   * Handle text_delta event.
-   * Appends streaming text content.
-   */
+  /** Handle text_delta — appends streaming text content. */
   handleTextDelta(event: TextDeltaEvent): void {
     const { delta } = event.data;
 
@@ -403,10 +422,7 @@ export class PilotSpaceStreamHandler {
     this.store.streamingState.phase = 'content';
   }
 
-  /**
-   * Handle tool_use event.
-   * Buffers tool call for attachment on message finalization (T63).
-   */
+  /** Handle tool_use — buffers tool call for attachment on message finalization (T63). */
   handleToolUseStart(event: ToolUseEvent): void {
     const { toolCallId, toolName, toolInput } = event.data;
 
@@ -425,10 +441,7 @@ export class PilotSpaceStreamHandler {
     this.store.streamingState.phase = 'tool_use';
   }
 
-  /**
-   * Handle tool_result event.
-   * Updates tool call status and result. Checks pending buffer first (T66).
-   */
+  /** Handle tool_result — updates tool call status/result, checks pending buffer first (T66). */
   handleToolResult(event: ToolResultEvent): void {
     const { toolCallId, status, output, errorMessage } = event.data;
 
@@ -463,10 +476,7 @@ export class PilotSpaceStreamHandler {
     }
   }
 
-  /**
-   * Handle task_progress event.
-   * Updates long-running task state.
-   */
+  /** Handle task_progress — updates long-running task state. */
   handleTaskUpdate(event: TaskProgressEvent): void {
     const {
       taskId,
@@ -494,10 +504,7 @@ export class PilotSpaceStreamHandler {
     });
   }
 
-  /**
-   * Handle approval_request event (DD-003).
-   * Adds pending approval request to queue.
-   */
+  /** Handle approval_request (DD-003) — adds pending approval to queue. */
   handleApprovalRequired(event: ApprovalRequestEvent): void {
     const {
       requestId,
@@ -525,28 +532,19 @@ export class PilotSpaceStreamHandler {
     });
   }
 
-  /**
-   * Handle ask_user_question event.
-   * Sets pending question requiring user response.
-   */
+  /** Handle ask_user_question — sets pending question requiring user response. */
   handleAskUserQuestion(event: AskUserQuestionEvent): void {
     const { questionId, questions } = event.data;
     this.store.pendingQuestion = { questionId, questions };
   }
 
-  /**
-   * Handle structured_result event.
-   * Stores pending structured result for attachment to message on stop.
-   */
+  /** Handle structured_result — stores pending for attachment on message_stop. */
   handleStructuredResult(event: StructuredResultEvent): void {
     const { schemaType, data } = event.data;
     this.store.setPendingStructuredResult({ schemaType, data });
   }
 
-  /**
-   * Handle message_stop event.
-   * Finalizes message and adds to history.
-   */
+  /** Handle message_stop — finalizes message and adds to history. */
   handleTextComplete(event: MessageStopEvent): void {
     const { messageId, usage, costUsd } = event.data;
 
@@ -559,6 +557,11 @@ export class PilotSpaceStreamHandler {
     const toolCalls = this.store.consumePendingToolCalls();
     const citations = this.store.consumePendingCitations();
 
+    // G-07: Collect interleaved thinking blocks if present
+    const thinkingBlocks = this.store.streamingState.thinkingBlocks?.length
+      ? [...this.store.streamingState.thinkingBlocks]
+      : undefined;
+
     // Create completed assistant message
     const assistantMessage: ChatMessage = {
       id: messageId,
@@ -566,7 +569,9 @@ export class PilotSpaceStreamHandler {
       content: this.store.streamingState.streamContent,
       timestamp: new Date(),
       thinkingContent: this.store.streamingState.thinkingContent || undefined,
+      thinkingBlocks,
       thinkingDurationMs,
+      thinkingSignature: this.store.streamingState.thinkingSignature,
       toolCalls,
       citations,
       structuredResult: this.store.consumePendingStructuredResult(),
@@ -589,19 +594,13 @@ export class PilotSpaceStreamHandler {
     };
   }
 
-  /**
-   * Handle budget_warning event.
-   * Surfaces budget warning to user via store error state.
-   */
+  /** Handle budget_warning — surfaces warning to user via store error state. */
   handleBudgetWarning(event: BudgetWarningEvent): void {
     const { currentCostUsd, maxBudgetUsd, percentUsed, message } = event.data;
     this.store.error = `Budget warning (${percentUsed}%): ${message} ($${currentCostUsd.toFixed(4)} / $${maxBudgetUsd.toFixed(2)})`;
   }
 
-  /**
-   * Handle tool_audit event.
-   * Updates tool call with audit info (duration). Checks pending buffer first.
-   */
+  /** Handle tool_audit — updates tool call with duration info, checks pending buffer first. */
   handleToolAudit(event: ToolAuditEvent): void {
     const { toolUseId, durationMs } = event.data;
 
@@ -675,10 +674,7 @@ export class PilotSpaceStreamHandler {
     this.store.lastMemoryUpdate = event.data;
   }
 
-  /**
-   * Handle tool_input_delta — progressive tool parameter rendering (T65).
-   * Accumulates partial JSON on the pending tool call's partialInput field.
-   */
+  /** Handle tool_input_delta — accumulates partial JSON on pending tool call (T65). */
   handleToolInputDelta(event: ToolInputDeltaEvent): void {
     const { toolUseId, inputDelta } = event.data;
     const tc = this.store.findPendingToolCall(toolUseId);
@@ -687,9 +683,7 @@ export class PilotSpaceStreamHandler {
     }
   }
 
-  /**
-   * Reset retry state. Call when starting a new stream.
-   */
+  /** Reset retry state. Call when starting a new stream. */
   resetRetryState(): void {
     this._retryCount = 0;
     if (this._retryTimer) {

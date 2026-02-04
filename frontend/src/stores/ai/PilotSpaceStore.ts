@@ -216,7 +216,7 @@ export class PilotSpaceStore {
   }
 
   updateStreamingState(state: Partial<StreamingState>): void {
-    Object.assign(this.streamingState, state);
+    this.streamingState = { ...this.streamingState, ...state };
   }
 
   setSessionId(sessionId: string | null): void {

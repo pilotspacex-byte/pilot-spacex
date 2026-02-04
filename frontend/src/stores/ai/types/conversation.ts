@@ -39,6 +39,19 @@ export interface ToolCall {
 }
 
 /**
+ * Individual thinking block entry for interleaved thinking (G-07).
+ * Each entry corresponds to a separate thinking content block from Claude.
+ */
+export interface ThinkingBlockEntry {
+  /** Thinking text content */
+  content: string;
+  /** Content block index from the AssistantMessage (for ordering) */
+  blockIndex: number;
+  /** Whether this block was redacted by Claude safety system (G-04) */
+  redacted?: boolean;
+}
+
+/**
  * Chat message in a conversation thread.
  */
 export interface ChatMessage {
@@ -52,10 +65,14 @@ export interface ChatMessage {
   timestamp: Date;
   /** Tool calls invoked during message generation */
   toolCalls?: ToolCall[];
-  /** Extended thinking content (from Claude Opus reasoning) */
+  /** Extended thinking content — concatenated fallback (from Claude Opus reasoning) */
   thinkingContent?: string;
+  /** Individual thinking blocks for interleaved rendering (G-07) */
+  thinkingBlocks?: ThinkingBlockEntry[];
   /** Duration of thinking phase in milliseconds */
   thinkingDurationMs?: number;
+  /** Thinking block signature for multi-turn verification (G-06) */
+  thinkingSignature?: string;
   /** Structured result data (from schema-validated AI responses) */
   structuredResult?: {
     schemaType: string;
@@ -156,9 +173,13 @@ export interface StreamingState {
   /** Timestamp when thinking started (for duration display) */
   thinkingStartedAt?: number | null;
   /** Current content block type from content_block_start (G13) */
-  currentBlockType?: 'text' | 'tool_use';
+  currentBlockType?: 'text' | 'tool_use' | 'thinking';
   /** Current content block index from content_block_start (G13) */
   currentBlockIndex?: number;
+  /** Thinking block signature for multi-turn verification (G-06) */
+  thinkingSignature?: string;
+  /** Accumulated thinking blocks for interleaved rendering (G-07) */
+  thinkingBlocks?: ThinkingBlockEntry[];
 }
 
 /**

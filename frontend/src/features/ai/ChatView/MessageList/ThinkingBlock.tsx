@@ -13,8 +13,11 @@
 'use client';
 
 import { memo, useState, useCallback } from 'react';
-import { Brain, ChevronDown, ChevronRight } from 'lucide-react';
+import { Brain, ChevronDown, ChevronRight, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+/** Sentinel value emitted by backend for redacted thinking blocks (G-04) */
+const REDACTED_SENTINEL = '[Thinking redacted by safety system]';
 
 interface ThinkingBlockProps {
   /** Thinking content text */
@@ -52,6 +55,7 @@ export const ThinkingBlock = memo<ThinkingBlockProps>(
 
     if (!content) return null;
 
+    const isRedacted = content.includes(REDACTED_SENTINEL);
     const tokenEstimate = estimateTokens(content);
     const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
 
@@ -77,8 +81,14 @@ export const ThinkingBlock = memo<ThinkingBlockProps>(
           aria-expanded={isExpanded}
           aria-controls="thinking-content"
         >
-          <Brain className="h-3.5 w-3.5 shrink-0" />
-          <span className="font-medium">Agent Reasoning</span>
+          {isRedacted ? (
+            <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <Brain className="h-3.5 w-3.5 shrink-0" />
+          )}
+          <span className="font-medium">
+            {isRedacted ? 'Reasoning Redacted' : 'Agent Reasoning'}
+          </span>
 
           {/* Summary info */}
           <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">

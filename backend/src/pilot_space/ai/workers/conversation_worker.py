@@ -273,18 +273,12 @@ class ConversationWorker(ReconnectionMixin):
     async def _cleanup_idle_clients(self) -> None:
         """Evict clients idle longer than IDLE_TIMEOUT."""
         now = time.monotonic()
-        expired = [
-            sid
-            for sid, p in self._clients.items()
-            if now - p.last_used > self.IDLE_TIMEOUT
-        ]
+        expired = [sid for sid, p in self._clients.items() if now - p.last_used > self.IDLE_TIMEOUT]
         for sid in expired:
             logger.info("Evicting idle client %s", sid)
             await self._evict_client(sid)
 
-    async def _store_sse_event(
-        self, job_id: UUID, sse_chunk: str, event_index: int  # noqa: ARG002
-    ) -> None:
+    async def _store_sse_event(self, job_id: UUID, sse_chunk: str, event_index: int) -> None:
         """Store SSE event for reconnection catch-up.
 
         Args:

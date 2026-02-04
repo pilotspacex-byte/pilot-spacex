@@ -187,7 +187,7 @@ class CodeContextExtractor:
     def extract_from_github_commit(
         self,
         commit_data: dict[str, Any],
-        integration_id: str,  # noqa: ARG002
+        integration_id: str,
     ) -> list[CodeReference]:
         """Extract code references from a GitHub commit.
 
@@ -248,7 +248,7 @@ class CodeContextExtractor:
         self,
         pr_data: dict[str, Any],
         pr_files: list[dict[str, Any]],
-        integration_id: str,  # noqa: ARG002
+        integration_id: str,
     ) -> list[CodeReference]:
         """Extract code references from a GitHub pull request.
 

@@ -77,7 +77,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
-        mock_dependencies,  # noqa: ARG002
+        mock_dependencies,
     ) -> None:
         """Verify endpoint streams annotations via SSE."""
         # Arrange
@@ -165,7 +165,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
-        mock_dependencies,  # noqa: ARG002
+        mock_dependencies,
     ) -> None:
         """Verify endpoint validates minimum block_ids length."""
         # Arrange
@@ -190,7 +190,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
-        mock_dependencies,  # noqa: ARG002
+        mock_dependencies,
     ) -> None:
         """Verify endpoint validates maximum block_ids length."""
         # Arrange
@@ -215,7 +215,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
-        mock_dependencies,  # noqa: ARG002
+        mock_dependencies,
     ) -> None:
         """Verify endpoint validates context_blocks range."""
         # Arrange
@@ -239,7 +239,7 @@ class TestMarginAnnotationEndpoint:
     async def test_requires_workspace_header(
         self,
         test_note_id: UUID,
-        mock_dependencies,  # noqa: ARG002
+        mock_dependencies,
     ) -> None:
         """Verify endpoint requires X-Workspace-ID header."""
         # Arrange
@@ -269,7 +269,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
-        mock_dependencies,  # noqa: ARG002
+        mock_dependencies,
     ) -> None:
         """Verify endpoint handles agent execution failures gracefully."""
         # Arrange
@@ -323,7 +323,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
-        mock_dependencies,  # noqa: ARG002
+        mock_dependencies,
     ) -> None:
         """Verify endpoint streams multiple annotations correctly."""
         # Arrange
@@ -395,7 +395,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
-        mock_dependencies,  # noqa: ARG002
+        mock_dependencies,
     ) -> None:
         """Verify endpoint includes completion metadata in done event."""
         # Arrange
@@ -472,7 +472,7 @@ class TestMarginAnnotationEndpoint:
         self,
         auth_headers: dict[str, str],
         test_note_id: UUID,
-        mock_dependencies,  # noqa: ARG002
+        mock_dependencies,
     ) -> None:
         """Verify endpoint uses default context_blocks value."""
         # Arrange

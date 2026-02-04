@@ -159,7 +159,7 @@ class TestNoteSyncIntegration:
     async def test_sync_note_if_present_logs_error_on_failure(
         self,
         agent: PilotSpaceAgent,
-        note_id: UUID,  # noqa: ARG002
+        note_id: UUID,
         mock_note: MagicMock,
         tmp_path: Path,
         caplog: pytest.LogCaptureFixture,

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import uuid
 from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
@@ -51,18 +52,50 @@ def _get_context_preview(payload: dict[str, Any]) -> str:
     return "Action pending approval"
 
 
-async def verify_workspace_admin(current_user_id: uuid.UUID, workspace_id: uuid.UUID) -> None:
+async def verify_workspace_admin(
+    current_user_id: uuid.UUID,
+    workspace_id: uuid.UUID,
+    session: DbSession,
+) -> None:
     """Verify user is workspace admin.
 
     Args:
         current_user_id: User to verify.
         workspace_id: Workspace to check.
+        session: Database session.
 
     Raises:
-        HTTPException: If user is not admin.
+        HTTPException: 403 if user is not an admin/owner.
     """
-    # TODO: Implement proper admin check via workspace_members table
-    # For now, allow all authenticated users (MVP)
+    from pilot_space.config import get_settings
+
+    settings = get_settings()
+
+    # Skip in demo mode
+    if settings.app_env in ("development", "test") and current_user_id == UUID(
+        "00000000-0000-0000-0000-000000000001"
+    ):
+        return
+
+    from sqlalchemy import select
+
+    from pilot_space.infrastructure.database.models.workspace_member import (
+        WorkspaceMember,
+        WorkspaceRole,
+    )
+
+    stmt = select(WorkspaceMember.role).where(
+        WorkspaceMember.workspace_id == workspace_id,
+        WorkspaceMember.user_id == current_user_id,
+    )
+    result = await session.execute(stmt)
+    role = result.scalar()
+
+    if role not in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
 
 
 @router.get(
@@ -100,7 +133,7 @@ async def list_approvals(
     """
 
     # Verify user is workspace admin
-    await verify_workspace_admin(current_user_id, workspace_id)
+    await verify_workspace_admin(current_user_id, workspace_id, session)
 
     # Get approval service
     from pilot_space.ai.infrastructure.approval import ApprovalService
@@ -226,7 +259,7 @@ async def resolve_approval(
     """
 
     # Verify user is workspace admin
-    await verify_workspace_admin(current_user_id, workspace_id)
+    await verify_workspace_admin(current_user_id, workspace_id, session)
 
     from pilot_space.ai.infrastructure.approval import ApprovalService
 
@@ -294,19 +327,10 @@ async def _execute_approved_action(
     Returns:
         Execution result.
     """
-    # TODO: Implement action execution based on action_type
-    # This will require integration with various service classes
-
-    if action_type == "extract_issues":
-        # Placeholder for issue creation
-        # In full implementation, would call IssueService to create issues
-        return {
-            "created_issues": [],
-            "message": "Issue creation not yet implemented",
-        }
-
-    # Default: mark as executed
-    return {"executed": True, "agent": agent_name}
+    raise NotImplementedError(
+        f"Action execution for '{action_type}' not yet integrated with service layer. "
+        "Approval recorded but action must be executed manually."
+    )
 
 
 __all__ = ["router"]

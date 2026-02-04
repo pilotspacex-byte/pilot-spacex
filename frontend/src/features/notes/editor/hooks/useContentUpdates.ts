@@ -33,12 +33,6 @@ interface RetryQueueEntry {
 }
 
 /**
- * Track in-flight issue creation requests to prevent duplicates.
- * Key: hash of issue title, Value: Promise<Issue>
- */
-const inFlightIssues = new Map<string, Promise<Issue>>();
-
-/**
  * Consumes pendingContentUpdates from PilotSpaceStore and applies them
  * to the TipTap editor. Implements conflict detection (AI yields to user).
  *
@@ -62,6 +56,9 @@ export function useContentUpdates(
   noteId: string,
   workspaceId?: string
 ): { processingBlockIds: string[] } {
+  // Track in-flight issue creation requests to prevent duplicates (per-instance)
+  const inFlightIssuesRef = useRef(new Map<string, Promise<Issue>>());
+
   // Track user's active editing position for conflict detection
   const userEditingBlockRef = useRef<string | null>(null);
 
@@ -126,7 +123,13 @@ export function useContentUpdates(
             handleAppendBlocks(editor, update);
             break;
           case 'insert_inline_issue':
-            await handleInsertInlineIssue(editor, update, workspaceId, noteId);
+            await handleInsertInlineIssue(
+              editor,
+              update,
+              workspaceId,
+              noteId,
+              inFlightIssuesRef.current
+            );
             break;
           default:
             console.warn('[AI] Unknown content update operation:', update);
@@ -178,38 +181,43 @@ export function useContentUpdates(
 
       if (readyEntries.length === 0) return;
 
-      // Process ready entries
-      readyEntries.forEach(async (entry) => {
-        const success = await applyContentUpdate(
-          entry.update,
-          userEditingBlockRef.current,
-          true // isRetry flag
-        );
-
-        if (success) {
-          // Remove from queue on success
-          const index = retryQueue.indexOf(entry);
-          if (index !== -1) {
-            retryQueue.splice(index, 1);
-          }
-        } else if (entry.attemptCount >= 3) {
-          // Max retries reached - remove from queue and show error
-          const index = retryQueue.indexOf(entry);
-          if (index !== -1) {
-            retryQueue.splice(index, 1);
-          }
-          console.warn(
-            `[AI] Max retries reached for update:`,
-            entry.update.operation,
-            entry.update.blockId
+      // Process ready entries sequentially to avoid concurrent race conditions
+      const processEntries = async () => {
+        for (const entry of readyEntries) {
+          const success = await applyContentUpdate(
+            entry.update,
+            userEditingBlockRef.current,
+            true // isRetry flag
           );
-          toast.error('AI update failed', {
-            description: 'Could not apply AI changes after 3 attempts. Please refresh the page.',
-          });
-        } else {
-          // Still conflicting - will retry next interval
-          addToRetryQueue(entry.update);
+
+          if (success) {
+            // Remove from queue on success
+            const index = retryQueue.indexOf(entry);
+            if (index !== -1) {
+              retryQueue.splice(index, 1);
+            }
+          } else if (entry.attemptCount >= 3) {
+            // Max retries reached - remove from queue and show error
+            const index = retryQueue.indexOf(entry);
+            if (index !== -1) {
+              retryQueue.splice(index, 1);
+            }
+            console.warn(
+              `[AI] Max retries reached for update:`,
+              entry.update.operation,
+              entry.update.blockId
+            );
+            toast.error('AI update failed', {
+              description: 'Could not apply AI changes after 3 attempts. Please refresh the page.',
+            });
+          } else {
+            // Still conflicting - will retry next interval
+            addToRetryQueue(entry.update);
+          }
         }
+      };
+      processEntries().catch((err) => {
+        console.error('[AI] Failed to process retry entries:', err);
       });
     }, 1000); // Check every second
 
@@ -378,7 +386,8 @@ async function handleInsertInlineIssue(
   editor: Editor,
   update: ContentUpdateData,
   workspaceId?: string,
-  _noteId?: string
+  noteId?: string,
+  inFlightIssues?: Map<string, Promise<Issue>>
 ): Promise<void> {
   if (!update.issueData) {
     console.warn('[AI] insert_inline_issue operation missing issueData');
@@ -396,15 +405,16 @@ async function handleInsertInlineIssue(
 
     // Generate hash for deduplication
     const titleHash = hashString(issueData.title);
+    const tracker = inFlightIssues ?? new Map<string, Promise<Issue>>();
 
     try {
       // Check if issue creation is already in-flight for this title
       let createdIssue: Issue;
 
-      if (inFlightIssues.has(titleHash)) {
+      if (tracker.has(titleHash)) {
         // Reuse the existing in-flight request
         console.log(`[AI] Reusing in-flight issue creation for: "${issueData.title}"`);
-        createdIssue = await inFlightIssues.get(titleHash)!;
+        createdIssue = await tracker.get(titleHash)!;
       } else {
         // Create new issue and track the promise
         const { issuesApi } = await import('@/services/api/issues');
@@ -415,14 +425,14 @@ async function handleInsertInlineIssue(
           type: issueData.type || 'task',
         });
 
-        inFlightIssues.set(titleHash, issuePromise);
+        tracker.set(titleHash, issuePromise);
 
         try {
           createdIssue = await issuePromise;
         } finally {
           // Clean up tracking after 500ms (debounce window)
           setTimeout(() => {
-            inFlightIssues.delete(titleHash);
+            tracker.delete(titleHash);
           }, 500);
         }
       }

@@ -472,16 +472,14 @@ class PermissionAwareHookExecutor:
                     "Permission check failed for tool '%s'",
                     tool_name,
                 )
-                # Fail open for non-mapped tools, fail closed for mapped
-                if tool_name in PermissionCheckHook.TOOL_ACTION_MAPPING:
-                    return {
-                        "hookSpecificOutput": {
-                            "hookEventName": hook_event_name,
-                            "permissionDecision": "deny",
-                            "permissionDecisionReason": ("Permission check failed unexpectedly"),
-                        },
-                    }
-                return {}
+                # Fail closed: deny on any exception during permission check
+                return {
+                    "hookSpecificOutput": {
+                        "hookEventName": hook_event_name,
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": "Permission check failed unexpectedly",
+                    },
+                }
 
             if result.allow:
                 return {}

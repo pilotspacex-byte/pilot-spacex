@@ -17,13 +17,13 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.agents.ai_context_agent import (
     AIContextAgent,
     AIContextInput,
     CodeReference,
     RelatedItem,
 )
-from pilot_space.ai.agents.agent_base import AgentContext
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -311,7 +311,7 @@ class GenerateAIContextService:
 
     async def _find_related_issues(
         self,
-        workspace_id: UUID,  # noqa: ARG002 - Reserved for embedding-based search
+        workspace_id: UUID,
         issue_id: UUID,
         issue_title: str,
         limit: int = 5,
@@ -369,7 +369,7 @@ class GenerateAIContextService:
 
     async def _find_related_notes(
         self,
-        workspace_id: UUID,  # noqa: ARG002 - Reserved for embedding-based search
+        workspace_id: UUID,
         issue_title: str,
         limit: int = 5,
     ) -> list[RelatedItem]:

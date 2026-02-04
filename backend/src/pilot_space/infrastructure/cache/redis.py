@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
 import orjson
@@ -23,47 +22,17 @@ from redis.exceptions import (
     TimeoutError as RedisTimeoutError,
 )
 
+from pilot_space.infrastructure.cache.types import (
+    DEFAULT_TTL_SECONDS,
+    CacheResult,
+)
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
-
-# Default TTL values for different cache types
-DEFAULT_TTL_SECONDS = 3600  # 1 hour
-SESSION_TTL_SECONDS = 86400  # 24 hours
-AI_CACHE_TTL_SECONDS = 1800  # 30 minutes
-
-
-@dataclass(frozen=True)
-class CacheResult[T]:
-    """Result wrapper for cache operations.
-
-    Attributes:
-        value: The cached value if found and valid.
-        hit: Whether the cache lookup was successful.
-        error: Error message if operation failed.
-    """
-
-    value: T | None
-    hit: bool
-    error: str | None = None
-
-    @classmethod
-    def cache_hit(cls, value: T) -> CacheResult[T]:
-        """Create a cache hit result."""
-        return cls(value=value, hit=True)
-
-    @classmethod
-    def cache_miss(cls) -> CacheResult[T]:
-        """Create a cache miss result."""
-        return cls(value=None, hit=False)
-
-    @classmethod
-    def cache_error(cls, error: str) -> CacheResult[T]:
-        """Create a cache error result."""
-        return cls(value=None, hit=False, error=error)
 
 
 class RedisClient:
@@ -587,10 +556,6 @@ class RedisClient:
             return total_deleted
 
     # =========================================================================
-    # Cache Key Builders (Static Methods)
-    # =========================================================================
-
-    # =========================================================================
     # Raw Value Operations (no JSON serialization)
     # =========================================================================
 
@@ -724,32 +689,3 @@ class RedisClient:
         pubsub = self._client.pubsub()
         await pubsub.subscribe(channel)
         return pubsub
-
-    # =========================================================================
-    # Cache Key Builders (Static Methods)
-    # =========================================================================
-
-    @staticmethod
-    def session_key(session_id: str) -> str:
-        """Build session cache key."""
-        return f"session:{session_id}"
-
-    @staticmethod
-    def user_key(user_id: str) -> str:
-        """Build user cache key."""
-        return f"user:{user_id}"
-
-    @staticmethod
-    def ai_response_key(workspace_id: str, prompt_hash: str) -> str:
-        """Build AI response cache key."""
-        return f"ai:response:{workspace_id}:{prompt_hash}"
-
-    @staticmethod
-    def rate_limit_key(user_id: str, endpoint: str) -> str:
-        """Build rate limit counter key."""
-        return f"rate:{user_id}:{endpoint}"
-
-    @staticmethod
-    def presence_key(workspace_id: str, user_id: str) -> str:
-        """Build presence cache key."""
-        return f"presence:{workspace_id}:{user_id}"

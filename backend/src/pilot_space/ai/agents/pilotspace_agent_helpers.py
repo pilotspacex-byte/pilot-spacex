@@ -13,6 +13,14 @@ from uuid import uuid4
 
 from claude_agent_sdk import AgentDefinition
 
+from pilot_space.ai.agents.pilotspace_note_helpers import (
+    emit_append_blocks_event,
+    emit_issue_creation_events,
+    emit_replace_block_event,
+    transform_todo_to_task_progress,
+    validate_structured_output,
+)
+
 if TYPE_CHECKING:
     from claude_agent_sdk import Message
 
@@ -185,14 +193,21 @@ def transform_sdk_message(  # noqa: PLR0911
         if isinstance(content, list):
             events: list[str] = []
             text_parts: list[str] = []
-            thinking_parts: list[str] = []
+            # G-07: Track thinking blocks individually for interleaved rendering
+            thinking_blocks: list[dict[str, Any]] = []
+            thinking_signature: str | None = None
             citation_parts: list[dict[str, Any]] = []
 
             for block_idx, block in enumerate(content):
                 block_type = _get_block_type(block)
 
-                # Emit content_block_start for each block
-                content_type = "tool_use" if block_type == "tool_use" else "text"
+                # Emit content_block_start for each block (G-01: include thinking type)
+                if block_type == "tool_use":
+                    content_type = "tool_use"
+                elif block_type in ("thinking", "redacted_thinking"):
+                    content_type = "thinking"
+                else:
+                    content_type = "text"
                 block_start_data: dict[str, Any] = {
                     "index": block_idx,
                     "contentType": content_type,
@@ -214,11 +229,47 @@ def transform_sdk_message(  # noqa: PLR0911
                 if block_type == "thinking":
                     thinking_text = _get_block_text(block, "thinking")
                     if thinking_text:
-                        thinking_parts.append(thinking_text)
+                        # G-07: Track each thinking block with its position index
+                        thinking_blocks.append(
+                            {
+                                "content": thinking_text,
+                                "blockIndex": block_idx,
+                            }
+                        )
+                    # G-06: Capture signature for multi-turn thinking integrity
+                    sig = (
+                        block.get("signature")
+                        if isinstance(block, dict)
+                        else getattr(block, "signature", None)
+                    )
+                    if sig:
+                        thinking_signature = str(sig)
+                elif block_type == "redacted_thinking":
+                    # G-04: Handle redacted thinking from Claude safety system
+                    thinking_blocks.append(
+                        {
+                            "content": "[Thinking redacted by safety system]",
+                            "blockIndex": block_idx,
+                            "redacted": True,
+                        }
+                    )
                 elif block_type == "tool_use":
                     tool_event = _handle_tool_use_block(block, message_id)
                     if tool_event:
                         events.append(tool_event)
+                elif block_type == "server_tool_use":
+                    # G-10: Handle server-side tool invocations (web_search, etc.)
+                    tool_event = _handle_server_tool_use_block(block, message_id)
+                    if tool_event:
+                        events.append(tool_event)
+                elif block_type == "web_search_tool_result":
+                    # G-10: Handle web search results from server tools
+                    search_event = _handle_web_search_result_block(
+                        block,
+                        message_id,
+                    )
+                    if search_event:
+                        events.append(search_event)
                 elif block_type == "citation":
                     # T58: Extract citation blocks for source attribution
                     citation_data = _extract_citation(block)
@@ -228,13 +279,30 @@ def transform_sdk_message(  # noqa: PLR0911
                     text = _get_block_text(block, "text")
                     if text:
                         text_parts.append(text)
+                    # G-05: Extract inline citations from TextBlock.citations array
+                    inline_citations = (
+                        block.get("citations", [])
+                        if isinstance(block, dict)
+                        else getattr(block, "citations", [])
+                    )
+                    if inline_citations:
+                        for cite in inline_citations:
+                            citation_data = _extract_citation(cite)
+                            if citation_data:
+                                citation_parts.append(citation_data)
 
-            if thinking_parts:
-                thinking_content = " ".join(thinking_parts)
-                thinking_data = {
+            # G-07: Emit per-block thinking_delta events for interleaved rendering
+            for tb in thinking_blocks:
+                thinking_data: dict[str, Any] = {
                     "messageId": message_id,
-                    "delta": thinking_content,
+                    "delta": tb["content"],
+                    "blockIndex": tb["blockIndex"],
                 }
+                if tb.get("redacted"):
+                    thinking_data["redacted"] = True
+                # G-06: Include signature on the last thinking block
+                if thinking_signature and tb is thinking_blocks[-1]:
+                    thinking_data["signature"] = thinking_signature
                 events.append(
                     f"event: thinking_delta\ndata: {json.dumps(thinking_data)}\n\n",
                 )
@@ -291,7 +359,7 @@ def transform_sdk_message(  # noqa: PLR0911
         result_raw = getattr(message, "result", None)
         if isinstance(result_raw, dict) and "schemaType" in result_raw:
             schema_type = result_raw["schemaType"]
-            validated = _validate_structured_output(schema_type, result_raw)
+            validated = validate_structured_output(schema_type, result_raw)
             if validated is not None:
                 structured_data: dict[str, Any] = {
                     "messageId": message_id,
@@ -365,6 +433,75 @@ def _handle_tool_use_block(block: Any, message_id: str) -> str | None:
         "toolInput": tool_input,
     }
     return f"event: tool_use\ndata: {json.dumps(tool_data)}\n\n"
+
+
+def _handle_server_tool_use_block(block: Any, message_id: str) -> str | None:
+    """Handle server_tool_use block (G-10).
+
+    Server tools (web_search, web_fetch) run on Anthropic's infrastructure.
+    Map to standard tool_use event so frontend renders them uniformly.
+    """
+    if isinstance(block, dict):
+        tool_name = block.get("name", "server_tool")
+        tool_id = block.get("id", block.get("server_tool_use_id", str(uuid4())))
+        tool_input = block.get("input", {})
+    else:
+        tool_name = getattr(block, "name", "server_tool")
+        tool_id = getattr(block, "id", getattr(block, "server_tool_use_id", str(uuid4())))
+        tool_input = getattr(block, "input", {})
+
+    tool_data: dict[str, Any] = {
+        "toolCallId": str(tool_id),
+        "toolName": tool_name,
+        "toolInput": tool_input if isinstance(tool_input, dict) else {},
+    }
+    return f"event: tool_use\ndata: {json.dumps(tool_data)}\n\n"
+
+
+def _handle_web_search_result_block(block: Any, message_id: str) -> str | None:
+    """Handle web_search_tool_result block (G-10).
+
+    Emits a tool_result event with search results so the frontend
+    can render them in the tool call output section.
+    """
+    if isinstance(block, dict):
+        tool_id = block.get("tool_use_id", str(uuid4()))
+        search_results = block.get("content", [])
+    else:
+        tool_id = getattr(block, "tool_use_id", str(uuid4()))
+        search_results = getattr(block, "content", [])
+
+    # Normalize search result entries
+    results: list[dict[str, Any]] = []
+    if isinstance(search_results, list):
+        for entry in search_results:
+            if isinstance(entry, dict):
+                results.append(
+                    {
+                        "title": entry.get("title", ""),
+                        "url": entry.get("url", ""),
+                        "snippet": entry.get("encrypted_content", entry.get("text", "")),
+                    }
+                )
+            else:
+                results.append(
+                    {
+                        "title": getattr(entry, "title", ""),
+                        "url": getattr(entry, "url", ""),
+                        "snippet": getattr(
+                            entry,
+                            "encrypted_content",
+                            getattr(entry, "text", ""),
+                        ),
+                    }
+                )
+
+    result_data: dict[str, Any] = {
+        "toolUseId": str(tool_id),
+        "output": {"type": "web_search_results", "results": results},
+        "status": "completed",
+    }
+    return f"event: tool_result\ndata: {json.dumps(result_data)}\n\n"
 
 
 def _emit_ask_user_question_event(
@@ -505,7 +642,7 @@ def transform_tool_result(message: Message) -> str | None:
 
     # Map TodoWrite results to task_progress SSE events (T6/G-07)
     tool_name = getattr(message, "name", "") or getattr(message, "tool_name", "")
-    todo_event = _transform_todo_to_task_progress(tool_name, result_data, tool_use_id)
+    todo_event = transform_todo_to_task_progress(tool_name, result_data, tool_use_id)
     if todo_event:
         return todo_event
 
@@ -531,160 +668,3 @@ def transform_tool_result(message: Message) -> str | None:
         tool_result_data["errorMessage"] = error_message
 
     return f"event: tool_result\ndata: {json.dumps(tool_result_data, default=str)}\n\n"
-
-
-def emit_replace_block_event(result_data: dict[str, Any], note_id: str) -> str:
-    """Emit content_update SSE event for replace_block operation.
-
-    Args:
-        result_data: Tool result data
-        note_id: Note ID
-
-    Returns:
-        SSE-formatted content_update event
-    """
-    event_data = {
-        "noteId": note_id,
-        "operation": "replace_block",
-        "blockId": result_data.get("block_id"),
-        "markdown": result_data.get("markdown"),
-        "content": None,
-        "issueData": None,
-        "afterBlockId": None,
-    }
-    return f"event: content_update\ndata: {json.dumps(event_data)}\n\n"
-
-
-def emit_append_blocks_event(result_data: dict[str, Any], note_id: str) -> str:
-    """Emit content_update SSE event for append_blocks operation.
-
-    Args:
-        result_data: Tool result data
-        note_id: Note ID
-
-    Returns:
-        SSE-formatted content_update event
-    """
-    event_data = {
-        "noteId": note_id,
-        "operation": "append_blocks",
-        "blockId": result_data.get("block_id"),
-        "markdown": result_data.get("markdown"),
-        "content": None,
-        "issueData": None,
-        "afterBlockId": result_data.get("after_block_id"),
-    }
-    return f"event: content_update\ndata: {json.dumps(event_data)}\n\n"
-
-
-def emit_issue_creation_events(result_data: dict[str, Any], note_id: str) -> str:
-    """Emit content_update SSE events for issue creation.
-
-    For multiple issues, creates one event with all issue data.
-    Frontend will handle inserting multiple inline issue nodes.
-
-    Args:
-        result_data: Tool result data
-        note_id: Note ID
-
-    Returns:
-        SSE-formatted content_update event(s)
-    """
-    operation = result_data.get("operation")
-
-    if operation == "create_single_issue":
-        issue_data = result_data.get("issue", {})
-        event_data = {
-            "noteId": note_id,
-            "operation": "insert_inline_issue",
-            "blockId": result_data.get("block_id"),
-            "markdown": None,
-            "content": None,
-            "issueData": issue_data,
-            "afterBlockId": None,
-        }
-        return f"event: content_update\ndata: {json.dumps(event_data)}\n\n"
-
-    issues = result_data.get("issues", [])
-    if not issues:
-        return ""
-
-    events = []
-    block_ids = result_data.get("block_ids", [])
-
-    for idx, issue in enumerate(issues):
-        block_id = block_ids[idx] if idx < len(block_ids) else None
-        event_data = {
-            "noteId": note_id,
-            "operation": "insert_inline_issue",
-            "blockId": block_id,
-            "markdown": None,
-            "content": None,
-            "issueData": issue,
-            "afterBlockId": None,
-        }
-        events.append(f"event: content_update\ndata: {json.dumps(event_data)}\n\n")
-
-    return "".join(events)
-
-
-def _transform_todo_to_task_progress(
-    tool_name: str, result_data: Any, tool_use_id: Any
-) -> str | None:
-    """Map TodoWrite results to task_progress SSE events."""
-    if tool_name not in ("TodoWrite", "mcp__TodoWrite", "TodoRead", "mcp__TodoRead"):
-        return None
-    if not isinstance(result_data, dict):
-        return None
-
-    todos = result_data.get("todos", [])
-    if not todos:
-        return None
-
-    events = []
-    for todo in todos:
-        status = todo.get("status", "pending")
-        task_data = {
-            "taskId": todo.get("id", str(uuid4())),
-            "subject": todo.get("content", "Task"),
-            "status": _map_todo_status(status),
-            "progress": 100 if status in ("completed", "done") else 0,
-        }
-        events.append(f"event: task_progress\ndata: {json.dumps(task_data)}\n\n")
-    return "".join(events) if events else None
-
-
-def _validate_structured_output(
-    schema_type: str, result_data: dict[str, Any]
-) -> dict[str, Any] | None:
-    """Validate structured output against registered Pydantic schema (G-03).
-
-    Returns validated dict (model_dump) on success, None on failure.
-    Unknown schema types pass through without validation.
-    """
-    from pilot_space.ai.sdk.output_schemas import get_output_schema
-
-    schema_cls = get_output_schema(schema_type)
-    if schema_cls is None:
-        # Unknown schema type — pass through raw data
-        return result_data
-    try:
-        validated = schema_cls.model_validate(result_data)
-        return validated.model_dump(by_alias=True)
-    except Exception:
-        logger.warning(
-            "Structured output validation failed for schema_type=%s, falling back to plain message",
-            schema_type,
-            exc_info=True,
-        )
-        return None
-
-
-def _map_todo_status(status: str) -> str:
-    """Map SDK todo status to frontend TaskStatus."""
-    return {
-        "pending": "pending",
-        "in_progress": "in_progress",
-        "completed": "completed",
-        "done": "completed",
-    }.get(status, "pending")

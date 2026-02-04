@@ -3,28 +3,17 @@
  * Following pilotspace-agent-architecture.md v1.5.0
  */
 
-/**
- * Chat message in a conversation
- */
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  toolCalls?: ToolCall[];
-  timestamp: Date;
-}
+import type {
+  ChatMessage as _ChatMessage,
+  ToolCall as _ToolCall,
+} from '@/stores/ai/types/conversation';
 
 /**
- * Tool call executed by the agent
+ * Chat message and tool call types — re-exported from canonical store types.
+ * Use stores/ai/types/conversation.ts for all conversation data.
  */
-export interface ToolCall {
-  id: string;
-  name: string;
-  status: 'pending' | 'executing' | 'completed' | 'failed';
-  input: Record<string, unknown>;
-  output?: unknown;
-  error?: string;
-}
+export type ChatMessage = _ChatMessage;
+export type ToolCall = _ToolCall;
 
 /**
  * Agent task tracked in the UI (T071-T074: Added progress tracking)
@@ -115,26 +104,10 @@ export interface AgentDefinition {
 }
 
 /**
- * SSE event types from backend
+ * SSE event types — re-exported from canonical store types.
+ * Use stores/ai/types/events.ts for all SSE event handling.
  */
-export type SSEEventType =
-  | 'message_start'
-  | 'content_block_start'
-  | 'text_delta'
-  | 'tool_use'
-  | 'approval_request'
-  | 'task_progress'
-  | 'task_complete'
-  | 'message_stop'
-  | 'error';
-
-/**
- * SSE event from backend
- */
-export interface SSEEvent {
-  type: SSEEventType;
-  data?: unknown;
-}
+export type { SSEEventType, SSEEvent } from '@/stores/ai/types/events';
 
 /**
  * PilotSpaceStore interface (from architecture)

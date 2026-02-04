@@ -6,6 +6,7 @@ API keys are encrypted before storage and never returned in responses.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Annotated
@@ -42,6 +43,9 @@ from pilot_space.infrastructure.encryption import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai/configurations", tags=["ai-configuration"])
+
+# Lock to protect genai.configure() global state mutation from race conditions
+_google_api_lock = asyncio.Lock()
 
 
 def get_ai_config_repository(session: DbSession) -> AIConfigurationRepository:
@@ -555,14 +559,17 @@ async def _test_openai_key(api_key: str) -> tuple[bool, str]:
 async def _test_google_key(api_key: str) -> tuple[bool, str]:
     """Test Google AI API key validity.
 
-    Uses a minimal models list API call.
+    Uses a minimal models list API call. Protected by lock to prevent
+    race conditions from genai.configure() global state mutation.
     """
     import google.generativeai as genai
 
     try:
-        genai.configure(api_key=api_key)  # pyright: ignore[reportPrivateImportUsage,reportUnknownMemberType]
-        # List models is a lightweight call to validate the key
-        list(genai.list_models())  # pyright: ignore[reportPrivateImportUsage,reportUnknownMemberType,reportUnknownArgumentType]
+        # Lock protects genai.configure() global state from concurrent access
+        async with _google_api_lock:
+            genai.configure(api_key=api_key)  # pyright: ignore[reportPrivateImportUsage,reportUnknownMemberType]
+            # List models is a lightweight call to validate the key
+            list(genai.list_models())  # pyright: ignore[reportPrivateImportUsage,reportUnknownMemberType,reportUnknownArgumentType]
     except Exception as e:
         error_str = str(e).lower()
         if "invalid" in error_str or "api key" in error_str:

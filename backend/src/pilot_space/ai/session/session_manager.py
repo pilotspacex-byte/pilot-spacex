@@ -614,12 +614,22 @@ class SessionManager:
         session_ages: list[float] = []
         now = datetime.now(UTC)
 
-        for key in keys:
-            # Skip index keys
-            if ":index:" in key:
-                continue
+        # Filter out index keys before batch fetch
+        session_keys = [k for k in keys if ":index:" not in k]
 
-            data = await self._redis.get(key)
+        if not session_keys:
+            return {
+                "total_sessions": 0,
+                "by_agent": {},
+                "total_cost_usd": 0.0,
+                "average_age_minutes": 0.0,
+                "timestamp": now.isoformat(),
+            }
+
+        # Batch fetch all session data in one round-trip
+        all_data = await self._redis.mget(*session_keys)
+
+        for data in all_data:
             if data is None:
                 continue
 
