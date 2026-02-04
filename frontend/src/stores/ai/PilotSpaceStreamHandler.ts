@@ -52,29 +52,17 @@ import {
 } from './types/events';
 import type { PilotSpaceStore } from './PilotSpaceStore';
 
-/**
- * API base URL for backend requests.
- * Falls back to localhost if not configured.
- */
+/** API base URL for backend requests. */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 
-/**
- * Handles SSE event dispatch, stream parsing, and connection management.
- *
- * Separated from PilotSpaceStore to keep the store focused on state
- * and simple mutations while this class handles stream I/O.
- */
+/** Handles SSE event dispatch, stream parsing, and connection management. */
 /** Maximum retry attempts for retryable errors */
 const MAX_RETRY_ATTEMPTS = 3;
 
 export class PilotSpaceStreamHandler {
-  /** Active SSE client instance */
   private client: SSEClient | null = null;
-  /** Last parent tool use ID from content_block_start for subagent correlation (G12) */
   private _lastParentToolUseId: string | null = null;
-  /** Current retry attempt count */
   private _retryCount = 0;
-  /** Pending retry timer ID */
   private _retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private store: PilotSpaceStore) {}
@@ -83,11 +71,7 @@ export class PilotSpaceStreamHandler {
   // Stream Connection
   // ========================================
 
-  /**
-   * Connect to a specific SSE stream URL (queue mode).
-   * @param streamUrl - Stream URL (e.g., /api/v1/ai/chat/stream/{job_id})
-   * @param _jobId - Optional job identifier for tracking (reserved for future use)
-   */
+  /** Connect to a specific SSE stream URL (queue mode). */
   async connectToStream(streamUrl: string, _jobId?: string): Promise<void> {
     this.resetRetryState();
     // Ensure absolute URL
@@ -341,6 +325,9 @@ export class PilotSpaceStreamHandler {
       thinkingContent: '',
       isThinking: false,
       thinkingStartedAt: null,
+      activeToolName: null,
+      interrupted: false,
+      wordCount: 0,
     };
   }
 
@@ -420,6 +407,9 @@ export class PilotSpaceStreamHandler {
     // Accumulate text delta
     this.store.streamingState.streamContent += delta;
     this.store.streamingState.phase = 'content';
+
+    const words = delta.split(/\s+/).filter((w) => w.length > 0);
+    this.store.streamingState.wordCount = (this.store.streamingState.wordCount ?? 0) + words.length;
   }
 
   /** Handle tool_use — buffers tool call for attachment on message finalization (T63). */
@@ -439,10 +429,14 @@ export class PilotSpaceStreamHandler {
     this.store.addPendingToolCall(toolCall);
 
     this.store.streamingState.phase = 'tool_use';
+
+    this.store.streamingState.activeToolName = toolName;
   }
 
   /** Handle tool_result — updates tool call status/result, checks pending buffer first (T66). */
   handleToolResult(event: ToolResultEvent): void {
+    this.store.streamingState.activeToolName = null;
+
     const { toolCallId, status, output, errorMessage } = event.data;
 
     // Map backend status to ToolCall status
@@ -583,6 +577,11 @@ export class PilotSpaceStreamHandler {
 
     this.store.messages.push(assistantMessage);
 
+    if (usage?.totalTokens) {
+      this.store.sessionState.totalTokens =
+        (this.store.sessionState.totalTokens ?? 0) + usage.totalTokens;
+    }
+
     // Reset streaming state
     this.store.streamingState = {
       isStreaming: false,
@@ -591,6 +590,9 @@ export class PilotSpaceStreamHandler {
       thinkingContent: '',
       isThinking: false,
       thinkingStartedAt: null,
+      activeToolName: null,
+      interrupted: false,
+      wordCount: 0,
     };
   }
 
@@ -598,6 +600,8 @@ export class PilotSpaceStreamHandler {
   handleBudgetWarning(event: BudgetWarningEvent): void {
     const { currentCostUsd, maxBudgetUsd, percentUsed, message } = event.data;
     this.store.error = `Budget warning (${percentUsed}%): ${message} ($${currentCostUsd.toFixed(4)} / $${maxBudgetUsd.toFixed(2)})`;
+
+    this.store.sessionState.totalTokens = Math.round((percentUsed / 100) * 8000);
   }
 
   /** Handle tool_audit — updates tool call with duration info, checks pending buffer first. */

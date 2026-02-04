@@ -16,6 +16,7 @@ import type {
   SkillDefinition,
   AgentDefinition,
 } from '../types';
+import { TokenBudgetRing } from '@/components/ui/token-budget-ring';
 import { ContextIndicator } from './ContextIndicator';
 import { SkillMenu } from './SkillMenu';
 import { AgentMenu } from './AgentMenu';
@@ -33,6 +34,12 @@ interface ChatInputProps {
   onClearNoteContext?: () => void;
   onClearIssueContext?: () => void;
   onClearProjectContext?: () => void;
+  /** Token budget usage percentage (0-100) for budget ring display */
+  tokenBudgetPercent?: number;
+  /** Tokens used in current session */
+  tokensUsed?: number;
+  /** Total token budget */
+  tokenBudget?: number;
   className?: string;
 }
 
@@ -49,6 +56,9 @@ export const ChatInput = observer<ChatInputProps>(
     projectContext,
     onClearNoteContext,
     onClearIssueContext,
+    tokenBudgetPercent,
+    tokensUsed,
+    tokenBudget = 8000,
     onClearProjectContext,
     className,
   }) => {
@@ -156,6 +166,13 @@ export const ChatInput = observer<ChatInputProps>(
 
             {/* Inline toolbar buttons */}
             <div className="absolute bottom-1.5 right-2 flex items-center gap-0.5">
+              {tokenBudgetPercent != null && tokenBudgetPercent > 0 && (
+                <TokenBudgetRing
+                  percentage={tokenBudgetPercent}
+                  tokensUsed={tokensUsed}
+                  tokenBudget={tokenBudget}
+                />
+              )}
               <SkillMenu
                 open={skillMenuOpen}
                 onOpenChange={setSkillMenuOpen}

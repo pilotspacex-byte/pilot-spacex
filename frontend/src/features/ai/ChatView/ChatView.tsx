@@ -27,6 +27,7 @@ import { ApprovalOverlay } from './ApprovalOverlay/ApprovalOverlay';
 import { ChatInput } from './ChatInput/ChatInput';
 import { SuggestionCard } from './MessageList/SuggestionCard';
 import { QuestionCard } from './MessageList/QuestionCard';
+import { StreamingBanner } from './StreamingBanner';
 import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
 
 /**
@@ -259,6 +260,8 @@ const ChatViewInternal = observer<ChatViewProps>(
             streamContent={store.streamContent}
             thinkingContent={store.streamingState.thinkingContent}
             isThinking={store.streamingState.isThinking}
+            thinkingStartedAt={store.streamingState.thinkingStartedAt}
+            interrupted={store.streamingState.interrupted}
             userName={userName}
             userAvatar={userAvatar}
             className="flex-1"
@@ -342,6 +345,16 @@ const ChatViewInternal = observer<ChatViewProps>(
           />
         ))}
 
+        {/* Streaming state banner */}
+        <StreamingBanner
+          isStreaming={store.isStreaming}
+          phase={store.streamingState.phase}
+          activeToolName={store.streamingState.activeToolName}
+          wordCount={store.streamingState.wordCount ?? 0}
+          interrupted={store.streamingState.interrupted ?? false}
+          thinkingStartedAt={store.streamingState.thinkingStartedAt}
+        />
+
         {/* Input */}
         <ChatInput
           value={inputValue}
@@ -371,6 +384,9 @@ const ChatViewInternal = observer<ChatViewProps>(
               : null
           }
           projectContext={null} // TODO: Add projectContext to store
+          tokenBudgetPercent={store.tokenBudgetPercent}
+          tokensUsed={store.sessionState?.totalTokens}
+          tokenBudget={8000}
           onClearNoteContext={handleClearNoteContext}
           onClearIssueContext={handleClearIssueContext}
           onClearProjectContext={handleClearProjectContext}

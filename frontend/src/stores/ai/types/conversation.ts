@@ -151,6 +151,8 @@ export interface SessionState {
   totalCostUsd?: number;
   /** Turn count in this session */
   turnCount?: number;
+  /** Accumulated token count for budget ring display (008) */
+  totalTokens?: number;
 }
 
 /**
@@ -180,6 +182,12 @@ export interface StreamingState {
   thinkingSignature?: string;
   /** Accumulated thinking blocks for interleaved rendering (G-07) */
   thinkingBlocks?: ThinkingBlockEntry[];
+  /** Currently executing tool name for banner display (008) */
+  activeToolName?: string | null;
+  /** Stream was aborted by user (008) */
+  interrupted?: boolean;
+  /** Accumulated word count during text generation phase (008) */
+  wordCount?: number;
 }
 
 /**

@@ -22,6 +22,10 @@ interface MessageListProps {
   thinkingContent?: string;
   /** Whether thinking is actively streaming */
   isThinking?: boolean;
+  /** Timestamp (ms) when thinking started, for live timer */
+  thinkingStartedAt?: number | null;
+  /** Whether the stream was interrupted by user */
+  interrupted?: boolean;
   userName?: string;
   userAvatar?: string;
   className?: string;
@@ -59,6 +63,8 @@ export const MessageList = observer<MessageListProps>(
     streamContent,
     thinkingContent,
     isThinking,
+    thinkingStartedAt,
+    interrupted,
     userName,
     userAvatar,
     className,
@@ -122,6 +128,8 @@ export const MessageList = observer<MessageListProps>(
                       content={streamContent ?? ''}
                       thinkingContent={thinkingContent}
                       isThinking={isThinking}
+                      thinkingStartedAt={thinkingStartedAt}
+                      interrupted={interrupted}
                     />
                   </div>
                 );

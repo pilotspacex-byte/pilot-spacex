@@ -24,6 +24,31 @@ import { hashString } from '@/lib/debounce';
 import type { Issue } from '@/types';
 
 /**
+ * Apply a visual highlight to a block after AI completes an operation.
+ *
+ * - 'edited': background flash from ai-muted to transparent over 1s
+ * - 'new': slide-in animation (translateY + opacity) over 300ms
+ *
+ * Uses direct DOM class manipulation (not ProseMirror decorations) since
+ * these are ephemeral visual effects that don't affect editor state.
+ */
+export function highlightBlock(blockId: string, type: 'edited' | 'new'): void {
+  const el = document.querySelector(`[data-block-id="${blockId}"]`);
+  if (!el) return;
+
+  if (type === 'edited') {
+    el.classList.add('ai-block-edited');
+    setTimeout(() => el.classList.add('ai-block-fade-out'), 50);
+    setTimeout(() => {
+      el.classList.remove('ai-block-edited', 'ai-block-fade-out');
+    }, 1100);
+  } else {
+    el.classList.add('ai-block-new');
+    setTimeout(() => el.classList.remove('ai-block-new'), 400);
+  }
+}
+
+/**
  * Retry queue entry for failed content updates.
  */
 interface RetryQueueEntry {
@@ -248,6 +273,24 @@ export function useContentUpdates(
               setProcessingBlockIds((prev) => prev.filter((id) => id !== blockId));
             }
 
+            // Apply visual highlight after successful operation
+            if (success) {
+              if (update.operation === 'replace_block' && blockId) {
+                highlightBlock(blockId, 'edited');
+              } else if (update.operation === 'append_blocks') {
+                // For appended blocks, highlight newly inserted blocks after the anchor
+                const anchorId = update.afterBlockId;
+                if (anchorId) {
+                  const anchorEl = document.querySelector(`[data-block-id="${anchorId}"]`);
+                  const nextSibling = anchorEl?.nextElementSibling;
+                  const newBlockId = nextSibling?.getAttribute('data-block-id');
+                  if (newBlockId) {
+                    highlightBlock(newBlockId, 'new');
+                  }
+                }
+              }
+            }
+
             // Add to retry queue if conflict occurred
             if (!success && update.blockId) {
               addToRetryQueue(update);
@@ -386,7 +429,7 @@ async function handleInsertInlineIssue(
   editor: Editor,
   update: ContentUpdateData,
   workspaceId?: string,
-  noteId?: string,
+  _noteId?: string,
   inFlightIssues?: Map<string, Promise<Issue>>
 ): Promise<void> {
   if (!update.issueData) {
