@@ -197,19 +197,26 @@ async def chat(
         When disconnect is detected, the generator exits which triggers
         the agent's finally block to interrupt the Claude SDK process.
         """
-        try:
-            async for sse_chunk in _execute_agent_stream(
-                agent, input_data=agent_input, context=ai_context
-            ):
-                yield sse_chunk
+        import asyncio
 
-                # Detect client disconnect after each chunk
-                if await fastapi_request.is_disconnected():
-                    logger.info("Client disconnected during chat stream, stopping")
-                    break
+        try:
+            async with asyncio.timeout(600):
+                async for sse_chunk in _execute_agent_stream(
+                    agent, input_data=agent_input, context=ai_context
+                ):
+                    yield sse_chunk
+
+                    # Detect client disconnect after each chunk
+                    if await fastapi_request.is_disconnected():
+                        logger.info("Client disconnected during chat stream, stopping")
+                        break
+        except TimeoutError:
+            logger.warning("Direct SSE stream timeout")
+            error_data = {"errorCode": "stream_timeout", "message": "Stream exceeded maximum duration", "retryable": False}
+            yield f"event: error\ndata: {orjson.dumps(error_data).decode()}\n\n"
         except Exception as e:
             logger.exception("Chat endpoint error: %s", e)
-            error_data = {"errorCode": "api_error", "message": str(e), "retryable": False}
+            error_data = {"errorCode": "api_error", "message": "An internal error occurred", "retryable": False}
             yield f"event: error\ndata: {orjson.dumps(error_data).decode()}\n\n"
 
     return StreamingResponse(
@@ -356,24 +363,32 @@ async def stream_job(
             raise HTTPException(status_code=403, detail="Access denied to this stream")
 
     async def event_stream():
-        # 1. Catch up on stored events (for reconnection or late connect)
-        stored = await redis_client.lrange(f"stream:events:{job_id}", 0, -1)
-        for event_bytes in stored:
-            yield event_bytes.decode()
+        import asyncio
 
-        # 2. Subscribe to live events
-        pubsub = await redis_client.subscribe(f"chat:stream:{job_id}")
         try:
-            async for msg in pubsub.listen():
-                if msg["type"] == "message":
-                    data = msg["data"]
-                    event_str = data.decode() if isinstance(data, bytes) else data
-                    yield event_str
-                    if '"stream_end"' in event_str or '"error"' in event_str:
-                        break
-        finally:
-            await pubsub.unsubscribe(f"chat:stream:{job_id}")
-            await pubsub.aclose()
+            async with asyncio.timeout(600):
+                # 1. Catch up on stored events (for reconnection or late connect)
+                stored = await redis_client.lrange(f"stream:events:{job_id}", 0, -1)
+                for event_bytes in stored:
+                    yield event_bytes.decode()
+
+                # 2. Subscribe to live events
+                pubsub = await redis_client.subscribe(f"chat:stream:{job_id}")
+                try:
+                    async for msg in pubsub.listen():
+                        if msg["type"] == "message":
+                            data = msg["data"]
+                            event_str = data.decode() if isinstance(data, bytes) else data
+                            yield event_str
+                            if '"stream_end"' in event_str or '"error"' in event_str:
+                                break
+                finally:
+                    await pubsub.unsubscribe(f"chat:stream:{job_id}")
+                    await pubsub.aclose()
+        except TimeoutError:
+            logger.warning("SSE stream timeout for job %s", job_id)
+            error_data = {"errorCode": "stream_timeout", "message": "Stream exceeded maximum duration", "retryable": False}
+            yield f"event: error\ndata: {orjson.dumps(error_data).decode()}\n\n"
 
     return StreamingResponse(
         event_stream(),

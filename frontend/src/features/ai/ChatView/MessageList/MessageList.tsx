@@ -81,8 +81,7 @@ export const MessageList = observer<MessageListProps>(
 
     const messageGroups = useMemo(
       () => groupMessagesByRole(messages),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [messages.length]
+      [messages]
     );
 
     // Total items: message groups + optional streaming footer
@@ -90,7 +89,7 @@ export const MessageList = observer<MessageListProps>(
     const totalCount = messageGroups.length + (hasStreamingFooter ? 1 : 0);
 
     return (
-      <div className={cn('relative flex-1', className)}>
+      <div className={cn('relative flex-1', className)} role="log" aria-live="polite" aria-label="Chat messages">
         {totalCount === 0 && !isStreaming ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-4">

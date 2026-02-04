@@ -279,7 +279,7 @@ def get_current_user_id_or_demo(
         token = get_token_from_header(request)
         payload = auth.validate_token(token)
         return payload.user_id
-    except Exception:
+    except (HTTPException, TokenExpiredError, SupabaseAuthError):
         # In development, fall back to demo user if auth fails
         if settings.app_env in ("development", "test"):
             return DEMO_USER_ID

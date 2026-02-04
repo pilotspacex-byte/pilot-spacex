@@ -9,6 +9,7 @@ Reference: docs/architect/claude-agent-sdk-architecture.md
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
@@ -178,6 +179,33 @@ class CommandRegistry:
 
             try:
                 cmd_def = self._parse_command_file(cmd_file)
+                self._cache[cmd_def.name] = cmd_def
+
+                # Build alias map
+                for alias in cmd_def.aliases:
+                    self._alias_map[alias] = cmd_def.name
+
+                logger.debug(f"Loaded command: /{cmd_def.name}")
+
+            except Exception as e:
+                logger.warning(f"Failed to parse command {cmd_file}: {e}")
+                continue
+
+    async def async_discover_commands(self) -> None:
+        """Async version of _discover_commands for use in async contexts."""
+        if not self._commands_dir.exists():
+            logger.debug(f"Commands directory not found: {self._commands_dir}")
+            return
+
+        loop = asyncio.get_event_loop()
+
+        for cmd_file in self._commands_dir.glob("*.md"):
+            # Skip metadata files
+            if cmd_file.name in ("CLAUDE.md", "README.md"):
+                continue
+
+            try:
+                cmd_def = await loop.run_in_executor(None, self._parse_command_file, cmd_file)
                 self._cache[cmd_def.name] = cmd_def
 
                 # Build alias map

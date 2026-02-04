@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { Copy, Check, User, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { MarkdownContent } from '@/features/ai/ChatView/MessageList/MarkdownContent';
 import type { ConversationMessage as ConversationMessageType } from '@/stores/ai/ConversationStore';
 
 export interface ConversationMessageProps {
@@ -70,10 +71,10 @@ export function ConversationMessage({ message, isStreaming = false }: Conversati
             isUser
               ? 'bg-primary text-primary-foreground'
               : 'bg-muted text-foreground border border-border',
-            isStreaming && 'animate-pulse'
+            isStreaming && 'motion-safe:animate-pulse'
           )}
         >
-          <MessageContent content={message.content} />
+          <MarkdownContent content={message.content} />
         </div>
 
         {/* Metadata row */}
@@ -102,7 +103,7 @@ export function ConversationMessage({ message, isStreaming = false }: Conversati
           {/* Streaming indicator */}
           {isStreaming && (
             <span className="inline-flex items-center gap-1">
-              <span className="animate-pulse">●</span>
+              <span className="motion-safe:animate-pulse">●</span>
               <span>Typing</span>
             </span>
           )}
@@ -112,45 +113,3 @@ export function ConversationMessage({ message, isStreaming = false }: Conversati
   );
 }
 
-/**
- * Render message content with basic markdown support.
- */
-function MessageContent({ content }: { content: string }) {
-  // Split content by code blocks
-  const parts = content.split(/(```[\s\S]*?```|`[^`]+`)/g);
-
-  return (
-    <div className="prose prose-sm dark:prose-invert max-w-none">
-      {parts.map((part, index) => {
-        // Inline code
-        if (part.startsWith('`') && part.endsWith('`') && !part.startsWith('```')) {
-          return (
-            <code key={index} className="bg-muted/50 px-1.5 py-0.5 rounded text-sm font-mono">
-              {part.slice(1, -1)}
-            </code>
-          );
-        }
-
-        // Code block
-        if (part.startsWith('```')) {
-          const lines = part.slice(3, -3).split('\n');
-          // Language can be extracted from first line if needed
-          const code = lines.slice(1).join('\n');
-
-          return (
-            <pre key={index} className="bg-muted/50 rounded-md p-4 overflow-x-auto my-2">
-              <code className="text-sm font-mono">{code}</code>
-            </pre>
-          );
-        }
-
-        // Regular text with line breaks
-        return (
-          <span key={index} className="whitespace-pre-wrap">
-            {part}
-          </span>
-        );
-      })}
-    </div>
-  );
-}

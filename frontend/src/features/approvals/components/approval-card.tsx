@@ -14,6 +14,7 @@
 
 import { formatDistanceToNow } from 'date-fns';
 import { AlertCircle, Check, X, Clock, User, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -146,7 +147,15 @@ export function ApprovalCard({
         'cursor-pointer hover:bg-muted/50 transition-colors',
         isPending && 'border-l-4 border-l-yellow-500'
       )}
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(request)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(request);
+        }
+      }}
       data-testid={`approval-card-${request.id}`}
     >
       <CardContent className="p-4">
@@ -196,7 +205,11 @@ export function ApprovalCard({
                 className="gap-1.5"
                 onClick={async (e) => {
                   e.stopPropagation();
-                  await onQuickReject(request.id);
+                  try {
+                    await onQuickReject(request.id);
+                  } catch {
+                    toast.error('Failed to reject approval request');
+                  }
                 }}
               >
                 <X className="size-4" />
@@ -207,7 +220,11 @@ export function ApprovalCard({
                 className="gap-1.5"
                 onClick={async (e) => {
                   e.stopPropagation();
-                  await onQuickApprove(request.id);
+                  try {
+                    await onQuickApprove(request.id);
+                  } catch {
+                    toast.error('Failed to approve request');
+                  }
                 }}
               >
                 <Check className="size-4" />
