@@ -146,7 +146,7 @@ class AddIssueToCycleService:
             field="cycle_id",
             old_value=str(old_cycle_id) if old_cycle_id else None,
             new_value=str(payload.cycle_id),
-            metadata={
+            activity_metadata={
                 "cycle_name": cycle.name,
             },
         )
@@ -209,7 +209,7 @@ class AddIssueToCycleService:
             field="cycle_id",
             old_value=str(payload.cycle_id),
             new_value=None,
-            metadata={
+            activity_metadata={
                 "cycle_name": cycle.name,
             },
         )

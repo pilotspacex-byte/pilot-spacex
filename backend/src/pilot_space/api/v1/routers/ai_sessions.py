@@ -80,6 +80,9 @@ async def list_sessions(
     session_manager: SessionManagerDep,
     workspace_id: UUID | None = Query(None, description="Filter by workspace"),
     agent_name: str | None = Query(None, description="Filter by agent"),
+    context_id: UUID | None = Query(
+        None, description="Filter by context entity (note_id, issue_id)"
+    ),
     limit: int = Query(50, ge=1, le=100, description="Max results"),
 ) -> SessionListResponse:
     """List AI sessions for the current user.
@@ -109,6 +112,7 @@ async def list_sessions(
         user_id=user_id,
         workspace_id=workspace_id,
         agent_name=agent_name,
+        context_id=context_id,
         limit=limit,
     )
 

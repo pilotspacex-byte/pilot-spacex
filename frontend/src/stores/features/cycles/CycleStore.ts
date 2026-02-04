@@ -162,7 +162,7 @@ export class CycleStore {
 
     states.forEach((state) => {
       grouped[state] = Array.from(this.cycleIssues.values()).filter(
-        (i) => stateNameToKey(i.state.name) === state
+        (i) => stateNameToKey(i.state?.name) === state
       );
     });
 

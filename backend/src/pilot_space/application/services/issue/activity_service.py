@@ -82,7 +82,7 @@ class ActivityService:
             old_value=payload.old_value,
             new_value=payload.new_value,
             comment=payload.comment,
-            metadata=payload.metadata,
+            activity_metadata=payload.metadata,
         )
 
         return await self._activity_repo.create(activity)

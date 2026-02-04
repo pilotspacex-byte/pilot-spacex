@@ -16,6 +16,7 @@ Architecture:
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -104,7 +105,7 @@ class NoteSpaceSync:
         markdown = self._converter.tiptap_to_markdown(note.content)
 
         # Write to space folder
-        return self.write_note_markdown(space_path, note_id, markdown)
+        return await self.write_note_markdown(space_path, note_id, markdown)
 
     async def sync_space_to_note(
         self,
@@ -141,7 +142,7 @@ class NoteSpaceSync:
         )
 
         # Read markdown from space
-        markdown = self.read_note_markdown(space_path, note_id)
+        markdown = await self.read_note_markdown(space_path, note_id)
         if markdown is None:
             raise FileNotFoundError(
                 f"Note markdown file not found: {self.note_file_path(space_path, note_id)}"
@@ -162,7 +163,7 @@ class NoteSpaceSync:
             new_content=new_content,
         )
 
-    def read_note_markdown(self, space_path: Path, note_id: UUID) -> str | None:
+    async def read_note_markdown(self, space_path: Path, note_id: UUID) -> str | None:
         """Read the markdown file for a note from the space.
 
         Args:
@@ -172,12 +173,16 @@ class NoteSpaceSync:
         Returns:
             Markdown content as string, or None if file doesn't exist
         """
-        file_path = self.note_file_path(space_path, note_id)
-        if not file_path.exists():
-            return None
-        return file_path.read_text(encoding="utf-8")
+        def _read_sync():
+            file_path = self.note_file_path(space_path, note_id)
+            if not file_path.exists():
+                return None
+            return file_path.read_text(encoding="utf-8")
 
-    def write_note_markdown(
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _read_sync)
+
+    async def write_note_markdown(
         self,
         space_path: Path,
         note_id: UUID,
@@ -196,12 +201,11 @@ class NoteSpaceSync:
         Returns:
             Path to the written file
         """
-        file_path = self.note_file_path(space_path, note_id)
+        def _write_sync():
+            file_path = self.note_file_path(space_path, note_id)
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(markdown, encoding="utf-8")
+            return file_path
 
-        # Create notes directory if it doesn't exist
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write markdown content
-        file_path.write_text(markdown, encoding="utf-8")
-
-        return file_path
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _write_sync)

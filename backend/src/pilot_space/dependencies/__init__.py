@@ -86,6 +86,9 @@ from pilot_space.dependencies.workspace import (
     get_db_session_dep,
 )
 
+# Alias for backward compatibility
+get_db_session = get_db_session_dep
+
 __all__ = [
     "DEMO_USER_ID",
     "DEMO_WORKSPACE_SLUGS",
@@ -127,6 +130,7 @@ __all__ = [
     "get_current_user_id",
     "get_current_user_id_or_demo",
     "get_current_workspace_id",
+    "get_db_session",
     "get_db_session_dep",
     "get_get_issue_service",
     "get_key_storage",

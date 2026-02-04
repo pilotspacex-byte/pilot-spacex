@@ -50,7 +50,7 @@ class WorkspaceIssueResponse(BaseSchema):
 
     id: UUID
     identifier: str
-    title: str
+    name: str
     description: str | None = None
     state: str
     priority: str
@@ -70,7 +70,7 @@ class WorkspaceIssueResponse(BaseSchema):
 class WorkspaceIssueCreateRequest(BaseSchema):
     """Create issue request matching frontend CreateIssueData."""
 
-    title: str = Field(min_length=1, max_length=255)
+    name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     project_id: UUID | None = None
     state: str = Field(default="backlog")
@@ -186,7 +186,7 @@ def _issue_to_response(issue: Issue) -> WorkspaceIssueResponse:
     return WorkspaceIssueResponse(
         id=issue.id,
         identifier=issue.identifier or f"ISSUE-{issue.sequence_id}",
-        title=issue.name,
+        name=issue.name,
         description=issue.description,
         state=state_name,
         priority=issue.priority.value if issue.priority else "none",
@@ -379,7 +379,7 @@ async def create_workspace_issue(
     issue = Issue(
         workspace_id=workspace.id,
         project_id=project_id,
-        name=issue_data.title,
+        name=issue_data.name,
         description=issue_data.description,
         priority=priority,
         state_id=state.id,

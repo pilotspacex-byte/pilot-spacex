@@ -207,7 +207,7 @@ class LinkCommitService:
                 activity_type=ActivityType.LINKED_TO_NOTE,  # Reuse for external links
                 field="integration_link",
                 new_value=commit.sha[:8],
-                metadata={
+                activity_metadata={
                     "link_type": "commit",
                     "repository": payload.repository,
                     "commit_message": commit.message[:200],
@@ -303,7 +303,7 @@ class LinkCommitService:
                 activity_type=ActivityType.LINKED_TO_NOTE,
                 field="integration_link",
                 new_value=f"#{pr.number}",
-                metadata={
+                activity_metadata={
                     "link_type": "pull_request",
                     "repository": payload.repository,
                     "pr_title": pr.title[:200],

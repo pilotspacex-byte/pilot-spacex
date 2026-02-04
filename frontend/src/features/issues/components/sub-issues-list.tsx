@@ -60,10 +60,10 @@ function SubIssueRow({ issue, workspaceSlug }: SubIssueRowProps) {
       >
         <span
           className="size-2 rounded-full"
-          style={{ backgroundColor: issue.state.color }}
+          style={{ backgroundColor: issue.state?.color }}
           aria-hidden="true"
         />
-        {issue.state.name}
+        {issue.state?.name ?? 'Backlog'}
       </span>
       {issue.assignee && (
         <span

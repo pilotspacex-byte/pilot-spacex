@@ -40,4 +40,9 @@ describe('stateNameToKey', () => {
     expect(stateNameToKey('DONE')).toBe('done');
     expect(stateNameToKey('in_review')).toBe('in_review');
   });
+
+  it('returns backlog for undefined or null input', () => {
+    expect(stateNameToKey(undefined)).toBe('backlog');
+    expect(stateNameToKey(null)).toBe('backlog');
+  });
 });

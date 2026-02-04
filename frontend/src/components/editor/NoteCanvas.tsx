@@ -198,6 +198,20 @@ export const NoteCanvas = observer(function NoteCanvas({
     aiStore.pilotSpace.setWorkspaceId(resolvedWorkspaceId);
   }, [resolvedWorkspaceId, aiStore.pilotSpace]);
 
+  // Set note context on mount so ChatView can auto-restore conversation history.
+  // This triggers ChatView's existing useEffect → resumeSessionForContext(noteId).
+  useEffect(() => {
+    if (noteId) {
+      aiStore.pilotSpace.setNoteContext({
+        noteId,
+        noteTitle: titleRef.current || 'Untitled',
+      });
+    }
+    return () => {
+      aiStore.pilotSpace.setNoteContext(null);
+    };
+  }, [noteId, aiStore.pilotSpace]);
+
   // Responsive breakpoints
   const { isSmallScreen, isLargeDesktop } = useResponsive();
 

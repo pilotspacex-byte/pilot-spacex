@@ -250,7 +250,7 @@ class UpdateIssueService:
                         issue_id=issue.id,
                         actor_id=payload.actor_id,
                         activity_type=activity_type,
-                        metadata=metadata,
+                        activity_metadata=metadata,
                     )
                 )
 
@@ -271,7 +271,7 @@ class UpdateIssueService:
                         issue_id=issue.id,
                         actor_id=payload.actor_id,
                         activity_type=activity_type,
-                        metadata={
+                        activity_metadata={
                             "old_cycle_id": str(old_cycle_id) if old_cycle_id else None,
                             "new_cycle_id": str(payload.cycle_id) if payload.cycle_id else None,
                         },
@@ -295,7 +295,7 @@ class UpdateIssueService:
                         issue_id=issue.id,
                         actor_id=payload.actor_id,
                         activity_type=activity_type,
-                        metadata={
+                        activity_metadata={
                             "old_module_id": str(old_module_id) if old_module_id else None,
                             "new_module_id": str(payload.module_id) if payload.module_id else None,
                         },
@@ -319,7 +319,7 @@ class UpdateIssueService:
                         issue_id=issue.id,
                         actor_id=payload.actor_id,
                         activity_type=activity_type,
-                        metadata={
+                        activity_metadata={
                             "old_parent_id": str(old_parent_id) if old_parent_id else None,
                             "new_parent_id": str(payload.parent_id) if payload.parent_id else None,
                         },
@@ -407,7 +407,7 @@ class UpdateIssueService:
                             issue_id=issue.id,
                             actor_id=payload.actor_id,
                             activity_type=ActivityType.LABEL_ADDED,
-                            metadata={"label_id": str(label_id)},
+                            activity_metadata={"label_id": str(label_id)},
                         )
                     )
 
@@ -418,7 +418,7 @@ class UpdateIssueService:
                             issue_id=issue.id,
                             actor_id=payload.actor_id,
                             activity_type=ActivityType.LABEL_REMOVED,
-                            metadata={"label_id": str(label_id)},
+                            activity_metadata={"label_id": str(label_id)},
                         )
                     )
 

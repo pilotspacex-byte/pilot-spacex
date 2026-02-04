@@ -247,7 +247,7 @@ class Activity(WorkspaceScopedModel):
             issue_id=issue_id,
             actor_id=actor_id,
             activity_type=ActivityType.CREATED,
-            metadata=metadata,
+            activity_metadata=metadata,
         )
 
     @classmethod
@@ -284,7 +284,7 @@ class Activity(WorkspaceScopedModel):
             field="state",
             old_value=old_state_name,
             new_value=new_state_name,
-            metadata={
+            activity_metadata={
                 "old_state_id": str(old_state_id),
                 "new_state_id": str(new_state_id),
             },

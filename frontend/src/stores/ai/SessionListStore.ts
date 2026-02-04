@@ -12,7 +12,7 @@
  */
 import { makeAutoObservable, runInAction } from 'mobx';
 import { supabase } from '@/lib/supabase';
-import type { AIStore } from './AIStore';
+import type { PilotSpaceStore } from './PilotSpaceStore';
 
 /**
  * API base URL for backend requests.
@@ -82,7 +82,7 @@ export class SessionListStore {
   /** Currently selected session ID */
   selectedSessionId: string | null = null;
 
-  constructor(private rootStore: AIStore) {
+  constructor(private rootStore: PilotSpaceStore) {
     makeAutoObservable(this);
   }
 
@@ -135,21 +135,29 @@ export class SessionListStore {
   // ========================================
 
   /**
-   * Get Supabase auth headers for authenticated requests.
+   * Get Supabase auth headers and workspace context for authenticated requests.
    */
   private async getAuthHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {};
+
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (session?.access_token) {
-        return { Authorization: `Bearer ${session.access_token}` };
+        headers['Authorization'] = `Bearer ${session.access_token}`;
       }
     } catch {
       console.warn('Failed to get auth session for session list request');
     }
-    return {};
+
+    const workspaceId = this.rootStore?.workspaceId;
+    if (workspaceId) {
+      headers['X-Workspace-Id'] = workspaceId;
+    }
+
+    return headers;
   }
 
   // ========================================
@@ -160,16 +168,20 @@ export class SessionListStore {
    * Fetch recent sessions for current user.
    * @param limit - Maximum number of sessions to fetch (default: 20)
    */
-  async fetchSessions(limit = 20): Promise<void> {
+  async fetchSessions(limit = 20, contextId?: string): Promise<void> {
     runInAction(() => {
       this.isLoading = true;
       this.error = null;
     });
 
     try {
-      // Get sessions list from backend
+      // Get sessions list from backend (optionally filtered by context)
       const authHeaders = await this.getAuthHeaders();
-      const response = await fetch(`${API_BASE}/ai/sessions?limit=${limit}`, {
+      let url = `${API_BASE}/ai/sessions?limit=${limit}`;
+      if (contextId) {
+        url += `&context_id=${contextId}`;
+      }
+      const response = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
       });
@@ -181,8 +193,8 @@ export class SessionListStore {
       const data = await response.json();
 
       runInAction(() => {
-        this.sessions = data.sessions.map((s: SessionSummaryResponse) => ({
-          sessionId: s.session_id,
+        const fetched: SessionSummary[] = data.sessions.map((s: SessionSummaryResponse) => ({
+          sessionId: s.id,
           agentName: s.agent_name,
           contextId: s.context_id,
           contextType: s.context_type,
@@ -194,6 +206,18 @@ export class SessionListStore {
           forkedFrom: s.forked_from,
           forkCount: s.fork_count,
         }));
+
+        if (contextId) {
+          // Merge context-filtered results into existing sessions (don't overwrite)
+          const existingIds = new Set(this.sessions.map((s) => s.sessionId));
+          for (const s of fetched) {
+            if (!existingIds.has(s.sessionId)) {
+              this.sessions.push(s);
+            }
+          }
+        } else {
+          this.sessions = fetched;
+        }
         this.isLoading = false;
       });
     } catch (err) {
@@ -232,7 +256,7 @@ export class SessionListStore {
 
       // Load messages into PilotSpaceStore
       runInAction(() => {
-        const pilotSpaceStore = this.rootStore.pilotSpace;
+        const pilotSpaceStore = this.rootStore;
         if (pilotSpaceStore) {
           // Clear current conversation
           pilotSpaceStore.clear();
@@ -241,12 +265,12 @@ export class SessionListStore {
           pilotSpaceStore.setSessionId(sessionId);
 
           // Load messages
-          data.messages.forEach((msg: MessageResponse) => {
+          data.messages.forEach((msg: MessageResponse, index: number) => {
             pilotSpaceStore.addMessage({
-              id: msg.id,
+              id: msg.id ?? `restored-${index}`,
               role: msg.role as 'user' | 'assistant' | 'system',
               content: msg.content,
-              timestamp: new Date(msg.created_at),
+              timestamp: new Date(msg.timestamp),
               metadata: msg.metadata,
             });
           });
@@ -270,17 +294,18 @@ export class SessionListStore {
    */
   async resumeSessionForContext(
     contextId: string,
-    contextType: 'note' | 'issue' | 'project'
+    _contextType: 'note' | 'issue' | 'project'
   ): Promise<void> {
-    // Ensure sessions are loaded
-    if (this.sessions.length === 0 && !this.isLoading) {
-      await this.fetchSessions();
-    }
+    // Always do a targeted fetch filtered by context_id.
+    // The mount-time fetchSessions() may still be in-flight (isLoading=true)
+    // or may have returned all sessions without this context match, so we
+    // need a dedicated fetch to find sessions for this specific context.
+    await this.fetchSessions(5, contextId);
 
     // Find the most recent active session matching this context
     const now = new Date();
     const matchingSession = this.recentSessions.find(
-      (s) => s.contextId === contextId && s.contextType === contextType && s.expiresAt > now
+      (s) => s.contextId === contextId && s.expiresAt > now
     );
 
     if (matchingSession) {
@@ -326,7 +351,7 @@ export class SessionListStore {
    * @param sourceSessionId - Session to fork from
    */
   prepareFork(sourceSessionId: string): void {
-    const pilotSpaceStore = this.rootStore.pilotSpace;
+    const pilotSpaceStore = this.rootStore;
     if (!pilotSpaceStore) return;
 
     // Clear current session so the backend creates a fork (not resumes)
@@ -357,13 +382,15 @@ export class SessionListStore {
 // ========================================
 
 interface SessionSummaryResponse {
-  session_id: string;
+  id: string;
+  workspace_id: string;
   agent_name: string;
   context_id?: string;
   context_type?: 'note' | 'issue' | 'project';
   created_at: string;
   updated_at: string;
   turn_count: number;
+  total_cost_usd: number;
   expires_at: string;
   title?: string;
   forked_from?: string;
@@ -371,9 +398,11 @@ interface SessionSummaryResponse {
 }
 
 interface MessageResponse {
-  id: string;
+  id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  created_at: string;
+  timestamp: string;
+  tokens?: number;
+  cost_usd?: number;
   metadata?: Record<string, unknown>;
 }

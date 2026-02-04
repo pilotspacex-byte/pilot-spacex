@@ -1,16 +1,4 @@
-"""PilotSpace Agent - Main orchestrator for conversational AI.
-
-Replaces 13 siloed agents with unified conversational interface.
-Routes requests to skills, subagents, or direct responses based on intent.
-
-Intent patterns:
-- `\\skill-name` → Skill execution
-- `@agent-name` → Subagent delegation
-- Natural language → Direct response with context
-
-Reference: specs/005-conversational-agent-arch/plan.md (T027-T031)
-Design Decisions: DD-003 (Human-in-the-Loop), DD-048 (Confidence Tags)
-"""
+"""PilotSpace Agent - Centralized orchestrator routing to skills, subagents, or direct responses."""
 
 from __future__ import annotations
 
@@ -26,7 +14,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
 
-# Import Claude Agent SDK (required dependency)
 from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, ClaudeSDKClient, Message
 
 from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
@@ -55,8 +42,6 @@ if TYPE_CHECKING:
     from pilot_space.ai.sdk.skill_registry import SkillRegistry
     from pilot_space.ai.tools.mcp_server import ToolRegistry
 
-
-# Removed IntentType, ParsedIntent - SDK handles intent parsing via .claude/ directory
 
 logger = logging.getLogger(__name__)
 
@@ -90,20 +75,24 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
     AGENT_NAME = "pilotspace_agent"
     DEFAULT_MODEL_TIER: ClassVar[ModelTier] = ModelTier.SONNET
 
-    # Base system prompt for SDK-native prompt caching (cache_control: ephemeral).
-    # This stable text is cached across requests, saving ~63% on input tokens.
     SYSTEM_PROMPT_BASE: ClassVar[str] = (
         "You are PilotSpace AI, an embedded assistant in a Note-First SDLC platform. "
-        "You help software teams capture ideas in notes, extract issues, review PRs, "
-        "and manage project workflows. You have access to MCP note tools "
-        "(update_note_block, enhance_text, summarize_note, extract_issues, "
-        "create_issue_from_note, link_existing_issues) and can delegate to subagents "
-        "(pr-review, ai-context, doc-generator). Follow the user's workspace context. "
-        "Return operation payloads for mutations; never mutate the database directly. "
-        "For destructive actions, always request human approval."
+        "You help teams capture ideas in notes, extract issues, review PRs, and manage workflows.\n\n"
+        "## Note writing vs. chat response\n"
+        "- <note_context> present + user asks to write/draft/document/add content → "
+        "use `write_to_note`, then summarize in chat.\n"
+        "- Questions, analysis, or conversation → respond in chat only.\n\n"
+        "## MCP note tools\n"
+        "- `write_to_note`: Append markdown to end of note (no block_id needed).\n"
+        "- `update_note_block`: Replace/append at a specific block (requires block_id).\n"
+        "- `enhance_text`: Improve block clarity (requires block_id).\n"
+        "- `summarize_note`: Read note (already in <note_context>).\n"
+        "- `extract_issues`, `create_issue_from_note`, `link_existing_issues`: Issue tools.\n\n"
+        "Subagents: pr-review, ai-context, doc-generator.\n"
+        "Return operation payloads; never mutate DB directly. "
+        "Destructive actions always require human approval."
     )
 
-    # Subagent routing map
     SUBAGENT_MAP: ClassVar[dict[str, str]] = {
         "pr-review": "PRReviewSubagent",
         "ai-context": "AIContextSubagent",
@@ -123,20 +112,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         subagents: dict[str, Any] | None = None,
         key_storage: SecureKeyStorage | None = None,
     ) -> None:
-        """Initialize PilotSpace agent with dependencies.
-
-        Args:
-            tool_registry: MCP tool registry
-            provider_selector: Provider/model selection service
-            cost_tracker: Cost tracking service
-            resilient_executor: Retry and circuit breaker service
-            permission_handler: Permission and approval handler
-            session_handler: Session management handler (None if Redis not configured)
-            skill_registry: Skill loading registry
-            space_manager: Space management service (None for legacy mode)
-            subagents: Optional dict of subagent instances
-            key_storage: Secure API key storage (None falls back to env var)
-        """
         super().__init__(
             tool_registry=tool_registry,
             provider_selector=provider_selector,
@@ -150,33 +125,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._subagents = subagents or {}
         self._key_storage = key_storage
         self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
-        # Track active SDK clients by session ID for interrupt support
         self._active_clients: dict[str, ClaudeSDKClient] = {}
 
-    # Removed old routing methods (_parse_intent, _execute_skill, _spawn_subagent,
-    # _plan_tasks, _handle_natural_language) - SDK handles all routing via .claude/
-
     def _build_subagent_definitions(self) -> dict[str, AgentDefinition]:
-        """Build subagent definitions for SDK agent spawning."""
         return build_subagent_definitions()
 
     async def _get_api_key(self, workspace_id: UUID | None) -> str:
-        """Get Anthropic API key from Vault or environment.
-
-        Lookup order:
-        1. SecureKeyStorage (Supabase Vault) if workspace_id and key_storage available
-        2. ANTHROPIC_API_KEY environment variable (fallback)
-
-        Args:
-            workspace_id: Workspace UUID for per-workspace BYOK lookup
-
-        Returns:
-            Decrypted API key
-
-        Raises:
-            ValueError: If API key not found in any source
-        """
-        # Try Vault first for per-workspace BYOK keys
+        """Get API key from Vault (per-workspace BYOK) or ANTHROPIC_API_KEY env var."""
         if workspace_id and self._key_storage:
             try:
                 key = await self._key_storage.get_api_key(workspace_id, "anthropic")
@@ -190,7 +145,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     exc_info=True,
                 )
 
-        # Fallback to environment variable
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             msg = "Anthropic API key not found. Configure in workspace settings or set ANTHROPIC_API_KEY."
@@ -198,17 +152,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         return api_key
 
     async def interrupt_session(self, session_id: str) -> bool:
-        """Interrupt active SDK client for a given session.
-
-        Sends interrupt control request to Claude subprocess, stopping
-        the current turn gracefully per Claude Agent SDK guidelines.
-
-        Args:
-            session_id: Session identifier to interrupt.
-
-        Returns:
-            True if interrupt was sent, False if no active client found.
-        """
+        """Interrupt active SDK client for a given session. Returns True if sent."""
         client = self._active_clients.get(session_id)
         if not client:
             logger.debug("[SDK/Interrupt] No active client for session %s", session_id)
@@ -246,15 +190,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         message: Message,
         context: AgentContext,
     ) -> str | None:
-        """Transform Claude SDK message to frontend SSE event.
-
-        Args:
-            message: SDK message object
-            context: Agent execution context
-
-        Returns:
-            SSE-formatted string or None if message should be ignored
-        """
+        """Transform SDK message to SSE event string, or None to skip."""
         return transform_sdk_message_helper(message, self._message_id_holder)
 
     async def _sync_note_if_present(
@@ -262,38 +198,20 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         input_data: ChatInput,
         space_path: Path,
     ) -> None:
-        """Sync note to workspace if note context is present.
-
-        Checks if input_data.context contains a note_id and syncs the latest
-        note content from database to the workspace markdown file.
-
-        This ensures the agent always works with fresh note content.
-
-        Args:
-            input_data: Chat input with context
-            space_path: Path to workspace root
-
-        Raises:
-            No exceptions - errors are logged but don't block agent execution
-        """
-        # Check if note context is present
+        """Sync note content from DB to workspace file if note context is present."""
         note = input_data.context.get("note")
         if note is None:
             return
 
-        # Extract note_id from the note object
         note_id = getattr(note, "id", None)
         if note_id is None:
             logger.warning("[NoteSync] Note object missing 'id' attribute, skipping sync")
             return
 
-        # Sync note to workspace
         try:
             from pilot_space.infrastructure.database import get_db_session
 
             sync_service = NoteSpaceSync()
-
-            # Create a new database session for sync
             async with get_db_session() as session:
                 file_path = await sync_service.sync_note_to_space(
                     space_path=space_path,
@@ -307,7 +225,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 )
 
         except Exception as e:
-            # Log error but don't block agent execution (graceful degradation)
             logger.error(
                 "[NoteSync] Failed to sync note %s to workspace: %s",
                 note_id,
@@ -322,25 +239,20 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
     ) -> AsyncIterator[str]:
         """Execute agent with streaming via Claude SDK subprocess."""
         try:
-            # Get API key from workspace settings
             api_key = await self._get_api_key(context.workspace_id)
-
-            # Build subagent definitions for SDK
             subagent_definitions = self._build_subagent_definitions()
-
-            # Session tracking ID (for frontend, always set)
             session_id_str = str(input_data.session_id) if input_data.session_id else None
 
-            # SDK resume ID (only set when continuing an existing conversation)
+            # Resume when explicit resume_session_id is set by the router
             resume_id: str | None = None
-            if input_data.resume_session_id and self._session_handler:
-                existing_session = await self._session_handler.get_session(
-                    UUID(input_data.resume_session_id)
+            if input_data.resume_session_id and session_id_str:
+                resume_id = session_id_str
+                logger.info(
+                    "Resuming SDK session: %s (requested: %s)",
+                    resume_id,
+                    input_data.resume_session_id,
                 )
-                if existing_session:
-                    resume_id = str(existing_session.session_id)
 
-            # Require SpaceManager for isolated execution
             if not (self._space_manager and context.workspace_id and context.user_id):
                 raise ValueError(  # noqa: TRY301
                     "SpaceManager, workspace_id, and user_id are required. "
@@ -374,14 +286,11 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         assert context.workspace_id is not None
         assert context.user_id is not None
 
-        # Get space for this workspace/user
         space = self._space_manager.get_space(context.workspace_id, context.user_id)
 
         async with space.session() as space_context:
-            # Create event queue for tool-generated SSE events
             tool_event_queue: asyncio.Queue[str] = asyncio.Queue()
 
-            # Load file-based hooks if hooks.json exists
             file_hook_executor = None
             if space_context.hooks_file.exists():
                 from pilot_space.ai.sdk.file_hooks import FileBasedHookExecutor
@@ -392,8 +301,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 )
                 logger.debug(f"[SDK/Space] Loaded hooks from {space_context.hooks_file}")
 
-            # Compose file hooks + DD-003 permission checks into
-            # a single SDK-compatible hook executor
             from pilot_space.ai.sdk.hooks import PermissionAwareHookExecutor
 
             hook_executor = PermissionAwareHookExecutor(
@@ -404,28 +311,19 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 event_queue=tool_event_queue,
             )
 
-            # Create in-process MCP server with note tools
-            # Pass context_note_id to prevent LLM UUID corruption
             context_note_id = input_data.context.get("note_id")
             note_tools_server = create_note_tools_server(
                 tool_event_queue,
                 context_note_id=str(context_note_id) if context_note_id else None,
             )
 
-            # Detect skill invocation for structured output (T3/G-03)
             from pilot_space.ai.sdk.output_schemas import get_skill_output_format
 
             skill_name = _detect_skill_from_message(input_data.message)
             output_format = get_skill_output_format(skill_name) if skill_name else None
-
-            # Classify effort for latency optimization (T7/G-09)
             effort = _classify_effort(input_data.message)
-
-            # T62: Auto-detect large context for streaming input mode
             streaming_input = _estimate_tokens(input_data) > 30_000
 
-            # Configure SDK for this space (with hooks if available)
-            # Model selection per DD-011: DEFAULT_MODEL (Sonnet) for orchestration
             sdk_config = configure_sdk_for_space(
                 space_context,
                 permission_mode="default",
@@ -445,10 +343,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 streaming_input_mode=streaming_input,
             )
 
-            # Build SDK options from space config
             sdk_params = sdk_config.to_sdk_params()
-
-            # Ensure PATH is inherited so subprocess can find claude binary
             sdk_env = sdk_params.get("env", {})
             if "PATH" not in sdk_env:
                 sdk_env["PATH"] = os.environ.get("PATH", "")
@@ -462,14 +357,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 sandbox=sdk_params.get("sandbox"),
                 permission_mode=sdk_params.get("permission_mode", "default"),
                 env=sdk_env,
-                hooks=sdk_params.get("hooks"),  # SDK-native hooks from hooks.json
+                hooks=sdk_params.get("hooks"),
                 agents=subagent_definitions,
                 resume=resume_id,
+                continue_conversation=resume_id is not None,
             )
 
-            # Set context for observability
             set_workspace_context(context.workspace_id, context.user_id)
-
             logger.info(
                 "[SDK/Space] Config: cwd=%s, env_keys=%s, claude_bin=%s",
                 sdk_params.get("cwd"),
@@ -477,7 +371,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 shutil.which("claude"),
             )
 
-            # Sync note to workspace if note_id in context
             await self._sync_note_if_present(
                 input_data=input_data,
                 space_path=space_context.path,
@@ -496,7 +389,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     resume_id,
                 )
 
-                # Track active client for external interrupt support
                 self._active_clients[query_session_id] = client
 
                 enriched_message = build_contextual_message(input_data)
@@ -512,11 +404,17 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     if sse_event:
                         transformed_count += 1
                         yield sse_event
-                        # Accumulate text content for session persistence
-                        if sse_event.startswith("data: "):
-                            response_chunks.append(sse_event[6:])
+                        if "event: text_delta\n" in sse_event:
+                            for line in sse_event.split("\n"):
+                                if line.startswith("data: "):
+                                    try:
+                                        parsed = json.loads(line[6:])
+                                        delta = parsed.get("delta", "")
+                                        if delta:
+                                            response_chunks.append(delta)
+                                    except (json.JSONDecodeError, TypeError):
+                                        pass
 
-                    # Drain tool-generated events after each SDK message
                     try:
                         while True:
                             yield tool_event_queue.get_nowait()
@@ -524,7 +422,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     except asyncio.QueueEmpty:
                         pass
 
-                # Drain any remaining tool events after SDK stream ends
                 try:
                     while True:
                         yield tool_event_queue.get_nowait()
@@ -541,11 +438,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 )
 
             finally:
-                # Remove from active clients
                 self._active_clients.pop(query_session_id, None)
 
-                # If stream was interrupted (not completed naturally),
-                # send interrupt signal to Claude subprocess before disconnect
                 if not stream_completed:
                     try:
                         await asyncio.wait_for(client.interrupt(), timeout=2.0)
@@ -556,7 +450,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     except (TimeoutError, Exception) as e:
                         logger.debug("[SDK/Space] Interrupt during cleanup failed: %s", e)
 
-                # Persist conversation messages to session storage
                 if stream_completed and self._session_handler and input_data.session_id:
                     try:
                         await self._session_handler.add_message(
@@ -589,18 +482,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         input_data: ChatInput,
         context: AgentContext,
     ) -> tuple[ClaudeSDKClient, str]:
-        """Create a configured ClaudeSDKClient for the given context.
-
-        Used by ConversationWorker to manage client lifecycle externally.
-        Client is NOT connected — caller must call connect()/disconnect().
-
-        Args:
-            input_data: Chat input with session context
-            context: Agent execution context
-
-        Returns:
-            Tuple of (unconnected ClaudeSDKClient, session_id for query())
-        """
+        """Create unconnected ClaudeSDKClient. Caller manages connect()/disconnect()."""
         api_key = await self._get_api_key(context.workspace_id)
         subagent_definitions = self._build_subagent_definitions()
 
@@ -618,8 +500,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             raise ValueError(msg)
 
         space = self._space_manager.get_space(context.workspace_id, context.user_id)
-
-        # Use async context manager properly to ensure cleanup
         async with space.session() as space_context:
             sdk_config = configure_sdk_for_space(
                 space_context,
@@ -652,35 +532,19 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         input_data: ChatInput,
         context: AgentContext,
     ) -> ChatOutput:
-        """Execute agent and collect full output.
-
-        Non-streaming version that collects all chunks.
-        Persists user and assistant messages to session storage.
-
-        Args:
-            input_data: Chat input
-            context: Agent execution context
-
-        Returns:
-            Complete ChatOutput with response and metadata
-        """
+        """Non-streaming execution that collects all chunks into ChatOutput."""
         chunks: list[str] = []
         async for chunk in self.stream(input_data, context):
-            # Remove SSE formatting for collected output
             processed_chunk = chunk[6:] if chunk.startswith("data: ") else chunk
             chunks.append(processed_chunk)
 
         full_response = "".join(chunks)
-
-        # Session persistence is handled in _stream_with_space finally block.
-        # For execute(), stream() already persisted messages, so no duplicate needed.
-
         return ChatOutput(
             response=full_response,
             session_id=input_data.session_id
             or context.operation_id
             or UUID("00000000-0000-0000-0000-000000000000"),
-            tasks=[],  # SDK handles task tracking internally
+            tasks=[],
             metadata={
                 "agent": self.AGENT_NAME,
                 "model": self.DEFAULT_MODEL_TIER.model_id,
@@ -688,7 +552,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         )
 
 
-# Pre-compiled patterns for effort classification (T7/G-07, T69)
 _SIMPLE_PATTERNS = [
     re.compile(r"^(hi|hello|hey|thanks|thank you|ok|okay)\b"),
     re.compile(r"^what (can you|do you) do"),
@@ -705,10 +568,7 @@ _COMPLEX_PATTERNS = [
 
 
 def _classify_effort(message: str) -> str | None:
-    """Classify query effort level for latency optimization.
-
-    Returns 'low' for greetings, 'high' for complex queries, None for default.
-    """
+    """Return 'low' for greetings, 'high' for complex queries, None for default."""
     msg_lower = message.strip().lower()
     if len(msg_lower) < 50:
         for p in _SIMPLE_PATTERNS:
@@ -723,13 +583,9 @@ def _classify_effort(message: str) -> str | None:
 
 
 def _detect_skill_from_message(message: str) -> str | None:
-    """Detect slash-command skill invocation from message content.
-
-    Returns skill name (e.g., 'extract-issues') or None.
-    """
+    """Detect slash-command skill invocation, returning skill name or None."""
     msg_stripped = message.strip()
     if msg_stripped.startswith("/"):
-        # Extract first word after slash
         parts = msg_stripped[1:].split(None, 1)
         return parts[0] if parts else None
     return None

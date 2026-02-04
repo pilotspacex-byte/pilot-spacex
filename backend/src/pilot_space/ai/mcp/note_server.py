@@ -1,6 +1,6 @@
 """In-process SDK custom tools for PilotSpace note manipulation.
 
-Creates an SDK MCP server using create_sdk_mcp_server() with 6 note tools.
+Creates an SDK MCP server using create_sdk_mcp_server() with 7 note tools.
 Tool handlers push content_update SSE events to a shared asyncio.Queue
 that the PilotSpaceAgent stream method interleaves with SDK messages.
 
@@ -37,6 +37,7 @@ TOOL_NAMES = [
     f"mcp__{SERVER_NAME}__extract_issues",
     f"mcp__{SERVER_NAME}__create_issue_from_note",
     f"mcp__{SERVER_NAME}__link_existing_issues",
+    f"mcp__{SERVER_NAME}__write_to_note",
 ]
 
 
@@ -50,7 +51,7 @@ def create_note_tools_server(
     *,
     context_note_id: str | None = None,
 ) -> McpSdkServerConfig:
-    """Create an in-process SDK MCP server with 6 note tools.
+    """Create an in-process SDK MCP server with 7 note tools.
 
     Each tool handler pushes content_update SSE events to event_queue
     and returns a success message for the model to continue with.
@@ -158,6 +159,42 @@ def create_note_tools_server(
             "Note content is available in the <note_context> block above. "
             "Use that content to answer the user's question."
         )
+
+    @tool(
+        "write_to_note",
+        "Write new markdown content to the end of a note. "
+        "Use when the user asks to draft, write, document, or add content to the note. "
+        "No block_id is needed — content is appended at the end of the document.",
+        {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string", "description": "UUID of the note"},
+                "markdown": {
+                    "type": "string",
+                    "description": "Markdown content to append to the note",
+                },
+            },
+            "required": ["note_id", "markdown"],
+        },
+    )
+    async def write_to_note(args: dict[str, Any]) -> dict[str, Any]:
+        markdown = args.get("markdown", "")
+        if not markdown or not markdown.strip():
+            return _text_result("Error: markdown content cannot be empty.")
+
+        note_id = _resolve_note_id(args)
+        event_data = {
+            "noteId": note_id,
+            "operation": "append_blocks",
+            "blockId": None,
+            "markdown": markdown,
+            "content": None,
+            "issueData": None,
+            "afterBlockId": None,
+        }
+        await event_queue.put(_sse_event("content_update", event_data))
+        logger.info("[NoteTools] write_to_note: appended to note=%s", note_id)
+        return _text_result("Content written to the note successfully.")
 
     @tool(
         "extract_issues",
@@ -301,6 +338,7 @@ def create_note_tools_server(
             update_note_block,
             enhance_text,
             summarize_note,
+            write_to_note,
             extract_issues,
             create_issue_from_note,
             link_existing_issues,

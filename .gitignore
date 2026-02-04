@@ -329,3 +329,5 @@ docs/dev-pattern/*
 
 # Re-include frontend source lib (not Python build lib)
 !frontend/src/lib/
+.claude/*
+.specify/*
