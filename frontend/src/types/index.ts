@@ -422,8 +422,8 @@ export interface IssueBrief {
   identifier: string;
   name: string;
   priority: IssuePriority;
-  state?: unknown;
-  assignee?: User;
+  state?: StateBrief;
+  assignee?: UserBrief;
 }
 
 // Burndown Chart Types

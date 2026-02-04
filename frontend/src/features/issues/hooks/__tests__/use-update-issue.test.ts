@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useUpdateIssue } from '../use-update-issue';
 import { issueDetailKeys } from '../use-issue-detail';
-import type { Issue, UpdateIssueData } from '@/types';
+import type { Issue } from '@/types';
 
 vi.mock('@/services/api', () => ({
   issuesApi: {

@@ -108,7 +108,7 @@ describe('IssueDescriptionEditor', () => {
     render(<IssueDescriptionEditor {...defaultProps} disabled />);
 
     // useEditor should have been called with editable: false
-    const lastCall = mockUseEditor.mock.calls[mockUseEditor.mock.calls.length - 1][0] as Record<
+    const lastCall = mockUseEditor.mock.calls[mockUseEditor.mock.calls.length - 1]![0] as Record<
       string,
       unknown
     >;
@@ -118,7 +118,7 @@ describe('IssueDescriptionEditor', () => {
   it('renders editor with provided content', () => {
     render(<IssueDescriptionEditor {...defaultProps} content="<p>Hello world</p>" />);
 
-    const lastCall = mockUseEditor.mock.calls[mockUseEditor.mock.calls.length - 1][0] as Record<
+    const lastCall = mockUseEditor.mock.calls[mockUseEditor.mock.calls.length - 1]![0] as Record<
       string,
       unknown
     >;
@@ -128,7 +128,7 @@ describe('IssueDescriptionEditor', () => {
   it('renders empty string when content is undefined', () => {
     render(<IssueDescriptionEditor {...defaultProps} content={undefined} />);
 
-    const lastCall = mockUseEditor.mock.calls[mockUseEditor.mock.calls.length - 1][0] as Record<
+    const lastCall = mockUseEditor.mock.calls[mockUseEditor.mock.calls.length - 1]![0] as Record<
       string,
       unknown
     >;

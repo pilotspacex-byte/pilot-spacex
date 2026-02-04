@@ -50,7 +50,7 @@ describe('useWorkspaceLabels', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith('/workspaces/ws-1/labels');
     expect(result.current.data).toHaveLength(3);
-    expect(result.current.data?.[0].name).toBe('Bug');
+    expect(result.current.data?.[0]!.name).toBe('Bug');
   });
 
   it('is disabled when workspaceId is empty', () => {

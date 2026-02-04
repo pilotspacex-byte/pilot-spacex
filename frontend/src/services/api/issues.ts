@@ -128,7 +128,7 @@ export const issuesApi = {
   // Activity & Comment endpoints
 
   listActivities(
-    workspaceId: string,
+    _workspaceId: string,
     issueId: string,
     options?: { limit?: number; offset?: number }
   ): Promise<ActivityTimelineResponse> {
@@ -139,7 +139,7 @@ export const issuesApi = {
     return apiClient.get<ActivityTimelineResponse>(`/issues/${issueId}/activities`, { params });
   },
 
-  addComment(workspaceId: string, issueId: string, data: { content: string }): Promise<Activity> {
+  addComment(_workspaceId: string, issueId: string, data: { content: string }): Promise<Activity> {
     return apiClient.post<Activity>(`/issues/${issueId}/comments`, data);
   },
 

@@ -13,12 +13,14 @@
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { useParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   IssueHeader,
-  AIContextSidebar,
   IssueTitle,
   IssueDescriptionEditor,
   SubIssuesList,
@@ -34,7 +36,23 @@ import {
   useIssueKeyboardShortcuts,
 } from '@/features/issues/hooks';
 import { useStore } from '@/stores';
+import { copyToClipboard } from '@/lib/copy-context';
 import type { UpdateIssueData } from '@/types';
+
+const AIContextTab = dynamic(
+  () =>
+    import('@/features/issues/components/ai-context-tab').then((mod) => ({
+      default: mod.AIContextTab,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center py-12">
+        <Skeleton className="h-8 w-48" />
+      </div>
+    ),
+  }
+);
 
 // ---------------------------------------------------------------------------
 // Loading skeleton
@@ -89,7 +107,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const workspaceSlug = params.workspaceSlug as string;
   const issueId = params.issueId as string;
 
-  const { workspaceStore, aiStore, issueStore } = useStore();
+  const { workspaceStore, issueStore } = useStore();
   // Backend accepts both UUID and slug — use slug as fallback when store isn't hydrated
   const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
 
@@ -100,16 +118,12 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const { data: labels = [] } = useWorkspaceLabels(workspaceId);
   const { data: cyclesData } = useProjectCycles(workspaceId, issue?.project?.id ?? '');
 
-  // -- UI state (MobX-appropriate) -------------------------------------------
-  const [isAIContextOpen, setIsAIContextOpen] = React.useState(false);
-
   // -- Keyboard shortcuts (T045) ---------------------------------------------
   const handleForceSave = React.useCallback(() => {
     document.dispatchEvent(new CustomEvent('issue-force-save'));
   }, []);
 
   useIssueKeyboardShortcuts({
-    onCloseAISidebar: () => setIsAIContextOpen(false),
     onForceSave: handleForceSave,
   });
 
@@ -127,7 +141,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   }, [workspaceId, issue?.id, issueStore, router, workspaceSlug]);
 
   const handleCopyLink = React.useCallback(() => {
-    void navigator.clipboard.writeText(window.location.href);
+    void copyToClipboard(window.location.href);
   }, []);
 
   const handleUpdate = React.useCallback(
@@ -144,9 +158,8 @@ const IssueDetailPage = observer(function IssueDetailPage() {
       <IssueHeader
         identifier={issue.identifier}
         aiGenerated={issue.aiGenerated ?? false}
-        showAIContext={aiStore.settings.aiContextEnabled}
+        showAIContext={false}
         onBack={handleBack}
-        onAIContextClick={() => setIsAIContextOpen(true)}
         onCopyLink={handleCopyLink}
         onDelete={handleDelete}
       />
@@ -170,39 +183,52 @@ const IssueDetailPage = observer(function IssueDetailPage() {
           />
         </div>
 
-        {/* Main content area */}
-        <main className="flex-1 overflow-y-auto p-6 md:w-[65%] lg:w-[65%] xl:w-[70%]">
-          <div className="max-w-3xl space-y-6">
-            <IssueTitle title={issue.name} issueId={issueId} workspaceId={workspaceId} />
+        {/* Main content area with tabs */}
+        <main className="flex-1 overflow-hidden md:w-[65%] lg:w-[65%] xl:w-[70%]">
+          <Tabs defaultValue="description" className="flex h-full flex-col">
+            <TabsList className="shrink-0 justify-start rounded-none border-b bg-transparent px-6 pt-2 h-auto">
+              <TabsTrigger
+                value="description"
+                className="rounded-t-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                Description
+              </TabsTrigger>
+              <TabsTrigger
+                value="ai-context"
+                className="gap-1.5 rounded-t-lg data-[state=active]:bg-ai/10 data-[state=active]:text-ai"
+              >
+                <Sparkles className="size-3.5" />
+                AI Context
+              </TabsTrigger>
+            </TabsList>
 
-            <IssueDescriptionEditor
-              content={issue.descriptionHtml ?? issue.description}
-              issueId={issueId}
-              workspaceId={workspaceId}
-            />
+            <TabsContent value="description" className="mt-0 flex-1 overflow-y-auto p-6">
+              <div className="max-w-3xl space-y-6">
+                <IssueTitle title={issue.name} issueId={issueId} workspaceId={workspaceId} />
+                <IssueDescriptionEditor
+                  content={issue.descriptionHtml ?? issue.description}
+                  issueId={issueId}
+                  workspaceId={workspaceId}
+                />
+                <Separator />
+                <SubIssuesList
+                  parentId={issue.id}
+                  workspaceId={workspaceId}
+                  workspaceSlug={workspaceSlug}
+                  projectId={issue.project?.id ?? ''}
+                  subIssues={[]}
+                />
+                <Separator />
+                <ActivityTimeline issueId={issueId} workspaceId={workspaceId} />
+              </div>
+            </TabsContent>
 
-            <Separator />
-
-            <SubIssuesList
-              parentId={issue.id}
-              workspaceId={workspaceId}
-              workspaceSlug={workspaceSlug}
-              projectId={issue.project?.id ?? ''}
-              subIssues={[]}
-            />
-            <Separator />
-
-            <ActivityTimeline issueId={issueId} workspaceId={workspaceId} />
-          </div>
+            <TabsContent value="ai-context" className="mt-0 flex-1 overflow-hidden">
+              <AIContextTab issueId={issueId} />
+            </TabsContent>
+          </Tabs>
         </main>
       </div>
-
-      <AIContextSidebar
-        issueId={issueId}
-        issueIdentifier={issue.identifier}
-        open={isAIContextOpen}
-        onOpenChange={setIsAIContextOpen}
-      />
     </div>
   );
 });

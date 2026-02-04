@@ -256,7 +256,7 @@ export const AIContextPanel = observer(function AIContextPanel({
       <div className={cn('h-full', className)}>
         <Results
           claudeCodePrompt={aiStore.aiContext.result.claudeCodePrompt}
-          relatedDocs={aiStore.aiContext.result.relatedDocs}
+          relatedDocs={aiStore.aiContext.result.relatedDocs_legacy}
           relatedCode={aiStore.aiContext.result.relatedCode}
           similarIssues={aiStore.aiContext.result.similarIssues}
           onRefresh={handleRefresh}

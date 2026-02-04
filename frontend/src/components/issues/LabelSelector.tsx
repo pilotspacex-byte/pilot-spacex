@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AIConfidenceTag } from '@/components/ai/AIConfidenceTag';
-import type { Label } from '@/types';
+import type { LabelBrief as Label } from '@/types';
 
 export interface LabelSuggestion {
   name: string;

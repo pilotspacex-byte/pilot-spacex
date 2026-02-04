@@ -419,12 +419,10 @@ async function handleInsertInlineIssue(
         // Create new issue and track the promise
         const { issuesApi } = await import('@/services/api/issues');
         const issuePromise = issuesApi.create(workspaceId, {
-          title: issueData.title,
+          name: issueData.title,
           description: issueData.description || '',
           priority: issueData.priority || 'medium',
           type: issueData.type || 'task',
-          state: 'backlog',
-          sourceNoteId: noteId,
         });
 
         tracker.set(titleHash, issuePromise);
@@ -444,9 +442,9 @@ async function handleInsertInlineIssue(
         ...issueData,
         issueId: createdIssue.id,
         issueKey: createdIssue.identifier,
-        title: createdIssue.title,
+        title: createdIssue.name,
         type: (createdIssue.type as typeof issueData.type) || 'task',
-        state: (createdIssue.state as typeof issueData.state) || 'backlog',
+        state: (createdIssue.state?.group as typeof issueData.state) || 'backlog',
         priority: (createdIssue.priority as typeof issueData.priority) || 'medium',
       };
     } catch (err) {

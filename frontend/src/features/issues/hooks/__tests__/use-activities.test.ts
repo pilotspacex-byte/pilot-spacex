@@ -65,7 +65,7 @@ describe('useActivities', () => {
       offset: 0,
     });
     expect(result.current.data?.pages).toHaveLength(1);
-    expect(result.current.data?.pages[0].activities).toHaveLength(50);
+    expect(result.current.data?.pages[0]!.activities).toHaveLength(50);
   });
 
   it('computes next page offset when more data exists', async () => {

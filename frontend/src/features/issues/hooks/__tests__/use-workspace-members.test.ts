@@ -62,7 +62,7 @@ describe('useWorkspaceMembers', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith('/workspaces/ws-1/members');
     expect(result.current.data).toHaveLength(2);
-    expect(result.current.data?.[0].role).toBe('owner');
+    expect(result.current.data?.[0]!.role).toBe('owner');
   });
 
   it('is disabled when workspaceId is empty', () => {

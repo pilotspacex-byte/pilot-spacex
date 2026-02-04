@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Check, ChevronDown, User, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AIConfidenceTag } from '@/components/ai/AIConfidenceTag';
-import type { User as UserType } from '@/types';
+import type { UserBrief as UserType } from '@/types';
 
 export interface AssigneeRecommendation {
   userId: string;
@@ -88,7 +88,7 @@ export function AssigneeSelector({
   // Filter members by search
   const filteredMembers = members.filter(
     (member) =>
-      member.name.toLowerCase().includes(search.toLowerCase()) ||
+      (member.displayName ?? member.email).toLowerCase().includes(search.toLowerCase()) ||
       member.email.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -175,10 +175,11 @@ export function AssigneeSelector({
             {value ? (
               <span className="flex items-center gap-2">
                 <Avatar className="size-5">
-                  <AvatarImage src={value.avatarUrl} alt={value.name} />
-                  <AvatarFallback className="text-[10px]">{getInitials(value.name)}</AvatarFallback>
+                  <AvatarFallback className="text-[10px]">
+                    {getInitials(value.displayName ?? value.email)}
+                  </AvatarFallback>
                 </Avatar>
-                <span className="truncate">{value.name}</span>
+                <span className="truncate">{value.displayName ?? value.email}</span>
               </span>
             ) : (
               <span className="flex items-center gap-2 text-muted-foreground">
@@ -218,13 +219,12 @@ export function AssigneeSelector({
                         >
                           <span className="flex items-center gap-2">
                             <Avatar className="size-6">
-                              <AvatarImage src={member.avatarUrl} alt={member.name} />
                               <AvatarFallback className="text-[10px]">
-                                {getInitials(member.name)}
+                                {getInitials(member.displayName ?? member.email)}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex flex-col">
-                              <span className="text-sm">{member.name}</span>
+                              <span className="text-sm">{member.displayName ?? member.email}</span>
                               <span className="text-xs text-muted-foreground truncate max-w-32">
                                 {rec.reason}
                               </span>
@@ -261,12 +261,11 @@ export function AssigneeSelector({
                       >
                         <span className="flex items-center gap-2">
                           <Avatar className="size-6">
-                            <AvatarImage src={member.avatarUrl} alt={member.name} />
                             <AvatarFallback className="text-[10px]">
-                              {getInitials(member.name)}
+                              {getInitials(member.displayName ?? member.email)}
                             </AvatarFallback>
                           </Avatar>
-                          <span>{member.name}</span>
+                          <span>{member.displayName ?? member.email}</span>
                         </span>
                         {isSelected && <Check className="size-4" />}
                       </CommandItem>

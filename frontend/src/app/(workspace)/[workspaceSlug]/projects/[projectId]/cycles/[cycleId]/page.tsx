@@ -52,6 +52,7 @@ import {
 } from '@/features/cycles/hooks';
 import type { Issue, IssueState, RolloverCycleData } from '@/types';
 import type { CycleIssue } from '@/stores/features/cycles';
+import { stateNameToKey } from '@/lib/issue-helpers';
 
 // ============================================================================
 // Types
@@ -100,7 +101,7 @@ function groupIssuesByState(issues: Issue[]): Record<IssueState, CycleIssue[]> {
   const grouped: Record<IssueState, CycleIssue[]> = {} as Record<IssueState, CycleIssue[]>;
 
   states.forEach((state) => {
-    grouped[state] = issues.filter((i) => i.state === state) as CycleIssue[];
+    grouped[state] = issues.filter((i) => stateNameToKey(i.state.name) === state) as CycleIssue[];
   });
 
   return grouped;
@@ -247,7 +248,7 @@ const CycleDetailPage = observer(function CycleDetailPage() {
   const issues = issuesData?.items ?? [];
   const issuesByState = groupIssuesByState(issues);
   const incompleteIssues = issues.filter(
-    (i) => i.state !== 'done' && i.state !== 'cancelled'
+    (i) => i.state.group !== 'completed' && i.state.group !== 'cancelled'
   ) as CycleIssue[];
 
   // Available target cycles for rollover (exclude current cycle)
@@ -538,7 +539,7 @@ const CycleDetailPage = observer(function CycleDetailPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="capitalize">
-                            {issue.state.replace('_', ' ')}
+                            {issue.state.name}
                           </Badge>
                           <Badge variant="secondary" className="capitalize">
                             {issue.priority}

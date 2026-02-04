@@ -21,7 +21,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import orjson
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import Field
 
@@ -86,6 +86,7 @@ async def chat(
     session_handler: SessionHandlerDep,
     agent: PilotSpaceAgentDep,
     queue_client: QueueClientDep,
+    redis_client: RedisDep,
 ) -> StreamingResponse | ChatQueueResponse:
     """Unified AI chat endpoint with streaming responses.
 
@@ -163,6 +164,14 @@ async def chat(
                 "context": ai_context,
             },
         )
+
+        # Store job ownership in Redis for stream_job auth validation
+        await redis_client.setex(
+            f"stream:owner:{job_id}",
+            600,  # 10 min TTL (matches stream session)
+            str(user_id),
+        )
+
         return ChatQueueResponse(
             job_id=job_id,
             session_id=str(conv_session.session_id) if conv_session else "",
@@ -230,8 +239,9 @@ class AbortResponse(BaseSchema):
 @router.post("/chat/abort", response_model=AbortResponse)
 async def abort_chat(
     abort_request: AbortRequest,
+    user_id: CurrentUserIdOrDemo,
     agent: PilotSpaceAgentDep,
-    _current_user: CurrentUserIdOrDemo,
+    session_handler: SessionHandlerDep,
 ) -> AbortResponse:
     """Abort an active chat session.
 
@@ -241,11 +251,22 @@ async def abort_chat(
 
     Args:
         abort_request: Contains session_id to abort.
+        user_id: Authenticated user ID (validates ownership).
         agent: PilotSpaceAgent instance.
+        session_handler: Session handler for ownership verification.
 
     Returns:
         AbortResponse with status.
+
+    Raises:
+        HTTPException 403: If session does not belong to the user.
     """
+    # Verify session ownership before allowing abort
+    if session_handler is not None:
+        session = await session_handler.get_session(UUID(abort_request.session_id))
+        if session and session.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied to this session")
+
     interrupted = await agent.interrupt_session(abort_request.session_id)
     return AbortResponse(
         status="interrupted" if interrupted else "not_found",
@@ -307,21 +328,32 @@ async def answer_question(
 @router.get("/chat/stream/{job_id}")
 async def stream_job(
     job_id: str,
+    user_id: CurrentUserIdOrDemo,
     redis_client: RedisDep,
-    _current_user: CurrentUserIdOrDemo,
 ) -> StreamingResponse:
     """SSE stream endpoint for queue-mode chat jobs.
 
     Clients connect here after receiving a job_id from POST /chat.
     Delivers stored events (catch-up) then live events via Redis pub/sub.
+    Validates that the authenticated user owns the job before streaming.
 
     Args:
         job_id: Queue job identifier.
+        user_id: Authenticated user ID (validates ownership).
         redis_client: Redis client for pub/sub.
 
     Returns:
         StreamingResponse with SSE events.
+
+    Raises:
+        HTTPException 403: If job does not belong to the user.
     """
+    # Validate job ownership via Redis metadata
+    owner_raw = await redis_client.get_raw(f"stream:owner:{job_id}")
+    if owner_raw is not None:
+        owner_str = owner_raw.decode() if isinstance(owner_raw, bytes) else str(owner_raw)
+        if owner_str != str(user_id):
+            raise HTTPException(status_code=403, detail="Access denied to this stream")
 
     async def event_stream():
         # 1. Catch up on stored events (for reconnection or late connect)

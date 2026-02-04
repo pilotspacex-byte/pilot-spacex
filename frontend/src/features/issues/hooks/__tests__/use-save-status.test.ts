@@ -4,7 +4,7 @@
  * T015a: Verifies per-field save status lifecycle: idle -> saving -> saved -> idle (2s auto-clear).
  */
 
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useSaveStatus } from '../use-save-status';
 

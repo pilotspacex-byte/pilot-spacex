@@ -8,6 +8,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import type { Issue } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -18,21 +19,33 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-const mockUseIssueDetail = vi.fn();
-const mockUseUpdateIssue = vi.fn(() => ({ mutateAsync: vi.fn() }));
-const mockUseWorkspaceMembers = vi.fn(() => ({ data: [] }));
-const mockUseWorkspaceLabels = vi.fn(() => ({ data: [] }));
-const mockUseProjectCycles = vi.fn(() => ({ data: undefined }));
-const mockUseIssueKeyboardShortcuts = vi.fn();
-
-vi.mock('@/features/issues/hooks', () => ({
-  useIssueDetail: (...args: unknown[]) => mockUseIssueDetail(...args),
-  useUpdateIssue: (...args: unknown[]) => mockUseUpdateIssue(...args),
-  useWorkspaceMembers: (...args: unknown[]) => mockUseWorkspaceMembers(...args),
-  useWorkspaceLabels: (...args: unknown[]) => mockUseWorkspaceLabels(...args),
-  useProjectCycles: (...args: unknown[]) => mockUseProjectCycles(...args),
-  useIssueKeyboardShortcuts: (...args: unknown[]) => mockUseIssueKeyboardShortcuts(...args),
+const mockUseIssueDetail = vi.fn((_issueId: string) => ({
+  data: undefined as Issue | undefined,
+  isLoading: false,
+  isError: false,
 }));
+const mockUseUpdateIssue = vi.fn((_workspaceId: string, _issueId: string) => ({
+  mutateAsync: vi.fn(),
+}));
+const mockUseWorkspaceMembers = vi.fn((_workspaceId: string) => ({ data: [] }));
+const mockUseWorkspaceLabels = vi.fn((_workspaceId: string) => ({ data: [] }));
+const mockUseProjectCycles = vi.fn((_workspaceId: string, _projectId: string) => ({
+  data: undefined,
+}));
+const mockUseIssueKeyboardShortcuts = vi.fn((_onDelete: () => void) => {});
+
+vi.mock('@/features/issues/hooks', async () => {
+  return {
+    useIssueDetail: (issueId: string) => mockUseIssueDetail(issueId),
+    useUpdateIssue: (workspaceId: string, issueId: string) =>
+      mockUseUpdateIssue(workspaceId, issueId),
+    useWorkspaceMembers: (workspaceId: string) => mockUseWorkspaceMembers(workspaceId),
+    useWorkspaceLabels: (workspaceId: string) => mockUseWorkspaceLabels(workspaceId),
+    useProjectCycles: (workspaceId: string, projectId: string) =>
+      mockUseProjectCycles(workspaceId, projectId),
+    useIssueKeyboardShortcuts: (onDelete: () => void) => mockUseIssueKeyboardShortcuts(onDelete),
+  };
+});
 
 vi.mock('@/stores', () => ({
   useStore: () => ({
@@ -192,7 +205,7 @@ describe('IssueDetailPage', () => {
 
   it('falls back to plain description when descriptionHtml is null', () => {
     mockUseIssueDetail.mockReturnValue({
-      data: { ...mockIssue, descriptionHtml: null, description: 'Plain text description' },
+      data: { ...mockIssue, descriptionHtml: undefined, description: 'Plain text description' },
       isLoading: false,
       isError: false,
     });
@@ -221,11 +234,14 @@ describe('IssueDetailPage', () => {
     expect(screen.getByTestId('sub-issues-list')).toBeInTheDocument();
   });
 
-  it('AI Context sidebar initially closed', () => {
+  it('AI Context tab initially inactive', () => {
     render(<IssueDetailPage />);
 
-    const sidebar = screen.getByTestId('ai-context-sidebar');
-    expect(sidebar).toHaveAttribute('data-open', 'false');
+    // AI Context is rendered as a tab; the "ai-context" tab content should be inactive by default
+    const tabPanels = screen.getAllByRole('tabpanel', { hidden: true });
+    const aiPanel = tabPanels.find((panel) => panel.id.includes('ai-context'));
+    expect(aiPanel).toBeDefined();
+    expect(aiPanel).toHaveAttribute('data-state', 'inactive');
   });
 
   it('passes correct workspaceId to child components', () => {

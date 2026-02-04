@@ -17,6 +17,8 @@ import type {
   BurndownChartData,
   VelocityChartData,
 } from '@/types';
+
+import { stateNameToKey } from '@/lib/issue-helpers';
 import { cyclesApi } from '@/services/api';
 import type { CycleIssue, CycleFilters, SortBy, SortOrder } from './cycle-store-types';
 import * as actions from './cycle-store-actions';
@@ -159,7 +161,9 @@ export class CycleStore {
     const grouped: Record<IssueState, CycleIssue[]> = {} as Record<IssueState, CycleIssue[]>;
 
     states.forEach((state) => {
-      grouped[state] = Array.from(this.cycleIssues.values()).filter((i) => i.state === state);
+      grouped[state] = Array.from(this.cycleIssues.values()).filter(
+        (i) => stateNameToKey(i.state.name) === state
+      );
     });
 
     return grouped;
@@ -168,13 +172,13 @@ export class CycleStore {
   /** Incomplete issues (not done or cancelled) */
   get incompleteIssues(): CycleIssue[] {
     return Array.from(this.cycleIssues.values()).filter(
-      (i) => i.state !== 'done' && i.state !== 'cancelled'
+      (i) => i.state.group !== 'completed' && i.state.group !== 'cancelled'
     );
   }
 
   /** Completed issues */
   get completedIssues(): CycleIssue[] {
-    return Array.from(this.cycleIssues.values()).filter((i) => i.state === 'done');
+    return Array.from(this.cycleIssues.values()).filter((i) => i.state.group === 'completed');
   }
 
   // ============================================================================
@@ -438,10 +442,16 @@ export class CycleStore {
     }
   }
 
-  optimisticUpdateIssueState(issueId: string, newState: IssueState): void {
+  /**
+   * Optimistic update for issue state (drag-drop)
+   */
+  optimisticUpdateIssueState(issueId: string, newState: string): void {
     const issue = this.cycleIssues.get(issueId);
     if (issue) {
-      this.cycleIssues.set(issueId, { ...issue, state: newState });
+      this.cycleIssues.set(issueId, {
+        ...issue,
+        state: { ...issue.state, name: newState },
+      });
     }
   }
 

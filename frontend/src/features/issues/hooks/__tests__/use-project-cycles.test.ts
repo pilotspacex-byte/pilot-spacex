@@ -66,7 +66,7 @@ describe('useProjectCycles', () => {
 
     expect(cyclesApi.list).toHaveBeenCalledWith('ws-1', { projectId: 'proj-1' });
     expect(result.current.data?.items).toHaveLength(1);
-    expect(result.current.data?.items[0].name).toBe('Sprint 1');
+    expect(result.current.data?.items[0]!.name).toBe('Sprint 1');
   });
 
   it('is disabled when workspaceId is empty', () => {

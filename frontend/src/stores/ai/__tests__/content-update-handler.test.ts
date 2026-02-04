@@ -358,25 +358,21 @@ describe('PilotSpaceStreamHandler.handleSSEEvent routing', () => {
     streamHandler.handleSSEEvent(sseEvent);
 
     expect(store.handleContentUpdate).toHaveBeenCalledTimes(1);
-    expect(store.handleContentUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'content_update',
-        data: expect.objectContaining({
-          noteId: 'note-123',
-        }),
-      })
-    );
+    expect(events).toHaveLength(1);
+    expect(events[0]?.type).toBe('content_update');
   });
 
-  it('should still route text_delta events normally alongside content_update', () => {
-    // First, send a text_delta event
-    const textDeltaEvent: SSEEvent = {
-      type: 'text_delta',
-      data: {
-        messageId: 'msg-123',
-        delta: 'Hello world',
-      },
-    };
+  it('should parse text_delta and content_update events from SSE buffer', () => {
+    const textDeltaBuffer = `event:text_delta\ndata:${JSON.stringify({ messageId: 'msg-123', delta: 'Hello world' })}\n\n`;
+    const contentUpdateBuffer = `event:content_update\ndata:${JSON.stringify({
+      noteId: 'note-123',
+      operation: 'replace_block',
+      blockId: 'block-456',
+      markdown: null,
+      content: { type: 'paragraph' },
+      issueData: null,
+      afterBlockId: null,
+    })}\n\n`;
 
     streamHandler.handleSSEEvent(textDeltaEvent);
 

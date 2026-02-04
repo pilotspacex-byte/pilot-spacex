@@ -14,7 +14,6 @@
  * ```
  */
 
-import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { Circle, Loader2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -32,46 +31,31 @@ export interface AIContextStreamingProps {
 }
 
 // ============================================================================
-// Phase Item
+// Phase Item — wrapped in observer to track in-place MobX mutations on
+// phase.status and phase.content
 // ============================================================================
 
 interface PhaseItemProps {
   phase: AIContextPhase;
 }
 
-function PhaseItem({ phase }: PhaseItemProps) {
-  const Icon = React.useMemo(() => {
-    switch (phase.status) {
-      case 'complete':
-        return Check;
-      case 'in_progress':
-        return Loader2;
-      default:
-        return Circle;
-    }
-  }, [phase.status]);
+const PhaseItem = observer(function PhaseItem({ phase }: PhaseItemProps) {
+  let Icon = Circle;
+  let iconClassName = 'text-muted-foreground/40';
+  let textClassName = 'text-muted-foreground';
 
-  const iconClassName = React.useMemo(() => {
-    switch (phase.status) {
-      case 'complete':
-        return 'text-emerald-600 dark:text-emerald-400';
-      case 'in_progress':
-        return 'text-ai animate-spin';
-      default:
-        return 'text-muted-foreground/40';
-    }
-  }, [phase.status]);
-
-  const textClassName = React.useMemo(() => {
-    switch (phase.status) {
-      case 'complete':
-        return 'text-foreground';
-      case 'in_progress':
-        return 'text-foreground font-medium';
-      default:
-        return 'text-muted-foreground';
-    }
-  }, [phase.status]);
+  switch (phase.status) {
+    case 'complete':
+      Icon = Check;
+      iconClassName = 'text-emerald-600 dark:text-emerald-400';
+      textClassName = 'text-foreground';
+      break;
+    case 'in_progress':
+      Icon = Loader2;
+      iconClassName = 'text-ai motion-safe:animate-spin';
+      textClassName = 'text-foreground font-medium';
+      break;
+  }
 
   return (
     <div className="flex items-center gap-3">
@@ -84,7 +68,7 @@ function PhaseItem({ phase }: PhaseItemProps) {
       </div>
     </div>
   );
-}
+});
 
 // ============================================================================
 // Main Component
@@ -95,9 +79,9 @@ export const AIContextStreaming = observer(function AIContextStreaming({
   className,
 }: AIContextStreamingProps) {
   return (
-    <div className={cn('space-y-4 p-6', className)}>
+    <div className={cn('space-y-4 p-6', className)} aria-live="polite">
       <div className="flex items-center gap-2">
-        <Loader2 className="size-5 text-ai animate-spin" />
+        <Loader2 className="size-5 text-ai motion-safe:animate-spin" />
         <h3 className="text-base font-medium">Generating AI Context</h3>
       </div>
 

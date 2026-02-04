@@ -110,7 +110,8 @@ export const IssueCard = observer(function IssueCard({
   className,
 }: IssueCardProps) {
   const PriorityIcon = priorityConfig[issue.priority].icon;
-  const TypeIcon = typeConfig[issue.type].icon;
+  const issueType = issue.type ?? 'task';
+  const TypeIcon = typeConfig[issueType].icon;
 
   const handleClick = () => {
     onClick?.(issue);
@@ -151,11 +152,11 @@ export const IssueCard = observer(function IssueCard({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className={cn('flex items-center', typeConfig[issue.type].className)}>
+                <span className={cn('flex items-center', typeConfig[issueType].className)}>
                   <TypeIcon className="size-4" />
                 </span>
               </TooltipTrigger>
-              <TooltipContent>{typeConfig[issue.type].label}</TooltipContent>
+              <TooltipContent>{typeConfig[issueType].label}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <span className="text-xs font-medium text-muted-foreground">{issue.identifier}</span>
@@ -242,13 +243,15 @@ export const IssueCard = observer(function IssueCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Avatar className="size-5">
-                    <AvatarImage src={issue.assignee.avatarUrl} alt={issue.assignee.name} />
+                    <AvatarImage src="" alt={issue.assignee.displayName ?? issue.assignee.email} />
                     <AvatarFallback className="text-[10px]">
-                      {getInitials(issue.assignee.name)}
+                      {getInitials(issue.assignee.displayName ?? issue.assignee.email)}
                     </AvatarFallback>
                   </Avatar>
                 </TooltipTrigger>
-                <TooltipContent>Assigned to {issue.assignee.name}</TooltipContent>
+                <TooltipContent>
+                  Assigned to {issue.assignee.displayName ?? issue.assignee.email}
+                </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           ) : (
@@ -264,19 +267,21 @@ export const IssueCard = observer(function IssueCard({
             </TooltipProvider>
           )}
 
-          {issue.dueDate && (
+          {issue.targetDate && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="flex items-center gap-1">
                     <Calendar className="size-3" />
-                    {new Date(issue.dueDate).toLocaleDateString('en-US', {
+                    {new Date(issue.targetDate).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                     })}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Due {new Date(issue.dueDate).toLocaleDateString()}</TooltipContent>
+                <TooltipContent>
+                  Due {new Date(issue.targetDate).toLocaleDateString()}
+                </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}

@@ -8,7 +8,7 @@
 
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ActivityTimeline } from '../activity-timeline';
 import type { Activity } from '@/types';
 

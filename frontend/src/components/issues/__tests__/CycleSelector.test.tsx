@@ -15,9 +15,7 @@ import type { Cycle } from '@/types';
 // ---------------------------------------------------------------------------
 
 vi.mock('@/components/ui/dropdown-menu', async () => {
-  const React = await import('react');
   return {
-    DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => (
       <div data-testid="dropdown-trigger">{children}</div>
     ),
@@ -123,7 +121,7 @@ describe('CycleSelector', () => {
     const items = within(content).getAllByTestId('dropdown-item');
 
     // Click Sprint 1 (index 1 after "No cycle")
-    fireEvent.click(items[1]);
+    fireEvent.click(items.at(1)!);
     expect(defaultOnChange).toHaveBeenCalledWith('cycle-1');
   });
 
@@ -134,7 +132,7 @@ describe('CycleSelector', () => {
     const items = within(content).getAllByTestId('dropdown-item');
 
     // First item is "No cycle"
-    fireEvent.click(items[0]);
+    fireEvent.click(items.at(0)!);
     expect(defaultOnChange).toHaveBeenCalledWith(null);
   });
 

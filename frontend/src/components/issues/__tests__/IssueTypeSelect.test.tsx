@@ -14,26 +14,19 @@ import type { IssueType } from '@/types';
 // Mocks - Radix DropdownMenu is portal-based, mock for testability
 // ---------------------------------------------------------------------------
 
-vi.mock('@/components/ui/dropdown-menu', async () => {
-  const React = await import('react');
+vi.mock('@/components/ui/dropdown-menu', () => {
   return {
     DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    DropdownMenuTrigger: ({
-      children,
-      asChild,
-      ...props
-    }: {
-      children: React.ReactNode;
-      asChild?: boolean;
-    }) => <div data-testid="dropdown-trigger">{children}</div>,
-    DropdownMenuContent: ({ children, ...props }: { children: React.ReactNode }) => (
+    DropdownMenuTrigger: ({ children }: { children: React.ReactNode; asChild?: boolean }) => (
+      <div data-testid="dropdown-trigger">{children}</div>
+    ),
+    DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
       <div data-testid="dropdown-content">{children}</div>
     ),
     DropdownMenuItem: ({
       children,
       onClick,
       className,
-      ...props
     }: {
       children: React.ReactNode;
       onClick?: () => void;
@@ -101,7 +94,7 @@ describe('IssueTypeSelect', () => {
     const items = within(content).getAllByTestId('dropdown-item');
 
     // Click 'Feature' (second item)
-    fireEvent.click(items[1]);
+    fireEvent.click(items.at(1)!);
     expect(defaultOnChange).toHaveBeenCalledWith('feature');
   });
 
@@ -156,8 +149,8 @@ describe('IssueTypeSelect', () => {
     const items = within(content).getAllByTestId('dropdown-item');
 
     // Feature is index 1
-    expect(items[1].className).toContain('bg-accent');
+    expect(items.at(1)!.className).toContain('bg-accent');
     // Others should not have bg-accent
-    expect(items[0].className).not.toContain('bg-accent');
+    expect(items.at(0)!.className).not.toContain('bg-accent');
   });
 });

@@ -22,7 +22,14 @@ import {
 } from '@/components/ui/select';
 import { IssueBoard, IssueModal } from '@/components/issues';
 import { useStore } from '@/stores';
-import type { Issue, IssueState, Label, User, CreateIssueData, UpdateIssueData } from '@/types';
+import type {
+  Issue,
+  IssueState,
+  LabelBrief,
+  UserBrief,
+  CreateIssueData,
+  UpdateIssueData,
+} from '@/types';
 
 /**
  * IssuesPage displays the main issues view with board/list/table modes.
@@ -100,8 +107,8 @@ const IssuesPage = observer(function IssuesPage() {
   };
 
   // Mock data for labels and members (in real app, these come from stores)
-  const availableLabels: Label[] = [];
-  const teamMembers: User[] = [];
+  const availableLabels: LabelBrief[] = [];
+  const teamMembers: UserBrief[] = [];
 
   return (
     <div className="flex h-full flex-col">

@@ -51,9 +51,9 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { IssueCard } from '@/components/issues/IssueCard';
-import type { Issue, IssueState, User } from '@/types';
+import type { Issue, IssueState, UserBrief } from '@/types';
 import type { CycleIssue } from '@/stores/features/cycles';
 
 // ============================================================================
@@ -295,7 +295,7 @@ const BoardColumn = React.memo(function BoardColumn({
 // ============================================================================
 
 interface SwimlaneRowProps {
-  assignee: User | null;
+  assignee: UserBrief | null;
   assigneeId: string | null;
   columns: ColumnConfig[];
   issuesByState: Record<IssueState, CycleIssue[]>;
@@ -320,10 +320,11 @@ const SwimlaneRow = React.memo(function SwimlaneRow({
         {assignee ? (
           <>
             <Avatar className="size-6">
-              <AvatarImage src={assignee.avatarUrl} alt={assignee.name} />
-              <AvatarFallback className="text-xs">{getInitials(assignee.name)}</AvatarFallback>
+              <AvatarFallback className="text-xs">
+                {getInitials(assignee.displayName ?? assignee.email)}
+              </AvatarFallback>
             </Avatar>
-            <span className="text-sm font-medium">{assignee.name}</span>
+            <span className="text-sm font-medium">{assignee.displayName ?? assignee.email}</span>
           </>
         ) : (
           <>
@@ -412,7 +413,7 @@ export const CycleBoard = observer(function CycleBoard({
     if (!showSwimlanes) return [];
 
     const allIssues = Object.values(issuesByState).flat();
-    const assigneeMap = new Map<string | null, User | null>();
+    const assigneeMap = new Map<string | null, UserBrief | null>();
 
     allIssues.forEach((issue) => {
       const id = issue.assigneeId ?? null;
@@ -425,7 +426,9 @@ export const CycleBoard = observer(function CycleBoard({
     return Array.from(assigneeMap.entries()).sort((a, b) => {
       if (a[0] === null && b[0] !== null) return 1;
       if (a[0] !== null && b[0] === null) return -1;
-      return (a[1]?.name ?? '').localeCompare(b[1]?.name ?? '');
+      return (a[1]?.displayName ?? a[1]?.email ?? '').localeCompare(
+        b[1]?.displayName ?? b[1]?.email ?? ''
+      );
     });
   }, [showSwimlanes, issuesByState]);
 

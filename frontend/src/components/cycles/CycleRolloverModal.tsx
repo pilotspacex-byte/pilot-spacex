@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -142,7 +142,7 @@ const IssueSelectionItem = React.memo(function IssueSelectionItem({
             {issue.priority}
           </Badge>
           <Badge variant="outline" className="text-xs capitalize">
-            {issue.state.replace('_', ' ')}
+            {issue.state.name}
           </Badge>
         </div>
 
@@ -153,12 +153,11 @@ const IssueSelectionItem = React.memo(function IssueSelectionItem({
         {issue.assignee && (
           <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
             <Avatar className="size-4">
-              <AvatarImage src={issue.assignee.avatarUrl} />
               <AvatarFallback className="text-[8px]">
-                {getInitials(issue.assignee.name)}
+                {getInitials(issue.assignee.displayName ?? issue.assignee.email)}
               </AvatarFallback>
             </Avatar>
-            <span>{issue.assignee.name}</span>
+            <span>{issue.assignee.displayName ?? issue.assignee.email}</span>
           </div>
         )}
       </div>
