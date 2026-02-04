@@ -231,6 +231,7 @@ class AbortResponse(BaseSchema):
 async def abort_chat(
     abort_request: AbortRequest,
     agent: PilotSpaceAgentDep,
+    _current_user: CurrentUserIdOrDemo,
 ) -> AbortResponse:
     """Abort an active chat session.
 
@@ -271,6 +272,7 @@ class AnswerResponse(BaseSchema):
 async def answer_question(
     answer_request: AnswerRequest,
     agent: PilotSpaceAgentDep,
+    _current_user: CurrentUserIdOrDemo,
 ) -> AnswerResponse:
     """Submit a user answer to an agent's AskUserQuestion.
 
@@ -303,7 +305,11 @@ async def answer_question(
 
 
 @router.get("/chat/stream/{job_id}")
-async def stream_job(job_id: str, redis_client: RedisDep) -> StreamingResponse:
+async def stream_job(
+    job_id: str,
+    redis_client: RedisDep,
+    _current_user: CurrentUserIdOrDemo,
+) -> StreamingResponse:
     """SSE stream endpoint for queue-mode chat jobs.
 
     Clients connect here after receiving a job_id from POST /chat.
@@ -371,6 +377,7 @@ class SkillListResponse(BaseSchema):
 @router.get("/skills", response_model=SkillListResponse)
 async def list_skills(
     skill_registry: SkillRegistryDep,
+    _current_user: CurrentUserIdOrDemo,
 ) -> SkillListResponse:
     """List available AI skills for autocomplete."""
     if skill_registry is None:

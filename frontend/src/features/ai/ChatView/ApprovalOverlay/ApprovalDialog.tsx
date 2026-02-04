@@ -3,7 +3,7 @@
  * Follows shadcn/ui AI confirmation component pattern
  */
 
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -67,12 +67,26 @@ export const ApprovalDialog = memo<ApprovalDialogProps>(
       }
     }, [approval, rejectionReason, onReject, onClose]);
 
+    // Reactive countdown timer that ticks every second
+    const [timeRemaining, setTimeRemaining] = useState(0);
+
+    useEffect(() => {
+      if (!approval) return;
+
+      const computeRemaining = () =>
+        Math.max(0, Math.floor((approval.expiresAt.getTime() - Date.now()) / 1000));
+
+      setTimeRemaining(computeRemaining());
+
+      const interval = setInterval(() => {
+        setTimeRemaining(computeRemaining());
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }, [approval]);
+
     if (!approval) return null;
 
-    const timeRemaining = Math.max(
-      0,
-      Math.floor((approval.expiresAt.getTime() - Date.now()) / 1000)
-    );
     const minutes = Math.floor(timeRemaining / 60);
     const seconds = timeRemaining % 60;
 

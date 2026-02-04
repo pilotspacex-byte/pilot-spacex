@@ -161,16 +161,19 @@ describe('PilotSpaceActions', () => {
   });
 
   describe('abort', () => {
-    it('should send abort signal when session active', () => {
+    it('should send abort signal when session active', async () => {
       store.setSessionId('sess-1');
       fetchSpy.mockResolvedValueOnce({ ok: true } as Response);
 
       actions.abort();
 
-      expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining('/ai/chat/abort'),
-        expect.objectContaining({ method: 'POST' })
-      );
+      // Flush microtask queue: abort() now resolves auth headers asynchronously
+      await vi.waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          expect.stringContaining('/ai/chat/abort'),
+          expect.objectContaining({ method: 'POST' })
+        );
+      });
       expect(store.streamingState.isStreaming).toBe(false);
     });
 
