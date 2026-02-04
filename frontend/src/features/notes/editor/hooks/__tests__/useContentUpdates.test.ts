@@ -1,17 +1,7 @@
 /**
- * Unit tests for useContentUpdates hook.
- *
- * Task 7: Connect PilotSpaceStore's pendingContentUpdates to TipTap editor.
- *
- * Tests the hook's ability to:
- * - Consume content_update events from the store
- * - Apply changes to the TipTap editor
- * - Detect and skip conflicting edits (AI yields to user)
- * - Support both markdown and JSONContent formats
- *
+ * Unit tests for useContentUpdates hook and highlightBlock helper.
  * @module features/notes/editor/hooks/__tests__/useContentUpdates.test
  */
-
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { runInAction } from 'mobx';
@@ -29,7 +19,7 @@ vi.mock('@/lib/sse-client', () => ({
   SSEClient: vi.fn(),
 }));
 
-import { useContentUpdates } from '../useContentUpdates';
+import { useContentUpdates, highlightBlock } from '../useContentUpdates';
 import { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
 import type { AIStore } from '@/stores/ai/AIStore';
 import type { ContentUpdateData } from '@/stores/ai/types/events';
@@ -650,6 +640,55 @@ describe('useContentUpdates', () => {
 
       // Should NOT have processed the update
       expect(editor.commands.insertContentAt).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('highlightBlock', () => {
+    function createBlockEl(id: string): HTMLDivElement {
+      const el = document.createElement('div');
+      el.setAttribute('data-block-id', id);
+      document.body.appendChild(el);
+      return el;
+    }
+
+    afterEach(() => {
+      document.querySelectorAll('[data-block-id]').forEach((el) => el.remove());
+      vi.restoreAllMocks();
+    });
+
+    it('should add ai-block-edited class and ai-block-fade-out after 50ms', () => {
+      vi.useFakeTimers();
+      const el = createBlockEl('block-1');
+      highlightBlock('block-1', 'edited');
+      expect(el.classList.contains('ai-block-edited')).toBe(true);
+      expect(el.classList.contains('ai-block-fade-out')).toBe(false);
+      vi.advanceTimersByTime(50);
+      expect(el.classList.contains('ai-block-fade-out')).toBe(true);
+      vi.useRealTimers();
+    });
+
+    it('should remove both edited classes after 1100ms', () => {
+      vi.useFakeTimers();
+      const el = createBlockEl('block-1');
+      highlightBlock('block-1', 'edited');
+      vi.advanceTimersByTime(1100);
+      expect(el.classList.contains('ai-block-edited')).toBe(false);
+      expect(el.classList.contains('ai-block-fade-out')).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it('should add ai-block-new class and remove after 400ms', () => {
+      vi.useFakeTimers();
+      const el = createBlockEl('block-1');
+      highlightBlock('block-1', 'new');
+      expect(el.classList.contains('ai-block-new')).toBe(true);
+      vi.advanceTimersByTime(400);
+      expect(el.classList.contains('ai-block-new')).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it('should not throw when element not found', () => {
+      expect(() => highlightBlock('non-existent', 'edited')).not.toThrow();
     });
   });
 });

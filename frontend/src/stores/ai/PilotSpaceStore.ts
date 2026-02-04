@@ -20,6 +20,7 @@ import type {
   ChatMessage,
   ToolCall,
   StreamingState,
+  SessionState,
   ConversationContext,
   MessageMetadata,
 } from './types/conversation';
@@ -100,8 +101,19 @@ export class PilotSpaceStore {
     thinkingContent: '',
     isThinking: false,
     thinkingStartedAt: null,
+    activeToolName: null,
+    interrupted: false,
+    wordCount: 0,
   };
   sessionId: string | null = null;
+
+  /** Session state for token budget tracking (008) */
+  sessionState: SessionState = {
+    sessionId: null,
+    isActive: false,
+    createdAt: null,
+    lastActivityAt: null,
+  };
 
   /** Session ID to fork from (set by prepareFork, consumed on next sendMessage) */
   forkSessionId: string | null = null;
@@ -164,6 +176,7 @@ export class PilotSpaceStore {
       activeTasks: computed,
       completedTasks: computed,
       conversationContext: computed,
+      tokenBudgetPercent: computed,
     });
   }
 
@@ -205,6 +218,11 @@ export class PilotSpaceStore {
       selectedText: this.noteContext?.selectedText ?? null,
       selectedBlockIds: this.noteContext?.selectedBlockIds ?? [],
     };
+  }
+
+  /** Token budget usage as percentage (0-100) based on 8K token limit (008). */
+  get tokenBudgetPercent(): number {
+    return ((this.sessionState.totalTokens ?? 0) / 8000) * 100;
   }
 
   // ========================================
@@ -474,6 +492,7 @@ export class PilotSpaceStore {
    * Abort current streaming response.
    */
   abort(): void {
+    this.streamingState.interrupted = true;
     this.actions.abort();
   }
 

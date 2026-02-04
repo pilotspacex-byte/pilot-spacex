@@ -1258,6 +1258,32 @@
   }
 }
 
+/* AI Block Edit Highlight — background flash after replace_block completes */
+[data-block-id].ai-block-edited {
+  background: var(--ai-muted);
+  transition: background 1s ease-out;
+}
+
+[data-block-id].ai-block-edited.ai-block-fade-out {
+  background: transparent;
+}
+
+/* AI New Block Slide-In — after append_blocks completes */
+[data-block-id].ai-block-new {
+  animation: blockSlideIn 300ms ease-out forwards;
+}
+
+@keyframes blockSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* =============================================================================
    REDUCED MOTION
    ============================================================================= */
@@ -1275,6 +1301,14 @@
   .inline-issue-node.issue-rainbow-border::before,
   .issue-box-new::before,
   [data-block-id].ai-block-processing::after {
+    animation: none !important;
+  }
+
+  [data-block-id].ai-block-edited {
+    transition: none !important;
+  }
+
+  [data-block-id].ai-block-new {
     animation: none !important;
   }
 }

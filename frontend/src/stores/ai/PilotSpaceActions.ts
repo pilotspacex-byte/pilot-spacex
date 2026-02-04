@@ -323,6 +323,9 @@ export class PilotSpaceActions {
       thinkingContent: '',
       isThinking: false,
       thinkingStartedAt: null,
+      activeToolName: null,
+      interrupted: false,
+      wordCount: 0,
     };
   }
 

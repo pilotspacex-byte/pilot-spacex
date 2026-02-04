@@ -1,31 +1,44 @@
 /**
- * ThinkingBlock - Collapsible "Agent Reasoning" block for extended thinking.
+ * ThinkingBlock - Frosted glass collapsible for extended thinking.
  *
- * Renders Claude's extended thinking content in a collapsible section
- * within assistant messages. Collapsed by default, shows summary line.
+ * Renders Claude's extended thinking content with real-time elapsed
+ * timer during streaming, auto-collapse on completion, and interrupted state.
  *
  * Design: Warm, capable aesthetic per ui-design-spec.md v4.0
- * - Background: var(--ai-muted) with left border accent
+ * - Frosted glass: glass-subtle + bg-ai-muted
+ * - Left border accent with ai-pulse during streaming
+ * - shadcn Collapsible for expand/collapse
  * - Monospace font for thinking content
- * - Duration + token estimate in footer
+ *
+ * @module features/ai/ChatView/MessageList/ThinkingBlock
  */
 
 'use client';
 
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useEffect } from 'react';
 import { Brain, ChevronDown, ChevronRight, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useElapsedTime } from '@/hooks/useElapsedTime';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { Badge } from '@/components/ui/badge';
 
 /** Sentinel value emitted by backend for redacted thinking blocks (G-04) */
 const REDACTED_SENTINEL = '[Thinking redacted by safety system]';
 
+/** Auto-collapse delay after streaming ends (ms) */
+const AUTO_COLLAPSE_DELAY_MS = 300;
+
 interface ThinkingBlockProps {
   /** Thinking content text */
   content: string;
-  /** Duration of thinking phase in milliseconds */
+  /** Duration of thinking phase in milliseconds (completed blocks) */
   durationMs?: number;
   /** Whether thinking is actively streaming */
   isStreaming: boolean;
+  /** Timestamp (ms) when thinking started, for live timer */
+  thinkingStartedAt?: number | null;
+  /** Whether the stream was interrupted by user */
+  interrupted?: boolean;
   /** Additional CSS classes */
   className?: string;
 }
@@ -42,90 +55,143 @@ function formatDuration(ms: number): string {
 
 /** Rough token estimate: ~4 chars per token */
 function estimateTokens(text: string): number {
-  return Math.round(text.length / 4);
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Hook to manage auto-collapse of a panel after streaming ends.
+ * Open while streaming, auto-collapse after delay when streaming stops.
+ * User can manually toggle at any time.
+ */
+function useStreamingCollapse(isStreaming: boolean) {
+  // Track previous streaming state as React state (not ref) to satisfy lint rules
+  const [prevStreaming, setPrevStreaming] = useState(isStreaming);
+  const [isOpen, setIsOpen] = useState(isStreaming);
+
+  // Detect streaming transitions via derived state pattern
+  if (isStreaming !== prevStreaming) {
+    setPrevStreaming(isStreaming);
+    if (isStreaming) {
+      setIsOpen(true);
+    }
+  }
+
+  // Auto-collapse after streaming ends with delay
+  useEffect(() => {
+    if (isStreaming || !isOpen) return;
+
+    const timer = setTimeout(() => {
+      setIsOpen(false);
+    }, AUTO_COLLAPSE_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [isStreaming, isOpen]);
+
+  const toggle = useCallback(() => {
+    setIsOpen((prev) => !prev);
+  }, []);
+
+  return { isOpen, setIsOpen, toggle } as const;
 }
 
 export const ThinkingBlock = memo<ThinkingBlockProps>(
-  ({ content, durationMs, isStreaming, className }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    const toggleExpanded = useCallback(() => {
-      setIsExpanded((prev) => !prev);
-    }, []);
+  ({ content, durationMs, isStreaming, thinkingStartedAt, interrupted = false, className }) => {
+    const { isOpen, setIsOpen, toggle: handleToggle } = useStreamingCollapse(isStreaming);
+    const elapsed = useElapsedTime(thinkingStartedAt ?? null, isStreaming);
 
     if (!content) return null;
 
     const isRedacted = content.includes(REDACTED_SENTINEL);
     const tokenEstimate = estimateTokens(content);
-    const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
+    const ChevronIcon = isOpen ? ChevronDown : ChevronRight;
 
     return (
-      <div
-        className={cn(
-          'rounded-[10px] border-l-[3px] border-l-ai/30 bg-ai-muted',
-          'overflow-hidden transition-all duration-200 ease-out',
-          className
-        )}
-        role="region"
-        aria-label="Agent reasoning"
-      >
-        {/* Header — always visible */}
-        <button
-          type="button"
-          onClick={toggleExpanded}
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div
           className={cn(
-            'flex w-full items-center gap-2 px-3 py-2',
-            'text-left text-sm text-ai hover:bg-ai-muted/80',
-            'transition-colors duration-150'
+            'glass-subtle rounded-[var(--radius-md)] bg-ai-muted',
+            'border-l-[4px] border-l-ai',
+            'overflow-hidden transition-shadow duration-150',
+            'hover:shadow-warm-sm',
+            isStreaming && 'motion-safe:animate-ai-pulse',
+            className
           )}
-          aria-expanded={isExpanded}
-          aria-controls="thinking-content"
+          role="region"
+          aria-label="Agent reasoning"
         >
-          {isRedacted ? (
-            <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          ) : (
-            <Brain className="h-3.5 w-3.5 shrink-0" />
-          )}
-          <span className="font-medium">
-            {isRedacted ? 'Reasoning Redacted' : 'Agent Reasoning'}
-          </span>
-
-          {/* Summary info */}
-          <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-            {isStreaming && (
-              <span className="inline-flex items-center gap-1">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ai" />
-                Thinking
-              </span>
-            )}
-            {!isStreaming && durationMs != null && <span>{formatDuration(durationMs)}</span>}
-            {!isStreaming && tokenEstimate > 0 && (
-              <span>{tokenEstimate.toLocaleString()} tokens</span>
-            )}
-            <ChevronIcon className="h-3.5 w-3.5" />
-          </span>
-        </button>
-
-        {/* Content — expandable */}
-        {isExpanded && (
-          <div
-            id="thinking-content"
-            className={cn('border-t border-ai/10 px-3 py-2', 'max-h-[400px] overflow-y-auto')}
-          >
-            <pre
+          {/* Header - always visible */}
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              onClick={handleToggle}
               className={cn(
-                'whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-foreground/80',
-                isStreaming && 'opacity-60'
+                'flex w-full items-center gap-2 px-3 py-2',
+                'text-left text-sm text-ai hover:bg-ai-muted/80',
+                'transition-colors duration-150'
+              )}
+              aria-expanded={isOpen}
+            >
+              {isRedacted ? (
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <Brain className="h-3.5 w-3.5 shrink-0" />
+              )}
+
+              {/* Label: streaming / completed / interrupted */}
+              <span className="font-medium">
+                {isRedacted
+                  ? 'Reasoning Redacted'
+                  : interrupted
+                    ? 'Interrupted'
+                    : isStreaming
+                      ? 'Thinking...'
+                      : durationMs != null
+                        ? `Thought for ${formatDuration(durationMs)}`
+                        : 'Agent Reasoning'}
+              </span>
+
+              {/* Right-aligned meta */}
+              <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+                {isStreaming && (
+                  <>
+                    <span className="h-1.5 w-1.5 motion-safe:animate-pulse rounded-full bg-ai" />
+                    <span className="font-mono text-xs tabular-nums text-ai">{elapsed}</span>
+                  </>
+                )}
+                {!isStreaming && !interrupted && tokenEstimate > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    ~{tokenEstimate.toLocaleString()} tokens
+                  </Badge>
+                )}
+                <ChevronIcon className="h-3.5 w-3.5" />
+              </span>
+            </button>
+          </CollapsibleTrigger>
+
+          {/* Content - collapsible */}
+          <CollapsibleContent>
+            <div
+              className={cn(
+                'border-t border-ai/10 px-3 py-2',
+                'max-h-[400px] overflow-y-auto scrollbar-thin'
               )}
             >
-              {content}
-              {isStreaming && (
-                <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-ai" />
-              )}
-            </pre>
-          </div>
-        )}
-      </div>
+              <pre
+                className={cn(
+                  'whitespace-pre-wrap break-words font-mono text-[13px]',
+                  'leading-relaxed text-foreground/80',
+                  isStreaming && 'opacity-60'
+                )}
+              >
+                {content}
+                {isStreaming && (
+                  <span className="ml-0.5 inline-block h-4 w-[2px] motion-safe:animate-pulse bg-ai" />
+                )}
+              </pre>
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
     );
   }
 );
