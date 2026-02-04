@@ -132,7 +132,7 @@ export class IssueStore {
 
     // Apply filters
     if (this.filters.state && this.filters.state !== 'all') {
-      issues = issues.filter((i) => stateNameToKey(i.state.name) === this.filters.state);
+      issues = issues.filter((i) => stateNameToKey(i.state?.name) === this.filters.state);
     }
     if (this.filters.priority && this.filters.priority !== 'all') {
       issues = issues.filter((i) => i.priority === this.filters.priority);
@@ -176,7 +176,7 @@ export class IssueStore {
     const grouped: Record<IssueState, Issue[]> = {} as Record<IssueState, Issue[]>;
 
     states.forEach((state) => {
-      grouped[state] = this.filteredIssues.filter((i) => stateNameToKey(i.state.name) === state);
+      grouped[state] = this.filteredIssues.filter((i) => stateNameToKey(i.state?.name) === state);
     });
 
     return grouped;

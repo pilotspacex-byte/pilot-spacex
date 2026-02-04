@@ -280,9 +280,16 @@ async def get_stream_events(
 
     from pilot_space.infrastructure.cache.redis_client import get_redis
 
-    try:
-        redis = get_redis()
+    redis = get_redis()
 
+    # Validate job ownership via Redis metadata
+    owner_raw = await redis.get(f"stream:owner:{job_id}")
+    if owner_raw is not None:
+        owner_str = owner_raw.decode() if isinstance(owner_raw, bytes) else str(owner_raw)
+        if owner_str != str(user.id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this stream")
+
+    try:
         # Get events from Redis (we store them for 5 minutes)
         events_key = f"stream:events:{job_id}"
         all_events = await redis.lrange(events_key, 0, -1)

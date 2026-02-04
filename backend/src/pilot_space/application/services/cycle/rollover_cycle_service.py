@@ -177,7 +177,7 @@ class RolloverCycleService:
                 field="cycle_id",
                 old_value=str(old_cycle_id) if old_cycle_id else None,
                 new_value=str(payload.target_cycle_id),
-                metadata={
+                activity_metadata={
                     "rollover": True,
                     "source_cycle_name": source_cycle.name,
                     "target_cycle_name": target_cycle.name,

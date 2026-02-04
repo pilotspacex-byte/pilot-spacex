@@ -247,7 +247,7 @@ class AutoTransitionService:
             field="state",
             old_value=old_state_name,
             new_value=target_state.name,
-            metadata={
+            activity_metadata={
                 "auto_transition": True,
                 **metadata,
             },

@@ -15,8 +15,18 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Square } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
 import { SessionListStore } from '@/stores/ai/SessionListStore';
 import type { AgentTask } from './types';
@@ -61,29 +71,28 @@ const ChatViewInternal = observer<ChatViewProps>(
   ({ store, userName, userAvatar, autoFocus, onClose, className }) => {
     const [inputValue, setInputValue] = useState('');
     const [taskPanelOpen, setTaskPanelOpen] = useState(true);
+    const [showClearDialog, setShowClearDialog] = useState(false);
+    const prefersReducedMotion = useReducedMotion();
 
     // Initialize SessionListStore (T075-T079)
-    const [sessionListStore] = useState(
-      () => new SessionListStore(store as unknown as import('@/stores/ai/AIStore').AIStore)
-    );
+    const [sessionListStore] = useState(() => new SessionListStore(store));
 
     // Fetch sessions on mount
     useEffect(() => {
       sessionListStore.fetchSessions();
-      return () => {
-        // Cleanup handled by store disposal
-      };
     }, [sessionListStore]);
 
-    // Load conversation history for note context when ChatView opens
+    // Load conversation history for note context when ChatView opens or noteId changes
     const loadedContextRef = useRef<string | null>(null);
     useEffect(() => {
       const noteId = store.noteContext?.noteId;
-      if (!noteId || store.messages.length > 0 || loadedContextRef.current === noteId) return;
+      if (!noteId || loadedContextRef.current === noteId) return;
 
+      // Clear previous note's conversation before loading new one
+      store.clearConversation();
       loadedContextRef.current = noteId;
       sessionListStore.resumeSessionForContext(noteId, 'note');
-    }, [store.noteContext?.noteId, store.messages.length, sessionListStore]);
+    }, [store.noteContext?.noteId, sessionListStore, store]);
 
     // Convert TaskState to AgentTask for TaskPanel with progress data
     const agentTasks = useMemo((): AgentTask[] => {
@@ -158,18 +167,24 @@ const ChatViewInternal = observer<ChatViewProps>(
     const handleSubmit = useCallback(async () => {
       if (!inputValue.trim() || store.isStreaming) return;
 
+      const message = inputValue.trim();
       try {
-        await store.sendMessage(inputValue.trim());
+        setInputValue('');
+        await store.sendMessage(message);
       } catch (error) {
+        setInputValue(message);
         store.error = error instanceof Error ? error.message : 'Failed to send message';
       }
     }, [inputValue, store]);
 
     const handleClearConversation = useCallback(() => {
-      if (confirm('Are you sure you want to clear this conversation?')) {
-        store.clearConversation();
-        setInputValue('');
-      }
+      setShowClearDialog(true);
+    }, []);
+
+    const handleConfirmClear = useCallback(() => {
+      store.clearConversation();
+      setInputValue('');
+      setShowClearDialog(false);
     }, [store]);
 
     const handleAbort = useCallback(() => {
@@ -284,10 +299,10 @@ const ChatViewInternal = observer<ChatViewProps>(
           <AnimatePresence>
             {store.isStreaming && (
               <motion.div
-                initial={{ opacity: 0, y: 8 }}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 8 }}
-                transition={{ duration: 0.15 }}
+                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                transition={{ duration: prefersReducedMotion ? 0 : 0.15 }}
                 className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10"
               >
                 <Button
@@ -398,6 +413,22 @@ const ChatViewInternal = observer<ChatViewProps>(
           onApprove={handleApproveAction}
           onReject={handleRejectAction}
         />
+
+        {/* Clear conversation confirmation dialog */}
+        <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear Conversation?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove all messages from this conversation. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmClear}>Clear</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }

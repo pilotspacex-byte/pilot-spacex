@@ -205,9 +205,11 @@ export class PilotSpaceStreamHandler {
   }
 
   /**
-   * Get Supabase auth headers for authenticated requests.
+   * Get Supabase auth headers and workspace context for authenticated requests.
    */
   async getAuthHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {};
+
     try {
       const { supabase } = await import('@/lib/supabase');
       const {
@@ -215,12 +217,18 @@ export class PilotSpaceStreamHandler {
       } = await supabase.auth.getSession();
 
       if (session?.access_token) {
-        return { Authorization: `Bearer ${session.access_token}` };
+        headers['Authorization'] = `Bearer ${session.access_token}`;
       }
     } catch {
       console.warn('Failed to get auth session for chat request');
     }
-    return {};
+
+    const workspaceId = this.store.workspaceId;
+    if (workspaceId) {
+      headers['X-Workspace-Id'] = workspaceId;
+    }
+
+    return headers;
   }
 
   /**

@@ -77,6 +77,7 @@ class ConversationSession:
     workspace_id: UUID
     user_id: UUID
     agent_name: str
+    context_id: UUID | None = None
     messages: list[ConversationMessage] = field(default_factory=list)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -140,36 +141,22 @@ class ConversationSession:
 class SessionHandler:
     """Handler for managing Claude Agent SDK conversation sessions.
 
-    Responsibilities:
-    - Create and retrieve sessions
-    - Persist session state to Redis
-    - Enforce token budgets and TTL
-    - Optimize context windows
-    - Manage task progress tracking (T072)
-
-    Usage:
-        handler = SessionHandler(session_manager, db_session)
-        session = await handler.create_session(workspace_id, user_id, "ai_context")
-        messages = session.get_messages_for_sdk(max_tokens=8000)
-
-        # Task management
-        task = await handler.create_task(session_id, "Analyze code")
-        await handler.update_task_progress(task_id, 50, "in_progress")
+    Manages session lifecycle (create, retrieve, persist, delete),
+    token budgets, TTL, context windows, and task progress tracking (T072).
     """
 
     def __init__(
         self,
         session_manager: SessionManager,
         db_session: AsyncSession | None = None,
-    ):
-        """Initialize handler with session manager and optional database session.
-
-        Args:
-            session_manager: SessionManager for Redis persistence.
-            db_session: Optional database session for task persistence.
-        """
+    ) -> None:
         self._session_manager = session_manager
         self._db_session = db_session
+
+    @property
+    def session_manager(self) -> SessionManager:
+        """Public accessor for background tasks that need a fresh db session."""
+        return self._session_manager
 
     # Type Conversion Adapters
     # Bridge between AISession (SessionManager) ↔ ConversationSession (SessionHandler)
@@ -203,6 +190,7 @@ class SessionHandler:
             workspace_id=ai_session.workspace_id,
             user_id=ai_session.user_id,
             agent_name=ai_session.agent_name,
+            context_id=ai_session.context_id,
             messages=messages,
             created_at=ai_session.created_at,
             updated_at=ai_session.updated_at,
@@ -248,6 +236,7 @@ class SessionHandler:
         user_id: UUID,
         agent_name: str,
         metadata: dict[str, Any] | None = None,
+        context_id: UUID | None = None,
     ) -> ConversationSession:
         """Create new conversation session.
 
@@ -256,6 +245,7 @@ class SessionHandler:
             user_id: User UUID for attribution
             agent_name: Agent this session belongs to
             metadata: Additional session metadata (maps to AISession.context)
+            context_id: Optional entity ID (note_id, issue_id) for session lookup
 
         Returns:
             ConversationSession with new session_id
@@ -268,6 +258,7 @@ class SessionHandler:
             user_id=user_id,
             workspace_id=workspace_id,
             agent_name=agent_name,
+            context_id=context_id,
             initial_context=metadata or {},
         )
 
@@ -313,6 +304,62 @@ class SessionHandler:
                 session_id,
                 user_id,
                 session.user_id,
+            )
+            return None
+
+        return session
+
+    async def get_session_by_context(
+        self,
+        user_id: UUID,
+        workspace_id: UUID,
+        agent_name: str,
+        context_id: UUID,
+    ) -> ConversationSession | None:
+        """Find active session by context entity (note_id, issue_id, etc).
+
+        Lookup order:
+        1. Redis index (fast, <30min TTL)
+        2. PostgreSQL fallback (durable, 24h TTL)
+
+        Args:
+            user_id: User UUID for index lookup
+            workspace_id: Workspace UUID for ownership validation
+            agent_name: Agent name (e.g. "conversation")
+            context_id: Context entity UUID (note_id, issue_id, project_id)
+
+        Returns:
+            ConversationSession if found and valid, None otherwise.
+        """
+        # 1. Try Redis index (fast path)
+        ai_session = await self._session_manager.get_active_session(
+            user_id=user_id,
+            agent_name=agent_name,
+            context_id=context_id,
+        )
+
+        # 2. Fall back to PostgreSQL if Redis expired
+        if ai_session is None and self._db_session is not None:
+            from pilot_space.ai.sdk.session_store import SessionStore
+
+            store = SessionStore(self._session_manager, self._db_session)
+            ai_session = await store.load_by_context(
+                user_id=user_id,
+                agent_name=agent_name,
+                context_id=context_id,
+            )
+
+        if ai_session is None:
+            return None
+
+        session = self._to_conversation_session(ai_session)
+
+        if session.workspace_id != workspace_id:
+            logger.warning(
+                "Session for context %s workspace mismatch: expected %s, got %s",
+                context_id,
+                workspace_id,
+                session.workspace_id,
             )
             return None
 
@@ -432,6 +479,17 @@ class SessionHandler:
         )
 
         return forked
+
+    async def persist_session(self, session_id: UUID) -> bool:
+        """Persist a Redis session to PostgreSQL after chat stream completes."""
+        if self._db_session is None:
+            logger.debug("No db_session, skipping session persistence")
+            return False
+
+        from pilot_space.ai.sdk.session_store import SessionStore
+
+        store = SessionStore(self._session_manager, self._db_session)
+        return await store.save_to_db(session_id)
 
     async def delete_session(self, session_id: UUID) -> bool:
         """Delete session.

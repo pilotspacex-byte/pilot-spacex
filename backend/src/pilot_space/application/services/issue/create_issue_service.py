@@ -185,7 +185,7 @@ class CreateIssueService:
                 issue_id=issue.id,
                 actor_id=None,  # AI action
                 activity_type=ActivityType.AI_ENHANCED,
-                metadata=payload.ai_metadata,
+                activity_metadata=payload.ai_metadata,
             )
             activities.append(await self._activity_repo.create(ai_activity))
 

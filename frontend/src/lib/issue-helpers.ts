@@ -17,7 +17,8 @@ const VALID_STATES: Set<string> = new Set([
  * @example stateNameToKey("Done") → "done"
  * @example stateNameToKey("Unknown") → "backlog"
  */
-export function stateNameToKey(name: string): IssueState {
+export function stateNameToKey(name: string | undefined | null): IssueState {
+  if (!name) return 'backlog';
   const key = name.toLowerCase().replace(/\s+/g, '_').trim().replace(/^_|_$/g, '');
   return (VALID_STATES.has(key) ? key : 'backlog') as IssueState;
 }

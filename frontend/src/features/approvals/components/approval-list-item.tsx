@@ -14,6 +14,7 @@
 
 import { formatDistanceToNow } from 'date-fns';
 import { Check, X, Clock, User, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -84,7 +85,15 @@ export function ApprovalListItem({
         'hover:bg-muted/50 transition-colors',
         isPending && 'border-l-4 border-l-yellow-500'
       )}
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(request)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(request);
+        }
+      }}
       data-testid={`approval-list-item-${request.id}`}
     >
       {/* Status Indicator */}
@@ -138,7 +147,11 @@ export function ApprovalListItem({
             className="size-8 p-0"
             onClick={async (e) => {
               e.stopPropagation();
-              await onQuickReject(request.id);
+              try {
+                await onQuickReject(request.id);
+              } catch {
+                toast.error('Failed to reject approval request');
+              }
             }}
             title="Reject"
           >
@@ -149,7 +162,11 @@ export function ApprovalListItem({
             className="size-8 p-0"
             onClick={async (e) => {
               e.stopPropagation();
-              await onQuickApprove(request.id);
+              try {
+                await onQuickApprove(request.id);
+              } catch {
+                toast.error('Failed to approve request');
+              }
             }}
             title="Approve"
           >

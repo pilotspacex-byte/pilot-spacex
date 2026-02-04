@@ -444,7 +444,7 @@ async def get_issue_activities(
                 old_value=a.old_value,
                 new_value=a.new_value,
                 comment=a.comment,
-                metadata=a.metadata,
+                metadata=a.activity_metadata,
                 created_at=a.created_at,
                 actor=a.actor,
             )
@@ -493,7 +493,7 @@ async def add_comment(
         old_value=activity.old_value,
         new_value=activity.new_value,
         comment=activity.comment,
-        metadata=activity.metadata,
+        metadata=activity.activity_metadata,
         created_at=activity.created_at,
         actor=activity.actor,
     )

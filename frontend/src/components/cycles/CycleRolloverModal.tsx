@@ -142,7 +142,7 @@ const IssueSelectionItem = React.memo(function IssueSelectionItem({
             {issue.priority}
           </Badge>
           <Badge variant="outline" className="text-xs capitalize">
-            {issue.state.name}
+            {issue.state?.name ?? 'Backlog'}
           </Badge>
         </div>
 

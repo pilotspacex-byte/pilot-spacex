@@ -101,7 +101,7 @@ function groupIssuesByState(issues: Issue[]): Record<IssueState, CycleIssue[]> {
   const grouped: Record<IssueState, CycleIssue[]> = {} as Record<IssueState, CycleIssue[]>;
 
   states.forEach((state) => {
-    grouped[state] = issues.filter((i) => stateNameToKey(i.state.name) === state) as CycleIssue[];
+    grouped[state] = issues.filter((i) => stateNameToKey(i.state?.name) === state) as CycleIssue[];
   });
 
   return grouped;
@@ -539,7 +539,7 @@ const CycleDetailPage = observer(function CycleDetailPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="capitalize">
-                            {issue.state.name}
+                            {issue.state?.name ?? 'Backlog'}
                           </Badge>
                           <Badge variant="secondary" className="capitalize">
                             {issue.priority}

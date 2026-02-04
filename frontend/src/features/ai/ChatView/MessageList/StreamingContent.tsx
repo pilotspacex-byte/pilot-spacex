@@ -10,6 +10,7 @@ import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { ThinkingBlock } from './ThinkingBlock';
 import { MarkdownContent } from './MarkdownContent';
+import { Loader2 } from 'lucide-react';
 
 interface StreamingContentProps {
   content: string;
@@ -38,6 +39,11 @@ export const StreamingContent = memo<StreamingContentProps>(
   }) => {
     return (
       <div className={cn('space-y-2', className)}>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 motion-safe:animate-spin" />
+          <span>{isThinking ? 'Thinking...' : 'Streaming...'}</span>
+        </div>
+
         {thinkingContent && (
           <ThinkingBlock
             content={thinkingContent}

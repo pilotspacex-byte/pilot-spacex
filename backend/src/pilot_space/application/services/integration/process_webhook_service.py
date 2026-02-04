@@ -359,7 +359,7 @@ class ProcessGitHubWebhookService:
                     field="state",
                     old_value=old_state.name if old_state else None,
                     new_value=done_state.name,
-                    metadata={
+                    activity_metadata={
                         "auto_transition": True,
                         "trigger": "pr_merged",
                         "pr_number": pr.number,
