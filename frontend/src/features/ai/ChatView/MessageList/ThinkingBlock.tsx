@@ -1,31 +1,69 @@
 /**
- * ThinkingBlock - Collapsible "Agent Reasoning" block for extended thinking.
+ * ThinkingBlock - Minimal inline toggle for extended thinking.
  *
- * Renders Claude's extended thinking content in a collapsible section
- * within assistant messages. Collapsed by default, shows summary line.
+ * Renders Claude's extended thinking content with real-time elapsed
+ * timer during streaming, auto-collapse on completion, and interrupted state.
  *
- * Design: Warm, capable aesthetic per ui-design-spec.md v4.0
- * - Background: var(--ai-muted) with left border accent
- * - Monospace font for thinking content
- * - Duration + token estimate in footer
+ * Design: Claude.ai style - minimal, non-intrusive
+ * - Single-line toggle row with status icon + chevron
+ * - No frosted glass / borders / card styling
+ * - Indented muted text for content
+ *
+ * @module features/ai/ChatView/MessageList/ThinkingBlock
  */
 
 'use client';
 
-import { memo, useState, useCallback } from 'react';
-import { Brain, ChevronDown, ChevronRight, ShieldAlert } from 'lucide-react';
+import { memo, useCallback, useEffect, useReducer } from 'react';
+import { Check, ChevronDown, ChevronUp, Loader2, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useElapsedTime } from '@/hooks/useElapsedTime';
 
 /** Sentinel value emitted by backend for redacted thinking blocks (G-04) */
 const REDACTED_SENTINEL = '[Thinking redacted by safety system]';
 
+/** Auto-collapse delay after streaming ends (ms) */
+const AUTO_COLLAPSE_DELAY_MS = 300;
+
+/** Collapse state for streaming panels */
+type CollapseState = {
+  isOpen: boolean;
+  didAutoCollapse: boolean;
+  prevStreaming: boolean;
+};
+
+type CollapseAction =
+  | { type: 'STREAMING_STARTED' }
+  | { type: 'STREAMING_STOPPED' }
+  | { type: 'TOGGLE' }
+  | { type: 'AUTO_COLLAPSE' };
+
+function collapseReducer(state: CollapseState, action: CollapseAction): CollapseState {
+  switch (action.type) {
+    case 'STREAMING_STARTED':
+      return { isOpen: true, didAutoCollapse: false, prevStreaming: true };
+    case 'STREAMING_STOPPED':
+      return { ...state, prevStreaming: false };
+    case 'TOGGLE':
+      return { ...state, isOpen: !state.isOpen };
+    case 'AUTO_COLLAPSE':
+      return { ...state, isOpen: false, didAutoCollapse: true };
+    default:
+      return state;
+  }
+}
+
 interface ThinkingBlockProps {
   /** Thinking content text */
   content: string;
-  /** Duration of thinking phase in milliseconds */
+  /** Duration of thinking phase in milliseconds (completed blocks) */
   durationMs?: number;
   /** Whether thinking is actively streaming */
   isStreaming: boolean;
+  /** Timestamp (ms) when thinking started, for live timer */
+  thinkingStartedAt?: number | null;
+  /** Whether the stream was interrupted by user */
+  interrupted?: boolean;
   /** Additional CSS classes */
   className?: string;
 }
@@ -40,87 +78,114 @@ function formatDuration(ms: number): string {
   return `${minutes}m ${remainingSeconds}s`;
 }
 
-/** Rough token estimate: ~4 chars per token */
-function estimateTokens(text: string): number {
-  return Math.round(text.length / 4);
+/**
+ * Hook to manage auto-collapse of a panel after streaming ends.
+ * Open while streaming, auto-collapse ONCE after delay when streaming stops.
+ * User can manually toggle at any time without re-triggering auto-collapse.
+ *
+ * Uses useReducer to avoid lint issues with setState in effects.
+ */
+function useStreamingCollapse(isStreaming: boolean) {
+  const [state, dispatch] = useReducer(collapseReducer, isStreaming, (streaming) => ({
+    isOpen: streaming,
+    didAutoCollapse: !streaming,
+    prevStreaming: streaming,
+  }));
+
+  // Detect streaming start/stop transitions
+  useEffect(() => {
+    if (isStreaming && !state.prevStreaming) {
+      dispatch({ type: 'STREAMING_STARTED' });
+    } else if (!isStreaming && state.prevStreaming) {
+      dispatch({ type: 'STREAMING_STOPPED' });
+    }
+  }, [isStreaming, state.prevStreaming]);
+
+  // Auto-collapse ONCE after streaming ends with delay
+  useEffect(() => {
+    if (isStreaming || !state.isOpen || state.didAutoCollapse) return;
+
+    const timer = setTimeout(() => {
+      dispatch({ type: 'AUTO_COLLAPSE' });
+    }, AUTO_COLLAPSE_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [isStreaming, state.isOpen, state.didAutoCollapse]);
+
+  const toggle = useCallback(() => {
+    dispatch({ type: 'TOGGLE' });
+  }, []);
+
+  return { isOpen: state.isOpen, toggle } as const;
 }
 
 export const ThinkingBlock = memo<ThinkingBlockProps>(
-  ({ content, durationMs, isStreaming, className }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    const toggleExpanded = useCallback(() => {
-      setIsExpanded((prev) => !prev);
-    }, []);
+  ({ content, durationMs, isStreaming, thinkingStartedAt, interrupted = false, className }) => {
+    const { isOpen, toggle: handleToggle } = useStreamingCollapse(isStreaming);
+    const elapsed = useElapsedTime(thinkingStartedAt ?? null, isStreaming);
 
     if (!content) return null;
 
     const isRedacted = content.includes(REDACTED_SENTINEL);
-    const tokenEstimate = estimateTokens(content);
-    const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
+    const ChevronIcon = isOpen ? ChevronUp : ChevronDown;
 
     return (
-      <div
-        className={cn(
-          'rounded-[10px] border-l-[3px] border-l-ai/30 bg-ai-muted',
-          'overflow-hidden transition-all duration-200 ease-out',
-          className
-        )}
-        role="region"
-        aria-label="Agent reasoning"
-      >
-        {/* Header — always visible */}
+      <div className={cn('text-sm', className)}>
+        {/* Toggle row - minimal inline style */}
         <button
           type="button"
-          onClick={toggleExpanded}
+          onClick={handleToggle}
           className={cn(
-            'flex w-full items-center gap-2 px-3 py-2',
-            'text-left text-sm text-ai hover:bg-ai-muted/80',
-            'transition-colors duration-150'
+            'flex w-full items-center gap-2 py-1 px-0.5 -mx-0.5',
+            'text-left text-muted-foreground hover:text-foreground',
+            'rounded transition-colors'
           )}
-          aria-expanded={isExpanded}
-          aria-controls="thinking-content"
+          aria-expanded={isOpen}
+          aria-label="Agent reasoning"
         >
+          {/* Status indicator */}
           {isRedacted ? (
             <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          ) : isStreaming ? (
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-ai motion-reduce:animate-none" />
           ) : (
-            <Brain className="h-3.5 w-3.5 shrink-0" />
+            <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
           )}
-          <span className="font-medium">
-            {isRedacted ? 'Reasoning Redacted' : 'Agent Reasoning'}
+
+          {/* Label */}
+          <span>
+            {isRedacted
+              ? 'Reasoning redacted'
+              : interrupted
+                ? 'Thinking interrupted'
+                : isStreaming
+                  ? 'Thinking...'
+                  : durationMs != null
+                    ? `Thought for ${formatDuration(durationMs)}`
+                    : 'Thought'}
           </span>
 
-          {/* Summary info */}
-          <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="ml-auto flex items-center gap-1.5">
             {isStreaming && (
-              <span className="inline-flex items-center gap-1">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ai" />
-                Thinking
-              </span>
+              <span className="font-mono text-xs tabular-nums text-ai">{elapsed}</span>
             )}
-            {!isStreaming && durationMs != null && <span>{formatDuration(durationMs)}</span>}
-            {!isStreaming && tokenEstimate > 0 && (
-              <span>{tokenEstimate.toLocaleString()} tokens</span>
-            )}
-            <ChevronIcon className="h-3.5 w-3.5" />
+            <ChevronIcon className="h-3 w-3" />
           </span>
         </button>
 
-        {/* Content — expandable */}
-        {isExpanded && (
-          <div
-            id="thinking-content"
-            className={cn('border-t border-ai/10 px-3 py-2', 'max-h-[400px] overflow-y-auto')}
-          >
+        {/* Collapsible content - indented text, no border */}
+        {isOpen && (
+          <div className="pl-2 pt-1 pb-2">
             <pre
               className={cn(
-                'whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-foreground/80',
-                isStreaming && 'opacity-60'
+                'whitespace-pre-wrap break-words font-mono text-xs',
+                'leading-relaxed text-muted-foreground',
+                isStreaming && 'opacity-70'
               )}
             >
               {content}
               {isStreaming && (
-                <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-ai" />
+                <span className="ml-0.5 inline-block h-3 w-[2px] animate-pulse bg-ai motion-reduce:animate-none" />
               )}
             </pre>
           </div>

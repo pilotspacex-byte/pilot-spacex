@@ -34,7 +34,7 @@ class TestChatFlow:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Send message with streaming
@@ -76,7 +76,7 @@ class TestChatFlow:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Stream message
@@ -118,7 +118,7 @@ class TestChatFlow:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Send multiple messages
@@ -164,7 +164,7 @@ class TestChatFlow:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Send message about FastAPI
@@ -204,7 +204,7 @@ class TestChatFlow:
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
         # Demo mode should work with any workspace ID
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -242,7 +242,7 @@ class TestChatFlow:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Send invalid message (empty)

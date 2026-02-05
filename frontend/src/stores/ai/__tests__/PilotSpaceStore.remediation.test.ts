@@ -38,11 +38,11 @@ describe('PilotSpaceStore.setProjectContext (T8)', () => {
   it('conversationContext.projectId reflects stored value', () => {
     store.setProjectContext({ projectId: 'proj-2' });
 
-    expect(store.conversationContext.projectId).toBe('proj-2');
+    expect(store.conversationContext!.projectId).toBe('proj-2');
   });
 
   it('conversationContext.projectId is null when no project set', () => {
-    expect(store.conversationContext.projectId).toBeNull();
+    expect(store.conversationContext!.projectId).toBeNull();
   });
   it('clearContext() resets projectContext to null', () => {
     store.setProjectContext({ projectId: 'proj-3', name: 'Beta' });

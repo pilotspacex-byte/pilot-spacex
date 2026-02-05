@@ -331,12 +331,37 @@ class SessionHandler:
         Returns:
             ConversationSession if found and valid, None otherwise.
         """
+        logger.info(
+            "get_session_by_context: starting lookup",
+            extra={
+                "user_id": str(user_id),
+                "workspace_id": str(workspace_id),
+                "agent_name": agent_name,
+                "context_id": str(context_id),
+                "has_db_session": self._db_session is not None,
+            },
+        )
+
         # 1. Try Redis index (fast path)
         ai_session = await self._session_manager.get_active_session(
             user_id=user_id,
             agent_name=agent_name,
             context_id=context_id,
         )
+
+        if ai_session:
+            logger.info(
+                "get_session_by_context: found in Redis",
+                extra={
+                    "session_id": str(ai_session.id),
+                    "context_id": str(context_id),
+                },
+            )
+        else:
+            logger.info(
+                "get_session_by_context: not found in Redis, trying PostgreSQL",
+                extra={"context_id": str(context_id)},
+            )
 
         # 2. Fall back to PostgreSQL if Redis expired
         if ai_session is None and self._db_session is not None:
@@ -348,8 +373,18 @@ class SessionHandler:
                 agent_name=agent_name,
                 context_id=context_id,
             )
+            if ai_session:
+                logger.info(
+                    "Restored session from PostgreSQL: %s for context %s",
+                    ai_session.id,
+                    context_id,
+                )
 
         if ai_session is None:
+            logger.info(
+                "get_session_by_context: no session found",
+                extra={"context_id": str(context_id)},
+            )
             return None
 
         session = self._to_conversation_session(ai_session)

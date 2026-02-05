@@ -1258,6 +1258,434 @@
   }
 }
 
+/* AI Block Edit Highlight — background flash after replace_block completes */
+[data-block-id].ai-block-edited {
+  background: var(--ai-muted);
+  transition: background 1s ease-out;
+}
+
+[data-block-id].ai-block-edited.ai-block-fade-out {
+  background: transparent;
+}
+
+/* AI New Block Slide-In — after append_blocks completes */
+[data-block-id].ai-block-new {
+  animation: blockSlideIn 300ms ease-out forwards;
+}
+
+@keyframes blockSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =============================================================================
+   CHAT MARKDOWN CONTENT STYLES
+   Custom prose-like styling for AI chat messages (no @tailwindcss/typography)
+   ============================================================================= */
+.chat-markdown {
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: var(--foreground);
+}
+
+.chat-markdown > *:first-child {
+  margin-top: 0;
+}
+
+.chat-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  font-weight: 600;
+  color: var(--foreground);
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.chat-markdown h1 { font-size: 1.25rem; }
+.chat-markdown h2 { font-size: 1.125rem; }
+.chat-markdown h3 { font-size: 1rem; }
+.chat-markdown h4 { font-size: 0.875rem; }
+
+/* Paragraphs */
+.chat-markdown p {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  line-height: 1.7;
+}
+
+/* Lists */
+.chat-markdown ul,
+.chat-markdown ol {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.chat-markdown li {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.chat-markdown ul { list-style-type: disc; }
+.chat-markdown ol { list-style-type: decimal; }
+
+.chat-markdown li > ul,
+.chat-markdown li > ol {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Links */
+.chat-markdown a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.chat-markdown a:hover {
+  text-decoration: underline;
+}
+
+/* Inline code */
+.chat-markdown code:not(pre code) {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: var(--muted);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+}
+
+/* Code blocks */
+.chat-markdown pre {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: var(--muted);
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.chat-markdown pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Blockquotes */
+.chat-markdown blockquote {
+  border-left: 3px solid var(--ai);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: var(--foreground-muted);
+}
+
+/* Tables - scrollable container with text wrapping */
+.chat-markdown .table-wrapper {
+  overflow-x: auto;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.chat-markdown table {
+  width: 100%;
+  min-width: 400px;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.chat-markdown thead {
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-markdown th {
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.chat-markdown td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--foreground);
+  min-width: 80px;
+  max-width: 200px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.chat-markdown tr:last-child td {
+  border-bottom: none;
+}
+
+.chat-markdown tbody tr:hover {
+  background: rgba(243, 242, 239, 0.5);
+}
+
+.dark .chat-markdown tbody tr:hover {
+  background: rgba(45, 44, 42, 0.5);
+}
+
+/* Horizontal rule */
+.chat-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+/* Strong and emphasis */
+.chat-markdown strong { font-weight: 600; }
+.chat-markdown em { font-style: italic; }
+
+/* Task lists (GFM) */
+.chat-markdown input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+/* Strikethrough (GFM) */
+.chat-markdown del {
+  text-decoration: line-through;
+  color: var(--foreground-muted);
+}
+
+/* =============================================================================
+   CODE SYNTAX HIGHLIGHTING (highlight.js / rehype-highlight)
+   Pilot Space theme: Warm, Capable, Collaborative
+   Inspired by Things 3 / Craft - natural colors, spacious calm
+   ============================================================================= */
+
+/* Base code block styling */
+.chat-markdown pre code.hljs {
+  display: block;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.chat-markdown code.hljs {
+  padding: 0.2em 0.4em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Light Mode - Warm naturals with muted, comfortable tones
+   ───────────────────────────────────────────────────────────────────────────── */
+.chat-markdown .hljs {
+  color: var(--foreground);
+  background: transparent;
+}
+
+/* Comments - warm muted gray (foreground-muted) */
+.chat-markdown .hljs-comment,
+.chat-markdown .hljs-quote {
+  color: #9c9590;
+  font-style: italic;
+}
+
+/* Keywords - soft coral, warmer than harsh red */
+.chat-markdown .hljs-keyword,
+.chat-markdown .hljs-selector-tag {
+  color: #c9726c;
+  font-weight: 500;
+}
+
+/* Literals - warm dusty blue (ai color family) */
+.chat-markdown .hljs-literal,
+.chat-markdown .hljs-number,
+.chat-markdown .hljs-boolean {
+  color: #5b8fc9;
+}
+
+/* Strings - dusty blue (ai accent) */
+.chat-markdown .hljs-string,
+.chat-markdown .hljs-attr {
+  color: #6b8fad;
+}
+
+/* Functions/titles - primary teal green */
+.chat-markdown .hljs-title,
+.chat-markdown .hljs-section,
+.chat-markdown .hljs-title.function_ {
+  color: #29a386;
+  font-weight: 500;
+}
+
+/* Selectors/attributes - muted purple (in-review color family) */
+.chat-markdown .hljs-name,
+.chat-markdown .hljs-selector-class,
+.chat-markdown .hljs-selector-id,
+.chat-markdown .hljs-attribute {
+  color: #8b7ec8;
+}
+
+/* Variables - warm amber/orange (in-progress color family) */
+.chat-markdown .hljs-variable,
+.chat-markdown .hljs-template-variable {
+  color: #d9853f;
+}
+
+/* Types - deeper teal */
+.chat-markdown .hljs-type,
+.chat-markdown .hljs-built_in,
+.chat-markdown .hljs-class .hljs-title {
+  color: #238f74;
+}
+
+/* Tags - soft teal green */
+.chat-markdown .hljs-tag {
+  color: #29a386;
+}
+
+/* Regex/links - dusty blue */
+.chat-markdown .hljs-regexp,
+.chat-markdown .hljs-link {
+  color: #6b8fad;
+}
+
+/* Symbols - soft blue */
+.chat-markdown .hljs-symbol,
+.chat-markdown .hljs-bullet {
+  color: #5b8fc9;
+}
+
+/* Meta - warm gray */
+.chat-markdown .hljs-meta {
+  color: #9c9590;
+}
+
+/* Diff deletion - soft red with warm background */
+.chat-markdown .hljs-deletion {
+  color: #b54b47;
+  background-color: #fdf2f1;
+}
+
+/* Diff addition - teal with warm background */
+.chat-markdown .hljs-addition {
+  color: #29a386;
+  background-color: #f0faf6;
+}
+
+.chat-markdown .hljs-emphasis {
+  font-style: italic;
+}
+
+.chat-markdown .hljs-strong {
+  font-weight: 600;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dark Mode - Softer, warmer tones for comfortable night coding
+   ───────────────────────────────────────────────────────────────────────────── */
+.dark .chat-markdown .hljs {
+  color: var(--foreground);
+}
+
+/* Comments - warm muted gray */
+.dark .chat-markdown .hljs-comment,
+.dark .chat-markdown .hljs-quote {
+  color: #7a7572;
+}
+
+/* Keywords - soft salmon/coral */
+.dark .chat-markdown .hljs-keyword,
+.dark .chat-markdown .hljs-selector-tag {
+  color: #e8a49f;
+}
+
+/* Literals - soft sky blue */
+.dark .chat-markdown .hljs-literal,
+.dark .chat-markdown .hljs-number,
+.dark .chat-markdown .hljs-boolean {
+  color: #8eb8e5;
+}
+
+/* Strings - light dusty blue (ai accent) */
+.dark .chat-markdown .hljs-string,
+.dark .chat-markdown .hljs-attr {
+  color: #a3c4db;
+}
+
+/* Functions/titles - bright teal */
+.dark .chat-markdown .hljs-title,
+.dark .chat-markdown .hljs-section,
+.dark .chat-markdown .hljs-title.function_ {
+  color: #4ecba8;
+}
+
+/* Selectors/attributes - soft lavender */
+.dark .chat-markdown .hljs-name,
+.dark .chat-markdown .hljs-selector-class,
+.dark .chat-markdown .hljs-selector-id,
+.dark .chat-markdown .hljs-attribute {
+  color: #b5a9e0;
+}
+
+/* Variables - warm amber */
+.dark .chat-markdown .hljs-variable,
+.dark .chat-markdown .hljs-template-variable {
+  color: #f0a968;
+}
+
+/* Types - lighter teal */
+.dark .chat-markdown .hljs-type,
+.dark .chat-markdown .hljs-built_in,
+.dark .chat-markdown .hljs-class .hljs-title {
+  color: #5ed4b1;
+}
+
+/* Tags - teal green */
+.dark .chat-markdown .hljs-tag {
+  color: #4ecba8;
+}
+
+/* Regex/links - light blue */
+.dark .chat-markdown .hljs-regexp,
+.dark .chat-markdown .hljs-link {
+  color: #a3c4db;
+}
+
+/* Symbols - soft blue */
+.dark .chat-markdown .hljs-symbol,
+.dark .chat-markdown .hljs-bullet {
+  color: #8eb8e5;
+}
+
+/* Meta - warm gray */
+.dark .chat-markdown .hljs-meta {
+  color: #7a7572;
+}
+
+/* Diff deletion - soft red with dark warm background */
+.dark .chat-markdown .hljs-deletion {
+  color: #f0b4b0;
+  background-color: rgba(181, 75, 71, 0.2);
+}
+
+/* Diff addition - teal with dark warm background */
+.dark .chat-markdown .hljs-addition {
+  color: #8fe8ca;
+  background-color: rgba(41, 163, 134, 0.2);
+}
+
 /* =============================================================================
    REDUCED MOTION
    ============================================================================= */
@@ -1275,6 +1703,14 @@
   .inline-issue-node.issue-rainbow-border::before,
   .issue-box-new::before,
   [data-block-id].ai-block-processing::after {
+    animation: none !important;
+  }
+
+  [data-block-id].ai-block-edited {
+    transition: none !important;
+  }
+
+  [data-block-id].ai-block-new {
     animation: none !important;
   }
 }

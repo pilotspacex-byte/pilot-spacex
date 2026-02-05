@@ -15,7 +15,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,11 +48,11 @@ class AISession(Base, WorkspaceScopedMixin):
 
     __tablename__ = "ai_sessions"
     __table_args__ = (
-        UniqueConstraint(
-            "user_id", "agent_name", "context_id", name="uq_ai_sessions_user_agent_context"
-        ),
+        # Note: UniqueConstraint on (user_id, agent_name, context_id) removed in migration 022
+        # to support multi-context sessions (one session can span multiple contexts)
         Index("ix_ai_sessions_expires_at", "expires_at"),
         Index("ix_ai_sessions_user_agent", "user_id", "agent_name"),
+        Index("ix_ai_sessions_title", "title"),
         {"schema": None},
     )
 
@@ -89,11 +89,18 @@ class AISession(Base, WorkspaceScopedMixin):
         doc="Type of agent (ai_context, conversation)",
     )
 
-    # Optional context reference
+    # Optional context reference (legacy - sessions can now span multiple contexts)
     context_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         nullable=True,
-        doc="Optional reference to context (issue_id, note_id)",
+        doc="Optional reference to initial context (issue_id, note_id)",
+    )
+
+    # Auto-generated title from first user message
+    title: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="Auto-generated title from first user message",
     )
 
     # Session state

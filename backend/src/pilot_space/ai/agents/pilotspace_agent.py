@@ -23,6 +23,7 @@ from pilot_space.ai.agents.pilotspace_agent_helpers import (
     build_subagent_definitions,
     transform_sdk_message as transform_sdk_message_helper,
 )
+from pilot_space.ai.agents.sse_delta_buffer import DeltaBuffer
 from pilot_space.ai.context import clear_context, set_workspace_context
 from pilot_space.ai.mcp.note_server import (
     SERVER_NAME as NOTE_SERVER_NAME,
@@ -189,9 +190,16 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self,
         message: Message,
         context: AgentContext,
+        delta_buffer: DeltaBuffer | None = None,
+        session_id: str | None = None,
     ) -> str | None:
         """Transform SDK message to SSE event string, or None to skip."""
-        return transform_sdk_message_helper(message, self._message_id_holder)
+        return transform_sdk_message_helper(
+            message,
+            self._message_id_holder,
+            delta_buffer,
+            app_session_id=session_id,
+        )
 
     async def _sync_note_if_present(
         self,
@@ -361,6 +369,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 agents=subagent_definitions,
                 resume=resume_id,
                 continue_conversation=resume_id is not None,
+                include_partial_messages=sdk_params.get(
+                    "include_partial_messages",
+                    True,
+                ),
             )
 
             set_workspace_context(context.workspace_id, context.user_id)
@@ -379,7 +391,14 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             client = ClaudeSDKClient(sdk_options)
             query_session_id = session_id_str or "default"
             stream_completed = False
-            response_chunks: list[str] = []
+
+            # Structured content accumulation for session persistence
+            # Keys: "text_{idx}", "thinking_{idx}", "tool_use_{id}", "tool_result_{id}"
+            content_blocks: dict[str, dict[str, Any]] = {}
+
+            # Initialize delta buffer for water pumping (SSE event reduction)
+            delta_buffer = DeltaBuffer()
+
             try:
                 await client.connect()
 
@@ -400,20 +419,24 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
                 async for message in client.receive_response():
                     sdk_event_count += 1
-                    sse_event = self.transform_sdk_message(message, context)
+                    sse_event = self.transform_sdk_message(
+                        message,
+                        context,
+                        delta_buffer,
+                        session_id=session_id_str,  # Pass app session_id to frontend
+                    )
                     if sse_event:
                         transformed_count += 1
                         yield sse_event
-                        if "event: text_delta\n" in sse_event:
-                            for line in sse_event.split("\n"):
-                                if line.startswith("data: "):
-                                    try:
-                                        parsed = json.loads(line[6:])
-                                        delta = parsed.get("delta", "")
-                                        if delta:
-                                            response_chunks.append(delta)
-                                    except (json.JSONDecodeError, TypeError):
-                                        pass
+                        _capture_content_from_sse(sse_event, content_blocks)
+
+                    # Time-based flush check for buffered deltas
+                    if delta_buffer.should_flush():
+                        flush_event = delta_buffer.flush()
+                        if flush_event:
+                            transformed_count += 1
+                            yield flush_event
+                            _capture_content_from_sse(flush_event, content_blocks)
 
                     try:
                         while True:
@@ -421,6 +444,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                             tool_event_count += 1
                     except asyncio.QueueEmpty:
                         pass
+
+                # Final flush of any remaining buffered deltas
+                final_flush = delta_buffer.flush()
+                if final_flush:
+                    transformed_count += 1
+                    yield final_flush
+                    _capture_content_from_sse(final_flush, content_blocks)
 
                 try:
                     while True:
@@ -457,16 +487,18 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                             role="user",
                             content=input_data.message,
                         )
-                        full_response = "".join(response_chunks)
-                        if full_response:
+                        # Build structured content from captured blocks
+                        structured_content = _build_structured_content(content_blocks)
+                        if structured_content:
                             await self._session_handler.add_message(
                                 session_id=input_data.session_id,
                                 role="assistant",
-                                content=full_response,
+                                content=structured_content,
                             )
                         logger.debug(
-                            "[SDK/Space] Persisted messages to session %s",
+                            "[SDK/Space] Persisted messages to session %s (%d blocks)",
                             input_data.session_id,
+                            len(content_blocks),
                         )
                     except Exception as e:
                         logger.warning(
@@ -596,3 +628,124 @@ def _estimate_tokens(input_data: ChatInput) -> int:
     total_chars = len(input_data.message)
     total_chars += sum(len(str(v)) for v in input_data.context.values())
     return total_chars // 4
+
+
+def _capture_content_from_sse(
+    sse_event: str,
+    content_blocks: dict[str, dict[str, Any]],
+) -> None:
+    """Capture structured content from SSE events for session persistence.
+
+    Extracts text_delta, thinking_delta, tool_use, and tool_result events
+    and accumulates them into content_blocks dictionary.
+
+    Args:
+        sse_event: SSE-formatted event string (may contain multiple events)
+        content_blocks: Mutable dict to accumulate content by block key
+    """
+    for event_line in sse_event.split("\n\n"):
+        if not event_line.strip():
+            continue
+
+        lines = event_line.split("\n")
+        event_type = ""
+        data_str = ""
+
+        for line in lines:
+            if line.startswith("event: "):
+                event_type = line[7:].strip()
+            elif line.startswith("data: "):
+                data_str = line[6:]
+
+        if not event_type or not data_str:
+            continue
+
+        try:
+            data = json.loads(data_str)
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        block_idx = data.get("blockIndex", 0)
+
+        if event_type == "text_delta":
+            key = f"text_{block_idx}"
+            if key not in content_blocks:
+                content_blocks[key] = {"type": "text", "text": "", "index": block_idx}
+            content_blocks[key]["text"] += data.get("delta", "")
+
+        elif event_type == "thinking_delta":
+            key = f"thinking_{block_idx}"
+            if key not in content_blocks:
+                content_blocks[key] = {"type": "thinking", "thinking": "", "index": block_idx}
+            content_blocks[key]["thinking"] += data.get("delta", "")
+            # Capture signature if present
+            if "signature" in data:
+                content_blocks[key]["signature"] = data["signature"]
+
+        elif event_type == "tool_use":
+            tool_id = data.get("toolCallId", "")
+            if tool_id:
+                key = f"tool_use_{tool_id}"
+                content_blocks[key] = {
+                    "type": "tool_use",
+                    "id": tool_id,
+                    "name": data.get("toolName", ""),
+                    "input": data.get("toolInput", {}),
+                    "index": len(content_blocks),  # Preserve order
+                }
+
+        elif event_type == "tool_result":
+            tool_id = data.get("toolCallId", "")
+            if tool_id:
+                key = f"tool_result_{tool_id}"
+                content_blocks[key] = {
+                    "type": "tool_result",
+                    "tool_use_id": tool_id,
+                    "content": data.get("output", data.get("errorMessage", "")),
+                    "is_error": data.get("status") == "failed",
+                    "index": len(content_blocks),
+                }
+
+
+def _build_structured_content(
+    content_blocks: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]] | str:
+    """Build structured content list from captured blocks.
+
+    Sorts blocks by their index and returns as a list of content blocks
+    in Claude message format. Falls back to plain text if only text content.
+
+    Args:
+        content_blocks: Dict of captured content blocks
+
+    Returns:
+        List of content block dicts, or plain text string if only text
+    """
+    if not content_blocks:
+        return ""
+
+    # Sort by index to preserve order
+    sorted_blocks = sorted(
+        content_blocks.values(),
+        key=lambda b: b.get("index", 0),
+    )
+
+    # Check if we have only text content
+    has_non_text = any(
+        b["type"] in ("thinking", "tool_use", "tool_result")
+        for b in sorted_blocks
+    )
+
+    if not has_non_text:
+        # Return plain text for backward compatibility
+        text_parts = [b.get("text", "") for b in sorted_blocks if b["type"] == "text"]
+        return "".join(text_parts)
+
+    # Return structured content
+    result: list[dict[str, Any]] = []
+    for block in sorted_blocks:
+        # Remove internal index field used for ordering
+        clean_block = {k: v for k, v in block.items() if k != "index"}
+        result.append(clean_block)
+
+    return result

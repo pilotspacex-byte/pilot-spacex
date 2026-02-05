@@ -21,6 +21,26 @@ import type { PilotSpaceStore } from './PilotSpaceStore';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 
 /**
+ * Context history entry for multi-context sessions.
+ */
+export interface ContextEntry {
+  /** Turn number when context was used */
+  turn: number;
+  /** Note ID if context was a note */
+  noteId?: string;
+  /** Note title if available */
+  noteTitle?: string;
+  /** Issue ID if context was an issue */
+  issueId?: string;
+  /** Block IDs if specific blocks were selected */
+  blockIds?: string[];
+  /** Selected text if available */
+  selectedText?: string;
+  /** When the context was used */
+  timestamp: string;
+}
+
+/**
  * Session summary for list display.
  */
 export interface SessionSummary {
@@ -28,10 +48,12 @@ export interface SessionSummary {
   sessionId: string;
   /** Agent name (conversation, ai_context, etc.) */
   agentName: string;
-  /** Context ID (note, issue, etc.) */
+  /** Context ID (note, issue, etc.) - initial context */
   contextId?: string;
   /** Context type for display */
   contextType?: 'note' | 'issue' | 'project';
+  /** History of contexts used in this session */
+  contextHistory?: ContextEntry[];
   /** Session creation timestamp */
   createdAt: Date;
   /** Last activity timestamp */
@@ -40,7 +62,7 @@ export interface SessionSummary {
   turnCount: number;
   /** Session expiration timestamp */
   expiresAt: Date;
-  /** Session title (derived from context) */
+  /** Auto-generated session title from first user message */
   title?: string;
   /** Session ID this was forked from (if fork) */
   forkedFrom?: string;
@@ -130,6 +152,56 @@ export class SessionListStore {
     }));
   }
 
+  /**
+   * Get sessions grouped by date (Today, Yesterday, weekday, date).
+   */
+  get sessionsGroupedByDate(): Map<string, SessionSummary[]> {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    const groups = new Map<string, SessionSummary[]>();
+
+    for (const session of this.recentSessions) {
+      const sessionDate = new Date(
+        session.updatedAt.getFullYear(),
+        session.updatedAt.getMonth(),
+        session.updatedAt.getDate()
+      );
+
+      let label: string;
+      if (sessionDate.getTime() === today.getTime()) {
+        label = 'Today';
+      } else if (sessionDate.getTime() === yesterday.getTime()) {
+        label = 'Yesterday';
+      } else {
+        const daysDiff = Math.floor(
+          (today.getTime() - sessionDate.getTime()) / (24 * 60 * 60 * 1000)
+        );
+        if (daysDiff < 7) {
+          label = weekdays[sessionDate.getDay()] ?? 'Unknown';
+        } else {
+          const dateOptions: Intl.DateTimeFormatOptions = {
+            month: 'long',
+            day: 'numeric',
+          };
+          if (sessionDate.getFullYear() !== now.getFullYear()) {
+            dateOptions.year = 'numeric';
+          }
+          label = sessionDate.toLocaleDateString('en-US', dateOptions);
+        }
+      }
+
+      if (!groups.has(label)) {
+        groups.set(label, []);
+      }
+      groups.get(label)!.push(session);
+    }
+
+    return groups;
+  }
+
   // ========================================
   // Auth Helpers
   // ========================================
@@ -198,6 +270,15 @@ export class SessionListStore {
           agentName: s.agent_name,
           contextId: s.context_id,
           contextType: s.context_type,
+          contextHistory: s.context_history?.map((ctx: ContextHistoryResponse) => ({
+            turn: ctx.turn,
+            noteId: ctx.note_id,
+            noteTitle: ctx.note_title,
+            issueId: ctx.issue_id,
+            blockIds: ctx.block_ids,
+            selectedText: ctx.selected_text,
+            timestamp: ctx.timestamp,
+          })),
           createdAt: new Date(s.created_at),
           updatedAt: new Date(s.updated_at),
           turnCount: s.turn_count,
@@ -229,42 +310,43 @@ export class SessionListStore {
   }
 
   /**
-   * Resume existing session in PilotSpaceStore.
+   * Resume existing session in PilotSpaceStore with pagination.
+   * Loads only the latest N messages initially for faster load times.
+   * Use loadMoreMessages() to fetch older messages on scroll-up.
+   *
    * @param sessionId - Session identifier to resume
+   * @param limit - Number of latest messages to load (default: 3)
    */
-  async resumeSession(sessionId: string): Promise<void> {
-    const session = this.sessions.find((s) => s.sessionId === sessionId);
-    if (!session) {
-      console.error(`Session ${sessionId} not found`);
-      return;
-    }
-
+  async resumeSession(sessionId: string, limit: number = 3): Promise<void> {
     try {
-      // Resume session to fetch session history
+      // Resume session with pagination (offset=0 = latest messages)
       const authHeaders = await this.getAuthHeaders();
-      const response = await fetch(`${API_BASE}/ai/sessions/${sessionId}/resume`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({}),
-      });
+      const response = await fetch(
+        `${API_BASE}/ai/sessions/${sessionId}/resume?limit=${limit}&offset=0`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({}),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch session messages: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data: ResumeSessionResponse = await response.json();
 
       // Load messages into PilotSpaceStore
       runInAction(() => {
         const pilotSpaceStore = this.rootStore;
         if (pilotSpaceStore) {
-          // Clear current conversation
-          pilotSpaceStore.clear();
+          // Clear messages only (caller already handled full clear if needed)
+          pilotSpaceStore.messages = [];
 
           // Set session ID
           pilotSpaceStore.setSessionId(sessionId);
 
-          // Load messages
+          // Load initial messages (in chronological order from backend)
           data.messages.forEach((msg: MessageResponse, index: number) => {
             pilotSpaceStore.addMessage({
               id: msg.id ?? `restored-${index}`,
@@ -272,17 +354,136 @@ export class SessionListStore {
               content: msg.content,
               timestamp: new Date(msg.timestamp),
               metadata: msg.metadata,
+              // Map content_blocks from backend (snake_case) to frontend (camelCase)
+              contentBlocks: msg.content_blocks?.map((block) => {
+                if (block.type === 'thinking') {
+                  return {
+                    type: 'thinking' as const,
+                    blockIndex: block.blockIndex,
+                    content: block.content,
+                  };
+                }
+                if (block.type === 'text') {
+                  return { type: 'text' as const, content: block.content };
+                }
+                // tool_call
+                return { type: 'tool_call' as const, toolCallId: block.toolCallId };
+              }),
+              // Map thinking_blocks from backend (snake_case) to frontend (camelCase)
+              thinkingBlocks: msg.thinking_blocks?.map((block) => ({
+                content: block.content,
+                blockIndex: block.blockIndex,
+                redacted: block.redacted,
+              })),
             });
           });
+
+          // Set pagination state
+          pilotSpaceStore.setMessagePaginationState(data.has_more, data.total_messages);
 
           // Update selected session
           this.selectedSessionId = sessionId;
         }
       });
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to resume session';
       runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to resume session';
+        this.error = errorMsg;
+        // Propagate to store for UI visibility
+        if (this.rootStore) {
+          this.rootStore.error = errorMsg;
+        }
       });
+    }
+  }
+
+  /**
+   * Load more (older) messages for the current session.
+   * Called when user scrolls to the top of the message list.
+   *
+   * @param sessionId - Session identifier
+   * @param limit - Number of older messages to fetch (default: 10)
+   * @returns true if messages were loaded, false if no more messages
+   */
+  async loadMoreMessages(sessionId: string, limit: number = 10): Promise<boolean> {
+    const pilotSpaceStore = this.rootStore;
+    if (!pilotSpaceStore || !pilotSpaceStore.hasMoreMessages) {
+      return false;
+    }
+
+    // Calculate offset: skip the messages we already have
+    const currentMessageCount = pilotSpaceStore.messages.length;
+    const offset = currentMessageCount;
+
+    runInAction(() => {
+      pilotSpaceStore.setIsLoadingMoreMessages(true);
+    });
+
+    try {
+      const authHeaders = await this.getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE}/ai/sessions/${sessionId}/resume?limit=${limit}&offset=${offset}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({}),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to load more messages: ${response.statusText}`);
+      }
+
+      const data: ResumeSessionResponse = await response.json();
+
+      runInAction(() => {
+        if (data.messages.length > 0) {
+          // Convert and prepend older messages with content blocks
+          const olderMessages = data.messages.map((msg: MessageResponse, index: number) => ({
+            id: msg.id ?? `restored-older-${offset + index}`,
+            role: msg.role as 'user' | 'assistant' | 'system',
+            content: msg.content,
+            timestamp: new Date(msg.timestamp),
+            metadata: msg.metadata,
+            // Map content_blocks from backend (snake_case) to frontend (camelCase)
+            contentBlocks: msg.content_blocks?.map((block) => {
+              if (block.type === 'thinking') {
+                return {
+                  type: 'thinking' as const,
+                  blockIndex: block.blockIndex,
+                  content: block.content,
+                };
+              }
+              if (block.type === 'text') {
+                return { type: 'text' as const, content: block.content };
+              }
+              // tool_call
+              return { type: 'tool_call' as const, toolCallId: block.toolCallId };
+            }),
+            // Map thinking_blocks from backend (snake_case) to frontend (camelCase)
+            thinkingBlocks: msg.thinking_blocks?.map((block) => ({
+              content: block.content,
+              blockIndex: block.blockIndex,
+              redacted: block.redacted,
+            })),
+          }));
+
+          pilotSpaceStore.prependMessages(olderMessages);
+        }
+
+        // Update pagination state
+        pilotSpaceStore.setMessagePaginationState(data.has_more, data.total_messages);
+        pilotSpaceStore.setIsLoadingMoreMessages(false);
+      });
+
+      return data.messages.length > 0;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load more messages';
+      runInAction(() => {
+        this.error = errorMsg;
+        pilotSpaceStore.setIsLoadingMoreMessages(false);
+      });
+      return false;
     }
   }
 
@@ -291,11 +492,12 @@ export class SessionListStore {
    * If no matching session exists, does nothing.
    * @param contextId - The context ID (e.g., noteId)
    * @param contextType - The context type ('note' | 'issue' | 'project')
+   * @returns true if a session was found and resumed, false otherwise
    */
   async resumeSessionForContext(
     contextId: string,
     _contextType: 'note' | 'issue' | 'project'
-  ): Promise<void> {
+  ): Promise<boolean> {
     // Always do a targeted fetch filtered by context_id.
     // The mount-time fetchSessions() may still be in-flight (isLoading=true)
     // or may have returned all sessions without this context match, so we
@@ -310,7 +512,10 @@ export class SessionListStore {
 
     if (matchingSession) {
       await this.resumeSession(matchingSession.sessionId);
+      return true;
     }
+
+    return false;
   }
 
   /**
@@ -340,6 +545,69 @@ export class SessionListStore {
     } catch (err) {
       runInAction(() => {
         this.error = err instanceof Error ? err.message : 'Failed to delete session';
+      });
+    }
+  }
+
+  /**
+   * Search sessions by title or context.
+   * @param query - Search query string
+   */
+  async searchSessions(query: string): Promise<void> {
+    if (!query.trim()) {
+      // Empty query - fetch all sessions
+      await this.fetchSessions();
+      return;
+    }
+
+    runInAction(() => {
+      this.isLoading = true;
+      this.error = null;
+    });
+
+    try {
+      const authHeaders = await this.getAuthHeaders();
+      const url = `${API_BASE}/ai/sessions?search=${encodeURIComponent(query)}&limit=50`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to search sessions: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      runInAction(() => {
+        this.sessions = data.sessions.map((s: SessionSummaryResponse) => ({
+          sessionId: s.id,
+          agentName: s.agent_name,
+          contextId: s.context_id,
+          contextType: s.context_type,
+          contextHistory: s.context_history?.map((ctx: ContextHistoryResponse) => ({
+            turn: ctx.turn,
+            noteId: ctx.note_id,
+            noteTitle: ctx.note_title,
+            issueId: ctx.issue_id,
+            blockIds: ctx.block_ids,
+            selectedText: ctx.selected_text,
+            timestamp: ctx.timestamp,
+          })),
+          createdAt: new Date(s.created_at),
+          updatedAt: new Date(s.updated_at),
+          turnCount: s.turn_count,
+          expiresAt: new Date(s.expires_at),
+          title: s.title,
+          forkedFrom: s.forked_from,
+          forkCount: s.fork_count,
+        }));
+        this.isLoading = false;
+      });
+    } catch (err) {
+      runInAction(() => {
+        this.error = err instanceof Error ? err.message : 'Failed to search sessions';
+        this.isLoading = false;
       });
     }
   }
@@ -381,12 +649,23 @@ export class SessionListStore {
 // API Response Types
 // ========================================
 
+interface ContextHistoryResponse {
+  turn: number;
+  note_id?: string;
+  note_title?: string;
+  issue_id?: string;
+  block_ids?: string[];
+  selected_text?: string;
+  timestamp: string;
+}
+
 interface SessionSummaryResponse {
   id: string;
   workspace_id: string;
   agent_name: string;
   context_id?: string;
   context_type?: 'note' | 'issue' | 'project';
+  context_history?: ContextHistoryResponse[];
   created_at: string;
   updated_at: string;
   turn_count: number;
@@ -405,4 +684,24 @@ interface MessageResponse {
   tokens?: number;
   cost_usd?: number;
   metadata?: Record<string, unknown>;
+  /** Ordered content blocks for interleaved rendering (thinking/text/tool_call) */
+  content_blocks?: Array<
+    | { type: 'thinking'; blockIndex: number; content: string }
+    | { type: 'text'; content: string }
+    | { type: 'tool_call'; toolCallId: string }
+  >;
+  /** Thinking block entries for extended thinking display */
+  thinking_blocks?: Array<{ content: string; blockIndex: number; redacted?: boolean }>;
+}
+
+/**
+ * Response from resume session endpoint with pagination support.
+ */
+interface ResumeSessionResponse {
+  session_id: string;
+  messages: MessageResponse[];
+  context: Record<string, unknown>;
+  turn_count: number;
+  total_messages: number;
+  has_more: boolean;
 }

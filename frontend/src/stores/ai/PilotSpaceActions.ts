@@ -323,6 +323,9 @@ export class PilotSpaceActions {
       thinkingContent: '',
       isThinking: false,
       thinkingStartedAt: null,
+      activeToolName: null,
+      interrupted: false,
+      wordCount: 0,
     };
   }
 
@@ -338,6 +341,9 @@ export class PilotSpaceActions {
     this.store.pendingApprovals = [];
     this.store.pendingContentUpdates = [];
     this.store.error = null;
+    // Reset pagination state
+    this.store.setMessagePaginationState(false, 0);
+    this.store.setIsLoadingMoreMessages(false);
   }
 
   /**

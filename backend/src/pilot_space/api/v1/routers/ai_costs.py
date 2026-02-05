@@ -26,7 +26,7 @@ from pilot_space.api.v1.schemas.cost import (
 )
 from pilot_space.dependencies import (
     CostTrackerDep,
-    CurrentUserIdOrDemo,
+    CurrentUserId,
     DbSession,
 )
 from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
@@ -43,7 +43,7 @@ router = APIRouter(prefix="/costs", tags=["AI Costs"])
 )
 async def get_cost_summary(
     workspace_id: WorkspaceId,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     cost_tracker: CostTrackerDep,
     session: DbSession,
     start_date: Annotated[date | None, Query(description="Period start date")] = None,
@@ -143,7 +143,7 @@ async def get_cost_summary(
 )
 async def get_cost_by_user(
     workspace_id: WorkspaceId,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     cost_tracker: CostTrackerDep,
     session: DbSession,
     start_date: Annotated[date | None, Query(description="Period start date")] = None,
@@ -221,7 +221,7 @@ async def get_cost_by_user(
 )
 async def get_cost_trends(
     workspace_id: WorkspaceId,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     cost_tracker: CostTrackerDep,
     start_date: Annotated[date | None, Query(description="Period start date")] = None,
     end_date: Annotated[date | None, Query(description="Period end date")] = None,

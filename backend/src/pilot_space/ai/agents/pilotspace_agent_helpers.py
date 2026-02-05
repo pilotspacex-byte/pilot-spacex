@@ -18,13 +18,16 @@ from pilot_space.ai.agents.pilotspace_note_helpers import (
     emit_issue_creation_events,
     emit_replace_block_event,
     transform_todo_to_task_progress,
+    transform_user_message_tool_results,
     validate_structured_output,
 )
+from pilot_space.ai.agents.stream_event_transformer import transform_stream_event
 
 if TYPE_CHECKING:
     from claude_agent_sdk import Message
 
     from pilot_space.ai.agents.pilotspace_agent import ChatInput
+    from pilot_space.ai.agents.sse_delta_buffer import DeltaBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +130,9 @@ def build_contextual_message(input_data: ChatInput) -> str:
 
 def transform_sdk_message(  # noqa: PLR0911
     message: Message,
-    current_message_id_holder: dict[str, str | None],
+    current_message_id_holder: dict[str, Any],
+    delta_buffer: DeltaBuffer | None = None,
+    app_session_id: str | None = None,
 ) -> str | None:
     """Transform Claude SDK message to frontend SSE event.
 
@@ -146,25 +151,49 @@ def transform_sdk_message(  # noqa: PLR0911
     Args:
         message: SDK message object
         current_message_id_holder: Mutable dict with "_current_message_id" key for state
+        delta_buffer: Optional buffer for batching delta events (water pumping)
+        app_session_id: Application session ID (UUID) to use instead of SDK's internal ID
 
     Returns:
         SSE-formatted string or None if message should be ignored
     """
     msg_type = type(message).__name__
 
+    if msg_type == "StreamEvent":
+        event_data = getattr(message, "event", {})
+        parent_tool_use_id = getattr(message, "parent_tool_use_id", None)
+        return transform_stream_event(
+            event_data,
+            parent_tool_use_id,
+            current_message_id_holder,
+            delta_buffer,
+        )
+
+    # Handle SDK ToolResultMessage (legacy compat) and ToolResult
     if msg_type in ("ToolResultMessage", "ToolResult"):
         return transform_tool_result(message)
+
+    # Handle UserMessage with ToolResultBlock content (current SDK)
+    # The Claude Agent SDK emits tool results as UserMessage objects
+    # containing ToolResultBlock entries, not as standalone ToolResultMessage.
+    if msg_type == "UserMessage":
+        return transform_user_message_tool_results(message)
 
     if msg_type == "SystemMessage":
         raw_data = getattr(message, "data", None)
         if isinstance(raw_data, dict) and raw_data.get("type") == "system":
             subtype = raw_data.get("subtype")
             if subtype == "init":
-                session_id = raw_data.get("session_id", "")
+                sdk_session_id = raw_data.get("session_id", "")
                 current_message_id_holder["_current_message_id"] = str(uuid4())
+                # Reset stale dedup state from previous request (prevents session leak)
+                current_message_id_holder.pop("_stream_events_sent", None)
+                current_message_id_holder.pop("_streamed_block_indices", None)
+                # Use application session_id (UUID) if provided, else fall back to SDK's
+                effective_session_id = app_session_id or sdk_session_id
                 data: dict[str, Any] = {
                     "messageId": current_message_id_holder["_current_message_id"],
-                    "sessionId": str(session_id),
+                    "sessionId": str(effective_session_id),
                 }
                 model = raw_data.get("model")
                 if model:
@@ -190,6 +219,13 @@ def transform_sdk_message(  # noqa: PLR0911
         message_id_value = current_message_id_holder.get("_current_message_id")
         message_id = message_id_value if message_id_value else str(uuid4())
 
+        # Dedup: check if stream events already forwarded these blocks
+        # Use get() instead of pop() to preserve dedup state across multiple
+        # partial AssistantMessages when include_partial_messages=True
+        stream_events_sent = bool(current_message_id_holder.get("_stream_events_sent", False))
+        raw_indices = current_message_id_holder.get("_streamed_block_indices")
+        streamed_indices: set[int] = raw_indices if isinstance(raw_indices, set) else set()
+
         if isinstance(content, list):
             events: list[str] = []
             text_parts: list[str] = []
@@ -199,6 +235,9 @@ def transform_sdk_message(  # noqa: PLR0911
             citation_parts: list[dict[str, Any]] = []
 
             for block_idx, block in enumerate(content):
+                # Skip blocks already forwarded via StreamEvent
+                if stream_events_sent and block_idx in streamed_indices:
+                    continue
                 block_type = _get_block_type(block)
 
                 # Emit content_block_start for each block (G-01: include thinking type)
@@ -259,15 +298,12 @@ def transform_sdk_message(  # noqa: PLR0911
                         events.append(tool_event)
                 elif block_type == "server_tool_use":
                     # G-10: Handle server-side tool invocations (web_search, etc.)
-                    tool_event = _handle_server_tool_use_block(block, message_id)
+                    tool_event = _handle_server_tool_use_block(block)
                     if tool_event:
                         events.append(tool_event)
                 elif block_type == "web_search_tool_result":
                     # G-10: Handle web search results from server tools
-                    search_event = _handle_web_search_result_block(
-                        block,
-                        message_id,
-                    )
+                    search_event = _handle_web_search_result_block(block)
                     if search_event:
                         events.append(search_event)
                 elif block_type == "citation":
@@ -339,7 +375,7 @@ def transform_sdk_message(  # noqa: PLR0911
         return f"event: text_delta\ndata: {json.dumps(data)}\n\n"
 
     if msg_type == "ResultMessage":
-        session_id = getattr(message, "session_id", "")
+        _session_id = getattr(message, "session_id", "")  # Reserved for future use
         is_error = getattr(message, "is_error", False)
         usage = getattr(message, "usage", None)
         message_id_value = current_message_id_holder.get("_current_message_id")
@@ -435,7 +471,7 @@ def _handle_tool_use_block(block: Any, message_id: str) -> str | None:
     return f"event: tool_use\ndata: {json.dumps(tool_data)}\n\n"
 
 
-def _handle_server_tool_use_block(block: Any, message_id: str) -> str | None:
+def _handle_server_tool_use_block(block: Any) -> str | None:
     """Handle server_tool_use block (G-10).
 
     Server tools (web_search, web_fetch) run on Anthropic's infrastructure.
@@ -458,7 +494,7 @@ def _handle_server_tool_use_block(block: Any, message_id: str) -> str | None:
     return f"event: tool_use\ndata: {json.dumps(tool_data)}\n\n"
 
 
-def _handle_web_search_result_block(block: Any, message_id: str) -> str | None:
+def _handle_web_search_result_block(block: Any) -> str | None:
     """Handle web_search_tool_result block (G-10).
 
     Emits a tool_result event with search results so the frontend
@@ -497,7 +533,7 @@ def _handle_web_search_result_block(block: Any, message_id: str) -> str | None:
                 )
 
     result_data: dict[str, Any] = {
-        "toolUseId": str(tool_id),
+        "toolCallId": str(tool_id),
         "output": {"type": "web_search_results", "results": results},
         "status": "completed",
     }
@@ -598,18 +634,7 @@ def _extract_citation(block: Any) -> dict[str, Any] | None:
 
 
 def transform_tool_result(message: Message) -> str | None:
-    """Transform MCP tool result to SSE event.
-
-    For note tools with pending_apply status, emits content_update events.
-    For all other tool results, emits tool_result events so the frontend
-    can update tool call status in the message UI.
-
-    Args:
-        message: Tool result message from SDK
-
-    Returns:
-        SSE-formatted event string or None if message should be ignored
-    """
+    """Transform MCP tool result to SSE event (content_update for note tools, tool_result for others)."""
     result_data = getattr(message, "result", {})
     tool_use_id = getattr(message, "tool_use_id", "")
 
@@ -635,10 +660,19 @@ def transform_tool_result(message: Message) -> str | None:
         }
 
         handler = operation_handlers.get(operation)
-        if handler:
-            return handler(result_data, note_id)
-
-        return None
+        content_update_event = handler(result_data, note_id) if handler else None
+        if not content_update_event:
+            return None
+        # Also emit tool_result so frontend ToolCallCard shows completion
+        tool_result_event = f"event: tool_result\ndata: {
+            json.dumps(
+                {
+                    'toolCallId': str(tool_use_id) if tool_use_id else str(uuid4()),
+                    'status': 'completed',
+                }
+            )
+        }\n\n"
+        return f"{content_update_event}{tool_result_event}"
 
     # Map TodoWrite results to task_progress SSE events (T6/G-07)
     tool_name = getattr(message, "name", "") or getattr(message, "tool_name", "")

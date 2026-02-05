@@ -28,8 +28,8 @@ export const Header = observer(function Header() {
   const workspaceStore = useWorkspaceStore();
 
   // Get workspace context
-  const workspaceSlug = workspaceStore.currentWorkspace?.slug || 'pilot-space-demo';
-  const workspaceId = workspaceStore.currentWorkspace?.id || workspaceSlug;
+  const workspaceSlug = workspaceStore.currentWorkspace?.slug ?? '';
+  const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
 
   // Create note mutation
   const createNote = useCreateNote({

@@ -66,6 +66,20 @@ export const SKILLS: SkillDefinition[] = [
     icon: 'FileText',
     examples: ['Summarize this note', 'Create a brief summary'],
   },
+  {
+    name: 'resume',
+    description: 'Resume a previous conversation session',
+    category: 'session',
+    icon: 'History',
+    examples: ['Continue our last chat', 'Resume discussion about API design'],
+  },
+  {
+    name: 'new',
+    description: 'Start a fresh conversation session',
+    category: 'session',
+    icon: 'Plus',
+    examples: ['Start new chat', 'Fresh conversation'],
+  },
 ];
 
 /**
@@ -113,6 +127,7 @@ export const AGENTS: AgentDefinition[] = [
  * Skill categories for grouping in menu
  */
 export const SKILL_CATEGORIES = [
+  { id: 'session', label: 'Session', icon: 'History' },
   { id: 'writing', label: 'Writing', icon: 'PenTool' },
   { id: 'notes', label: 'Notes', icon: 'FileText' },
   { id: 'issues', label: 'Issues', icon: 'ListTodo' },
@@ -120,3 +135,33 @@ export const SKILL_CATEGORIES = [
   { id: 'documentation', label: 'Documentation', icon: 'BookOpen' },
   { id: 'planning', label: 'Planning', icon: 'Calendar' },
 ] as const;
+
+/**
+ * Human-readable display names for MCP tool invocations.
+ * Shown in the tool execution banner during streaming.
+ */
+export const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  update_note_block: 'Updating Note Block',
+  enhance_text: 'Enhancing Text',
+  summarize_note: 'Summarizing Note',
+  extract_issues: 'Extracting Issues',
+  create_issue_from_note: 'Creating Issue',
+  link_existing_issues: 'Linking Issues',
+};
+
+/**
+ * Get a display-friendly name for a tool.
+ * Falls back to title-casing the raw snake_case name.
+ *
+ * @param rawName - Raw tool name from SSE event (e.g., "update_note_block")
+ * @returns Human-readable name (e.g., "Updating Note Block")
+ */
+export function getToolDisplayName(rawName: string): string {
+  return (
+    TOOL_DISPLAY_NAMES[rawName] ??
+    rawName
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
+  );
+}

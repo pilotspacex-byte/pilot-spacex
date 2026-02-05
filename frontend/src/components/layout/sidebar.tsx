@@ -4,7 +4,7 @@ import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import {
   Home,
   FileText,
@@ -19,13 +19,14 @@ import {
   Clock,
   Loader2,
 } from 'lucide-react';
-import { useUIStore, useWorkspaceStore, useNoteStore } from '@/stores';
+import { useUIStore, useNoteStore } from '@/stores';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { addRecentWorkspace } from '@/components/workspace-selector';
 
 // Navigation items - paths are relative and will be prefixed with workspace slug
 const navigationItems = [
@@ -35,17 +36,39 @@ const navigationItems = [
   { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects' },
 ];
 
+/**
+ * Extract workspace slug from pathname.
+ * Pathname format: /{workspaceSlug}/... or /{workspaceSlug}
+ */
+function getWorkspaceSlugFromPathname(pathname: string): string {
+  const segments = pathname.split('/').filter(Boolean);
+  // First segment is the workspace slug (if not a special route like 'login')
+  const firstSegment = segments[0] ?? '';
+  // Skip auth routes
+  if (['login', 'callback', 'signup'].includes(firstSegment)) {
+    return '';
+  }
+  return firstSegment;
+}
+
 export const Sidebar = observer(function Sidebar() {
   const uiStore = useUIStore();
-  const workspaceStore = useWorkspaceStore();
   const noteStore = useNoteStore();
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = uiStore.sidebarCollapsed;
 
-  // Get workspace slug from store or use default
-  const workspaceSlug = workspaceStore.currentWorkspace?.slug || 'pilot-space-demo';
-  const workspaceId = workspaceStore.currentWorkspace?.id || workspaceSlug;
+  // Get workspace slug from URL pathname (not from store)
+  const workspaceSlug = getWorkspaceSlugFromPathname(pathname);
+  // Use slug as workspaceId for API calls (backend accepts both UUID and slug)
+  const workspaceId = workspaceSlug;
+
+  // Store workspace slug in localStorage for redirect on root URL
+  useEffect(() => {
+    if (workspaceSlug) {
+      addRecentWorkspace(workspaceSlug);
+    }
+  }, [workspaceSlug]);
 
   // Create note mutation
   const createNote = useCreateNote({
@@ -115,7 +138,11 @@ export const Sidebar = observer(function Sidebar() {
       {/* Main Navigation */}
       <div className="flex flex-col gap-1 p-3">
         {navigation.map((item) => {
-          const isActive = pathname === item.href;
+          // Use startsWith for non-home routes to highlight parent nav when on nested routes
+          // e.g., /workspace/notes/123 should highlight "Notes" nav item
+          const isActive = item.path
+            ? pathname.startsWith(item.href)
+            : pathname === item.href;
           return (
             <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
               <TooltipTrigger asChild>

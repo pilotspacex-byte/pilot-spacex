@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { GitPullRequest, Brain, BookOpen } from 'lucide-react';
 import { AGENTS } from '../constants';
 import type { AgentDefinition } from '../types';
@@ -23,6 +24,8 @@ interface AgentMenuProps {
   onOpenChange: (open: boolean) => void;
   onSelect: (agent: AgentDefinition) => void;
   children: React.ReactNode;
+  /** Width in pixels for popover content */
+  popoverWidth?: number;
 }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -31,7 +34,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   BookOpen,
 };
 
-export const AgentMenu = memo<AgentMenuProps>(({ open, onOpenChange, onSelect, children }) => {
+export const AgentMenu = memo<AgentMenuProps>(({ open, onOpenChange, onSelect, children, popoverWidth }) => {
   const handleSelect = useCallback(
     (agentName: string) => {
       const agent = AGENTS.find((a) => a.name === agentName);
@@ -46,7 +49,13 @@ export const AgentMenu = memo<AgentMenuProps>(({ open, onOpenChange, onSelect, c
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="p-0 w-[450px]" align="start" side="top">
+      <PopoverContent
+        className={cn("p-0 w-auto")}
+        align="start"
+        side="top"
+        sideOffset={8}
+        style={{ width: popoverWidth ?? 450 }}
+      >
         <Command>
           <CommandInput placeholder="Search agents..." />
           <CommandList>

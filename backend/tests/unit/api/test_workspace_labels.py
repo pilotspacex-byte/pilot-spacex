@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 
 from pilot_space.api.v1.routers.workspaces import list_workspace_labels
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
@@ -174,29 +175,25 @@ class TestListWorkspaceLabels:
 
         assert exc_info.value.status_code == 404
 
-    async def test_demo_workspace_bypasses_membership_check(self, monkeypatch):
-        """Demo workspace allows access without membership in dev mode."""
-        monkeypatch.setenv("APP_ENV", "development")
-
+    async def test_non_member_denied_access(self):
+        """Non-member should get 403 when accessing workspace labels."""
         workspace_id = uuid4()
         non_member_user_id = uuid4()
         other_member = _make_member(uuid4())  # Different user
         workspace = _make_workspace(workspace_id, [other_member])
 
-        labels = [_make_label("bug", "#D9534F")]
-
         workspace_repo = AsyncMock()
         workspace_repo.get_by_slug_with_members.return_value = workspace
 
         label_repo = AsyncMock()
-        label_repo.get_workspace_labels.return_value = labels
 
-        result = await list_workspace_labels(
-            workspace_id="pilot-space-demo",
-            current_user_id=non_member_user_id,
-            workspace_repo=workspace_repo,
-            label_repo=label_repo,
-            project_id=None,
-        )
+        with pytest.raises(HTTPException) as exc_info:
+            await list_workspace_labels(
+                workspace_id=str(workspace_id),
+                current_user_id=non_member_user_id,
+                workspace_repo=workspace_repo,
+                label_repo=label_repo,
+                project_id=None,
+            )
 
-        assert len(result) == 1
+        assert exc_info.value.status_code == 403

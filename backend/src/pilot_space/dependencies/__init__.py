@@ -50,11 +50,8 @@ from pilot_space.dependencies.ai import (
 
 # Re-export auth dependencies
 from pilot_space.dependencies.auth import (
-    DEMO_USER_ID,
-    DEMO_WORKSPACE_SLUGS,
     CurrentUser,
     CurrentUserId,
-    CurrentUserIdOrDemo,
     DbSession,
     SyncedUserId,
     WorkspaceAdminId,
@@ -63,7 +60,6 @@ from pilot_space.dependencies.auth import (
     get_auth,
     get_current_user,
     get_current_user_id,
-    get_current_user_id_or_demo,
     get_session,
     get_token_from_header,
     require_workspace_admin,
@@ -81,7 +77,6 @@ from pilot_space.dependencies.services import (
 
 # Re-export workspace dependencies
 from pilot_space.dependencies.workspace import (
-    DEMO_WORKSPACE_UUID,
     get_current_workspace_id,
     get_db_session_dep,
 )
@@ -90,17 +85,12 @@ from pilot_space.dependencies.workspace import (
 get_db_session = get_db_session_dep
 
 __all__ = [
-    "DEMO_USER_ID",
-    "DEMO_WORKSPACE_SLUGS",
-    # Workspace
-    "DEMO_WORKSPACE_UUID",
     # AI
     "ApprovalServiceDep",
     "CostTrackerDep",
     # Auth
     "CurrentUser",
     "CurrentUserId",
-    "CurrentUserIdOrDemo",
     "DbSession",
     "KeyStorageDep",
     "PermissionHandlerDep",
@@ -128,7 +118,6 @@ __all__ = [
     "get_create_issue_service",
     "get_current_user",
     "get_current_user_id",
-    "get_current_user_id_or_demo",
     "get_current_workspace_id",
     "get_db_session",
     "get_db_session_dep",

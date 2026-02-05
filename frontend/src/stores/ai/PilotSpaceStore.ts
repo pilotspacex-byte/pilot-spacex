@@ -20,6 +20,7 @@ import type {
   ChatMessage,
   ToolCall,
   StreamingState,
+  SessionState,
   ConversationContext,
   MessageMetadata,
 } from './types/conversation';
@@ -100,8 +101,19 @@ export class PilotSpaceStore {
     thinkingContent: '',
     isThinking: false,
     thinkingStartedAt: null,
+    activeToolName: null,
+    interrupted: false,
+    wordCount: 0,
   };
   sessionId: string | null = null;
+
+  /** Session state for token budget tracking (008) */
+  sessionState: SessionState = {
+    sessionId: null,
+    isActive: false,
+    createdAt: null,
+    lastActivityAt: null,
+  };
 
   /** Session ID to fork from (set by prepareFork, consumed on next sendMessage) */
   forkSessionId: string | null = null;
@@ -150,6 +162,19 @@ export class PilotSpaceStore {
   skills: SkillDefinition[] = [];
 
   // ========================================
+  // Message Pagination State (scroll-up loading)
+  // ========================================
+
+  /** Total messages in the resumed session (for pagination calculation) */
+  totalMessages: number = 0;
+
+  /** Whether older messages exist (for scroll-up loading) */
+  hasMoreMessages: boolean = false;
+
+  /** Loading state for fetching older messages */
+  isLoadingMoreMessages: boolean = false;
+
+  // ========================================
   // Delegates
   // ========================================
 
@@ -164,6 +189,7 @@ export class PilotSpaceStore {
       activeTasks: computed,
       completedTasks: computed,
       conversationContext: computed,
+      tokenBudgetPercent: computed,
     });
   }
 
@@ -177,6 +203,11 @@ export class PilotSpaceStore {
 
   get streamContent(): string {
     return this.streamingState.streamContent;
+  }
+
+  /** Pending tool calls visible during streaming (for StreamingContent rendering). */
+  get pendingToolCalls(): ToolCall[] {
+    return this._pendingToolCalls;
   }
 
   get hasUnresolvedApprovals(): boolean {
@@ -193,9 +224,9 @@ export class PilotSpaceStore {
     return Array.from(this.tasks.values()).filter((task) => task.status === 'completed');
   }
 
-  get conversationContext(): ConversationContext {
+  get conversationContext(): ConversationContext | null {
     if (!this.workspaceId) {
-      throw new Error('Cannot create conversation context: workspaceId not set');
+      return null;
     }
     return {
       workspaceId: this.workspaceId,
@@ -207,12 +238,43 @@ export class PilotSpaceStore {
     };
   }
 
+  /** Token budget usage as percentage (0-100) based on 8K token limit (008). */
+  get tokenBudgetPercent(): number {
+    return ((this.sessionState.totalTokens ?? 0) / 8000) * 100;
+  }
+
   // ========================================
   // Actions - Message Management
   // ========================================
 
   addMessage(message: ChatMessage): void {
     this.messages.push(message);
+  }
+
+  /**
+   * Prepend older messages to the beginning of the list.
+   * Used for scroll-up loading when resuming sessions.
+   * @param messages - Older messages to prepend (in chronological order)
+   */
+  prependMessages(messages: ChatMessage[]): void {
+    this.messages = [...messages, ...this.messages];
+  }
+
+  /**
+   * Update pagination state after loading messages.
+   * @param hasMore - Whether more older messages exist
+   * @param total - Total message count in the session
+   */
+  setMessagePaginationState(hasMore: boolean, total: number): void {
+    this.hasMoreMessages = hasMore;
+    this.totalMessages = total;
+  }
+
+  /**
+   * Set loading state for fetching older messages.
+   */
+  setIsLoadingMoreMessages(loading: boolean): void {
+    this.isLoadingMoreMessages = loading;
   }
 
   updateStreamingState(state: Partial<StreamingState>): void {
@@ -265,11 +327,15 @@ export class PilotSpaceStore {
   }
 
   updateTaskStatus(taskId: string, status: TaskStatus): void {
-    this.approvalsHandler.updateTaskStatus(taskId, status);
+    const task = this.tasks.get(taskId);
+    if (task) {
+      task.status = status;
+      task.updatedAt = new Date();
+    }
   }
 
   removeTask(taskId: string): void {
-    this.approvalsHandler.removeTask(taskId);
+    this.tasks.delete(taskId);
   }
 
   // ========================================
@@ -474,6 +540,7 @@ export class PilotSpaceStore {
    * Abort current streaming response.
    */
   abort(): void {
+    this.streamingState.interrupted = true;
     this.actions.abort();
   }
 

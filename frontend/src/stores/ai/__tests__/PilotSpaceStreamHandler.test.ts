@@ -219,6 +219,66 @@ describe('PilotSpaceStreamHandler', () => {
       expect(store.findPendingToolCall('tc-1')?.status).toBe('failed');
     });
 
+    describe('tool_result toolUseId fallback', () => {
+      it('should resolve tool call using toolUseId when toolCallId is absent', () => {
+        // Buffer a tool call
+        store.addPendingToolCall({
+          id: 'tc-web-search',
+          name: 'web_search',
+          input: {},
+          status: 'pending',
+        });
+
+        // Send tool_result with toolUseId instead of toolCallId
+        handler.handleSSEEvent({
+          type: 'tool_result',
+          data: {
+            toolUseId: 'tc-web-search',
+            status: 'completed',
+            output: { results: ['result1'] },
+          } as any, // toolUseId is not in standard type but exists at runtime
+        });
+
+        const pending = store.findPendingToolCall('tc-web-search');
+        expect(pending?.status).toBe('completed');
+        expect(pending?.output).toEqual({ results: ['result1'] });
+      });
+
+      it('should prefer toolCallId over toolUseId when both present', () => {
+        store.addPendingToolCall({ id: 'tc-prefer', name: 'test', input: {}, status: 'pending' });
+
+        handler.handleSSEEvent({
+          type: 'tool_result',
+          data: {
+            toolCallId: 'tc-prefer',
+            toolUseId: 'tc-wrong',
+            status: 'completed',
+          },
+        });
+
+        expect(store.findPendingToolCall('tc-prefer')?.status).toBe('completed');
+      });
+
+      it('should ignore tool_result when neither toolCallId nor toolUseId present', () => {
+        store.addPendingToolCall({
+          id: 'tc-no-id',
+          name: 'test',
+          input: {},
+          status: 'pending',
+        });
+
+        handler.handleSSEEvent({
+          type: 'tool_result',
+          data: {
+            status: 'completed',
+          } as any,
+        });
+
+        // Tool call should still be pending since no ID was provided
+        expect(store.findPendingToolCall('tc-no-id')?.status).toBe('pending');
+      });
+    });
+
     it('should route task_progress and update task state', () => {
       handler.handleSSEEvent({
         type: 'task_progress',
@@ -342,6 +402,46 @@ describe('PilotSpaceStreamHandler', () => {
       expect(store.streamingState.streamContent).toBe('');
     });
 
+    it('should mark pending tool calls as completed on message_stop', () => {
+      // Set up streaming state
+      store.streamingState = {
+        isStreaming: true,
+        streamContent: 'Response',
+        currentMessageId: 'msg-1',
+        isThinking: false,
+        thinkingStartedAt: null,
+      };
+
+      // Buffer tool calls that never received tool_result
+      store.addPendingToolCall({
+        id: 'tc-1',
+        name: 'Read',
+        input: { file: 'test.ts' },
+        status: 'pending',
+      });
+      store.addPendingToolCall({
+        id: 'tc-2',
+        name: 'Grep',
+        input: { pattern: 'foo' },
+        status: 'pending',
+      });
+
+      handler.handleSSEEvent({
+        type: 'message_stop',
+        data: {
+          messageId: 'msg-1',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        },
+      });
+
+      // Tool calls should be attached to the finalized message as completed
+      const msg = store.messages.find((m) => m.id === 'msg-1');
+      expect(msg?.toolCalls).toHaveLength(2);
+      expect(msg?.toolCalls?.[0]?.status).toBe('completed');
+      expect(msg?.toolCalls?.[1]?.status).toBe('completed');
+    });
+
     it('should route error and set error state', () => {
       handler.handleSSEEvent({
         type: 'error',
@@ -397,6 +497,39 @@ describe('PilotSpaceStreamHandler', () => {
       expect(store.streamingState.phase).toBe('content');
     });
 
+    it('should defer block separator until real text_delta arrives after existing content', () => {
+      // Simulate first text block with content
+      store.streamingState.streamContent = 'First block text';
+      store.streamingState.currentBlockType = 'text';
+
+      // content_block_start no longer inserts separator eagerly
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'text' },
+      });
+
+      expect(store.streamingState.streamContent).toBe('First block text');
+
+      // Separator inserted when real text_delta arrives
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'Second block text' },
+      });
+
+      expect(store.streamingState.streamContent).toBe('First block text\n\nSecond block text');
+    });
+
+    it('should not insert block separator when streamContent is empty', () => {
+      store.streamingState.streamContent = '';
+
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+
+      expect(store.streamingState.streamContent).toBe('');
+    });
+
     it('should store parentToolUseId when present', () => {
       handler.handleSSEEvent({
         type: 'content_block_start',
@@ -415,6 +548,553 @@ describe('PilotSpaceStreamHandler', () => {
       // Tool call buffered in pending with parent ID
       const pending = store.findPendingToolCall('child-tc-1');
       expect(pending?.parentToolUseId).toBe('parent-tc-1');
+    });
+  });
+
+  describe('noise text_delta filtering', () => {
+    it('should filter out "(no content)" text deltas', () => {
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: '(no content)' },
+      });
+
+      expect(store.streamingState.streamContent).toBe('');
+    });
+
+    it('should preserve whitespace deltas containing newlines (markdown formatting)', () => {
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: '   \n  ' },
+      });
+
+      expect(store.streamingState.streamContent).toBe('   \n  ');
+    });
+
+    it('should filter out empty string deltas', () => {
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: '' },
+      });
+
+      expect(store.streamingState.streamContent).toBe('');
+    });
+
+    it('should not filter real content', () => {
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'Hello world' },
+      });
+
+      expect(store.streamingState.streamContent).toBe('Hello world');
+    });
+
+    it('should not insert deferred separator when only noise follows', () => {
+      store.streamingState.streamContent = 'First block';
+      store.streamingState.currentBlockType = 'text';
+
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: '(no content)' },
+      });
+
+      expect(store.streamingState.streamContent).toBe('First block');
+    });
+  });
+
+  describe('tool_input_delta with blockIndex mapping', () => {
+    it('should route tool_input_delta via blockIndex when toolUseId is absent', () => {
+      // Simulate content_block_start for tool_use block at index 2
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 2, contentType: 'tool_use' },
+      });
+
+      // tool_use event registers the tool call
+      handler.handleSSEEvent({
+        type: 'tool_use',
+        data: {
+          toolCallId: 'tc-block-2',
+          toolName: 'update_note_block',
+          toolInput: {},
+        },
+      });
+
+      // tool_input_delta with blockIndex (backend format) instead of toolUseId
+      handler.handleSSEEvent({
+        type: 'tool_input_delta',
+        data: { blockIndex: 2, delta: '{"key":"val"}' },
+      });
+
+      const tc = store.findPendingToolCall('tc-block-2');
+      expect(tc?.partialInput).toBe('{"key":"val"}');
+    });
+
+    it('should route tool_input_delta via toolUseId when present', () => {
+      store.addPendingToolCall({
+        id: 'tc-direct',
+        name: 'extract_issues',
+        input: {},
+        status: 'pending',
+      });
+
+      handler.handleSSEEvent({
+        type: 'tool_input_delta',
+        data: { toolUseId: 'tc-direct', inputDelta: '{"noteId":"n1"}' },
+      });
+
+      const tc = store.findPendingToolCall('tc-direct');
+      expect(tc?.partialInput).toBe('{"noteId":"n1"}');
+    });
+  });
+
+  describe('duplicate summary text block filtering', () => {
+    it('should skip text_deltas from index:0 text blocks when content already exists', () => {
+      // Simulate word-by-word text from index:1 block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'Hello world' },
+      });
+      expect(store.streamingState.streamContent).toBe('Hello world');
+
+      // Summary block at index:0 — should be skipped
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: ' Hello world  ' },
+      });
+
+      // Content should NOT be duplicated
+      expect(store.streamingState.streamContent).toBe('Hello world');
+    });
+
+    it('should not skip first text block at index:0 when content is empty', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'First message' },
+      });
+
+      expect(store.streamingState.streamContent).toBe('First message');
+    });
+
+    it('should resume accepting text after non-text block clears skip flag', () => {
+      // Populate existing content
+      store.streamingState.streamContent = 'Existing';
+
+      // Summary block — sets skip flag
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+
+      // Thinking block — clears skip flag
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'thinking' },
+      });
+
+      // New real text block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'New content' },
+      });
+
+      expect(store.streamingState.streamContent).toContain('New content');
+    });
+  });
+
+  describe('multi-turn thinking blocks', () => {
+    it('should create separate thinking blocks for each thinking turn', () => {
+      // First thinking turn
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'thinking' },
+      });
+      handler.handleSSEEvent({
+        type: 'thinking_delta',
+        data: { delta: 'First thought', blockIndex: 0 },
+      });
+
+      // Interleave text + tool call
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'Some response' },
+      });
+
+      // Second thinking turn — also blockIndex: 0 (model resets)
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'thinking' },
+      });
+      handler.handleSSEEvent({
+        type: 'thinking_delta',
+        data: { delta: 'Second thought', blockIndex: 0 },
+      });
+
+      // Should have 2 separate thinking blocks
+      const blocks = store.streamingState.thinkingBlocks;
+      expect(blocks).toHaveLength(2);
+      expect(blocks![0]!.content).toBe('First thought');
+      expect(blocks![1]!.content).toBe('Second thought');
+      // Block indices should be 0 and 1 (our turn counter, not raw blockIndex)
+      expect(blocks![0]!.blockIndex).toBe(0);
+      expect(blocks![1]!.blockIndex).toBe(1);
+    });
+
+    it('should accumulate deltas within the same thinking turn', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'thinking' },
+      });
+      handler.handleSSEEvent({
+        type: 'thinking_delta',
+        data: { delta: 'Part 1 ', blockIndex: 0 },
+      });
+      handler.handleSSEEvent({
+        type: 'thinking_delta',
+        data: { delta: 'Part 2', blockIndex: 0 },
+      });
+
+      const blocks = store.streamingState.thinkingBlocks;
+      expect(blocks).toHaveLength(1);
+      expect(blocks![0]!.content).toBe('Part 1 Part 2');
+    });
+  });
+
+  describe('flag-based block separator', () => {
+    it('should NOT insert separator between consecutive deltas in same text block', () => {
+      // Start a text block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+
+      // Multiple deltas in the same block
+      handler.handleSSEEvent({ type: 'text_delta', data: { delta: 'Hello' } });
+      handler.handleSSEEvent({ type: 'text_delta', data: { delta: ' world' } });
+      handler.handleSSEEvent({ type: 'text_delta', data: { delta: '!' } });
+
+      // Should be concatenated without any \n\n between them
+      expect(store.streamingState.streamContent).toBe('Hello world!');
+    });
+
+    it('should insert separator only once between text blocks', () => {
+      // First text block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+      handler.handleSSEEvent({ type: 'text_delta', data: { delta: 'First' } });
+      handler.handleSSEEvent({ type: 'text_delta', data: { delta: ' block' } });
+
+      // Second text block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'text' },
+      });
+      handler.handleSSEEvent({ type: 'text_delta', data: { delta: 'Second' } });
+      handler.handleSSEEvent({ type: 'text_delta', data: { delta: ' block' } });
+
+      // One separator between blocks, no separators within blocks
+      expect(store.streamingState.streamContent).toBe('First block\n\nSecond block');
+    });
+  });
+
+  describe('ordered content blocks', () => {
+    it('should build interleaved contentBlocks at finalization', () => {
+      // message_start
+      handler.handleSSEEvent({
+        type: 'message_start',
+        data: { messageId: 'msg-ordered', sessionId: 's1' },
+      });
+
+      // Thinking block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'thinking' },
+      });
+      handler.handleSSEEvent({
+        type: 'thinking_delta',
+        data: { delta: 'Let me think...', blockIndex: 0 },
+      });
+
+      // Text block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'Here is the answer' },
+      });
+
+      // Tool call
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 2, contentType: 'tool_use' },
+      });
+      handler.handleSSEEvent({
+        type: 'tool_use',
+        data: { toolCallId: 'tc-1', toolName: 'search', toolInput: {} },
+      });
+
+      // Second thinking block (new turn, blockIndex resets)
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'thinking' },
+      });
+      handler.handleSSEEvent({
+        type: 'thinking_delta',
+        data: { delta: 'Thinking again...', blockIndex: 0 },
+      });
+
+      // Second text block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'Final answer' },
+      });
+
+      // Finalize
+      handler.handleSSEEvent({
+        type: 'message_stop',
+        data: {
+          messageId: 'msg-ordered',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+        },
+      });
+
+      const msg = store.messages.find((m) => m.id === 'msg-ordered');
+      expect(msg?.contentBlocks).toBeDefined();
+      expect(msg!.contentBlocks).toHaveLength(5);
+
+      // Verify order: thinking → text → tool_call → thinking → text
+      expect(msg!.contentBlocks![0]!.type).toBe('thinking');
+      expect(msg!.contentBlocks![1]!.type).toBe('text');
+      expect(msg!.contentBlocks![2]!.type).toBe('tool_call');
+      expect(msg!.contentBlocks![3]!.type).toBe('thinking');
+      expect(msg!.contentBlocks![4]!.type).toBe('text');
+
+      // Verify content
+      const tb0 = msg!.contentBlocks![0] as { type: 'thinking'; content: string };
+      expect(tb0.content).toBe('Let me think...');
+      const txt0 = msg!.contentBlocks![1] as { type: 'text'; content: string };
+      expect(txt0.content).toBe('Here is the answer');
+      const tc0 = msg!.contentBlocks![2] as { type: 'tool_call'; toolCallId: string };
+      expect(tc0.toolCallId).toBe('tc-1');
+      const tb1 = msg!.contentBlocks![3] as { type: 'thinking'; content: string };
+      expect(tb1.content).toBe('Thinking again...');
+      const txt1 = msg!.contentBlocks![4] as { type: 'text'; content: string };
+      expect(txt1.content).toBe('Final answer');
+    });
+
+    it('should not set contentBlocks when there are no tracked blocks', () => {
+      store.streamingState = {
+        isStreaming: true,
+        streamContent: 'Simple text',
+        currentMessageId: 'msg-simple',
+        isThinking: false,
+        thinkingStartedAt: null,
+      };
+
+      handler.handleSSEEvent({
+        type: 'message_stop',
+        data: {
+          messageId: 'msg-simple',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+        },
+      });
+
+      const msg = store.messages.find((m) => m.id === 'msg-simple');
+      expect(msg?.contentBlocks).toBeUndefined();
+    });
+
+    it('should track separate text segments per text block', () => {
+      handler.handleSSEEvent({
+        type: 'message_start',
+        data: { messageId: 'msg-segments', sessionId: 's1' },
+      });
+
+      // First text block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+      handler.handleSSEEvent({ type: 'text_delta', data: { delta: 'Segment 1' } });
+
+      // Tool call between text blocks
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'tool_use' },
+      });
+      handler.handleSSEEvent({
+        type: 'tool_use',
+        data: { toolCallId: 'tc-seg', toolName: 'search', toolInput: {} },
+      });
+
+      // Second text block
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 2, contentType: 'text' },
+      });
+      handler.handleSSEEvent({ type: 'text_delta', data: { delta: 'Segment 2' } });
+
+      // Finalize
+      handler.handleSSEEvent({
+        type: 'message_stop',
+        data: {
+          messageId: 'msg-segments',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+        },
+      });
+
+      const msg = store.messages.find((m) => m.id === 'msg-segments');
+      expect(msg!.contentBlocks).toHaveLength(3);
+      expect(msg!.contentBlocks![0]).toEqual({ type: 'text', content: 'Segment 1' });
+      expect(msg!.contentBlocks![1]).toEqual({ type: 'tool_call', toolCallId: 'tc-seg' });
+      expect(msg!.contentBlocks![2]).toEqual({ type: 'text', content: 'Segment 2' });
+    });
+  });
+
+  describe('blockOrder and textSegments sync to streamingState', () => {
+    it('should sync blockOrder after thinking content_block_start', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'thinking' },
+      });
+
+      expect(store.streamingState.blockOrder).toEqual(['thinking']);
+      expect(store.streamingState.textSegments).toEqual([]);
+    });
+
+    it('should sync blockOrder and textSegments after text content_block_start', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+
+      expect(store.streamingState.blockOrder).toEqual(['text']);
+      expect(store.streamingState.textSegments).toEqual(['']);
+    });
+
+    it('should sync blockOrder after tool_use content_block_start', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'tool_use' },
+      });
+
+      expect(store.streamingState.blockOrder).toEqual(['tool_use']);
+    });
+
+    it('should accumulate blockOrder across multiple content_block_starts', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'thinking' },
+      });
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 2, contentType: 'tool_use' },
+      });
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 3, contentType: 'text' },
+      });
+
+      expect(store.streamingState.blockOrder).toEqual(['thinking', 'text', 'tool_use', 'text']);
+      expect(store.streamingState.textSegments).toEqual(['', '']);
+    });
+
+    it('should update textSegments as text_delta events arrive', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'Hello' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: ' world' },
+      });
+
+      expect(store.streamingState.textSegments).toEqual(['Hello world']);
+    });
+
+    it('should track separate textSegments for each text block', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'First' },
+      });
+
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'tool_use' },
+      });
+
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 2, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'Second' },
+      });
+
+      expect(store.streamingState.textSegments).toEqual(['First', 'Second']);
+      expect(store.streamingState.blockOrder).toEqual(['text', 'tool_use', 'text']);
+    });
+
+    it('should create new array references on each sync (MobX detection)', () => {
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+      const firstBlockOrder = store.streamingState.blockOrder;
+      const firstTextSegments = store.streamingState.textSegments;
+
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 1, contentType: 'thinking' },
+      });
+      const secondBlockOrder = store.streamingState.blockOrder;
+      const secondTextSegments = store.streamingState.textSegments;
+
+      // Different references for MobX reactivity
+      expect(firstBlockOrder).not.toBe(secondBlockOrder);
+      expect(firstTextSegments).not.toBe(secondTextSegments);
     });
   });
 

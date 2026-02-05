@@ -143,6 +143,8 @@ export interface ToolResultEvent extends SSEEvent {
   data: {
     /** Tool call identifier (matches ToolUseEvent.toolCallId) */
     toolCallId: string;
+    /** Legacy field name from web search events — use toolCallId when available */
+    toolUseId?: string;
     /** Tool execution status */
     status: 'completed' | 'failed' | 'cancelled';
     /** Tool output (tool-specific structure) */
@@ -540,13 +542,27 @@ export interface MemoryUpdateEvent extends SSEEvent {
   };
 }
 
-/** T59: Tool input delta for progressive tool parameter rendering. */
+/** T59: Tool input delta for progressive tool parameter rendering.
+ *
+ * Supports two backend field formats:
+ * - Original (pilotspace_agent_helpers): { toolUseId, toolName, inputDelta }
+ * - Stream transformer (stream_event_transformer): { messageId, delta, blockIndex }
+ */
 export interface ToolInputDeltaEvent extends SSEEvent {
   type: 'tool_input_delta';
   data: {
-    toolUseId: string;
-    toolName: string;
-    inputDelta: string;
+    /** Tool use ID (original format) */
+    toolUseId?: string;
+    /** Tool name (original format) */
+    toolName?: string;
+    /** Input delta text (original format) */
+    inputDelta?: string;
+    /** Message ID (stream transformer format) */
+    messageId?: string;
+    /** Delta text (stream transformer format) */
+    delta?: string;
+    /** Content block index for mapping to tool call (stream transformer format) */
+    blockIndex?: number;
   };
 }
 

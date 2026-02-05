@@ -15,6 +15,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,7 @@ import { ApprovalOverlay } from './ApprovalOverlay/ApprovalOverlay';
 import { ChatInput } from './ChatInput/ChatInput';
 import { SuggestionCard } from './MessageList/SuggestionCard';
 import { QuestionCard } from './MessageList/QuestionCard';
+import { StreamingBanner } from './StreamingBanner';
 import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
 
 /**
@@ -55,6 +57,81 @@ export function isDestructiveAction(actionType: string): boolean {
   return DESTRUCTIVE_ACTIONS.has(actionType);
 }
 
+/**
+ * Loading skeleton for conversation resume with staggered animation
+ */
+function ConversationLoadingSkeleton() {
+  const messageSkeletons = [
+    // User message
+    { align: 'end', items: [{ h: 4, w: 48 }, { h: 12, w: 64 }] },
+    // Assistant message
+    { align: 'start', items: [{ h: 4, w: 32 }, { h: 20, w: 80 }, { h: 16, w: 72 }] },
+    // User message
+    { align: 'end', items: [{ h: 4, w: 40 }, { h: 10, w: 56 }] },
+    // Assistant message
+    { align: 'start', items: [{ h: 4, w: 36 }, { h: 24, w: 96 }] },
+  ];
+
+  return (
+    <motion.div
+      className="flex-1 overflow-y-auto px-4 py-6 space-y-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+    >
+      {messageSkeletons.map((msg, idx) => (
+        <motion.div
+          key={idx}
+          className={cn('flex', msg.align === 'end' ? 'justify-end' : 'justify-start')}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: idx * 0.1, duration: 0.3 }}
+        >
+          <div className="max-w-[80%] space-y-2">
+            {msg.items.map((item, itemIdx) => (
+              <Skeleton
+                key={itemIdx}
+                className={cn(
+                  `h-${item.h} w-${item.w} rounded-xl`,
+                  msg.align === 'end' && itemIdx === 0 && 'ml-auto'
+                )}
+                style={{ height: item.h * 4, width: item.w * 4 }}
+              />
+            ))}
+          </div>
+        </motion.div>
+      ))}
+
+      {/* Loading indicator at bottom */}
+      <motion.div
+        className="flex justify-center pt-2"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.4 }}
+      >
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <motion.div
+            className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50"
+            animate={{ scale: [1, 1.2, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 0.2 }}
+          />
+          <motion.div
+            className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50"
+            animate={{ scale: [1, 1.2, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 0.2, delay: 0.2 }}
+          />
+          <motion.div
+            className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50"
+            animate={{ scale: [1, 1.2, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 0.2, delay: 0.4 }}
+          />
+          <span className="ml-1">Loading conversation</span>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 interface ChatViewProps {
   store: PilotSpaceStore;
   userName?: string;
@@ -71,26 +148,74 @@ const ChatViewInternal = observer<ChatViewProps>(
     const [inputValue, setInputValue] = useState('');
     const [taskPanelOpen, setTaskPanelOpen] = useState(true);
     const [showClearDialog, setShowClearDialog] = useState(false);
+    const [isResumingSession, setIsResumingSession] = useState(false);
+    // Trigger to scroll MessageList to bottom after session resume
+    const [scrollToBottomTrigger, setScrollToBottomTrigger] = useState(0);
     const prefersReducedMotion = useReducedMotion();
 
     // Initialize SessionListStore (T075-T079)
     const [sessionListStore] = useState(() => new SessionListStore(store));
 
-    // Fetch sessions on mount
+    // Track which note context has been loaded to avoid redundant fetches
+    const loadedContextRef = useRef<string | null>(null);
+    // Track if auto-resume is in progress to prevent race conditions
+    const isResumingRef = useRef(false);
+
+    // Fetch all sessions on mount for the resume menu (\resume command)
     useEffect(() => {
       sessionListStore.fetchSessions();
     }, [sessionListStore]);
 
-    // Load conversation history for note context when ChatView opens or noteId changes
-    const loadedContextRef = useRef<string | null>(null);
+    // Auto-resume most recent session for context on mount/context change.
+    // Falls back to fresh conversation if no matching session exists.
     useEffect(() => {
       const noteId = store.noteContext?.noteId;
-      if (!noteId || loadedContextRef.current === noteId) return;
 
-      // Clear previous note's conversation before loading new one
-      store.clearConversation();
-      loadedContextRef.current = noteId;
-      sessionListStore.resumeSessionForContext(noteId, 'note');
+      // Skip if context hasn't changed
+      if (loadedContextRef.current === noteId) {
+        return;
+      }
+
+      // Update tracked context
+      const previousNoteId = loadedContextRef.current;
+      loadedContextRef.current = noteId ?? null;
+
+      // If note context is cleared, clear conversation and fetch all sessions
+      if (!noteId) {
+        store.clearConversation();
+        sessionListStore.fetchSessions();
+        return;
+      }
+
+      // Note context changed - try to auto-resume existing session
+      const autoResumeSession = async () => {
+        if (isResumingRef.current) return;
+        isResumingRef.current = true;
+        setIsResumingSession(true);
+
+        try {
+          // Clear previous conversation before attempting resume
+          if (previousNoteId !== null) {
+            store.clearConversation();
+          }
+
+          // Try to find and resume session for this context
+          const resumed = await sessionListStore.resumeSessionForContext(noteId, 'note');
+
+          if (resumed) {
+            // Session resumed - trigger scroll to bottom to show latest messages
+            setScrollToBottomTrigger((prev) => prev + 1);
+          } else {
+            // No existing session - ensure clean state for new conversation
+            store.clearConversation();
+          }
+        } finally {
+          isResumingRef.current = false;
+          setIsResumingSession(false);
+        }
+      };
+
+      autoResumeSession();
     }, [store.noteContext?.noteId, sessionListStore, store]);
 
     // Convert TaskState to AgentTask for TaskPanel with progress data
@@ -176,10 +301,6 @@ const ChatViewInternal = observer<ChatViewProps>(
       }
     }, [inputValue, store]);
 
-    const handleClearConversation = useCallback(() => {
-      setShowClearDialog(true);
-    }, []);
-
     const handleConfirmClear = useCallback(() => {
       store.clearConversation();
       setInputValue('');
@@ -235,49 +356,81 @@ const ChatViewInternal = observer<ChatViewProps>(
     const handleSelectSession = useCallback(
       async (sessionId: string) => {
         await sessionListStore.resumeSession(sessionId);
+        // Trigger scroll to bottom to show latest messages
+        setScrollToBottomTrigger((prev) => prev + 1);
       },
       [sessionListStore]
     );
 
-    // Prepare recent sessions for dropdown
-    const recentSessions = useMemo(
+    // Sessions list for resume menu
+    const sessionsForResumeMenu = useMemo(
       () =>
-        sessionListStore.activeSessions.slice(0, 5).map((s) => ({
+        sessionListStore.activeSessions.map((s) => ({
           sessionId: s.sessionId,
           title: s.title,
+          contextHistory: s.contextHistory,
+          turnCount: s.turnCount,
           updatedAt: s.updatedAt,
+          agentName: s.agentName,
         })),
       [sessionListStore.activeSessions]
     );
 
+    const handleSearchSessions = useCallback(
+      (query: string) => {
+        sessionListStore.searchSessions(query);
+      },
+      [sessionListStore]
+    );
+
+    /**
+     * Load more older messages when user scrolls up.
+     * Only triggers if hasMoreMessages is true.
+     */
+    const handleLoadMoreMessages = useCallback(async () => {
+      if (!store.sessionId || !store.hasMoreMessages || store.isLoadingMoreMessages) {
+        return;
+      }
+      await sessionListStore.loadMoreMessages(store.sessionId);
+    }, [store.sessionId, store.hasMoreMessages, store.isLoadingMoreMessages, sessionListStore]);
+
     return (
       <div className={cn('flex flex-col h-full bg-background', className)} data-testid="chat-view">
-        {/* Header with session selector (T075-T079) */}
+        {/* Compact header */}
         <ChatHeader
           title="PilotSpace Agent"
           isStreaming={store.isStreaming}
-          activeTaskCount={store.activeTasks.length}
-          sessionId={store.sessionId}
-          recentSessions={recentSessions}
-          onClear={handleClearConversation}
-          onClose={onClose}
           onNewSession={handleNewSession}
-          onSelectSession={handleSelectSession}
+          onClose={onClose}
         />
 
         {/* Main content area - relative for floating abort button */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-          {/* Messages */}
-          <MessageList
-            messages={store.messages}
-            isStreaming={store.isStreaming}
-            streamContent={store.streamContent}
-            thinkingContent={store.streamingState.thinkingContent}
-            isThinking={store.streamingState.isThinking}
-            userName={userName}
-            userAvatar={userAvatar}
-            className="flex-1"
-          />
+        <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
+          {/* Messages or loading skeleton */}
+          {isResumingSession ? (
+            <ConversationLoadingSkeleton />
+          ) : (
+            <MessageList
+              messages={store.messages}
+              isStreaming={store.isStreaming}
+              streamContent={store.streamContent}
+              thinkingContent={store.streamingState.thinkingContent}
+              thinkingBlocks={store.streamingState.thinkingBlocks}
+              isThinking={store.streamingState.isThinking}
+              thinkingStartedAt={store.streamingState.thinkingStartedAt}
+              interrupted={store.streamingState.interrupted}
+              pendingToolCalls={store.pendingToolCalls}
+              blockOrder={store.streamingState.blockOrder}
+              textSegments={store.streamingState.textSegments}
+              userName={userName}
+              userAvatar={userAvatar}
+              className="flex-1"
+              scrollToBottomTrigger={scrollToBottomTrigger}
+              hasMoreMessages={store.hasMoreMessages}
+              isLoadingMoreMessages={store.isLoadingMoreMessages}
+              onLoadMore={handleLoadMoreMessages}
+            />
+          )}
 
           {/* Inline question card for AskUserQuestion events */}
           {store.pendingQuestion && (
@@ -357,6 +510,16 @@ const ChatViewInternal = observer<ChatViewProps>(
           />
         ))}
 
+        {/* Streaming state banner */}
+        <StreamingBanner
+          isStreaming={store.isStreaming}
+          phase={store.streamingState.phase}
+          activeToolName={store.streamingState.activeToolName}
+          wordCount={store.streamingState.wordCount ?? 0}
+          interrupted={store.streamingState.interrupted ?? false}
+          thinkingStartedAt={store.streamingState.thinkingStartedAt}
+        />
+
         {/* Input */}
         <ChatInput
           value={inputValue}
@@ -386,6 +549,14 @@ const ChatViewInternal = observer<ChatViewProps>(
               : null
           }
           projectContext={null} // TODO: Add projectContext to store
+          tokenBudgetPercent={store.tokenBudgetPercent}
+          tokensUsed={store.sessionState?.totalTokens}
+          tokenBudget={8000}
+          sessions={sessionsForResumeMenu}
+          sessionsLoading={sessionListStore.isLoading}
+          onSelectSession={handleSelectSession}
+          onSearchSessions={handleSearchSessions}
+          onNewSession={handleNewSession}
           onClearNoteContext={handleClearNoteContext}
           onClearIssueContext={handleClearIssueContext}
           onClearProjectContext={handleClearProjectContext}

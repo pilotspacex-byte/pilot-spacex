@@ -52,6 +52,16 @@ export interface ThinkingBlockEntry {
 }
 
 /**
+ * Ordered content block for preserving interleaved rendering order.
+ * Used by AssistantMessage to render thinking/text/tool blocks in the
+ * order they were received from the server, rather than grouped by type.
+ */
+export type ContentBlock =
+  | { type: 'thinking'; blockIndex: number; content: string; redacted?: boolean }
+  | { type: 'text'; content: string }
+  | { type: 'tool_call'; toolCallId: string };
+
+/**
  * Chat message in a conversation thread.
  */
 export interface ChatMessage {
@@ -69,6 +79,8 @@ export interface ChatMessage {
   thinkingContent?: string;
   /** Individual thinking blocks for interleaved rendering (G-07) */
   thinkingBlocks?: ThinkingBlockEntry[];
+  /** Ordered content blocks preserving interleaved rendering sequence */
+  contentBlocks?: ContentBlock[];
   /** Duration of thinking phase in milliseconds */
   thinkingDurationMs?: number;
   /** Thinking block signature for multi-turn verification (G-06) */
@@ -151,6 +163,8 @@ export interface SessionState {
   totalCostUsd?: number;
   /** Turn count in this session */
   turnCount?: number;
+  /** Accumulated token count for budget ring display (008) */
+  totalTokens?: number;
 }
 
 /**
@@ -180,6 +194,16 @@ export interface StreamingState {
   thinkingSignature?: string;
   /** Accumulated thinking blocks for interleaved rendering (G-07) */
   thinkingBlocks?: ThinkingBlockEntry[];
+  /** Currently executing tool name for banner display (008) */
+  activeToolName?: string | null;
+  /** Stream was aborted by user (008) */
+  interrupted?: boolean;
+  /** Accumulated word count during text generation phase (008) */
+  wordCount?: number;
+  /** Ordered sequence of content block types for interleaved streaming rendering */
+  blockOrder?: Array<'thinking' | 'text' | 'tool_use'>;
+  /** Per-text-block segments for ordered rendering (one entry per 'text' in blockOrder) */
+  textSegments?: string[];
 }
 
 /**

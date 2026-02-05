@@ -15,7 +15,7 @@ from pilot_space.api.v1.schemas.ai_suggestion import (
     SuggestionDecisionResponse,
 )
 from pilot_space.dependencies import (
-    CurrentUserIdOrDemo,
+    CurrentUserId,
     get_activity_service,
     get_current_workspace_id,
 )
@@ -32,7 +32,7 @@ async def record_suggestion_decision(
     issue_id: UUID,
     request: SuggestionDecisionRequest,
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
-    user_id: CurrentUserIdOrDemo,
+    user_id: CurrentUserId,
     activity_service: Annotated[..., Depends(get_activity_service)],
 ) -> SuggestionDecisionResponse:
     """Record user's decision on an AI suggestion for analytics."""

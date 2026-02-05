@@ -23,7 +23,7 @@ from pilot_space.api.v1.schemas.annotation import (
     AnalyzeNoteResponse,
 )
 from pilot_space.dependencies import (
-    CurrentUserIdOrDemo,
+    CurrentUserId,
     DbSession,
 )
 
@@ -61,7 +61,7 @@ async def analyze_note(
     workspace_id: WorkspaceId,
     correlation_id: CorrelationId,
     analyze_request: AnalyzeNoteRequest,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     session: DbSession,
 ) -> AnalyzeNoteResponse:
     """Analyze note and generate margin annotations.
@@ -89,7 +89,7 @@ async def generate_annotations(
     correlation_id: CorrelationId,
     note_id: Annotated[uuid.UUID, Path(description="Note ID")],
     body: AnnotateBlocksRequest,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     session: DbSession,
 ) -> SSEResponse:
     """Generate margin annotations for note blocks.

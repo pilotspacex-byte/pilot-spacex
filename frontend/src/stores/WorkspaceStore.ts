@@ -140,6 +140,20 @@ export class WorkspaceStore {
     }
   }
 
+  /**
+   * Sets the current workspace directly (skipping fetch).
+   * Used by WorkspaceGuard to sync workspace from context to MobX store.
+   */
+  setCurrentWorkspace(workspace: Workspace): void {
+    this.workspaces.set(workspace.id, workspace);
+    this.currentWorkspaceId = workspace.id;
+    this.saveToStorage();
+
+    if (!this.members.has(workspace.id)) {
+      this.fetchMembers(workspace.id);
+    }
+  }
+
   async fetchWorkspaces(): Promise<void> {
     if (!this.api) {
       this.error = 'Workspace API not initialized';

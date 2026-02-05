@@ -12,10 +12,7 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pilot_space.dependencies.auth import DEMO_WORKSPACE_SLUGS, get_session
-
-# Demo workspace UUID for slug-based workspace IDs
-DEMO_WORKSPACE_UUID = UUID("00000000-0000-0000-0000-000000000002")
+from pilot_space.dependencies.auth import get_session
 
 
 def get_current_workspace_id(request: Request) -> UUID:
@@ -26,8 +23,6 @@ def get_current_workspace_id(request: Request) -> UUID:
     2. X-Workspace-Id header
     3. X-Workspace-ID header (alternative casing)
 
-    Supports demo workspace slugs in development mode.
-
     Args:
         request: The current request.
 
@@ -37,10 +32,6 @@ def get_current_workspace_id(request: Request) -> UUID:
     Raises:
         HTTPException: If workspace ID not found.
     """
-    from pilot_space.config import get_settings
-
-    settings = get_settings()
-
     # First check request.state (set by middleware)
     workspace_id = getattr(request.state, "workspace_id", None)
     if workspace_id is not None:
@@ -49,12 +40,6 @@ def get_current_workspace_id(request: Request) -> UUID:
     # Fallback to header (case-insensitive check)
     header_value = request.headers.get("X-Workspace-Id") or request.headers.get("X-Workspace-ID")
     if header_value:
-        # Check for demo workspace slugs in development mode
-        if settings.app_env in ("development", "test"):
-            if header_value.lower() in DEMO_WORKSPACE_SLUGS:
-                request.state.workspace_id = DEMO_WORKSPACE_UUID
-                return DEMO_WORKSPACE_UUID
-
         try:
             workspace_id = UUID(header_value)
             # Store in request.state for subsequent use

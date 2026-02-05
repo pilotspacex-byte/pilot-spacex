@@ -41,7 +41,7 @@ class TestGhostTextComplete:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
         start_time = time.time()
 
@@ -85,7 +85,7 @@ class TestGhostTextComplete:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
         context = "The API endpoint should validate "
 
@@ -150,7 +150,7 @@ class TestGhostTextComplete:
 
         Note: Rate limiting may not be enforced in demo mode.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Send multiple rapid requests
@@ -191,7 +191,7 @@ class TestGhostTextComplete:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Technical context
@@ -238,7 +238,7 @@ class TestGhostTextComplete:
 
         Note: Full cancellation testing requires client-side behavior.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Test that streaming request works and can be partially consumed
@@ -279,7 +279,7 @@ class TestGhostTextComplete:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         async with test_e2e_client.stream(
@@ -317,7 +317,7 @@ class TestGhostTextComplete:
             test_e2e_client: AsyncClient for making requests.
             mock_claude_sdk_demo_mode: Mock SDK fixture.
         """
-        demo_headers = {"X-Workspace-Id": "pilot-space-demo"}
+        demo_headers = {"X-Workspace-Id": "00000000-0000-0000-0000-000000000002"}
         workspace_id = "00000000-0000-0000-0000-000000000002"
 
         # Empty message should fail validation

@@ -29,6 +29,12 @@ import { ChatView } from '@/features/ai/ChatView/ChatView';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable';
+import { usePanelRef } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
 import { createEditorExtensions } from '@/features/notes/editor/extensions';
 import { useResponsive } from '@/hooks/useMediaQuery';
@@ -163,9 +169,13 @@ export const NoteCanvas = observer(function NoteCanvas({
 }: NoteCanvasProps) {
   const [editorError, setEditorError] = useState<string | null>(null);
   const [isChatViewOpen, setIsChatViewOpen] = useState(true);
+  // Track ChatView panel size state for toggle button icon
+  const [chatPanelState, setChatPanelState] = useState<'min' | 'max' | 'mid'>('min');
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Panel ref for programmatic resize
+  const chatPanelRef = usePanelRef();
 
   // Ref to track current editor for ghost text callback
   const editorRef = useRef<Editor | null>(null);
@@ -178,24 +188,19 @@ export const NoteCanvas = observer(function NoteCanvas({
   const aiStore = getAIStore();
   const workspaceStore = useWorkspaceStore();
 
-  // Demo workspace UUID fallback (matches /chat page pattern)
-  const DEMO_WORKSPACE_ID = '00000000-0000-0000-0000-000000000002';
-
   // Resolve workspace UUID with cascading fallback:
   // 1. workspaceId prop if already UUID
   // 2. Slug lookup from workspace store
   // 3. currentWorkspace from store
-  // 4. Demo workspace ID (development fallback)
   const isUUID = workspaceId && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(workspaceId);
   const resolvedWorkspaceId = isUUID
     ? workspaceId
     : (workspaceId && workspaceStore.getWorkspaceBySlug(workspaceId)?.id) ||
-      workspaceStore.currentWorkspace?.id ||
-      DEMO_WORKSPACE_ID;
+      workspaceStore.currentWorkspace?.id;
 
   // Set workspace context on PilotSpaceStore so chat messages include workspaceId
   useEffect(() => {
-    aiStore.pilotSpace.setWorkspaceId(resolvedWorkspaceId);
+    aiStore.pilotSpace.setWorkspaceId(resolvedWorkspaceId ?? null);
   }, [resolvedWorkspaceId, aiStore.pilotSpace]);
 
   // Set note context on mount so ChatView can auto-restore conversation history.
@@ -213,7 +218,7 @@ export const NoteCanvas = observer(function NoteCanvas({
   }, [noteId, aiStore.pilotSpace]);
 
   // Responsive breakpoints
-  const { isSmallScreen, isLargeDesktop } = useResponsive();
+  const { isSmallScreen } = useResponsive();
 
   // Ghost text trigger function - delegates to GhostTextStore
   const handleGhostTextTrigger = useCallback(
@@ -346,10 +351,24 @@ export const NoteCanvas = observer(function NoteCanvas({
             // Ensure note context is set before sending (useSelectionContext
             // may not have fired yet if the slash command was typed quickly)
             if (noteIdRef.current) {
+              // Extract block IDs from current selection
+              const selectedBlockIds: string[] = [];
+              if (cmdEditor && !cmdEditor.state.selection.empty) {
+                const { from, to } = cmdEditor.state.selection;
+                cmdEditor.state.doc.nodesBetween(from, to, (node) => {
+                  const blockId = node.attrs?.id || node.attrs?.blockId;
+                  if (blockId && !selectedBlockIds.includes(blockId)) {
+                    selectedBlockIds.push(blockId);
+                  }
+                  return true;
+                });
+              }
+
               aiStore.pilotSpace.setNoteContext({
                 noteId: noteIdRef.current,
                 noteTitle: titleRef.current || 'Untitled',
                 selectedText: selectedText || undefined,
+                selectedBlockIds: selectedBlockIds.length > 0 ? selectedBlockIds : undefined,
               });
             }
 
@@ -485,6 +504,37 @@ export const NoteCanvas = observer(function NoteCanvas({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isChatViewOpen, handleChatViewOpen, onSave]);
 
+  // Toggle ChatView panel between min (38%) and max (50%) sizes
+  const handleChatPanelToggle = useCallback(() => {
+    const panel = chatPanelRef.current;
+    if (!panel) return;
+
+    if (chatPanelState === 'min' || chatPanelState === 'mid') {
+      // Expand to max
+      panel.resize('50%');
+      setChatPanelState('max');
+    } else {
+      // Collapse to min
+      panel.resize('30%');
+      setChatPanelState('min');
+    }
+  }, [chatPanelState, chatPanelRef]);
+
+  // Update panel state when resized manually
+  const handleChatPanelResize = useCallback(
+    (size: { asPercentage: number; inPixels: number }) => {
+      const pct = size.asPercentage;
+      if (pct <= 39) {
+        setChatPanelState('min');
+      } else if (pct >= 49) {
+        setChatPanelState('max');
+      } else {
+        setChatPanelState('mid');
+      }
+    },
+    []
+  );
+
   // Retry on error
   const handleRetry = useCallback(() => {
     setEditorError(null);
@@ -504,77 +554,143 @@ export const NoteCanvas = observer(function NoteCanvas({
     return <EditorSkeleton />;
   }
 
-  return (
-    <div className="flex h-full bg-background overflow-hidden" data-testid="note-editor">
-      {/* Center Panel: Document Canvas - Notion-inspired clean layout */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        {/* Inline Note Header - Fixed at top, outside scrollable area */}
-        {(title || createdAt) && (
-          <InlineNoteHeader
-            title={title}
-            author={author}
-            createdAt={createdAt ?? new Date().toISOString()}
-            updatedAt={updatedAt}
-            wordCount={wordCount}
-            isPinned={isPinned}
-            isAIAssisted={isAIAssisted}
-            topics={topics}
-            workspaceSlug={workspaceSlug}
-            onShare={onShare}
-            onExport={onExport}
-            onDelete={onDelete}
-            onTogglePin={onTogglePin}
-            onVersionHistory={onVersionHistory}
-            disabled={readOnly}
-          />
-        )}
+  // Editor content component - reusable for both resizable and non-resizable layouts
+  const editorContent = (
+    <div className="flex flex-col min-w-0 overflow-hidden h-full">
+      {/* Inline Note Header - Fixed at top, outside scrollable area */}
+      {(title || createdAt) && (
+        <InlineNoteHeader
+          title={title}
+          author={author}
+          createdAt={createdAt ?? new Date().toISOString()}
+          updatedAt={updatedAt}
+          wordCount={wordCount}
+          isPinned={isPinned}
+          isAIAssisted={isAIAssisted}
+          topics={topics}
+          workspaceSlug={workspaceSlug}
+          onShare={onShare}
+          onExport={onExport}
+          onDelete={onDelete}
+          onTogglePin={onTogglePin}
+          onVersionHistory={onVersionHistory}
+          disabled={readOnly}
+        />
+      )}
 
-        {/* Editor Toolbar - AI controls and formatting options */}
-        {/* {!readOnly && <EditorToolbar noteId={noteId} workspaceId={workspaceId} />} */}
+      {/* Scrollable Editor Area */}
+      <div ref={editorContainerRef} className="relative flex-1 overflow-auto bg-background">
+        {/* Selection Toolbar */}
+        <SelectionToolbar
+          editor={editor}
+          workspaceId={workspaceId}
+          noteId={noteId}
+          onChatViewOpen={handleChatViewOpen}
+        />
 
-        {/* Scrollable Editor Area */}
-        <div ref={editorContainerRef} className="relative flex-1 overflow-auto bg-background">
-          {/* Selection Toolbar */}
-          <SelectionToolbar
-            editor={editor}
-            workspaceId={workspaceId}
-            noteId={noteId}
-            onChatViewOpen={handleChatViewOpen}
-          />
-
-          {/* Editor Content - Responsive padding and width */}
+        {/* Editor Content - Responsive padding and width */}
+        <div
+          ref={scrollRef}
+          className={cn(
+            'h-full overflow-auto scrollbar-thin',
+            // Responsive horizontal padding - more breathing room on larger screens
+            'px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20',
+            // Responsive vertical padding
+            'py-3 sm:py-4 lg:py-6 2xl:py-8'
+          )}
+        >
           <div
-            ref={scrollRef}
             className={cn(
-              'h-full overflow-auto scrollbar-thin',
-              // Responsive horizontal padding - more breathing room on larger screens
-              'px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20',
-              // Responsive vertical padding
-              'py-3 sm:py-4 lg:py-6 2xl:py-8'
+              'mx-auto document-canvas',
+              // Responsive max-width - wider on ultra-large screens for better readability
+              'max-w-full sm:max-w-[640px] md:max-w-[680px] lg:max-w-[720px] xl:max-w-[760px] 2xl:max-w-[800px]'
             )}
           >
-            <div
-              className={cn(
-                'mx-auto document-canvas',
-                // Responsive max-width - wider on ultra-large screens for better readability
-                'max-w-full sm:max-w-[640px] md:max-w-[680px] lg:max-w-[720px] xl:max-w-[760px] 2xl:max-w-[800px]'
-              )}
-            >
-              {/* Note Title Block - Title as first content block (Notion-style) */}
-              <NoteTitleBlock title={title} onTitleChange={onTitleChange} disabled={readOnly} />
+            {/* Note Title Block - Title as first content block (Notion-style) */}
+            <NoteTitleBlock title={title} onTitleChange={onTitleChange} disabled={readOnly} />
 
-              {/* TipTap Editor */}
-              <EditorContent editor={editor} />
-            </div>
+            {/* TipTap Editor */}
+            <EditorContent editor={editor} />
           </div>
         </div>
       </div>
+    </div>
+  );
 
-      {/* Right Panel: ChatView Sidebar */}
-      <AnimatePresence mode="wait">
-        {isChatViewOpen ? (
-          <>
-            {isSmallScreen ? (
+  // ChatView content component - reusable for both mobile and desktop
+  const chatViewContent = (
+    <ChatView store={aiStore.pilotSpace} autoFocus onClose={() => setIsChatViewOpen(false)} />
+  );
+
+  return (
+    <div className="flex h-full bg-background overflow-hidden" data-testid="note-editor">
+      {/* Desktop: Resizable two-panel layout (lg and above) */}
+      {!isSmallScreen && (
+        <>
+          {isChatViewOpen ? (
+            <ResizablePanelGroup
+              orientation="horizontal"
+              className="h-full"
+              id="note-editor-layout"
+            >
+              {/* Editor Panel - min 50% (when ChatView at max), default 62% */}
+              <ResizablePanel
+                id="editor-panel"
+                defaultSize="62%"
+                minSize="50%"
+                className="min-w-0"
+              >
+                {editorContent}
+              </ResizablePanel>
+
+              {/* Resize Handle with toggle button */}
+              <ResizableHandle
+                withHandle
+                toggleState={chatPanelState}
+                onToggle={handleChatPanelToggle}
+              />
+
+              {/* ChatView Panel - min 30% - default 38% (current), max 50% */}
+              <ResizablePanel
+                id="chat-panel"
+                defaultSize="38%"
+                minSize="30%"
+                maxSize="50%"
+                className="min-w-0"
+                panelRef={chatPanelRef}
+                onResize={handleChatPanelResize}
+              >
+                <motion.aside
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  className="h-full w-full overflow-hidden border-l border-border"
+                >
+                  {chatViewContent}
+                </motion.aside>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          ) : (
+            <>
+              {/* Full-width editor when ChatView is closed */}
+              <div className="flex-1 min-w-0">{editorContent}</div>
+              {/* Collapsed ChatView strip */}
+              <CollapsedChatStrip onClick={handleChatViewOpen} />
+            </>
+          )}
+        </>
+      )}
+
+      {/* Mobile/Tablet: Full-width editor with slide-over ChatView */}
+      {isSmallScreen && (
+        <>
+          {/* Full-width editor */}
+          <div className="flex-1 min-w-0">{editorContent}</div>
+
+          {/* Mobile ChatView slide-over */}
+          <AnimatePresence mode="wait">
+            {isChatViewOpen && (
               <>
                 {/* Backdrop */}
                 <motion.div
@@ -582,7 +698,7 @@ export const NoteCanvas = observer(function NoteCanvas({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
+                  className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
                   onClick={() => setIsChatViewOpen(false)}
                   aria-hidden="true"
                 />
@@ -593,7 +709,7 @@ export const NoteCanvas = observer(function NoteCanvas({
                   exit={{ x: '100%' }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                   className={cn(
-                    'fixed inset-y-0 right-0 z-50 lg:hidden',
+                    'fixed inset-y-0 right-0 z-50',
                     'w-full max-w-[400px] sm:max-w-[480px]',
                     'bg-background border-l border-border shadow-xl'
                   )}
@@ -610,38 +726,16 @@ export const NoteCanvas = observer(function NoteCanvas({
                       <span className="sr-only">Close ChatView</span>
                     </Button>
                   </div>
-                  <div className="h-full overflow-hidden">
-                    <ChatView
-                      store={aiStore.pilotSpace}
-                      autoFocus
-                      onClose={() => setIsChatViewOpen(false)}
-                    />
-                  </div>
+                  <div className="h-full overflow-hidden">{chatViewContent}</div>
                 </motion.aside>
               </>
-            ) : (
-              <motion.aside
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: isLargeDesktop ? 480 : 400, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className="hidden lg:flex flex-shrink-0 overflow-hidden border-l border-border"
-              >
-                <div className={cn('h-full', isLargeDesktop ? 'w-[480px]' : 'w-[400px]')}>
-                  <ChatView
-                    store={aiStore.pilotSpace}
-                    autoFocus
-                    onClose={() => setIsChatViewOpen(false)}
-                  />
-                </div>
-              </motion.aside>
             )}
-          </>
-        ) : null}
-      </AnimatePresence>
+          </AnimatePresence>
 
-      {/* Collapsed ChatView strip */}
-      {!isChatViewOpen && <CollapsedChatStrip onClick={handleChatViewOpen} />}
+          {/* Collapsed ChatView strip for mobile */}
+          {!isChatViewOpen && <CollapsedChatStrip onClick={handleChatViewOpen} />}
+        </>
+      )}
     </div>
   );
 });

@@ -22,9 +22,9 @@ async def client():
 
 @pytest.fixture
 def auth_headers():
-    """Create auth headers with demo workspace."""
+    """Create auth headers for tests."""
     return {
-        "X-Workspace-ID": "pilot-space-demo",
+        "X-Workspace-ID": "00000000-0000-0000-0000-000000000002",
         "X-Anthropic-API-Key": "test-key-123",
     }
 

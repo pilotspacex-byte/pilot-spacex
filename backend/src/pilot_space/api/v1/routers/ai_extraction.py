@@ -18,7 +18,7 @@ from pilot_space.ai.infrastructure.approval import ApprovalService
 from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
 from pilot_space.api.utils.sse import SSEResponse, SSEStreamBuilder
 from pilot_space.dependencies import (
-    CurrentUserIdOrDemo,
+    CurrentUserId,
     DbSession,
     get_approval_service_dep,
 )
@@ -103,7 +103,7 @@ async def extract_issues_stream(
     correlation_id: CorrelationId,
     note_id: str,
     extract_request: ExtractIssuesRequest,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     request: Request,
     approval_service: Annotated[ApprovalService, Depends(get_approval_service_dep)],
     session: DbSession,
@@ -163,7 +163,7 @@ async def approve_extracted_issues(
     workspace_id: WorkspaceId,
     note_id: str,
     body: ApproveExtractedIssuesRequest,
-    current_user_id: CurrentUserIdOrDemo,
+    current_user_id: CurrentUserId,
     approval_service: Annotated[ApprovalService, Depends(get_approval_service_dep)],
     session: DbSession,
 ) -> dict[str, Any]:
