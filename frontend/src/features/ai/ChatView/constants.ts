@@ -66,6 +66,20 @@ export const SKILLS: SkillDefinition[] = [
     icon: 'FileText',
     examples: ['Summarize this note', 'Create a brief summary'],
   },
+  {
+    name: 'resume',
+    description: 'Resume a previous conversation session',
+    category: 'session',
+    icon: 'History',
+    examples: ['Continue our last chat', 'Resume discussion about API design'],
+  },
+  {
+    name: 'new',
+    description: 'Start a fresh conversation session',
+    category: 'session',
+    icon: 'Plus',
+    examples: ['Start new chat', 'Fresh conversation'],
+  },
 ];
 
 /**
@@ -113,6 +127,7 @@ export const AGENTS: AgentDefinition[] = [
  * Skill categories for grouping in menu
  */
 export const SKILL_CATEGORIES = [
+  { id: 'session', label: 'Session', icon: 'History' },
   { id: 'writing', label: 'Writing', icon: 'PenTool' },
   { id: 'notes', label: 'Notes', icon: 'FileText' },
   { id: 'issues', label: 'Issues', icon: 'ListTodo' },

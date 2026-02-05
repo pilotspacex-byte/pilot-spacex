@@ -17,6 +17,7 @@ Design Decisions: DD-058 (SSE streaming), DD-003 (Approval flow)
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -119,10 +120,15 @@ async def chat(
             )
 
     logger.info(
-        "Chat request: message='%s', workspace_id=%s",
+        "Chat request: message='%s', workspace_id=%s, note_id=%s",
         chat_request.message[:50],
         ctx_workspace_id,
+        ctx_note_id,
     )
+
+    # Set RLS context BEFORE any DB queries (note/issue loading, session lookup)
+    # This ensures extract_ai_context and session operations respect RLS policies
+    await set_rls_context(session, user_id)
 
     # Extract full AI context (loads Note/Issue objects if IDs provided)
     if ctx_workspace_id is not None:
@@ -144,16 +150,13 @@ async def chat(
     if ctx_selected_block_ids:
         ai_context["selected_block_ids"] = ctx_selected_block_ids
 
-    # Set RLS context for session DB queries (context lookup, save)
-    await set_rls_context(session, user_id)
-
     # Get, fork, or create conversation session
     # Priority: fork > explicit session_id > context lookup > create new
     conv_session = None
     is_existing_session = False
     context_id = ctx_note_id or ctx_issue_id
     if session_handler is not None:
-        if chat_request.fork_session_id:
+        if chat_request.fork_session_id and ctx_workspace_id is not None:
             # Fork from existing session (what-if exploration)
             fork_source = UUID(chat_request.fork_session_id)
             conv_session = await session_handler.fork_session(
@@ -176,25 +179,33 @@ async def chat(
                     chat_request.session_id,
                 )
 
-        # Fallback: if explicit session_id failed or not provided, try context
-        if conv_session is None and context_id:
-            conv_session = await session_handler.get_session_by_context(
-                user_id=user_id,
-                workspace_id=ctx_workspace_id,
-                agent_name="conversation",
-                context_id=context_id,
-            )
-            if conv_session:
-                is_existing_session = True
+        # NOTE: Context-based session lookup removed in multi-context session architecture.
+        # Each "New Chat" creates a distinct session. Users can manually resume sessions
+        # using the \resume command or session picker.
 
-        # Last resort: create new session
-        if conv_session is None:
+        # Create new session (requires workspace_id)
+        if conv_session is None and ctx_workspace_id is not None:
+            # Build initial context_history entry if context is provided
+            initial_context_history: list[dict[str, Any]] = []
+            if ctx_note_id or ctx_issue_id:
+                initial_context_history.append({
+                    "turn": 0,
+                    "note_id": str(ctx_note_id) if ctx_note_id else None,
+                    "issue_id": str(ctx_issue_id) if ctx_issue_id else None,
+                    "selected_text": ctx_selected_text,
+                    "selected_block_ids": ctx_selected_block_ids,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                })
+
+            logger.info("Creating new session with initial context_history: %s", initial_context_history)
             conv_session = await session_handler.create_session(
                 workspace_id=ctx_workspace_id,
                 user_id=user_id,
                 agent_name="conversation",
-                context_id=context_id,
+                context_id=context_id,  # Still set for initial context reference
+                metadata={"context_history": initial_context_history},
             )
+            logger.info("New session created: %s", conv_session.session_id if conv_session else None)
 
     logger.info(
         "Session resolved: id=%s, existing=%s, context_id=%s, requested=%s",

@@ -128,7 +128,7 @@ export const issuesApi = {
   // Activity & Comment endpoints
 
   listActivities(
-    _workspaceId: string,
+    workspaceId: string,
     issueId: string,
     options?: { limit?: number; offset?: number }
   ): Promise<ActivityTimelineResponse> {

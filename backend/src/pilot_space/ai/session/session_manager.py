@@ -97,7 +97,8 @@ class AISession:
         user_id: User who owns this session.
         workspace_id: Workspace context for this session.
         agent_name: Name of the agent handling this session.
-        context_id: Optional ID of the entity being discussed (e.g., issue_id).
+        context_id: Optional ID of the initial context (e.g., issue_id).
+        title: Auto-generated title from first user message.
         context: Session context data (user preferences, entity data, etc.).
         messages: Conversation message history.
         total_cost_usd: Accumulated cost across all turns.
@@ -112,6 +113,7 @@ class AISession:
     workspace_id: UUID
     agent_name: str
     context_id: UUID | None = None
+    title: str | None = None
     context: dict[str, Any] = field(default_factory=dict)
     messages: list[AIMessage] = field(default_factory=list)
     total_cost_usd: float = 0.0
@@ -134,6 +136,7 @@ class AISession:
             "workspace_id": str(self.workspace_id),
             "agent_name": self.agent_name,
             "context_id": str(self.context_id) if self.context_id else None,
+            "title": self.title,
             "context": self.context,
             "messages": [msg.to_dict() for msg in self.messages],
             "total_cost_usd": self.total_cost_usd,
@@ -161,6 +164,7 @@ class AISession:
             workspace_id=UUID(data["workspace_id"]),
             agent_name=data["agent_name"],
             context_id=UUID(data["context_id"]) if data.get("context_id") else None,
+            title=data.get("title"),
             context=data.get("context", {}),
             messages=messages,
             total_cost_usd=data.get("total_cost_usd", 0.0),
@@ -322,7 +326,12 @@ class SessionManager:
 
         Raises:
             AIError: If session creation fails.
+            ValueError: If workspace_id is None.
         """
+        # Runtime validation - type hints are not enforced at runtime
+        if workspace_id is None:  # type: ignore[comparison-overlap]
+            raise ValueError("workspace_id is required for session creation")
+
         session = AISession(
             user_id=user_id,
             workspace_id=workspace_id,
@@ -390,11 +399,14 @@ class SessionManager:
         try:
             session = AISession.from_dict(data)
         except (KeyError, ValueError, TypeError) as e:
-            logger.exception("Failed to deserialize session %s", session_id)
-            raise AIError(
-                "Failed to deserialize session",
-                details={"session_id": str(session_id), "error": str(e)},
-            ) from e
+            # Delete corrupted session from Redis to prevent repeated failures
+            logger.warning(
+                "Deleting corrupted session %s from Redis: %s",
+                session_id,
+                str(e),
+            )
+            await self._redis.delete(session_key)
+            raise SessionNotFoundError(session_id) from e
 
         if session.is_expired():
             logger.warning(

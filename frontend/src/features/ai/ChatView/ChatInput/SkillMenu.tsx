@@ -3,7 +3,7 @@
  * Follows shadcn/ui Command pattern for accessible menus
  */
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState, KeyboardEvent } from 'react';
 import {
   Command,
   CommandEmpty,
@@ -14,6 +14,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import {
   ListTodo,
   Sparkles,
@@ -23,6 +24,8 @@ import {
   GitBranch,
   PenTool,
   FileText,
+  History,
+  Plus,
 } from 'lucide-react';
 import { SKILLS, SKILL_CATEGORIES } from '../constants';
 import type { SkillDefinition } from '../types';
@@ -31,7 +34,13 @@ interface SkillMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (skill: SkillDefinition) => void;
+  /** Called when user cancels (Esc or Backspace on empty input) - should remove trigger char */
+  onCancel?: () => void;
   children: React.ReactNode;
+  /** Custom class for popover content */
+  popoverClassName?: string;
+  /** Width in pixels for popover content */
+  popoverWidth?: number;
 }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -43,18 +52,44 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   GitBranch,
   PenTool,
   FileText,
+  History,
+  Plus,
 };
 
-export const SkillMenu = memo<SkillMenuProps>(({ open, onOpenChange, onSelect, children }) => {
+export const SkillMenu = memo<SkillMenuProps>(({ open, onOpenChange, onSelect, onCancel, children, popoverClassName, popoverWidth }) => {
+  const [searchValue, setSearchValue] = useState('');
+
   const handleSelect = useCallback(
     (skillName: string) => {
       const skill = SKILLS.find((s) => s.name === skillName);
       if (skill) {
         onSelect(skill);
         onOpenChange(false);
+        setSearchValue('');
       }
     },
     [onSelect, onOpenChange]
+  );
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      // Escape: close menu and remove trigger char
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onOpenChange(false);
+        onCancel?.();
+        setSearchValue('');
+        return;
+      }
+      // Backspace on empty input: close menu and remove trigger char
+      if (e.key === 'Backspace' && searchValue === '') {
+        e.preventDefault();
+        onOpenChange(false);
+        onCancel?.();
+        return;
+      }
+    },
+    [searchValue, onOpenChange, onCancel]
   );
 
   // Group skills by category
@@ -66,9 +101,20 @@ export const SkillMenu = memo<SkillMenuProps>(({ open, onOpenChange, onSelect, c
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="p-0 w-[400px]" align="start" side="top">
+      <PopoverContent
+        className={cn("p-0", popoverWidth && "w-auto", popoverClassName)}
+        align="start"
+        side="top"
+        sideOffset={8}
+        style={popoverWidth ? { width: popoverWidth } : undefined}
+      >
         <Command>
-          <CommandInput placeholder="Search skills..." />
+          <CommandInput
+            placeholder="Search skills..."
+            value={searchValue}
+            onValueChange={setSearchValue}
+            onKeyDown={handleKeyDown}
+          />
           <CommandList>
             <CommandEmpty>No skills found.</CommandEmpty>
 

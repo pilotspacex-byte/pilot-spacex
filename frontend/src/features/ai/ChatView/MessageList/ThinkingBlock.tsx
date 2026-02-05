@@ -175,7 +175,7 @@ export const ThinkingBlock = memo<ThinkingBlockProps>(
 
         {/* Collapsible content - indented text, no border */}
         {isOpen && (
-          <div className="pl-5 pt-1 pb-2 max-h-[400px] overflow-y-auto scrollbar-thin">
+          <div className="pl-2 pt-1 pb-2">
             <pre
               className={cn(
                 'whitespace-pre-wrap break-words font-mono text-xs',

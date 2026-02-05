@@ -26,25 +26,31 @@ interface MarkdownContentProps {
   className?: string;
 }
 
-const PROSE_CLASSES = cn(
-  'prose prose-sm max-w-none text-foreground dark:prose-invert',
-  'prose-headings:text-foreground prose-headings:font-semibold',
-  'prose-p:leading-relaxed prose-p:text-foreground',
-  'prose-a:text-primary prose-a:no-underline hover:prose-a:underline',
-  'prose-code:rounded prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5',
-  'prose-code:text-[13px] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none',
-  'prose-pre:rounded-[10px] prose-pre:bg-muted prose-pre:font-mono',
-  'prose-blockquote:border-l-ai/30'
-);
+// Use custom .chat-markdown class defined in globals.css
+// (prose- classes require @tailwindcss/typography which is not installed)
+const MARKDOWN_CLASSES = 'chat-markdown max-w-none';
 
 const MarkdownPlugins = { remark: [remarkGfm], rehype: [rehypeHighlight] };
+
+// Custom components for ReactMarkdown - wrap tables in scrollable container
+const markdownComponents = {
+  table: ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
+    <div className="table-wrapper">
+      <table {...props}>{children}</table>
+    </div>
+  ),
+};
 
 export const MarkdownContent = memo<MarkdownContentProps>(({ content, isStreaming, className }) => {
   if (!content) return null;
 
   return (
-    <div className={cn(PROSE_CLASSES, isStreaming && 'motion-safe:animate-fade-up', className)}>
-      <ReactMarkdown remarkPlugins={MarkdownPlugins.remark} rehypePlugins={MarkdownPlugins.rehype}>
+    <div className={cn(MARKDOWN_CLASSES, isStreaming && 'motion-safe:animate-fade-up', className)}>
+      <ReactMarkdown
+        remarkPlugins={MarkdownPlugins.remark}
+        rehypePlugins={MarkdownPlugins.rehype}
+        components={markdownComponents}
+      >
         {content}
       </ReactMarkdown>
       {isStreaming && (

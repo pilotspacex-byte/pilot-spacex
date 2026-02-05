@@ -4,7 +4,7 @@
  * Follows shadcn/ui AI conversation component pattern with scroll-to-bottom.
  */
 
-import { useRef, useState, useCallback, useMemo } from 'react';
+import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,14 @@ interface MessageListProps {
   userName?: string;
   userAvatar?: string;
   className?: string;
+  /** Trigger to scroll to bottom (increment to trigger scroll) */
+  scrollToBottomTrigger?: number;
+  /** Whether older messages exist (for scroll-up loading) */
+  hasMoreMessages?: boolean;
+  /** Whether older messages are currently being loaded */
+  isLoadingMoreMessages?: boolean;
+  /** Callback to load more older messages when scrolling up */
+  onLoadMore?: () => void;
 }
 
 /**
@@ -80,10 +88,23 @@ export const MessageList = observer<MessageListProps>(
     userName,
     userAvatar,
     className,
+    scrollToBottomTrigger,
+    hasMoreMessages,
+    isLoadingMoreMessages,
+    onLoadMore,
   }) => {
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [atBottom, setAtBottom] = useState(true);
+    // Track pending scroll request to execute after render
+    const pendingScrollRef = useRef(false);
+    const lastTriggerRef = useRef(0);
+    // Track previous message count to detect bulk message loads (e.g., session resume)
+    const prevMessageCountRef = useRef(0);
+    // Track if this is initial mount to handle page refresh scenario
+    const isInitialMountRef = useRef(true);
+    // Debounce for startReached to prevent multiple rapid calls
+    const loadMoreTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const scrollToBottom = useCallback(() => {
       virtuosoRef.current?.scrollToIndex({
@@ -92,10 +113,72 @@ export const MessageList = observer<MessageListProps>(
       });
     }, []);
 
+    // Mark scroll as pending when trigger changes (manual resume via \resume command)
+    useEffect(() => {
+      if (scrollToBottomTrigger && scrollToBottomTrigger > lastTriggerRef.current) {
+        lastTriggerRef.current = scrollToBottomTrigger;
+        pendingScrollRef.current = true;
+      }
+    }, [scrollToBottomTrigger]);
+
+    // Detect bulk message load (session resume on page refresh)
+    // When messages go from 0 to N, or increase significantly, trigger scroll
+    useEffect(() => {
+      const prevCount = prevMessageCountRef.current;
+      const currentCount = messages.length;
+
+      // Detect initial load or bulk load (messages jumped from 0 or small number)
+      const isBulkLoad = prevCount === 0 && currentCount > 0;
+      const isInitialWithMessages = isInitialMountRef.current && currentCount > 0;
+
+      if (isBulkLoad || isInitialWithMessages) {
+        pendingScrollRef.current = true;
+      }
+
+      prevMessageCountRef.current = currentCount;
+      isInitialMountRef.current = false;
+    }, [messages.length]);
+
+    // Execute pending scroll after messages are rendered
+    // Uses double requestAnimationFrame to ensure DOM is painted
+    useEffect(() => {
+      if (pendingScrollRef.current && messages.length > 0) {
+        // First rAF: scheduled before next paint
+        requestAnimationFrame(() => {
+          // Second rAF: scheduled after paint, DOM is ready
+          requestAnimationFrame(() => {
+            if (pendingScrollRef.current) {
+              pendingScrollRef.current = false;
+              scrollToBottom();
+            }
+          });
+        });
+      }
+    }, [messages.length, scrollToBottom]);
+
     const handleAtBottomChange = useCallback((bottom: boolean) => {
       setAtBottom(bottom);
       setShowScrollButton(!bottom);
     }, []);
+
+    /**
+     * Handle scroll-up reaching the top of the list.
+     * Triggers loading more older messages with debounce to prevent rapid calls.
+     */
+    const handleStartReached = useCallback(() => {
+      if (!hasMoreMessages || isLoadingMoreMessages || !onLoadMore) {
+        return;
+      }
+
+      // Debounce: clear existing timeout and set new one
+      if (loadMoreTimeoutRef.current) {
+        clearTimeout(loadMoreTimeoutRef.current);
+      }
+
+      loadMoreTimeoutRef.current = setTimeout(() => {
+        onLoadMore();
+      }, 100);
+    }, [hasMoreMessages, isLoadingMoreMessages, onLoadMore]);
 
     // Note: messages.length in deps ensures recompute on MobX in-place push.
     // MobX observer tracks the array but useMemo's shallow ref check on
@@ -117,7 +200,7 @@ export const MessageList = observer<MessageListProps>(
 
     return (
       <div
-        className={cn('relative flex-1', className)}
+        className={cn('relative flex-1 min-h-0', className)}
         role="log"
         aria-live="polite"
         aria-label="Chat messages"
@@ -139,16 +222,43 @@ export const MessageList = observer<MessageListProps>(
         ) : (
           <Virtuoso
             ref={virtuosoRef}
-            style={{ height: '100%' }}
+            className="absolute inset-0"
             totalCount={totalCount}
             followOutput={atBottom ? 'smooth' : false}
             atBottomStateChange={handleAtBottomChange}
             atBottomThreshold={100}
+            startReached={handleStartReached}
+            components={{
+                Header: () =>
+                  isLoadingMoreMessages ? (
+                  <div className="flex justify-center py-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 animate-pulse" />
+                      <div
+                        className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 animate-pulse"
+                        style={{ animationDelay: '0.2s' }}
+                      />
+                      <div
+                        className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 animate-pulse"
+                        style={{ animationDelay: '0.4s' }}
+                      />
+                      <span className="ml-1">Loading older messages</span>
+                    </div>
+                  </div>
+                ) : hasMoreMessages ? (
+                  <div className="flex justify-center py-2">
+                    <span className="text-xs text-muted-foreground">Scroll up for more</span>
+                  </div>
+                ) : null,
+            }}
             itemContent={(index) => {
               // Streaming footer is the last item
               if (hasStreamingFooter && index === messageGroups.length) {
                 return (
-                  <div className="px-4 py-3 bg-muted/30">
+                  <div className="px-4 py-3">
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-sm font-semibold">PilotSpace Agent</span>
+                    </div>
                     <StreamingContent
                       content={streamContent ?? ''}
                       thinkingContent={thinkingContent}

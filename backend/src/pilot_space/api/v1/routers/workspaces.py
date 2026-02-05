@@ -235,14 +235,14 @@ async def create_workspace(
 
 @router.get("/{workspace_id}", response_model=WorkspaceDetailResponse, tags=["workspaces"])
 async def get_workspace(
-    workspace_id: UUID,
+    workspace_id: WorkspaceIdOrSlug,
     current_user: CurrentUser,
     workspace_repo: WorkspaceRepo,
 ) -> WorkspaceDetailResponse:
-    """Get workspace by ID.
+    """Get workspace by ID or slug.
 
     Args:
-        workspace_id: Workspace identifier.
+        workspace_id: Workspace identifier (UUID or slug).
         current_user: Authenticated user.
         workspace_repo: Workspace repository.
 
@@ -252,12 +252,7 @@ async def get_workspace(
     Raises:
         HTTPException: If workspace not found or user not a member.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+    workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
     # Check membership
     member = next(
