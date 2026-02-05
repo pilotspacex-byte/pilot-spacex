@@ -83,7 +83,7 @@ class SessionStore:
             # Get from Redis
             redis_session = await self._session_manager.get_session(session_id)
 
-            # Check if already exists in DB
+            # Check if already exists in DB by session_id
             from sqlalchemy import select
 
             from pilot_space.infrastructure.database.models.ai_session import (
@@ -94,13 +94,31 @@ class SessionStore:
             result = await self._db.execute(stmt)
             db_session = result.scalar_one_or_none()
 
+            # NOTE: Context-based fallback removed in multi-context session architecture.
+            # Each "New Chat" creates a distinct session, not bound to a single context.
+            # Sessions now track context_history in session_data for multi-context support.
+
             # Convert messages to JSON-serializable format
             messages_data = [msg.to_dict() for msg in redis_session.messages]
 
-            # Prepare session data
+            # Generate title from first user message if not set
+            title = None
+            if redis_session.messages:
+                first_user_msg = next(
+                    (m for m in redis_session.messages if m.role == "user"),
+                    None,
+                )
+                if first_user_msg:
+                    # Truncate at 50 chars, add ellipsis if needed
+                    title = first_user_msg.content[:50].strip()
+                    if len(first_user_msg.content) > 50:
+                        title += "..."
+
+            # Prepare session data with context_history for multi-context support
             session_data = {
                 "messages": messages_data,
                 "context": redis_session.context,
+                "context_history": redis_session.context.get("context_history", []),
                 "turn_count": redis_session.turn_count,
             }
 
@@ -112,6 +130,9 @@ class SessionStore:
                 db_session.total_cost_usd = Decimal(str(redis_session.total_cost_usd))
                 db_session.turn_count = redis_session.turn_count
                 db_session.expires_at = datetime.now(UTC) + timedelta(hours=SESSION_TTL_HOURS)
+                # Update title if not already set
+                if title and not db_session.title:
+                    db_session.title = title
             else:
                 # Create new
                 from decimal import Decimal
@@ -122,6 +143,7 @@ class SessionStore:
                     user_id=redis_session.user_id,
                     agent_name=redis_session.agent_name,
                     context_id=redis_session.context_id,
+                    title=title,
                     session_data=session_data,
                     total_cost_usd=Decimal(str(redis_session.total_cost_usd)),
                     turn_count=redis_session.turn_count,
@@ -165,6 +187,22 @@ class SessionStore:
             try:
                 redis_session = await self._session_manager.get_session(session_id)
                 logger.debug("Session found in Redis: %s", session_id)
+
+                # Ensure context index exists (may have expired separately)
+                if redis_session.context_id is not None:
+                    from pilot_space.ai.session.session_manager import SESSION_TTL_SECONDS
+
+                    index_key = self._session_manager._user_session_index_key(  # type: ignore[attr-defined]  # noqa: SLF001
+                        redis_session.user_id,
+                        redis_session.agent_name,
+                        redis_session.context_id,
+                    )
+                    await self._session_manager._redis.set(  # type: ignore[attr-defined]  # noqa: SLF001
+                        index_key,
+                        str(session_id),
+                        ttl=SESSION_TTL_SECONDS,
+                    )
+
                 return redis_session
             except SessionNotFoundError:
                 pass
@@ -220,11 +258,24 @@ class SessionStore:
                 ttl=SESSION_TTL_SECONDS,
             )
 
+            # Restore context index for session lookup
+            index_key = self._session_manager._user_session_index_key(  # type: ignore[attr-defined]  # noqa: SLF001
+                db_session.user_id,
+                db_session.agent_name,
+                db_session.context_id,
+            )
+            await self._session_manager._redis.set(  # type: ignore[attr-defined]  # noqa: SLF001
+                index_key,
+                str(session_id),
+                ttl=SESSION_TTL_SECONDS,
+            )
+
             logger.info(
-                "Restored session from database to Redis",
+                "Restored session from database to Redis (with index)",
                 extra={
                     "session_id": str(session_id),
                     "turn_count": redis_session.turn_count,
+                    "context_id": str(db_session.context_id) if db_session.context_id else None,
                 },
             )
 
@@ -260,6 +311,16 @@ class SessionStore:
                 AISession as DBSession,
             )
 
+            logger.info(
+                "load_by_context: searching for session",
+                extra={
+                    "user_id": str(user_id),
+                    "agent_name": agent_name,
+                    "context_id": str(context_id),
+                    "now": datetime.now(UTC).isoformat(),
+                },
+            )
+
             stmt = (
                 select(DBSession)
                 .where(
@@ -278,7 +339,25 @@ class SessionStore:
             db_session = result.scalar_one_or_none()
 
             if not db_session:
+                logger.info(
+                    "load_by_context: no session found in DB",
+                    extra={
+                        "user_id": str(user_id),
+                        "agent_name": agent_name,
+                        "context_id": str(context_id),
+                    },
+                )
                 return None
+
+            logger.info(
+                "load_by_context: found session in DB, restoring to Redis",
+                extra={
+                    "session_id": str(db_session.id),
+                    "user_id": str(user_id),
+                    "context_id": str(context_id),
+                    "expires_at": db_session.expires_at.isoformat(),
+                },
+            )
 
             # Reuse load_from_db to restore to Redis
             return await self.load_from_db(db_session.id)
@@ -296,6 +375,7 @@ class SessionStore:
         workspace_id: UUID | None = None,
         agent_name: str | None = None,
         context_id: UUID | None = None,
+        search: str | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """List sessions for a user.
@@ -305,12 +385,13 @@ class SessionStore:
             workspace_id: Optional workspace filter.
             agent_name: Optional agent filter.
             context_id: Optional context entity filter (note_id, issue_id).
+            search: Optional search query (matches title and context_history).
             limit: Maximum sessions to return (default: 50).
 
         Returns:
-            List of session metadata dictionaries.
+            List of session metadata dictionaries with title and context_history.
         """
-        from sqlalchemy import and_, desc, select
+        from sqlalchemy import String, and_, desc, or_, select
 
         from pilot_space.infrastructure.database.models.ai_session import (
             AISession as DBSession,
@@ -327,6 +408,16 @@ class SessionStore:
 
         if context_id:
             conditions.append(DBSession.context_id == context_id)
+
+        # Search by title or context_history content
+        if search:
+            search_pattern = f"%{search}%"
+            conditions.append(
+                or_(
+                    DBSession.title.ilike(search_pattern),
+                    DBSession.session_data["context_history"].cast(String).ilike(search_pattern),
+                )
+            )
 
         # Filter out expired sessions
         conditions.append(DBSession.expires_at > datetime.now(UTC))
@@ -347,6 +438,8 @@ class SessionStore:
                 "workspace_id": str(session.workspace_id),
                 "agent_name": session.agent_name,
                 "context_id": str(session.context_id) if session.context_id else None,
+                "title": session.title,
+                "context_history": session.session_data.get("context_history", []),
                 "turn_count": session.turn_count,
                 "total_cost_usd": float(session.total_cost_usd),
                 "created_at": session.created_at.isoformat(),

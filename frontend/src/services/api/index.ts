@@ -5,6 +5,11 @@ export {
   type PaginatedResponse,
   type ApiResponse,
 } from './client';
+export {
+  workspacesApi,
+  type CreateWorkspaceData,
+  type UpdateWorkspaceData,
+} from './workspaces';
 export { cyclesApi, type CycleListResponse } from './cycles';
 export { issuesApi } from './issues';
 export { notesApi } from './notes';

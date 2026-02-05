@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pilot_space.dependencies.auth import get_current_user, get_session
+from pilot_space.dependencies.auth import DbSession, get_current_user, get_session
 from pilot_space.infrastructure.auth import TokenPayload
 
 if TYPE_CHECKING:
@@ -422,11 +422,15 @@ async def get_permission_handler_dep(
     return PermissionHandler(approval_service=approval_service)
 
 
-async def get_session_handler_dep(request: Request) -> SessionHandler | None:
+async def get_session_handler_dep(
+    request: Request,
+    session: DbSession,
+) -> SessionHandler | None:
     """Get session handler for SDK agents.
 
     Args:
         request: FastAPI request with app state.
+        session: SQLAlchemy async session for PostgreSQL fallback.
 
     Returns:
         SessionHandler instance or None if Redis not configured.
@@ -445,7 +449,7 @@ async def get_session_handler_dep(request: Request) -> SessionHandler | None:
     if session_manager is None:
         return None
 
-    return SessionHandler(session_manager=session_manager)
+    return SessionHandler(session_manager=session_manager, db_session=session)
 
 
 async def get_skill_registry_dep(request: Request) -> Any:

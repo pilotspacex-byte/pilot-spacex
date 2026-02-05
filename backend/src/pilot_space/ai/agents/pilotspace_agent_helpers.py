@@ -132,6 +132,7 @@ def transform_sdk_message(  # noqa: PLR0911
     message: Message,
     current_message_id_holder: dict[str, Any],
     delta_buffer: DeltaBuffer | None = None,
+    app_session_id: str | None = None,
 ) -> str | None:
     """Transform Claude SDK message to frontend SSE event.
 
@@ -151,6 +152,7 @@ def transform_sdk_message(  # noqa: PLR0911
         message: SDK message object
         current_message_id_holder: Mutable dict with "_current_message_id" key for state
         delta_buffer: Optional buffer for batching delta events (water pumping)
+        app_session_id: Application session ID (UUID) to use instead of SDK's internal ID
 
     Returns:
         SSE-formatted string or None if message should be ignored
@@ -182,14 +184,16 @@ def transform_sdk_message(  # noqa: PLR0911
         if isinstance(raw_data, dict) and raw_data.get("type") == "system":
             subtype = raw_data.get("subtype")
             if subtype == "init":
-                session_id = raw_data.get("session_id", "")
+                sdk_session_id = raw_data.get("session_id", "")
                 current_message_id_holder["_current_message_id"] = str(uuid4())
                 # Reset stale dedup state from previous request (prevents session leak)
                 current_message_id_holder.pop("_stream_events_sent", None)
                 current_message_id_holder.pop("_streamed_block_indices", None)
+                # Use application session_id (UUID) if provided, else fall back to SDK's
+                effective_session_id = app_session_id or sdk_session_id
                 data: dict[str, Any] = {
                     "messageId": current_message_id_holder["_current_message_id"],
-                    "sessionId": str(session_id),
+                    "sessionId": str(effective_session_id),
                 }
                 model = raw_data.get("model")
                 if model:
@@ -216,8 +220,10 @@ def transform_sdk_message(  # noqa: PLR0911
         message_id = message_id_value if message_id_value else str(uuid4())
 
         # Dedup: check if stream events already forwarded these blocks
-        stream_events_sent = bool(current_message_id_holder.pop("_stream_events_sent", False))
-        raw_indices = current_message_id_holder.pop("_streamed_block_indices", None)
+        # Use get() instead of pop() to preserve dedup state across multiple
+        # partial AssistantMessages when include_partial_messages=True
+        stream_events_sent = bool(current_message_id_holder.get("_stream_events_sent", False))
+        raw_indices = current_message_id_holder.get("_streamed_block_indices")
         streamed_indices: set[int] = raw_indices if isinstance(raw_indices, set) else set()
 
         if isinstance(content, list):
@@ -369,7 +375,7 @@ def transform_sdk_message(  # noqa: PLR0911
         return f"event: text_delta\ndata: {json.dumps(data)}\n\n"
 
     if msg_type == "ResultMessage":
-        session_id = getattr(message, "session_id", "")
+        _session_id = getattr(message, "session_id", "")  # Reserved for future use
         is_error = getattr(message, "is_error", False)
         usage = getattr(message, "usage", None)
         message_id_value = current_message_id_holder.get("_current_message_id")

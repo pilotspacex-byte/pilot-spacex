@@ -19,6 +19,7 @@ import { useDeleteNote } from '@/features/notes/hooks/useDeleteNote';
 import { useTogglePin } from '@/hooks/useTogglePin';
 import { useNoteVersions, useRestoreNoteVersion } from '@/hooks/useNoteVersions';
 import { useNoteStore, useWorkspaceStore } from '@/stores/RootStore';
+import { useWorkspace } from '@/components/workspace-guard';
 import type { JSONContent } from '@/types';
 
 // Using useParams() hook instead of props for reliable client-side navigation
@@ -106,11 +107,14 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   const noteStore = useNoteStore();
   const workspaceStore = useWorkspaceStore();
 
+  // Get workspace from WorkspaceGuard context (guaranteed to be loaded)
+  const { workspace } = useWorkspace();
+
   // Local state for content that triggers autosave (updated by editor onChange)
   const [localContent, setLocalContent] = useState<JSONContent | null>(null);
 
-  // Get workspace ID from store or slug
-  const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
+  // Get workspace ID from context (preferred) or store fallback
+  const workspaceId = workspace?.id ?? workspaceStore.currentWorkspace?.id ?? workspaceSlug;
 
   // Check if params are available (used for conditional rendering later, not early return)
   const hasValidParams = !!workspaceSlug && !!noteId;

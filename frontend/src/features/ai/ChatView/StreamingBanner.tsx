@@ -132,7 +132,7 @@ export function StreamingBanner({
       aria-live="polite"
       className={cn(
         'h-9 flex items-center justify-between px-3',
-        'glass-subtle border-t border-t-border-subtle',
+        'glass-subtle',
         className
       )}
     >

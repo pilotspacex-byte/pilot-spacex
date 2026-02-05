@@ -3,9 +3,9 @@
  *
  * Validates:
  * - Default title renders as "PilotSpace Agent"
- * - Bot icon replaces old Sparkles gradient avatar
+ * - Bot icon with correct styling
  * - onClose callback fires when X close button is clicked
- * - Timer icon button is present in action area
+ * - onNewSession callback fires when new session button is clicked
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -32,24 +32,16 @@ describe('ChatHeader', () => {
     expect(screen.queryByText('PilotSpace Agent')).not.toBeInTheDocument();
   });
 
-  it('should render Bot icon instead of Sparkles gradient avatar', () => {
+  it('should render Bot icon in ai-muted container', () => {
     const { container } = render(<ChatHeader />);
 
-    // Bot icon container should use flat bg-ai-muted with rounded-lg
-    const iconContainer = container.querySelector('.bg-ai-muted.rounded-lg');
+    // Bot icon container should use flat bg-ai-muted with rounded-md
+    const iconContainer = container.querySelector('.bg-ai-muted.rounded-md');
     expect(iconContainer).toBeInTheDocument();
 
     // Should NOT have the old purple-pink gradient
     const gradientElement = container.querySelector('.from-purple-500');
     expect(gradientElement).not.toBeInTheDocument();
-  });
-
-  it('should render Timer icon button in the action area', () => {
-    render(<ChatHeader />);
-
-    const timerButton = screen.getByTestId('timer-button');
-    expect(timerButton).toBeInTheDocument();
-    expect(screen.getByText('Session history')).toBeInTheDocument();
   });
 
   it('should not render close button when onClose is not provided', () => {
@@ -64,7 +56,6 @@ describe('ChatHeader', () => {
 
     const closeButton = screen.getByTestId('close-chat-button');
     expect(closeButton).toBeInTheDocument();
-    expect(screen.getByText('Close PilotSpace Agent')).toBeInTheDocument();
   });
 
   it('should call onClose when close button is clicked', async () => {
@@ -78,22 +69,36 @@ describe('ChatHeader', () => {
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
 
-  it('should show streaming indicator when isStreaming is true', () => {
-    render(<ChatHeader isStreaming />);
+  it('should not render new session button when onNewSession is not provided', () => {
+    render(<ChatHeader />);
 
-    expect(screen.getByTestId('streaming-indicator')).toBeInTheDocument();
-    expect(screen.getByText('Streaming')).toBeInTheDocument();
+    expect(screen.queryByTestId('new-session-button')).not.toBeInTheDocument();
   });
 
-  it('should show active task count when not streaming and tasks are active', () => {
-    render(<ChatHeader activeTaskCount={3} />);
+  it('should render new session button when onNewSession is provided', () => {
+    const handleNewSession = vi.fn();
+    render(<ChatHeader onNewSession={handleNewSession} />);
 
-    expect(screen.getByText('3 tasks active')).toBeInTheDocument();
+    const newSessionButton = screen.getByTestId('new-session-button');
+    expect(newSessionButton).toBeInTheDocument();
   });
 
-  it('should show "Ready" when session exists and no streaming or tasks', () => {
-    render(<ChatHeader sessionId="test-session-123" />);
+  it('should call onNewSession when new session button is clicked', async () => {
+    const user = userEvent.setup();
+    const handleNewSession = vi.fn();
+    render(<ChatHeader onNewSession={handleNewSession} />);
 
-    expect(screen.getByText('Ready')).toBeInTheDocument();
+    const newSessionButton = screen.getByTestId('new-session-button');
+    await user.click(newSessionButton);
+
+    expect(handleNewSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('should disable new session button when isStreaming is true', () => {
+    const handleNewSession = vi.fn();
+    render(<ChatHeader onNewSession={handleNewSession} isStreaming />);
+
+    const newSessionButton = screen.getByTestId('new-session-button');
+    expect(newSessionButton).toBeDisabled();
   });
 });

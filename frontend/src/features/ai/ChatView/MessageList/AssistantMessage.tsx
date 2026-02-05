@@ -1,10 +1,9 @@
 /**
  * AssistantMessage - Display assistant messages with markdown support
- * Follows shadcn/ui AI message component pattern
+ * Minimal design: no avatar, primary-colored agent name
  */
 
 import { memo } from 'react';
-import { Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage, ContentBlock } from '@/stores/ai/types/conversation';
 import { ToolCallList } from './ToolCallList';
@@ -31,24 +30,18 @@ interface AssistantMessageProps {
 
 export const AssistantMessage = memo<AssistantMessageProps>(({ message, className }) => {
   return (
-    <div
-      className={cn('flex items-start gap-3 px-4 py-3 bg-muted/30', className)}
-      data-testid="message-assistant"
-    >
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ai-muted">
-        <Bot className="h-4 w-4 text-ai" />
+    <div className={cn('px-4 py-3', className)} data-testid="message-assistant">
+      <div className="flex items-baseline gap-2 mb-2">
+        <span className="text-sm font-semibold text-primary">PilotSpace Agent</span>
+        <time className="text-xs text-muted-foreground">
+          {message.timestamp.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </time>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-hidden">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold">PilotSpace Agent</span>
-          <time className="text-xs text-muted-foreground">
-            {message.timestamp.toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </time>
-        </div>
+      <div className="space-y-3 overflow-hidden">
 
         {/* Ordered content blocks: render in server-received order when available */}
         {message.contentBlocks ? (

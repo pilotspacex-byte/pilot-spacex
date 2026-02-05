@@ -162,6 +162,19 @@ export class PilotSpaceStore {
   skills: SkillDefinition[] = [];
 
   // ========================================
+  // Message Pagination State (scroll-up loading)
+  // ========================================
+
+  /** Total messages in the resumed session (for pagination calculation) */
+  totalMessages: number = 0;
+
+  /** Whether older messages exist (for scroll-up loading) */
+  hasMoreMessages: boolean = false;
+
+  /** Loading state for fetching older messages */
+  isLoadingMoreMessages: boolean = false;
+
+  // ========================================
   // Delegates
   // ========================================
 
@@ -236,6 +249,32 @@ export class PilotSpaceStore {
 
   addMessage(message: ChatMessage): void {
     this.messages.push(message);
+  }
+
+  /**
+   * Prepend older messages to the beginning of the list.
+   * Used for scroll-up loading when resuming sessions.
+   * @param messages - Older messages to prepend (in chronological order)
+   */
+  prependMessages(messages: ChatMessage[]): void {
+    this.messages = [...messages, ...this.messages];
+  }
+
+  /**
+   * Update pagination state after loading messages.
+   * @param hasMore - Whether more older messages exist
+   * @param total - Total message count in the session
+   */
+  setMessagePaginationState(hasMore: boolean, total: number): void {
+    this.hasMoreMessages = hasMore;
+    this.totalMessages = total;
+  }
+
+  /**
+   * Set loading state for fetching older messages.
+   */
+  setIsLoadingMoreMessages(loading: boolean): void {
+    this.isLoadingMoreMessages = loading;
   }
 
   updateStreamingState(state: Partial<StreamingState>): void {
