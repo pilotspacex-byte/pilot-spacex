@@ -1,9 +1,9 @@
 /**
- * Unit tests for enhanced ThinkingBlock component.
+ * Unit tests for ThinkingBlock component (Claude.ai minimal style).
  *
- * Tests frosted glass styling, streaming/completed states,
- * auto-collapse behavior, expand/collapse toggle, streaming
- * cursor, scrollable overflow, empty content, and interrupted state.
+ * Tests minimal inline toggle styling, streaming/completed states,
+ * auto-collapse behavior, expand/collapse toggle, streaming cursor,
+ * scrollable overflow, empty content, and interrupted state.
  *
  * @module features/ai/ChatView/MessageList/__tests__/ThinkingBlock
  */
@@ -18,40 +18,14 @@ vi.mock('@/hooks/useElapsedTime', () => ({
 
 // Mock lucide-react icons
 vi.mock('lucide-react', () => ({
-  Brain: (props: Record<string, unknown>) => <span data-testid="brain-icon" {...props} />,
+  Check: (props: Record<string, unknown>) => <span data-testid="check-icon" {...props} />,
   ChevronDown: (props: Record<string, unknown>) => (
     <span data-testid="chevron-down-icon" {...props} />
   ),
-  ChevronRight: (props: Record<string, unknown>) => (
-    <span data-testid="chevron-right-icon" {...props} />
-  ),
+  ChevronUp: (props: Record<string, unknown>) => <span data-testid="chevron-up-icon" {...props} />,
+  Loader2: (props: Record<string, unknown>) => <span data-testid="loader2-icon" {...props} />,
   ShieldAlert: (props: Record<string, unknown>) => (
     <span data-testid="shield-alert-icon" {...props} />
-  ),
-}));
-
-// Mock Collapsible components to render children directly with data-testids
-vi.mock('@/components/ui/collapsible', () => ({
-  Collapsible: ({
-    children,
-    open,
-    ...rest
-  }: {
-    children: React.ReactNode;
-    open?: boolean;
-    onOpenChange?: (open: boolean) => void;
-  }) => (
-    <div data-testid="collapsible" data-open={open} {...rest}>
-      {children}
-    </div>
-  ),
-  CollapsibleTrigger: ({ children, ...rest }: { children: React.ReactNode; asChild?: boolean }) => (
-    <div data-testid="collapsible-trigger" {...rest}>
-      {children}
-    </div>
-  ),
-  CollapsibleContent: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="collapsible-content">{children}</div>
   ),
 }));
 
@@ -72,10 +46,10 @@ describe('ThinkingBlock', () => {
   });
 
   // ========================================
-  // Frosted glass styling
+  // Minimal inline styling
   // ========================================
 
-  it('renders frosted glass styling when streaming', () => {
+  it('renders minimal inline style without frosted glass', () => {
     render(
       <ThinkingBlock
         content="Analyzing the problem..."
@@ -84,32 +58,28 @@ describe('ThinkingBlock', () => {
       />
     );
 
-    const region = screen.getByRole('region', { name: 'Agent reasoning' });
-    expect(region.className).toContain('glass-subtle');
-    expect(region.className).toContain('bg-ai-muted');
-    expect(region.className).toContain('border-l-ai');
+    // Should have aria-label on button, not a region role anymore
+    const button = screen.getByRole('button', { name: 'Agent reasoning' });
+    expect(button).toBeInTheDocument();
+
+    // Should NOT have frosted glass styling
+    expect(button.className).not.toContain('glass-subtle');
+    expect(button.className).not.toContain('bg-ai-muted');
+    expect(button.className).not.toContain('border-l-ai');
+
+    // Should have minimal styling
+    expect(button.className).toContain('text-muted-foreground');
   });
 
   // ========================================
   // Streaming state header
   // ========================================
 
-  it('shows brain icon and "Thinking..." label with pulsing indicator when streaming', () => {
+  it('shows Loader2 icon and "Thinking..." label when streaming', () => {
     render(<ThinkingBlock content="Working on it..." isStreaming thinkingStartedAt={Date.now()} />);
 
-    expect(screen.getByTestId('brain-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('loader2-icon')).toBeInTheDocument();
     expect(screen.getByText('Thinking...')).toBeInTheDocument();
-
-    // Pulsing dot indicator (1.5x1.5 rounded-full with motion-safe prefix)
-    const pulsingDot = Array.from(document.querySelectorAll('span')).find(
-      (el) =>
-        el.className.includes('h-1.5') &&
-        el.className.includes('w-1.5') &&
-        el.className.includes('animate-pulse') &&
-        el.className.includes('rounded-full') &&
-        el.className.includes('bg-ai')
-    );
-    expect(pulsingDot).toBeTruthy();
   });
 
   // ========================================
@@ -134,9 +104,8 @@ describe('ThinkingBlock', () => {
       <ThinkingBlock content="Done thinking now." isStreaming thinkingStartedAt={Date.now()} />
     );
 
-    // While streaming, should be open
-    const collapsible = screen.getByTestId('collapsible');
-    expect(collapsible).toHaveAttribute('data-open', 'true');
+    // While streaming, content should be visible (expanded)
+    expect(screen.getByText('Done thinking now.')).toBeInTheDocument();
 
     // Transition to not streaming
     rerender(
@@ -148,20 +117,21 @@ describe('ThinkingBlock', () => {
       />
     );
 
-    // After 300ms delay, should auto-collapse
+    // After 300ms delay, should auto-collapse (content hidden)
     act(() => {
       vi.advanceTimersByTime(300);
     });
 
-    const collapsibleAfter = screen.getByTestId('collapsible');
-    expect(collapsibleAfter).toHaveAttribute('data-open', 'false');
+    // Content is inside a conditional render, so when collapsed it won't show
+    const preElement = document.querySelector('pre');
+    expect(preElement).toBeNull();
   });
 
   // ========================================
   // Completed state header
   // ========================================
 
-  it('shows "Thought for X.Xs" and token badge when collapsed and completed', () => {
+  it('shows "Thought for X.Xs" and Check icon when completed', () => {
     render(
       <ThinkingBlock
         content="This is the completed thinking content with enough text."
@@ -173,30 +143,34 @@ describe('ThinkingBlock', () => {
     // Should show formatted duration
     expect(screen.getByText(/Thought for 4\.2s/)).toBeInTheDocument();
 
-    // Should show token estimate badge
-    const tokenText = screen.getByText(/tokens/);
-    expect(tokenText).toBeInTheDocument();
+    // Should show Check icon (not Brain icon)
+    expect(screen.getByTestId('check-icon')).toBeInTheDocument();
+
+    // Should NOT show token badge (removed in minimal design)
+    expect(screen.queryByText(/tokens/)).not.toBeInTheDocument();
   });
 
   // ========================================
   // Expand/collapse toggle
   // ========================================
 
-  it('toggles expand/collapse via click on trigger', () => {
+  it('toggles expand/collapse via click on button', () => {
     render(
       <ThinkingBlock content="Some thinking content here." isStreaming={false} durationMs={2000} />
     );
 
-    const trigger = screen.getByTestId('collapsible-trigger');
-    const button = trigger.querySelector('button');
-    expect(button).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: 'Agent reasoning' });
+
+    // Initially collapsed (after auto-collapse)
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+    expect(button).toHaveAttribute('aria-expanded', 'false');
 
     // Click to expand
-    fireEvent.click(button!);
-
-    // Collapsible should update
-    const collapsible = screen.getByTestId('collapsible');
-    expect(collapsible).toHaveAttribute('data-open', 'true');
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Some thinking content here.')).toBeInTheDocument();
   });
 
   it('stays open after manual expand on completed block (no re-collapse)', () => {
@@ -206,18 +180,18 @@ describe('ThinkingBlock', () => {
     act(() => {
       vi.advanceTimersByTime(350); // 300ms auto-collapse + buffer
     });
-    expect(screen.getByTestId('collapsible')).toHaveAttribute('data-open', 'false');
+    const button = screen.getByRole('button', { name: 'Agent reasoning' });
+    expect(button).toHaveAttribute('aria-expanded', 'false');
 
     // User manually expands
-    const button = screen.getByTestId('collapsible-trigger').querySelector('button');
-    fireEvent.click(button!);
-    expect(screen.getByTestId('collapsible')).toHaveAttribute('data-open', 'true');
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-expanded', 'true');
 
     // Advance timers well past auto-collapse delay — should stay open
     act(() => {
       vi.advanceTimersByTime(1000);
     });
-    expect(screen.getByTestId('collapsible')).toHaveAttribute('data-open', 'true');
+    expect(button).toHaveAttribute('aria-expanded', 'true');
   });
 
   // ========================================
@@ -229,7 +203,7 @@ describe('ThinkingBlock', () => {
       <ThinkingBlock content="Still thinking..." isStreaming thinkingStartedAt={Date.now()} />
     );
 
-    // Streaming cursor: motion-safe:animate-pulse bg-ai span
+    // Streaming cursor: animate-pulse bg-ai span
     const cursor = Array.from(document.querySelectorAll('span')).find(
       (el) => el.className.includes('animate-pulse') && el.className.includes('bg-ai')
     );
@@ -243,8 +217,7 @@ describe('ThinkingBlock', () => {
   it('content area has scrollable overflow class', () => {
     render(<ThinkingBlock content="Long content..." isStreaming thinkingStartedAt={Date.now()} />);
 
-    const contentArea = screen.getByTestId('collapsible-content');
-    const scrollableDiv = contentArea.querySelector('.max-h-\\[400px\\]');
+    const scrollableDiv = document.querySelector('.max-h-\\[400px\\]');
     expect(scrollableDiv).toBeInTheDocument();
   });
 
@@ -262,7 +235,7 @@ describe('ThinkingBlock', () => {
   // Interrupted label
   // ========================================
 
-  it('renders "Interrupted" label when interrupted=true', () => {
+  it('renders "Thinking interrupted" label when interrupted=true', () => {
     render(
       <ThinkingBlock
         content="Was thinking but got interrupted..."
@@ -271,7 +244,24 @@ describe('ThinkingBlock', () => {
       />
     );
 
-    expect(screen.getByText('Interrupted')).toBeInTheDocument();
+    expect(screen.getByText('Thinking interrupted')).toBeInTheDocument();
+  });
+
+  // ========================================
+  // Redacted reasoning
+  // ========================================
+
+  it('renders "Reasoning redacted" with ShieldAlert icon for redacted content', () => {
+    render(
+      <ThinkingBlock
+        content="[Thinking redacted by safety system]"
+        isStreaming={false}
+        durationMs={1000}
+      />
+    );
+
+    expect(screen.getByText('Reasoning redacted')).toBeInTheDocument();
+    expect(screen.getByTestId('shield-alert-icon')).toBeInTheDocument();
   });
 
   // ========================================

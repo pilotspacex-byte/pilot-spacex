@@ -1,5 +1,5 @@
 /**
- * Unit tests for ToolCallCard component.
+ * Unit tests for ToolCallCard component (Claude.ai minimal style).
  *
  * Tests display name mapping, status icons with correct colors,
  * error message display, elapsed time, completed duration,
@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // Mock useElapsedTime to control timer output
 vi.mock('@/hooks/useElapsedTime', () => ({
@@ -19,37 +19,10 @@ vi.mock('@/hooks/useElapsedTime', () => ({
 // Mock lucide-react icons
 vi.mock('lucide-react', () => ({
   Loader2: (props: Record<string, unknown>) => <span data-testid="loader2-icon" {...props} />,
-  CheckCircle2: (props: Record<string, unknown>) => (
-    <span data-testid="check-circle-icon" {...props} />
-  ),
+  Settings: (props: Record<string, unknown>) => <span data-testid="settings-icon" {...props} />,
   XCircle: (props: Record<string, unknown>) => <span data-testid="x-circle-icon" {...props} />,
   ChevronDown: (props: Record<string, unknown>) => (
     <span data-testid="chevron-down-icon" {...props} />
-  ),
-}));
-
-// Mock Collapsible components
-vi.mock('@/components/ui/collapsible', () => ({
-  Collapsible: ({
-    children,
-    open,
-    ...rest
-  }: {
-    children: React.ReactNode;
-    open?: boolean;
-    onOpenChange?: (open: boolean) => void;
-  }) => (
-    <div data-testid="collapsible" data-open={open} {...rest}>
-      {children}
-    </div>
-  ),
-  CollapsibleTrigger: ({ children, ...rest }: { children: React.ReactNode; asChild?: boolean }) => (
-    <div data-testid="collapsible-trigger" {...rest}>
-      {children}
-    </div>
-  ),
-  CollapsibleContent: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="collapsible-content">{children}</div>
   ),
 }));
 
@@ -77,19 +50,29 @@ describe('ToolCallCard', () => {
   });
 
   // ========================================
-  // Display name mapping
+  // Display name mapping with "Calling/Used" prefix
   // ========================================
 
-  it('renders mapped display name for known tools', () => {
-    render(<ToolCallCard toolCall={makeToolCall({ name: 'extract_issues' })} />);
+  it('renders "Calling X..." when status is pending', () => {
+    render(<ToolCallCard toolCall={makeToolCall({ name: 'extract_issues', status: 'pending' })} />);
 
-    expect(screen.getByText('Extracting Issues')).toBeInTheDocument();
+    expect(screen.getByText('Calling Extracting Issues...')).toBeInTheDocument();
+  });
+
+  it('renders "Used X" when status is completed', () => {
+    render(
+      <ToolCallCard
+        toolCall={makeToolCall({ name: 'extract_issues', status: 'completed', durationMs: 800 })}
+      />
+    );
+
+    expect(screen.getByText('Used Extracting Issues')).toBeInTheDocument();
   });
 
   it('falls back to title-cased raw name for unknown tools', () => {
-    render(<ToolCallCard toolCall={makeToolCall({ name: 'some_tool' })} />);
+    render(<ToolCallCard toolCall={makeToolCall({ name: 'some_tool', status: 'completed' })} />);
 
-    expect(screen.getByText('Some Tool')).toBeInTheDocument();
+    expect(screen.getByText('Used Some Tool')).toBeInTheDocument();
   });
 
   // ========================================
@@ -105,12 +88,12 @@ describe('ToolCallCard', () => {
     expect(icon.className).toContain('animate-spin');
   });
 
-  it('shows CheckCircle2 green icon when status is completed', () => {
+  it('shows Settings (gear) icon with muted color when status is completed', () => {
     render(<ToolCallCard toolCall={makeToolCall({ status: 'completed', durationMs: 800 })} />);
 
-    const icon = screen.getByTestId('check-circle-icon');
+    const icon = screen.getByTestId('settings-icon');
     expect(icon).toBeInTheDocument();
-    expect(icon.className).toContain('text-primary');
+    expect(icon.className).toContain('text-muted-foreground');
   });
 
   it('shows XCircle red icon when status is failed', () => {
@@ -172,19 +155,22 @@ describe('ToolCallCard', () => {
   // Collapsible detail section
   // ========================================
 
-  it('collapsible detail expands to show input JSON', () => {
+  it('expands to show input JSON when clicked', () => {
     const input = { text: 'hello world', count: 3 };
     render(
       <ToolCallCard toolCall={makeToolCall({ input, status: 'completed', durationMs: 500 })} />
     );
 
-    // Collapsible content should contain the input JSON
-    const content = screen.getByTestId('collapsible-content');
-    expect(content.textContent).toContain('"text": "hello world"');
-    expect(content.textContent).toContain('"count": 3');
+    // Click to expand
+    const button = screen.getByRole('button');
+    fireEvent.click(button);
+
+    // Should show input JSON
+    expect(screen.getByText(/Input:/)).toBeInTheDocument();
+    expect(screen.getByText(/"text": "hello world"/)).toBeInTheDocument();
   });
 
-  it('shows output when available', () => {
+  it('shows output when available and expanded', () => {
     render(
       <ToolCallCard
         toolCall={makeToolCall({
@@ -195,8 +181,12 @@ describe('ToolCallCard', () => {
       />
     );
 
-    const content = screen.getByTestId('collapsible-content');
-    expect(content.textContent).toContain('"result": "success"');
+    // Click to expand
+    const button = screen.getByRole('button');
+    fireEvent.click(button);
+
+    expect(screen.getByText(/Output:/)).toBeInTheDocument();
+    expect(screen.getByText(/"result": "success"/)).toBeInTheDocument();
   });
 
   it('shows string output directly', () => {
@@ -210,8 +200,11 @@ describe('ToolCallCard', () => {
       />
     );
 
-    const content = screen.getByTestId('collapsible-content');
-    expect(content.textContent).toContain('Plain text result');
+    // Click to expand
+    const button = screen.getByRole('button');
+    fireEvent.click(button);
+
+    expect(screen.getByText('Plain text result')).toBeInTheDocument();
   });
 
   // ========================================
@@ -229,11 +222,14 @@ describe('ToolCallCard', () => {
       />
     );
 
-    const content = screen.getByTestId('collapsible-content');
-    expect(content.textContent).toContain('{"text": "partial...');
+    // Click to expand
+    const button = screen.getByRole('button');
+    fireEvent.click(button);
+
+    expect(screen.getByText('{"text": "partial...')).toBeInTheDocument();
 
     // Pulsing dot indicator
-    const pulsingDot = content.querySelector('.animate-pulse.rounded-full');
+    const pulsingDot = document.querySelector('.animate-pulse.rounded-full');
     expect(pulsingDot).toBeInTheDocument();
   });
 
@@ -241,18 +237,22 @@ describe('ToolCallCard', () => {
   // ARIA attributes
   // ========================================
 
-  it('has correct ARIA role and label', () => {
+  it('has correct aria-label on button', () => {
     render(<ToolCallCard toolCall={makeToolCall({ status: 'pending' })} />);
 
-    const article = screen.getByRole('article');
-    expect(article).toHaveAttribute('aria-label', 'Extracting Issues — Pending');
+    const button = screen.getByRole('button', { name: 'Extracting Issues tool call' });
+    expect(button).toBeInTheDocument();
   });
 
-  it('has correct ARIA label for completed status', () => {
-    render(<ToolCallCard toolCall={makeToolCall({ status: 'completed', durationMs: 1000 })} />);
+  it('has aria-expanded attribute when detail is available', () => {
+    render(<ToolCallCard toolCall={makeToolCall({ status: 'completed', durationMs: 500 })} />);
 
-    const article = screen.getByRole('article');
-    expect(article).toHaveAttribute('aria-label', 'Extracting Issues — Completed');
+    const button = screen.getByRole('button');
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+
+    // Click to expand
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-expanded', 'true');
   });
 
   // ========================================
@@ -260,10 +260,11 @@ describe('ToolCallCard', () => {
   // ========================================
 
   it('forwards className prop', () => {
-    render(<ToolCallCard toolCall={makeToolCall()} className="custom-class" />);
+    const { container } = render(
+      <ToolCallCard toolCall={makeToolCall()} className="custom-class" />
+    );
 
-    const article = screen.getByRole('article');
-    expect(article.className).toContain('custom-class');
+    expect(container.firstElementChild?.className).toContain('custom-class');
   });
 
   // ========================================
@@ -279,10 +280,7 @@ describe('ToolCallCard', () => {
 
     // Initially pending
     expect(screen.getByTestId('loader2-icon')).toBeInTheDocument();
-    expect(screen.getByRole('article')).toHaveAttribute(
-      'aria-label',
-      'Extracting Issues — Pending'
-    );
+    expect(screen.getByText('Calling Extracting Issues...')).toBeInTheDocument();
 
     // Mutate the observable (simulating tool_result handler in store)
     act(() => {
@@ -296,10 +294,7 @@ describe('ToolCallCard', () => {
     // Re-render (observer detects MobX mutation)
     rerender(<ToolCallCard toolCall={toolCall} />);
 
-    expect(screen.getByTestId('check-circle-icon')).toBeInTheDocument();
-    expect(screen.getByRole('article')).toHaveAttribute(
-      'aria-label',
-      'Extracting Issues — Completed'
-    );
+    expect(screen.getByTestId('settings-icon')).toBeInTheDocument();
+    expect(screen.getByText('Used Extracting Issues')).toBeInTheDocument();
   });
 });

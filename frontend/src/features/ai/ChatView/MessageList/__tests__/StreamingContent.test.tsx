@@ -15,50 +15,22 @@ vi.mock('@/hooks/useElapsedTime', () => ({
   useElapsedTime: vi.fn(() => '1.0s'),
 }));
 
-// Mock lucide-react icons
+// Mock lucide-react icons (updated for Claude.ai minimal style)
 vi.mock('lucide-react', () => ({
   Loader2: (props: Record<string, unknown>) => <span data-testid="loader2-icon" {...props} />,
-  Brain: (props: Record<string, unknown>) => <span data-testid="brain-icon" {...props} />,
+  Check: (props: Record<string, unknown>) => <span data-testid="check-icon" {...props} />,
   ChevronDown: (props: Record<string, unknown>) => (
     <span data-testid="chevron-down-icon" {...props} />
   ),
-  ChevronRight: (props: Record<string, unknown>) => (
-    <span data-testid="chevron-right-icon" {...props} />
-  ),
+  ChevronUp: (props: Record<string, unknown>) => <span data-testid="chevron-up-icon" {...props} />,
   ShieldAlert: (props: Record<string, unknown>) => (
     <span data-testid="shield-alert-icon" {...props} />
   ),
-  CheckCircle2: (props: Record<string, unknown>) => (
-    <span data-testid="check-circle-icon" {...props} />
-  ),
+  Settings: (props: Record<string, unknown>) => <span data-testid="settings-icon" {...props} />,
   XCircle: (props: Record<string, unknown>) => <span data-testid="x-circle-icon" {...props} />,
-  GitBranch: (props: Record<string, unknown>) => <span data-testid="git-branch-icon" {...props} />,
 }));
 
-// Mock Collapsible components (used by ThinkingBlock and ToolCallCard)
-vi.mock('@/components/ui/collapsible', () => ({
-  Collapsible: ({
-    children,
-    open,
-    ...rest
-  }: {
-    children: React.ReactNode;
-    open?: boolean;
-    onOpenChange?: (open: boolean) => void;
-  }) => (
-    <div data-testid="collapsible" data-open={open} {...rest}>
-      {children}
-    </div>
-  ),
-  CollapsibleTrigger: ({ children, ...rest }: { children: React.ReactNode; asChild?: boolean }) => (
-    <div data-testid="collapsible-trigger" {...rest}>
-      {children}
-    </div>
-  ),
-  CollapsibleContent: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="collapsible-content">{children}</div>
-  ),
-}));
+// Note: Collapsible no longer used (minimal inline design)
 
 // Mock MarkdownContent to expose rendered text
 vi.mock('../MarkdownContent', () => ({
@@ -131,9 +103,11 @@ describe('StreamingContent', () => {
       );
 
       // All three block types should render
-      expect(container.textContent).toContain('Reasoning step');
+      // ThinkingBlock shows "Thought" label when collapsed (content hidden)
+      expect(container.textContent).toContain('Thought');
       expect(screen.getByTestId('markdown-content')).toHaveTextContent('Response text here');
-      expect(screen.getByText('Extracting Issues')).toBeInTheDocument();
+      // New format: "Calling X..." for pending tools
+      expect(screen.getByText('Calling Extracting Issues...')).toBeInTheDocument();
     });
 
     it('renders text → thinking → text interleaved order', () => {
@@ -167,8 +141,9 @@ describe('StreamingContent', () => {
         />
       );
 
-      expect(screen.getByText('Extracting Issues')).toBeInTheDocument();
-      expect(screen.getByText('Enhancing Text')).toBeInTheDocument();
+      // New format: "Calling X..." for pending tools
+      expect(screen.getByText('Calling Extracting Issues...')).toBeInTheDocument();
+      expect(screen.getByText('Calling Enhancing Text...')).toBeInTheDocument();
       expect(screen.getByTestId('markdown-content')).toHaveTextContent('Intermediate text');
     });
 
@@ -233,7 +208,8 @@ describe('StreamingContent', () => {
         />
       );
 
-      expect(container.textContent).toContain('Grouped thinking');
+      // ThinkingBlock shows "Thought" label when collapsed (content hidden)
+      expect(container.textContent).toContain('Thought');
       expect(screen.getByTestId('markdown-content')).toHaveTextContent('Response');
     });
 
@@ -242,6 +218,7 @@ describe('StreamingContent', () => {
         <StreamingContent content="Hello" thinkingContent="Legacy thinking" isThinking />
       );
 
+      // When isThinking=true, ThinkingBlock is expanded and content is visible
       expect(container.textContent).toContain('Legacy thinking');
     });
 
@@ -253,7 +230,8 @@ describe('StreamingContent', () => {
         />
       );
 
-      expect(screen.getByText('Summarizing Note')).toBeInTheDocument();
+      // New format: "Calling X..." for pending tools
+      expect(screen.getByText('Calling Summarizing Note...')).toBeInTheDocument();
       expect(screen.getByTestId('markdown-content')).toHaveTextContent('After tools');
     });
 
