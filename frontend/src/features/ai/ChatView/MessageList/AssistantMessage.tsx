@@ -6,12 +6,23 @@
 import { memo } from 'react';
 import { Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ChatMessage } from '@/stores/ai/types/conversation';
+import type { ChatMessage, ContentBlock } from '@/stores/ai/types/conversation';
 import { ToolCallList } from './ToolCallList';
 import { ThinkingBlock } from './ThinkingBlock';
 import { StructuredResultCard } from './StructuredResultCard';
 import { MarkdownContent } from './MarkdownContent';
 import { CitationList } from './CitationList';
+
+/** Check if a thinking block is the last thinking block in the content blocks sequence */
+function isLastThinkingBlock(block: ContentBlock, blocks: ContentBlock[]): boolean {
+  if (block.type !== 'thinking') return false;
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    if (blocks[i]!.type === 'thinking') {
+      return blocks[i]! === block;
+    }
+  }
+  return false;
+}
 
 interface AssistantMessageProps {
   message: ChatMessage;
@@ -39,29 +50,67 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
           </time>
         </div>
 
-        {/* G-12: Render multiple thinking blocks for interleaved thinking, fallback to single */}
-        {message.thinkingBlocks && message.thinkingBlocks.length > 0
-          ? message.thinkingBlocks.map((block) => (
-              <ThinkingBlock
-                key={block.blockIndex}
-                content={block.content}
-                durationMs={
-                  block === message.thinkingBlocks![message.thinkingBlocks!.length - 1]
-                    ? message.thinkingDurationMs
-                    : undefined
-                }
-                isStreaming={false}
-              />
-            ))
-          : message.thinkingContent && (
-              <ThinkingBlock
-                content={message.thinkingContent}
-                durationMs={message.thinkingDurationMs}
-                isStreaming={false}
-              />
-            )}
+        {/* Ordered content blocks: render in server-received order when available */}
+        {message.contentBlocks ? (
+          <>
+            {message.contentBlocks.map((block, idx) => {
+              if (block.type === 'thinking') {
+                return (
+                  <ThinkingBlock
+                    key={`thinking-${block.blockIndex}`}
+                    content={block.content}
+                    durationMs={
+                      isLastThinkingBlock(block, message.contentBlocks!)
+                        ? message.thinkingDurationMs
+                        : undefined
+                    }
+                    isStreaming={false}
+                  />
+                );
+              }
+              if (block.type === 'text') {
+                return <MarkdownContent key={`text-${idx}`} content={block.content} />;
+              }
+              if (block.type === 'tool_call') {
+                const tc = message.toolCalls?.find((t) => t.id === block.toolCallId);
+                return tc ? (
+                  <ToolCallList key={`tool-${block.toolCallId}`} toolCalls={[tc]} />
+                ) : null;
+              }
+              return null;
+            })}
+          </>
+        ) : (
+          <>
+            {/* Fallback: grouped rendering for messages without contentBlocks */}
+            {message.thinkingBlocks && message.thinkingBlocks.length > 0
+              ? message.thinkingBlocks.map((block) => (
+                  <ThinkingBlock
+                    key={block.blockIndex}
+                    content={block.content}
+                    durationMs={
+                      block === message.thinkingBlocks![message.thinkingBlocks!.length - 1]
+                        ? message.thinkingDurationMs
+                        : undefined
+                    }
+                    isStreaming={false}
+                  />
+                ))
+              : message.thinkingContent && (
+                  <ThinkingBlock
+                    content={message.thinkingContent}
+                    durationMs={message.thinkingDurationMs}
+                    isStreaming={false}
+                  />
+                )}
 
-        {message.content && <MarkdownContent content={message.content} />}
+            {message.content && <MarkdownContent content={message.content} />}
+
+            {message.toolCalls && message.toolCalls.length > 0 && (
+              <ToolCallList toolCalls={message.toolCalls} />
+            )}
+          </>
+        )}
 
         {message.structuredResult && (
           <StructuredResultCard
@@ -72,10 +121,6 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
 
         {message.citations && message.citations.length > 0 && (
           <CitationList citations={message.citations} />
-        )}
-
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <ToolCallList toolCalls={message.toolCalls} />
         )}
       </div>
     </div>

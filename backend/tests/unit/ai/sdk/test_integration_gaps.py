@@ -124,7 +124,7 @@ class TestToolResultEmission:
     """Tests for transform_tool_result SSE event dispatch."""
 
     def test_pending_apply_emits_content_update(self) -> None:
-        """Tool results with pending_apply + note operation emit content_update."""
+        """Tool results with pending_apply + note operation emit content_update + tool_result."""
         result_data = {
             "status": "pending_apply",
             "operation": "replace_block",
@@ -139,10 +139,15 @@ class TestToolResultEmission:
         )
         sse = transform_tool_result(msg)
         assert sse is not None
-        event_type, data = _parse_sse_event(sse)
-        assert event_type == "content_update"
-        assert data["noteId"] == "note-123"
-        assert data["operation"] == "replace_block"
+        # Should contain both content_update and companion tool_result events
+        assert "event: content_update" in sse
+        assert "event: tool_result" in sse
+        # Parse the content_update event (first event)
+        event_blocks = [b for b in sse.strip().split("\n\n") if b.strip()]
+        cu_event = next(b for b in event_blocks if b.startswith("event: content_update"))
+        _, cu_data = _parse_sse_event(cu_event + "\n\n")
+        assert cu_data["noteId"] == "note-123"
+        assert cu_data["operation"] == "replace_block"
 
     def test_non_content_tool_emits_tool_result(self) -> None:
         """Tool results WITHOUT pending_apply emit event: tool_result."""
@@ -490,3 +495,308 @@ class TestSystemPromptBaseIntegration:
         config = configure_sdk_for_space(ctx)
         params = config.to_sdk_params()
         assert "system_prompt" not in params
+
+
+# ========================================
+# UserMessage ToolResultBlock handling
+# ========================================
+
+
+class TestUserMessageToolResults:
+    """Tests for _transform_user_message_tool_results via transform_sdk_message."""
+
+    @staticmethod
+    def _make_user_message(
+        blocks: list[Any],
+    ) -> MagicMock:
+        """Create a mock UserMessage with ToolResultBlock content."""
+        msg = MagicMock()
+        type(msg).__name__ = "UserMessage"
+        msg.content = blocks
+        return msg
+
+    def test_generic_tool_result_emits_completed(self) -> None:
+        """UserMessage with non-note tool result emits tool_result with completed status."""
+        from claude_agent_sdk.types import ToolResultBlock
+
+        block = ToolResultBlock(
+            tool_use_id="tc-generic-1",
+            content=json.dumps({"summary": "Found 3 matches", "count": 3}),
+            is_error=False,
+        )
+        msg = self._make_user_message([block])
+        holder: dict[str, Any] = {"_current_message_id": "msg-1"}
+        sse = transform_sdk_message(msg, holder)
+
+        assert sse is not None
+        event_type, data = _parse_sse_event(sse)
+        assert event_type == "tool_result"
+        assert data["toolCallId"] == "tc-generic-1"
+        assert data["status"] == "completed"
+        assert data["output"] == {"summary": "Found 3 matches", "count": 3}
+
+    def test_error_tool_result_emits_failed(self) -> None:
+        """UserMessage with is_error=True emits tool_result with failed status."""
+        from claude_agent_sdk.types import ToolResultBlock
+
+        block = ToolResultBlock(
+            tool_use_id="tc-err-1",
+            content="Permission denied for workspace",
+            is_error=True,
+        )
+        msg = self._make_user_message([block])
+        holder: dict[str, Any] = {"_current_message_id": "msg-2"}
+        sse = transform_sdk_message(msg, holder)
+
+        assert sse is not None
+        event_type, data = _parse_sse_event(sse)
+        assert event_type == "tool_result"
+        assert data["toolCallId"] == "tc-err-1"
+        assert data["status"] == "failed"
+        assert data["errorMessage"] == "Permission denied for workspace"
+        assert "output" not in data
+
+    def test_pending_apply_emits_content_update_and_tool_result(self) -> None:
+        """UserMessage with pending_apply note tool emits content_update + tool_result."""
+        from claude_agent_sdk.types import ToolResultBlock
+
+        result_payload = {
+            "status": "pending_apply",
+            "operation": "replace_block",
+            "note_id": "note-abc",
+            "block_id": "block-1",
+            "markdown": "Updated content here",
+        }
+        block = ToolResultBlock(
+            tool_use_id="tc-note-1",
+            content=json.dumps(result_payload),
+            is_error=False,
+        )
+        msg = self._make_user_message([block])
+        holder: dict[str, Any] = {"_current_message_id": "msg-3"}
+        sse = transform_sdk_message(msg, holder)
+
+        assert sse is not None
+        # Should contain two events: content_update + tool_result
+        raw_events = [e for e in sse.split("\n\n") if e.strip()]
+        assert len(raw_events) == 2
+
+        # First event: content_update
+        evt1_type, evt1_data = _parse_sse_event(raw_events[0] + "\n\n")
+        assert evt1_type == "content_update"
+        assert evt1_data["noteId"] == "note-abc"
+        assert evt1_data["operation"] == "replace_block"
+        assert evt1_data["blockId"] == "block-1"
+        assert evt1_data["markdown"] == "Updated content here"
+
+        # Second event: companion tool_result with completed status
+        evt2_type, evt2_data = _parse_sse_event(raw_events[1] + "\n\n")
+        assert evt2_type == "tool_result"
+        assert evt2_data["toolCallId"] == "tc-note-1"
+        assert evt2_data["status"] == "completed"
+
+    def test_empty_content_returns_none(self) -> None:
+        """UserMessage with no ToolResultBlock content returns None."""
+        msg = MagicMock()
+        type(msg).__name__ = "UserMessage"
+        msg.content = "not a list"
+        holder: dict[str, Any] = {"_current_message_id": "msg-4"}
+        sse = transform_sdk_message(msg, holder)
+        assert sse is None
+
+    def test_none_content_returns_none(self) -> None:
+        """UserMessage with None content returns None."""
+        msg = MagicMock()
+        type(msg).__name__ = "UserMessage"
+        msg.content = None
+        holder: dict[str, Any] = {"_current_message_id": "msg-5"}
+        sse = transform_sdk_message(msg, holder)
+        assert sse is None
+
+    def test_multiple_tool_results_emits_multiple_events(self) -> None:
+        """UserMessage with multiple ToolResultBlocks emits events for each."""
+        from claude_agent_sdk.types import ToolResultBlock
+
+        block1 = ToolResultBlock(
+            tool_use_id="tc-multi-1",
+            content=json.dumps({"result": "ok"}),
+            is_error=False,
+        )
+        block2 = ToolResultBlock(
+            tool_use_id="tc-multi-2",
+            content="Something went wrong",
+            is_error=True,
+        )
+        msg = self._make_user_message([block1, block2])
+        holder: dict[str, Any] = {"_current_message_id": "msg-6"}
+        sse = transform_sdk_message(msg, holder)
+
+        assert sse is not None
+        raw_events = [e for e in sse.split("\n\n") if e.strip()]
+        assert len(raw_events) == 2
+
+        # First: completed result
+        evt1_type, evt1_data = _parse_sse_event(raw_events[0] + "\n\n")
+        assert evt1_type == "tool_result"
+        assert evt1_data["toolCallId"] == "tc-multi-1"
+        assert evt1_data["status"] == "completed"
+
+        # Second: failed result
+        evt2_type, evt2_data = _parse_sse_event(raw_events[1] + "\n\n")
+        assert evt2_type == "tool_result"
+        assert evt2_data["toolCallId"] == "tc-multi-2"
+        assert evt2_data["status"] == "failed"
+        assert evt2_data["errorMessage"] == "Something went wrong"
+
+    def test_list_content_with_text_entries_parsed(self) -> None:
+        """ToolResultBlock with list[dict] content extracts text entries."""
+        from claude_agent_sdk.types import ToolResultBlock
+
+        list_content = [
+            {"type": "text", "text": json.dumps({"items": [1, 2, 3]})},
+        ]
+        block = ToolResultBlock(
+            tool_use_id="tc-list-1",
+            content=list_content,
+            is_error=False,
+        )
+        msg = self._make_user_message([block])
+        holder: dict[str, Any] = {"_current_message_id": "msg-7"}
+        sse = transform_sdk_message(msg, holder)
+
+        assert sse is not None
+        event_type, data = _parse_sse_event(sse)
+        assert event_type == "tool_result"
+        assert data["status"] == "completed"
+        assert data["output"] == {"items": [1, 2, 3]}
+
+    def test_missing_tool_use_id_generates_uuid(self) -> None:
+        """ToolResultBlock with empty tool_use_id gets a generated UUID."""
+        from claude_agent_sdk.types import ToolResultBlock
+
+        block = ToolResultBlock(
+            tool_use_id="",
+            content="simple result",
+            is_error=False,
+        )
+        msg = self._make_user_message([block])
+        holder: dict[str, Any] = {"_current_message_id": "msg-8"}
+        sse = transform_sdk_message(msg, holder)
+
+        assert sse is not None
+        _, data = _parse_sse_event(sse)
+        # Should be a valid UUID
+        UUID(data["toolCallId"])
+
+
+# ========================================
+# Web search toolCallId fix
+# ========================================
+
+
+class TestWebSearchToolCallId:
+    """Tests for web search result using toolCallId field (not toolUseId)."""
+
+    def test_web_search_result_uses_tool_call_id_dict_block(self) -> None:
+        """Web search result from dict block uses 'toolCallId' not 'toolUseId'."""
+        block = {
+            "type": "web_search_tool_result",
+            "tool_use_id": "ws-dict-1",
+            "content": [
+                {
+                    "type": "web_search_result",
+                    "title": "Example Page",
+                    "url": "https://example.com",
+                    "encrypted_content": "Page snippet text",
+                },
+            ],
+        }
+        msg = _make_assistant_msg_with_parent([block])
+        holder: dict[str, Any] = {"_current_message_id": "msg-ws-1"}
+        sse = transform_sdk_message(msg, holder)
+
+        assert sse is not None
+        # Find the tool_result event (skip content_block_start)
+        raw_events = [e for e in sse.split("\n\n") if e.strip()]
+        tool_result_event = None
+        for evt in raw_events:
+            if '"tool_result"' not in evt and "tool_result" in evt:
+                # Check for event: tool_result line
+                if evt.strip().startswith("event: tool_result"):
+                    tool_result_event = evt
+                    break
+        assert tool_result_event is not None
+        _, data = _parse_sse_event(tool_result_event + "\n\n")
+        assert "toolCallId" in data
+        assert "toolUseId" not in data
+        assert data["toolCallId"] == "ws-dict-1"
+        assert data["status"] == "completed"
+        assert data["output"]["type"] == "web_search_results"
+        assert len(data["output"]["results"]) == 1
+        assert data["output"]["results"][0]["title"] == "Example Page"
+
+    def test_web_search_result_uses_tool_call_id_object_block(self) -> None:
+        """Web search result from object block uses 'toolCallId' not 'toolUseId'."""
+        block = MagicMock()
+        block.type = "web_search_tool_result"
+        block.tool_use_id = "ws-obj-1"
+        entry = MagicMock()
+        entry.title = "Test Result"
+        entry.url = "https://test.com"
+        entry.encrypted_content = "Snippet"
+        entry.text = "Fallback text"
+        block.content = [entry]
+
+        msg = _make_assistant_msg_with_parent([block])
+        holder: dict[str, Any] = {"_current_message_id": "msg-ws-2"}
+        sse = transform_sdk_message(msg, holder)
+
+        assert sse is not None
+        raw_events = [e for e in sse.split("\n\n") if e.strip()]
+        tool_result_event = None
+        for evt in raw_events:
+            if evt.strip().startswith("event: tool_result"):
+                tool_result_event = evt
+                break
+        assert tool_result_event is not None
+        _, data = _parse_sse_event(tool_result_event + "\n\n")
+        assert "toolCallId" in data
+        assert "toolUseId" not in data
+        assert data["toolCallId"] == "ws-obj-1"
+
+    def test_web_search_result_normalizes_entries(self) -> None:
+        """Web search result normalizes multiple search entries."""
+        block = {
+            "type": "web_search_tool_result",
+            "tool_use_id": "ws-multi-1",
+            "content": [
+                {
+                    "title": "Result 1",
+                    "url": "https://r1.com",
+                    "encrypted_content": "Snippet 1",
+                },
+                {
+                    "title": "Result 2",
+                    "url": "https://r2.com",
+                    "text": "Fallback snippet 2",
+                },
+            ],
+        }
+        msg = _make_assistant_msg_with_parent([block])
+        holder: dict[str, Any] = {"_current_message_id": "msg-ws-3"}
+        sse = transform_sdk_message(msg, holder)
+
+        assert sse is not None
+        raw_events = [e for e in sse.split("\n\n") if e.strip()]
+        tool_result_event = None
+        for evt in raw_events:
+            if evt.strip().startswith("event: tool_result"):
+                tool_result_event = evt
+                break
+        assert tool_result_event is not None
+        _, data = _parse_sse_event(tool_result_event + "\n\n")
+        results = data["output"]["results"]
+        assert len(results) == 2
+        assert results[0]["snippet"] == "Snippet 1"
+        # Second entry falls back to "text" since no encrypted_content
+        assert results[1]["snippet"] == "Fallback snippet 2"

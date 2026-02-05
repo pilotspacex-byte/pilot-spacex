@@ -10,7 +10,7 @@ import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Button } from '@/components/ui/button';
 import { ArrowDown, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ChatMessage } from '@/stores/ai/types/conversation';
+import type { ChatMessage, ToolCall, ThinkingBlockEntry } from '@/stores/ai/types/conversation';
 import { MessageGroup } from './MessageGroup';
 import { StreamingContent } from './StreamingContent';
 
@@ -20,12 +20,20 @@ interface MessageListProps {
   streamContent?: string;
   /** Thinking content being streamed (extended thinking) */
   thinkingContent?: string;
+  /** Individual thinking blocks for interleaved rendering (G-07) */
+  thinkingBlocks?: ThinkingBlockEntry[];
   /** Whether thinking is actively streaming */
   isThinking?: boolean;
   /** Timestamp (ms) when thinking started, for live timer */
   thinkingStartedAt?: number | null;
   /** Whether the stream was interrupted by user */
   interrupted?: boolean;
+  /** Pending tool calls buffered during streaming */
+  pendingToolCalls?: ToolCall[];
+  /** Ordered sequence of block types from SSE stream */
+  blockOrder?: Array<'thinking' | 'text' | 'tool_use'>;
+  /** Per-text-block segments for ordered rendering */
+  textSegments?: string[];
   userName?: string;
   userAvatar?: string;
   className?: string;
@@ -62,9 +70,13 @@ export const MessageList = observer<MessageListProps>(
     isStreaming,
     streamContent,
     thinkingContent,
+    thinkingBlocks,
     isThinking,
     thinkingStartedAt,
     interrupted,
+    pendingToolCalls,
+    blockOrder,
+    textSegments,
     userName,
     userAvatar,
     className,
@@ -95,7 +107,12 @@ export const MessageList = observer<MessageListProps>(
     );
 
     // Total items: message groups + optional streaming footer
-    const hasStreamingFooter = isStreaming && (streamContent || thinkingContent);
+    const hasStreamingFooter =
+      isStreaming &&
+      (streamContent ||
+        thinkingContent ||
+        (thinkingBlocks && thinkingBlocks.length > 0) ||
+        (pendingToolCalls && pendingToolCalls.length > 0));
     const totalCount = messageGroups.length + (hasStreamingFooter ? 1 : 0);
 
     return (
@@ -135,9 +152,13 @@ export const MessageList = observer<MessageListProps>(
                     <StreamingContent
                       content={streamContent ?? ''}
                       thinkingContent={thinkingContent}
+                      thinkingBlocks={thinkingBlocks}
                       isThinking={isThinking}
                       thinkingStartedAt={thinkingStartedAt}
                       interrupted={interrupted}
+                      pendingToolCalls={pendingToolCalls}
+                      blockOrder={blockOrder}
+                      textSegments={textSegments}
                     />
                   </div>
                 );

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 
 // Mock useElapsedTime to control timer output
 vi.mock('@/hooks/useElapsedTime', () => ({
@@ -53,6 +53,7 @@ vi.mock('@/components/ui/collapsible', () => ({
   ),
 }));
 
+import { makeAutoObservable, runInAction } from 'mobx';
 import { useElapsedTime } from '@/hooks/useElapsedTime';
 import { ToolCallCard } from '../ToolCallCard';
 import type { ToolCall } from '@/stores/ai/types/conversation';
@@ -263,5 +264,42 @@ describe('ToolCallCard', () => {
 
     const article = screen.getByRole('article');
     expect(article.className).toContain('custom-class');
+  });
+
+  // ========================================
+  // MobX observer reactivity (memo→observer fix)
+  // ========================================
+
+  it('re-renders when MobX observable ToolCall properties are mutated', () => {
+    // Create a MobX observable tool call to simulate store behavior
+    const toolCall = makeToolCall({ status: 'pending' });
+    makeAutoObservable(toolCall);
+
+    const { rerender } = render(<ToolCallCard toolCall={toolCall} />);
+
+    // Initially pending
+    expect(screen.getByTestId('loader2-icon')).toBeInTheDocument();
+    expect(screen.getByRole('article')).toHaveAttribute(
+      'aria-label',
+      'Extracting Issues — Pending'
+    );
+
+    // Mutate the observable (simulating tool_result handler in store)
+    act(() => {
+      runInAction(() => {
+        toolCall.status = 'completed';
+        toolCall.durationMs = 1200;
+        toolCall.output = { result: 'done' };
+      });
+    });
+
+    // Re-render (observer detects MobX mutation)
+    rerender(<ToolCallCard toolCall={toolCall} />);
+
+    expect(screen.getByTestId('check-circle-icon')).toBeInTheDocument();
+    expect(screen.getByRole('article')).toHaveAttribute(
+      'aria-label',
+      'Extracting Issues — Completed'
+    );
   });
 });

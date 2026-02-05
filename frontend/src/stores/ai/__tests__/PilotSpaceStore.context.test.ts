@@ -60,11 +60,12 @@ describe('PilotSpaceStore.setNoteContext', () => {
     store.setNoteContext(context);
 
     const conversationCtx = store.conversationContext;
+    expect(conversationCtx).not.toBeNull();
 
-    expect(conversationCtx.noteId).toBe('note-456');
-    expect(conversationCtx.workspaceId).toBe('workspace-123');
-    expect(conversationCtx.selectedText).toBe('some selected text');
-    expect(conversationCtx.selectedBlockIds).toEqual(['block-1', 'block-2']);
+    expect(conversationCtx!.noteId).toBe('note-456');
+    expect(conversationCtx!.workspaceId).toBe('workspace-123');
+    expect(conversationCtx!.selectedText).toBe('some selected text');
+    expect(conversationCtx!.selectedBlockIds).toEqual(['block-1', 'block-2']);
   });
 
   it('test_setNoteContext_preserves_selected_text — Setting context does not clear selection', () => {

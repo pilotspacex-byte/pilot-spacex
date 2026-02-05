@@ -10,7 +10,8 @@
 
 'use client';
 
-import { memo, useState } from 'react';
+import { useState } from 'react';
+import { observer } from 'mobx-react-lite';
 import { Loader2, CheckCircle2, XCircle, ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
@@ -50,7 +51,7 @@ function formatDuration(ms: number): string {
   return `${Math.floor(seconds)}s`;
 }
 
-export const ToolCallCard = memo<ToolCallCardProps>(({ toolCall, className }) => {
+export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }) => {
   const status = toolCall.status || 'pending';
   const displayName = getToolDisplayName(toolCall.name);
   const statusLabel = STATUS_LABEL_MAP[status] || 'Pending';

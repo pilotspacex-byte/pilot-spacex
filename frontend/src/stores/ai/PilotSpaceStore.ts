@@ -192,6 +192,11 @@ export class PilotSpaceStore {
     return this.streamingState.streamContent;
   }
 
+  /** Pending tool calls visible during streaming (for StreamingContent rendering). */
+  get pendingToolCalls(): ToolCall[] {
+    return this._pendingToolCalls;
+  }
+
   get hasUnresolvedApprovals(): boolean {
     return this.pendingApprovals.length > 0;
   }
@@ -206,9 +211,9 @@ export class PilotSpaceStore {
     return Array.from(this.tasks.values()).filter((task) => task.status === 'completed');
   }
 
-  get conversationContext(): ConversationContext {
+  get conversationContext(): ConversationContext | null {
     if (!this.workspaceId) {
-      throw new Error('Cannot create conversation context: workspaceId not set');
+      return null;
     }
     return {
       workspaceId: this.workspaceId,
@@ -283,11 +288,15 @@ export class PilotSpaceStore {
   }
 
   updateTaskStatus(taskId: string, status: TaskStatus): void {
-    this.approvalsHandler.updateTaskStatus(taskId, status);
+    const task = this.tasks.get(taskId);
+    if (task) {
+      task.status = status;
+      task.updatedAt = new Date();
+    }
   }
 
   removeTask(taskId: string): void {
-    this.approvalsHandler.removeTask(taskId);
+    this.tasks.delete(taskId);
   }
 
   // ========================================

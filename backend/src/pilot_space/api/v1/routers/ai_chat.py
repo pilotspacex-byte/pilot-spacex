@@ -67,7 +67,7 @@ class ChatRequest(BaseSchema):
         None,
         description="Session ID to fork from (creates a branch for what-if exploration)",
     )
-    context: ChatContext = Field(..., description="Context for AI response")
+    context: ChatContext | None = Field(None, description="Context for AI response")
 
 
 class ChatQueueResponse(BaseSchema):
@@ -102,25 +102,47 @@ async def chat(
     """
     from pilot_space.api.v1.middleware import extract_ai_context
 
+    # Extract context fields with None-safe defaults
+    ctx = chat_request.context
+    ctx_workspace_id = ctx.workspace_id if ctx else None
+    ctx_note_id = ctx.note_id if ctx else None
+    ctx_issue_id = ctx.issue_id if ctx else None
+    ctx_selected_text = ctx.selected_text if ctx else None
+    ctx_selected_block_ids = ctx.selected_block_ids if ctx else []
+
+    # Fallback: resolve workspace_id from middleware (X-Workspace-ID header)
+    if ctx_workspace_id is None:
+        middleware_ws = getattr(fastapi_request.state, "workspace_id", None)
+        if middleware_ws:
+            ctx_workspace_id = (
+                UUID(middleware_ws) if isinstance(middleware_ws, str) else middleware_ws
+            )
+
     logger.info(
         "Chat request: message='%s', workspace_id=%s",
         chat_request.message[:50],
-        chat_request.context.workspace_id,
+        ctx_workspace_id,
     )
 
     # Extract full AI context (loads Note/Issue objects if IDs provided)
-    ai_context = await extract_ai_context(
-        request=fastapi_request,
-        session=session,
-        note_id=chat_request.context.note_id,
-        issue_id=chat_request.context.issue_id,
-        workspace_id=chat_request.context.workspace_id,
-        selected_text=chat_request.context.selected_text,
-    )
+    if ctx_workspace_id is not None:
+        ai_context = await extract_ai_context(
+            request=fastapi_request,
+            session=session,
+            note_id=ctx_note_id,
+            issue_id=ctx_issue_id,
+            workspace_id=ctx_workspace_id,
+            selected_text=ctx_selected_text,
+        )
+    else:
+        # No workspace context — allow contextless chat (no RLS scoping)
+        ai_context: dict[str, object] = {}
+        if ctx_selected_text:
+            ai_context["selected_text"] = ctx_selected_text
 
     # Forward selected block IDs for tool calls
-    if chat_request.context.selected_block_ids:
-        ai_context["selected_block_ids"] = chat_request.context.selected_block_ids
+    if ctx_selected_block_ids:
+        ai_context["selected_block_ids"] = ctx_selected_block_ids
 
     # Set RLS context for session DB queries (context lookup, save)
     await set_rls_context(session, user_id)
@@ -129,21 +151,21 @@ async def chat(
     # Priority: fork > explicit session_id > context lookup > create new
     conv_session = None
     is_existing_session = False
-    context_id = chat_request.context.note_id or chat_request.context.issue_id
+    context_id = ctx_note_id or ctx_issue_id
     if session_handler is not None:
         if chat_request.fork_session_id:
             # Fork from existing session (what-if exploration)
             fork_source = UUID(chat_request.fork_session_id)
             conv_session = await session_handler.fork_session(
                 source_session_id=fork_source,
-                workspace_id=chat_request.context.workspace_id,
+                workspace_id=ctx_workspace_id,
                 user_id=user_id,
             )
         elif chat_request.session_id:
             session_id_uuid = UUID(chat_request.session_id)
             conv_session = await session_handler.get_session(
                 session_id_uuid,
-                workspace_id=chat_request.context.workspace_id,
+                workspace_id=ctx_workspace_id,
                 user_id=user_id,
             )
             if conv_session:
@@ -158,7 +180,7 @@ async def chat(
         if conv_session is None and context_id:
             conv_session = await session_handler.get_session_by_context(
                 user_id=user_id,
-                workspace_id=chat_request.context.workspace_id,
+                workspace_id=ctx_workspace_id,
                 agent_name="conversation",
                 context_id=context_id,
             )
@@ -168,7 +190,7 @@ async def chat(
         # Last resort: create new session
         if conv_session is None:
             conv_session = await session_handler.create_session(
-                workspace_id=chat_request.context.workspace_id,
+                workspace_id=ctx_workspace_id,
                 user_id=user_id,
                 agent_name="conversation",
                 context_id=context_id,
@@ -195,7 +217,7 @@ async def chat(
                 "job_id": job_id,
                 "message": chat_request.message,
                 "session_id": str(conv_session.session_id) if conv_session else None,
-                "workspace_id": str(chat_request.context.workspace_id),
+                "workspace_id": str(ctx_workspace_id) if ctx_workspace_id else None,
                 "user_id": str(user_id),
                 "context": ai_context,
             },
@@ -226,7 +248,7 @@ async def chat(
             str(conv_session.session_id) if is_existing_session and conv_session else None
         ),
         "user_id": str(user_id),
-        "workspace_id": str(chat_request.context.workspace_id),
+        "workspace_id": str(ctx_workspace_id) if ctx_workspace_id else None,
     }
 
     async def stream_response():
@@ -599,8 +621,9 @@ async def _execute_agent_stream(
         workspace_id=UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None,
     )
 
+    ws_id = input_data.get("workspace_id")
     agent_context = AgentContext(
-        workspace_id=UUID(input_data["workspace_id"]),
+        workspace_id=UUID(ws_id) if ws_id else UUID("00000000-0000-0000-0000-000000000000"),
         user_id=UUID(input_data["user_id"]),
     )
 

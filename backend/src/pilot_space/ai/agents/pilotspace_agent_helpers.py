@@ -18,6 +18,7 @@ from pilot_space.ai.agents.pilotspace_note_helpers import (
     emit_issue_creation_events,
     emit_replace_block_event,
     transform_todo_to_task_progress,
+    transform_user_message_tool_results,
     validate_structured_output,
 )
 from pilot_space.ai.agents.stream_event_transformer import transform_stream_event
@@ -162,8 +163,15 @@ def transform_sdk_message(  # noqa: PLR0911
             current_message_id_holder,
         )
 
+    # Handle SDK ToolResultMessage (legacy compat) and ToolResult
     if msg_type in ("ToolResultMessage", "ToolResult"):
         return transform_tool_result(message)
+
+    # Handle UserMessage with ToolResultBlock content (current SDK)
+    # The Claude Agent SDK emits tool results as UserMessage objects
+    # containing ToolResultBlock entries, not as standalone ToolResultMessage.
+    if msg_type == "UserMessage":
+        return transform_user_message_tool_results(message)
 
     if msg_type == "SystemMessage":
         raw_data = getattr(message, "data", None)
@@ -280,15 +288,12 @@ def transform_sdk_message(  # noqa: PLR0911
                         events.append(tool_event)
                 elif block_type == "server_tool_use":
                     # G-10: Handle server-side tool invocations (web_search, etc.)
-                    tool_event = _handle_server_tool_use_block(block, message_id)
+                    tool_event = _handle_server_tool_use_block(block)
                     if tool_event:
                         events.append(tool_event)
                 elif block_type == "web_search_tool_result":
                     # G-10: Handle web search results from server tools
-                    search_event = _handle_web_search_result_block(
-                        block,
-                        message_id,
-                    )
+                    search_event = _handle_web_search_result_block(block)
                     if search_event:
                         events.append(search_event)
                 elif block_type == "citation":
@@ -456,7 +461,7 @@ def _handle_tool_use_block(block: Any, message_id: str) -> str | None:
     return f"event: tool_use\ndata: {json.dumps(tool_data)}\n\n"
 
 
-def _handle_server_tool_use_block(block: Any, message_id: str) -> str | None:
+def _handle_server_tool_use_block(block: Any) -> str | None:
     """Handle server_tool_use block (G-10).
 
     Server tools (web_search, web_fetch) run on Anthropic's infrastructure.
@@ -479,7 +484,7 @@ def _handle_server_tool_use_block(block: Any, message_id: str) -> str | None:
     return f"event: tool_use\ndata: {json.dumps(tool_data)}\n\n"
 
 
-def _handle_web_search_result_block(block: Any, message_id: str) -> str | None:
+def _handle_web_search_result_block(block: Any) -> str | None:
     """Handle web_search_tool_result block (G-10).
 
     Emits a tool_result event with search results so the frontend
@@ -518,7 +523,7 @@ def _handle_web_search_result_block(block: Any, message_id: str) -> str | None:
                 )
 
     result_data: dict[str, Any] = {
-        "toolUseId": str(tool_id),
+        "toolCallId": str(tool_id),
         "output": {"type": "web_search_results", "results": results},
         "status": "completed",
     }
@@ -619,18 +624,7 @@ def _extract_citation(block: Any) -> dict[str, Any] | None:
 
 
 def transform_tool_result(message: Message) -> str | None:
-    """Transform MCP tool result to SSE event.
-
-    For note tools with pending_apply status, emits content_update events.
-    For all other tool results, emits tool_result events so the frontend
-    can update tool call status in the message UI.
-
-    Args:
-        message: Tool result message from SDK
-
-    Returns:
-        SSE-formatted event string or None if message should be ignored
-    """
+    """Transform MCP tool result to SSE event (content_update for note tools, tool_result for others)."""
     result_data = getattr(message, "result", {})
     tool_use_id = getattr(message, "tool_use_id", "")
 

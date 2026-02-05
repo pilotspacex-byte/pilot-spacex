@@ -9,7 +9,7 @@
  */
 import { runInAction } from 'mobx';
 import { SSEClient, type SSEEvent } from '@/lib/sse-client';
-import type { ChatMessage, MessageRole, ToolCall } from './types/conversation';
+import type { ChatMessage, ContentBlock, MessageRole, ToolCall } from './types/conversation';
 import type {
   MessageStartEvent,
   ContentBlockStartEvent,
@@ -64,6 +64,25 @@ export class PilotSpaceStreamHandler {
   private _lastParentToolUseId: string | null = null;
   private _retryCount = 0;
   private _retryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Maps content block index → tool call ID for tool_input_delta routing */
+  private _blockIndexToToolCallId = new Map<number, string>();
+  /** Tracks the last content block index seen for tool_use blocks */
+  private _lastToolUseBlockIndex: number | null = null;
+  /** Monotonic counter for thinking turns (incremented on each thinking content_block_start).
+   *  Models like kimi-k2.5 reset blockIndex to 0 on each agentic turn, so we use our own
+   *  counter to distinguish separate thinking blocks. */
+  private _thinkingTurnIndex = -1;
+  /** Flag to skip duplicate "summary" text blocks.
+   *  Some models emit a content_block_start index:0 text after individual word deltas,
+   *  containing the full text again. We detect and skip these duplicates. */
+  private _skipDuplicateTextBlock = false;
+  /** Flag-based block separator: set once in handleContentBlockStart when a new text
+   *  block starts after existing content, consumed once in handleTextDelta. */
+  private _needsBlockSeparator = false;
+  /** Tracks text segments per content block for ordered rendering */
+  private _textSegments: string[] = [];
+  /** Tracks the sequence of content block types for ordered rendering */
+  private _blockOrder: Array<'thinking' | 'text' | 'tool_use'> = [];
 
   constructor(private store: PilotSpaceStore) {}
 
@@ -323,6 +342,13 @@ export class PilotSpaceStreamHandler {
 
     // Reset parent correlation state
     this._lastParentToolUseId = null;
+    this._blockIndexToToolCallId.clear();
+    this._lastToolUseBlockIndex = null;
+    this._thinkingTurnIndex = -1;
+    this._skipDuplicateTextBlock = false;
+    this._needsBlockSeparator = false;
+    this._textSegments = [];
+    this._blockOrder = [];
 
     // Initialize streaming state
     this.store.streamingState = {
@@ -356,17 +382,42 @@ export class PilotSpaceStreamHandler {
     if (contentType === 'thinking') {
       this.store.streamingState.phase = 'thinking';
       this.store.streamingState.isThinking = true;
+      this._thinkingTurnIndex++;
+      this._skipDuplicateTextBlock = false;
+      this._blockOrder.push('thinking');
+      this.syncBlockOrderToState();
       if (!this.store.streamingState.thinkingStartedAt) {
         this.store.streamingState.thinkingStartedAt = Date.now();
       }
-    } else if (contentType === 'text' && this.store.streamingState.phase === 'message_start') {
+    } else if (contentType === 'text') {
+      // Detect duplicate "summary" text blocks: models like kimi-k2.5 emit
+      // a content_block_start index:0 text after word-by-word deltas, containing
+      // the full text again. Skip these to avoid duplicate content.
+      if (index === 0 && this.store.streamingState.streamContent.trim().length > 0) {
+        this._skipDuplicateTextBlock = true;
+      } else {
+        this._skipDuplicateTextBlock = false;
+        this._blockOrder.push('text');
+        this._textSegments.push('');
+        this.syncBlockOrderToState();
+        // Set separator flag if existing content precedes this text block
+        if (this.store.streamingState.streamContent.length > 0) {
+          this._needsBlockSeparator = true;
+        }
+      }
       this.store.streamingState.phase = 'content';
+    } else if (contentType === 'tool_use') {
+      // Track block index for tool_input_delta routing
+      this._lastToolUseBlockIndex = index;
+      this._skipDuplicateTextBlock = false;
+      this._blockOrder.push('tool_use');
+      this.syncBlockOrderToState();
     }
   }
 
   /** Handle thinking_delta — appends streaming thinking chunks. */
   handleThinkingDelta(event: ThinkingDeltaEvent): void {
-    const { delta, signature, blockIndex, redacted } = event.data;
+    const { delta, signature, redacted } = event.data;
 
     // Start thinking timer on first delta
     if (!this.store.streamingState.isThinking) {
@@ -378,23 +429,24 @@ export class PilotSpaceStreamHandler {
     this.store.streamingState.thinkingContent += delta;
     this.store.streamingState.phase = 'thinking';
 
-    // G-07: Accumulate per-block thinking entries for interleaved rendering
-    if (blockIndex !== undefined) {
-      if (!this.store.streamingState.thinkingBlocks) {
-        this.store.streamingState.thinkingBlocks = [];
-      }
-      const existing = this.store.streamingState.thinkingBlocks.find(
-        (b) => b.blockIndex === blockIndex
-      );
-      if (existing) {
-        existing.content += delta;
-      } else {
-        this.store.streamingState.thinkingBlocks.push({
-          content: delta,
-          blockIndex,
-          redacted,
-        });
-      }
+    // G-07: Accumulate per-block thinking entries for interleaved rendering.
+    // Use _thinkingTurnIndex instead of raw blockIndex because some models
+    // (e.g. kimi-k2.5) reset blockIndex to 0 on each agentic turn.
+    const turnIndex = this._thinkingTurnIndex >= 0 ? this._thinkingTurnIndex : 0;
+    if (!this.store.streamingState.thinkingBlocks) {
+      this.store.streamingState.thinkingBlocks = [];
+    }
+    const existing = this.store.streamingState.thinkingBlocks.find(
+      (b) => b.blockIndex === turnIndex
+    );
+    if (existing) {
+      existing.content += delta;
+    } else {
+      this.store.streamingState.thinkingBlocks.push({
+        content: delta,
+        blockIndex: turnIndex,
+        redacted,
+      });
     }
 
     // Capture thinking block signature for multi-turn verification (G-06)
@@ -407,13 +459,36 @@ export class PilotSpaceStreamHandler {
   handleTextDelta(event: TextDeltaEvent): void {
     const { delta } = event.data;
 
+    // Filter noise text produced by some models between thinking/tool blocks
+    // (e.g., literal "(no content)" or whitespace-only deltas)
+    if (this.isNoiseTextDelta(delta)) {
+      return;
+    }
+
+    // Skip duplicate "summary" text blocks (see _skipDuplicateTextBlock)
+    if (this._skipDuplicateTextBlock) {
+      return;
+    }
+
     // End thinking phase when text starts arriving
     if (this.store.streamingState.isThinking) {
       this.store.streamingState.isThinking = false;
     }
 
+    // Flag-based block separator: only fires once at the start of a new text block
+    if (this._needsBlockSeparator) {
+      this.store.streamingState.streamContent += '\n\n';
+      this._needsBlockSeparator = false;
+    }
+
     // Accumulate text delta
     this.store.streamingState.streamContent += delta;
+
+    // Track per-segment text for ordered content blocks
+    if (this._textSegments.length > 0) {
+      this._textSegments[this._textSegments.length - 1] += delta;
+      this.store.streamingState.textSegments = [...this._textSegments];
+    }
     this.store.streamingState.phase = 'content';
 
     const words = delta.split(/\s+/).filter((w) => w.length > 0);
@@ -433,6 +508,12 @@ export class PilotSpaceStreamHandler {
       parentToolUseId: this._lastParentToolUseId ?? undefined,
     };
 
+    // Map block index to tool call ID for tool_input_delta routing
+    if (this._lastToolUseBlockIndex !== null) {
+      this._blockIndexToToolCallId.set(this._lastToolUseBlockIndex, toolCallId);
+      this._lastToolUseBlockIndex = null;
+    }
+
     // Buffer tool call — message doesn't exist in messages[] during streaming
     this.store.addPendingToolCall(toolCall);
 
@@ -445,7 +526,10 @@ export class PilotSpaceStreamHandler {
   handleToolResult(event: ToolResultEvent): void {
     this.store.streamingState.activeToolName = null;
 
-    const { toolCallId, status, output, errorMessage } = event.data;
+    const { status, output, errorMessage } = event.data;
+    // Support both field names: toolCallId (standard) and toolUseId (legacy web search events)
+    const toolCallId = event.data.toolCallId ?? event.data.toolUseId;
+    if (!toolCallId) return;
 
     // Map backend status to ToolCall status
     const toolCallStatus: 'pending' | 'completed' | 'failed' =
@@ -559,10 +643,23 @@ export class PilotSpaceStreamHandler {
     const toolCalls = this.store.consumePendingToolCalls();
     const citations = this.store.consumePendingCitations();
 
+    // Resolve any tool calls still in 'pending' status (no tool_result received).
+    // This happens with models that emit tool_use events without executing tools.
+    if (toolCalls) {
+      for (const tc of toolCalls) {
+        if (tc.status === 'pending') {
+          tc.status = 'completed';
+        }
+      }
+    }
+
     // G-07: Collect interleaved thinking blocks if present
     const thinkingBlocks = this.store.streamingState.thinkingBlocks?.length
       ? [...this.store.streamingState.thinkingBlocks]
       : undefined;
+
+    // Build ordered content blocks from tracked sequence
+    const contentBlocks = this.buildContentBlocks(thinkingBlocks, toolCalls);
 
     // Create completed assistant message
     const assistantMessage: ChatMessage = {
@@ -572,6 +669,7 @@ export class PilotSpaceStreamHandler {
       timestamp: new Date(),
       thinkingContent: this.store.streamingState.thinkingContent || undefined,
       thinkingBlocks,
+      contentBlocks: contentBlocks.length > 0 ? contentBlocks : undefined,
       thinkingDurationMs,
       thinkingSignature: this.store.streamingState.thinkingSignature,
       toolCalls,
@@ -688,11 +786,107 @@ export class PilotSpaceStreamHandler {
 
   /** Handle tool_input_delta — accumulates partial JSON on pending tool call (T65). */
   handleToolInputDelta(event: ToolInputDeltaEvent): void {
-    const { toolUseId, inputDelta } = event.data;
-    const tc = this.store.findPendingToolCall(toolUseId);
-    if (tc) {
-      tc.partialInput = (tc.partialInput ?? '') + inputDelta;
+    const { data } = event;
+
+    // Support both backend field formats:
+    // - Original: { toolUseId, inputDelta }
+    // - Stream transformer: { messageId, delta, blockIndex }
+    const inputText = data.inputDelta ?? data.delta ?? '';
+    if (!inputText) return;
+
+    // Match by toolUseId if available, otherwise by blockIndex
+    let tc: ToolCall | undefined;
+    if (data.toolUseId) {
+      tc = this.store.findPendingToolCall(data.toolUseId);
+    } else if (data.blockIndex !== undefined) {
+      tc = this.findPendingToolCallByBlockIndex(data.blockIndex);
     }
+
+    if (tc) {
+      tc.partialInput = (tc.partialInput ?? '') + inputText;
+    }
+  }
+
+  /**
+   * Sync internal block order + text segments to observable streaming state.
+   * Creates new array references so MobX detects the change.
+   */
+  private syncBlockOrderToState(): void {
+    this.store.streamingState.blockOrder = [...this._blockOrder];
+    this.store.streamingState.textSegments = [...this._textSegments];
+  }
+
+  /**
+   * Build ordered content blocks from the tracked block sequence.
+   * Reconstructs the interleaved order of thinking/text/tool blocks
+   * using _blockOrder + thinkingBlocks + _textSegments + toolCalls.
+   */
+  private buildContentBlocks(
+    thinkingBlocks: import('./types/conversation').ThinkingBlockEntry[] | undefined,
+    toolCalls: ToolCall[] | undefined
+  ): ContentBlock[] {
+    const blocks: ContentBlock[] = [];
+    let thinkingIdx = 0;
+    let textIdx = 0;
+    let toolIdx = 0;
+
+    for (const blockType of this._blockOrder) {
+      if (blockType === 'thinking') {
+        const tb = thinkingBlocks?.[thinkingIdx];
+        if (tb) {
+          blocks.push({
+            type: 'thinking',
+            blockIndex: tb.blockIndex,
+            content: tb.content,
+            redacted: tb.redacted,
+          });
+        }
+        thinkingIdx++;
+      } else if (blockType === 'text') {
+        const text = this._textSegments[textIdx];
+        if (text?.trim()) {
+          blocks.push({ type: 'text', content: text });
+        }
+        textIdx++;
+      } else if (blockType === 'tool_use') {
+        const tc = toolCalls?.[toolIdx];
+        if (tc) {
+          blocks.push({ type: 'tool_call', toolCallId: tc.id });
+        }
+        toolIdx++;
+      }
+    }
+
+    return blocks;
+  }
+
+  /**
+   * Check if a text delta is noise content produced by some models
+   * between thinking/tool blocks (e.g., literal "(no content)").
+   * Newline-only deltas (\n, \n\n) are NOT noise — they are critical
+   * for markdown list formatting and paragraph breaks.
+   */
+  private isNoiseTextDelta(delta: string): boolean {
+    if (delta.length === 0) return true;
+    if (delta.trim() === '(no content)') return true;
+    return false;
+  }
+
+  /**
+   * Find a pending tool call by its block index.
+   * Used when tool_input_delta arrives with blockIndex instead of toolUseId
+   * (stream transformer format).
+   */
+  private findPendingToolCallByBlockIndex(blockIndex: number): ToolCall | undefined {
+    // The pending tool calls are ordered by insertion.
+    // The blockIndex from content_block_start for tool_use blocks maps to the tool call
+    // that was created when we saw that block index.
+    // Track the mapping via _blockIndexToToolCallId.
+    const toolCallId = this._blockIndexToToolCallId.get(blockIndex);
+    if (toolCallId) {
+      return this.store.findPendingToolCall(toolCallId);
+    }
+    return undefined;
   }
 
   /** Reset retry state. Call when starting a new stream. */

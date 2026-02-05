@@ -1,14 +1,14 @@
 /**
- * Unit tests for MarkdownContent streaming fade-in effect.
+ * Unit tests for MarkdownContent component.
  *
- * Tests static rendering, streaming fade-in animation on new content,
- * stable content without animation, cursor at end, and empty content.
+ * Tests static rendering, streaming fade-in animation on container,
+ * cursor at end during streaming, and empty content.
  *
  * @module features/ai/ChatView/MessageList/__tests__/MarkdownContent
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render } from '@testing-library/react';
 
 // Mock react-markdown to render plain text (avoids ESM/remark issues in tests)
 vi.mock('react-markdown', () => ({
@@ -21,24 +21,9 @@ vi.mock('rehype-highlight', () => ({ default: () => {} }));
 import { MarkdownContent } from '../MarkdownContent';
 
 /** Tailwind variant class as rendered in DOM */
-const FADE_CLASS = 'motion-safe:animate-fade-up';
-
-/** Query helper: querySelector can't handle colons, use attribute selector */
-function queryFadeElements(container: HTMLElement): Element[] {
-  return Array.from(container.querySelectorAll('span')).filter((el) =>
-    el.className.includes('animate-fade-up')
-  );
-}
+const FADE_CLASS = 'animate-fade-up';
 
 describe('MarkdownContent', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   // ========================================
   // Empty content
   // ========================================
@@ -52,13 +37,14 @@ describe('MarkdownContent', () => {
   // Static rendering (isStreaming=false)
   // ========================================
 
-  it('renders content without animation wrappers when isStreaming is false', () => {
+  it('renders content without animation when isStreaming is false', () => {
     const { container } = render(
       <MarkdownContent content="Hello world\nSecond line" isStreaming={false} />
     );
 
-    const fadeElements = queryFadeElements(container);
-    expect(fadeElements).toHaveLength(0);
+    // Container div should NOT have fade-up class
+    const wrapper = container.firstElementChild;
+    expect(wrapper?.className).not.toContain(FADE_CLASS);
 
     expect(container.textContent).toContain('Hello world');
     expect(container.textContent).toContain('Second line');
@@ -67,7 +53,6 @@ describe('MarkdownContent', () => {
   it('does not render streaming cursor when isStreaming is false', () => {
     const { container } = render(<MarkdownContent content="Hello world" isStreaming={false} />);
 
-    // Cursor uses animate-pulse + bg-primary
     const cursors = Array.from(container.querySelectorAll('span')).filter(
       (el) => el.className.includes('animate-pulse') && el.className.includes('bg-primary')
     );
@@ -75,54 +60,26 @@ describe('MarkdownContent', () => {
   });
 
   // ========================================
-  // Streaming: latest content has fade animation
+  // Streaming: container has fade animation
   // ========================================
 
-  it('applies fade animation class to new content when isStreaming is true', () => {
+  it('applies fade animation class to container when isStreaming is true', () => {
     const { container } = render(<MarkdownContent content="First line" isStreaming />);
 
-    const fadeElements = queryFadeElements(container);
-    expect(fadeElements).toHaveLength(1);
-    expect(fadeElements[0]!.className).toContain(FADE_CLASS);
+    const wrapper = container.firstElementChild;
+    expect(wrapper?.className).toContain(FADE_CLASS);
   });
 
-  // ========================================
-  // Streaming: stable content has no animation
-  // ========================================
+  it('renders all content in a single ReactMarkdown instance during streaming', () => {
+    const { container } = render(
+      <MarkdownContent content="Line one\nLine two\nLine three" isStreaming />
+    );
 
-  it('renders previously seen content without animation after split point update', () => {
-    const { container, rerender } = render(<MarkdownContent content="Line one\n" isStreaming />);
-
-    // Let the timer fire to advance split point (200ms)
-    act(() => {
-      vi.advanceTimersByTime(250);
-    });
-
-    // Rerender with new content appended
-    rerender(<MarkdownContent content="Line one\nLine two" isStreaming />);
-
-    // Should have exactly one animated wrapper (for new content)
-    const fadeElements = queryFadeElements(container);
-    expect(fadeElements).toHaveLength(1);
-
-    // The animated part should contain the new content
-    expect(fadeElements[0]!.textContent).toContain('Line two');
-
-    // Stable part: first markdown element should NOT be wrapped in a fade span
+    // Should have exactly one markdown element (single render, not split)
     const markdownElements = container.querySelectorAll('[data-testid="markdown"]');
-    const stableMarkdown = markdownElements[0];
-    // Walk up from stableMarkdown -- no ancestor should have the fade class
-    let ancestor: Element | null = stableMarkdown?.parentElement ?? null;
-    let stableHasFadeAncestor = false;
-    while (ancestor && ancestor !== container) {
-      if (ancestor.className?.includes('animate-fade-up')) {
-        stableHasFadeAncestor = true;
-        break;
-      }
-      ancestor = ancestor.parentElement;
-    }
-    expect(stableHasFadeAncestor).toBe(false);
-    expect(stableMarkdown?.textContent).toContain('Line one');
+    expect(markdownElements).toHaveLength(1);
+    expect(markdownElements[0]!.textContent).toContain('Line one');
+    expect(markdownElements[0]!.textContent).toContain('Line three');
   });
 
   // ========================================
@@ -138,23 +95,38 @@ describe('MarkdownContent', () => {
     expect(cursors).toHaveLength(1);
   });
 
+  it('cursor has aria-hidden for accessibility', () => {
+    const { container } = render(<MarkdownContent content="Text" isStreaming />);
+
+    const cursor = Array.from(container.querySelectorAll('span')).find(
+      (el) => el.className.includes('animate-pulse') && el.className.includes('bg-primary')
+    );
+    expect(cursor?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   // ========================================
   // Reset on streaming end
   // ========================================
 
-  it('removes animation wrappers when isStreaming transitions to false', () => {
+  it('removes animation and cursor when isStreaming transitions to false', () => {
     const { container, rerender } = render(
       <MarkdownContent content="Streaming text" isStreaming />
     );
 
-    // Should have animated content
-    expect(queryFadeElements(container)).toHaveLength(1);
+    // Should have animated container
+    expect(container.firstElementChild?.className).toContain(FADE_CLASS);
 
     // Stop streaming
     rerender(<MarkdownContent content="Streaming text" isStreaming={false} />);
 
-    // No animation wrappers should remain
-    expect(queryFadeElements(container)).toHaveLength(0);
+    // No animation on container
+    expect(container.firstElementChild?.className).not.toContain(FADE_CLASS);
+
+    // No cursor
+    const cursors = Array.from(container.querySelectorAll('span')).filter(
+      (el) => el.className.includes('animate-pulse') && el.className.includes('bg-primary')
+    );
+    expect(cursors).toHaveLength(0);
   });
 
   // ========================================

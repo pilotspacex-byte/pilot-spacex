@@ -109,7 +109,8 @@ describe('SelectionToolbar AI Actions', () => {
       // Simulate user opening ChatView (this would be handled by UI state)
       // The ChatInput component should show the context via ContextIndicator
       const conversationContext = store.conversationContext;
-      expect(conversationContext.selectedText).toBe(selectedText);
+      expect(conversationContext).not.toBeNull();
+      expect(conversationContext!.selectedText).toBe(selectedText);
     });
 
     it('should include selectedBlockIds in conversation context', () => {
@@ -122,8 +123,9 @@ describe('SelectionToolbar AI Actions', () => {
       });
 
       const context = store.conversationContext;
-      expect(context.selectedBlockIds).toEqual(['block-1', 'block-2']);
-      expect(context.noteId).toBe('note-123');
+      expect(context).not.toBeNull();
+      expect(context!.selectedBlockIds).toEqual(['block-1', 'block-2']);
+      expect(context!.noteId).toBe('note-123');
     });
   });
 
@@ -230,7 +232,8 @@ describe('SelectionToolbar AI Actions', () => {
       });
 
       const context = store.conversationContext;
-      expect(context.selectedBlockIds).toEqual(['block-1', 'block-2']);
+      expect(context).not.toBeNull();
+      expect(context!.selectedBlockIds).toEqual(['block-1', 'block-2']);
     });
   });
 
@@ -340,7 +343,7 @@ describe('SelectionToolbar AI Actions', () => {
       // User opens ChatView (via keyboard shortcut or FAB)
       // Context should be preserved
       expect(store.noteContext).toBeDefined();
-      expect(store.conversationContext.selectedText).toBe('Selected content');
+      expect(store.conversationContext!.selectedText).toBe('Selected content');
     });
 
     it('should clear selection context after message is sent', async () => {
