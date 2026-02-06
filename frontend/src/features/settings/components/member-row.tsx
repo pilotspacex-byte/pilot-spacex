@@ -89,8 +89,8 @@ export function MemberRow({
   const canRemove = isAdmin && !isMemberOwner && !isCurrentUser;
   const canTransferOwnership = isOwner && !isCurrentUser && !isMemberOwner;
 
-  const initials = getInitials(member.full_name, member.email);
-  const displayName = member.full_name || member.email.split('@')[0] || member.email;
+  const initials = getInitials(member.fullName, member.email);
+  const displayName = member.fullName || member.email.split('@')[0] || member.email;
 
   return (
     <div
@@ -100,8 +100,8 @@ export function MemberRow({
       {/* Avatar + Name group */}
       <div className="flex items-center gap-4 min-w-0 flex-1">
         <Avatar className="h-10 w-10 shrink-0">
-          {member.avatar_url && (
-            <AvatarImage src={member.avatar_url} alt={`${displayName}'s avatar`} />
+          {member.avatarUrl && (
+            <AvatarImage src={member.avatarUrl} alt={`${displayName}'s avatar`} />
           )}
           <AvatarFallback className="text-sm">{initials}</AvatarFallback>
         </Avatar>
@@ -119,7 +119,7 @@ export function MemberRow({
 
       {/* Joined Date */}
       <p className="hidden text-sm text-muted-foreground sm:block">
-        {formatJoinDate(member.joined_at)}
+        {formatJoinDate(member.joinedAt)}
       </p>
 
       {/* Role + Actions group */}
@@ -128,7 +128,7 @@ export function MemberRow({
           {canEditRole ? (
             <Select
               value={member.role}
-              onValueChange={(value) => onRoleChange(member.user_id, value as WorkspaceRole)}
+              onValueChange={(value) => onRoleChange(member.userId, value as WorkspaceRole)}
               disabled={isUpdating}
             >
               <SelectTrigger
@@ -182,7 +182,7 @@ export function MemberRow({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {canTransferOwnership && onTransferOwnership && (
-                  <DropdownMenuItem onClick={() => onTransferOwnership(member.user_id)}>
+                  <DropdownMenuItem onClick={() => onTransferOwnership(member.userId)}>
                     <Crown className="mr-2 h-4 w-4" />
                     Transfer Ownership
                   </DropdownMenuItem>
@@ -190,7 +190,7 @@ export function MemberRow({
                 {canRemove && (
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
-                    onClick={() => onRemove(member.user_id)}
+                    onClick={() => onRemove(member.userId)}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Remove Member

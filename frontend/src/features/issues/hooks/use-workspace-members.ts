@@ -8,12 +8,12 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/services/api';
 
 export interface WorkspaceMember {
-  user_id: string;
+  userId: string;
   email: string;
-  full_name: string | null;
-  avatar_url: string | null;
+  fullName: string | null;
+  avatarUrl: string | null;
   role: 'owner' | 'admin' | 'member' | 'guest';
-  joined_at: string;
+  joinedAt: string;
 }
 
 export const workspaceMembersKeys = {

@@ -1703,6 +1703,24 @@
 }
 
 /* =============================================================================
+   ONBOARDING CELEBRATION CONFETTI
+   ============================================================================= */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(300px) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.animate-confetti-fall {
+  animation: confetti-fall 2s ease-out forwards;
+}
+
+/* =============================================================================
    REDUCED MOTION
    ============================================================================= */
 @media (prefers-reduced-motion: reduce) {
@@ -1718,7 +1736,8 @@
   .issue-rainbow-border::before,
   .inline-issue-node.issue-rainbow-border::before,
   .issue-box-new::before,
-  [data-block-id].ai-block-processing::after {
+  [data-block-id].ai-block-processing::after,
+  .animate-confetti-fall {
     animation: none !important;
   }
 
