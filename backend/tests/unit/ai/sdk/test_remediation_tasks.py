@@ -12,9 +12,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from pilot_space.ai.agents.pilotspace_agent_helpers import (
+from pilot_space.ai.agents.pilotspace_note_helpers import (
     _map_todo_status,
-    _transform_todo_to_task_progress,
+    transform_todo_to_task_progress as _transform_todo_to_task_progress,
 )
 from pilot_space.ai.agents.pilotspace_stream_utils import (
     classify_effort as _classify_effort,
@@ -176,11 +176,12 @@ class TestTransformTodoToTaskProgress:
         output = _transform_todo_to_task_progress("TodoWrite", result_data, "tool-1")
         assert output is not None
         assert "event: task_progress" in output
-        # Two todos produce two SSE events
+        # Two todos produce two task_progress + one companion tool_result
         assert output.count("event: task_progress") == 2
+        assert output.count("event: tool_result") == 1
         # Verify JSON payloads are parseable
         lines = [ln for ln in output.split("\n") if ln.startswith("data:")]
-        assert len(lines) == 2
+        assert len(lines) == 3
         first = json.loads(lines[0].removeprefix("data: "))
         assert first["taskId"] == "t1"
         assert first["status"] == "completed"
@@ -189,6 +190,10 @@ class TestTransformTodoToTaskProgress:
         assert second["taskId"] == "t2"
         assert second["status"] == "pending"
         assert second["progress"] == 0
+        # Companion tool_result event
+        third = json.loads(lines[2].removeprefix("data: "))
+        assert third["toolCallId"] == "tool-1"
+        assert third["status"] == "completed"
 
     def test_non_todowrite_returns_none(self) -> None:
         assert _transform_todo_to_task_progress("Bash", {}, "tool-1") is None

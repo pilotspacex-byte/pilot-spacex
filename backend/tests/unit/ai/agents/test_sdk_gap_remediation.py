@@ -12,9 +12,9 @@ from typing import Any
 from uuid import uuid4
 
 from pilot_space.ai.agents.pilotspace_agent_helpers import (
-    _transform_todo_to_task_progress,
-    _validate_structured_output,
     transform_sdk_message,
+    transform_todo_to_task_progress as _transform_todo_to_task_progress,
+    validate_structured_output as _validate_structured_output,
 )
 from pilot_space.ai.agents.pilotspace_stream_utils import classify_effort as _classify_effort
 
@@ -114,7 +114,8 @@ class TestTodoReadHydration:
         )
         assert result is not None
         assert "task_progress" in result
-        data = json.loads(result.split("data: ")[1].strip())
+        lines = [ln for ln in result.split("\n") if ln.startswith("data:")]
+        data = json.loads(lines[0].removeprefix("data: "))
         assert data["taskId"] == "t1"
         assert data["status"] == "completed"
         assert data["progress"] == 100
@@ -126,7 +127,8 @@ class TestTodoReadHydration:
             "tuid-2",
         )
         assert result is not None
-        data = json.loads(result.split("data: ")[1].strip())
+        lines = [ln for ln in result.split("\n") if ln.startswith("data:")]
+        data = json.loads(lines[0].removeprefix("data: "))
         assert data["status"] == "in_progress"
 
     def test_unrelated_tool_returns_none(self) -> None:
