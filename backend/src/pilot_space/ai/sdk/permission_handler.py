@@ -10,6 +10,7 @@ Reference: docs/DESIGN_DECISIONS.md#dd-003
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -20,6 +21,8 @@ from pilot_space.ai.infrastructure.approval import ActionType
 
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.approval import ApprovalService
+
+logger = logging.getLogger(__name__)
 
 
 class ActionClassification(StrEnum):
@@ -295,6 +298,11 @@ class PermissionHandler:
         except ValueError:
             # Fallback: if action_name doesn't match ActionType enum,
             # use a generic type based on classification
+            logger.warning(
+                "Action '%s' not in ActionType enum, using fallback (classification=%s)",
+                action_name,
+                classification.value,
+            )
             if classification == ActionClassification.CRITICAL_REQUIRE_APPROVAL:
                 action_type = ActionType.DELETE_ISSUE  # Generic critical action
             else:

@@ -215,8 +215,8 @@ def create_note_content_server(
             return _text_result(
                 f"Found {total} match(es) for '{pattern}':\n{match_summary}{more_text}"
             )
-        except Exception as e:
-            logger.exception("[NoteContentTools] search_note_content failed")
+        except (ValueError, TypeError, KeyError) as e:
+            logger.warning("[NoteContentTools] search_note_content: %s", e)
             return _text_result(f"Error searching note content: {e!s}")
 
     @tool(

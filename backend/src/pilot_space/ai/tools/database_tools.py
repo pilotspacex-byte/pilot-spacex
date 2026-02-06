@@ -192,7 +192,7 @@ async def create_note_annotation(
 
     annotation = NoteAnnotation(
         note_id=UUID(note_id),
-        block_id=block_id if block_id else "",
+        block_id=block_id or None,
         type=ann_type,
         content=content,
         status=AnnotationStatus.PENDING,

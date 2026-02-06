@@ -188,7 +188,6 @@ class TestApprovalLevels:
 
         assert TOOL_APPROVAL_MAP["get_comments"] == ToolApprovalLevel.AUTO_EXECUTE
 
-
 # ---------------------------------------------------------------------------
 # create_comment
 # ---------------------------------------------------------------------------
@@ -342,7 +341,6 @@ class TestCreateComment:
         text = result["content"][0]["text"]
         assert "invalid target_id UUID" in text
 
-
 # ---------------------------------------------------------------------------
 # update_comment
 # ---------------------------------------------------------------------------
@@ -470,7 +468,6 @@ class TestUpdateComment:
         text = result["content"][0]["text"]
         assert "invalid comment_id UUID" in text
 
-
 # ---------------------------------------------------------------------------
 # search_comments
 # ---------------------------------------------------------------------------
@@ -539,7 +536,6 @@ class TestSearchComments:
 
         text = result["content"][0]["text"]
         assert "invalid target_id UUID" in text
-
 
 # ---------------------------------------------------------------------------
 # get_comments

@@ -9,10 +9,13 @@ Reference: Claude Agent SDK patterns, spec 010-enhanced-mcp-tools AD-002
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, TypeVar
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -114,7 +117,11 @@ def get_tool_approval_level(tool_name: str) -> ToolApprovalLevel:
     Returns:
         The approval level, defaults to REQUIRE_APPROVAL for unknown tools.
     """
-    return TOOL_APPROVAL_MAP.get(tool_name, ToolApprovalLevel.REQUIRE_APPROVAL)
+    level = TOOL_APPROVAL_MAP.get(tool_name)
+    if level is None:
+        logger.warning("Unknown tool '%s', defaulting to REQUIRE_APPROVAL", tool_name)
+        return ToolApprovalLevel.REQUIRE_APPROVAL
+    return level
 
 
 def register_tool(category: str) -> Callable[[ToolFunc], ToolFunc]:

@@ -74,6 +74,27 @@ def create_note_tools_server(
         """Use context note_id if available, fall back to model-provided."""
         return context_note_id or args.get("note_id", "")
 
+    async def _verify_note_workspace(note_id: str) -> str | None:
+        """Verify note belongs to current workspace. Returns error message or None."""
+        if not tool_context:
+            return None  # No context available; skip verification (test/dev mode)
+        if not note_id:
+            return "note_id is required"
+        from uuid import UUID
+
+        from pilot_space.infrastructure.database.repositories.note_repository import (
+            NoteRepository,
+        )
+
+        try:
+            repo = NoteRepository(tool_context.db_session)
+            note = await repo.get_by_id(UUID(note_id))
+        except (ValueError, TypeError):
+            return f"Invalid note_id: {note_id}"
+        if not note or str(note.workspace_id) != tool_context.workspace_id:
+            return f"Note {note_id} not found in workspace"
+        return None
+
     @tool(
         "update_note_block",
         "Update a specific block in a note with new markdown content. "
@@ -99,8 +120,12 @@ def create_note_tools_server(
         if operation not in {"replace", "append"}:
             return _text_result(f"Invalid operation: {operation}. Must be 'replace' or 'append'.")
 
-        ai_op = "replace_block" if operation == "replace" else "append_blocks"
         note_id = _resolve_note_id(args)
+        ws_err = await _verify_note_workspace(note_id)
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
+
+        ai_op = "replace_block" if operation == "replace" else "append_blocks"
         event_data = {
             "noteId": note_id,
             "operation": ai_op,
@@ -130,6 +155,10 @@ def create_note_tools_server(
     )
     async def enhance_text(args: dict[str, Any]) -> dict[str, Any]:
         note_id = _resolve_note_id(args)
+        ws_err = await _verify_note_workspace(note_id)
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
+
         event_data = {
             "noteId": note_id,
             "operation": "replace_block",
@@ -166,6 +195,9 @@ def create_note_tools_server(
             return _text_result("Error: markdown content cannot be empty.")
 
         note_id = _resolve_note_id(args)
+        ws_err = await _verify_note_workspace(note_id)
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
         event_data = {
             "noteId": note_id,
             "operation": "append_blocks",
@@ -221,6 +253,9 @@ def create_note_tools_server(
         issues = args.get("issues", [])
         block_ids = args.get("block_ids", [])
         note_id = _resolve_note_id(args)
+        ws_err = await _verify_note_workspace(note_id)
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
 
         for idx, issue in enumerate(issues):
             block_id = block_ids[idx] if idx < len(block_ids) else None
@@ -273,6 +308,10 @@ def create_note_tools_server(
     )
     async def create_issue_from_note(args: dict[str, Any]) -> dict[str, Any]:
         note_id = _resolve_note_id(args)
+        ws_err = await _verify_note_workspace(note_id)
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
+
         issue_data = {
             "title": args["title"],
             "description": args["description"],
