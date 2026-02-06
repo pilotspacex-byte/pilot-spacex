@@ -1,7 +1,7 @@
 """Multi-context session architecture.
 
-Revision ID: 022
-Revises: 021_add_ai_messages_queue_columns
+Revision ID: 022_multi_context_sessions
+Revises: 023_fix_invitation_rls_enum_case
 Create Date: 2026-02-05
 
 Changes:
@@ -18,7 +18,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "022_multi_context_sessions"
-down_revision: str | None = "021_ai_msg_queue_cols"
+down_revision: str | None = "023_fix_invitation_rls_enum_case"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

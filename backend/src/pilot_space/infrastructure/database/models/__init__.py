@@ -63,6 +63,7 @@ from pilot_space.infrastructure.database.models.note_issue_link import (
     NoteIssueLink,
     NoteLinkType,
 )
+from pilot_space.infrastructure.database.models.onboarding import WorkspaceOnboarding
 from pilot_space.infrastructure.database.models.project import Project
 from pilot_space.infrastructure.database.models.state import (
     DEFAULT_STATES,
@@ -143,6 +144,7 @@ __all__ = [
     "WorkspaceAPIKey",
     "WorkspaceInvitation",
     "WorkspaceMember",
+    "WorkspaceOnboarding",
     "WorkspaceRole",
     "WorkspaceScopedMixin",
     "WorkspaceScopedModel",

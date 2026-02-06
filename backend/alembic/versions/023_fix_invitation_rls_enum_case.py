@@ -1,12 +1,11 @@
-"""Fix RLS policy enum case for workspace_invitations.
+"""Recreate RLS policies for workspace_invitations.
 
 Revision ID: 023_fix_invitation_rls_enum_case
 Revises: 022_workspace_invitations
 Create Date: 2026-02-04
 
-The RLS policies in migration 022 used uppercase enum values ('OWNER', 'ADMIN')
-but the workspace_role enum stores lowercase values ('owner', 'admin').
-This mismatch causes RLS to silently block all access to workspace_invitations.
+Drops and recreates RLS policies for workspace_invitations.
+The workspace_role DB enum uses lowercase values (owner, admin, member, guest).
 """
 
 from alembic import op
@@ -88,7 +87,7 @@ def downgrade() -> None:
                 SELECT wm.workspace_id
                 FROM workspace_members wm
                 WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
-                AND wm.role IN ('OWNER', 'ADMIN')
+                AND wm.role IN ('owner', 'admin')
                 AND wm.is_deleted = false
             )
         )
@@ -103,7 +102,7 @@ def downgrade() -> None:
                 SELECT wm.workspace_id
                 FROM workspace_members wm
                 WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
-                AND wm.role IN ('OWNER', 'ADMIN')
+                AND wm.role IN ('owner', 'admin')
                 AND wm.is_deleted = false
             )
         )
@@ -112,7 +111,7 @@ def downgrade() -> None:
                 SELECT wm.workspace_id
                 FROM workspace_members wm
                 WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
-                AND wm.role IN ('OWNER', 'ADMIN')
+                AND wm.role IN ('owner', 'admin')
                 AND wm.is_deleted = false
             )
         )

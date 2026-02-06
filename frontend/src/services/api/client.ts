@@ -58,12 +58,15 @@ export class ApiError extends Error {
       return new ApiError(data as ApiProblemDetails);
     }
 
-    // Handle simple { detail: string } format
+    // Handle simple { detail: string | array } format (FastAPI errors)
     if (data && typeof data === 'object' && 'detail' in data) {
+      const detail = Array.isArray(data.detail)
+        ? data.detail.map((d: { msg?: string }) => d.msg ?? String(d)).join('; ')
+        : String(data.detail);
       return new ApiError({
         status: response?.status ?? 500,
-        title: String(data.detail),
-        detail: String(data.detail),
+        title: detail,
+        detail,
       });
     }
 

@@ -68,7 +68,7 @@ vi.mock('@/features/settings/hooks/use-workspace-invitations', () => ({
 }));
 
 interface MockMemberRowProps {
-  member: { user_id: string; full_name: string | null; email: string; role: string };
+  member: { userId: string; fullName: string | null; email: string; role: string };
   onRoleChange: (userId: string, role: string) => void;
   onRemove: (userId: string) => void;
   onTransferOwnership?: (userId: string) => void;
@@ -76,21 +76,21 @@ interface MockMemberRowProps {
 
 vi.mock('@/features/settings/components/member-row', () => ({
   MemberRow: ({ member, onRoleChange, onRemove, onTransferOwnership }: MockMemberRowProps) => (
-    <div data-testid={`member-${member.user_id}`} role="listitem">
-      {member.full_name || member.email} - {member.role}
+    <div data-testid={`member-${member.userId}`} role="listitem">
+      {member.fullName || member.email} - {member.role}
       <button
-        data-testid={`role-change-${member.user_id}`}
-        onClick={() => onRoleChange(member.user_id, 'admin')}
+        data-testid={`role-change-${member.userId}`}
+        onClick={() => onRoleChange(member.userId, 'admin')}
       >
         Change Role
       </button>
-      <button data-testid={`remove-${member.user_id}`} onClick={() => onRemove(member.user_id)}>
+      <button data-testid={`remove-${member.userId}`} onClick={() => onRemove(member.userId)}>
         Remove
       </button>
       {onTransferOwnership && (
         <button
-          data-testid={`transfer-${member.user_id}`}
-          onClick={() => onTransferOwnership(member.user_id)}
+          data-testid={`transfer-${member.userId}`}
+          onClick={() => onTransferOwnership(member.userId)}
         >
           Transfer
         </button>
@@ -147,20 +147,20 @@ import { MembersSettingsPage } from '../members-settings-page';
 
 const sampleMembers = [
   {
-    user_id: 'user-1',
+    userId: 'user-1',
     email: 'admin@example.com',
-    full_name: 'Admin User',
-    avatar_url: null,
+    fullName: 'Admin User',
+    avatarUrl: null,
     role: 'admin',
-    joined_at: '2025-01-01T00:00:00Z',
+    joinedAt: '2025-01-01T00:00:00Z',
   },
   {
-    user_id: 'user-2',
+    userId: 'user-2',
     email: 'dev@example.com',
-    full_name: 'Dev User',
-    avatar_url: null,
+    fullName: 'Dev User',
+    avatarUrl: null,
     role: 'member',
-    joined_at: '2025-01-15T00:00:00Z',
+    joinedAt: '2025-01-15T00:00:00Z',
   },
 ];
 

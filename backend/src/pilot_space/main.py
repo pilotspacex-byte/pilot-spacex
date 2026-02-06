@@ -31,6 +31,7 @@ from pilot_space.api.v1.routers import (
     issues_router,
     notes_ai_router,
     notes_router,
+    onboarding_router,
     projects_router,
     webhooks_router,
     workspace_ai_settings_router,
@@ -186,5 +187,6 @@ app.include_router(workspace_invitations_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_members_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_ai_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(onboarding_router, prefix=API_V1_PREFIX)
 if debug_router:
     app.include_router(debug_router, prefix=API_V1_PREFIX)
