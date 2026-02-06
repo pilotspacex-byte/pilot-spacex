@@ -11,9 +11,9 @@
 ## Phase 1: Setup
 
 - [x] T001 ~~Create feature branch~~ — Branch `feat/skill-role-sdlc` already exists with spec artifacts committed
-- [ ] T002 Create role template markdown files (8 SKILL.md templates) in `backend/src/pilot_space/ai/templates/role_templates/`
+- [x] T002 ~~Create role template markdown files (8 SKILL.md templates) in `backend/src/pilot_space/ai/templates/role_templates/`~~ — committed in `a4b7717`
 
-**Checkpoint**: Branch created. 8 role template files exist with SKILL.md-format content for developer, tester, business_analyst, product_owner, architect, tech_lead, project_manager, devops.
+**Checkpoint**: Done. Branch created. 8 role template files exist with SKILL.md-format content for developer, tester, business_analyst, product_owner, architect, tech_lead, project_manager, devops.
 
 ---
 
@@ -36,14 +36,14 @@
 
 ### Backend
 
-- [ ] T008 [US1/US2] Create Pydantic request/response schemas in `backend/src/pilot_space/api/v1/schemas/role_skill.py` — `RoleTemplateResponse`, `RoleSkillResponse`, `CreateRoleSkillRequest`, `UpdateRoleSkillRequest`, `GenerateSkillRequest`, `GenerateSkillResponse`, `RegenerateSkillRequest`
+- [ ] T008 [US1/US2] Create Pydantic request/response schemas in `backend/src/pilot_space/api/v1/schemas/role_skill.py` — `RoleTemplateResponse`, `RoleSkillResponse`, `CreateRoleSkillRequest`, `UpdateRoleSkillRequest`, `GenerateSkillRequest` (`role_name` optional), `GenerateSkillResponse` (includes `suggested_role_name`), `RegenerateSkillRequest`, `RegenerateSkillResponse` (includes `suggested_role_name` + `previous_role_name`)
 - [ ] T009 [US1/US2] Create `RoleSkillService` in `backend/src/pilot_space/application/services/role_skill_service.py` — CQRS-lite service with methods: `get_templates`, `get_user_skills`, `create_skill`, `update_skill`, `delete_skill`, `check_max_roles`, `set_primary`. Include guest restriction check (FR-020) and max 3 roles validation (FR-018)
-- [ ] T010 [US2] Create `GenerateRoleSkillService` in `backend/src/pilot_space/application/services/generate_role_skill_service.py` — Uses one-shot Claude Sonnet `query()` to generate SKILL.md content from role_type + experience_description. Includes fallback to default template on provider failure. Rate limit: 5 generations/hour per user.
+- [ ] T010 [US2] Create `GenerateRoleSkillService` in `backend/src/pilot_space/application/services/generate_role_skill_service.py` — Uses one-shot Claude Sonnet `query()` to generate SKILL.md content AND a `suggested_role_name` from role_type + experience_description. For predefined roles, enhances template name (e.g., "Developer" → "Senior Full-Stack TypeScript Developer"). For custom roles (`role_name` omitted), derives name entirely from description. Includes fallback to default template on provider failure. Rate limit: 5 generations/hour per user.
 - [ ] T011 [US1/US2/US6] Create role skills router in `backend/src/pilot_space/api/v1/routers/role_skills.py` — Endpoints: GET `/role-templates`, GET `/workspaces/{id}/role-skills`, POST `/workspaces/{id}/role-skills`, PUT `/workspaces/{id}/role-skills/{skill_id}`, DELETE `/workspaces/{id}/role-skills/{skill_id}`, POST `/workspaces/{id}/role-skills/generate`, POST `/workspaces/{id}/role-skills/{skill_id}/regenerate` per contracts/rest-api.md
 - [ ] T012 [US1] Register role skills router in `backend/src/pilot_space/main.py`
 - [ ] T013 [US1] Extend existing onboarding service to include `role_setup` step — service already exists at `backend/src/pilot_space/application/services/onboarding/` with `get_onboarding_service.py`, `types.py`, `create_guided_note_service.py`. Add `role_setup: bool` field to `OnboardingStepsResult` in `types.py`, update `GetOnboardingService.execute()` to auto-sync role_setup (check if user has any role skills), update completion percentage calculation from /3 to /4 in model `completion_percentage` property at `backend/src/pilot_space/infrastructure/database/models/onboarding.py:119-132`. Step ordering: ai_providers → invite_members → role_setup → first_note (role before first note so AI is personalized for first interaction).
 - [ ] T014 [US1/US2] Write unit tests for `RoleSkillService` in `backend/tests/unit/test_role_skill_service.py` — test create, update, delete, max roles, guest restriction, primary role demotion
-- [ ] T015 [US2] Write unit tests for `GenerateRoleSkillService` in `backend/tests/unit/test_generate_role_skill_service.py` — test AI generation, template fallback, rate limiting
+- [ ] T015 [US2] Write unit tests for `GenerateRoleSkillService` in `backend/tests/unit/test_generate_role_skill_service.py` — test AI generation (skill_content + suggested_role_name), template fallback, rate limiting, predefined role name enhancement, custom role name derivation
 - [ ] T016 [US1/US2] Write integration tests for role skills API in `backend/tests/integration/test_role_skills_api.py` — test all 7 endpoints per contracts/rest-api.md, RLS isolation, error codes
 
 ### Frontend
@@ -52,7 +52,7 @@
 - [ ] T018 [P] [US1] Create `RoleSkillStore` (MobX) in `frontend/src/stores/role-skill-store.ts` — observable state for role selection, skill generation loading, skill editing. Register in RootStore.
 - [ ] T019 [US1] Create `RoleCard` component in `frontend/src/components/role-skill/role-card.tsx` — displays role template card with icon, name, description, selected state. Used in both onboarding grid and settings.
 - [ ] T020 [US1] Create `RoleSelectorStep` component in `frontend/src/features/onboarding/components/role-selector-step.tsx` — onboarding feature directory already exists with `OnboardingChecklist.tsx`, `OnboardingStepItem.tsx`, `OnboardingCelebration.tsx`. Grid of 8 role cards + custom role option, multi-select (max 3), primary designation, pre-selection from default role and workspace hint
-- [ ] T021 [US2] Create `SkillGenerationWizard` component in `frontend/src/components/role-skill/skill-generation-wizard.tsx` — three paths: "Use Default", "Describe Expertise" (textarea + generate button), "Show Examples". Shows generated skill preview with accept/customize/retry actions.
+- [ ] T021 [US2] Create `SkillGenerationWizard` component in `frontend/src/components/role-skill/skill-generation-wizard.tsx` — three paths: "Use Default", "Describe Expertise" (textarea + generate button), "Show Examples". Preview screen shows AI-generated `suggested_role_name` in an editable inline input above skill content. Role name auto-updates the skill heading when edited. Accept/customize/retry actions.
 - [ ] T022 [US1] Integrate `RoleSelectorStep` into onboarding flow in `frontend/src/features/onboarding/components/onboarding-checklist.tsx` — add as step 3 (before first_note per RD-004) so AI is personalized before first interaction. Step order: ai_providers → invite_members → role_setup → first_note. Wire to onboarding state.
 - [ ] T023 [US1/US2] Write component tests for `RoleSelectorStep` and `SkillGenerationWizard` in `frontend/src/components/role-skill/__tests__/role-selector.test.tsx` — test role selection, multi-select limit, default pre-selection, generation flow, fallback
 

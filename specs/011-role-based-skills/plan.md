@@ -59,7 +59,7 @@ Enable users to configure SDLC roles per workspace (BA, PO, Developer, Tester, A
 |-------|-------------|-------------------|------------|
 | FR-001 | Role selection in onboarding | Add `role_setup` step to onboarding JSONB `steps` field. Frontend role selector component in onboarding flow. | OnboardingModel, RoleSelectorComponent, OnboardingRouter |
 | FR-002 | Multiple roles per workspace (max 3) | `user_role_skills` table with composite PK (user_id, workspace_id, role_type). `is_primary` boolean. Check constraint max 3. | UserRoleSkill model, RoleSkillRepository |
-| FR-003 | AI-generated skill description | New `GenerateRoleSkillService` calls PilotSpaceAgent with role template + experience input. Returns SKILL.md-format text. | GenerateRoleSkillService, RoleSkillRouter |
+| FR-003 | AI-generated skill description + role name | New `GenerateRoleSkillService` calls PilotSpaceAgent with role template + experience input. Returns SKILL.md-format text AND a `suggested_role_name` (e.g., "Senior Full-Stack TypeScript Developer"). For custom roles, name is derived entirely from description. | GenerateRoleSkillService, RoleSkillRouter |
 | FR-004 | Three skill generation paths | Frontend UI state: "default" loads template, "describe" sends to AI endpoint, "examples" renders static examples. | SkillGenerationWizard component |
 | FR-005 | Store per user-workspace | `user_role_skills` table scoped by (user_id, workspace_id). RLS policy enforces isolation. | UserRoleSkill model, migration 024 |
 | FR-006 | Inject skill into agent session | Before `_stream_with_space`, write SKILL.md files from DB to space `.claude/skills/role-{name}/`. SDK auto-discovers. | PilotSpaceAgent._materialize_role_skills(), SpaceManager |
@@ -258,7 +258,7 @@ backend/src/pilot_space/
 │   └── devops.md
 
 backend/alembic/versions/
-└── 024_add_role_based_skills.py  # NEW: Migration
+└── 025_add_role_based_skills.py  # NEW: Migration (revises 024_enhanced_mcp_models)
 
 frontend/src/
 ├── app/(workspace)/[workspaceSlug]/settings/
