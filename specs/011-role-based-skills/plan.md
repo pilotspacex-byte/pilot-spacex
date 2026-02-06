@@ -1,7 +1,7 @@
 # Implementation Plan: Role-Based Skills for PilotSpace Agent
 
 **Feature**: Role-Based Skills for PilotSpace Agent
-**Branch**: `011-role-based-skills`
+**Branch**: `feat/skill-role-sdlc`
 **Created**: 2026-02-06
 **Spec**: `specs/011-role-based-skills/spec.md`
 **Author**: Tin Dang
@@ -67,7 +67,7 @@ Enable users to configure SDLC roles per workspace (BA, PO, Developer, Tester, A
 | FR-008 | Fallback to generic behavior | If no role skills in DB, no role skill files materialized. Agent uses existing system skills only. | PilotSpaceAgent (no change needed — absent files = no injection) |
 | FR-009 | Skills tab in settings | New route `/{slug}/settings/skills` with SkillsSettingsPage. API calls to role-skills endpoints. | SkillsSettingsPage, settings layout nav update |
 | FR-010 | Immediate skill updates | DB write on save → next `_stream_with_space` call re-materializes from DB. No cache to invalidate. | RoleSkillService, PilotSpaceAgent |
-| FR-011 | Default role in profile | Add `default_sdlc_role` column to `users` table. Expose via profile update endpoint. | User model extension, ProfileRouter |
+| FR-011 | Default role in profile | Add `default_sdlc_role` column to `users` table. Expose via existing `PATCH /auth/me` endpoint in auth router. | User model extension, AuthRouter (extend existing) |
 | FR-012 | Owner role hints on invite | Add `suggested_sdlc_role` column to `workspace_invitations`. Pass through invitation create API. | WorkspaceInvitation model extension, InvitationRouter |
 | FR-013 | 2000-word skill cap | Frontend word counter + backend Pydantic validator on `skill_content` field. | Pydantic schema validation, SkillEditor component |
 | FR-014 | DB + filesystem storage | DB is source of truth. `_materialize_role_skills()` writes `.claude/skills/role-{name}/SKILL.md` to sandbox space on every agent session start. | RoleSkillRepository, PilotSpaceAgent |
@@ -87,7 +87,7 @@ Enable users to configure SDLC roles per workspace (BA, PO, Developer, Tester, A
 | US1: Role Selection (Onboarding) | OnboardingService (extend steps), RoleSkillService | RoleSelectorStep, OnboardingChecklist (extend) | WorkspaceOnboarding (extend steps), RoleTemplate |
 | US2: AI Skill Generation | GenerateRoleSkillService, RoleSkillRouter | SkillGenerationWizard, SkillPreview | UserRoleSkill |
 | US3: Agent Injection | PilotSpaceAgent._materialize_role_skills() | (none — transparent) | UserRoleSkill (read) |
-| US4: Default Role (Profile) | ProfileService (extend), UsersRouter | ProfileSettingsPage (extend) | User (extend) |
+| US4: Default Role (Profile) | AuthRouter (extend PATCH /auth/me) | ProfileSettingsPage (extend) | User (extend) |
 | US5: Owner Role Hints | InvitationService (extend), InvitationRouter | InviteDialog (extend) | WorkspaceInvitation (extend) |
 | US6: Skills Settings Tab | RoleSkillRouter (CRUD), RoleSkillService | SkillsSettingsPage, SkillEditor, RoleCard | UserRoleSkill, RoleTemplate |
 
@@ -215,7 +215,7 @@ See `specs/011-role-based-skills/contracts/rest-api.md` for complete endpoint sp
 | DELETE | `/api/v1/workspaces/{id}/role-skills/{skill_id}` | FR-009, US6 | Remove role skill |
 | POST | `/api/v1/workspaces/{id}/role-skills/generate` | FR-003, US2 | AI-generate skill from experience description |
 | POST | `/api/v1/workspaces/{id}/role-skills/{skill_id}/regenerate` | FR-003, US6 | Regenerate existing skill with updated input |
-| PATCH | `/api/v1/users/me/profile` | FR-011, US4 | Update default role (extend existing) |
+| PATCH | `/api/v1/auth/me` | FR-011, US4 | Update default role (extend existing auth router) |
 | POST | `/api/v1/workspaces/{id}/invitations` | FR-012, US5 | Create invitation with role hint (extend existing) |
 
 ---

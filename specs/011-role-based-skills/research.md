@@ -75,13 +75,15 @@
 
 | Option | Description | Pros | Cons |
 |--------|-------------|------|------|
-| A. New step (4th step) | Add `role_setup` as step 4 after `first_note` | Clean separation. Follows existing atomic step pattern. | Makes onboarding longer (4 steps vs 3). |
+| A. New step (step 3, before first_note) | Add `role_setup` as step 3 before `first_note` | Clean separation. Follows existing atomic step pattern. AI personalized before first interaction. | Makes onboarding longer (4 steps vs 3). |
 | B. Inline in invite_members | Add role selector to the invitation step | Fewer steps. Role relates to team composition. | Overloads the invite step. Role is personal, not team-level. |
 | C. Post-onboarding prompt | After completing 3 steps, show a separate role setup modal | Doesn't change existing onboarding. Optional feel. | Users may dismiss and never configure. Loses the guided moment. |
 
-### Decision: **(A) New step**
+### Decision: **(A) New step — positioned as step 3 (before first_note)**
 
-**Rationale**: The existing onboarding steps are atomic and independent (ai_providers, invite_members, first_note). Adding `role_setup` as a 4th step follows this pattern. The JSONB `steps` field is flexible — adding a new key requires no schema migration. Onboarding completion calculation updates from 3 to 4 steps. The role setup step is optional (skippable) to avoid blocking users who want to configure later.
+**Rationale**: The existing onboarding steps are atomic and independent (ai_providers, invite_members, first_note). Adding `role_setup` as a new step follows this pattern. The JSONB `steps` field is flexible — adding a new key requires no schema migration. Onboarding completion calculation updates from 3 to 4 steps. The role setup step is optional (skippable) to avoid blocking users who want to configure later. Positioned before `first_note` so the AI is already personalized when the user writes their first note — maximizing the "aha moment" of role-based behavior.
+
+**Step ordering**: ai_providers → invite_members → role_setup → first_note
 
 **Traceability**: FR-001
 

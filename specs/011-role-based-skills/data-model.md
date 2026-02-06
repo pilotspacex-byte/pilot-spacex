@@ -63,22 +63,24 @@ RoleTemplate (new, seed data)
 -- Users can read their own skills + admins can read all in workspace
 CREATE POLICY "user_role_skills_select" ON user_role_skills
 FOR SELECT USING (
-    user_id = auth.uid()
+    user_id = current_setting('app.current_user_id', true)::uuid
     OR workspace_id IN (
         SELECT wm.workspace_id FROM workspace_members wm
-        WHERE wm.user_id = auth.uid()
+        WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
         AND wm.role IN ('owner', 'admin')
+        AND wm.is_deleted = false
     )
 );
 
 -- Users can modify only their own skills (not guests)
 CREATE POLICY "user_role_skills_modify" ON user_role_skills
 FOR ALL USING (
-    user_id = auth.uid()
+    user_id = current_setting('app.current_user_id', true)::uuid
     AND workspace_id IN (
         SELECT wm.workspace_id FROM workspace_members wm
-        WHERE wm.user_id = auth.uid()
+        WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
         AND wm.role IN ('owner', 'admin', 'member')
+        AND wm.is_deleted = false
     )
 );
 ```
@@ -109,7 +111,7 @@ FOR ALL USING (
 ```sql
 -- All authenticated users can read templates
 CREATE POLICY "role_templates_select" ON role_templates
-FOR SELECT USING (auth.uid() IS NOT NULL);
+FOR SELECT USING (current_setting('app.current_user_id', true)::uuid IS NOT NULL);
 ```
 
 **Seed Data** (8 predefined templates):

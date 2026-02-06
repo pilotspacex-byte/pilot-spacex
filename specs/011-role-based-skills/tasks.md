@@ -1,7 +1,7 @@
 # Tasks: Role-Based Skills for PilotSpace Agent
 
 **Feature**: Role-Based Skills for PilotSpace Agent
-**Branch**: `011-role-based-skills`
+**Branch**: `feat/skill-role-sdlc`
 **Created**: 2026-02-06
 **Source**: `specs/011-role-based-skills/`
 **Author**: Tin Dang
@@ -10,7 +10,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Create feature branch `011-role-based-skills` from `main`
+- [x] T001 ~~Create feature branch~~ — Branch `feat/skill-role-sdlc` already exists with spec artifacts committed
 - [ ] T002 Create role template markdown files (8 SKILL.md templates) in `backend/src/pilot_space/ai/templates/role_templates/`
 
 **Checkpoint**: Branch created. 8 role template files exist with SKILL.md-format content for developer, tester, business_analyst, product_owner, architect, tech_lead, project_manager, devops.
@@ -41,7 +41,7 @@
 - [ ] T010 [US2] Create `GenerateRoleSkillService` in `backend/src/pilot_space/application/services/generate_role_skill_service.py` — Uses one-shot Claude Sonnet `query()` to generate SKILL.md content from role_type + experience_description. Includes fallback to default template on provider failure. Rate limit: 5 generations/hour per user.
 - [ ] T011 [US1/US2/US6] Create role skills router in `backend/src/pilot_space/api/v1/routers/role_skills.py` — Endpoints: GET `/role-templates`, GET `/workspaces/{id}/role-skills`, POST `/workspaces/{id}/role-skills`, PUT `/workspaces/{id}/role-skills/{skill_id}`, DELETE `/workspaces/{id}/role-skills/{skill_id}`, POST `/workspaces/{id}/role-skills/generate`, POST `/workspaces/{id}/role-skills/{skill_id}/regenerate` per contracts/rest-api.md
 - [ ] T012 [US1] Register role skills router in `backend/src/pilot_space/main.py`
-- [ ] T013 [US1] Create or extend onboarding service to include `role_setup` step — the directory `backend/src/pilot_space/application/services/onboarding/` exists but has no .py files. Create `get_onboarding_service.py` (or locate existing implementation elsewhere) and update completion percentage from /3 to /4, add `role_setup` auto-sync detection (check if user has any role skills)
+- [ ] T013 [US1] Extend existing onboarding service to include `role_setup` step — service already exists at `backend/src/pilot_space/application/services/onboarding/` with `get_onboarding_service.py`, `types.py`, `create_guided_note_service.py`. Add `role_setup: bool` field to `OnboardingStepsResult` in `types.py`, update `GetOnboardingService.execute()` to auto-sync role_setup (check if user has any role skills), update completion percentage calculation from /3 to /4 in model `completion_percentage` property at `backend/src/pilot_space/infrastructure/database/models/onboarding.py:119-132`. Step ordering: ai_providers → invite_members → role_setup → first_note (role before first note so AI is personalized for first interaction).
 - [ ] T014 [US1/US2] Write unit tests for `RoleSkillService` in `backend/tests/unit/test_role_skill_service.py` — test create, update, delete, max roles, guest restriction, primary role demotion
 - [ ] T015 [US2] Write unit tests for `GenerateRoleSkillService` in `backend/tests/unit/test_generate_role_skill_service.py` — test AI generation, template fallback, rate limiting
 - [ ] T016 [US1/US2] Write integration tests for role skills API in `backend/tests/integration/test_role_skills_api.py` — test all 7 endpoints per contracts/rest-api.md, RLS isolation, error codes
@@ -51,9 +51,9 @@
 - [ ] T017 [P] [US1] Create API client in `frontend/src/services/api/role-skills.ts` — typed functions for all 9 endpoints per contracts/rest-api.md
 - [ ] T018 [P] [US1] Create `RoleSkillStore` (MobX) in `frontend/src/stores/role-skill-store.ts` — observable state for role selection, skill generation loading, skill editing. Register in RootStore.
 - [ ] T019 [US1] Create `RoleCard` component in `frontend/src/components/role-skill/role-card.tsx` — displays role template card with icon, name, description, selected state. Used in both onboarding grid and settings.
-- [ ] T020 [US1] Create `RoleSelectorStep` component in `frontend/src/features/onboarding/components/role-selector-step.tsx` — NOTE: `frontend/src/features/onboarding/` directory must be created first (does not exist yet). Grid of 8 role cards + custom role option, multi-select (max 3), primary designation, pre-selection from default role and workspace hint
+- [ ] T020 [US1] Create `RoleSelectorStep` component in `frontend/src/features/onboarding/components/role-selector-step.tsx` — onboarding feature directory already exists with `OnboardingChecklist.tsx`, `OnboardingStepItem.tsx`, `OnboardingCelebration.tsx`. Grid of 8 role cards + custom role option, multi-select (max 3), primary designation, pre-selection from default role and workspace hint
 - [ ] T021 [US2] Create `SkillGenerationWizard` component in `frontend/src/components/role-skill/skill-generation-wizard.tsx` — three paths: "Use Default", "Describe Expertise" (textarea + generate button), "Show Examples". Shows generated skill preview with accept/customize/retry actions.
-- [ ] T022 [US1] Integrate `RoleSelectorStep` into onboarding flow in `frontend/src/features/onboarding/components/onboarding-checklist.tsx` — add as 4th step (after first_note per RD-004), wire to onboarding state
+- [ ] T022 [US1] Integrate `RoleSelectorStep` into onboarding flow in `frontend/src/features/onboarding/components/onboarding-checklist.tsx` — add as step 3 (before first_note per RD-004) so AI is personalized before first interaction. Step order: ai_providers → invite_members → role_setup → first_note. Wire to onboarding state.
 - [ ] T023 [US1/US2] Write component tests for `RoleSelectorStep` and `SkillGenerationWizard` in `frontend/src/components/role-skill/__tests__/role-selector.test.tsx` — test role selection, multi-select limit, default pre-selection, generation flow, fallback
 
 **Checkpoint**: US1+US2 complete. Onboarding shows role selection. User can select role, generate skill, save. Backend stores skill in DB. Verify with quickstart.md Scenario 1.
@@ -83,14 +83,14 @@
 
 ### Backend
 
-- [ ] T028 [P] [US4] Create user profile router in `backend/src/pilot_space/api/v1/routers/users.py` (file does not exist yet — no existing users router) — implement PATCH `/users/me/profile` accepting `default_sdlc_role` field per contracts/rest-api.md. Register in main.py.
+- [ ] T028 [P] [US4] Extend existing auth router at `backend/src/pilot_space/api/v1/routers/auth.py` — add `default_sdlc_role` field to `UpdateProfileRequest` schema and `UserProfileResponse` in `backend/src/pilot_space/api/v1/schemas/auth.py`. The existing `PATCH /auth/me` endpoint (auth.py:97) already handles profile updates — extend it to accept and persist the new field.
 - [ ] T029 [P] [US5] Extend invitation create endpoint to support `suggested_sdlc_role` in `backend/src/pilot_space/api/v1/routers/workspace_members.py` — POST invitations accepts `suggested_sdlc_role` field per contracts/rest-api.md
 - [ ] T030 [P] [US4] Write tests for default role profile update in `backend/tests/unit/test_user_profile_default_role.py`
 - [ ] T031 [P] [US5] Write tests for invitation role hint in `backend/tests/integration/test_invitation_role_hint.py`
 
 ### Frontend
 
-- [ ] T032 [P] [US4] Extend profile settings page to show default role selector in `frontend/src/app/(workspace)/[workspaceSlug]/settings/profile/page.tsx` — add "Default SDLC Role" section with role grid, save to `/users/me/profile`
+- [ ] T032 [P] [US4] Extend profile settings page to show default role selector in `frontend/src/app/(workspace)/[workspaceSlug]/settings/profile/page.tsx` — add "Default SDLC Role" section with role grid, save via `PATCH /auth/me` (existing auth endpoint)
 - [ ] T033 [P] [US5] Extend invite dialog to show optional role hint dropdown in `frontend/src/features/settings/components/invite-member-dialog.tsx` — add "Suggest SDLC Role" dropdown populated from role templates
 - [ ] T034 [US4/US5] Update `RoleSelectorStep` to display default role and workspace hint labels in `frontend/src/features/onboarding/components/role-selector-step.tsx` — show "Your default" and "Suggested by workspace owner" badges per spec US1 scenarios 2-3
 

@@ -1,7 +1,7 @@
 # Feature Specification: Role-Based Skills for PilotSpace Agent
 
 **Feature Number**: 011
-**Branch**: `011-role-based-skills`
+**Branch**: `feat/skill-role-sdlc`
 **Created**: 2026-02-06
 **Status**: Draft
 **Author**: Tin Dang

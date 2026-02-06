@@ -233,12 +233,12 @@ Regenerate an existing skill with updated experience description. Returns previe
 
 ---
 
-## Endpoint 8: PATCH /api/v1/users/me/profile (extend existing)
+## Endpoint 8: PATCH /api/v1/auth/me (extend existing)
 
 **Auth**: Required (Bearer)
 **Source**: FR-011, US4
 
-Update user profile. Extended to support `default_sdlc_role`.
+Update user profile. Extended to support `default_sdlc_role`. This extends the existing `PATCH /auth/me` endpoint in `backend/src/pilot_space/api/v1/routers/auth.py`.
 
 **Request** (additional fields):
 
@@ -246,7 +246,7 @@ Update user profile. Extended to support `default_sdlc_role`.
 |-------|------|----------|------------|
 | default_sdlc_role | string\|null | No | One of predefined role types, "custom", or null to clear |
 
-**Response (200)**: Existing profile response extended with:
+**Response (200)**: Existing `UserProfileResponse` extended with:
 
 | Field | Type | Description |
 |-------|------|-------------|
