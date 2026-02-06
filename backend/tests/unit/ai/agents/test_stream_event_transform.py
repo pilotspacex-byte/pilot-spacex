@@ -303,9 +303,8 @@ class TestStreamEventDedup:
         # All blocks were streamed, so no events should be emitted
         assert result is None or result == ""
 
-        # Tracking state should be cleaned up
-        assert "_stream_events_sent" not in holder
-        assert "_streamed_block_indices" not in holder
+        # Dedup state preserved for partial message re-delivery (cleaned on SystemMessage init)
+        assert holder.get("_stream_events_sent") is True
 
     def test_assistant_message_processes_new_blocks(self) -> None:
         """AssistantMessage processes blocks NOT sent via StreamEvent."""

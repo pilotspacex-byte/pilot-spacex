@@ -279,23 +279,23 @@ class TestGeneratorRegistry:
 @pytest.mark.asyncio
 async def test_mock_mode_environment_variable() -> None:
     """Test mock mode respects environment variables."""
-    # Save original env
+    from pilot_space.config import get_settings
+
     original_env = os.environ.get("APP_ENV")
     original_fake = os.environ.get("AI_FAKE_MODE")
 
     try:
-        # Test with env vars set
         os.environ["APP_ENV"] = "development"
         os.environ["AI_FAKE_MODE"] = "true"
 
-        # Force settings reload
+        # Clear lru_cache so Settings re-reads from env
+        get_settings.cache_clear()
         MockProvider.reset_instance()
 
         provider = MockProvider.get_instance()
         assert provider.is_enabled()
 
     finally:
-        # Restore original env
         if original_env:
             os.environ["APP_ENV"] = original_env
         else:
@@ -306,4 +306,5 @@ async def test_mock_mode_environment_variable() -> None:
         else:
             os.environ.pop("AI_FAKE_MODE", None)
 
+        get_settings.cache_clear()
         MockProvider.reset_instance()

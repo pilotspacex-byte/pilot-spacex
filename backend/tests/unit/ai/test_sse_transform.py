@@ -348,10 +348,13 @@ class TestNonToolMessages:
         result_msg.__class__.__name__ = "ResultMessage"
         result_msg.session_id = "test-session"
         result_msg.is_error = False
+        result_msg.result = None
         result_msg.usage = MagicMock()
         result_msg.usage.input_tokens = 100
         result_msg.usage.output_tokens = 50
-        result_msg.usage.total_cost_usd = None  # Set to None to avoid MagicMock serialization
+        result_msg.usage.cached_read_input_tokens = 0
+        result_msg.usage.cached_creation_input_tokens = 0
+        result_msg.usage.total_cost_usd = None
 
         # Act
         result = agent.transform_sdk_message(result_msg, context)
