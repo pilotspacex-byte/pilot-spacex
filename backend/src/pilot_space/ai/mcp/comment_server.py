@@ -28,7 +28,7 @@ from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from pilot_space.ai.tools.mcp_server import ToolContext
+from pilot_space.ai.tools.mcp_server import ToolContext, get_tool_approval_level
 from pilot_space.infrastructure.database.models.discussion_comment import (
     DiscussionComment,
 )
@@ -213,9 +213,12 @@ def create_comment_tools_server(
         )
 
         # Return operation payload (no direct DB mutation per DD-088)
+        approval_level = get_tool_approval_level("create_comment")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         event_data = {
             "operation": "comment_created",
-            "status": "approval_required",
+            "status": status,
+            "approval_level": approval_level.value,
             "targetType": target_type,
             "targetId": str(target_id),
             "existingDiscussionId": str(discussion.id) if discussion else None,
@@ -296,14 +299,16 @@ def create_comment_tools_server(
         )
 
         # Push SSE event as operation payload (no direct DB mutation)
+        approval_level = get_tool_approval_level("update_comment")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         event_data = {
             "operation": "comment_updated",
-            "status": "approval_required",
+            "status": status,
+            "approval_level": approval_level.value,
             "commentId": str(comment_id),
             "discussionId": str(comment.discussion_id),
             "oldContent": old_content,
             "newContent": new_content.strip(),
-            "requiresApproval": True,
         }
         await event_queue.put(_sse_event("content_update", event_data))
 

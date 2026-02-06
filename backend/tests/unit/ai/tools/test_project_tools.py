@@ -3,16 +3,17 @@
 Tests for 5 project tools (PR-001 to PR-005) that AI agents use
 to query and manipulate projects during conversations.
 
-Since tools are SDK MCP tools (closures within the server factory),
-we test server configuration and tool registration rather than
-direct tool invocation.
+Uses mock-based patterns (MagicMock/AsyncMock for db_session
+and ToolContext). _capture_project_tools intercepts SDK tool
+closures from the server factory for handler execution tests.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -42,11 +43,32 @@ def mock_tool_context(workspace_id: str, user_id: str) -> ToolContext:
     from pilot_space.ai.tools.mcp_server import ToolContext
 
     mock_session = MagicMock()
+    mock_session.execute = AsyncMock()
     return ToolContext(
         db_session=mock_session,
         workspace_id=workspace_id,
         user_id=user_id,
     )
+
+
+def _capture_project_tools(
+    event_queue: asyncio.Queue[str],
+    tool_context: ToolContext | None = None,
+) -> dict[str, object]:
+    """Create project server and capture SdkMcpTool objects by name."""
+    from pilot_space.ai.mcp import project_server as module
+
+    captured: dict[str, object] = {}
+    original_create = module.create_sdk_mcp_server
+
+    def _intercept_create(*, name: str, version: str, tools: list[object]):
+        captured["tools"] = {t.name: t for t in tools}  # type: ignore[attr-defined]
+        return original_create(name=name, version=version, tools=tools)
+
+    with patch.object(module, "create_sdk_mcp_server", side_effect=_intercept_create):
+        module.create_project_tools_server(event_queue=event_queue, tool_context=tool_context)
+
+    return captured["tools"]  # type: ignore[return-value]
 
 
 # Test Classes
@@ -131,6 +153,112 @@ class TestGetProject:
 
         assert "get_project" in TOOL_APPROVAL_MAP
         assert TOOL_APPROVAL_MAP["get_project"] == ToolApprovalLevel.AUTO_EXECUTE
+
+
+# ---------------------------------------------------------------------------
+# Handler execution tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestGetProjectHandler:
+    """Test get_project handler execution."""
+
+    async def test_get_project_not_found(
+        self,
+        mock_tool_context: ToolContext,
+    ) -> None:
+        """get_project returns error for invalid UUID."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
+        tools = _capture_project_tools(queue, tool_context=mock_tool_context)
+        tool = tools["get_project"]
+
+        result = await tool.handler({"project_id": "not-a-uuid"})  # type: ignore[attr-defined]
+
+        text = result["content"][0]["text"]
+        assert "Error" in text
+
+    async def test_get_project_invalid_identifier(
+        self,
+        mock_tool_context: ToolContext,
+    ) -> None:
+        """get_project returns error for invalid identifier format."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
+        tools = _capture_project_tools(queue, tool_context=mock_tool_context)
+        tool = tools["get_project"]
+
+        result = await tool.handler({"project_id": "ab"})  # type: ignore[attr-defined]
+
+        text = result["content"][0]["text"]
+        assert "Error" in text
+
+
+@pytest.mark.asyncio
+class TestCreateProjectHandler:
+    """Test create_project handler execution."""
+
+    async def test_create_project_missing_name(
+        self,
+        mock_tool_context: ToolContext,
+    ) -> None:
+        """create_project rejects empty name."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
+        tools = _capture_project_tools(queue, tool_context=mock_tool_context)
+        tool = tools["create_project"]
+
+        result = await tool.handler(  # type: ignore[attr-defined]
+            {"name": "   ", "identifier": "TEST"}
+        )
+
+        text = result["content"][0]["text"]
+        assert "cannot be empty" in text.lower() or "Error" in text
+
+    async def test_create_project_invalid_identifier(
+        self,
+        mock_tool_context: ToolContext,
+    ) -> None:
+        """create_project rejects invalid identifier format."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
+        tools = _capture_project_tools(queue, tool_context=mock_tool_context)
+        tool = tools["create_project"]
+
+        result = await tool.handler(  # type: ignore[attr-defined]
+            {"name": "My Project", "identifier": "a"}
+        )
+
+        text = result["content"][0]["text"]
+        assert "Error" in text or "invalid" in text.lower()
+
+    async def test_create_project_emits_approval_event(
+        self,
+        mock_tool_context: ToolContext,
+    ) -> None:
+        """create_project pushes approval_request SSE event when identifier valid."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
+        tools = _capture_project_tools(queue, tool_context=mock_tool_context)
+        tool = tools["create_project"]
+
+        # Mock identifier_exists to return False (available)
+        mock_repo = MagicMock()
+        mock_repo.identifier_exists = AsyncMock(return_value=False)
+
+        with patch(
+            "pilot_space.infrastructure.database.repositories.project_repository.ProjectRepository",
+            return_value=mock_repo,
+        ):
+            result = await tool.handler(  # type: ignore[attr-defined]
+                {"name": "New Project", "identifier": "NEWPROJ"}
+            )
+
+        text = result["content"][0]["text"]
+        assert "Approval required" in text
+
+        # Verify SSE event
+        assert not queue.empty()
+        event = await queue.get()
+        event_data = json.loads(event.split("data: ")[1].strip())
+        assert event_data["operation"] == "create_project"
+        assert event_data["approval_level"] == "require_approval"
 
 
 class TestSearchProjects:

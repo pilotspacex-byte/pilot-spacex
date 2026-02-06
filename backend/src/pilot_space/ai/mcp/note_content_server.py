@@ -50,10 +50,15 @@ def _text_result(text: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": text}]}
 
 
+_NESTED_QUANTIFIER_RE = re.compile(r"([+*]|\{\d+,?\d*\})\)?[+*]|\(\?[^)]*\)\+")
+
+
 def _compile_search_regex(pattern: str, *, case_sensitive: bool) -> re.Pattern[str]:
     """Compile regex with ReDoS prevention. Raises re.error on invalid patterns."""
     if len(pattern) > 500:
         raise re.error("pattern exceeds maximum length of 500 characters")
+    if _NESTED_QUANTIFIER_RE.search(pattern):
+        raise re.error("pattern contains nested quantifiers (potential ReDoS)")
     flags = 0 if case_sensitive else re.IGNORECASE
     return re.compile(pattern, flags)
 

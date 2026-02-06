@@ -1,9 +1,8 @@
-"""Unit tests for comment MCP tools.
+"""Unit tests for comment MCP mutation tools (create_comment, update_comment).
 
-Tests the 4 comment tools: create_comment, update_comment, search_comments,
-and get_comments. Uses mock-based patterns (MagicMock/AsyncMock for db_session
-and ToolContext) instead of real database fixtures to avoid PostgreSQL-specific
-model issues with SQLite test backends.
+Read tool tests (search_comments, get_comments) are in test_comment_tools_read.py.
+Uses mock-based patterns (MagicMock/AsyncMock for db_session and ToolContext)
+instead of real database fixtures.
 
 Pattern: _capture_comment_tools intercepts SDK tool closures from the server
 factory so handlers can be called directly with args dicts.
@@ -188,6 +187,7 @@ class TestApprovalLevels:
 
         assert TOOL_APPROVAL_MAP["get_comments"] == ToolApprovalLevel.AUTO_EXECUTE
 
+
 # ---------------------------------------------------------------------------
 # create_comment
 # ---------------------------------------------------------------------------
@@ -231,6 +231,7 @@ class TestCreateComment:
         event_data = json.loads(event.split("data: ")[1].strip())
         assert event_data["operation"] == "comment_created"
         assert event_data["status"] == "approval_required"
+        assert event_data["approval_level"] == "require_approval"
         assert event_data["targetType"] == "note"
         assert event_data["isAiGenerated"] is True
         assert event_data["createDiscussion"] is True
@@ -341,6 +342,7 @@ class TestCreateComment:
         text = result["content"][0]["text"]
         assert "invalid target_id UUID" in text
 
+
 # ---------------------------------------------------------------------------
 # update_comment
 # ---------------------------------------------------------------------------
@@ -385,7 +387,7 @@ class TestUpdateComment:
         assert event_data["operation"] == "comment_updated"
         assert event_data["oldContent"] == "Original AI text"
         assert event_data["newContent"] == "Revised AI text"
-        assert event_data["requiresApproval"] is True
+        assert event_data["approval_level"] == "require_approval"
 
     async def test_update_user_comment_rejected(self) -> None:
         """AI cannot update a user-generated comment."""
@@ -467,233 +469,3 @@ class TestUpdateComment:
 
         text = result["content"][0]["text"]
         assert "invalid comment_id UUID" in text
-
-# ---------------------------------------------------------------------------
-# search_comments
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-class TestSearchComments:
-    """Test search_comments tool handler."""
-
-    async def test_search_returns_results(self) -> None:
-        """Search matching comments are formatted and returned."""
-        ctx = _make_mock_context()
-        queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_comment_tools(queue, tool_context=ctx)
-        tool = tools["search_comments"]
-
-        comment = _mock_comment(content="Python best practices")
-
-        mock_result = MagicMock()
-        mock_scalars = MagicMock()
-        mock_scalars.all.return_value = [comment]
-        mock_unique = MagicMock()
-        mock_unique.scalars.return_value = mock_scalars
-        mock_result.unique.return_value = mock_unique
-        ctx.db_session.execute = AsyncMock(return_value=mock_result)
-
-        result = await tool.handler({"query": "Python"})  # type: ignore[attr-defined]
-
-        text = result["content"][0]["text"]
-        assert "Found 1 comment" in text
-        assert "Python best practices" in text
-
-    async def test_search_no_results(self) -> None:
-        """Empty result set returns informative message."""
-        ctx = _make_mock_context()
-        queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_comment_tools(queue, tool_context=ctx)
-        tool = tools["search_comments"]
-
-        mock_result = MagicMock()
-        mock_scalars = MagicMock()
-        mock_scalars.all.return_value = []
-        mock_unique = MagicMock()
-        mock_unique.scalars.return_value = mock_scalars
-        mock_result.unique.return_value = mock_unique
-        ctx.db_session.execute = AsyncMock(return_value=mock_result)
-
-        result = await tool.handler({"query": "NonExistentTerm"})  # type: ignore[attr-defined]
-
-        text = result["content"][0]["text"]
-        assert "No comments found" in text
-
-    async def test_search_invalid_target_id(self) -> None:
-        """Invalid target_id UUID should be rejected."""
-        ctx = _make_mock_context()
-        queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_comment_tools(queue, tool_context=ctx)
-        tool = tools["search_comments"]
-
-        result = await tool.handler(
-            {  # type: ignore[attr-defined]
-                "query": "test",
-                "target_id": "not-a-uuid",
-            }
-        )
-
-        text = result["content"][0]["text"]
-        assert "invalid target_id UUID" in text
-
-# ---------------------------------------------------------------------------
-# get_comments
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-class TestGetComments:
-    """Test get_comments tool handler."""
-
-    async def test_get_returns_comments(self) -> None:
-        """Comments for a known target are returned with structure."""
-        ctx = _make_mock_context()
-        queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_comment_tools(queue, tool_context=ctx)
-        tool = tools["get_comments"]
-
-        discussion = _mock_discussion()
-        comment = _mock_comment(
-            discussion_id=str(discussion.id),
-            content="Architecture review note",
-        )
-
-        # First execute: discussion query -> returns discussion list
-        disc_result = MagicMock()
-        disc_scalars = MagicMock()
-        disc_scalars.all.return_value = [discussion]
-        disc_result.scalars.return_value = disc_scalars
-
-        # Second execute: comment query -> returns comment list
-        comment_result = MagicMock()
-        comment_scalars = MagicMock()
-        comment_scalars.all.return_value = [comment]
-        comment_unique = MagicMock()
-        comment_unique.scalars.return_value = comment_scalars
-        comment_result.unique.return_value = comment_unique
-
-        ctx.db_session.execute = AsyncMock(side_effect=[disc_result, comment_result])
-
-        result = await tool.handler(
-            {  # type: ignore[attr-defined]
-                "target_type": "note",
-                "target_id": str(discussion.target_id),
-            }
-        )
-
-        text = result["content"][0]["text"]
-        assert "Found 1 comment" in text
-        assert "Architecture review note" in text
-
-    async def test_get_no_discussions(self) -> None:
-        """No discussions for target returns informative message."""
-        ctx = _make_mock_context()
-        queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_comment_tools(queue, tool_context=ctx)
-        tool = tools["get_comments"]
-
-        disc_result = MagicMock()
-        disc_scalars = MagicMock()
-        disc_scalars.all.return_value = []
-        disc_result.scalars.return_value = disc_scalars
-        ctx.db_session.execute = AsyncMock(return_value=disc_result)
-
-        result = await tool.handler(
-            {  # type: ignore[attr-defined]
-                "target_type": "note",
-                "target_id": str(uuid4()),
-            }
-        )
-
-        text = result["content"][0]["text"]
-        assert "No discussions found" in text
-
-    async def test_get_invalid_target_type(self) -> None:
-        """Unsupported target_type should be rejected."""
-        ctx = _make_mock_context()
-        queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_comment_tools(queue, tool_context=ctx)
-        tool = tools["get_comments"]
-
-        result = await tool.handler(
-            {  # type: ignore[attr-defined]
-                "target_type": "workspace",
-                "target_id": str(uuid4()),
-            }
-        )
-
-        text = result["content"][0]["text"]
-        assert "unsupported target_type" in text
-
-    async def test_get_invalid_target_id(self) -> None:
-        """Invalid UUID for target_id should be rejected."""
-        ctx = _make_mock_context()
-        queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_comment_tools(queue, tool_context=ctx)
-        tool = tools["get_comments"]
-
-        result = await tool.handler(
-            {  # type: ignore[attr-defined]
-                "target_type": "note",
-                "target_id": "bad-uuid",
-            }
-        )
-
-        text = result["content"][0]["text"]
-        assert "invalid target_id UUID" in text
-
-    async def test_get_discussions_but_no_comments(self) -> None:
-        """Discussion exists but has zero comments."""
-        ctx = _make_mock_context()
-        queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_comment_tools(queue, tool_context=ctx)
-        tool = tools["get_comments"]
-
-        discussion = _mock_discussion()
-
-        disc_result = MagicMock()
-        disc_scalars = MagicMock()
-        disc_scalars.all.return_value = [discussion]
-        disc_result.scalars.return_value = disc_scalars
-
-        comment_result = MagicMock()
-        comment_scalars = MagicMock()
-        comment_scalars.all.return_value = []
-        comment_unique = MagicMock()
-        comment_unique.scalars.return_value = comment_scalars
-        comment_result.unique.return_value = comment_unique
-
-        ctx.db_session.execute = AsyncMock(side_effect=[disc_result, comment_result])
-
-        result = await tool.handler(
-            {  # type: ignore[attr-defined]
-                "target_type": "note",
-                "target_id": str(discussion.target_id),
-            }
-        )
-
-        text = result["content"][0]["text"]
-        assert "No comments found" in text
-
-
-# ---------------------------------------------------------------------------
-# All tools registered
-# ---------------------------------------------------------------------------
-
-
-class TestToolCategoryRegistration:
-    """Verify all 4 comment tools are registered with correct approval levels."""
-
-    def test_all_comment_tools_in_approval_map(self) -> None:
-        from pilot_space.ai.tools.mcp_server import TOOL_APPROVAL_MAP, ToolApprovalLevel
-
-        auto_execute_tools = ["search_comments", "get_comments"]
-        for tool_name in auto_execute_tools:
-            assert tool_name in TOOL_APPROVAL_MAP
-            assert TOOL_APPROVAL_MAP[tool_name] == ToolApprovalLevel.AUTO_EXECUTE
-
-        require_approval_tools = ["create_comment", "update_comment"]
-        for tool_name in require_approval_tools:
-            assert tool_name in TOOL_APPROVAL_MAP
-            assert TOOL_APPROVAL_MAP[tool_name] == ToolApprovalLevel.REQUIRE_APPROVAL

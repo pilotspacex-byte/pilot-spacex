@@ -97,7 +97,7 @@ class TestIssueIdentifierResolution:
 
         assert resolved is None
         assert error is not None
-        assert "uppercase" in error.lower()
+        assert "must be uppercase" in error
 
     @pytest.mark.asyncio
     async def test_invalid_format(self) -> None:

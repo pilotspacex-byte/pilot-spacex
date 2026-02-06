@@ -66,6 +66,27 @@ class ActionType(StrEnum):
     EXTRACT_ISSUES = "extract_issues"
     PUBLISH_DOCS = "publish_docs"
     POST_PR_COMMENTS = "post_pr_comments"
+    CREATE_COMMENT = "create_comment"
+    UPDATE_COMMENT = "update_comment"
+    CREATE_ISSUE = "create_issue"
+    UPDATE_ISSUE = "update_issue"
+    CREATE_NOTE = "create_note"
+    UPDATE_NOTE = "update_note"
+    CREATE_PROJECT = "create_project"
+    UPDATE_PROJECT = "update_project"
+    UPDATE_PROJECT_SETTINGS = "update_project_settings"
+    LINK_ISSUES = "link_issues"
+    ADD_SUB_ISSUE = "add_sub_issue"
+    TRANSITION_ISSUE_STATE = "transition_issue_state"
+    LINK_ISSUE_TO_NOTE = "link_issue_to_note"
+    INSERT_BLOCK = "insert_block"
+    REMOVE_BLOCK = "remove_block"
+    REMOVE_CONTENT = "remove_content"
+    REPLACE_CONTENT = "replace_content"
+
+    # ALWAYS_REQUIRE: Destructive link operations (non-configurable)
+    UNLINK_ISSUE_FROM_NOTE = "unlink_issue_from_note"
+    UNLINK_ISSUES = "unlink_issues"
 
     # AUTO_EXECUTE: Safe operations (configurable)
     SUGGEST_LABELS = "suggest_labels"

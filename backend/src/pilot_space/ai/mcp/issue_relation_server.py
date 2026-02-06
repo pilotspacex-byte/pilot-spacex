@@ -111,7 +111,7 @@ async def _check_circular_parent(
     parent_id: UUID,
     workspace_id: UUID,
     *,
-    max_depth: int = 3,
+    max_depth: int = 10,
 ) -> tuple[bool, str | None]:
     """Check if setting parent_id would create a circular dependency.
 

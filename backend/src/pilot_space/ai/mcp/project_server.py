@@ -26,7 +26,7 @@ from typing import Any
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 
 from pilot_space.ai.tools.entity_resolver import resolve_entity_id
-from pilot_space.ai.tools.mcp_server import ToolContext
+from pilot_space.ai.tools.mcp_server import ToolContext, get_tool_approval_level
 
 logger = logging.getLogger(__name__)
 
@@ -344,10 +344,12 @@ def create_project_tools_server(
             )
 
         # Build approval payload
+        approval_level = get_tool_approval_level("create_project")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         event_data = {
             "operation": "create_project",
-            "status": "approval_required",
-            "approval_level": "require_approval",
+            "status": status,
+            "approval_level": approval_level.value,
             "project_data": {
                 "name": name,
                 "identifier": identifier,
@@ -457,10 +459,12 @@ def create_project_tools_server(
             return _text_result("No changes detected. Provide at least one field to update.")
 
         # Build approval payload
+        approval_level = get_tool_approval_level("update_project")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         event_data = {
             "operation": "update_project",
-            "status": "approval_required",
-            "approval_level": "require_approval",
+            "status": status,
+            "approval_level": approval_level.value,
             "project_id": str(project.id),
             "identifier": project.identifier,
             "changes": changes,
@@ -532,10 +536,12 @@ def create_project_tools_server(
         merged_settings = {**existing_settings, **new_settings}
 
         # Build approval payload
+        approval_level = get_tool_approval_level("update_project_settings")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         event_data = {
             "operation": "update_project_settings",
-            "status": "approval_required",
-            "approval_level": "require_approval",
+            "status": status,
+            "approval_level": approval_level.value,
             "project_id": str(project.id),
             "identifier": project.identifier,
             "settings_before": existing_settings,
