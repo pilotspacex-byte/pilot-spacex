@@ -141,7 +141,15 @@ def upgrade() -> None:
         ),
     )
 
-    # 6. Add reactions and edited_at columns to discussion_comments
+    # 6. Add CHECK constraint for target_type/target_id integrity
+    op.create_check_constraint(
+        "ck_threaded_discussions_target_integrity",
+        "threaded_discussions",
+        "(target_type = 'note' AND note_id IS NOT NULL) OR "
+        "(target_type != 'note' AND target_id IS NOT NULL)",
+    )
+
+    # 7. Add reactions and edited_at columns to discussion_comments
     op.add_column(
         "discussion_comments",
         sa.Column("reactions", postgresql.JSONB(), nullable=True),
@@ -159,10 +167,15 @@ def downgrade() -> None:
     op.drop_column("discussion_comments", "reactions")
 
     # Remove threaded_discussions extensions
+    op.drop_constraint(
+        "ck_threaded_discussions_target_integrity", "threaded_discussions"
+    )
     op.drop_column("threaded_discussions", "target_id")
     op.drop_column("threaded_discussions", "target_type")
 
-    # Revert note_id to NOT NULL (may fail if NULL rows exist)
+    # Remove non-note discussions before reverting NOT NULL constraint
+    op.execute("DELETE FROM threaded_discussions WHERE note_id IS NULL")
+
     op.alter_column(
         "threaded_discussions",
         "note_id",

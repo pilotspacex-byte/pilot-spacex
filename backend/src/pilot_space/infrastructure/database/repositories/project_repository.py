@@ -193,7 +193,9 @@ class ProjectRepository(BaseRepository[Project]):
         if not include_deleted:
             query = query.where(Project.is_deleted == False)  # noqa: E712
 
-        search_pattern = f"%{search_term}%"
+        # Escape ILIKE wildcards to prevent injection
+        safe_term = search_term.replace("%", r"\%").replace("_", r"\_")
+        search_pattern = f"%{safe_term}%"
         query = query.where(
             or_(
                 Project.name.ilike(search_pattern),

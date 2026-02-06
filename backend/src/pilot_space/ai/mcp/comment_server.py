@@ -33,7 +33,6 @@ from pilot_space.infrastructure.database.models.discussion_comment import (
     DiscussionComment,
 )
 from pilot_space.infrastructure.database.models.threaded_discussion import (
-    DiscussionStatus,
     ThreadedDiscussion,
 )
 
@@ -183,30 +182,19 @@ def create_comment_tools_server(
         result = await session.execute(query)
         discussion = result.scalar_one_or_none()
 
-        # Create discussion if it doesn't exist
+        # Check discussion existence
         if not discussion:
             if target_type == "discussion":
                 return _text_result(f"Error: discussion {target_id} not found in workspace.")
 
-            discussion = ThreadedDiscussion(
-                id=uuid.uuid4(),
-                workspace_id=workspace_id,
-                note_id=target_id if target_type == "note" else None,
-                target_type=target_type,
-                target_id=target_id,
-                status=DiscussionStatus.OPEN,
-                title=None,
-            )
-            session.add(discussion)
-            await session.flush()
-            logger.info(
-                "[CommentTools] created discussion: type=%s, target=%s",
-                target_type,
-                target_id,
-            )
+            # No existing discussion — parent_comment_id invalid since no comments exist
+            if parent_comment_id:
+                return _text_result(
+                    "Error: cannot reply to a parent comment when no discussion exists yet."
+                )
 
-        # Validate parent_comment if provided
-        if parent_comment_id:
+        # Validate parent_comment if discussion exists and parent provided
+        if parent_comment_id and discussion:
             parent_query = select(DiscussionComment).where(
                 DiscussionComment.id == parent_comment_id,
                 DiscussionComment.discussion_id == discussion.id,
@@ -218,39 +206,32 @@ def create_comment_tools_server(
             if not parent_comment:
                 return _text_result(f"Error: parent comment {parent_comment_id} not found.")
 
-        # Create comment
-        comment = DiscussionComment(
-            id=uuid.uuid4(),
-            workspace_id=workspace_id,
-            discussion_id=discussion.id,
-            author_id=user_id,
-            content=content.strip(),
-            is_ai_generated=True,
-        )
-        session.add(comment)
-        await session.flush()
-
         logger.info(
-            "[CommentTools] create_comment: discussion=%s, content_len=%d",
-            discussion.id,
+            "[CommentTools] create_comment: type=%s, target=%s, content_len=%d",
+            target_type,
+            target_id,
             len(content),
         )
 
-        # Push SSE event
+        # Return operation payload (no direct DB mutation per DD-088)
         event_data = {
             "operation": "comment_created",
+            "status": "approval_required",
             "targetType": target_type,
             "targetId": str(target_id),
-            "discussionId": str(discussion.id),
-            "commentId": str(comment.id),
+            "existingDiscussionId": str(discussion.id) if discussion else None,
+            "createDiscussion": discussion is None,
+            "noteId": str(target_id) if target_type == "note" else None,
             "content": content.strip(),
             "isAiGenerated": True,
+            "authorId": str(user_id),
+            "workspaceId": str(workspace_id),
             "parentCommentId": str(parent_comment_id) if parent_comment_id else None,
         }
         await event_queue.put(_sse_event("content_update", event_data))
 
         return _text_result(
-            f"Created AI comment on {target_type} {target_id}. Comment ID: {comment.id}"
+            f"Comment on {target_type} {target_id} requested. Approval required."
         )
 
     @tool(

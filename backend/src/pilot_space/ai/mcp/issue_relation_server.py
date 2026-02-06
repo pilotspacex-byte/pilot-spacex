@@ -116,6 +116,10 @@ async def _check_circular_parent(
         if not parent_issue:
             break
 
+        # Verify workspace ownership for RLS defense-in-depth
+        if parent_issue.workspace_id != workspace_id:
+            break
+
         if parent_issue.parent_id == child_id:
             return True, "Circular parent relationship detected"
 

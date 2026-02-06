@@ -223,7 +223,7 @@ class TestCreateComment:
 
         assert "content" in result
         text = result["content"][0]["text"]
-        assert "Created AI comment" in text
+        assert "Approval required" in text
 
         # Verify SSE event was pushed
         assert not queue.empty()
@@ -231,8 +231,10 @@ class TestCreateComment:
         assert "event: content_update" in event
         event_data = json.loads(event.split("data: ")[1].strip())
         assert event_data["operation"] == "comment_created"
+        assert event_data["status"] == "approval_required"
         assert event_data["targetType"] == "note"
         assert event_data["isAiGenerated"] is True
+        assert event_data["createDiscussion"] is True
 
     async def test_create_on_existing_discussion(self) -> None:
         """Create a comment when discussion already exists for target."""
@@ -256,10 +258,13 @@ class TestCreateComment:
         )
 
         text = result["content"][0]["text"]
-        assert "Created AI comment" in text
+        assert "Approval required" in text
 
-        # session.add called for the new comment (not a new discussion)
-        assert ctx.db_session.add.called
+        # Verify SSE event includes existing discussion ID
+        event = await queue.get()
+        event_data = json.loads(event.split("data: ")[1].strip())
+        assert event_data["existingDiscussionId"] == str(discussion.id)
+        assert event_data["createDiscussion"] is False
 
     async def test_create_missing_content(self) -> None:
         """Empty/whitespace content should be rejected."""

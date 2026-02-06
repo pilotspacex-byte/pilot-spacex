@@ -121,8 +121,8 @@ def create_note_content_server(
 
             repo = NoteRepository(tool_context.db_session)
             note = await repo.get_by_id(note_id)
-            if not note:
-                return _text_result(f"Error: Note {note_id} not found")
+            if not note or str(note.workspace_id) != tool_context.workspace_id:
+                return _text_result(f"Error: Note {note_id} not found in workspace")
 
             content = note.content or {}
             blocks = content.get("content", [])

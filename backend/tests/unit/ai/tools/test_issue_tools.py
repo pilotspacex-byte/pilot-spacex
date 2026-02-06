@@ -13,7 +13,7 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -605,6 +605,7 @@ class TestAddSubIssue:
 
         mock_parent_issue = MagicMock()
         mock_parent_issue.parent_id = child  # circular: parent's parent is the child
+        mock_parent_issue.workspace_id = UUID(mock_tool_context.workspace_id)
 
         repo = AsyncMock()
         repo.get_by_id.return_value = mock_parent_issue

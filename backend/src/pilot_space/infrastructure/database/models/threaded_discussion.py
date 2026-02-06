@@ -11,6 +11,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    CheckConstraint,
     Enum as SQLEnum,
     ForeignKey,
     Index,
@@ -127,6 +128,12 @@ class ThreadedDiscussion(WorkspaceScopedModel):
         Index("ix_threaded_discussions_resolved_by_id", "resolved_by_id"),
         Index("ix_threaded_discussions_is_deleted", "is_deleted"),
         Index("ix_threaded_discussions_note_block", "note_id", "block_id"),
+        # Ensure note_id is set for note discussions, target_id for non-note
+        CheckConstraint(
+            "(target_type = 'note' AND note_id IS NOT NULL) OR "
+            "(target_type != 'note' AND target_id IS NOT NULL)",
+            name="ck_threaded_discussions_target_integrity",
+        ),
     )
 
     def __repr__(self) -> str:
