@@ -445,9 +445,21 @@ class TestLinkIssueToNote:
         tools = _capture_relation_tools(asyncio.Queue(), mock_tool_context)
         issue_uuid, note_uuid = uuid4(), uuid4()
 
-        with patch(
-            "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
-            side_effect=[(issue_uuid, None), (note_uuid, None)],
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
+                side_effect=[(issue_uuid, None), (note_uuid, None)],
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_note_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await tools["link_issue_to_note"].handler(
                 {
@@ -477,9 +489,21 @@ class TestUnlinkIssueFromNote:
         tools = _capture_relation_tools(queue, mock_tool_context)
         issue_uuid, note_uuid = uuid4(), uuid4()
 
-        with patch(
-            "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
-            side_effect=[(issue_uuid, None), (note_uuid, None)],
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
+                side_effect=[(issue_uuid, None), (note_uuid, None)],
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_note_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await tools["unlink_issue_from_note"].handler(
                 {
@@ -506,9 +530,16 @@ class TestLinkIssues:
         tools = _capture_relation_tools(asyncio.Queue(), mock_tool_context)
         src, tgt = uuid4(), uuid4()
 
-        with patch(
-            "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
-            side_effect=[(src, None), (tgt, None)],
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
+                side_effect=[(src, None), (tgt, None)],
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await tools["link_issues"].handler(
                 {
@@ -572,9 +603,16 @@ class TestUnlinkIssues:
         tools = _capture_relation_tools(queue, mock_tool_context)
         src, tgt = uuid4(), uuid4()
 
-        with patch(
-            "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
-            side_effect=[(src, None), (tgt, None)],
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
+                side_effect=[(src, None), (tgt, None)],
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await tools["unlink_issues"].handler(
                 {
@@ -609,6 +647,11 @@ class TestAddSubIssue:
                 side_effect=[(parent, None), (child, None)],
             ),
             patch("pilot_space.ai.mcp.issue_relation_server.IssueRepository", return_value=repo),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await tools["add_sub_issue"].handler(
                 {
@@ -662,9 +705,16 @@ class TestTransitionIssueState:
         tools = _capture_relation_tools(asyncio.Queue(), mock_tool_context)
         issue_uuid, state_id = uuid4(), str(uuid4())
 
-        with patch(
-            "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
-            return_value=(issue_uuid, None),
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
+                return_value=(issue_uuid, None),
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await tools["transition_issue_state"].handler(
                 {
@@ -685,9 +735,16 @@ class TestTransitionIssueState:
         tools = _capture_relation_tools(asyncio.Queue(), mock_tool_context)
         issue_uuid, state_id = uuid4(), str(uuid4())
 
-        with patch(
-            "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
-            return_value=(issue_uuid, None),
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
+                return_value=(issue_uuid, None),
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await tools["transition_issue_state"].handler(
                 {
