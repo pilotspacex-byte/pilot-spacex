@@ -82,6 +82,34 @@ def _operation_payload(
     }
 
 
+async def _verify_issue_workspace(
+    repo: IssueRepository,
+    issue_uuid: UUID,
+    workspace_id: str,
+) -> str | None:
+    """Verify issue belongs to workspace. Returns error message or None."""
+    issue = await repo.get_by_id(issue_uuid)
+    if not issue or str(issue.workspace_id) != workspace_id:
+        return f"Issue {issue_uuid} not found in workspace"
+    return None
+
+
+async def _verify_note_workspace(
+    note_id: UUID,
+    tool_context: ToolContext,
+) -> str | None:
+    """Verify note belongs to workspace. Returns error message or None."""
+    from pilot_space.infrastructure.database.repositories.note_repository import (
+        NoteRepository,
+    )
+
+    repo = NoteRepository(tool_context.db_session)
+    note = await repo.get_by_id(note_id)
+    if not note or str(note.workspace_id) != tool_context.workspace_id:
+        return f"Note {note_id} not found in workspace"
+    return None
+
+
 async def _check_circular_parent(
     repo: IssueRepository,
     child_id: UUID,
@@ -207,6 +235,15 @@ def create_issue_relation_tools_server(
         if error:
             return _text_result(f"Error: {error}")
 
+        # Verify workspace ownership
+        repo = IssueRepository(tool_context.db_session)
+        ws_err = await _verify_issue_workspace(repo, issue_uuid, tool_context.workspace_id)  # type: ignore[arg-type]
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
+        ws_err = await _verify_note_workspace(note_uuid, tool_context)  # type: ignore[arg-type]
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
+
         # Build operation payload
         payload = {
             "issue_id": str(issue_uuid),
@@ -278,6 +315,15 @@ def create_issue_relation_tools_server(
         if error:
             return _text_result(f"Error: {error}")
 
+        # Verify workspace ownership
+        repo = IssueRepository(tool_context.db_session)
+        ws_err = await _verify_issue_workspace(repo, issue_uuid, tool_context.workspace_id)  # type: ignore[arg-type]
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
+        ws_err = await _verify_note_workspace(note_uuid, tool_context)  # type: ignore[arg-type]
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
+
         # Push SSE approval_request event
         approval_data = {
             "tool": "unlink_issue_from_note",
@@ -339,25 +385,16 @@ def create_issue_relation_tools_server(
         if not tool_context:
             return _text_result("Error: Tool context not available")
 
-        # Resolve source_issue_id
-        source_uuid, error = await resolve_entity_id(
-            "issue",
-            args["source_issue_id"],
-            tool_context,
-        )
-        if error:
-            return _text_result(f"Error resolving source issue: {error}")
+        # Resolve both issue IDs
+        resolved: dict[str, Any] = {}
+        for key in ["source_issue_id", "target_issue_id"]:
+            uid, error = await resolve_entity_id("issue", args[key], tool_context)
+            if error:
+                return _text_result(f"Error resolving {key}: {error}")
+            resolved[key] = uid
+        source_uuid, target_uuid = resolved["source_issue_id"], resolved["target_issue_id"]
 
-        # Resolve target_issue_id
-        target_uuid, error = await resolve_entity_id(
-            "issue",
-            args["target_issue_id"],
-            tool_context,
-        )
-        if error:
-            return _text_result(f"Error resolving target issue: {error}")
-
-        # Validate link_type
+        # Validate link_type and self-link before DB calls
         try:
             link_type = IssueLinkType(args["link_type"])
         except ValueError:
@@ -365,10 +402,15 @@ def create_issue_relation_tools_server(
                 f"Invalid link_type: {args['link_type']}. "
                 "Must be blocks, blocked_by, duplicates, or related"
             )
-
-        # Check for self-link (database constraint will catch this, but fail fast)
         if source_uuid == target_uuid:
             return _text_result("Cannot link an issue to itself")
+
+        # Verify workspace ownership
+        repo = IssueRepository(tool_context.db_session)
+        for uid in [source_uuid, target_uuid]:
+            ws_err = await _verify_issue_workspace(repo, uid, tool_context.workspace_id)  # type: ignore[arg-type]
+            if ws_err:
+                return _text_result(f"Error: {ws_err}")
 
         # Build operation payload
         payload = {
@@ -444,6 +486,13 @@ def create_issue_relation_tools_server(
         )
         if error:
             return _text_result(f"Error resolving target issue: {error}")
+
+        # Verify workspace ownership
+        repo = IssueRepository(tool_context.db_session)
+        for uid in [source_uuid, target_uuid]:
+            ws_err = await _verify_issue_workspace(repo, uid, tool_context.workspace_id)  # type: ignore[arg-type]
+            if ws_err:
+                return _text_result(f"Error: {ws_err}")
 
         # Push SSE approval_request event
         approval_data = {
@@ -523,8 +572,14 @@ def create_issue_relation_tools_server(
         if error:
             return _text_result(f"Error resolving child issue: {error}")
 
-        # Check for circular dependency (traverse up to depth=3)
+        # Verify workspace ownership
         repo = IssueRepository(tool_context.db_session)
+        for uid in [parent_uuid, child_uuid]:
+            ws_err = await _verify_issue_workspace(repo, uid, tool_context.workspace_id)  # type: ignore[arg-type]
+            if ws_err:
+                return _text_result(f"Error: {ws_err}")
+
+        # Check for circular dependency (traverse up to depth=3)
         is_circular, circular_error = await _check_circular_parent(
             repo,
             child_uuid,  # type: ignore[arg-type]
@@ -596,6 +651,12 @@ def create_issue_relation_tools_server(
         )
         if error:
             return _text_result(f"Error: {error}")
+
+        # Verify workspace ownership
+        repo = IssueRepository(tool_context.db_session)
+        ws_err = await _verify_issue_workspace(repo, issue_uuid, tool_context.workspace_id)  # type: ignore[arg-type]
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
 
         # Build operation payload
         payload = {

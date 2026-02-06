@@ -80,6 +80,27 @@ def create_note_content_server(
         McpSdkServerConfig ready for ClaudeAgentOptions.mcp_servers.
     """
 
+    async def _verify_note_workspace(note_id: str | None) -> str | None:
+        """Verify note belongs to current workspace. Returns error message or None."""
+        if not tool_context:
+            return "tool_context not available"
+        if not note_id:
+            return "note_id is required"
+        from uuid import UUID
+
+        from pilot_space.infrastructure.database.repositories.note_repository import (
+            NoteRepository,
+        )
+
+        try:
+            repo = NoteRepository(tool_context.db_session)
+            note = await repo.get_by_id(UUID(note_id))
+        except (ValueError, TypeError):
+            return f"Invalid note_id: {note_id}"
+        if not note or str(note.workspace_id) != tool_context.workspace_id:
+            return f"Note {note_id} not found in workspace"
+        return None
+
     @tool(
         "search_note_content",
         "Search for text patterns within note content blocks. "
@@ -211,6 +232,10 @@ def create_note_content_server(
     )
     async def insert_block(args: dict[str, Any]) -> dict[str, Any]:
         note_id = args.get("note_id")
+        ws_error = await _verify_note_workspace(note_id)
+        if ws_error:
+            return _text_result(f"Error: {ws_error}")
+
         content_markdown = args.get("content_markdown", "").strip()
         after_block_id = args.get("after_block_id")
         before_block_id = args.get("before_block_id")
@@ -270,6 +295,10 @@ def create_note_content_server(
     )
     async def remove_block(args: dict[str, Any]) -> dict[str, Any]:
         note_id = args.get("note_id")
+        ws_error = await _verify_note_workspace(note_id)
+        if ws_error:
+            return _text_result(f"Error: {ws_error}")
+
         block_id = args.get("block_id")
 
         if not block_id:
@@ -321,6 +350,10 @@ def create_note_content_server(
     )
     async def remove_content(args: dict[str, Any]) -> dict[str, Any]:
         note_id = args.get("note_id")
+        ws_error = await _verify_note_workspace(note_id)
+        if ws_error:
+            return _text_result(f"Error: {ws_error}")
+
         pattern = args.get("pattern")
         use_regex = args.get("regex", False)
         block_ids = args.get("block_ids", [])
@@ -386,6 +419,10 @@ def create_note_content_server(
     )
     async def replace_content(args: dict[str, Any]) -> dict[str, Any]:
         note_id = args.get("note_id")
+        ws_error = await _verify_note_workspace(note_id)
+        if ws_error:
+            return _text_result(f"Error: {ws_error}")
+
         old_pattern = args.get("old_pattern")
         new_content = args.get("new_content")
         use_regex = args.get("regex", False)

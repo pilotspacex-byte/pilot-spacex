@@ -11,12 +11,38 @@ from __future__ import annotations
 
 import asyncio
 import json
-from unittest.mock import patch
-from uuid import uuid4
+from collections.abc import Generator
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID, uuid4
 
 import pytest
 
 from pilot_space.ai.tools.mcp_server import ToolContext
+
+
+@pytest.fixture
+def mock_tool_context() -> ToolContext:
+    """Mock ToolContext for content mutation tests requiring workspace verification."""
+    return ToolContext(
+        db_session=MagicMock(),
+        workspace_id=str(uuid4()),
+        user_id=str(uuid4()),
+    )
+
+
+@contextmanager
+def _mock_note_repo(workspace_id: str) -> Generator[None, None, None]:
+    """Mock NoteRepository for workspace verification in note content tools."""
+    mock_note = MagicMock()
+    mock_note.workspace_id = UUID(workspace_id)
+    mock_repo = AsyncMock()
+    mock_repo.get_by_id.return_value = mock_note
+    with patch(
+        "pilot_space.infrastructure.database.repositories.note_repository.NoteRepository",
+        return_value=mock_repo,
+    ):
+        yield
 
 
 def _capture_note_tools(
@@ -244,19 +270,20 @@ class TestInsertBlock:
     """Test suite for insert_block tool (NT-005)."""
 
     @pytest.mark.asyncio
-    async def test_insert_block_after_position(self) -> None:
+    async def test_insert_block_after_position(self, mock_tool_context: ToolContext) -> None:
         """Verify insert_block creates payload with after_block_id."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         insert_tool = tools["insert_block"]
 
-        result = await insert_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "content_markdown": "New content",
-                "after_block_id": "block-123",
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await insert_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "content_markdown": "New content",
+                    "after_block_id": "block-123",
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["status"] == "approval_required"
@@ -265,37 +292,39 @@ class TestInsertBlock:
         assert data["payload"]["before_block_id"] is None
 
     @pytest.mark.asyncio
-    async def test_insert_block_before_position(self) -> None:
+    async def test_insert_block_before_position(self, mock_tool_context: ToolContext) -> None:
         """Verify insert_block creates payload with before_block_id."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         insert_tool = tools["insert_block"]
 
-        result = await insert_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "content_markdown": "New content",
-                "before_block_id": "block-456",
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await insert_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "content_markdown": "New content",
+                    "before_block_id": "block-456",
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["payload"]["before_block_id"] == "block-456"
         assert data["payload"]["after_block_id"] is None
 
     @pytest.mark.asyncio
-    async def test_insert_block_append(self) -> None:
+    async def test_insert_block_append(self, mock_tool_context: ToolContext) -> None:
         """Verify insert_block appends when no position specified."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         insert_tool = tools["insert_block"]
 
-        result = await insert_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "content_markdown": "Appended content",
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await insert_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "content_markdown": "Appended content",
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["payload"]["after_block_id"] is None
@@ -306,18 +335,19 @@ class TestRemoveBlock:
     """Test suite for remove_block tool (NT-006)."""
 
     @pytest.mark.asyncio
-    async def test_remove_block_valid_block(self) -> None:
+    async def test_remove_block_valid_block(self, mock_tool_context: ToolContext) -> None:
         """Verify remove_block returns approval_required payload."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         remove_tool = tools["remove_block"]
 
-        result = await remove_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "block_id": "block-789",
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await remove_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "block_id": "block-789",
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["status"] == "approval_required"
@@ -325,18 +355,19 @@ class TestRemoveBlock:
         assert data["payload"]["block_id"] == "block-789"
 
     @pytest.mark.asyncio
-    async def test_remove_block_invalid_block(self) -> None:
+    async def test_remove_block_invalid_block(self, mock_tool_context: ToolContext) -> None:
         """Verify remove_block validates block_id presence."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         remove_tool = tools["remove_block"]
 
-        result = await remove_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "block_id": "",
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await remove_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "block_id": "",
+                }
+            )
 
         assert "Error" in result["content"][0]["text"]
 
@@ -345,18 +376,19 @@ class TestRemoveContent:
     """Test suite for remove_content tool (NT-007)."""
 
     @pytest.mark.asyncio
-    async def test_remove_content_pattern_match(self) -> None:
+    async def test_remove_content_pattern_match(self, mock_tool_context: ToolContext) -> None:
         """Verify remove_content creates payload with pattern."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         remove_tool = tools["remove_content"]
 
-        result = await remove_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "pattern": "deprecated",
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await remove_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "pattern": "deprecated",
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["status"] == "approval_required"
@@ -365,19 +397,20 @@ class TestRemoveContent:
         assert "preview" in data
 
     @pytest.mark.asyncio
-    async def test_remove_content_scoped_blocks(self) -> None:
+    async def test_remove_content_scoped_blocks(self, mock_tool_context: ToolContext) -> None:
         """Verify remove_content can target specific blocks."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         remove_tool = tools["remove_content"]
 
-        result = await remove_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "pattern": "old",
-                "block_ids": ["block-1", "block-2"],
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await remove_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "pattern": "old",
+                    "block_ids": ["block-1", "block-2"],
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["payload"]["block_ids"] == ["block-1", "block-2"]
@@ -387,19 +420,20 @@ class TestReplaceContent:
     """Test suite for replace_content tool (NT-008)."""
 
     @pytest.mark.asyncio
-    async def test_replace_content_simple_replace(self) -> None:
+    async def test_replace_content_simple_replace(self, mock_tool_context: ToolContext) -> None:
         """Verify replace_content creates payload for simple find/replace."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         replace_tool = tools["replace_content"]
 
-        result = await replace_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "old_pattern": "foo",
-                "new_content": "bar",
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await replace_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "old_pattern": "foo",
+                    "new_content": "bar",
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["status"] == "approval_required"
@@ -408,39 +442,43 @@ class TestReplaceContent:
         assert data["payload"]["new_content"] == "bar"
 
     @pytest.mark.asyncio
-    async def test_replace_content_regex_with_capture_groups(self) -> None:
+    async def test_replace_content_regex_with_capture_groups(
+        self, mock_tool_context: ToolContext
+    ) -> None:
         """Verify replace_content supports regex mode."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         replace_tool = tools["replace_content"]
 
-        result = await replace_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "old_pattern": r"(\w+)@example\.com",
-                "new_content": r"$1@newdomain.com",
-                "regex": True,
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await replace_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "old_pattern": r"(\w+)@example\.com",
+                    "new_content": r"$1@newdomain.com",
+                    "regex": True,
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["payload"]["regex"] is True
 
     @pytest.mark.asyncio
-    async def test_replace_content_replace_all_flag(self) -> None:
+    async def test_replace_content_replace_all_flag(self, mock_tool_context: ToolContext) -> None:
         """Verify replace_content respects replace_all flag."""
         queue = asyncio.Queue()
-        tools = _capture_content_tools(queue)
+        tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         replace_tool = tools["replace_content"]
 
-        result = await replace_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "old_pattern": "old",
-                "new_content": "new",
-                "replace_all": False,
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await replace_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "old_pattern": "old",
+                    "new_content": "new",
+                    "replace_all": False,
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["payload"]["replace_all"] is False

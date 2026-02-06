@@ -226,9 +226,21 @@ class TestNoteToIssueWorkflow:
         relation_tools = _capture_relation_tools(event_queue, mock_tool_context)
         link_tool = relation_tools["link_issue_to_note"]
 
-        with patch(
-            "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
-            side_effect=[(issue_id, None), (note_id, None)],
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
+                side_effect=[(issue_id, None), (note_id, None)],
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_note_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             link_result = await link_tool.handler(
                 {
@@ -304,9 +316,16 @@ class TestIssueRelationChain:
         relation_tools = _capture_relation_tools(event_queue, mock_tool_context)
         link_issues_tool = relation_tools["link_issues"]
 
-        with patch(
-            "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
-            side_effect=[(issue1_id, None), (issue2_id, None)],
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
+                side_effect=[(issue1_id, None), (issue2_id, None)],
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             link_result = await link_issues_tool.handler(
                 {
@@ -670,9 +689,21 @@ class TestSSEEventPropagation:
         issue_id = uuid4()
         note_id = uuid4()
 
-        with patch(
-            "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
-            side_effect=[(issue_id, None), (note_id, None)],
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server.resolve_entity_id",
+                side_effect=[(issue_id, None), (note_id, None)],
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_issue_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "pilot_space.ai.mcp.issue_relation_server._verify_note_workspace",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             await unlink_tool.handler(
                 {

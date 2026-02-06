@@ -431,11 +431,13 @@ def create_note_tools_server(
 
         logger.info("[NoteTools] create_note: title='%s'", title)
         return _text_result(
-            json.dumps({
-                "status": "approval_required",
-                "operation": "create_note",
-                "payload": payload,
-            })
+            json.dumps(
+                {
+                    "status": "approval_required",
+                    "operation": "create_note",
+                    "payload": payload,
+                }
+            )
         )
 
     @tool(
@@ -466,6 +468,22 @@ def create_note_tools_server(
         if not note_id:
             return _text_result("Error: note_id is required")
 
+        # Verify note belongs to workspace
+        if tool_context:
+            from uuid import UUID
+
+            from pilot_space.infrastructure.database.repositories.note_repository import (
+                NoteRepository,
+            )
+
+            try:
+                repo = NoteRepository(tool_context.db_session)
+                note = await repo.get_by_id(UUID(note_id))
+            except (ValueError, TypeError):
+                return _text_result(f"Error: Invalid note_id: {note_id}")
+            if not note or str(note.workspace_id) != tool_context.workspace_id:
+                return _text_result(f"Error: Note {note_id} not found in workspace")
+
         changes: dict[str, Any] = {}
         if "title" in args:
             title = args["title"].strip()
@@ -482,11 +500,13 @@ def create_note_tools_server(
 
         logger.info("[NoteTools] update_note: note_id=%s, changes=%s", note_id, changes)
         return _text_result(
-            json.dumps({
-                "status": "approval_required",
-                "operation": "update_note",
-                "payload": {"note_id": note_id, "changes": changes},
-            })
+            json.dumps(
+                {
+                    "status": "approval_required",
+                    "operation": "update_note",
+                    "payload": {"note_id": note_id, "changes": changes},
+                }
+            )
         )
 
     return create_sdk_mcp_server(
