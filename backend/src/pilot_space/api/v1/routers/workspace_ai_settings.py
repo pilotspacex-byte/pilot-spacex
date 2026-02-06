@@ -81,7 +81,7 @@ async def _get_admin_workspace(
         (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
         None,
     )
-    if not member or member.role != WorkspaceRole.ADMIN:
+    if not member or not member.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin role required",

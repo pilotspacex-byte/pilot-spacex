@@ -97,6 +97,14 @@ class Note(WorkspaceScopedModel):
         server_default=text("false"),
     )
 
+    # T009: Flag to identify onboarding guided notes (FR-011)
+    is_guided_template: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+    )
+
     # Template (optional)
     template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -159,6 +167,7 @@ class Note(WorkspaceScopedModel):
         Index("ix_notes_template_id", "template_id"),
         Index("ix_notes_is_pinned", "is_pinned"),
         Index("ix_notes_is_deleted", "is_deleted"),
+        Index("ix_notes_is_guided_template", "is_guided_template"),
         Index("ix_notes_created_at", "created_at"),
         # Full-text search index on title
         Index(

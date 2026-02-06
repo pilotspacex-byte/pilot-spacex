@@ -33,3 +33,12 @@ export {
   type ApprovalListResponse,
   type ApprovalRequest,
 } from './ai';
+export {
+  onboardingApi,
+  type OnboardingStep,
+  type OnboardingSteps,
+  type OnboardingState,
+  type AIProviderType,
+  type ValidateKeyResponse,
+  type GuidedNoteResponse,
+} from './onboarding';

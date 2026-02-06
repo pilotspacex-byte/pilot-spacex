@@ -33,7 +33,7 @@ export const ChatHeader = observer<ChatHeaderProps>(
             'flex items-center text-muted-foreground',
             'gap-1.5 sm:gap-2',
             'text-[11px] sm:text-xs md:text-sm',
-            'py-1.5 sm:py-2 md:py-2.5 lg:py-3'
+            'py-1 sm:py-1.5 md:py-2 lg:py-2.5'
           )}
         >
           {/* Bot icon + Title */}
