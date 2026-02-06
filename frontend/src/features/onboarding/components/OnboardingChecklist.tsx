@@ -8,7 +8,7 @@
  */
 import { observer } from 'mobx-react-lite';
 import { useRouter } from 'next/navigation';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +25,7 @@ import {
   selectNextIncompleteStep,
 } from '../hooks/useOnboardingState';
 import { useOnboardingActions } from '../hooks/useOnboardingActions';
-import { useRoleTemplates } from '../hooks/useRoleSkillActions';
+import { useRoleTemplates, useRoleSkills } from '../hooks/useRoleSkillActions';
 import { useOnboardingStore, useRoleSkillStore } from '@/stores/RootStore';
 import { OnboardingStepItem } from './OnboardingStepItem';
 import { OnboardingCelebration } from './OnboardingCelebration';
@@ -111,6 +111,12 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
     workspaceSlug,
   });
   const { data: templates } = useRoleTemplates();
+  const { data: existingSkills } = useRoleSkills(workspaceId);
+
+  const existingSkillRoleTypes = useMemo(
+    () => (existingSkills ?? []).map((s) => s.roleType),
+    [existingSkills]
+  );
 
   // Sub-flow state for role_setup step
   const [roleSetupView, setRoleSetupView] = useState<RoleSetupView>('checklist');
@@ -178,7 +184,7 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
   const handleRoleContinue = () => {
     if (roleSkillStore.selectedRoles.length === 0) return;
     setCurrentWizardIndex(0);
-    roleSkillStore.setGenerationStep('path');
+    roleSkillStore.setGenerationStep('form');
     setRoleSetupView('skill_wizard');
   };
 
@@ -201,7 +207,7 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
     }
     // Advance to wizard for the custom role
     setCurrentWizardIndex(roleSkillStore.selectedRoles.indexOf('custom'));
-    roleSkillStore.setGenerationStep('describe');
+    roleSkillStore.setGenerationStep('form');
     roleSkillStore.setExperienceDescription(roleSkillStore.customRoleDescription);
     setRoleSetupView('skill_wizard');
   };
@@ -209,7 +215,7 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
   const handleWizardBack = () => {
     if (currentWizardIndex > 0) {
       setCurrentWizardIndex(currentWizardIndex - 1);
-      roleSkillStore.setGenerationStep('path');
+      roleSkillStore.setGenerationStep('form');
     } else {
       setRoleSetupView('role_grid');
     }
@@ -222,7 +228,7 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
     if (nextIndex < selectedRoles.length) {
       // More roles to configure
       setCurrentWizardIndex(nextIndex);
-      roleSkillStore.setGenerationStep('path');
+      roleSkillStore.setGenerationStep('form');
     } else {
       // All roles configured — mark step complete
       updateStep.mutate({ step: 'role_setup', completed: true });
@@ -236,11 +242,12 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
 
   // Determine if we show the sub-flow or the checklist
   const showSubFlow = roleSetupView !== 'checklist';
+  const needsWideModal = roleSetupView === 'skill_wizard' || roleSetupView === 'custom_role';
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-xl"
+        className={needsWideModal ? 'sm:max-w-4xl' : 'sm:max-w-xl'}
         showCloseButton={!onboardingStore.showingCelebration && !showSubFlow}
       >
         {onboardingStore.showingCelebration ? (
@@ -250,6 +257,7 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
           <div className="py-2">
             {roleSetupView === 'role_grid' && (
               <RoleSelectorStep
+                existingSkillRoleTypes={existingSkillRoleTypes}
                 onContinue={handleRoleContinue}
                 onSkip={handleRoleSkip}
                 onBack={resetSubFlow}

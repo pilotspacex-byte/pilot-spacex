@@ -17,11 +17,9 @@ import type { SDLCRoleType } from '@/services/api/role-skills';
 /** Steps in the skill generation wizard. */
 export type GenerationStep =
   | 'select'
-  | 'path'
-  | 'describe'
+  | 'form'
   | 'generating'
   | 'preview'
-  | 'examples'
   | null;
 
 /** Preview data from AI skill generation. */

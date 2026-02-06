@@ -23,6 +23,8 @@ export interface RoleSelectorStepProps {
   defaultRole?: SDLCRoleType | null;
   /** Workspace owner's suggested role (for badge display). */
   suggestedRole?: SDLCRoleType | null;
+  /** Role types that already have a saved skill (shown as disabled). */
+  existingSkillRoleTypes?: SDLCRoleType[];
   /** Called when user clicks "Continue to Skill Setup". */
   onContinue: () => void;
   /** Called when user clicks "Skip". */
@@ -47,6 +49,7 @@ function getContinueLabel(count: number): string {
 export const RoleSelectorStep = observer(function RoleSelectorStep({
   defaultRole,
   suggestedRole,
+  existingSkillRoleTypes = [],
   onContinue,
   onSkip,
   onBack,
@@ -62,6 +65,7 @@ export const RoleSelectorStep = observer(function RoleSelectorStep({
   const primaryRole = roleSkillStore.primaryRole;
 
   const handleToggle = (roleType: SDLCRoleType) => {
+    if (existingSkillRoleTypes.includes(roleType)) return;
     if (roleType === 'custom') {
       onCustomRole();
       return;
@@ -114,17 +118,18 @@ export const RoleSelectorStep = observer(function RoleSelectorStep({
         className="grid grid-cols-3 gap-3 justify-items-center"
       >
         {sortedTemplates.map((template: RoleTemplate) => {
+          const isExisting = existingSkillRoleTypes.includes(template.roleType);
           const idx = selectedRoles.indexOf(template.roleType);
           const isSelected = idx >= 0;
           const order = isSelected ? idx + 1 : null;
-          const isDisabled = !isSelected && selectedCount >= MAX_ROLES;
+          const isDisabled = isExisting || (!isSelected && selectedCount >= MAX_ROLES);
 
           return (
             <RoleCard
               key={template.roleType}
               roleType={template.roleType}
               displayName={template.displayName}
-              description={template.description}
+              description={isExisting ? 'Already set up' : template.description}
               icon={template.icon}
               selected={isSelected}
               selectionOrder={order}

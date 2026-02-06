@@ -264,6 +264,47 @@ describe('RoleSelectorStep', () => {
     });
   });
 
+  describe('existing skills', () => {
+    it('should show "Already set up" for roles with existing skills', async () => {
+      const { Wrapper } = createWrapper();
+      render(
+        <RoleSelectorStep {...defaultProps} existingSkillRoleTypes={['developer']} />,
+        { wrapper: Wrapper }
+      );
+
+      await screen.findByText('Developer');
+      expect(screen.getByText('Already set up')).toBeInTheDocument();
+    });
+
+    it('should not toggle selection for existing skill roles', async () => {
+      const user = userEvent.setup();
+      const { Wrapper, rootStore } = createWrapper();
+      render(
+        <RoleSelectorStep {...defaultProps} existingSkillRoleTypes={['developer']} />,
+        { wrapper: Wrapper }
+      );
+
+      const devCard = await screen.findByTestId('role-card-developer');
+      await user.click(devCard);
+
+      expect(rootStore.roleSkill.selectedRoles).not.toContain('developer');
+    });
+
+    it('should still allow selecting non-existing roles', async () => {
+      const user = userEvent.setup();
+      const { Wrapper, rootStore } = createWrapper();
+      render(
+        <RoleSelectorStep {...defaultProps} existingSkillRoleTypes={['developer']} />,
+        { wrapper: Wrapper }
+      );
+
+      const testerCard = await screen.findByTestId('role-card-tester');
+      await user.click(testerCard);
+
+      expect(rootStore.roleSkill.selectedRoles).toContain('tester');
+    });
+  });
+
   describe('badges', () => {
     it('should show "Your default" badge on default role card', async () => {
       const { Wrapper } = createWrapper();

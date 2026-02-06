@@ -1,7 +1,7 @@
 /**
  * Component tests for SkillGenerationWizard.
  *
- * T023: Tests for 3-path skill generation wizard.
+ * Tests for the single-form skill generation wizard with two-panel layout.
  * Source: FR-001, FR-002, FR-003, FR-004, US1, US2
  */
 
@@ -79,28 +79,29 @@ describe('SkillGenerationWizard', () => {
     vi.clearAllMocks();
   });
 
-  describe('path selection', () => {
-    it('should render three path options', () => {
+  describe('form view', () => {
+    it('should render the form with textarea and examples panel', () => {
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
-      expect(screen.getByText(/Use Default Developer Skill/)).toBeInTheDocument();
+      expect(screen.getByText('Generate Your AI Skill')).toBeInTheDocument();
       expect(screen.getByText('Describe Your Expertise')).toBeInTheDocument();
-      expect(screen.getByText('Show Me Examples')).toBeInTheDocument();
+      expect(screen.getByText(/How a Developer Skill Changes AI Behavior/)).toBeInTheDocument();
     });
 
-    it('should show "REC" badge on Describe Your Expertise option', () => {
+    it('should pre-fill textarea with role sample description', () => {
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
-      expect(screen.getByText('REC')).toBeInTheDocument();
+      const textarea = screen.getByRole('textbox', { name: /expertise/i }) as HTMLTextAreaElement;
+      expect(textarea.value).toContain('full-stack TypeScript developer');
     });
 
     it('should show header with role name', () => {
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       expect(screen.getByText(/Skill Setup · Developer/)).toBeInTheDocument();
@@ -109,24 +110,42 @@ describe('SkillGenerationWizard', () => {
     it('should show "(1 of 2)" when configuring multiple roles', () => {
       const { Wrapper, rootStore } = createWrapper();
       rootStore.roleSkill.toggleRole('tester');
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} currentIndex={1} totalRoles={2} />, {
         wrapper: Wrapper,
       });
 
       expect(screen.getByText(/1 of 2/)).toBeInTheDocument();
     });
+
+    it('should show "Use Default Template" link when template exists', () => {
+      const { Wrapper, rootStore } = createWrapper();
+      rootStore.roleSkill.setGenerationStep('form');
+      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
+
+      expect(screen.getByText('Use Default Template')).toBeInTheDocument();
+    });
+
+    it('should show before/after examples in right panel', () => {
+      const { Wrapper, rootStore } = createWrapper();
+      rootStore.roleSkill.setGenerationStep('form');
+      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
+
+      const withoutSkillTexts = screen.getAllByText(/Without skill/);
+      expect(withoutSkillTexts.length).toBeGreaterThanOrEqual(1);
+      const withSkillTexts = screen.getAllByText(/With Developer skill/);
+      expect(withSkillTexts.length).toBeGreaterThanOrEqual(1);
+    });
   });
 
-  describe('use default path', () => {
+  describe('use default template', () => {
     it('should show preview with default template content on Use Default click', async () => {
       const user = userEvent.setup();
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
-      const useButton = screen.getByRole('radio', { name: /Use Default Developer Skill/ });
-      await user.click(useButton);
+      await user.click(screen.getByText('Use Default Template'));
 
       expect(screen.getByText('Your Skill')).toBeInTheDocument();
       expect(screen.getByText(/Focus Areas/)).toBeInTheDocument();
@@ -135,11 +154,10 @@ describe('SkillGenerationWizard', () => {
     it('should show "Save & Activate" button in preview', async () => {
       const user = userEvent.setup();
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
-      const useButton = screen.getByRole('radio', { name: /Use Default Developer Skill/ });
-      await user.click(useButton);
+      await user.click(screen.getByText('Use Default Template'));
 
       expect(screen.getByRole('button', { name: /Save & Activate/ })).toBeInTheDocument();
     });
@@ -161,11 +179,10 @@ describe('SkillGenerationWizard', () => {
       });
 
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
-      const useButton = screen.getByRole('radio', { name: /Use Default Developer Skill/ });
-      await user.click(useButton);
+      await user.click(screen.getByText('Use Default Template'));
 
       const saveButton = screen.getByRole('button', { name: /Save & Activate/ });
       await user.click(saveButton);
@@ -176,46 +193,27 @@ describe('SkillGenerationWizard', () => {
     });
   });
 
-  describe('describe expertise path', () => {
-    it('should show textarea when Describe Expertise is selected', async () => {
-      const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
-      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
-
-      const describeButton = screen.getByRole('radio', { name: /Describe Your Expertise/ });
-      await user.click(describeButton);
-
-      expect(screen.getByRole('textbox', { name: /expertise/i })).toBeInTheDocument();
-    });
-
+  describe('generate skill', () => {
     it('should disable Generate button when description is too short', async () => {
       const user = userEvent.setup();
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
+      rootStore.roleSkill.setExperienceDescription('');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
-      const describeButton = screen.getByRole('radio', { name: /Describe Your Expertise/ });
-      await user.click(describeButton);
-
       const textarea = screen.getByRole('textbox', { name: /expertise/i });
+      await user.clear(textarea);
       await user.type(textarea, 'short');
 
       const genButton = screen.getByRole('button', { name: /Generate Skill/i });
       expect(genButton).toBeDisabled();
     });
 
-    it('should enable Generate button when description meets minimum', async () => {
-      const user = userEvent.setup();
+    it('should enable Generate button when description meets minimum', () => {
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
+      // Pre-fill from role sample (auto via useEffect)
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
-
-      const describeButton = screen.getByRole('radio', { name: /Describe Your Expertise/ });
-      await user.click(describeButton);
-
-      const textarea = screen.getByRole('textbox', { name: /expertise/i });
-      await user.type(textarea, 'I am a full-stack engineer with expertise in TypeScript');
 
       const genButton = screen.getByRole('button', { name: /Generate Skill/i });
       expect(genButton).toBeEnabled();
@@ -226,7 +224,7 @@ describe('SkillGenerationWizard', () => {
       vi.mocked(roleSkillsApi.generateSkill).mockReturnValue(new Promise(() => {}));
 
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('describe');
+      rootStore.roleSkill.setGenerationStep('form');
       rootStore.roleSkill.setExperienceDescription(
         'I am a full-stack engineer with expertise in TypeScript'
       );
@@ -251,7 +249,7 @@ describe('SkillGenerationWizard', () => {
       });
 
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('describe');
+      rootStore.roleSkill.setGenerationStep('form');
       rootStore.roleSkill.setExperienceDescription(
         'I am a full-stack engineer with expertise in TypeScript'
       );
@@ -272,7 +270,7 @@ describe('SkillGenerationWizard', () => {
       vi.mocked(roleSkillsApi.generateSkill).mockRejectedValue(new Error('API error'));
 
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('describe');
+      rootStore.roleSkill.setGenerationStep('form');
       rootStore.roleSkill.setExperienceDescription(
         'I am a full-stack engineer with expertise in TypeScript'
       );
@@ -292,12 +290,11 @@ describe('SkillGenerationWizard', () => {
     it('should allow editing the role name', async () => {
       const user = userEvent.setup();
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
-      // Use default to get to preview quickly
-      const useButton = screen.getByRole('radio', { name: /Use Default Developer Skill/ });
-      await user.click(useButton);
+      // Use default to get to preview
+      await user.click(screen.getByText('Use Default Template'));
 
       const nameInput = screen.getByLabelText(/Role name/i);
       await user.clear(nameInput);
@@ -309,56 +306,41 @@ describe('SkillGenerationWizard', () => {
     it('should show word count', async () => {
       const user = userEvent.setup();
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
-      const useButton = screen.getByRole('radio', { name: /Use Default Developer Skill/ });
-      await user.click(useButton);
+      await user.click(screen.getByText('Use Default Template'));
 
       expect(screen.getByText(/\/ 2000 words/)).toBeInTheDocument();
     });
   });
 
-  describe('examples view', () => {
-    it('should render examples when Show Examples is clicked', async () => {
-      const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
-      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
-
-      const examplesButton = screen.getByRole('radio', { name: /Show Me Examples/ });
-      await user.click(examplesButton);
-
-      expect(screen.getByText(/How a Developer Skill Changes AI Behavior/)).toBeInTheDocument();
-      const withoutSkillTexts = screen.getAllByText(/Without skill/);
-      expect(withoutSkillTexts.length).toBeGreaterThanOrEqual(1);
-      const withSkillTexts = screen.getAllByText(/With Developer skill/);
-      expect(withSkillTexts.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('should have "Back to Options" button in examples view', async () => {
-      const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
-      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
-
-      const examplesButton = screen.getByRole('radio', { name: /Show Me Examples/ });
-      await user.click(examplesButton);
-
-      expect(screen.getByRole('button', { name: /Back to Options/i })).toBeInTheDocument();
-    });
-  });
-
   describe('navigation', () => {
-    it('should call onBack when Back button is clicked from path selection', async () => {
+    it('should call onBack when Back button is clicked from form', async () => {
       const user = userEvent.setup();
       const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('path');
+      rootStore.roleSkill.setGenerationStep('form');
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       await user.click(screen.getByLabelText('Back'));
 
       expect(defaultProps.onBack).toHaveBeenCalledOnce();
+    });
+
+    it('should go back to form when Back is clicked from preview', async () => {
+      const user = userEvent.setup();
+      const { Wrapper, rootStore } = createWrapper();
+      rootStore.roleSkill.setGenerationStep('form');
+      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
+
+      // Navigate to preview
+      await user.click(screen.getByText('Use Default Template'));
+      expect(screen.getByText('Your Skill')).toBeInTheDocument();
+
+      // Go back
+      await user.click(screen.getByLabelText('Back'));
+
+      expect(screen.getByText('Generate Your AI Skill')).toBeInTheDocument();
     });
   });
 });

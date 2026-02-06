@@ -1,24 +1,21 @@
 'use client';
 
 /**
- * SkillGenerationWizard - Three-path skill generation flow.
+ * SkillGenerationWizard - Single-form skill generation with two-panel layout.
  *
- * Paths:
- * 1. Use Default — instant save with default template
- * 2. Describe Expertise — AI generates personalized skill
- * 3. Show Examples — educational, shows before/after comparisons
+ * Left panel: "Describe Your Expertise" textarea (pre-filled per role).
+ * Right panel: Role-specific before/after examples.
+ * Bottom: Generate Skill + Use Default Template actions.
  *
  * T021: Create SkillGenerationWizard
  * Source: FR-001, FR-002, FR-003, FR-004, US1, US2
  */
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import {
   ArrowLeft,
-  ArrowRight,
-  FileText,
   Sparkles,
-  Lightbulb,
+  FileText,
   TriangleAlert,
   RefreshCw,
   Pencil,
@@ -27,8 +24,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { useRoleSkillStore } from '@/stores/RootStore';
 import { useGenerateSkill, useCreateRoleSkill } from '../hooks/useRoleSkillActions';
+import { ROLE_SAMPLE_DESCRIPTIONS, ROLE_EXAMPLES } from '../constants/skill-wizard-constants';
 import type { SDLCRoleType, RoleTemplate } from '@/services/api/role-skills';
-import type { GenerationStep } from '@/stores/RoleSkillStore';
+import type { SkillExample } from '../constants/skill-wizard-constants';
 
 export interface SkillGenerationWizardProps {
   /** Role being configured. */
@@ -63,26 +61,21 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
   const generateSkillMutation = useGenerateSkill({ workspaceId });
   const createRoleSkillMutation = useCreateRoleSkill({ workspaceId });
 
-  const step = roleSkillStore.generationStep ?? 'path';
+  const step = roleSkillStore.generationStep ?? 'form';
   const roleName = template?.displayName ?? roleType.replace(/_/g, ' ');
 
   const [editableRoleName, setEditableRoleName] = useState(roleName);
   const [showError, setShowError] = useState(false);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
-  // Focus management for step transitions
+  // Pre-fill expertise description from role sample when entering form step
   useEffect(() => {
-    if (step === 'describe' && descriptionRef.current) {
-      descriptionRef.current.focus();
+    if (step === 'form' && roleSkillStore.experienceDescription === '') {
+      const sample = ROLE_SAMPLE_DESCRIPTIONS[roleType];
+      if (sample) {
+        roleSkillStore.setExperienceDescription(sample);
+      }
     }
-  }, [step]);
-
-  const handleSelectPath = useCallback(
-    (path: GenerationStep) => {
-      roleSkillStore.setGenerationStep(path);
-    },
-    [roleSkillStore]
-  );
+  }, [step, roleType, roleSkillStore]);
 
   const handleUseDefault = useCallback(() => {
     if (!template) return;
@@ -116,7 +109,6 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
       });
       roleSkillStore.setGenerationStep('preview');
     } catch {
-      // Error fallback: show default template
       setShowError(true);
       if (template) {
         roleSkillStore.setSkillPreview({
@@ -159,7 +151,7 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
     if (roleSkillStore.experienceDescription.length >= MIN_DESCRIPTION_CHARS) {
       handleGenerate();
     } else {
-      roleSkillStore.setGenerationStep('describe');
+      roleSkillStore.setGenerationStep('form');
     }
   }, [roleSkillStore, handleGenerate]);
 
@@ -175,10 +167,8 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
         <div className="flex items-center justify-between">
           <button
             onClick={() => {
-              if (step === 'describe' || step === 'examples') {
-                handleSelectPath('path');
-              } else if (step === 'preview') {
-                handleSelectPath('path');
+              if (step === 'preview') {
+                roleSkillStore.setGenerationStep('form');
               } else {
                 onBack();
               }
@@ -193,24 +183,16 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
         </div>
       )}
 
-      {/* Path Selection */}
-      {step === 'path' && (
-        <PathSelector
+      {/* Skill Form — two-panel layout */}
+      {step === 'form' && (
+        <SkillFormView
           roleName={roleName}
-          onUseDefault={handleUseDefault}
-          onDescribe={() => handleSelectPath('describe')}
-          onExamples={() => handleSelectPath('examples')}
-        />
-      )}
-
-      {/* Describe Expertise Input */}
-      {step === 'describe' && (
-        <DescribeExpertiseInput
-          ref={descriptionRef}
+          roleType={roleType}
           description={roleSkillStore.experienceDescription}
           onDescriptionChange={(text) => roleSkillStore.setExperienceDescription(text)}
           onGenerate={handleGenerate}
-          isGenerating={false}
+          onUseDefault={handleUseDefault}
+          hasTemplate={!!template}
         />
       )}
 
@@ -230,11 +212,6 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
           isSaving={createRoleSkillMutation.isPending}
         />
       )}
-
-      {/* Examples */}
-      {step === 'examples' && (
-        <ExamplesView roleName={roleName} onBack={() => handleSelectPath('path')} />
-      )}
     </div>
   );
 });
@@ -243,165 +220,139 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
 // Sub-components
 // ---------------------------------------------------------------------------
 
-interface PathSelectorProps {
+interface SkillFormViewProps {
   roleName: string;
+  roleType: SDLCRoleType;
+  description: string;
+  onDescriptionChange: (text: string) => void;
+  onGenerate: () => void;
   onUseDefault: () => void;
-  onDescribe: () => void;
-  onExamples: () => void;
+  hasTemplate: boolean;
 }
 
-function PathSelector({ roleName, onUseDefault, onDescribe, onExamples }: PathSelectorProps) {
+function SkillFormView({
+  roleName,
+  roleType,
+  description,
+  onDescriptionChange,
+  onGenerate,
+  onUseDefault,
+  hasTemplate,
+}: SkillFormViewProps) {
+  const charCount = description.length;
+  const canGenerate = charCount >= MIN_DESCRIPTION_CHARS;
+  const examples = ROLE_EXAMPLES[roleType] ?? [];
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div>
         <h3 className="text-lg font-semibold">Generate Your AI Skill</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          How should we create your {roleName} skill? This shapes how the AI assistant helps you.
+          Describe your expertise to generate a personalized {roleName} skill.
         </p>
       </div>
 
-      {/* Path cards */}
-      <div
-        role="radiogroup"
-        aria-label="Choose skill generation method"
-        className="flex flex-col gap-3"
-      >
-        <PathCard
-          icon={<FileText className="h-5 w-5 text-muted-foreground" />}
-          title={`Use Default ${roleName} Skill`}
-          description={`Start with the standard ${roleName} template. You can customize it later in Settings.`}
-          actionLabel="Use"
-          onClick={onUseDefault}
-        />
-        <PathCard
-          icon={<Sparkles className="h-5 w-5 text-[#6B8FAD]" />}
-          title="Describe Your Expertise"
-          description="Tell us about your experience and the AI will generate a personalized skill tailored to you."
-          actionLabel="Start"
-          onClick={onDescribe}
-          recommended
-        />
-        <PathCard
-          icon={<Lightbulb className="h-5 w-5 text-muted-foreground" />}
-          title="Show Me Examples"
-          description={`See how the AI behaves with a ${roleName} skill before deciding.`}
-          actionLabel="View"
-          onClick={onExamples}
-        />
+      {/* Two-column layout */}
+      <div className="flex flex-col md:flex-row gap-4">
+        {/* Left panel — Describe Expertise */}
+        <div className="flex-[3] flex flex-col gap-3">
+          <label htmlFor="expertise-textarea" className="text-sm font-medium">
+            Describe Your Expertise
+          </label>
+          <textarea
+            id="expertise-textarea"
+            value={description}
+            onChange={(e) => onDescriptionChange(e.target.value.slice(0, MAX_DESCRIPTION_CHARS))}
+            placeholder="Tell us about your experience, specializations, and how you work..."
+            className="w-full rounded-[10px] border border-border bg-background p-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 min-h-[200px] resize-y"
+            maxLength={MAX_DESCRIPTION_CHARS}
+            aria-label="Describe your expertise"
+            aria-describedby="expertise-char-count"
+          />
+          <div className="flex items-center justify-between">
+            {charCount > 0 && charCount < MIN_DESCRIPTION_CHARS && (
+              <p className="text-xs text-muted-foreground">
+                Min {MIN_DESCRIPTION_CHARS} characters required
+              </p>
+            )}
+            <span className="flex-1" />
+            <span id="expertise-char-count" className="text-xs text-muted-foreground" aria-live="polite">
+              {charCount} / {MAX_DESCRIPTION_CHARS}
+            </span>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={onGenerate}
+              disabled={!canGenerate}
+              className="bg-[#6B8FAD] hover:bg-[#5A7D9A] text-white"
+            >
+              <Sparkles className="mr-1.5 h-4 w-4" />
+              Generate Skill
+            </Button>
+            {hasTemplate && (
+              <button
+                onClick={onUseDefault}
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <FileText className="h-4 w-4" />
+                Use Default Template
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right panel — Role Examples */}
+        {examples.length > 0 && (
+          <div className="flex-[2] flex flex-col gap-3">
+            <p className="text-sm font-medium">
+              How a {roleName} Skill Changes AI Behavior
+            </p>
+            {examples.map((ex) => (
+              <ExampleCard key={ex.title} example={ex} roleName={roleName} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-interface PathCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  actionLabel: string;
-  onClick: () => void;
-  recommended?: boolean;
+interface ExampleCardProps {
+  example: SkillExample;
+  roleName: string;
 }
 
-function PathCard({ icon, title, description, actionLabel, onClick, recommended }: PathCardProps) {
+function ExampleCard({ example, roleName }: ExampleCardProps) {
   return (
-    <button
-      onClick={onClick}
-      className="flex items-start gap-4 rounded-lg border border-border bg-background p-4 text-left transition-colors hover:border-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none"
-      role="radio"
-      aria-checked={false}
-      aria-label={`${title}${recommended ? ', Recommended' : ''}`}
-    >
-      <div className="shrink-0 pt-0.5">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{title}</span>
-          {recommended && (
-            <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-white">
-              REC
-            </span>
-          )}
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+    <div className="rounded-lg border p-3 space-y-2">
+      <p className="text-xs font-medium">{example.title}</p>
+      <p className="text-xs text-muted-foreground">You ask: &quot;{example.prompt}&quot;</p>
+
+      <div className="rounded-lg bg-[#F7F5F2] border p-2">
+        <p className="text-[10px] font-medium text-muted-foreground mb-1">Without skill</p>
+        <ul className="text-[10px] space-y-0.5 text-muted-foreground">
+          {example.without.map((item) => (
+            <li key={item}>- {item}</li>
+          ))}
+        </ul>
       </div>
-      <div className="shrink-0">
-        <span className="inline-flex items-center gap-1 text-sm font-medium text-primary">
-          {actionLabel}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </span>
+
+      <div className="rounded-lg bg-[#6B8FAD]/10 border border-[#6B8FAD]/30 p-2">
+        <p className="text-[10px] font-medium text-[#6B8FAD] mb-1">
+          <Sparkles className="inline h-2.5 w-2.5 mr-0.5" />
+          With {roleName} skill
+        </p>
+        <ul className="text-[10px] space-y-0.5">
+          {example.with.map((item) => (
+            <li key={item}>- {item}</li>
+          ))}
+        </ul>
       </div>
-    </button>
+    </div>
   );
 }
-
-interface DescribeExpertiseInputProps {
-  description: string;
-  onDescriptionChange: (text: string) => void;
-  onGenerate: () => void;
-  isGenerating: boolean;
-}
-
-const DescribeExpertiseInput = React.forwardRef<HTMLTextAreaElement, DescribeExpertiseInputProps>(
-  function DescribeExpertiseInput(
-    { description, onDescriptionChange, onGenerate, isGenerating },
-    ref
-  ) {
-    const charCount = description.length;
-    const canGenerate = charCount >= MIN_DESCRIPTION_CHARS && !isGenerating;
-
-    return (
-      <div className="flex flex-col gap-4">
-        <div>
-          <h3 className="text-lg font-semibold">Describe Your Expertise</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Tell us about your experience, specializations, and how you like to work. The more
-            detail, the better the AI skill. We&apos;ll also generate a personalized role name from
-            this.
-          </p>
-        </div>
-
-        <div>
-          <textarea
-            ref={ref}
-            value={description}
-            onChange={(e) => onDescriptionChange(e.target.value.slice(0, MAX_DESCRIPTION_CHARS))}
-            placeholder="Full-stack engineer with 5 years experience. TypeScript, React, Node.js, PostgreSQL. Strong focus on clean architecture and testing..."
-            className="w-full rounded-[10px] border border-border bg-background p-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 min-h-[180px] resize-y"
-            maxLength={MAX_DESCRIPTION_CHARS}
-            aria-label="Describe your expertise"
-            aria-describedby="expertise-char-count expertise-min-hint"
-            disabled={isGenerating}
-          />
-          <div className="mt-1 flex items-center justify-between">
-            {charCount > 0 && charCount < MIN_DESCRIPTION_CHARS && (
-              <p id="expertise-min-hint" className="text-xs text-muted-foreground">
-                Min {MIN_DESCRIPTION_CHARS} characters required
-              </p>
-            )}
-            <span className="flex-1" />
-            <span
-              id="expertise-char-count"
-              className="text-xs text-muted-foreground"
-              aria-live="polite"
-            >
-              {charCount} / {MAX_DESCRIPTION_CHARS} characters
-            </span>
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <Button
-            onClick={onGenerate}
-            disabled={!canGenerate}
-            className="bg-[#6B8FAD] hover:bg-[#5A7D9A] text-white"
-          >
-            <Sparkles className="mr-1.5 h-4 w-4" />
-            Generate Skill
-          </Button>
-        </div>
-      </div>
-    );
-  }
-);
 
 interface GeneratingStateProps {
   roleName: string;
@@ -410,7 +361,6 @@ interface GeneratingStateProps {
 function GeneratingState({ roleName }: GeneratingStateProps) {
   const [progress, setProgress] = useState(0);
 
-  // Simulate progress: 0% -> 90% over 25 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setProgress((prev) => {
@@ -423,21 +373,18 @@ function GeneratingState({ roleName }: GeneratingStateProps) {
 
   return (
     <div className="flex flex-col items-center justify-center py-12 gap-4">
-      {/* Spinner */}
       <div className="flex gap-1.5" aria-hidden="true">
         <div className="h-2.5 w-2.5 animate-bounce rounded-full bg-[#6B8FAD] [animation-delay:0ms]" />
         <div className="h-2.5 w-2.5 animate-bounce rounded-full bg-[#6B8FAD] [animation-delay:150ms]" />
         <div className="h-2.5 w-2.5 animate-bounce rounded-full bg-[#6B8FAD] [animation-delay:300ms]" />
       </div>
 
-      {/* Text */}
       <p className="text-base font-medium">Generating your {roleName} skill...</p>
       <p className="text-sm text-muted-foreground text-center max-w-sm">
         Our AI is crafting a personalized skill based on your expertise. This takes about 15-30
         seconds.
       </p>
 
-      {/* Progress bar */}
       <div className="w-64">
         <div
           className="h-1 w-full rounded-full bg-border overflow-hidden"
@@ -455,7 +402,6 @@ function GeneratingState({ roleName }: GeneratingStateProps) {
         <p className="mt-1 text-center text-xs text-muted-foreground">{Math.round(progress)}%</p>
       </div>
 
-      {/* Screen reader announcement */}
       <div className="sr-only" aria-live="assertive" role="status">
         Generating your {roleName} skill. Please wait.
       </div>
@@ -486,7 +432,6 @@ function SkillPreviewView({
 }: SkillPreviewViewProps) {
   return (
     <div className="flex flex-col gap-4">
-      {/* Error banner */}
       {showError && (
         <div
           role="alert"
@@ -504,7 +449,6 @@ function SkillPreviewView({
         </div>
       )}
 
-      {/* Header with AI badge */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Check className="h-5 w-5 text-primary" />
@@ -517,7 +461,6 @@ function SkillPreviewView({
         )}
       </div>
 
-      {/* Editable role name */}
       <div>
         <label htmlFor="role-name-input" className="text-xs text-muted-foreground">
           Role Name (auto-generated &mdash; click to edit)
@@ -538,7 +481,6 @@ function SkillPreviewView({
         </div>
       </div>
 
-      {/* Skill content preview */}
       <div
         className="max-h-[400px] overflow-y-auto rounded-lg border bg-[#F7F5F2] p-4"
         aria-label="Generated skill preview"
@@ -548,7 +490,6 @@ function SkillPreviewView({
         </pre>
       </div>
 
-      {/* Word count */}
       <div className="text-right" aria-live="polite">
         <span
           className={`text-xs ${preview.wordCount >= 1800 ? 'text-destructive' : 'text-muted-foreground'}`}
@@ -557,7 +498,6 @@ function SkillPreviewView({
         </span>
       </div>
 
-      {/* Action buttons */}
       <div className="flex items-center gap-2">
         <Button onClick={onSave} disabled={isSaving}>
           {isSaving ? 'Saving...' : 'Save & Activate'}
@@ -565,82 +505,6 @@ function SkillPreviewView({
         <Button variant="outline" onClick={onRetry} disabled={isSaving}>
           <RefreshCw className="mr-1.5 h-4 w-4" />
           Retry
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-interface ExamplesViewProps {
-  roleName: string;
-  onBack: () => void;
-}
-
-function ExamplesView({ roleName, onBack }: ExamplesViewProps) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h3 className="text-lg font-semibold">How a {roleName} Skill Changes AI Behavior</h3>
-      </div>
-
-      {/* Example 1 */}
-      <div className="rounded-lg border p-4 space-y-3">
-        <p className="text-sm font-medium">Example 1: Reviewing an Issue</p>
-        <p className="text-xs text-muted-foreground">
-          You ask: &quot;Review this issue about adding caching&quot;
-        </p>
-
-        <div className="rounded-lg bg-[#F7F5F2] border p-3">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Without skill</p>
-          <ul className="text-xs space-y-1 text-muted-foreground">
-            <li>- Consider what data to cache</li>
-            <li>- Think about cache invalidation</li>
-            <li>- Review performance requirements</li>
-          </ul>
-        </div>
-
-        <div className="rounded-lg bg-[#6B8FAD]/10 border border-[#6B8FAD]/30 p-3">
-          <p className="text-xs font-medium text-[#6B8FAD] mb-2">
-            <Sparkles className="inline h-3 w-3 mr-1" />
-            With {roleName} skill
-          </p>
-          <ul className="text-xs space-y-1">
-            <li>- Use Redis with read-through pattern</li>
-            <li>- Set TTL based on data volatility (30m hot, 7d cold)</li>
-            <li>- Add cache-aside for frequently queried endpoints</li>
-            <li>- Watch for N+1 in the repository layer</li>
-            <li>- Suggest: Add integration test for cache miss</li>
-          </ul>
-        </div>
-      </div>
-
-      {/* Example 2 */}
-      <div className="rounded-lg border p-4 space-y-3">
-        <p className="text-sm font-medium">Example 2: Writing a Note</p>
-        <p className="text-xs text-muted-foreground">You write about a new feature design</p>
-
-        <div className="rounded-lg bg-[#F7F5F2] border p-3">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Without skill</p>
-          <p className="text-xs text-muted-foreground">
-            Generic suggestions about feature requirements and user stories.
-          </p>
-        </div>
-
-        <div className="rounded-lg bg-[#6B8FAD]/10 border border-[#6B8FAD]/30 p-3">
-          <p className="text-xs font-medium text-[#6B8FAD] mb-2">
-            <Sparkles className="inline h-3 w-3 mr-1" />
-            With {roleName} skill
-          </p>
-          <p className="text-xs">
-            Role-specific suggestions tailored to your expertise, tools, and workflow preferences.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex justify-center">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Back to Options
         </Button>
       </div>
     </div>
