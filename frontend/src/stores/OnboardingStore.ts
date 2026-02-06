@@ -12,7 +12,12 @@ import { makeAutoObservable, computed, runInAction } from 'mobx';
  * Source: FR-001, FR-003, FR-013, US1
  */
 
-export type OnboardingActiveStep = 'ai_providers' | 'invite_members' | 'first_note' | null;
+export type OnboardingActiveStep =
+  | 'ai_providers'
+  | 'invite_members'
+  | 'role_setup'
+  | 'first_note'
+  | null;
 
 const ONBOARDING_STORAGE_KEY = 'pilot-space:onboarding-ui-state';
 

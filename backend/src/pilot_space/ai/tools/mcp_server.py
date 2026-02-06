@@ -99,8 +99,15 @@ TOOL_APPROVAL_MAP: dict[str, ToolApprovalLevel] = {
     "create_project": ToolApprovalLevel.REQUIRE_APPROVAL,
     "update_project": ToolApprovalLevel.REQUIRE_APPROVAL,
     "update_project_settings": ToolApprovalLevel.REQUIRE_APPROVAL,
-    # Comment tools - reads are AUTO_EXECUTE, creation requires approval (DD-003)
-    "create_comment": ToolApprovalLevel.REQUIRE_APPROVAL,
+    # Retained tools (6 from note_tools.py, registered in MCP servers)
+    "update_note_block": ToolApprovalLevel.REQUIRE_APPROVAL,
+    "enhance_text": ToolApprovalLevel.AUTO_EXECUTE,
+    "extract_issues": ToolApprovalLevel.REQUIRE_APPROVAL,
+    "create_issue_from_note": ToolApprovalLevel.REQUIRE_APPROVAL,
+    "link_existing_issues": ToolApprovalLevel.REQUIRE_APPROVAL,
+    "write_to_note": ToolApprovalLevel.REQUIRE_APPROVAL,
+    # Comment tools - reads are AUTO_EXECUTE, creation auto (CM-001: non-destructive)
+    "create_comment": ToolApprovalLevel.AUTO_EXECUTE,
     "search_comments": ToolApprovalLevel.AUTO_EXECUTE,
     "get_comments": ToolApprovalLevel.AUTO_EXECUTE,
     # Comment tools - REQUIRE_APPROVAL (content modification)

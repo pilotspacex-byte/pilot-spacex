@@ -1,7 +1,7 @@
 """WorkspaceOnboarding domain entity.
 
 Tracks onboarding progress for a workspace.
-Supports 3 steps: ai_providers, invite_members, first_note.
+Supports 4 steps: ai_providers, invite_members, first_note, role_setup.
 
 T007: Create WorkspaceOnboarding domain entity.
 Source: FR-001, FR-002, FR-003, FR-013, US1
@@ -22,20 +22,22 @@ class OnboardingSteps:
         ai_providers: Whether AI provider has been configured.
         invite_members: Whether team members have been invited.
         first_note: Whether guided first note has been created.
+        role_setup: Whether SDLC role has been configured.
     """
 
     ai_providers: bool = False
     invite_members: bool = False
     first_note: bool = False
+    role_setup: bool = False
 
     @property
     def completion_count(self) -> int:
         """Get count of completed steps.
 
         Returns:
-            Number of completed steps (0-3).
+            Number of completed steps (0-4).
         """
-        return sum([self.ai_providers, self.invite_members, self.first_note])
+        return sum([self.ai_providers, self.invite_members, self.first_note, self.role_setup])
 
     @property
     def completion_percentage(self) -> int:
@@ -44,16 +46,16 @@ class OnboardingSteps:
         Returns:
             Percentage (0-100) of completed steps.
         """
-        return (self.completion_count * 100) // 3
+        return (self.completion_count * 100) // 4
 
     @property
     def is_complete(self) -> bool:
         """Check if all steps are complete.
 
         Returns:
-            True if all 3 steps are completed.
+            True if all 4 steps are completed.
         """
-        return self.ai_providers and self.invite_members and self.first_note
+        return self.ai_providers and self.invite_members and self.first_note and self.role_setup
 
     def to_dict(self) -> dict[str, bool]:
         """Convert to dictionary for JSONB storage.
@@ -65,6 +67,7 @@ class OnboardingSteps:
             "ai_providers": self.ai_providers,
             "invite_members": self.invite_members,
             "first_note": self.first_note,
+            "role_setup": self.role_setup,
         }
 
     @classmethod
@@ -83,6 +86,7 @@ class OnboardingSteps:
             ai_providers=data.get("ai_providers", False),
             invite_members=data.get("invite_members", False),
             first_note=data.get("first_note", False),
+            role_setup=data.get("role_setup", False),
         )
 
 
@@ -90,7 +94,7 @@ class OnboardingSteps:
 class WorkspaceOnboarding:
     """Domain entity for workspace onboarding state.
 
-    Tracks the 3-step onboarding progress for a workspace.
+    Tracks the 4-step onboarding progress for a workspace.
     Only visible to workspace owners and admins.
 
     Attributes:
@@ -144,7 +148,7 @@ class WorkspaceOnboarding:
         """Mark a step as completed.
 
         Args:
-            step_name: One of 'ai_providers', 'invite_members', 'first_note'.
+            step_name: One of 'ai_providers', 'invite_members', 'first_note', 'role_setup'.
 
         Returns:
             True if all steps are now complete (triggers celebration).
@@ -152,7 +156,7 @@ class WorkspaceOnboarding:
         Raises:
             ValueError: If step_name is invalid.
         """
-        if step_name not in ("ai_providers", "invite_members", "first_note"):
+        if step_name not in ("ai_providers", "invite_members", "first_note", "role_setup"):
             msg = f"Invalid step name: {step_name}"
             raise ValueError(msg)
 
@@ -170,12 +174,12 @@ class WorkspaceOnboarding:
         """Mark a step as not completed.
 
         Args:
-            step_name: One of 'ai_providers', 'invite_members', 'first_note'.
+            step_name: One of 'ai_providers', 'invite_members', 'first_note', 'role_setup'.
 
         Raises:
             ValueError: If step_name is invalid.
         """
-        if step_name not in ("ai_providers", "invite_members", "first_note"):
+        if step_name not in ("ai_providers", "invite_members", "first_note", "role_setup"):
             msg = f"Invalid step name: {step_name}"
             raise ValueError(msg)
 

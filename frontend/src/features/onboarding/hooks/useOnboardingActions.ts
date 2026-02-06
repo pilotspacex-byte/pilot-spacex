@@ -53,12 +53,14 @@ export function useUpdateOnboardingStep({ workspaceId }: UseOnboardingActionsOpt
       if (previousState) {
         const newSteps = { ...previousState.steps, [step]: completed };
         const completedCount = Object.values(newSteps).filter(Boolean).length;
+        const totalSteps = Object.keys(newSteps).length;
 
         queryClient.setQueryData<OnboardingState>(onboardingKeys.detail(workspaceId), {
           ...previousState,
           steps: newSteps,
-          completionPercentage: Math.round((completedCount / 3) * 100),
-          completedAt: completedCount === 3 ? new Date().toISOString() : previousState.completedAt,
+          completionPercentage: Math.round((completedCount / totalSteps) * 100),
+          completedAt:
+            completedCount === totalSteps ? new Date().toISOString() : previousState.completedAt,
           updatedAt: new Date().toISOString(),
         });
       }

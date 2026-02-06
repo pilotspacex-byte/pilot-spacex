@@ -21,3 +21,14 @@ export {
   useCreateGuidedNote,
   useOnboardingActions,
 } from './useOnboardingActions';
+
+export {
+  useRoleTemplates,
+  useRoleSkills,
+  useGenerateSkill,
+  useCreateRoleSkill,
+  useUpdateRoleSkill,
+  useRegenerateSkill,
+  useDeleteRoleSkill,
+  roleSkillKeys,
+} from './useRoleSkillActions';

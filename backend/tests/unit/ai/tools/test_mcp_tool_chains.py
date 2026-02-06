@@ -374,9 +374,9 @@ class TestCommentOnIssue:
             }
         )
 
-        # Verify comment creation success
+        # Verify comment creation success (CM-001: auto-execute)
         text = create_result["content"][0]["text"]
-        assert "Approval required" in text
+        assert "Pending apply" in text
 
         # Verify SSE event was pushed
         assert not event_queue.empty()

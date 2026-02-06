@@ -15,11 +15,9 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
-
-from pilot_space.ai.tools.entity_resolver import EntityResolutionError
 
 if TYPE_CHECKING:
     from pilot_space.ai.tools.mcp_server import ToolContext

@@ -71,7 +71,7 @@ class DiscussionComment(WorkspaceScopedModel):
     reactions: Mapped[dict[str, Any] | None] = mapped_column(
         JSONBCompat,
         nullable=True,
-        default=None,
+        default=dict,
     )
 
     # Edit tracking (AD-001)

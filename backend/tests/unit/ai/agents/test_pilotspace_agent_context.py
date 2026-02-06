@@ -45,9 +45,7 @@ class TestBuildContextualMessage:
         # Assert
         assert result == "What is the weather?"
 
-    def test_note_context_prepends_markdown(
-        self, tiptap_content: dict[str, Any]
-    ) -> None:
+    def test_note_context_prepends_markdown(self, tiptap_content: dict[str, Any]) -> None:
         """Note with TipTap content should prepend XML-wrapped markdown."""
         # Arrange
         note = SimpleNamespace(title="Meeting Notes", content=tiptap_content)
@@ -77,9 +75,7 @@ class TestBuildContextualMessage:
         assert "def hello():" in result
         assert result.endswith("</selected_text>\n\nExplain this code")
 
-    def test_note_and_selection_combined(
-        self, tiptap_content: dict[str, Any]
-    ) -> None:
+    def test_note_and_selection_combined(self, tiptap_content: dict[str, Any]) -> None:
         """Both note and selection contexts should be prepended with message at end."""
         # Arrange
         note = SimpleNamespace(title="Design Doc", content=tiptap_content)
@@ -120,9 +116,7 @@ class TestBuildContextualMessage:
         assert "<note_context>\n# Empty Note\n\n(empty note)\n</note_context>" in result
         assert result.endswith("\n\nWhat should I do?")
 
-    def test_note_without_title_uses_untitled(
-        self, tiptap_content: dict[str, Any]
-    ) -> None:
+    def test_note_without_title_uses_untitled(self, tiptap_content: dict[str, Any]) -> None:
         """Note with None title should use 'Untitled' as fallback."""
         # Arrange
         note = SimpleNamespace(title=None, content=tiptap_content)

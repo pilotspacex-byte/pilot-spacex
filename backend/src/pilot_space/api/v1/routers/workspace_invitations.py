@@ -135,6 +135,7 @@ async def add_workspace_member(
         role=invitation.role.value,
         status=invitation.status.value,
         invited_by=invitation.invited_by,
+        suggested_sdlc_role=invitation.suggested_sdlc_role,
         expires_at=invitation.expires_at,
         created_at=invitation.created_at,
     )
@@ -181,6 +182,7 @@ async def list_workspace_invitations(
             role=inv.role.value,
             status=inv.status.value,
             invited_by=inv.invited_by,
+            suggested_sdlc_role=inv.suggested_sdlc_role,
             expires_at=inv.expires_at,
             created_at=inv.created_at,
         )

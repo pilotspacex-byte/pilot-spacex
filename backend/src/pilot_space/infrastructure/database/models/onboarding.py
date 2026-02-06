@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 class WorkspaceOnboarding(BaseModel):
     """SQLAlchemy model for workspace onboarding state.
 
-    Tracks the 3-step onboarding progress per workspace.
+    Tracks the 4-step onboarding progress per workspace.
     One-to-one relationship with Workspace.
 
     Attributes:
@@ -62,13 +62,19 @@ class WorkspaceOnboarding(BaseModel):
         index=True,
     )
 
-    # Steps JSONB: {"ai_providers": bool, "invite_members": bool, "first_note": bool}
+    # Steps JSONB tracking completion of each onboarding step
     steps: Mapped[dict[str, Any]] = mapped_column(
         JSONBCompat,
         nullable=False,
-        default=lambda: {"ai_providers": False, "invite_members": False, "first_note": False},
+        default=lambda: {
+            "ai_providers": False,
+            "invite_members": False,
+            "first_note": False,
+            "role_setup": False,
+        },
         server_default=text(
-            '\'{"ai_providers": false, "invite_members": false, "first_note": false}\'::jsonb'
+            '\'{"ai_providers": false, "invite_members": false,'
+            ' "first_note": false, "role_setup": false}\'::jsonb'
         ),
     )
 
@@ -110,10 +116,15 @@ class WorkspaceOnboarding(BaseModel):
 
     def __repr__(self) -> str:
         """Return string representation."""
-        completed = self.steps.get("ai_providers", False)
-        completed += self.steps.get("invite_members", False)
-        completed += self.steps.get("first_note", False)
-        return f"<WorkspaceOnboarding(workspace_id={self.workspace_id}, {completed}/3)>"
+        completed = sum(
+            [
+                self.steps.get("ai_providers", False),
+                self.steps.get("invite_members", False),
+                self.steps.get("first_note", False),
+                self.steps.get("role_setup", False),
+            ]
+        )
+        return f"<WorkspaceOnboarding(workspace_id={self.workspace_id}, {completed}/4)>"
 
     @property
     def completion_percentage(self) -> int:
@@ -127,21 +138,23 @@ class WorkspaceOnboarding(BaseModel):
                 self.steps.get("ai_providers", False),
                 self.steps.get("invite_members", False),
                 self.steps.get("first_note", False),
+                self.steps.get("role_setup", False),
             ]
         )
-        return (count * 100) // 3
+        return (count * 100) // 4
 
     @property
     def is_complete(self) -> bool:
         """Check if all steps are complete.
 
         Returns:
-            True if all 3 steps are completed.
+            True if all 4 steps are completed.
         """
         return (
             self.steps.get("ai_providers", False)
             and self.steps.get("invite_members", False)
             and self.steps.get("first_note", False)
+            and self.steps.get("role_setup", False)
         )
 
 

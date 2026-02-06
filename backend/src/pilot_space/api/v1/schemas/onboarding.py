@@ -23,6 +23,7 @@ class OnboardingStep(str, Enum):
     AI_PROVIDERS = "ai_providers"
     INVITE_MEMBERS = "invite_members"
     FIRST_NOTE = "first_note"
+    ROLE_SETUP = "role_setup"
 
 
 class OnboardingSteps(BaseSchema):
@@ -34,6 +35,7 @@ class OnboardingSteps(BaseSchema):
     ai_providers: bool = Field(default=False, description="AI provider configured")
     invite_members: bool = Field(default=False, description="Team members invited")
     first_note: bool = Field(default=False, description="First note written")
+    role_setup: bool = Field(default=False, description="SDLC role configured")
 
 
 class OnboardingResponse(EntitySchema):

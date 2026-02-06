@@ -183,6 +183,13 @@ class PermissionHandler:
         "remove_block": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
         "remove_content": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
         "replace_content": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        # Retained tools (6 from note_tools.py, registered in MCP servers)
+        "update_note_block": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        "enhance_text": ActionClassification.AUTO_EXECUTE,
+        "extract_issues": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        "create_issue_from_note": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        "link_existing_issues": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        "write_to_note": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
         # Issue tools — read (AUTO_EXECUTE)
         "get_issue": ActionClassification.AUTO_EXECUTE,
         "search_issues": ActionClassification.AUTO_EXECUTE,
@@ -206,8 +213,8 @@ class PermissionHandler:
         # Comment tools — read (AUTO_EXECUTE)
         "search_comments": ActionClassification.AUTO_EXECUTE,
         "get_comments": ActionClassification.AUTO_EXECUTE,
-        # Comment tools — write (DD-003: content creation requires approval)
-        "create_comment": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        # Comment tools — write (CM-001: create_comment auto, update requires approval)
+        "create_comment": ActionClassification.AUTO_EXECUTE,
         "update_comment": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
         # Legacy actions
         "create_annotation": ActionClassification.DEFAULT_REQUIRE_APPROVAL,

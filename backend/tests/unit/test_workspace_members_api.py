@@ -401,8 +401,5 @@ class TestIsAdminAuthCheck:
         workspace.members = [owner_member, target_member]
 
         # Simulate the DELETE endpoint auth check
-        is_admin = any(
-            m.user_id == owner.id and m.is_admin
-            for m in workspace.members
-        )
+        is_admin = any(m.user_id == owner.id and m.is_admin for m in workspace.members)
         assert is_admin is True

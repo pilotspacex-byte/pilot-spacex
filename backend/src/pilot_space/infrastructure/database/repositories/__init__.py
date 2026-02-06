@@ -53,6 +53,10 @@ from pilot_space.infrastructure.database.repositories.note_repository import (
 from pilot_space.infrastructure.database.repositories.project_repository import (
     ProjectRepository,
 )
+from pilot_space.infrastructure.database.repositories.role_skill_repository import (
+    RoleSkillRepository,
+    RoleTemplateRepository,
+)
 from pilot_space.infrastructure.database.repositories.template_repository import (
     TemplateRepository,
 )
@@ -84,6 +88,8 @@ __all__ = [
     "NoteAnnotationRepository",
     "NoteRepository",
     "ProjectRepository",
+    "RoleSkillRepository",
+    "RoleTemplateRepository",
     "TemplateRepository",
     "UserRepository",
     "WorkspaceRepository",

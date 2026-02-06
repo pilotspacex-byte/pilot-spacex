@@ -49,6 +49,12 @@ class User(BaseModel):
         nullable=True,
     )
 
+    # Default SDLC role for new workspace joins (FR-011)
+    default_sdlc_role: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
     # Relationships
     workspace_memberships: Mapped[list[WorkspaceMember]] = relationship(
         "WorkspaceMember",

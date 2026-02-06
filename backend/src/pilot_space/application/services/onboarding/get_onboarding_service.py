@@ -105,6 +105,7 @@ class GetOnboardingService:
                 ai_providers=steps.get("ai_providers", False),
                 invite_members=steps.get("invite_members", False),
                 first_note=steps.get("first_note", False),
+                role_setup=steps.get("role_setup", False),
             ),
             guided_note_id=onboarding.guided_note_id,
             dismissed_at=onboarding.dismissed_at,
@@ -131,14 +132,14 @@ class GetOnboardingService:
             onboarding: Current WorkspaceOnboarding record.
             workspace_id: The workspace UUID.
         """
+        from sqlalchemy import func, select
+
         from pilot_space.infrastructure.database.models.workspace_api_key import (
             WorkspaceAPIKey,
         )
         from pilot_space.infrastructure.database.models.workspace_member import (
             WorkspaceMember,
         )
-
-        from sqlalchemy import func, select
 
         steps = onboarding.steps
         synced = False
@@ -151,13 +152,17 @@ class GetOnboardingService:
             )
 
             key_count = await self._session.scalar(
-                select(func.count()).select_from(WorkspaceAPIKey).where(
+                select(func.count())
+                .select_from(WorkspaceAPIKey)
+                .where(
                     WorkspaceAPIKey.workspace_id == workspace_id,
                 )
             )
             if not key_count:
                 key_count = await self._session.scalar(
-                    select(func.count()).select_from(AIConfiguration).where(
+                    select(func.count())
+                    .select_from(AIConfiguration)
+                    .where(
                         AIConfiguration.workspace_id == workspace_id,
                         AIConfiguration.is_active == True,  # noqa: E712
                     )
@@ -169,13 +174,32 @@ class GetOnboardingService:
         # Auto-detect invite_members: check if workspace has >1 member
         if not steps.get("invite_members", False):
             member_count = await self._session.scalar(
-                select(func.count()).select_from(WorkspaceMember).where(
+                select(func.count())
+                .select_from(WorkspaceMember)
+                .where(
                     WorkspaceMember.workspace_id == workspace_id,
                     WorkspaceMember.is_deleted == False,  # noqa: E712
                 )
             )
             if member_count and member_count > 1:
                 await repo.update_step(workspace_id, "invite_members", completed=True)
+                synced = True
+
+        # Auto-detect role_setup: check if any user in workspace has a role skill
+        if not steps.get("role_setup", False):
+            from pilot_space.infrastructure.database.models.user_role_skill import (
+                UserRoleSkill,
+            )
+
+            skill_count = await self._session.scalar(
+                select(func.count())
+                .select_from(UserRoleSkill)
+                .where(
+                    UserRoleSkill.workspace_id == workspace_id,
+                )
+            )
+            if skill_count and skill_count > 0:
+                await repo.update_step(workspace_id, "role_setup", completed=True)
                 synced = True
 
         if synced:

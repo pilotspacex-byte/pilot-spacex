@@ -232,7 +232,8 @@ def create_comment_tools_server(
         }
         await event_queue.put(_sse_event("content_update", event_data))
 
-        return _text_result(f"Comment on {target_type} {target_id} requested. Approval required.")
+        status_label = "Approval required" if status == "approval_required" else "Pending apply"
+        return _text_result(f"Comment on {target_type} {target_id} requested. {status_label}.")
 
     @tool(
         "update_comment",

@@ -76,6 +76,10 @@ from pilot_space.infrastructure.database.models.threaded_discussion import (
     ThreadedDiscussion,
 )
 from pilot_space.infrastructure.database.models.user import User
+from pilot_space.infrastructure.database.models.user_role_skill import (
+    RoleTemplate,
+    UserRoleSkill,
+)
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_api_key import WorkspaceAPIKey
 from pilot_space.infrastructure.database.models.workspace_invitation import (
@@ -130,6 +134,7 @@ __all__ = [
     "NoteIssueLink",
     "NoteLinkType",
     "Project",
+    "RoleTemplate",
     "SlugMixin",
     "SoftDeleteMixin",
     "State",
@@ -140,6 +145,7 @@ __all__ = [
     "TimestampMixin",
     "ToolCallStatus",
     "User",
+    "UserRoleSkill",
     "Workspace",
     "WorkspaceAPIKey",
     "WorkspaceInvitation",

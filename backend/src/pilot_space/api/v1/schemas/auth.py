@@ -64,6 +64,7 @@ class UserProfileResponse(BaseSchema):
     email: EmailStr = Field(description="User email address")
     full_name: str | None = Field(default=None, description="User display name")
     avatar_url: str | None = Field(default=None, description="Profile image URL")
+    default_sdlc_role: str | None = Field(default=None, description="User's default SDLC role")
     created_at: datetime = Field(description="Account creation timestamp")
 
 
@@ -77,6 +78,9 @@ class UserProfileUpdateRequest(BaseSchema):
 
     full_name: str | None = Field(default=None, max_length=255, description="Display name")
     avatar_url: str | None = Field(default=None, max_length=2048, description="Profile image URL")
+    default_sdlc_role: str | None = Field(
+        default=None, max_length=50, description="Default SDLC role"
+    )
 
 
 __all__ = [

@@ -28,6 +28,7 @@ from pilot_space.infrastructure.database.models.ai_configuration import (
     AIConfiguration,
 )
 from pilot_space.infrastructure.database.models.onboarding import WorkspaceOnboarding
+from pilot_space.infrastructure.database.models.user_role_skill import UserRoleSkill
 from pilot_space.infrastructure.database.models.workspace_api_key import (
     WorkspaceAPIKey,
 )
@@ -146,7 +147,12 @@ class TestGetOnboardingAutoSync:
         # Pre-create onboarding with steps already marked True
         onboarding = WorkspaceOnboarding(
             workspace_id=workspace.id,
-            steps={"ai_providers": True, "invite_members": True, "first_note": False},
+            steps={
+                "ai_providers": True,
+                "invite_members": True,
+                "first_note": False,
+                "role_setup": False,
+            },
         )
         db_session.add(onboarding)
         await db_session.flush()
@@ -209,6 +215,7 @@ class TestGetOnboardingAutoSync:
         assert result.steps.ai_providers is False
         assert result.steps.invite_members is False
         assert result.steps.first_note is False
+        assert result.steps.role_setup is False
 
     @pytest.mark.asyncio
     async def test_jsonb_step_update_persists_correctly(
@@ -240,3 +247,40 @@ class TestGetOnboardingAutoSync:
         # Second call: should still be True (persisted, not lost)
         result2 = await service.execute(workspace.id)
         assert result2.steps.ai_providers is True
+
+    @pytest.mark.asyncio
+    async def test_auto_sync_marks_role_setup_when_role_skill_exists(
+        self,
+        db_session: AsyncSession,
+    ) -> None:
+        """role_setup step should be marked True when a UserRoleSkill exists."""
+        owner, workspace = await _seed_workspace(db_session)
+
+        # Add a role skill for this workspace
+        role_skill = UserRoleSkill(
+            workspace_id=workspace.id,
+            user_id=owner.id,
+            role_type="developer",
+            role_name="Senior Developer",
+            skill_content="# Developer Skill\nTest content.",
+        )
+        db_session.add(role_skill)
+        await db_session.flush()
+
+        service = GetOnboardingService(session=db_session)
+        result = await service.execute(workspace.id)
+
+        assert result.steps.role_setup is True
+
+    @pytest.mark.asyncio
+    async def test_auto_sync_role_setup_stays_false_without_skills(
+        self,
+        db_session: AsyncSession,
+    ) -> None:
+        """role_setup step should remain False when no UserRoleSkill exists."""
+        _owner, workspace = await _seed_workspace(db_session)
+
+        service = GetOnboardingService(session=db_session)
+        result = await service.execute(workspace.id)
+
+        assert result.steps.role_setup is False

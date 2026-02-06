@@ -90,6 +90,7 @@ async def get_current_user_profile(
         email=user.email,
         full_name=user.full_name,
         avatar_url=user.avatar_url,
+        default_sdlc_role=user.default_sdlc_role,
         created_at=user.created_at,
     )
 
@@ -132,6 +133,7 @@ async def update_current_user_profile(
         email=user.email,
         full_name=user.full_name,
         avatar_url=user.avatar_url,
+        default_sdlc_role=user.default_sdlc_role,
         created_at=user.created_at,
     )
 

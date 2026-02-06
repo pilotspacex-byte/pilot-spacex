@@ -27,6 +27,7 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
     detect_skill_from_message,
     estimate_tokens,
 )
+from pilot_space.ai.agents.role_skill_materializer import materialize_role_skills
 from pilot_space.ai.agents.sse_delta_buffer import DeltaBuffer
 from pilot_space.ai.context import clear_context, set_workspace_context
 from pilot_space.ai.mcp.comment_server import (
@@ -75,7 +76,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Aggregated tool names across all MCP servers (27 tools total)
+# Aggregated tool names across all MCP servers (33 tools total: 27 spec + 6 retained)
 ALL_TOOL_NAMES: list[str] = [
     *NOTE_TOOL_NAMES,
     *NOTE_CONTENT_TOOL_NAMES,
@@ -335,14 +336,22 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             db_session = await db_session_cm.__aenter__()
 
             # Single try/finally guards the entire DB session lifetime.
-            # All MCP server creation, SDK config, and streaming happen inside
-            # so the session is always closed — even if setup code throws.
+            # All materialization, MCP server creation, SDK config, and streaming
+            # happen inside so the session is always closed — even if setup throws.
             client: ClaudeSDKClient | None = None
             query_session_id = session_id_str or "default"
             stream_completed = False
             content_blocks: dict[str, dict[str, Any]] = {}
 
             try:
+                # Materialize user's role skills into space's .claude/skills/
+                # directory so the SDK auto-discovers them (FR-006/FR-007).
+                await materialize_role_skills(
+                    db_session=db_session,
+                    user_id=context.user_id,
+                    workspace_id=context.workspace_id,
+                    skills_dir=space_context.skills_dir,
+                )
                 tool_context = ToolContext(
                     db_session=db_session,
                     workspace_id=str(context.workspace_id),

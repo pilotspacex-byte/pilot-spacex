@@ -170,7 +170,8 @@ class TestApprovalLevels:
     def test_create_comment_approval(self) -> None:
         from pilot_space.ai.tools.mcp_server import TOOL_APPROVAL_MAP, ToolApprovalLevel
 
-        assert TOOL_APPROVAL_MAP["create_comment"] == ToolApprovalLevel.REQUIRE_APPROVAL
+        # CM-001: comments are non-destructive additions, auto-execute
+        assert TOOL_APPROVAL_MAP["create_comment"] == ToolApprovalLevel.AUTO_EXECUTE
 
     def test_update_comment_approval(self) -> None:
         from pilot_space.ai.tools.mcp_server import TOOL_APPROVAL_MAP, ToolApprovalLevel
@@ -222,7 +223,8 @@ class TestCreateComment:
 
         assert "content" in result
         text = result["content"][0]["text"]
-        assert "Approval required" in text
+        # CM-001: create_comment is AUTO_EXECUTE (non-destructive)
+        assert "Pending apply" in text
 
         # Verify SSE event was pushed
         assert not queue.empty()
@@ -230,8 +232,8 @@ class TestCreateComment:
         assert "event: content_update" in event
         event_data = json.loads(event.split("data: ")[1].strip())
         assert event_data["operation"] == "comment_created"
-        assert event_data["status"] == "approval_required"
-        assert event_data["approval_level"] == "require_approval"
+        assert event_data["status"] == "pending_apply"
+        assert event_data["approval_level"] == "auto_execute"
         assert event_data["targetType"] == "note"
         assert event_data["isAiGenerated"] is True
         assert event_data["createDiscussion"] is True
@@ -258,7 +260,8 @@ class TestCreateComment:
         )
 
         text = result["content"][0]["text"]
-        assert "Approval required" in text
+        # CM-001: create_comment is AUTO_EXECUTE (non-destructive)
+        assert "Pending apply" in text
 
         # Verify SSE event includes existing discussion ID
         event = await queue.get()

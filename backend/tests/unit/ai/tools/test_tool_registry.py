@@ -64,8 +64,9 @@ class TestToolResult:
 class TestToolApprovalMap:
     """Tests for TOOL_APPROVAL_MAP completeness and correctness."""
 
-    def test_map_has_27_entries(self) -> None:
-        assert len(TOOL_APPROVAL_MAP) == 27
+    def test_map_has_33_entries(self) -> None:
+        """27 spec tools + 6 retained tools = 33 total."""
+        assert len(TOOL_APPROVAL_MAP) == 33
 
     def test_auto_execute_tools(self) -> None:
         auto_tools = [
@@ -77,6 +78,10 @@ class TestToolApprovalMap:
             "search_projects",
             "search_comments",
             "get_comments",
+            # CM-001: create_comment is non-destructive
+            "create_comment",
+            # Retained tool: enhance_text is non-destructive
+            "enhance_text",
         ]
         for tool_name in auto_tools:
             assert TOOL_APPROVAL_MAP[tool_name] == ToolApprovalLevel.AUTO_EXECUTE, (
@@ -100,8 +105,13 @@ class TestToolApprovalMap:
             "create_project",
             "update_project",
             "update_project_settings",
-            "create_comment",
             "update_comment",
+            # Retained tools
+            "update_note_block",
+            "extract_issues",
+            "create_issue_from_note",
+            "link_existing_issues",
+            "write_to_note",
         ]
         for tool_name in require_tools:
             assert TOOL_APPROVAL_MAP[tool_name] == ToolApprovalLevel.REQUIRE_APPROVAL, (
@@ -116,13 +126,14 @@ class TestToolApprovalMap:
             )
 
     def test_approval_counts(self) -> None:
+        """33 tools: 10 auto + 21 require + 2 always."""
         auto = sum(1 for v in TOOL_APPROVAL_MAP.values() if v == ToolApprovalLevel.AUTO_EXECUTE)
         require = sum(
             1 for v in TOOL_APPROVAL_MAP.values() if v == ToolApprovalLevel.REQUIRE_APPROVAL
         )
         always = sum(1 for v in TOOL_APPROVAL_MAP.values() if v == ToolApprovalLevel.ALWAYS_REQUIRE)
-        assert auto == 8
-        assert require == 17
+        assert auto == 10
+        assert require == 21
         assert always == 2
 
 

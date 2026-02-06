@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-StepName = Literal["ai_providers", "invite_members", "first_note"]
+StepName = Literal["ai_providers", "invite_members", "first_note", "role_setup"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +145,7 @@ class UpdateOnboardingService:
                 ai_providers=steps.get("ai_providers", False),
                 invite_members=steps.get("invite_members", False),
                 first_note=steps.get("first_note", False),
+                role_setup=steps.get("role_setup", False),
             ),
             guided_note_id=onboarding.guided_note_id,
             dismissed_at=onboarding.dismissed_at,

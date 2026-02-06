@@ -225,9 +225,7 @@ class TestHooksConfiguration:
                 "PreToolUse": [
                     {
                         "matcher": "Bash",
-                        "hooks": [
-                            {"type": "command", "command": "/scripts/validate.sh"}
-                        ],
+                        "hooks": [{"type": "command", "command": "/scripts/validate.sh"}],
                     },
                     {
                         "matcher": "Write|Edit",
@@ -258,9 +256,7 @@ class TestHooksConfiguration:
         """Test loading configuration from file."""
         import json
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(sample_hooks_json, f)
             f.flush()
 
@@ -278,9 +274,7 @@ class TestHooksConfiguration:
 
     def test_from_invalid_json(self) -> None:
         """Test loading from invalid JSON returns empty config."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write("not valid json")
             f.flush()
 
@@ -342,26 +336,18 @@ class TestFileBasedHookExecutor:
         return FileBasedHookExecutor(temp_hooks_file)
 
     @pytest.mark.asyncio
-    async def test_deny_hook_blocks_protected_file(
-        self, executor: FileBasedHookExecutor
-    ) -> None:
+    async def test_deny_hook_blocks_protected_file(self, executor: FileBasedHookExecutor) -> None:
         """Test deny hook blocks protected files."""
-        response = await executor.execute_pre_tool_hooks(
-            "Write", {"path": ".env"}
-        )
+        response = await executor.execute_pre_tool_hooks("Write", {"path": ".env"})
 
         assert response.continue_execution is False
         assert response.permission_decision == PermissionDecision.DENY
         assert "Protected file" in (response.permission_reason or "")
 
     @pytest.mark.asyncio
-    async def test_deny_hook_allows_normal_file(
-        self, executor: FileBasedHookExecutor
-    ) -> None:
+    async def test_deny_hook_allows_normal_file(self, executor: FileBasedHookExecutor) -> None:
         """Test deny hook allows normal files."""
-        response = await executor.execute_pre_tool_hooks(
-            "Write", {"path": "src/main.py"}
-        )
+        response = await executor.execute_pre_tool_hooks("Write", {"path": "src/main.py"})
 
         # Should not be denied (but may require approval)
         assert (
@@ -374,33 +360,23 @@ class TestFileBasedHookExecutor:
         self, executor: FileBasedHookExecutor
     ) -> None:
         """Test approve hook requires approval for files outside src/."""
-        response = await executor.execute_pre_tool_hooks(
-            "Write", {"path": "config/settings.py"}
-        )
+        response = await executor.execute_pre_tool_hooks("Write", {"path": "config/settings.py"})
 
         assert response.permission_decision == PermissionDecision.ASK
         assert "approval" in (response.permission_reason or "").lower()
 
     @pytest.mark.asyncio
-    async def test_approve_hook_allows_src_files(
-        self, executor: FileBasedHookExecutor
-    ) -> None:
+    async def test_approve_hook_allows_src_files(self, executor: FileBasedHookExecutor) -> None:
         """Test approve hook allows files in src/."""
-        response = await executor.execute_pre_tool_hooks(
-            "Write", {"path": "src/main.py"}
-        )
+        response = await executor.execute_pre_tool_hooks("Write", {"path": "src/main.py"})
 
         # Should not require approval for src/ files
         assert response.permission_decision != PermissionDecision.ASK
 
     @pytest.mark.asyncio
-    async def test_no_matching_hooks(
-        self, executor: FileBasedHookExecutor
-    ) -> None:
+    async def test_no_matching_hooks(self, executor: FileBasedHookExecutor) -> None:
         """Test tools without matching hooks pass through."""
-        response = await executor.execute_pre_tool_hooks(
-            "Read", {"path": "README.md"}
-        )
+        response = await executor.execute_pre_tool_hooks("Read", {"path": "README.md"})
 
         assert response.continue_execution is True
         assert response.permission_decision is None
@@ -440,9 +416,7 @@ class TestConditionEvaluation:
     @pytest.fixture
     def executor(self) -> FileBasedHookExecutor:
         """Create executor with minimal config."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write('{"hooks": {}}')
             f.flush()
             return FileBasedHookExecutor(Path(f.name))
@@ -568,7 +542,9 @@ class TestToSdkHooks:
         result = await callback(input_data, "test-id", None)
 
         assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
-        assert "Dangerous command blocked" in result["hookSpecificOutput"]["permissionDecisionReason"]
+        assert (
+            "Dangerous command blocked" in result["hookSpecificOutput"]["permissionDecisionReason"]
+        )
 
     @pytest.mark.asyncio
     async def test_sdk_callback_allows_safe_command(self, hooks_file: Path) -> None:
@@ -602,4 +578,3 @@ class TestToSdkHooks:
             sdk_hooks = executor.to_sdk_hooks()
 
             assert sdk_hooks == {}
-

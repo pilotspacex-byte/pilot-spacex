@@ -40,6 +40,10 @@ from pilot_space.api.v1.routers.mcp_tools import router as mcp_tools_router
 from pilot_space.api.v1.routers.notes import router as notes_router
 from pilot_space.api.v1.routers.onboarding import router as onboarding_router
 from pilot_space.api.v1.routers.projects import router as projects_router
+from pilot_space.api.v1.routers.role_skills import (
+    role_templates_router,
+    router as role_skills_router,
+)
 from pilot_space.api.v1.routers.webhooks import router as webhooks_router
 from pilot_space.api.v1.routers.workspace_ai_settings import router as workspace_ai_settings_router
 from pilot_space.api.v1.routers.workspace_cycles import router as workspace_cycles_router
@@ -118,6 +122,8 @@ __all__ = [
     "notes_router",
     "onboarding_router",
     "projects_router",
+    "role_skills_router",
+    "role_templates_router",
     "webhooks_router",
     "workspace_ai_settings_router",
     "workspace_cycles_router",

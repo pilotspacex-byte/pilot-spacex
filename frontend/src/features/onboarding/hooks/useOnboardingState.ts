@@ -75,11 +75,12 @@ export function selectCompletionPercentage(data: OnboardingState | undefined): n
  */
 export function selectNextIncompleteStep(
   data: OnboardingState | undefined
-): 'ai_providers' | 'invite_members' | 'first_note' | null {
+): 'ai_providers' | 'invite_members' | 'role_setup' | 'first_note' | null {
   if (!data) return null;
 
   if (!data.steps.ai_providers) return 'ai_providers';
   if (!data.steps.invite_members) return 'invite_members';
+  if (!data.steps.role_setup) return 'role_setup';
   if (!data.steps.first_note) return 'first_note';
 
   return null;

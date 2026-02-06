@@ -18,7 +18,6 @@ from pilot_space.ai.tools.note_tools import (
     enhance_text,
     extract_issues,
     link_existing_issues,
-    summarize_note,
     update_note_block,
 )
 
@@ -132,31 +131,6 @@ class TestEnhanceText:
         assert "block_id" in result
         assert "markdown" in result
         assert result["block_id"] == "block-999"
-
-
-class TestSummarizeNote:
-    """Test suite for summarize_note tool."""
-
-    def test_that_tool_is_registered(self) -> None:
-        """Verify summarize_note is registered in note category."""
-        tool = ToolRegistry.get_tool("summarize_note")
-        assert tool is not None
-        assert tool.__name__ == "summarize_note"
-
-        note_tools = ToolRegistry.get_tools_by_category("note")
-        assert "summarize_note" in note_tools
-
-    @pytest.mark.asyncio
-    async def test_that_returns_note_content_structure(self) -> None:
-        """Verify returns note content for reading."""
-        # Act
-        result = await summarize_note(note_id=str(uuid4()))
-
-        # Assert
-        assert result["tool"] == "summarize_note"
-        assert result["operation"] == "read_content"
-        assert result["status"] == "pending_apply"
-        assert "note_id" in result
 
 
 class TestExtractIssues:
@@ -361,13 +335,12 @@ class TestToolCategoryRegistration:
     """Test suite for verifying all tools are registered in correct categories."""
 
     def test_that_all_note_tools_are_registered(self) -> None:
-        """Verify all 6 tools are registered and accessible."""
+        """Verify all 5 retained note tools are registered and accessible."""
         note_tools = ToolRegistry.get_tools_by_category("note")
 
         expected_note_tools = [
             "update_note_block",
             "enhance_text",
-            "summarize_note",
             "extract_issues",
             "link_existing_issues",
         ]
@@ -381,11 +354,10 @@ class TestToolCategoryRegistration:
         assert "create_issue_from_note" in issue_tools
 
     def test_that_all_tools_have_docstrings(self) -> None:
-        """Verify all tools have documentation."""
+        """Verify all retained tools have documentation."""
         tool_names = [
             "update_note_block",
             "enhance_text",
-            "summarize_note",
             "extract_issues",
             "create_issue_from_note",
             "link_existing_issues",

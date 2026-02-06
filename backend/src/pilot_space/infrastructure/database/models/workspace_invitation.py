@@ -98,6 +98,12 @@ class WorkspaceInvitation(BaseModel):
         nullable=True,
     )
 
+    # Owner's role hint for invitee (FR-012)
+    suggested_sdlc_role: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
     # Relationships
     workspace: Mapped[Workspace] = relationship(
         "Workspace",

@@ -12,7 +12,7 @@ import asyncio
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
@@ -182,9 +182,9 @@ class TestMultiServerToolChain:
             }
         )
 
-        # Verify comment creation
+        # Verify comment creation (CM-001: auto-execute)
         text = comment_result["content"][0]["text"]
-        assert "Approval required" in text
+        assert "Pending apply" in text
 
         # Verify SSE event
         assert not event_queue.empty()

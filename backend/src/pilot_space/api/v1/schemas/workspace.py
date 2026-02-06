@@ -147,6 +147,9 @@ class InvitationResponse(BaseSchema):
     role: str = Field(description="Intended role upon acceptance")
     status: str = Field(description="Invitation status (pending/accepted/expired/cancelled)")
     invited_by: UUID = Field(description="Inviter user ID")
+    suggested_sdlc_role: str | None = Field(
+        default=None, description="Owner's suggested SDLC role hint"
+    )
     expires_at: datetime = Field(description="Invitation expiry timestamp")
     created_at: datetime = Field(description="Invitation creation timestamp")
 
@@ -167,6 +170,11 @@ class InvitationCreateRequest(BaseSchema):
         default="member",
         pattern="^(admin|member|guest)$",
         description="Role to assign",
+    )
+    suggested_sdlc_role: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Suggested SDLC role for invitee",
     )
 
 

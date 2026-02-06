@@ -90,32 +90,6 @@ async def enhance_text(
 
 
 @register_tool("note")
-async def summarize_note(
-    note_id: str,
-) -> dict[str, Any]:
-    """Read and return the full content of a note as markdown.
-
-    Use this to understand the note before performing operations.
-    Returns the note title, content as markdown, and metadata.
-
-    The actual note content will be fetched by the transform layer
-    using NoteRepository and ContentConverter.
-
-    Args:
-        note_id: UUID of the note to read.
-
-    Returns:
-        Dict with read operation details.
-    """
-    return {
-        "tool": "summarize_note",
-        "note_id": note_id,
-        "operation": "read_content",
-        "status": "pending_apply",
-    }
-
-
-@register_tool("note")
 async def extract_issues(
     note_id: str,
     block_ids: list[str],

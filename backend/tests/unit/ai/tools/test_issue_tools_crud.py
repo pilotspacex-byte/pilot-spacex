@@ -160,9 +160,7 @@ class TestGetIssueTool:
         repo.get_by_id_with_relations.return_value = None
 
         with (
-            patch(
-                "pilot_space.ai.mcp.issue_server.resolve_entity_id_strict", return_value=uuid4()
-            ),
+            patch("pilot_space.ai.mcp.issue_server.resolve_entity_id_strict", return_value=uuid4()),
             patch("pilot_space.ai.mcp.issue_server.IssueRepository", return_value=repo),
         ):
             result = await tools["get_issue"].handler({"issue_id": str(uuid4())})

@@ -11,7 +11,7 @@ import { apiClient } from './client';
 /**
  * Onboarding step names.
  */
-export type OnboardingStep = 'ai_providers' | 'invite_members' | 'first_note';
+export type OnboardingStep = 'ai_providers' | 'invite_members' | 'role_setup' | 'first_note';
 
 /**
  * Onboarding steps status.
@@ -19,6 +19,7 @@ export type OnboardingStep = 'ai_providers' | 'invite_members' | 'first_note';
 export interface OnboardingSteps {
   ai_providers: boolean;
   invite_members: boolean;
+  role_setup: boolean;
   first_note: boolean;
 }
 

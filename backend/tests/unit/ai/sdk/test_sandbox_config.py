@@ -176,8 +176,17 @@ class TestConfigureSDKForSpace:
         config = configure_sdk_for_space(space_context)
 
         expected_tools = [
-            "Read", "Glob", "Grep", "Write", "Edit", "Bash",
-            "Skill", "Task", "AskUserQuestion", "WebFetch", "WebSearch",
+            "Read",
+            "Glob",
+            "Grep",
+            "Write",
+            "Edit",
+            "Bash",
+            "Skill",
+            "Task",
+            "AskUserQuestion",
+            "WebFetch",
+            "WebSearch",
         ]
 
         for tool in expected_tools:

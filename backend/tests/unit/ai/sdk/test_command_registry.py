@@ -68,9 +68,7 @@ class TestCommandDefinition:
             aliases=["dev", "imp"],
         )
 
-    def test_triggers_includes_name_and_aliases(
-        self, basic_command: CommandDefinition
-    ) -> None:
+    def test_triggers_includes_name_and_aliases(self, basic_command: CommandDefinition) -> None:
         """Test triggers property includes name and all aliases."""
         triggers = basic_command.triggers
 
@@ -103,43 +101,33 @@ class TestCommandDefinition:
         assert basic_command.matches("/implements file.py") is False
         assert basic_command.matches("/implementation") is False
 
-    def test_does_not_match_other_commands(
-        self, basic_command: CommandDefinition
-    ) -> None:
+    def test_does_not_match_other_commands(self, basic_command: CommandDefinition) -> None:
         """Test matches returns False for other commands."""
         assert basic_command.matches("/other command") is False
         assert basic_command.matches("not a command") is False
 
-    def test_parse_arguments_positional(
-        self, basic_command: CommandDefinition
-    ) -> None:
+    def test_parse_arguments_positional(self, basic_command: CommandDefinition) -> None:
         """Test parse_arguments extracts positional arguments."""
         args = basic_command.parse_arguments("/implement file.py feature")
 
         assert args["target"] == "file.py"
         assert args["type"] == "feature"
 
-    def test_parse_arguments_with_defaults(
-        self, basic_command: CommandDefinition
-    ) -> None:
+    def test_parse_arguments_with_defaults(self, basic_command: CommandDefinition) -> None:
         """Test parse_arguments uses defaults for missing args."""
         args = basic_command.parse_arguments("/implement file.py")
 
         assert args["target"] == "file.py"
         assert args["type"] == "feature"  # Default value
 
-    def test_parse_arguments_empty_input(
-        self, basic_command: CommandDefinition
-    ) -> None:
+    def test_parse_arguments_empty_input(self, basic_command: CommandDefinition) -> None:
         """Test parse_arguments handles command with no args."""
         args = basic_command.parse_arguments("/implement")
 
         assert args.get("target") is None
         assert args["type"] == "feature"  # Default value
 
-    def test_parse_arguments_with_alias(
-        self, basic_command: CommandDefinition
-    ) -> None:
+    def test_parse_arguments_with_alias(self, basic_command: CommandDefinition) -> None:
         """Test parse_arguments works with alias trigger."""
         args = basic_command.parse_arguments("/dev file.py")
 
@@ -225,9 +213,7 @@ Run the test suite.
         assert cmd is not None
         assert cmd.name == "implement"
 
-    def test_get_command_returns_none_for_unknown(
-        self, registry: CommandRegistry
-    ) -> None:
+    def test_get_command_returns_none_for_unknown(self, registry: CommandRegistry) -> None:
         """Test get_command returns None for unknown command."""
         cmd = registry.get_command("unknown")
 
@@ -247,9 +233,7 @@ Run the test suite.
         assert cmd is not None
         assert cmd.name == "implement"
 
-    def test_find_matching_command_returns_none(
-        self, registry: CommandRegistry
-    ) -> None:
+    def test_find_matching_command_returns_none(self, registry: CommandRegistry) -> None:
         """Test find_matching_command returns None for no match."""
         cmd = registry.find_matching_command("/unknown command")
 

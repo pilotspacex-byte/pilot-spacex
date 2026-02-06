@@ -8,7 +8,7 @@
  */
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Check, Key, Users, FileText, ArrowRight } from 'lucide-react';
+import { Check, Key, Users, FileText, ArrowRight, Wand2 } from 'lucide-react';
 import type { OnboardingStep } from '@/services/api/onboarding';
 
 export interface OnboardingStepItemProps {
@@ -19,7 +19,7 @@ export interface OnboardingStepItemProps {
     title: string;
     description: string;
     actionLabel: string;
-    icon: 'key' | 'users' | 'note';
+    icon: 'key' | 'users' | 'note' | 'wand';
   };
   /** Whether the step is completed */
   completed: boolean;
@@ -37,6 +37,7 @@ const ICON_MAP = {
   key: Key,
   users: Users,
   note: FileText,
+  wand: Wand2,
 };
 
 /**

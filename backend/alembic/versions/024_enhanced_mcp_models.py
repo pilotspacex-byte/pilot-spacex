@@ -94,9 +94,8 @@ def upgrade() -> None:
     )
     op.create_index("ix_issue_links_source", "issue_links", ["source_issue_id"])
     op.create_index("ix_issue_links_target", "issue_links", ["target_issue_id"])
-    op.create_index(
-        "ix_issue_links_workspace_type", "issue_links", ["workspace_id", "link_type"]
-    )
+    op.create_index("ix_issue_links_workspace_type", "issue_links", ["workspace_id", "link_type"])
+    op.create_index("ix_issue_links_workspace_id", "issue_links", ["workspace_id"])
 
     # 3. Enable RLS on issue_links
     op.execute("""
@@ -167,9 +166,7 @@ def downgrade() -> None:
     op.drop_column("discussion_comments", "reactions")
 
     # Remove threaded_discussions extensions
-    op.drop_constraint(
-        "ck_threaded_discussions_target_integrity", "threaded_discussions"
-    )
+    op.drop_constraint("ck_threaded_discussions_target_integrity", "threaded_discussions")
     op.drop_column("threaded_discussions", "target_id")
     op.drop_column("threaded_discussions", "target_type")
 
@@ -184,9 +181,8 @@ def downgrade() -> None:
     )
 
     # Drop RLS policy and issue_links table
-    op.execute(
-        'DROP POLICY IF EXISTS "issue_links_workspace_member" ON issue_links'
-    )
+    op.execute('DROP POLICY IF EXISTS "issue_links_workspace_member" ON issue_links')
+    op.drop_index("ix_issue_links_workspace_id", table_name="issue_links")
     op.drop_index("ix_issue_links_workspace_type", table_name="issue_links")
     op.drop_index("ix_issue_links_target", table_name="issue_links")
     op.drop_index("ix_issue_links_source", table_name="issue_links")
