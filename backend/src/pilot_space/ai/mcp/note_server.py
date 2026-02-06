@@ -1,6 +1,6 @@
 """In-process SDK custom tools for PilotSpace note manipulation.
 
-Creates an SDK MCP server using create_sdk_mcp_server() with 7 note tools.
+Creates an SDK MCP server using create_sdk_mcp_server() with 9 note tools.
 Tool handlers push content_update SSE events to a shared asyncio.Queue
 that the PilotSpaceAgent stream method interleaves with SDK messages.
 
@@ -54,7 +54,7 @@ def create_note_tools_server(
     context_note_id: str | None = None,
     tool_context: Any | None = None,
 ) -> McpSdkServerConfig:
-    """Create an in-process SDK MCP server with 10 note tools.
+    """Create an in-process SDK MCP server with 9 note tools.
 
     Each tool handler pushes content_update SSE events to event_queue
     and returns a success message for the model to continue with.

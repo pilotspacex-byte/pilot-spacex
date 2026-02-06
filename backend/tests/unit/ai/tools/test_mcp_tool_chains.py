@@ -386,7 +386,7 @@ class TestCommentOnIssue:
         # Mock author
         mock_author = MagicMock()
         mock_author.id = uuid4()
-        mock_author.display_name = "AI Bot"
+        mock_author.full_name = "AI Bot"
         mock_author.email = "ai@example.com"
         mock_comment.author = mock_author
 

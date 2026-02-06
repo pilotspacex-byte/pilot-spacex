@@ -57,11 +57,11 @@ class ThreadedDiscussion(WorkspaceScopedModel):
 
     __tablename__ = "threaded_discussions"  # type: ignore[assignment]
 
-    # Parent note reference
-    note_id: Mapped[uuid.UUID] = mapped_column(
+    # Parent note reference (nullable for issue/discussion targets)
+    note_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("notes.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
 
     # Block reference (optional - can be for entire note)
@@ -101,7 +101,7 @@ class ThreadedDiscussion(WorkspaceScopedModel):
     )
 
     # Relationships
-    note: Mapped[Note] = relationship(
+    note: Mapped[Note | None] = relationship(
         "Note",
         back_populates="discussions",
         lazy="joined",

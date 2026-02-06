@@ -154,11 +154,15 @@ def create_project_tools_server(
 
         # Include stats if requested
         if include_stats:
+            from uuid import UUID
+
+            workspace_id = UUID(tool_context.workspace_id)
             stats_query = (
                 select(State.name, func.count(Issue.id).label("count"))
                 .join(Issue, Issue.state_id == State.id)
                 .where(
                     State.project_id == project.id,
+                    Issue.workspace_id == workspace_id,
                     Issue.is_deleted == False,  # noqa: E712
                 )
                 .group_by(State.name)
@@ -169,10 +173,14 @@ def create_project_tools_server(
 
         # Include recent issues if requested
         if include_recent:
+            from uuid import UUID
+
+            workspace_id = UUID(tool_context.workspace_id)
             recent_query = (
                 select(Issue)
                 .where(
                     Issue.project_id == project.id,
+                    Issue.workspace_id == workspace_id,
                     Issue.is_deleted == False,  # noqa: E712
                 )
                 .order_by(Issue.created_at.desc())
@@ -184,7 +192,7 @@ def create_project_tools_server(
                 {
                     "id": str(issue.id),
                     "identifier": f"{project.identifier}-{issue.sequence_id}",
-                    "title": str(getattr(issue, "title", "")),
+                    "title": issue.name,
                     "priority": issue.priority.value if issue.priority else None,
                 }
                 for issue in recent_issues

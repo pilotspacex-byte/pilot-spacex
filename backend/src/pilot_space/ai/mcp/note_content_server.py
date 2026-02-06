@@ -23,6 +23,8 @@ from typing import Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 
+from pilot_space.ai.tools.mcp_server import ToolContext
+
 logger = logging.getLogger(__name__)
 
 # MCP server name
@@ -63,7 +65,7 @@ def _extract_block_text(block: dict[str, Any]) -> str:
 def create_note_content_server(
     event_queue: asyncio.Queue[str],
     *,
-    tool_context: Any | None = None,
+    tool_context: ToolContext | None = None,
 ) -> McpSdkServerConfig:
     """Create an in-process SDK MCP server with 5 note content tools.
 

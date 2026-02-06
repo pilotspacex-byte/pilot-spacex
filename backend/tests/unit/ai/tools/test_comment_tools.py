@@ -107,7 +107,7 @@ def _mock_comment(
 
     author = MagicMock()
     author.id = uuid4()
-    author.display_name = author_display_name
+    author.full_name = author_display_name
     author.email = author_email
     c.author = author
     return c
@@ -371,7 +371,7 @@ class TestUpdateComment:
         )
 
         text = result["content"][0]["text"]
-        assert "Updated AI comment" in text
+        assert "update requested" in text
         assert "Approval required" in text
 
         # Verify SSE event

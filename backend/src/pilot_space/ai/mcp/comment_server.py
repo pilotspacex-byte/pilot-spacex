@@ -22,13 +22,13 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from pilot_space.ai.tools.mcp_server import ToolContext
 from pilot_space.infrastructure.database.models.discussion_comment import (
     DiscussionComment,
 )
@@ -64,7 +64,7 @@ def _text_result(text: str) -> dict[str, Any]:
 def create_comment_tools_server(
     event_queue: asyncio.Queue[str],
     *,
-    tool_context: Any | None = None,
+    tool_context: ToolContext | None = None,
 ) -> McpSdkServerConfig:
     """Create an in-process SDK MCP server with 4 comment tools.
 
@@ -310,11 +310,6 @@ def create_comment_tools_server(
 
         old_content = comment.content
 
-        # Update comment
-        comment.content = new_content.strip()
-        comment.edited_at = datetime.now(UTC)
-        await session.flush()
-
         logger.info(
             "[CommentTools] update_comment: comment=%s, old_len=%d, new_len=%d",
             comment_id,
@@ -322,19 +317,20 @@ def create_comment_tools_server(
             len(new_content),
         )
 
-        # Push SSE event with approval requirement
+        # Push SSE event as operation payload (no direct DB mutation)
         event_data = {
             "operation": "comment_updated",
+            "status": "approval_required",
             "commentId": str(comment_id),
+            "discussionId": str(comment.discussion_id),
             "oldContent": old_content,
             "newContent": new_content.strip(),
-            "editedAt": comment.edited_at.isoformat(),
             "requiresApproval": True,
         }
         await event_queue.put(_sse_event("content_update", event_data))
 
         return _text_result(
-            f"Updated AI comment {comment_id}. Approval required. "
+            f"Comment {comment_id} update requested. Approval required. "
             f"Old length: {len(old_content)}, New length: {len(new_content)}"
         )
 
@@ -383,6 +379,9 @@ def create_comment_tools_server(
         workspace_id = uuid.UUID(tool_context.workspace_id)
         session = tool_context.db_session
 
+        # Escape ILIKE wildcards to prevent injection
+        safe_query = query_text.replace("%", r"\%").replace("_", r"\_")
+
         # Build query
         stmt = (
             select(DiscussionComment)
@@ -390,7 +389,7 @@ def create_comment_tools_server(
             .where(
                 DiscussionComment.workspace_id == workspace_id,
                 DiscussionComment.is_deleted == False,  # noqa: E712
-                DiscussionComment.content.ilike(f"%{query_text}%"),
+                DiscussionComment.content.ilike(f"%{safe_query}%"),
             )
             .options(selectinload(DiscussionComment.author))
         )
@@ -438,7 +437,7 @@ def create_comment_tools_server(
                     "content": comment.content,
                     "author": {
                         "id": str(comment.author.id),
-                        "display_name": comment.author.display_name,
+                        "display_name": comment.author.full_name,
                         "email": comment.author.email,
                     }
                     if comment.author
@@ -569,7 +568,7 @@ def create_comment_tools_server(
                     "content": comment.content,
                     "author": {
                         "id": str(comment.author.id),
-                        "display_name": comment.author.display_name,
+                        "display_name": comment.author.full_name,
                         "email": comment.author.email,
                     }
                     if comment.author

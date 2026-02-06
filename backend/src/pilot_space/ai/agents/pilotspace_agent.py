@@ -123,7 +123,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         "use `write_to_note`, then summarize in chat.\n"
         "- Questions, analysis, or conversation → respond in chat only.\n\n"
         "## Tool categories\n"
-        "**Notes** (10 tools): write_to_note, update_note_block, enhance_text, summarize_note, "
+        "**Notes** (9 tools): write_to_note, update_note_block, enhance_text, "
         "extract_issues, create_issue_from_note, link_existing_issues, search_notes, create_note, update_note.\n"
         "**Note content** (5 tools): search_note_content, insert_block, remove_block, remove_content, replace_content.\n"
         "**Issues** (4 CRUD + 6 relations): get_issue, search_issues, create_issue, update_issue, "
