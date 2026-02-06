@@ -207,20 +207,28 @@ function SettingsForm({ settings, onSave, isSaving }: SettingsFormProps) {
       </div>
 
       {/* Save button */}
-      {hasChanges && (
-        <div className="flex justify-end pt-4">
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2 className="size-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save Changes'
-            )}
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center gap-3 pt-4">
+        <Button
+          onClick={handleSave}
+          disabled={isSaving || !hasChanges}
+          aria-busy={isSaving}
+          className="min-w-[120px]"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="size-4 mr-2 animate-spin" aria-hidden="true" />
+              Saving...
+            </>
+          ) : (
+            'Save Changes'
+          )}
+        </Button>
+        {hasChanges && (
+          <p className="text-sm text-muted-foreground" role="status">
+            You have unsaved changes.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -291,114 +299,109 @@ const IntegrationsSettingsPage = observer(function IntegrationsSettingsPage() {
   });
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b px-6 py-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Integrations</h1>
+    <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Integrations</h1>
           <p className="text-sm text-muted-foreground">
-            Connect external services to enhance your workflow
+            Connect external services to enhance your workflow.
           </p>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-3xl space-y-6">
-          {/* Integration Status Overview */}
+        {/* Integration Status Overview */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Connected Services</CardTitle>
+            <CardDescription>Overview of your workspace integrations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-6">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={cn(
+                        'flex items-center gap-2 rounded-full px-3 py-1.5 border',
+                        githubInstallation
+                          ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      <Github className="size-4" />
+                      <span className="text-sm font-medium">GitHub</span>
+                      {githubInstallation && <Check className="size-3" />}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {githubInstallation
+                      ? `Connected as ${githubInstallation.accountLogin}`
+                      : 'Not connected'}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-2 rounded-full px-3 py-1.5 border bg-muted text-muted-foreground opacity-60">
+                      <Slack className="size-4" />
+                      <span className="text-sm font-medium">Slack</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>Coming soon</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* GitHub Integration */}
+        <GitHubIntegration workspaceId={workspaceId} />
+
+        {/* Slack Placeholder */}
+        <IntegrationCard
+          name="Slack"
+          description="Get notifications and interact with issues from Slack"
+          icon={Slack}
+          connected={false}
+          comingSoon
+        >
+          <div className="py-4 text-center text-muted-foreground">
+            <p className="text-sm">Slack integration is coming soon. Stay tuned for updates!</p>
+          </div>
+        </IntegrationCard>
+
+        {/* Settings */}
+        {githubInstallation && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Connected Services</CardTitle>
-              <CardDescription>Overview of your workspace integrations</CardDescription>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Settings className="size-5" />
+                Integration Settings
+              </CardTitle>
+              <CardDescription>
+                Configure how integrations interact with your issues
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-6">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div
-                        className={cn(
-                          'flex items-center gap-2 rounded-full px-3 py-1.5 border',
-                          githubInstallation
-                            ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400'
-                            : 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        <Github className="size-4" />
-                        <span className="text-sm font-medium">GitHub</span>
-                        {githubInstallation && <Check className="size-3" />}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {githubInstallation
-                        ? `Connected as ${githubInstallation.accountLogin}`
-                        : 'Not connected'}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center gap-2 rounded-full px-3 py-1.5 border bg-muted text-muted-foreground opacity-60">
-                        <Slack className="size-4" />
-                        <span className="text-sm font-medium">Slack</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>Coming soon</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
+              {isLoadingSettings ? (
+                <SettingsSkeleton />
+              ) : settingsError ? (
+                <div className="flex items-center gap-2 text-destructive">
+                  <AlertCircle className="size-4" />
+                  <span>Failed to load settings</span>
+                </div>
+              ) : settings ? (
+                <SettingsForm
+                  settings={settings}
+                  onSave={(newSettings) => updateSettingsMutation.mutate(newSettings)}
+                  isSaving={updateSettingsMutation.isPending}
+                />
+              ) : null}
             </CardContent>
           </Card>
-
-          {/* GitHub Integration */}
-          <GitHubIntegration workspaceId={workspaceId} />
-
-          {/* Slack Placeholder */}
-          <IntegrationCard
-            name="Slack"
-            description="Get notifications and interact with issues from Slack"
-            icon={Slack}
-            connected={false}
-            comingSoon
-          >
-            <div className="py-4 text-center text-muted-foreground">
-              <p className="text-sm">Slack integration is coming soon. Stay tuned for updates!</p>
-            </div>
-          </IntegrationCard>
-
-          {/* Settings */}
-          {githubInstallation && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Settings className="size-5" />
-                  Integration Settings
-                </CardTitle>
-                <CardDescription>
-                  Configure how integrations interact with your issues
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoadingSettings ? (
-                  <SettingsSkeleton />
-                ) : settingsError ? (
-                  <div className="flex items-center gap-2 text-destructive">
-                    <AlertCircle className="size-4" />
-                    <span>Failed to load settings</span>
-                  </div>
-                ) : settings ? (
-                  <SettingsForm
-                    settings={settings}
-                    onSave={(newSettings) => updateSettingsMutation.mutate(newSettings)}
-                    isSaving={updateSettingsMutation.isPending}
-                  />
-                ) : null}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

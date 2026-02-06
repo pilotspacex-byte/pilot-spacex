@@ -1,7 +1,8 @@
 """Authentication router for Pilot Space API.
 
-Provides endpoints for OAuth login, token refresh, and user profile management.
-Uses Supabase Auth for authentication.
+Provides endpoints for OAuth login and user profile management.
+Uses Supabase Auth for authentication — OAuth callback and token refresh
+are handled client-side by the Supabase JS SDK (RD-002).
 """
 
 from __future__ import annotations
@@ -12,10 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from pilot_space.api.v1.schemas.auth import (
-    AuthCallbackRequest,
     LoginRequest,
-    RefreshTokenRequest,
-    TokenResponse,
     UserProfileResponse,
     UserProfileUpdateRequest,
 )
@@ -61,63 +59,6 @@ async def login(
     auth_url = f"{base_url}/auth/v1/authorize?provider={request.provider}&redirect_to={redirect_to}"
 
     return {"url": auth_url, "provider": request.provider}
-
-
-@router.post("/callback", response_model=TokenResponse, tags=["auth"])
-async def auth_callback(
-    request: AuthCallbackRequest,
-    settings: Annotated[Settings, Depends(get_settings)],
-) -> TokenResponse:
-    """Handle OAuth callback and exchange code for tokens.
-
-    Args:
-        request: Callback request with authorization code.
-        settings: Application settings.
-
-    Returns:
-        JWT tokens for authenticated session.
-
-    Raises:
-        HTTPException: If token exchange fails.
-    """
-    # In production, this would call Supabase to exchange the code for tokens
-    # For now, return a placeholder response
-    # The actual implementation would use httpx to call Supabase Auth API
-    logger.info("Processing OAuth callback", extra={"code_length": len(request.code)})
-
-    # TODO: Implement actual token exchange with Supabase Auth
-    # This requires httpx call to Supabase /auth/v1/token endpoint
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="OAuth callback not yet implemented - use Supabase client-side auth",
-    )
-
-
-@router.post("/refresh", response_model=TokenResponse, tags=["auth"])
-async def refresh_token(
-    request: RefreshTokenRequest,
-    settings: Annotated[Settings, Depends(get_settings)],
-) -> TokenResponse:
-    """Refresh access token using refresh token.
-
-    Args:
-        request: Refresh token request.
-        settings: Application settings.
-
-    Returns:
-        New JWT tokens.
-
-    Raises:
-        HTTPException: If refresh fails.
-    """
-    _ = settings  # Mark as used
-    # Placeholder: Implement actual token refresh with Supabase Auth
-    logger.info("Processing token refresh")
-
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Token refresh not yet implemented - use Supabase client-side auth",
-    )
 
 
 @router.get("/me", response_model=UserProfileResponse, tags=["auth"])

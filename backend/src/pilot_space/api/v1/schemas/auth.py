@@ -1,6 +1,7 @@
 """Authentication schemas for API requests/responses.
 
-Pydantic models for login, token management, and user profile endpoints.
+Pydantic models for login and user profile endpoints.
+OAuth callback and token refresh are handled client-side by Supabase SDK (RD-002).
 """
 
 from __future__ import annotations
@@ -48,28 +49,6 @@ class TokenResponse(BaseSchema):
     refresh_token: str | None = Field(default=None, description="Refresh token")
 
 
-class RefreshTokenRequest(BaseSchema):
-    """Token refresh request.
-
-    Attributes:
-        refresh_token: The refresh token to use.
-    """
-
-    refresh_token: str = Field(description="Refresh token")
-
-
-class AuthCallbackRequest(BaseSchema):
-    """OAuth callback request.
-
-    Attributes:
-        code: Authorization code from OAuth provider.
-        state: State parameter for CSRF protection.
-    """
-
-    code: str = Field(description="Authorization code from OAuth provider")
-    state: str | None = Field(default=None, description="State parameter for CSRF protection")
-
-
 class UserProfileResponse(BaseSchema):
     """Current user profile response.
 
@@ -101,9 +80,7 @@ class UserProfileUpdateRequest(BaseSchema):
 
 
 __all__ = [
-    "AuthCallbackRequest",
     "LoginRequest",
-    "RefreshTokenRequest",
     "TokenResponse",
     "UserProfileResponse",
     "UserProfileUpdateRequest",

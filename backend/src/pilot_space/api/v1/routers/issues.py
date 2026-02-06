@@ -26,7 +26,7 @@ from pilot_space.dependencies import (
     get_create_issue_service,
     get_current_user,
     get_current_workspace_id,
-    get_db_session,
+    get_db_session_dep,
     get_get_issue_service,
     get_list_issues_service,
     get_update_issue_service,
@@ -377,7 +377,7 @@ Deleted issues can be restored by an administrator if needed.
 async def delete_issue(
     issue_id: Annotated[UUID, "Issue UUID to delete"],
     user_id: Annotated[UUID, Depends(get_current_user)],
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_db_session_dep)],
 ) -> None:
     """Soft delete an issue by marking it as deleted."""
     from pilot_space.infrastructure.database.repositories import IssueRepository

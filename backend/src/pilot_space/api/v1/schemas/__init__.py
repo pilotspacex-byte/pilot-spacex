@@ -23,9 +23,7 @@ from pilot_space.api.v1.schemas.ai_configuration import (
     AIConfigurationUpdate,
 )
 from pilot_space.api.v1.schemas.auth import (
-    AuthCallbackRequest,
     LoginRequest,
-    RefreshTokenRequest,
     TokenResponse,
     UserProfileResponse,
     UserProfileUpdateRequest,
@@ -82,6 +80,8 @@ from pilot_space.api.v1.schemas.project import (
     StateResponse,
 )
 from pilot_space.api.v1.schemas.workspace import (
+    InvitationCreateRequest,
+    InvitationResponse,
     WorkspaceCreate,
     WorkspaceDetailResponse,
     WorkspaceMemberCreate,
@@ -99,7 +99,6 @@ __all__ = [
     "AIConfigurationTestResponse",
     "AIConfigurationUpdate",
     "AddIssueToCycleRequest",
-    "AuthCallbackRequest",
     "BaseSchema",
     "BulkAddIssuesToCycleRequest",
     "BulkResponse",
@@ -124,6 +123,8 @@ __all__ = [
     "IntegrationLinksResponse",
     "IntegrationListResponse",
     "IntegrationResponse",
+    "InvitationCreateRequest",
+    "InvitationResponse",
     "LinkCommitRequest",
     "LinkPullRequestRequest",
     "LoginRequest",
@@ -133,7 +134,6 @@ __all__ = [
     "ProjectDetailResponse",
     "ProjectResponse",
     "ProjectUpdate",
-    "RefreshTokenRequest",
     "RolloverCycleRequest",
     "RolloverCycleResponse",
     "SetupWebhookRequest",

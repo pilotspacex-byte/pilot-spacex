@@ -31,7 +31,7 @@ export function CollapsedChatStrip({ onClick, className }: CollapsedChatStripPro
               data-testid="collapsed-chat-strip"
             >
               <ChevronLeft className="h-4 w-4 text-ai" />
-              <span className="writing-mode-vertical text-xs font-medium text-ai">
+              <span className="writing-mode-vertical text-[10px] font-medium text-ai">
                 PilotSpace Agent
               </span>
               <MessageSquare className="h-4 w-4 text-ai mt-auto" />
@@ -46,14 +46,14 @@ export function CollapsedChatStrip({ onClick, className }: CollapsedChatStripPro
         <Button
           variant="ghost"
           onClick={onClick}
-          className="w-full h-11 rounded-none justify-between px-4 hover:bg-ai-muted/20"
+          className="w-full h-10 rounded-none justify-between px-3 hover:bg-ai-muted/20"
           data-testid="collapsed-chat-strip-mobile"
         >
           <div className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-ai" />
-            <span className="text-sm font-medium text-ai">PilotSpace Agent</span>
+            <span className="text-xs font-medium text-ai">PilotSpace Agent</span>
           </div>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border bg-muted px-1 py-0.5 text-[9px] font-mono text-muted-foreground">
             ⌘⇧P
           </kbd>
         </Button>

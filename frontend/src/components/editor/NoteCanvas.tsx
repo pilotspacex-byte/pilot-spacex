@@ -102,7 +102,7 @@ function EditorErrorFallback({ error, onRetry }: { error: string; onRetry: () =>
       </div>
       <div>
         <h3 className="font-semibold text-foreground">Editor Error</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{error}</p>
       </div>
       <Button variant="outline" onClick={onRetry}>
         Try Again
@@ -116,7 +116,7 @@ function EditorErrorFallback({ error, onRetry }: { error: string; onRetry: () =>
  */
 function EditorSkeleton() {
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
+    <div className="flex h-full flex-col gap-3 p-4">
       <Skeleton className="h-10 w-3/4" />
       <Skeleton className="h-4 w-full" />
       <Skeleton className="h-4 w-5/6" />

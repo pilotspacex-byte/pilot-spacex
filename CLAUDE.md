@@ -747,13 +747,28 @@ async def chat_stream(message: str, session_id: str):
 - **Content creation**: Require approval, configurable (create issues, PR comments). User can enable/disable per operation type.
 - **Destructive**: Always require approval (delete issues, merge PRs, archive workspaces). Cannot be disabled.
 
+## Browser Automation
+
+Use `agent-browser` for web automation. Run `agent-browser --help` for all commands.
+
+Core workflow:
+
+1. `agent-browser open <url>` - Navigate to page
+2. `agent-browser snapshot -i` - Get interactive elements with refs (@e1, @e2)
+3. `agent-browser click @e1` / `fill @e2 "text"` - Interact using refs
+4. Re-snapshot after page changes
+
 ### Claude Agent SDK Documentation
 
 Read index at `docs/claude-sdk.txt` for full documentation.
 
 ## Active Technologies
+
 - TypeScript 5.3+ / Next.js 14+ (App Router) + React 18, MobX 6+, TanStack Query 5+, TipTap 3.16+, TailwindCSS 3.4+, shadcn/ui (007-issue-detail-page)
 - N/A (frontend-only; backend APIs already exist) (007-issue-detail-page)
 
 ## Recent Changes
+
 - 007-issue-detail-page: Added TypeScript 5.3+ / Next.js 14+ (App Router) + React 18, MobX 6+, TanStack Query 5+, TipTap 3.16+, TailwindCSS 3.4+, shadcn/ui
+
+

@@ -251,11 +251,22 @@ async def ensure_user_synced(
     Returns:
         User UUID (synced to local DB).
     """
+    import logging
+
+    from sqlalchemy.exc import IntegrityError
+
     from pilot_space.infrastructure.database.models.user import User
+    from pilot_space.infrastructure.database.repositories.invitation_repository import (
+        InvitationRepository,
+    )
     from pilot_space.infrastructure.database.repositories.user_repository import (
         UserRepository,
     )
+    from pilot_space.infrastructure.database.repositories.workspace_repository import (
+        WorkspaceRepository,
+    )
 
+    logger = logging.getLogger(__name__)
     user_repo = UserRepository(session=session)
 
     # Check if user exists by ID (scalar-only, no relationship loading)
@@ -271,7 +282,42 @@ async def ensure_user_synced(
         full_name=None,
         avatar_url=None,
     )
-    await user_repo.create(user)
+    try:
+        await user_repo.create(user)
+    except IntegrityError:
+        # Concurrent request already created this user (race condition)
+        await session.rollback()
+        existing = await user_repo.get_by_id_scalar(current_user.user_id)
+        if existing:
+            return current_user.user_id
+        raise
+
+    # Auto-accept pending invitations for this email (FR-016, RD-004)
+    invitation_repo = InvitationRepository(session=session)
+    workspace_repo = WorkspaceRepository(session=session)
+    pending_invitations = await invitation_repo.get_pending_by_email(email)
+    for invitation in pending_invitations:
+        try:
+            await workspace_repo.add_member(
+                workspace_id=invitation.workspace_id,
+                user_id=user.id,
+                role=invitation.role,
+            )
+            await invitation_repo.mark_accepted(invitation.id)
+            logger.info(
+                "Auto-accepted invitation %s for user %s to workspace %s",
+                invitation.id,
+                user.id,
+                invitation.workspace_id,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to auto-accept invitation %s for user %s to workspace %s",
+                invitation.id,
+                user.id,
+                invitation.workspace_id,
+            )
+
     await session.commit()
 
     return current_user.user_id

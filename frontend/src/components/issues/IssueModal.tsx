@@ -256,10 +256,10 @@ export const IssueModal = observer(function IssueModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Title */}
-          <div className="space-y-2">
-            <label htmlFor="title" className="text-sm font-medium">
+          <div className="space-y-1.5">
+            <label htmlFor="title" className="text-xs font-medium">
               Title <span className="text-destructive">*</span>
             </label>
             <div className="relative">
@@ -283,7 +283,7 @@ export const IssueModal = observer(function IssueModal({
                 <div className="flex items-start gap-2 rounded-md border border-ai/20 bg-ai/5 p-2">
                   <Sparkles className="size-4 shrink-0 mt-0.5 text-ai" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm">{enhancementSuggestion.enhancedTitle}</p>
+                    <p className="text-xs">{enhancementSuggestion.enhancedTitle}</p>
                   </div>
                   <Button
                     variant="ghost"
@@ -298,8 +298,8 @@ export const IssueModal = observer(function IssueModal({
           </div>
 
           {/* Description */}
-          <div className="space-y-2">
-            <label htmlFor="description" className="text-sm font-medium">
+          <div className="space-y-1.5">
+            <label htmlFor="description" className="text-xs font-medium">
               Description
             </label>
             <textarea
@@ -310,7 +310,7 @@ export const IssueModal = observer(function IssueModal({
               rows={4}
               className={cn(
                 'flex w-full rounded-md border border-input bg-background px-3 py-2',
-                'text-sm ring-offset-background placeholder:text-muted-foreground',
+                'text-xs ring-offset-background placeholder:text-muted-foreground',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 'disabled:cursor-not-allowed disabled:opacity-50',
                 'resize-none'
@@ -324,7 +324,7 @@ export const IssueModal = observer(function IssueModal({
                 <div className="flex items-start gap-2 rounded-md border border-ai/20 bg-ai/5 p-2">
                   <Sparkles className="size-4 shrink-0 mt-0.5 text-ai" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm line-clamp-3">
+                    <p className="text-xs line-clamp-3">
                       {enhancementSuggestion.enhancedDescription}
                     </p>
                   </div>
@@ -355,13 +355,13 @@ export const IssueModal = observer(function IssueModal({
           <Separator />
 
           {/* State and Priority */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">State</label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">State</label>
               <IssueStateSelect value={state} onChange={setState} />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Priority</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Priority</label>
               <IssuePrioritySelect
                 value={priority}
                 onChange={handlePriorityChange}
@@ -373,8 +373,8 @@ export const IssueModal = observer(function IssueModal({
           </div>
 
           {/* Labels */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Labels</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium">Labels</label>
             <LabelSelector
               selectedLabels={selectedLabels}
               availableLabels={availableLabels}
@@ -387,8 +387,8 @@ export const IssueModal = observer(function IssueModal({
           </div>
 
           {/* Assignee */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Assignee</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium">Assignee</label>
             <AssigneeSelector
               value={assignee}
               members={teamMembers}
@@ -403,7 +403,7 @@ export const IssueModal = observer(function IssueModal({
         <DialogFooter className="mt-6">
           {createdIssue ? (
             <>
-              <div className="flex items-center gap-2 mr-auto text-sm text-primary">
+              <div className="flex items-center gap-2 mr-auto text-xs text-primary">
                 <CheckCircle2 className="size-4" />
                 <span>Issue created: {createdIssue.identifier ?? createdIssue.name}</span>
               </div>

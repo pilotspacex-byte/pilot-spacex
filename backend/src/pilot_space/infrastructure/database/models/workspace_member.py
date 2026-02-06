@@ -71,16 +71,17 @@ class WorkspaceMember(BaseModel):
         default=WorkspaceRole.MEMBER,
     )
 
-    # Relationships
+    # Relationships — use lazy="select" to avoid implicit JOINs;
+    # repositories should use joinedload() explicitly when needed.
     user: Mapped[User] = relationship(
         "User",
         back_populates="workspace_memberships",
-        lazy="joined",
+        lazy="select",
     )
     workspace: Mapped[Workspace] = relationship(
         "Workspace",
         back_populates="members",
-        lazy="joined",
+        lazy="select",
     )
 
     # Indexes and constraints

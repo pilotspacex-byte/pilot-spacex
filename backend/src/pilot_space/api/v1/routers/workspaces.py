@@ -2,6 +2,7 @@
 
 Provides endpoints for workspace CRUD operations and label management.
 Member management: see workspace_members.py
+Invitations: see workspace_invitations.py
 AI settings: see workspace_ai_settings.py
 """
 
@@ -54,6 +55,7 @@ def get_label_repository(session: DbSession) -> LabelRepository:
 
 
 LabelRepo = Annotated[LabelRepository, Depends(get_label_repository)]
+
 
 # Type alias for endpoints that accept both UUID and slug
 WorkspaceIdOrSlug = Annotated[str, Path(description="Workspace ID (UUID) or slug")]
@@ -218,11 +220,11 @@ async def create_workspace(
     )
     workspace = await workspace_repo.create(workspace)
 
-    # Add owner as admin member
+    # Add creator as workspace owner (FR-007)
     await workspace_repo.add_member(
         workspace_id=workspace.id,
         user_id=current_user_id,
-        role=WorkspaceRole.ADMIN,
+        role=WorkspaceRole.OWNER,
     )
 
     logger.info(
@@ -230,7 +232,7 @@ async def create_workspace(
         extra={"workspace_id": str(workspace.id), "slug": workspace.slug},
     )
 
-    return _workspace_to_response(workspace, current_user_role="admin")
+    return _workspace_to_response(workspace, current_user_role="owner")
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceDetailResponse, tags=["workspaces"])
@@ -254,23 +256,29 @@ async def get_workspace(
     """
     workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
-    # Check membership
-    member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
+    # Check membership (demo workspaces bypass check in dev/test)
+    if not _is_demo_workspace(workspace_id):
+        member = next(
+            (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
+            None,
         )
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not a member of this workspace",
+            )
+    else:
+        member = None
 
-    return _workspace_to_response(workspace, current_user_role=member.role.value)
+    return _workspace_to_response(
+        workspace,
+        current_user_role=member.role.value if member else "member",
+    )
 
 
 @router.patch("/{workspace_id}", response_model=WorkspaceDetailResponse, tags=["workspaces"])
 async def update_workspace(
-    workspace_id: UUID,
+    workspace_id: WorkspaceIdOrSlug,
     request: WorkspaceUpdate,
     current_user: CurrentUser,
     workspace_repo: WorkspaceRepo,
@@ -280,7 +288,7 @@ async def update_workspace(
     Requires admin role.
 
     Args:
-        workspace_id: Workspace identifier.
+        workspace_id: Workspace identifier (UUID or slug).
         request: Update data.
         current_user: Authenticated user.
         workspace_repo: Workspace repository.
@@ -291,12 +299,7 @@ async def update_workspace(
     Raises:
         HTTPException: If workspace not found or user not admin.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+    workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
     # Check admin role
     member = next(
@@ -326,7 +329,7 @@ async def update_workspace(
 
 @router.delete("/{workspace_id}", response_model=DeleteResponse, tags=["workspaces"])
 async def delete_workspace(
-    workspace_id: UUID,
+    workspace_id: WorkspaceIdOrSlug,
     current_user: CurrentUser,
     workspace_repo: WorkspaceRepo,
 ) -> DeleteResponse:
@@ -335,7 +338,7 @@ async def delete_workspace(
     Requires admin role.
 
     Args:
-        workspace_id: Workspace identifier.
+        workspace_id: Workspace identifier (UUID or slug).
         current_user: Authenticated user.
         workspace_repo: Workspace repository.
 
@@ -345,12 +348,7 @@ async def delete_workspace(
     Raises:
         HTTPException: If workspace not found or user not admin.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+    workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
     # Check admin role
     member = next(
@@ -370,7 +368,7 @@ async def delete_workspace(
         extra={"workspace_id": str(workspace_id)},
     )
 
-    return DeleteResponse(id=workspace_id, message="Workspace deleted successfully")
+    return DeleteResponse(id=workspace.id, message="Workspace deleted successfully")
 
 
 # ============================================================================

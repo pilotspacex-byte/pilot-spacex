@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import EmailStr, Field
 
 from pilot_space.api.v1.schemas.base import BaseSchema, EntitySchema
 
@@ -105,13 +105,13 @@ class WorkspaceMemberCreate(BaseSchema):
 
     Attributes:
         email: User email to invite.
-        role: Role to assign (admin, member, viewer).
+        role: Role to assign (admin, member, guest).
     """
 
     email: str = Field(description="User email to invite")
     role: str = Field(
         default="member",
-        pattern="^(admin|member|viewer)$",
+        pattern="^(admin|member|guest)$",
         description="Role to assign",
     )
 
@@ -124,8 +124,49 @@ class WorkspaceMemberUpdate(BaseSchema):
     """
 
     role: str = Field(
-        pattern="^(admin|member|viewer)$",
+        pattern="^(owner|admin|member|guest)$",
         description="New role for member",
+    )
+
+
+class InvitationResponse(BaseSchema):
+    """Workspace invitation response.
+
+    Attributes:
+        id: Invitation UUID.
+        email: Invited email address.
+        role: Intended role upon acceptance.
+        status: Invitation lifecycle state.
+        invited_by: Inviter user ID.
+        expires_at: When the invitation expires.
+        created_at: When the invitation was created.
+    """
+
+    id: UUID = Field(description="Invitation UUID")
+    email: str = Field(description="Invited email address")
+    role: str = Field(description="Intended role upon acceptance")
+    status: str = Field(description="Invitation status (pending/accepted/expired/cancelled)")
+    invited_by: UUID = Field(description="Inviter user ID")
+    expires_at: datetime = Field(description="Invitation expiry timestamp")
+    created_at: datetime = Field(description="Invitation creation timestamp")
+
+
+class InvitationCreateRequest(BaseSchema):
+    """Create invitation request.
+
+    Attributes:
+        email: Email address to invite.
+        role: Role to assign (admin, member, guest).
+    """
+
+    email: EmailStr = Field(
+        max_length=255,
+        description="Email address to invite",
+    )
+    role: str = Field(
+        default="member",
+        pattern="^(admin|member|guest)$",
+        description="Role to assign",
     )
 
 
@@ -276,6 +317,8 @@ class WorkspaceAISettingsUpdateResponse(BaseSchema):
 __all__ = [
     "AIFeatureToggles",
     "APIKeyUpdate",
+    "InvitationCreateRequest",
+    "InvitationResponse",
     "KeyValidationResult",
     "ProviderStatus",
     "WorkspaceAISettingsResponse",

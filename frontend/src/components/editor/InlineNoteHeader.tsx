@@ -228,9 +228,9 @@ export function InlineNoteHeader({
             'flex flex-wrap items-center text-muted-foreground',
             // Responsive gaps and text size
             'gap-1 sm:gap-1.5 md:gap-2 lg:gap-2.5',
-            'text-[11px] sm:text-xs md:text-sm',
+            'text-[10px] sm:text-[11px] md:text-xs',
             // Responsive vertical padding
-            'py-1.5 sm:py-2 md:py-2.5 lg:py-3'
+            'py-1 sm:py-1.5 md:py-2 lg:py-2.5'
           )}
         >
           {/* Breadcrumb */}
@@ -402,7 +402,7 @@ export function InlineNoteHeader({
                 <Badge
                   key={tag}
                   className={cn(
-                    'text-xs font-medium px-2.5 py-0.5 rounded-md border-0',
+                    'text-[10px] font-medium px-2 py-0.5 rounded-md border-0',
                     color.bg,
                     color.text
                   )}

@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { useParams } from 'next/navigation';
-import { AlertCircle, Sparkles } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
@@ -45,7 +45,7 @@ export const AISettingsPage = observer(function AISettingsPage() {
 
   if (settings.isLoading) {
     return (
-      <div className="container max-w-4xl py-8">
+      <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
         <LoadingSkeleton />
       </div>
     );
@@ -53,7 +53,7 @@ export const AISettingsPage = observer(function AISettingsPage() {
 
   if (settings.error && !settings.settings) {
     return (
-      <div className="container max-w-4xl py-8">
+      <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Failed to load settings</AlertTitle>
@@ -64,20 +64,15 @@ export const AISettingsPage = observer(function AISettingsPage() {
   }
 
   return (
-    <div className="container max-w-4xl py-8">
+    <div className="max-w-3xl px-8 py-6">
       <div className="space-y-6">
         {/* Header */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">AI Settings</h1>
-          </div>
-          <p className="text-muted-foreground">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">AI Providers</h1>
+          <p className="text-sm text-muted-foreground">
             Configure AI provider API keys and manage AI-powered features for your workspace.
           </p>
         </div>
-
-        <Separator />
 
         {/* Provider Status Cards */}
         <div className="space-y-3">

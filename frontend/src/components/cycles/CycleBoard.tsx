@@ -234,11 +234,11 @@ const BoardColumn = React.memo(function BoardColumn({
       data-column={column.state}
     >
       {/* Column header */}
-      <div className="flex items-center justify-between border-b p-3">
-        <div className="flex items-center gap-2">
-          <Icon className={cn('size-4', column.iconClass)} />
-          <span className="text-sm font-medium">{column.label}</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+      <div className="flex items-center justify-between border-b p-2">
+        <div className="flex items-center gap-1.5">
+          <Icon className={cn('size-3.5', column.iconClass)} />
+          <span className="text-xs font-medium">{column.label}</span>
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
             {issues.length}
           </span>
         </div>
@@ -257,7 +257,7 @@ const BoardColumn = React.memo(function BoardColumn({
       {/* Column content */}
       <ScrollArea className="flex-1">
         <SortableContext items={issues.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-          <div className="flex flex-col gap-2 p-2 min-h-[200px]">
+          <div className="flex flex-col gap-1.5 p-1.5 min-h-[200px]">
             {isLoading ? (
               // Loading skeleton
               Array.from({ length: 3 }).map((_, i) => (
@@ -268,8 +268,8 @@ const BoardColumn = React.memo(function BoardColumn({
                 <SortableIssueCard key={issue.id} issue={issue} onClick={onIssueClick} />
               ))
             ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <p className="text-sm text-muted-foreground">No issues</p>
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <p className="text-xs text-muted-foreground">No issues</p>
                 {onCreateIssue && (
                   <Button
                     variant="ghost"
@@ -316,26 +316,26 @@ const SwimlaneRow = React.memo(function SwimlaneRow({
   return (
     <div className="border-b last:border-b-0">
       {/* Swimlane header */}
-      <div className="flex items-center gap-2 bg-muted/30 px-4 py-2 sticky left-0">
+      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 sticky left-0">
         {assignee ? (
           <>
-            <Avatar className="size-6">
-              <AvatarFallback className="text-xs">
+            <Avatar className="size-5">
+              <AvatarFallback className="text-[10px]">
                 {getInitials(assignee.displayName ?? assignee.email)}
               </AvatarFallback>
             </Avatar>
-            <span className="text-sm font-medium">{assignee.displayName ?? assignee.email}</span>
+            <span className="text-xs font-medium">{assignee.displayName ?? assignee.email}</span>
           </>
         ) : (
           <>
-            <Users className="size-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Unassigned</span>
+            <Users className="size-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">Unassigned</span>
           </>
         )}
       </div>
 
       {/* Swimlane columns */}
-      <div className="flex gap-4 p-4 overflow-x-auto">
+      <div className="flex gap-3 p-3 overflow-x-auto">
         {columns.map((column) => {
           const issues = (issuesByState[column.state] ?? []).filter(
             (i) => (i.assigneeId ?? null) === assigneeId
@@ -348,7 +348,7 @@ const SwimlaneRow = React.memo(function SwimlaneRow({
               >
                 <div
                   className={cn(
-                    'flex flex-col gap-2 p-2 min-h-[100px] rounded-lg',
+                    'flex flex-col gap-1.5 p-1.5 min-h-[100px] rounded-lg',
                     column.bgClass,
                     dropTarget === column.state && 'ring-2 ring-primary ring-offset-1'
                   )}
@@ -360,7 +360,7 @@ const SwimlaneRow = React.memo(function SwimlaneRow({
                       <SortableIssueCard key={issue.id} issue={issue} onClick={onIssueClick} />
                     ))
                   ) : (
-                    <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-center h-16 text-[10px] text-muted-foreground">
                       Drop here
                     </div>
                   )}
@@ -520,16 +520,16 @@ export const CycleBoard = observer(function CycleBoard({
       >
         <div className={cn('flex flex-col h-full overflow-auto', className)}>
           {/* Column headers */}
-          <div className="flex items-center gap-4 px-4 py-2 border-b bg-background sticky top-0 z-10">
+          <div className="flex items-center gap-3 px-3 py-1.5 border-b bg-background sticky top-0 z-10">
             <div className="w-40 shrink-0" />
             {columns.map((column) => {
               const Icon = column.icon;
               const count = issuesByState[column.state]?.length ?? 0;
               return (
-                <div key={column.state} className="w-64 shrink-0 flex items-center gap-2">
-                  <Icon className={cn('size-4', column.iconClass)} />
-                  <span className="text-sm font-medium">{column.label}</span>
-                  <span className="text-xs text-muted-foreground">({count})</span>
+                <div key={column.state} className="w-64 shrink-0 flex items-center gap-1.5">
+                  <Icon className={cn('size-3.5', column.iconClass)} />
+                  <span className="text-xs font-medium">{column.label}</span>
+                  <span className="text-[10px] text-muted-foreground">({count})</span>
                 </div>
               );
             })}
@@ -579,7 +579,7 @@ export const CycleBoard = observer(function CycleBoard({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className={cn('flex h-full gap-4 overflow-x-auto p-4', className)}>
+      <div className={cn('flex h-full gap-3 overflow-x-auto p-3', className)}>
         {columns.map((column) => (
           <BoardColumn
             key={column.state}

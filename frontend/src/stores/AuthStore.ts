@@ -92,6 +92,18 @@ export class AuthStore {
 
           if (event === 'SIGNED_OUT') {
             this.error = null;
+            // Redirect to login on explicit sign-out (FR-004)
+            if (typeof window !== 'undefined') {
+              window.location.href = '/login';
+            }
+          }
+
+          // Handle expired refresh token — session becomes null (FR-004)
+          if (event === 'TOKEN_REFRESHED' && !session) {
+            this.error = null;
+            if (typeof window !== 'undefined') {
+              window.location.href = '/login?error=Session+expired';
+            }
           }
         });
       }

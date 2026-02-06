@@ -131,7 +131,7 @@ export const IssueCard = observer(function IssueCard({
   return (
     <div
       className={cn(
-        'group relative rounded-lg border bg-card p-3 shadow-sm transition-all',
+        'group relative rounded-lg border bg-card p-2 shadow-sm transition-all',
         'hover:border-primary/50 hover:shadow-md',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         isDragging && 'opacity-50 ring-2 ring-primary',
@@ -159,7 +159,7 @@ export const IssueCard = observer(function IssueCard({
               <TooltipContent>{typeConfig[issueType].label}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <span className="text-xs font-medium text-muted-foreground">{issue.identifier}</span>
+          <span className="text-[10px] font-medium text-muted-foreground">{issue.identifier}</span>
         </div>
 
         <div className="flex items-center gap-1">
@@ -203,21 +203,21 @@ export const IssueCard = observer(function IssueCard({
       </div>
 
       {/* Title */}
-      <h4 className="mb-2 line-clamp-2 text-sm font-medium leading-snug">{issue.title}</h4>
+      <h4 className="mb-1.5 line-clamp-2 text-xs font-medium leading-snug">{issue.title}</h4>
 
       {/* Description (if not compact) */}
       {!compact && issue.description && (
-        <p className="mb-3 line-clamp-2 text-xs text-muted-foreground">{issue.description}</p>
+        <p className="mb-2 line-clamp-2 text-[10px] text-muted-foreground">{issue.description}</p>
       )}
 
       {/* Labels */}
       {issue.labels.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-1">
+        <div className="mb-2 flex flex-wrap gap-1">
           {issue.labels.slice(0, 3).map((label) => (
             <Badge
               key={label.id}
               variant="secondary"
-              className="text-xs"
+              className="text-[10px]"
               style={{
                 backgroundColor: `${label.color}20`,
                 color: label.color,
@@ -228,7 +228,7 @@ export const IssueCard = observer(function IssueCard({
             </Badge>
           ))}
           {issue.labels.length > 3 && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-[10px]">
               +{issue.labels.length - 3}
             </Badge>
           )}
@@ -236,7 +236,7 @@ export const IssueCard = observer(function IssueCard({
       )}
 
       {/* Footer: Assignee + Due date + Updated */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
         <div className="flex items-center gap-2">
           {issue.assignee ? (
             <TooltipProvider>

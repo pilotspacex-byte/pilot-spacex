@@ -76,6 +76,10 @@ from pilot_space.infrastructure.database.models.threaded_discussion import (
 from pilot_space.infrastructure.database.models.user import User
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_api_key import WorkspaceAPIKey
+from pilot_space.infrastructure.database.models.workspace_invitation import (
+    InvitationStatus,
+    WorkspaceInvitation,
+)
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
@@ -109,6 +113,7 @@ __all__ = [
     "IntegrationLink",
     "IntegrationLinkType",
     "IntegrationProvider",
+    "InvitationStatus",
     "Issue",
     "IssuePriority",
     "LLMProvider",
@@ -133,6 +138,7 @@ __all__ = [
     "User",
     "Workspace",
     "WorkspaceAPIKey",
+    "WorkspaceInvitation",
     "WorkspaceMember",
     "WorkspaceRole",
     "WorkspaceScopedMixin",

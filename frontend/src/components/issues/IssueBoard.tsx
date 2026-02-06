@@ -141,7 +141,7 @@ export const IssueBoard = observer(function IssueBoard({
   };
 
   return (
-    <div className={cn('flex h-full gap-4 overflow-x-auto p-4', className)}>
+    <div className={cn('flex h-full gap-3 overflow-x-auto p-3', className)}>
       {columns.map((column) => {
         const Icon = column.icon;
         const issues = issuesByState[column.state] || [];
@@ -162,11 +162,11 @@ export const IssueBoard = observer(function IssueBoard({
             onDrop={(e) => handleDrop(e, column.state)}
           >
             {/* Column header */}
-            <div className="flex items-center justify-between border-b p-3">
-              <div className="flex items-center gap-2">
-                <Icon className={cn('size-4', column.iconClass)} />
-                <span className="text-sm font-medium">{column.label}</span>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+            <div className="flex items-center justify-between border-b p-2">
+              <div className="flex items-center gap-1.5">
+                <Icon className={cn('size-3.5', column.iconClass)} />
+                <span className="text-xs font-medium">{column.label}</span>
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
                   {issues.length}
                 </span>
               </div>
@@ -184,7 +184,7 @@ export const IssueBoard = observer(function IssueBoard({
 
             {/* Column content */}
             <ScrollArea className="flex-1">
-              <div className="flex flex-col gap-2 p-2">
+              <div className="flex flex-col gap-1.5 p-1.5">
                 {isLoading ? (
                   // Loading skeleton
                   Array.from({ length: 3 }).map((_, i) => (
@@ -203,8 +203,8 @@ export const IssueBoard = observer(function IssueBoard({
                     />
                   ))
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <p className="text-sm text-muted-foreground">No issues</p>
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <p className="text-xs text-muted-foreground">No issues</p>
                     {onCreateIssue && (
                       <Button
                         variant="ghost"
@@ -222,7 +222,7 @@ export const IssueBoard = observer(function IssueBoard({
                 {/* Drop indicator */}
                 {isDropTarget && canDrop && (
                   <div className="flex h-20 items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/5">
-                    <span className="text-sm text-primary">Drop to move here</span>
+                    <span className="text-xs text-primary">Drop to move here</span>
                   </div>
                 )}
               </div>

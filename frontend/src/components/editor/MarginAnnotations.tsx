@@ -195,7 +195,7 @@ function AnnotationCard({
       exit={{ opacity: 0, x: -20 }}
       data-testid="annotation-card"
       className={cn(
-        'group relative rounded-lg border p-3 transition-all cursor-pointer',
+        'group relative rounded-lg border p-2 transition-all cursor-pointer',
         config.bgColor,
         config.borderColor,
         isSelected && 'ring-2 ring-ai ring-offset-2',
@@ -214,7 +214,7 @@ function AnnotationCard({
       </div>
 
       {/* Content */}
-      <p className="text-sm text-foreground leading-relaxed">{annotation.content}</p>
+      <p className="text-xs text-foreground leading-relaxed">{annotation.content}</p>
 
       {/* Resolved badge */}
       {(annotation.status === 'accepted' || annotation.status === 'rejected') && (
@@ -305,20 +305,20 @@ function EmptyState({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Branded header - same as populated state */}
-      <div className="flex items-center gap-1.5 border-b border-border px-3 py-2.5 bg-ai-muted/30">
-        <Sparkles className="h-4 w-4 text-ai flex-shrink-0" />
-        <span className="text-sm font-medium text-foreground truncate">Pilot Suggestions</span>
+      <div className="flex items-center gap-1.5 border-b border-border px-2 py-2 bg-ai-muted/30">
+        <Sparkles className="h-3.5 w-3.5 text-ai flex-shrink-0" />
+        <span className="text-xs font-medium text-foreground truncate">Pilot Suggestions</span>
       </div>
 
       {/* Empty content */}
-      <div className="flex flex-1 flex-col items-center justify-center p-4 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center p-3 text-center">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted mb-3 flex-shrink-0">
           <Sparkles className="h-5 w-5 text-muted-foreground" />
         </div>
-        <h3 className="font-medium text-foreground mb-1 text-sm whitespace-nowrap">
+        <h3 className="font-medium text-foreground mb-1 text-xs whitespace-nowrap">
           No suggestions yet
         </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
           AI suggestions will appear here as you write.
         </p>
       </div>
@@ -480,10 +480,10 @@ export const MarginAnnotations = observer(function MarginAnnotations({
       {/* Edge toggle - visible on hover */}
       {onToggleCollapse && <EdgeToggle isCollapsed={isCollapsed} onClick={onToggleCollapse} />}
       {/* Header - "Pilot Suggestions" like prototype */}
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5 bg-ai-muted/30 gap-2">
+      <div className="flex items-center justify-between border-b border-border px-2 py-2 bg-ai-muted/30 gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <Sparkles className="h-4 w-4 text-ai flex-shrink-0" />
-          <span className="text-sm font-medium text-foreground truncate">Pilot Suggestions</span>
+          <Sparkles className="h-3.5 w-3.5 text-ai flex-shrink-0" />
+          <span className="text-xs font-medium text-foreground truncate">Pilot Suggestions</span>
         </div>
         <Badge
           variant="outline"
@@ -494,7 +494,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
       </div>
 
       {/* Type filters/counts */}
-      <div className="flex items-center gap-1.5 border-b border-border px-3 py-2 overflow-x-auto scrollbar-none">
+      <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5 overflow-x-auto scrollbar-none">
         {counts.suggestion > 0 && (
           <Badge
             variant="outline"
@@ -535,7 +535,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
 
       {/* Annotations list - grouped by confidence category per DD-048 */}
       <ScrollArea className="flex-1 min-h-0">
-        <div className="p-3 space-y-4">
+        <div className="p-2 space-y-3">
           <AnimatePresence mode="popLayout">
             {annotationsByCategory.map(({ category, label, annotations: categoryAnnotations }) => (
               <div key={category} className="space-y-2">

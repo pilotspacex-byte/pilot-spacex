@@ -2,6 +2,7 @@
 
 import { makeAutoObservable, runInAction, computed } from 'mobx';
 import type { Workspace, User } from '@/types';
+import type { AuthStore } from './AuthStore';
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest';
 
@@ -54,6 +55,7 @@ export class WorkspaceStore {
   error: string | null = null;
 
   private api: WorkspaceApi | null = null;
+  private authStore: AuthStore | null = null;
 
   constructor() {
     makeAutoObservable(this, {
@@ -74,6 +76,10 @@ export class WorkspaceStore {
     this.api = api;
   }
 
+  setAuthStore(authStore: AuthStore): void {
+    this.authStore = authStore;
+  }
+
   get currentWorkspace(): Workspace | null {
     return this.currentWorkspaceId ? (this.workspaces.get(this.currentWorkspaceId) ?? null) : null;
   }
@@ -92,7 +98,12 @@ export class WorkspaceStore {
   }
 
   get currentUserRole(): WorkspaceRole | null {
-    return null;
+    const userId = this.authStore?.user?.id;
+    if (!userId || !this.currentWorkspaceId) return null;
+    const members = this.members.get(this.currentWorkspaceId);
+    if (!members) return null;
+    const member = members.find((m) => m.userId === userId);
+    return member?.role ?? null;
   }
 
   get isAdmin(): boolean {

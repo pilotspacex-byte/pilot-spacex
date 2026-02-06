@@ -16,7 +16,7 @@ Usage:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -37,6 +37,10 @@ from pilot_space.infrastructure.database.models import (
     Workspace,
     WorkspaceMember,
     WorkspaceRole,
+)
+from pilot_space.infrastructure.database.models.workspace_invitation import (
+    InvitationStatus,
+    WorkspaceInvitation,
 )
 
 
@@ -124,6 +128,36 @@ class WorkspaceMemberFactory(BaseFactory):
     def workspace_id(self) -> UUID:
         """Get workspace ID from workspace object."""
         return self.workspace.id
+
+
+class WorkspaceInvitationFactory(BaseFactory):
+    """Factory for creating WorkspaceInvitation instances.
+
+    Example:
+        invitation = WorkspaceInvitationFactory(workspace=workspace, invited_by_user=user)
+        admin_invite = WorkspaceInvitationFactory(role=WorkspaceRole.ADMIN)
+    """
+
+    class Meta:
+        model = WorkspaceInvitation
+
+    workspace: Workspace = SubFactory(WorkspaceFactory)
+    email: str = Sequence(lambda n: f"invited{n}@example.com")
+    role: WorkspaceRole = WorkspaceRole.MEMBER
+    status: InvitationStatus = InvitationStatus.PENDING
+    invited_by_user: User = SubFactory(UserFactory)
+    expires_at: datetime = LazyFunction(lambda: datetime.now(tz=UTC) + timedelta(days=7))
+    accepted_at: datetime | None = None
+
+    @LazyAttribute
+    def workspace_id(self) -> UUID:
+        """Get workspace ID from workspace object."""
+        return self.workspace.id
+
+    @LazyAttribute
+    def invited_by(self) -> UUID:
+        """Get inviter ID from user object."""
+        return self.invited_by_user.id
 
 
 class StateFactory(BaseFactory):
@@ -464,6 +498,7 @@ __all__ = [
     "StateFactory",
     "UserFactory",
     "WorkspaceFactory",
+    "WorkspaceInvitationFactory",
     "WorkspaceMemberFactory",
     "create_default_states",
     "create_issue_in_project",

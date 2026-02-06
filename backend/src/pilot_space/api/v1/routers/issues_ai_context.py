@@ -34,7 +34,7 @@ from pilot_space.dependencies import (
     get_ai_context_service,
     get_current_user,
     get_current_workspace_id,
-    get_db_session,
+    get_db_session_dep,
     get_refine_ai_context_service,
     get_user_api_keys,
 )
@@ -94,7 +94,7 @@ async def get_ai_context(
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user)],
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_db_session_dep)],
     service: Annotated[..., Depends(get_ai_context_service)],
     generate_if_missing: bool = Query(default=True),
 ) -> AIContextResponse:
@@ -191,7 +191,7 @@ async def regenerate_ai_context(
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user)],
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_db_session_dep)],
     service: Annotated[..., Depends(get_ai_context_service)],
 ) -> GenerateContextResponse:
     """Force regenerate AI context, bypassing cache.
@@ -268,7 +268,7 @@ async def refine_ai_context(
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user)],
     api_keys: Annotated[dict[str, str], Depends(get_user_api_keys)],
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_db_session_dep)],
     service: Annotated[..., Depends(get_refine_ai_context_service)],
 ) -> RefineContextResponse:
     """Refine AI context with a chat message.
@@ -332,7 +332,7 @@ async def export_ai_context(
     issue_id: UUID,
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user)],
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_db_session_dep)],
     format: str = Query(default="markdown", pattern="^(markdown|json)$"),
     include_conversation: bool = Query(default=False),
 ) -> ExportContextResponse:
@@ -401,7 +401,7 @@ async def export_ai_context(
 )
 async def get_conversation_history(
     issue_id: UUID,
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_db_session_dep)],
 ) -> ConversationHistoryResponse:
     """Get conversation history for AI context.
 
@@ -445,7 +445,7 @@ async def get_conversation_history(
 )
 async def clear_conversation_history(
     issue_id: UUID,
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_db_session_dep)],
 ) -> None:
     """Clear conversation history for AI context.
 
@@ -475,7 +475,7 @@ async def clear_conversation_history(
 async def mark_task_completed(
     issue_id: UUID,
     task_id: str,
-    session: Annotated[..., Depends(get_db_session)],
+    session: Annotated[..., Depends(get_db_session_dep)],
 ) -> None:
     """Mark an implementation task as completed.
 

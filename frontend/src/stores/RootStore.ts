@@ -29,6 +29,9 @@ export class RootStore {
     this.issues = new IssueStore();
     this.cycles = new CycleStore();
     this.ai = getAIStore();
+
+    // Wire cross-store references
+    this.workspace.setAuthStore(this.auth);
   }
 
   reset(): void {

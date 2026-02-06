@@ -13,7 +13,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 from pilot_space.api.v1.schemas.workspace import (
-    WorkspaceMemberCreate,
     WorkspaceMemberResponse,
     WorkspaceMemberUpdate,
 )
@@ -128,60 +127,6 @@ async def list_workspace_members(
     ]
 
 
-@router.post(
-    "/{workspace_id}/members",
-    response_model=WorkspaceMemberResponse,
-    status_code=status.HTTP_201_CREATED,
-    tags=["workspaces"],
-)
-async def add_workspace_member(
-    workspace_id: UUID,
-    request: WorkspaceMemberCreate,
-    current_user: CurrentUser,
-    workspace_repo: WorkspaceRepo,
-) -> WorkspaceMemberResponse:
-    """Add member to workspace.
-
-    Requires admin role.
-
-    Args:
-        workspace_id: Workspace identifier.
-        request: Member data.
-        current_user: Authenticated user.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        Added member.
-
-    Raises:
-        HTTPException: If workspace not found, user not admin, or member not found.
-    """
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
-
-    # Check admin role
-    member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not member or member.role != WorkspaceRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
-    # TODO: Look up user by email and add them
-    # For now, return 501 Not Implemented
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Member invitation not yet implemented",
-    )
-
-
 @router.patch(
     "/{workspace_id}/members/{user_id}",
     response_model=WorkspaceMemberResponse,
@@ -223,7 +168,7 @@ async def update_workspace_member(
         (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
         None,
     )
-    if not current_member or current_member.role != WorkspaceRole.ADMIN:
+    if not current_member or not current_member.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin role required",
@@ -242,6 +187,19 @@ async def update_workspace_member(
 
     # Update role
     role = WorkspaceRole(request.role)
+
+    # Ownership transfer guard (FR-017, T020a)
+    if role == WorkspaceRole.OWNER:
+        if not current_member.is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the workspace owner can transfer ownership",
+            )
+        # Demote current owner to admin
+        await workspace_repo.update_member_role(
+            workspace_id, current_user.user_id, WorkspaceRole.ADMIN
+        )
+
     updated_member = await workspace_repo.update_member_role(workspace_id, user_id, role)
 
     if not updated_member:
@@ -291,10 +249,9 @@ async def remove_workspace_member(
             detail="Workspace not found",
         )
 
-    # Check authorization (admin or self)
+    # Check authorization (admin/owner or self)
     is_admin = any(
-        m.user_id == current_user.user_id and m.role == WorkspaceRole.ADMIN
-        for m in (workspace.members or [])
+        m.user_id == current_user.user_id and m.is_admin for m in (workspace.members or [])
     )
     is_self = user_id == current_user.user_id
 
