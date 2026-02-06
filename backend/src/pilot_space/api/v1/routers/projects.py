@@ -110,7 +110,7 @@ async def _check_workspace_access(
             detail="Not a member of this workspace",
         )
 
-    if require_admin and member.role not in (WorkspaceRole.ADMIN,):
+    if require_admin and not member.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin role required",

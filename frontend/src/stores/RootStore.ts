@@ -9,6 +9,7 @@ import { NoteStore } from './features/notes/NoteStore';
 import { IssueStore } from './features/issues/IssueStore';
 import { CycleStore } from './features/cycles/CycleStore';
 import { AIStore, getAIStore } from './ai';
+import { OnboardingStore } from './OnboardingStore';
 
 export class RootStore {
   auth: AuthStore;
@@ -19,6 +20,7 @@ export class RootStore {
   issues: IssueStore;
   cycles: CycleStore;
   ai: AIStore;
+  onboarding: OnboardingStore;
 
   constructor() {
     this.auth = new AuthStore();
@@ -29,6 +31,7 @@ export class RootStore {
     this.issues = new IssueStore();
     this.cycles = new CycleStore();
     this.ai = getAIStore();
+    this.onboarding = new OnboardingStore();
 
     // Wire cross-store references
     this.workspace.setAuthStore(this.auth);
@@ -42,6 +45,7 @@ export class RootStore {
     this.cycles.reset();
     this.ui.reset();
     this.ai.reset();
+    this.onboarding.reset();
   }
 
   dispose(): void {
@@ -93,6 +97,11 @@ export function useAIStore(): AIStore {
   return useStores().ai;
 }
 
+/** Hook to access the OnboardingStore from context. */
+export function useOnboardingStore(): OnboardingStore {
+  return useStores().onboarding;
+}
+
 /**
  * Convenient hook to access multiple stores at once.
  * Returns an object with named stores for destructuring.
@@ -109,5 +118,6 @@ export function useStore() {
     cycleStore: store.cycles,
     aiStore: store.ai,
     ai: store.ai, // Alias for consistency with task specs
+    onboardingStore: store.onboarding,
   };
 }

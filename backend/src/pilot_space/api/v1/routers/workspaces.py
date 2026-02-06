@@ -256,19 +256,16 @@ async def get_workspace(
     """
     workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
-    # Check membership (demo workspaces bypass check in dev/test)
-    if not _is_demo_workspace(workspace_id):
-        member = next(
-            (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-            None,
+    # Check membership
+    member = next(
+        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
+        None,
+    )
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this workspace",
         )
-        if not member:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not a member of this workspace",
-            )
-    else:
-        member = None
 
     return _workspace_to_response(
         workspace,
@@ -306,7 +303,7 @@ async def update_workspace(
         (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
         None,
     )
-    if not member or member.role != WorkspaceRole.ADMIN:
+    if not member or not member.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin role required",
@@ -355,7 +352,7 @@ async def delete_workspace(
         (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
         None,
     )
-    if not member or member.role != WorkspaceRole.ADMIN:
+    if not member or not member.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin role required",

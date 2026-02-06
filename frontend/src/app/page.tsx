@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { Compass, Loader2 } from 'lucide-react';
 import { WorkspaceSelector, addRecentWorkspace } from '@/components/workspace-selector';
+import { supabase } from '@/lib/supabase';
+import { workspacesApi } from '@/services/api/workspaces';
 
 const WORKSPACE_STORAGE_KEY = 'pilot-space:last-workspace';
 
@@ -25,15 +27,57 @@ export default function HomePage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(true);
 
-  // Check for stored workspace on mount
   React.useEffect(() => {
-    const storedWorkspace = localStorage.getItem(WORKSPACE_STORAGE_KEY);
-    if (storedWorkspace) {
-      // Redirect to stored workspace
-      router.replace(`/${storedWorkspace}`);
-    } else {
-      setIsLoading(false);
+    let cancelled = false;
+
+    async function resolveWorkspace() {
+      // 1. Check localStorage for a previously visited workspace
+      const storedWorkspace = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+      if (storedWorkspace) {
+        router.replace(`/${storedWorkspace}`);
+        return;
+      }
+
+      // 2. Check if user is authenticated
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (cancelled) return;
+
+      if (!session) {
+        // Not authenticated → redirect to login
+        router.replace('/login');
+        return;
+      }
+
+      // 3. Authenticated but no stored workspace → fetch from API
+      try {
+        const { items } = await workspacesApi.list();
+
+        if (cancelled) return;
+
+        if (items.length > 0) {
+          const defaultWorkspace = items[0];
+          addRecentWorkspace(defaultWorkspace.slug);
+          router.replace(`/${defaultWorkspace.slug}`);
+          return;
+        }
+      } catch {
+        // API error → fall through to workspace selector
+      }
+
+      // 4. No workspaces found → show selector
+      if (!cancelled) {
+        setIsLoading(false);
+      }
     }
+
+    resolveWorkspace();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const handleWorkspaceSelect = (slug: string) => {
@@ -41,7 +85,6 @@ export default function HomePage() {
     router.push(`/${slug}`);
   };
 
-  // Show loading while checking for stored workspace
   if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -57,7 +100,6 @@ export default function HomePage() {
     );
   }
 
-  // Show workspace selector if no stored workspace
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background px-4 py-12">
       <motion.div

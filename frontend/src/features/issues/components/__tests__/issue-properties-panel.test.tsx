@@ -186,20 +186,20 @@ function createIssue(overrides?: Partial<Issue>): Issue {
 
 const mockMembers: WorkspaceMember[] = [
   {
-    user_id: 'user-1',
+    userId: 'user-1',
     email: 'john@test.com',
-    full_name: 'John Doe',
-    avatar_url: null,
+    fullName: 'John Doe',
+    avatarUrl: null,
     role: 'admin',
-    joined_at: '2025-01-01',
+    joinedAt: '2025-01-01',
   },
   {
-    user_id: 'user-2',
+    userId: 'user-2',
     email: 'jane@test.com',
-    full_name: 'Jane Smith',
-    avatar_url: null,
+    fullName: 'Jane Smith',
+    avatarUrl: null,
     role: 'member',
-    joined_at: '2025-01-02',
+    joinedAt: '2025-01-02',
   },
 ];
 

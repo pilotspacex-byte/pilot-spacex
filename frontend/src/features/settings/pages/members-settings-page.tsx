@@ -83,7 +83,7 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
       const roleA = ROLE_HIERARCHY[a.role] ?? 99;
       const roleB = ROLE_HIERARCHY[b.role] ?? 99;
       if (roleA !== roleB) return roleA - roleB;
-      return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
+      return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
     });
   }, [members]);
 
@@ -93,7 +93,7 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
   }, [invitations]);
 
   const handleRoleChange = async (userId: string, role: WorkspaceRole) => {
-    const member = members?.find((m) => m.user_id === userId);
+    const member = members?.find((m) => m.userId === userId);
     if (!member) return;
 
     setUpdatingMemberId(userId);
@@ -102,7 +102,7 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
 
     if (result) {
       toast.success('Role updated', {
-        description: `${member.full_name || member.email} is now a ${role}.`,
+        description: `${member.fullName || member.email} is now a ${role}.`,
       });
     } else {
       toast.error('Failed to update role', {
@@ -112,10 +112,10 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
   };
 
   const handleRemoveMember = (userId: string) => {
-    const member = members?.find((m) => m.user_id === userId);
+    const member = members?.find((m) => m.userId === userId);
     if (!member) return;
 
-    const displayName = member.full_name || member.email;
+    const displayName = member.fullName || member.email;
     setConfirmDialog({
       open: true,
       title: 'Remove member',
@@ -163,10 +163,10 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
   };
 
   const handleTransferOwnership = (userId: string) => {
-    const member = members?.find((m) => m.user_id === userId);
+    const member = members?.find((m) => m.userId === userId);
     if (!member) return;
 
-    const displayName = member.full_name || member.email;
+    const displayName = member.fullName || member.email;
     setConfirmDialog({
       open: true,
       title: 'Transfer ownership',
@@ -251,14 +251,14 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
             <div className="space-y-2" role="list" aria-label="Workspace members">
               {sortedMembers.map((member) => (
                 <MemberRow
-                  key={member.user_id}
+                  key={member.userId}
                   member={member}
                   currentUserRole={workspaceStore.currentUserRole}
-                  isCurrentUser={member.user_id === currentUserId}
+                  isCurrentUser={member.userId === currentUserId}
                   onRoleChange={handleRoleChange}
                   onRemove={handleRemoveMember}
                   onTransferOwnership={handleTransferOwnership}
-                  isUpdating={updatingMemberId === member.user_id}
+                  isUpdating={updatingMemberId === member.userId}
                 />
               ))}
               {sortedMembers.length === 0 && (
