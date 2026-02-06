@@ -241,16 +241,20 @@ def create_note_content_server(
             note_id,
             position,
         )
-        return {
-            "status": "approval_required",
-            "operation": "insert_block",
-            "payload": {
-                "note_id": note_id,
-                "content_markdown": content_markdown,
-                "after_block_id": after_block_id,
-                "before_block_id": before_block_id,
-            },
-        }
+        return _text_result(
+            json.dumps(
+                {
+                    "status": "approval_required",
+                    "operation": "insert_block",
+                    "payload": {
+                        "note_id": note_id,
+                        "content_markdown": content_markdown,
+                        "after_block_id": after_block_id,
+                        "before_block_id": before_block_id,
+                    },
+                }
+            )
+        )
 
     @tool(
         "remove_block",
@@ -283,11 +287,15 @@ def create_note_content_server(
         await event_queue.put(_sse_event("content_update", event_data))
 
         logger.info("[NoteContentTools] remove_block: note=%s, block=%s", note_id, block_id)
-        return {
-            "status": "approval_required",
-            "operation": "remove_block",
-            "payload": {"note_id": note_id, "block_id": block_id},
-        }
+        return _text_result(
+            json.dumps(
+                {
+                    "status": "approval_required",
+                    "operation": "remove_block",
+                    "payload": {"note_id": note_id, "block_id": block_id},
+                }
+            )
+        )
 
     @tool(
         "remove_content",
@@ -326,17 +334,21 @@ def create_note_content_server(
             pattern,
             block_ids,
         )
-        return {
-            "status": "approval_required",
-            "operation": "remove_content",
-            "payload": {
-                "note_id": note_id,
-                "pattern": pattern,
-                "regex": use_regex,
-                "block_ids": block_ids,
-            },
-            "preview": f"Will remove all occurrences of '{pattern}' from note blocks",
-        }
+        return _text_result(
+            json.dumps(
+                {
+                    "status": "approval_required",
+                    "operation": "remove_content",
+                    "payload": {
+                        "note_id": note_id,
+                        "pattern": pattern,
+                        "regex": use_regex,
+                        "block_ids": block_ids,
+                    },
+                    "preview": f"Will remove all occurrences of '{pattern}' from note blocks",
+                }
+            )
+        )
 
     @tool(
         "replace_content",
@@ -392,19 +404,23 @@ def create_note_content_server(
             new_content,
             block_ids,
         )
-        return {
-            "status": "approval_required",
-            "operation": "replace_content",
-            "payload": {
-                "note_id": note_id,
-                "old_pattern": old_pattern,
-                "new_content": new_content,
-                "regex": use_regex,
-                "block_ids": block_ids,
-                "replace_all": replace_all,
-            },
-            "preview": f"Will replace '{old_pattern}' with '{new_content}' in note blocks",
-        }
+        return _text_result(
+            json.dumps(
+                {
+                    "status": "approval_required",
+                    "operation": "replace_content",
+                    "payload": {
+                        "note_id": note_id,
+                        "old_pattern": old_pattern,
+                        "new_content": new_content,
+                        "regex": use_regex,
+                        "block_ids": block_ids,
+                        "replace_all": replace_all,
+                    },
+                    "preview": f"Will replace '{old_pattern}' with '{new_content}' in note blocks",
+                }
+            )
+        )
 
     return create_sdk_mcp_server(
         name=SERVER_NAME,

@@ -120,7 +120,8 @@ class NoteRepository(BaseRepository[Note]):
         if not include_deleted:
             query = query.where(Note.is_deleted == False)  # noqa: E712
 
-        search_pattern = f"%{search_term}%"
+        safe_term = search_term.replace("%", r"\%").replace("_", r"\_")
+        search_pattern = f"%{safe_term}%"
         query = query.where(Note.title.ilike(search_pattern))
         query = query.order_by(Note.created_at.desc()).limit(limit)
         result = await self.session.execute(query)

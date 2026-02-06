@@ -129,6 +129,7 @@ class TestGetIssueTool:
 
         mock_issue = MagicMock()
         mock_issue.id = issue_id
+        mock_issue.workspace_id = UUID(mock_tool_context.workspace_id)
         mock_issue.sequence_id = 1
         mock_issue.name = "Test Issue"
         mock_issue.description = "desc"
@@ -308,9 +309,17 @@ class TestUpdateIssueTool:
         tools = _capture_issue_tools(asyncio.Queue(), mock_tool_context)
         issue_uuid = uuid4()
 
-        with patch(
-            "pilot_space.ai.mcp.issue_server.resolve_entity_id",
-            return_value=(issue_uuid, None),
+        mock_issue = MagicMock()
+        mock_issue.workspace_id = UUID(mock_tool_context.workspace_id)
+        repo = AsyncMock()
+        repo.get_by_id.return_value = mock_issue
+
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_server.resolve_entity_id",
+                return_value=(issue_uuid, None),
+            ),
+            patch("pilot_space.ai.mcp.issue_server.IssueRepository", return_value=repo),
         ):
             result = await tools["update_issue"].handler(
                 {
@@ -330,9 +339,17 @@ class TestUpdateIssueTool:
         tools = _capture_issue_tools(asyncio.Queue(), mock_tool_context)
         issue_uuid = uuid4()
 
-        with patch(
-            "pilot_space.ai.mcp.issue_server.resolve_entity_id",
-            return_value=(issue_uuid, None),
+        mock_issue = MagicMock()
+        mock_issue.workspace_id = UUID(mock_tool_context.workspace_id)
+        repo = AsyncMock()
+        repo.get_by_id.return_value = mock_issue
+
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_server.resolve_entity_id",
+                return_value=(issue_uuid, None),
+            ),
+            patch("pilot_space.ai.mcp.issue_server.IssueRepository", return_value=repo),
         ):
             result = await tools["update_issue"].handler(
                 {
@@ -353,9 +370,17 @@ class TestUpdateIssueTool:
         tools = _capture_issue_tools(asyncio.Queue(), mock_tool_context)
         issue_uuid, label_id = uuid4(), str(uuid4())
 
-        with patch(
-            "pilot_space.ai.mcp.issue_server.resolve_entity_id",
-            return_value=(issue_uuid, None),
+        mock_issue = MagicMock()
+        mock_issue.workspace_id = UUID(mock_tool_context.workspace_id)
+        repo = AsyncMock()
+        repo.get_by_id.return_value = mock_issue
+
+        with (
+            patch(
+                "pilot_space.ai.mcp.issue_server.resolve_entity_id",
+                return_value=(issue_uuid, None),
+            ),
+            patch("pilot_space.ai.mcp.issue_server.IssueRepository", return_value=repo),
         ):
             result = await tools["update_issue"].handler(
                 {

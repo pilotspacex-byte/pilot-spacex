@@ -172,7 +172,7 @@ def create_issue_tools_server(
             issue_uuid,  # type: ignore[arg-type]
         )
 
-        if not issue:
+        if not issue or str(issue.workspace_id) != tool_context.workspace_id:
             return _text_result(f"Issue {args['issue_id']} not found")
 
         # Build response dict
@@ -532,6 +532,12 @@ def create_issue_tools_server(
         )
         if error:
             return _text_result(f"Error: {error}")
+
+        # Verify workspace ownership before allowing update
+        repo = IssueRepository(tool_context.db_session)
+        issue = await repo.get_by_id(issue_uuid)  # type: ignore[arg-type]
+        if not issue or str(issue.workspace_id) != tool_context.workspace_id:
+            return _text_result(f"Issue {args['issue_id']} not found")
 
         # Build operation payload with only provided fields
         payload: dict[str, Any] = {

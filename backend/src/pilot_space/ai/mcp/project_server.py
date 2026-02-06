@@ -128,7 +128,7 @@ def create_project_tools_server(
         repo = ProjectRepository(tool_context.db_session)
         project = await repo.get_with_states(project_uuid)
 
-        if not project:
+        if not project or str(project.workspace_id) != tool_context.workspace_id:
             return _text_result(f"Project '{project_id_input}' not found")
 
         # Build project data
@@ -436,7 +436,7 @@ def create_project_tools_server(
         repo = ProjectRepository(tool_context.db_session)
         project = await repo.get_by_id(project_uuid)
 
-        if not project:
+        if not project or str(project.workspace_id) != tool_context.workspace_id:
             return _text_result(f"Project '{project_id_input}' not found")
 
         # Build change diff
@@ -525,7 +525,7 @@ def create_project_tools_server(
         repo = ProjectRepository(tool_context.db_session)
         project = await repo.get_by_id(project_uuid)
 
-        if not project:
+        if not project or str(project.workspace_id) != tool_context.workspace_id:
             return _text_result(f"Project '{project_id_input}' not found")
 
         existing_settings = project.settings or {}

@@ -154,7 +154,6 @@ def create_comment_tools_server(
             query = select(ThreadedDiscussion).where(
                 ThreadedDiscussion.workspace_id == workspace_id,
                 ThreadedDiscussion.target_type == "note",
-                ThreadedDiscussion.target_id == target_id,
                 ThreadedDiscussion.note_id == target_id,
                 ThreadedDiscussion.is_deleted == False,  # noqa: E712
             )
@@ -230,9 +229,7 @@ def create_comment_tools_server(
         }
         await event_queue.put(_sse_event("content_update", event_data))
 
-        return _text_result(
-            f"Comment on {target_type} {target_id} requested. Approval required."
-        )
+        return _text_result(f"Comment on {target_type} {target_id} requested. Approval required.")
 
     @tool(
         "update_comment",

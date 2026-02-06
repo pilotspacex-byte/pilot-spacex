@@ -10,6 +10,7 @@ Reference: spec 010-enhanced-mcp-tools Phase 2
 from __future__ import annotations
 
 import asyncio
+import json
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -252,10 +253,11 @@ class TestInsertBlock:
             }
         )
 
-        assert result["status"] == "approval_required"
-        assert result["operation"] == "insert_block"
-        assert result["payload"]["after_block_id"] == "block-123"
-        assert result["payload"]["before_block_id"] is None
+        data = json.loads(result["content"][0]["text"])
+        assert data["status"] == "approval_required"
+        assert data["operation"] == "insert_block"
+        assert data["payload"]["after_block_id"] == "block-123"
+        assert data["payload"]["before_block_id"] is None
 
     @pytest.mark.asyncio
     async def test_insert_block_before_position(self) -> None:
@@ -272,8 +274,9 @@ class TestInsertBlock:
             }
         )
 
-        assert result["payload"]["before_block_id"] == "block-456"
-        assert result["payload"]["after_block_id"] is None
+        data = json.loads(result["content"][0]["text"])
+        assert data["payload"]["before_block_id"] == "block-456"
+        assert data["payload"]["after_block_id"] is None
 
     @pytest.mark.asyncio
     async def test_insert_block_append(self) -> None:
@@ -289,8 +292,9 @@ class TestInsertBlock:
             }
         )
 
-        assert result["payload"]["after_block_id"] is None
-        assert result["payload"]["before_block_id"] is None
+        data = json.loads(result["content"][0]["text"])
+        assert data["payload"]["after_block_id"] is None
+        assert data["payload"]["before_block_id"] is None
 
 
 class TestRemoveBlock:
@@ -310,9 +314,10 @@ class TestRemoveBlock:
             }
         )
 
-        assert result["status"] == "approval_required"
-        assert result["operation"] == "remove_block"
-        assert result["payload"]["block_id"] == "block-789"
+        data = json.loads(result["content"][0]["text"])
+        assert data["status"] == "approval_required"
+        assert data["operation"] == "remove_block"
+        assert data["payload"]["block_id"] == "block-789"
 
     @pytest.mark.asyncio
     async def test_remove_block_invalid_block(self) -> None:
@@ -348,10 +353,11 @@ class TestRemoveContent:
             }
         )
 
-        assert result["status"] == "approval_required"
-        assert result["operation"] == "remove_content"
-        assert result["payload"]["pattern"] == "deprecated"
-        assert "preview" in result
+        data = json.loads(result["content"][0]["text"])
+        assert data["status"] == "approval_required"
+        assert data["operation"] == "remove_content"
+        assert data["payload"]["pattern"] == "deprecated"
+        assert "preview" in data
 
     @pytest.mark.asyncio
     async def test_remove_content_scoped_blocks(self) -> None:
@@ -368,7 +374,8 @@ class TestRemoveContent:
             }
         )
 
-        assert result["payload"]["block_ids"] == ["block-1", "block-2"]
+        data = json.loads(result["content"][0]["text"])
+        assert data["payload"]["block_ids"] == ["block-1", "block-2"]
 
 
 class TestReplaceContent:
@@ -389,10 +396,11 @@ class TestReplaceContent:
             }
         )
 
-        assert result["status"] == "approval_required"
-        assert result["operation"] == "replace_content"
-        assert result["payload"]["old_pattern"] == "foo"
-        assert result["payload"]["new_content"] == "bar"
+        data = json.loads(result["content"][0]["text"])
+        assert data["status"] == "approval_required"
+        assert data["operation"] == "replace_content"
+        assert data["payload"]["old_pattern"] == "foo"
+        assert data["payload"]["new_content"] == "bar"
 
     @pytest.mark.asyncio
     async def test_replace_content_regex_with_capture_groups(self) -> None:
@@ -410,7 +418,8 @@ class TestReplaceContent:
             }
         )
 
-        assert result["payload"]["regex"] is True
+        data = json.loads(result["content"][0]["text"])
+        assert data["payload"]["regex"] is True
 
     @pytest.mark.asyncio
     async def test_replace_content_replace_all_flag(self) -> None:
@@ -428,7 +437,8 @@ class TestReplaceContent:
             }
         )
 
-        assert result["payload"]["replace_all"] is False
+        data = json.loads(result["content"][0]["text"])
+        assert data["payload"]["replace_all"] is False
 
 
 class TestToolNamesConstant:

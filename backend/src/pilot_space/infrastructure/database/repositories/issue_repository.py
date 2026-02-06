@@ -622,7 +622,8 @@ class IssueRepository(BaseRepository[Issue]):
             conditions.append(Issue.target_date <= filters.target_date_to)
 
         if filters.search_term:
-            search_pattern = f"%{filters.search_term}%"
+            safe_term = filters.search_term.replace("%", r"\%").replace("_", r"\_")
+            search_pattern = f"%{safe_term}%"
             conditions.append(
                 or_(
                     Issue.name.ilike(search_pattern),
