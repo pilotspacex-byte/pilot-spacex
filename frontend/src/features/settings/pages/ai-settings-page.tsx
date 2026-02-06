@@ -32,10 +32,12 @@ function LoadingSkeleton() {
 }
 
 export const AISettingsPage = observer(function AISettingsPage() {
-  const { ai } = useStore();
+  const { ai, workspaceStore } = useStore();
   const { settings } = ai;
   const params = useParams();
-  const workspaceId = params?.workspaceSlug as string;
+  const workspaceSlug = params?.workspaceSlug as string;
+  const currentWorkspace = workspaceStore.getWorkspaceBySlug(workspaceSlug);
+  const workspaceId = currentWorkspace?.id || workspaceSlug;
 
   React.useEffect(() => {
     if (workspaceId) {

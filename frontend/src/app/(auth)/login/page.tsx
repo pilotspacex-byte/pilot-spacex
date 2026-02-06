@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
@@ -23,6 +23,15 @@ const LoginPage = observer(function LoginPage() {
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Defer authStore.isLoading to post-mount to avoid hydration mismatch:
+  // server singleton may have isLoading=false while client starts with isLoading=true
+  const isAuthLoading = mounted && authStore.isLoading;
 
   const handleEmailAuth = async (e: FormEvent) => {
     e.preventDefault();
@@ -98,7 +107,7 @@ const LoginPage = observer(function LoginPage() {
                   className="h-11"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  disabled={authStore.isLoading}
+                  disabled={isAuthLoading}
                 />
               </div>
             )}
@@ -111,7 +120,7 @@ const LoginPage = observer(function LoginPage() {
                 className="h-11"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={authStore.isLoading}
+                disabled={isAuthLoading}
               />
             </div>
             <div className="space-y-2">
@@ -124,7 +133,7 @@ const LoginPage = observer(function LoginPage() {
                   className="h-11 pr-10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={authStore.isLoading}
+                  disabled={isAuthLoading}
                 />
                 <button
                   type="button"
@@ -156,12 +165,8 @@ const LoginPage = observer(function LoginPage() {
               </div>
             )}
 
-            <Button
-              type="submit"
-              className="w-full h-11 shadow-warm-sm"
-              disabled={authStore.isLoading}
-            >
-              {authStore.isLoading ? (
+            <Button type="submit" className="w-full h-11 shadow-warm-sm" disabled={isAuthLoading}>
+              {isAuthLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Mail className="mr-2 h-4 w-4" />
@@ -184,7 +189,7 @@ const LoginPage = observer(function LoginPage() {
               variant="outline"
               className="h-11"
               onClick={handleGitHubAuth}
-              disabled={authStore.isLoading}
+              disabled={isAuthLoading}
             >
               <Github className="mr-2 h-4 w-4" />
               GitHub

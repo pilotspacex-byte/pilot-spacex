@@ -188,19 +188,19 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
   // Derive IssueState from StateBrief.group
   const currentIssueState = STATE_GROUP_MAP[issue.state.group] ?? 'backlog';
 
-  // Map members -> UserBrief[] for AssigneeSelector (deduplicate by user_id)
+  // Map members -> UserBrief[] for AssigneeSelector (deduplicate by userId)
   const memberUsers = useMemo<UserBrief[]>(() => {
     const seen = new Set<string>();
     return members
       .filter((m) => {
-        if (!m.user_id || seen.has(m.user_id)) return false;
-        seen.add(m.user_id);
+        if (!m.userId || seen.has(m.userId)) return false;
+        seen.add(m.userId);
         return true;
       })
       .map((m) => ({
-        id: m.user_id,
+        id: m.userId,
         email: m.email,
-        displayName: m.full_name ?? null,
+        displayName: m.fullName ?? null,
       }));
   }, [members]);
 
