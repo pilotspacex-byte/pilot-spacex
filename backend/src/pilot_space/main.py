@@ -24,6 +24,8 @@ from pilot_space.api.v1.routers import (
     auth_router,
     cycles_router,
     debug_router,
+    homepage_notes_from_chat_router,
+    homepage_router,
     integrations_router,
     issues_ai_context_router,
     issues_ai_context_streaming_router,
@@ -69,12 +71,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start conversation worker if queue mode enabled
     worker_task: asyncio.Task[None] | None = None
     worker = None
+    digest_worker_task: asyncio.Task[None] | None = None
+    digest_worker = None
     if settings.ai_queue_mode:
         queue_client = app.state.container.queue_client()
         if queue_client and redis_client:
             from pilot_space.infrastructure.queue.models import QueueName
 
             await queue_client.create_queue(QueueName.AI_CHAT)
+            await queue_client.create_queue(QueueName.AI_LOW)
 
             from pilot_space.ai.workers.conversation_worker import ConversationWorker
 
@@ -89,9 +94,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             worker = ConversationWorker(queue_client, redis_client, agent, session_handler)
             worker_task = asyncio.create_task(worker.start())
 
+            # Start digest worker for AI_LOW queue
+            from pilot_space.ai.workers.digest_worker import DigestWorker
+
+            session_factory = app.state.container.session_factory()
+            digest_worker = DigestWorker(queue_client, session_factory)
+            digest_worker_task = asyncio.create_task(digest_worker.start())
+
     yield
 
-    # Shutdown: Clean up worker and connections
+    # Shutdown: Clean up workers and connections
+    if digest_worker:
+        await digest_worker.stop()
+    if digest_worker_task:
+        digest_worker_task.cancel()
     if worker:
         await worker.stop()
     if worker_task:
@@ -190,6 +206,8 @@ app.include_router(workspace_members_router, prefix=f"{API_V1_PREFIX}/workspaces
 app.include_router(workspace_notes_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_ai_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)
+app.include_router(homepage_router, prefix=API_V1_PREFIX)
+app.include_router(homepage_notes_from_chat_router, prefix=API_V1_PREFIX)
 app.include_router(role_templates_router, prefix=API_V1_PREFIX)
 app.include_router(role_skills_router, prefix=API_V1_PREFIX)
 if debug_router:

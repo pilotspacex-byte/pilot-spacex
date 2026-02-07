@@ -29,6 +29,10 @@ from pilot_space.api.v1.routers.ai_tasks import router as ai_tasks_router
 from pilot_space.api.v1.routers.auth import router as auth_router
 from pilot_space.api.v1.routers.cycles import router as cycles_router
 from pilot_space.api.v1.routers.ghost_text import router as ghost_text_router
+from pilot_space.api.v1.routers.homepage import (
+    notes_from_chat_router as homepage_notes_from_chat_router,
+    router as homepage_router,
+)
 from pilot_space.api.v1.routers.integrations import router as integrations_router
 from pilot_space.api.v1.routers.issues import router as issues_router
 from pilot_space.api.v1.routers.issues_ai import router as issues_ai_router
@@ -112,6 +116,8 @@ __all__ = [
     "cycles_router",
     "debug_router",
     "ghost_text_router",
+    "homepage_notes_from_chat_router",
+    "homepage_router",
     "integrations_router",
     "issues_ai_context_router",
     "issues_ai_context_streaming_router",

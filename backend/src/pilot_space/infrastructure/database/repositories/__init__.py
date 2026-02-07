@@ -21,9 +21,18 @@ from pilot_space.infrastructure.database.repositories.cycle_repository import (
     CycleMetrics,
     CycleRepository,
 )
+from pilot_space.infrastructure.database.repositories.digest_repository import (
+    DigestRepository,
+    DismissalRepository,
+)
 from pilot_space.infrastructure.database.repositories.discussion_repository import (
     DiscussionCommentRepository,
     DiscussionRepository,
+)
+from pilot_space.infrastructure.database.repositories.homepage_repository import (
+    HomepageRepository,
+    IssueActivityRow,
+    NoteActivityRow,
 )
 from pilot_space.infrastructure.database.repositories.integration_link_repository import (
     IntegrationLinkRepository,
@@ -76,15 +85,20 @@ __all__ = [
     "CycleFilters",
     "CycleMetrics",
     "CycleRepository",
+    "DigestRepository",
     "DiscussionCommentRepository",
     "DiscussionRepository",
+    "DismissalRepository",
+    "HomepageRepository",
     "IntegrationLinkRepository",
     "IntegrationRepository",
     "InvitationRepository",
+    "IssueActivityRow",
     "IssueFilters",
     "IssueLinkRepository",
     "IssueRepository",
     "LabelRepository",
+    "NoteActivityRow",
     "NoteAnnotationRepository",
     "NoteRepository",
     "ProjectRepository",

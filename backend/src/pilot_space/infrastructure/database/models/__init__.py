@@ -10,6 +10,7 @@ Core Models:
 - Integration, IntegrationLink
 - AIContext, AIConfiguration
 - Embedding
+- WorkspaceDigest, DigestDismissal
 """
 
 from pilot_space.infrastructure.database.base import (
@@ -38,6 +39,7 @@ from pilot_space.infrastructure.database.models.ai_session import AISession
 from pilot_space.infrastructure.database.models.ai_task import AITask, TaskStatus
 from pilot_space.infrastructure.database.models.ai_tool_call import AIToolCall, ToolCallStatus
 from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
+from pilot_space.infrastructure.database.models.digest_dismissal import DigestDismissal
 from pilot_space.infrastructure.database.models.discussion_comment import (
     DiscussionComment,
 )
@@ -82,6 +84,7 @@ from pilot_space.infrastructure.database.models.user_role_skill import (
 )
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_api_key import WorkspaceAPIKey
+from pilot_space.infrastructure.database.models.workspace_digest import WorkspaceDigest
 from pilot_space.infrastructure.database.models.workspace_invitation import (
     InvitationStatus,
     WorkspaceInvitation,
@@ -110,6 +113,7 @@ __all__ = [
     "BaseModel",
     "Cycle",
     "CycleStatus",
+    "DigestDismissal",
     "DiscussionComment",
     "DiscussionStatus",
     "Embedding",
@@ -148,6 +152,7 @@ __all__ = [
     "UserRoleSkill",
     "Workspace",
     "WorkspaceAPIKey",
+    "WorkspaceDigest",
     "WorkspaceInvitation",
     "WorkspaceMember",
     "WorkspaceOnboarding",

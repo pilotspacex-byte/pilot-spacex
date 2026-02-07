@@ -11,6 +11,7 @@ import { CycleStore } from './features/cycles/CycleStore';
 import { AIStore, getAIStore } from './ai';
 import { OnboardingStore } from './OnboardingStore';
 import { RoleSkillStore } from './RoleSkillStore';
+import { HomepageUIStore } from '@/features/homepage/stores/HomepageUIStore';
 
 export class RootStore {
   auth: AuthStore;
@@ -23,6 +24,7 @@ export class RootStore {
   ai: AIStore;
   onboarding: OnboardingStore;
   roleSkill: RoleSkillStore;
+  homepage: HomepageUIStore;
 
   constructor() {
     this.auth = new AuthStore();
@@ -35,6 +37,7 @@ export class RootStore {
     this.ai = getAIStore();
     this.onboarding = new OnboardingStore();
     this.roleSkill = new RoleSkillStore();
+    this.homepage = new HomepageUIStore();
 
     // Wire cross-store references
     this.workspace.setAuthStore(this.auth);
@@ -50,6 +53,7 @@ export class RootStore {
     this.ai.reset();
     this.onboarding.reset();
     this.roleSkill.reset();
+    this.homepage.reset();
   }
 
   dispose(): void {
@@ -111,6 +115,11 @@ export function useRoleSkillStore(): RoleSkillStore {
   return useStores().roleSkill;
 }
 
+/** Hook to access the HomepageUIStore from context. */
+export function useHomepageStore(): HomepageUIStore {
+  return useStores().homepage;
+}
+
 /**
  * Convenient hook to access multiple stores at once.
  * Returns an object with named stores for destructuring.
@@ -129,5 +138,6 @@ export function useStore() {
     ai: store.ai, // Alias for consistency with task specs
     onboardingStore: store.onboarding,
     roleSkillStore: store.roleSkill,
+    homepageStore: store.homepage,
   };
 }
