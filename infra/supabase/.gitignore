@@ -7,7 +7,6 @@ kong/kong-processed.yml
 
 # Backup files
 backups/
-*.sql
 *.sql.gz
 
 # Runtime data

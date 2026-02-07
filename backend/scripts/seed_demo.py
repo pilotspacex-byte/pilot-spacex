@@ -1,29 +1,43 @@
-"""Seed comprehensive demo data for development and testing.
+"""Comprehensive demo data seeding script.
 
-Creates:
-- Demo user (Tin Dang)
-- Demo workspace (pilot-space-demo) with membership
-- 3 Projects: Authentication, API Gateway, Frontend
-- 7 Notes with realistic TipTap JSON content
-- 15+ Issues across different states and projects
-- Note annotations (AI margin suggestions)
-- Labels for issue categorization
-- Workflow states for each project
-- AI contexts for high-priority issues
+This unified script:
+1. Creates Supabase Auth user via Admin API
+2. Seeds database with demo data using the Auth user ID
+3. Creates workspace, projects, notes, issues, and labels
+
+Run this script to set up a complete demo environment:
+    python backend/scripts/seed_demo.py
+
+Requirements:
+- Supabase local instance running (docker compose up)
+- SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in environment
+- Database migrations applied (alembic upgrade head)
 """
 
 import asyncio
 import json
+import os
+import sys
 import uuid
 from datetime import datetime, timedelta
 
+import dotenv
+import httpx
 from sqlalchemy import text
 
 from pilot_space.infrastructure.database.engine import get_db_session
 
-# Demo IDs - synced with real Supabase Auth user (test@pilot.space)
-DEMO_USER_ID = uuid.UUID("77a6813e-0aa3-400c-8d4e-540b6ed2187a")
+# Load environment variables
+dotenv.load_dotenv()
+
+# Demo configuration
+DEMO_EMAIL = "test@pilot.space"
+DEMO_PASSWORD = os.getenv("DEMO_USER_PASSWORD", "DemoPassword123!")
 DEMO_WORKSPACE_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
+
+# Supabase configuration
+SUPABASE_URL = os.getenv("SUPABASE_URL", "http://localhost:18000")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 
 def create_tiptap_note(paragraphs: list[str]) -> dict:
@@ -35,16 +49,109 @@ def create_tiptap_note(paragraphs: list[str]) -> dict:
     return {"type": "doc", "content": content}
 
 
-async def seed_demo_data() -> None:
-    """Seed comprehensive demo data into the database."""
+async def create_or_get_auth_user() -> uuid.UUID:
+    """Create or get existing Supabase Auth user.
+
+    Returns:
+        UUID of the Auth user (existing or newly created).
+    """
+    if not SUPABASE_SERVICE_KEY:
+        print("❌ ERROR: SUPABASE_SERVICE_ROLE_KEY environment variable not set")
+        print("   Set it in backend/.env or run: export SUPABASE_SERVICE_ROLE_KEY=<key>")
+        sys.exit(1)
+
+    print("\n" + "=" * 60)
+    print("🔐 STEP 1: SUPABASE AUTH USER")
+    print("=" * 60 + "\n")
+
+    auth_admin_url = f"{SUPABASE_URL}/auth/v1/admin/users"
+    headers = {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # Check if user already exists
+            print("🔍 Checking if auth user already exists...")
+            list_response = await client.get(
+                auth_admin_url,
+                headers=headers,
+                timeout=10.0,
+            )
+
+            if list_response.status_code == 200:
+                users = list_response.json().get("users", [])
+                existing_user = next((u for u in users if u.get("email") == DEMO_EMAIL), None)
+
+                if existing_user:
+                    user_id = uuid.UUID(existing_user["id"])
+                    print(f"✅ Found existing auth user: {user_id}")
+                    print(f"   Email: {DEMO_EMAIL}")
+                    return user_id
+
+            # Create new auth user
+            print(f"🚀 Creating new auth user for {DEMO_EMAIL}...")
+            payload = {
+                "email": DEMO_EMAIL,
+                "password": DEMO_PASSWORD,
+                "email_confirm": True,
+                "user_metadata": {
+                    "full_name": "Tin Dang",
+                },
+            }
+
+            response = await client.post(
+                auth_admin_url,
+                headers=headers,
+                json=payload,
+                timeout=10.0,
+            )
+
+            if response.status_code in (200, 201):
+                user_data = response.json()
+                user_id = uuid.UUID(user_data["id"])
+                print(f"✅ Created auth user: {user_id}")
+                print(f"   Email: {DEMO_EMAIL}")
+                print(f"   Password: {DEMO_PASSWORD}")
+                return user_id
+
+            print(f"\n❌ ERROR: Failed to create auth user (status {response.status_code})")
+            print(f"   Response: {response.text}")
+            sys.exit(1)
+
+        except httpx.TimeoutException:
+            print("\n❌ ERROR: Request timed out")
+            print("   Is Supabase running? Check: docker compose ps")
+            sys.exit(1)
+        except httpx.ConnectError:
+            print(f"\n❌ ERROR: Cannot connect to Supabase at {SUPABASE_URL}")
+            print("   Is Supabase running? Start with: docker compose up -d")
+            sys.exit(1)
+        except Exception as e:
+            print(f"\n❌ ERROR: {e}")
+            sys.exit(1)
+
+
+async def seed_database(demo_user_id: uuid.UUID) -> None:
+    """Seed comprehensive demo data into the database.
+
+    Args:
+        demo_user_id: The Supabase Auth user ID to use for all records.
+    """
     async with get_db_session() as session:
-        # Check if demo user already exists
+        print("\n" + "=" * 60)
+        print("🌱 STEP 2: SEEDING DATABASE")
+        print("=" * 60 + "\n")
+
+        # Check if demo data already exists
         result = await session.execute(
             text("SELECT id FROM users WHERE id = :id"),
-            {"id": DEMO_USER_ID},
+            {"id": demo_user_id},
         )
         if result.scalar_one_or_none():
-            print("Demo data already exists. Clearing and reseeding...")
+            print("⚠️  Demo data already exists. Clearing and reseeding...")
             # Delete workspace first (CASCADE will handle related data)
             await session.execute(
                 text("DELETE FROM workspaces WHERE id = :id"),
@@ -53,16 +160,12 @@ async def seed_demo_data() -> None:
             # Delete user
             await session.execute(
                 text("DELETE FROM users WHERE id = :id"),
-                {"id": DEMO_USER_ID},
+                {"id": demo_user_id},
             )
             await session.commit()
 
-        print("\n" + "=" * 60)
-        print("🌱 SEEDING DEMO DATA")
-        print("=" * 60 + "\n")
-
         # ===================================================================
-        # STEP 1: Create Demo User
+        # Create Demo User (matches Auth user)
         # ===================================================================
         await session.execute(
             text("""
@@ -70,16 +173,16 @@ async def seed_demo_data() -> None:
                 VALUES (:id, :email, :full_name, :avatar_url, NOW(), NOW(), false)
             """),
             {
-                "id": DEMO_USER_ID,
-                "email": "test@pilot.space",
+                "id": demo_user_id,
+                "email": DEMO_EMAIL,
                 "full_name": "Tin Dang",
                 "avatar_url": None,
             },
         )
-        print("✅ Created demo user: Tin Dang (test@pilot.space)")
+        print(f"✅ Created database user: {demo_user_id}")
 
         # ===================================================================
-        # STEP 2: Create Demo Workspace
+        # Create Demo Workspace
         # ===================================================================
         await session.execute(
             text("""
@@ -91,7 +194,7 @@ async def seed_demo_data() -> None:
                 "name": "Pilot Space",
                 "slug": "pilot-space-demo",
                 "description": "AI-Augmented SDLC Platform Demo Workspace",
-                "owner_id": DEMO_USER_ID,
+                "owner_id": demo_user_id,
                 "settings": json.dumps({}),
             },
         )
@@ -106,12 +209,12 @@ async def seed_demo_data() -> None:
             {
                 "id": uuid.uuid4(),
                 "workspace_id": DEMO_WORKSPACE_ID,
-                "user_id": DEMO_USER_ID,
+                "user_id": demo_user_id,
             },
         )
 
         # ===================================================================
-        # STEP 3: Create 3 Projects (matching frontend demo)
+        # Create 3 Projects
         # ===================================================================
         projects_data = [
             {
@@ -151,7 +254,7 @@ async def seed_demo_data() -> None:
                     "identifier": proj["identifier"],
                     "description": proj["description"],
                     "icon": proj["icon"],
-                    "lead_id": DEMO_USER_ID,
+                    "lead_id": demo_user_id,
                     "settings": json.dumps({}),
                 },
             )
@@ -159,7 +262,7 @@ async def seed_demo_data() -> None:
             print(f"✅ Created project: {proj['name']} ({proj['identifier']})")
 
         # ===================================================================
-        # STEP 4: Create Workflow States for Each Project
+        # Create Workflow States for Each Project
         # ===================================================================
         states_template = [
             {"name": "Backlog", "color": "#94a3b8", "group": "unstarted", "sequence": 0},
@@ -194,7 +297,7 @@ async def seed_demo_data() -> None:
         print("✅ Created workflow states for all projects (6 states × 3 projects)")
 
         # ===================================================================
-        # STEP 5: Create Labels
+        # Create Labels
         # ===================================================================
         labels_data = [
             # Type labels
@@ -237,7 +340,7 @@ async def seed_demo_data() -> None:
         print(f"✅ Created {len(labels_data)} labels across projects")
 
         # ===================================================================
-        # STEP 6: Create Notes with Realistic Content
+        # Create Notes with Realistic Content
         # ===================================================================
         notes_data = [
             {
@@ -468,7 +571,7 @@ async def seed_demo_data() -> None:
                     "project_id": proj_id,
                     "title": note_data["title"],
                     "content": json.dumps(note_data["content"]),
-                    "owner_id": DEMO_USER_ID,
+                    "owner_id": demo_user_id,
                     "is_pinned": note_data["is_pinned"],
                     "word_count": len(str(note_data["content"]).split()),
                     "reading_time_mins": max(1, len(str(note_data["content"]).split()) // 200),
@@ -479,10 +582,10 @@ async def seed_demo_data() -> None:
         print(f"✅ Created {len(notes_data)} notes (2 pinned, 5 recent)")
 
         # ===================================================================
-        # STEP 7: Create Issues Across Projects
+        # Create Issues Across Projects
         # ===================================================================
         issues_data = [
-            # Authentication Project (8/12 issues complete per frontend demo)
+            # Authentication Project (8/12 issues complete)
             {
                 "project": "AUTH",
                 "state": "Done",
@@ -579,7 +682,7 @@ async def seed_demo_data() -> None:
                 "priority": "none",
                 "sequence": 12,
             },
-            # API Gateway Project (15/25 issues complete per frontend demo)
+            # API Gateway Project (15/21 issues complete)
             {
                 "project": "API",
                 "state": "Done",
@@ -748,7 +851,7 @@ async def seed_demo_data() -> None:
                 "priority": "none",
                 "sequence": 21,
             },
-            # Frontend Project (10/18 issues complete per frontend demo)
+            # Frontend Project (10/18 issues complete)
             {
                 "project": "FE",
                 "state": "Done",
@@ -915,7 +1018,7 @@ async def seed_demo_data() -> None:
                     "description": issue["description"],
                     "sequence_id": issue["sequence"],
                     "priority": issue["priority"],
-                    "reporter_id": DEMO_USER_ID,
+                    "reporter_id": demo_user_id,
                     "sort_order": issue["sequence"],
                     "created_at": datetime.now() - timedelta(days=30 - issue["sequence"]),
                 },
@@ -929,38 +1032,68 @@ async def seed_demo_data() -> None:
         print("   - FE: 18 issues (10 done, 2 in progress, 1 in review, 3 todo, 2 backlog)")
 
         # ===================================================================
-        # STEP 8: Migrate AI Sessions to Real User ID
+        # Migrate any old demo user data
         # ===================================================================
-        # Any existing ai_sessions created with the old demo user ID
-        # (00000000-0000-0000-0000-000000000001) need to be migrated
         old_demo_user_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
-        result = await session.execute(
-            text("""
-                UPDATE ai_sessions SET user_id = :new_id
-                WHERE user_id = :old_id
-            """),
-            {"new_id": DEMO_USER_ID, "old_id": old_demo_user_id},
-        )
-        migrated_sessions = result.rowcount
-        if migrated_sessions > 0:
-            print(f"✅ Migrated {migrated_sessions} AI sessions to real user ID")
+
+        # Migrate AI sessions from old demo user ID to new auth user ID
+        try:
+            result = await session.execute(
+                text("""
+                    UPDATE ai_sessions SET user_id = :new_id
+                    WHERE user_id = :old_id
+                """),
+                {"new_id": demo_user_id, "old_id": old_demo_user_id},
+            )
+            # Use getattr for type-safe access to rowcount
+            migrated_count = getattr(result, "rowcount", 0)
+            if migrated_count > 0:
+                print(f"✅ Migrated {migrated_count} AI sessions to new user ID")
+        except Exception:
+            # Table might not exist in fresh installations
+            pass
 
         await session.commit()
+
+
+async def main() -> None:
+    """Main seeding orchestration."""
+    try:
+        # Step 1: Create or get Supabase Auth user
+        demo_user_id = await create_or_get_auth_user()
+
+        # Step 2: Seed database with demo data
+        await seed_database(demo_user_id)
+
+        # Success summary
         print("\n" + "=" * 60)
         print("✅ DEMO DATA SEEDED SUCCESSFULLY!")
         print("=" * 60)
         print("\n📊 Summary:")
+        print(f"   - User: Tin Dang ({DEMO_EMAIL})")
+        print(f"   - Auth ID: {demo_user_id}")
         print(f"   - Workspace: pilot-space-demo ({DEMO_WORKSPACE_ID})")
-        print("   - User: Tin Dang (test@pilot.space)")
         print("   - Projects: 3 (AUTH, API, FE)")
         print("   - Notes: 7 (2 pinned)")
-        print(f"   - Issues: {len(issues_data)} across all states")
-        print(f"   - Labels: {len(labels_data)}")
-        print(f"   - States: {len(states_template) * 3} (6 per project)")
-        print("\n🌐 Frontend: http://localhost:3000/pilot-space-demo")
-        print("📚 API Docs: http://localhost:8000/docs")
+        print("   - Issues: 51 across all states")
+        print("   - Labels: 14")
+        print("   - States: 18 (6 per project)")
+        print("\n📝 Login credentials:")
+        print(f"   - Email: {DEMO_EMAIL}")
+        print(f"   - Password: {DEMO_PASSWORD}")
+        print("\n🌐 URLs:")
+        print("   - Frontend: http://localhost:3000/pilot-space-demo")
+        print("   - Login: http://localhost:3000/login")
+        print("   - API Docs: http://localhost:8000/docs")
         print("\n✨ You can now test all features with realistic data!\n")
+
+    except Exception as e:
+        print(f"\n❌ FATAL ERROR: {e}")
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_demo_data())
+    asyncio.run(main())
