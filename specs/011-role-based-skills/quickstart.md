@@ -21,12 +21,11 @@
 10. Type: "Full-stack engineer with 5 years experience. TypeScript, React, Node.js, PostgreSQL. Strong focus on clean architecture and testing."
 11. Click "Generate Skill"
 12. Wait for AI generation (loading spinner, <30s)
-13. Preview shows auto-generated role name (e.g., "Senior Full-Stack TypeScript Developer") in an editable field above the skill content
-14. **Verify**: Role name field is pre-filled and editable — user can change it
-15. Click "Save & Activate"
-16. **Verify**: Onboarding shows 2/4 complete (AI + Role)
-17. **Verify**: Settings → Skills tab shows role card with the auto-generated (or user-edited) name and saved skill content
-18. **Verify**: Word count shown below editor is within 2000 word limit
+13. Preview shows generated SKILL.md content with role-specific focus areas
+14. Click "Save & Activate"
+15. **Verify**: Onboarding shows 2/4 complete (AI + Role)
+16. **Verify**: Settings → Skills tab shows "Developer" card with saved skill content
+17. **Verify**: Word count shown below editor is within 2000 word limit
 
 ---
 

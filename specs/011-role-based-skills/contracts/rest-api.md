@@ -181,7 +181,7 @@ Generate a role skill description using AI. Does NOT save — returns the genera
 | Field | Type | Required | Validation |
 |-------|------|----------|------------|
 | role_type | string | Yes | One of predefined types or "custom" |
-| role_name | string | No | 1-100 chars. Optional — if omitted, AI generates a name from the description. If provided (predefined roles), AI enhances it. |
+| role_name | string | Yes | 1-100 chars |
 | experience_description | string | Yes | 10-5000 chars (meaningful input required) |
 
 **Response (200)**:
@@ -189,7 +189,6 @@ Generate a role skill description using AI. Does NOT save — returns the genera
 | Field | Type | Description |
 |-------|------|-------------|
 | skill_content | string | Generated SKILL.md content |
-| suggested_role_name | string | AI-generated role name based on description (e.g., "Senior Full-Stack TypeScript Developer"). User can edit before saving. |
 | word_count | integer | Word count of generated content |
 | generation_model | string | Model used for generation |
 | generation_time_ms | integer | Generation latency in ms |
@@ -220,12 +219,11 @@ Regenerate an existing skill with updated experience description. Returns previe
 |-------|------|----------|------------|
 | experience_description | string | Yes | 10-5000 chars |
 
-**Response (200)**: Same shape as generate response (including `suggested_role_name`), plus:
+**Response (200)**: Same shape as generate response, plus:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | previous_skill_content | string | Current skill content for comparison |
-| previous_role_name | string | Current role name for comparison |
 
 **Errors**: Same as generate endpoint, plus:
 
@@ -235,12 +233,12 @@ Regenerate an existing skill with updated experience description. Returns previe
 
 ---
 
-## Endpoint 8: PATCH /api/v1/auth/me (extend existing)
+## Endpoint 8: PATCH /api/v1/users/me/profile (extend existing)
 
 **Auth**: Required (Bearer)
 **Source**: FR-011, US4
 
-Update user profile. Extended to support `default_sdlc_role`. This extends the existing `PATCH /auth/me` endpoint in `backend/src/pilot_space/api/v1/routers/auth.py`.
+Update user profile. Extended to support `default_sdlc_role`.
 
 **Request** (additional fields):
 
@@ -248,7 +246,7 @@ Update user profile. Extended to support `default_sdlc_role`. This extends the e
 |-------|------|----------|------------|
 | default_sdlc_role | string\|null | No | One of predefined role types, "custom", or null to clear |
 
-**Response (200)**: Existing `UserProfileResponse` extended with:
+**Response (200)**: Existing profile response extended with:
 
 | Field | Type | Description |
 |-------|------|-------------|
