@@ -156,7 +156,8 @@ async def update_workspace_member(
     Raises:
         HTTPException: If not found or not admin.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
+    # H-1 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
+    workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -242,7 +243,8 @@ async def remove_workspace_member(
     Raises:
         HTTPException: If not found or not authorized.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
+    # H-2 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
+    workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -250,9 +252,11 @@ async def remove_workspace_member(
         )
 
     # Check authorization (admin/owner or self)
-    is_admin = any(
-        m.user_id == current_user.user_id and m.is_admin for m in (workspace.members or [])
+    current_member = next(
+        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
+        None,
     )
+    is_admin = current_member is not None and current_member.is_admin
     is_self = user_id == current_user.user_id
 
     if not (is_admin or is_self):
@@ -261,9 +265,16 @@ async def remove_workspace_member(
             detail="Admin role required to remove other members",
         )
 
-    # Prevent removing the only admin
+    # M-5 fix: prevent owner from removing themselves (leaves workspace ownerless)
+    if is_self and current_member and current_member.is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Workspace owner cannot remove themselves. Transfer ownership first.",
+        )
+
+    # Prevent removing the only admin/owner (count both OWNER and ADMIN roles)
     if is_self and is_admin:
-        admin_count = sum(1 for m in (workspace.members or []) if m.role == WorkspaceRole.ADMIN)
+        admin_count = sum(1 for m in (workspace.members or []) if m.is_admin)
         if admin_count == 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

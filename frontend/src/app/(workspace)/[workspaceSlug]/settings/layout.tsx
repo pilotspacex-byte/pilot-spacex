@@ -11,7 +11,7 @@
 import * as React from 'react';
 import { useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, Menu, Plug, Settings, Sparkles, User, Users } from 'lucide-react';
+import { Building2, CreditCard, Menu, Plug, Settings, Sparkles, User, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -48,10 +48,22 @@ const settingsNavSections: NavSection[] = [
         href: (slug: string) => `/${slug}/settings/members`,
       },
       {
+        id: 'ai-providers',
+        label: 'AI Providers',
+        icon: Sparkles,
+        href: (slug: string) => `/${slug}/settings/ai-providers`,
+      },
+      {
         id: 'integrations',
         label: 'Integrations',
         icon: Plug,
         href: (slug: string) => `/${slug}/settings/integrations`,
+      },
+      {
+        id: 'billing',
+        label: 'Billing',
+        icon: CreditCard,
+        href: (slug: string) => `/${slug}/settings/billing`,
       },
     ],
   },
@@ -63,12 +75,6 @@ const settingsNavSections: NavSection[] = [
         label: 'Profile',
         icon: User,
         href: (slug: string) => `/${slug}/settings/profile`,
-      },
-      {
-        id: 'ai-providers',
-        label: 'AI Providers',
-        icon: Sparkles,
-        href: (slug: string) => `/${slug}/settings/ai-providers`,
       },
     ],
   },

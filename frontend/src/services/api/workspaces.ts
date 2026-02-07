@@ -1,33 +1,20 @@
 import { apiClient } from './client';
-import type { Workspace, User } from '@/types';
+import type {
+  Workspace,
+  WorkspaceRole,
+  WorkspaceMember,
+  CreateWorkspaceData,
+  UpdateWorkspaceData,
+  InviteMemberData,
+} from '@/types';
 
-export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest';
-
-export interface CreateWorkspaceData {
-  name: string;
-  slug?: string;
-  description?: string;
-}
-
-export interface UpdateWorkspaceData {
-  name?: string;
-  slug?: string;
-  description?: string;
-}
-
-export interface InviteMemberData {
-  email: string;
-  role: WorkspaceRole;
-}
-
-export interface WorkspaceMember {
-  id: string;
-  userId: string;
-  user: User;
-  workspaceId: string;
-  role: WorkspaceRole;
-  joinedAt: string;
-}
+export type {
+  WorkspaceRole,
+  WorkspaceMember,
+  CreateWorkspaceData,
+  UpdateWorkspaceData,
+  InviteMemberData,
+};
 
 interface WorkspaceResponse {
   id: string;
@@ -93,8 +80,7 @@ function transformWorkspaceMember(response: WorkspaceMemberResponse): WorkspaceM
       id: response.user?.id ?? response.user_id,
       email: response.user?.email ?? '',
       name: response.user?.name ?? 'Unknown',
-      createdAt: response.created_at,
-      updatedAt: response.created_at,
+      avatarUrl: response.user?.avatar_url ?? undefined,
     },
   };
 }

@@ -60,6 +60,8 @@ InvitationRepo = Annotated[InvitationRepository, Depends(get_invitation_reposito
 
 @router.post(
     "/{workspace_id}/members",
+    # H-7 fix: add response_model for proper OpenAPI docs and response validation
+    response_model=WorkspaceMemberResponse | InvitationResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["workspaces", "invitations"],
 )
@@ -79,7 +81,8 @@ async def add_workspace_member(
 
     Source: FR-014, FR-015, FR-016, US3.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
+    # H-3 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
+    workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -156,7 +159,8 @@ async def list_workspace_invitations(
     Requires admin or owner role.
     Source: plan.md API Contract Endpoint 2.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
+    # H-3 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
+    workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -205,7 +209,8 @@ async def cancel_workspace_invitation(
     Requires admin or owner role.
     Source: plan.md API Contract Endpoint 3, US3 acceptance scenario 5.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
+    # H-3 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
+    workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -224,6 +229,13 @@ async def cancel_workspace_invitation(
 
     result = await invitation_repo.cancel(invitation_id)
     if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found or already processed",
+        )
+
+    # H-5 fix: verify invitation belongs to this workspace (cross-workspace security)
+    if result.workspace_id != workspace_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invitation not found or already processed",

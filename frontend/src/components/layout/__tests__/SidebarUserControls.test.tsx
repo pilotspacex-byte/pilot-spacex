@@ -14,6 +14,7 @@ import { SidebarUserControls } from '../sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { AuthStore } from '@/stores/AuthStore';
 import type { NotificationStore } from '@/stores/NotificationStore';
+import type { UIStore } from '@/stores/UIStore';
 
 vi.mock('mobx-react-lite', () => ({
   observer: <T,>(component: T) => component,
@@ -67,9 +68,23 @@ function createMockNotificationStore(
 ): NotificationStore {
   return {
     unreadCount: 0,
+    sortedNotifications: [],
     markAllAsRead: vi.fn(),
+    markAsRead: vi.fn(),
+    removeNotification: vi.fn(),
+    clearAll: vi.fn(),
     ...overrides,
   } as unknown as NotificationStore;
+}
+
+function createMockUIStore(overrides: Partial<UIStore> = {}): UIStore {
+  return {
+    theme: 'system' as const,
+    setTheme: vi.fn(),
+    resolvedTheme: 'light' as const,
+    sidebarCollapsed: false,
+    ...overrides,
+  } as unknown as UIStore;
 }
 
 function renderControls({
@@ -77,14 +92,17 @@ function renderControls({
   workspaceSlug = 'test-ws',
   authStore,
   notificationStore,
+  uiStore,
 }: {
   collapsed?: boolean;
   workspaceSlug?: string;
   authStore?: AuthStore;
   notificationStore?: NotificationStore;
+  uiStore?: UIStore;
 } = {}) {
   const auth = authStore ?? createMockAuthStore();
   const notifications = notificationStore ?? createMockNotificationStore();
+  const ui = uiStore ?? createMockUIStore();
 
   return render(
     <TooltipProvider>
@@ -93,6 +111,7 @@ function renderControls({
         workspaceSlug={workspaceSlug}
         authStore={auth}
         notificationStore={notifications}
+        uiStore={ui}
       />
     </TooltipProvider>
   );
@@ -119,24 +138,13 @@ describe('SidebarUserControls', () => {
       expect(screen.getByRole('button', { name: 'Account' })).toBeInTheDocument();
     });
 
-    it('does not show notification dot when unreadCount is 0', () => {
-      renderControls();
-      expect(screen.queryByTestId('notification-dot')).not.toBeInTheDocument();
-    });
-
-    it('shows notification dot when unreadCount > 0', () => {
-      const notificationStore = createMockNotificationStore({ unreadCount: 5 });
-      renderControls({ notificationStore });
-      expect(screen.getByTestId('notification-dot')).toBeInTheDocument();
-    });
-
-    it('opens unified dropdown with all menu items', async () => {
+    it('opens unified dropdown with menu items', async () => {
       const user = userEvent.setup();
       renderControls();
 
       await user.click(screen.getByRole('button', { name: 'Account' }));
 
-      expect(screen.getByText('Notifications')).toBeInTheDocument();
+      expect(screen.getByText('Theme')).toBeInTheDocument();
       expect(screen.getByText('Profile')).toBeInTheDocument();
       expect(screen.getByText('Settings')).toBeInTheDocument();
       expect(screen.getByText('Sign out')).toBeInTheDocument();
@@ -152,37 +160,6 @@ describe('SidebarUserControls', () => {
       const nameElements = screen.getAllByText('John Doe');
       expect(nameElements.length).toBeGreaterThanOrEqual(2);
       expect(screen.getByText('john@example.com')).toBeInTheDocument();
-    });
-
-    it('shows notification badge count in dropdown when unreadCount > 0', async () => {
-      const user = userEvent.setup();
-      const notificationStore = createMockNotificationStore({ unreadCount: 3 });
-      renderControls({ notificationStore });
-
-      await user.click(screen.getByRole('button', { name: 'Account' }));
-
-      expect(screen.getByText('3')).toBeInTheDocument();
-    });
-
-    it('caps notification badge at 99+', async () => {
-      const user = userEvent.setup();
-      const notificationStore = createMockNotificationStore({ unreadCount: 150 });
-      renderControls({ notificationStore });
-
-      await user.click(screen.getByRole('button', { name: 'Account' }));
-
-      expect(screen.getByText('99+')).toBeInTheDocument();
-    });
-
-    it('calls markAllAsRead when Notifications clicked', async () => {
-      const user = userEvent.setup();
-      const notificationStore = createMockNotificationStore({ unreadCount: 3 });
-      renderControls({ notificationStore });
-
-      await user.click(screen.getByRole('button', { name: 'Account' }));
-      await user.click(screen.getByText('Notifications'));
-
-      expect(notificationStore.markAllAsRead).toHaveBeenCalledTimes(1);
     });
 
     it('navigates to profile settings on Profile click', async () => {
@@ -216,6 +193,16 @@ describe('SidebarUserControls', () => {
       expect(authStore.logout).toHaveBeenCalledTimes(1);
     });
 
+    it('shows theme submenu trigger in dropdown', async () => {
+      const user = userEvent.setup();
+      const uiStore = createMockUIStore();
+      renderControls({ uiStore });
+
+      await user.click(screen.getByRole('button', { name: 'Account' }));
+
+      expect(screen.getByText('Theme')).toBeInTheDocument();
+    });
+
     it('falls back to "User" when userDisplayName is empty', () => {
       const authStore = createMockAuthStore({
         userDisplayName: '',
@@ -239,24 +226,13 @@ describe('SidebarUserControls', () => {
       expect(screen.queryByText('John Doe')).not.toBeInTheDocument();
     });
 
-    it('shows notification dot in collapsed mode when unread > 0', () => {
-      const notificationStore = createMockNotificationStore({ unreadCount: 7 });
-      renderControls({ collapsed: true, notificationStore });
-      expect(screen.getByTestId('notification-dot')).toBeInTheDocument();
-    });
-
-    it('does not show notification dot when unreadCount is 0', () => {
-      renderControls({ collapsed: true });
-      expect(screen.queryByTestId('notification-dot')).not.toBeInTheDocument();
-    });
-
     it('opens unified dropdown in collapsed mode', async () => {
       const user = userEvent.setup();
       renderControls({ collapsed: true });
 
       await user.click(screen.getByRole('button', { name: 'Account' }));
 
-      expect(screen.getByText('Notifications')).toBeInTheDocument();
+      expect(screen.getByText('Theme')).toBeInTheDocument();
       expect(screen.getByText('Profile')).toBeInTheDocument();
       expect(screen.getByText('Settings')).toBeInTheDocument();
       expect(screen.getByText('Sign out')).toBeInTheDocument();

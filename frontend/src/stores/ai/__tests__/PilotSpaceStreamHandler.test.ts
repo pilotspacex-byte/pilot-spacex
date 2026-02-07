@@ -236,7 +236,8 @@ describe('PilotSpaceStreamHandler', () => {
             toolUseId: 'tc-web-search',
             status: 'completed',
             output: { results: ['result1'] },
-          } as any, // toolUseId is not in standard type but exists at runtime
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing legacy runtime field without toolCallId
+          } as any,
         });
 
         const pending = store.findPendingToolCall('tc-web-search');
@@ -271,6 +272,7 @@ describe('PilotSpaceStreamHandler', () => {
           type: 'tool_result',
           data: {
             status: 'completed',
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing edge case with missing IDs
           } as any,
         });
 

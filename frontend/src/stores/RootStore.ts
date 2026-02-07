@@ -50,6 +50,8 @@ export class RootStore {
 
   dispose(): void {
     this.auth.dispose();
+    this.ui.dispose();
+    this.onboarding.dispose();
   }
 }
 
