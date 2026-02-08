@@ -32,11 +32,23 @@ import type { Issue } from '@/types';
  * Uses direct DOM class manipulation (not ProseMirror decorations) since
  * these are ephemeral visual effects that don't affect editor state.
  */
-export function highlightBlock(blockId: string, type: 'edited' | 'new'): void {
+export function highlightBlock(
+  blockId: string,
+  type: 'edited' | 'new' | 'streaming-reveal' | 'pending-edit'
+): void {
   const el = document.querySelector(`[data-block-id="${blockId}"]`);
   if (!el) return;
 
-  if (type === 'edited') {
+  if (type === 'pending-edit') {
+    el.classList.add('ai-block-pending-edit');
+    // No auto-removal — removed explicitly when content_update arrives
+    return;
+  }
+
+  if (type === 'streaming-reveal') {
+    el.classList.add('ai-block-streaming-reveal');
+    setTimeout(() => el.classList.remove('ai-block-streaming-reveal'), 1300);
+  } else if (type === 'edited') {
     el.classList.add('ai-block-edited');
     setTimeout(() => el.classList.add('ai-block-fade-out'), 50);
     setTimeout(() => {
@@ -80,18 +92,22 @@ export function useContentUpdates(
   store: PilotSpaceStore,
   noteId: string,
   workspaceId?: string
-): { processingBlockIds: string[] } {
+): { processingBlockIds: string[]; userEditingBlockId: string | null } {
   // Track in-flight issue creation requests to prevent duplicates (per-instance)
   const inFlightIssuesRef = useRef(new Map<string, Promise<Issue>>());
 
   // Track user's active editing position for conflict detection
   const userEditingBlockRef = useRef<string | null>(null);
+  const [userEditingBlockId, setUserEditingBlockId] = useState<string | null>(null);
 
   // Retry queue for failed updates (exponential backoff)
   const retryQueueRef = useRef<RetryQueueEntry[]>([]);
 
   // Track block IDs being processed by AI for visual indicator
   const [processingBlockIds, setProcessingBlockIds] = useState<string[]>([]);
+
+  // Track active timeouts for cleanup on unmount
+  const activeTimeoutsRef = useRef(new Set<ReturnType<typeof setTimeout>>());
 
   // Track user selection changes to detect editing block
   useEffect(() => {
@@ -102,7 +118,9 @@ export function useContentUpdates(
         const { from } = editor.state.selection;
         const resolvedPos = editor.state.doc.resolve(from);
         const node = resolvedPos.parent;
-        userEditingBlockRef.current = node?.attrs?.id || null;
+        const blockId = node?.attrs?.blockId || null;
+        userEditingBlockRef.current = blockId;
+        setUserEditingBlockId(blockId);
       } catch (error) {
         // Ignore errors during selection tracking
         console.warn('[useContentUpdates] Failed to track selection:', error);
@@ -147,6 +165,12 @@ export function useContentUpdates(
           case 'append_blocks':
             handleAppendBlocks(editor, update);
             break;
+          case 'insert_blocks':
+            handleInsertBlocks(editor, update);
+            break;
+          case 'remove_block':
+            handleRemoveBlock(editor, update);
+            break;
           case 'insert_inline_issue':
             await handleInsertInlineIssue(
               editor,
@@ -156,6 +180,12 @@ export function useContentUpdates(
               inFlightIssuesRef.current
             );
             break;
+          case 'remove_content':
+          case 'replace_content':
+            // Inline content operations require server-side processing.
+            // Log and skip — these are handled via API re-fetch.
+            console.warn(`[AI] ${update.operation} not yet handled in frontend, skipping`);
+            return false;
           default:
             console.warn('[AI] Unknown content update operation:', update);
             return false;
@@ -227,6 +257,10 @@ export function useContentUpdates(
             if (index !== -1) {
               retryQueue.splice(index, 1);
             }
+            // Clean up processingBlockIds for the failed block
+            if (entry.update.blockId) {
+              setProcessingBlockIds(prev => prev.filter(id => id !== entry.update.blockId));
+            }
             console.warn(
               `[AI] Max retries reached for update:`,
               entry.update.operation,
@@ -268,26 +302,82 @@ export function useContentUpdates(
 
             const success = await applyContentUpdate(update, userEditingBlockRef.current);
 
-            // Remove block from processing indicator
-            if (blockId) {
-              setProcessingBlockIds((prev) => prev.filter((id) => id !== blockId));
+            // Resolve scroll target: use blockId if available, otherwise detect
+            // the last inserted block for append/insert operations (e.g. write_to_note
+            // returns blockId=null because content is appended at document end).
+            let scrollTargetId = blockId;
+            if (success && !scrollTargetId && editor) {
+              if (update.operation === 'append_blocks' || update.operation === 'insert_blocks') {
+                const { doc } = editor.state;
+                let lastBlockId: string | null = null;
+                doc.descendants((node) => {
+                  const bid = node.attrs?.blockId;
+                  if (typeof bid === 'string' && bid) lastBlockId = bid;
+                  return true;
+                });
+                scrollTargetId = lastBlockId;
+                if (scrollTargetId) {
+                  setProcessingBlockIds((prev) =>
+                    prev.includes(scrollTargetId!) ? prev : [...prev, scrollTargetId!]
+                  );
+                }
+              }
             }
 
-            // Apply visual highlight after successful operation
             if (success) {
+              // Transition pending-edit → streaming-reveal with CSS bridge
+              if (blockId) {
+                store.removePendingAIBlockId(blockId);
+                // Apply streaming-reveal first (CSS bridge handles both classes)
+                // then remove pending-edit after transition completes
+                highlightBlock(blockId, 'streaming-reveal');
+                const transitionTimer = setTimeout(() => {
+                  activeTimeoutsRef.current.delete(transitionTimer);
+                  const el = document.querySelector(`[data-block-id="${blockId}"]`);
+                  if (el) el.classList.remove('ai-block-pending-edit');
+                }, 300); // Match CSS transition duration
+                activeTimeoutsRef.current.add(transitionTimer);
+              }
+
+              // Apply visual highlight after successful operation
               if (update.operation === 'replace_block' && blockId) {
-                highlightBlock(blockId, 'edited');
-              } else if (update.operation === 'append_blocks') {
-                // For appended blocks, highlight newly inserted blocks after the anchor
-                const anchorId = update.afterBlockId;
-                if (anchorId) {
-                  const anchorEl = document.querySelector(`[data-block-id="${anchorId}"]`);
-                  const nextSibling = anchorEl?.nextElementSibling;
-                  const newBlockId = nextSibling?.getAttribute('data-block-id');
-                  if (newBlockId) {
-                    highlightBlock(newBlockId, 'new');
+                highlightBlock(blockId, 'streaming-reveal');
+              } else if (update.operation === 'append_blocks' || update.operation === 'insert_blocks') {
+                // For inserted blocks, highlight the last newly inserted block
+                if (scrollTargetId && scrollTargetId !== blockId) {
+                  highlightBlock(scrollTargetId, 'new');
+                } else {
+                  // Fallback: try sibling-based detection from anchor
+                  const anchorId = update.afterBlockId || update.beforeBlockId;
+                  if (anchorId) {
+                    const anchorEl = document.querySelector(`[data-block-id="${anchorId}"]`);
+                    const sibling = update.beforeBlockId
+                      ? anchorEl?.previousElementSibling
+                      : anchorEl?.nextElementSibling;
+                    const newBlockId = sibling?.getAttribute('data-block-id');
+                    if (newBlockId) {
+                      highlightBlock(newBlockId, 'new');
+                    }
                   }
                 }
+              }
+
+              // Delay removal from processingBlockIds so the auto-scroll hook and
+              // animation have time to detect and react. Without this delay, React 18
+              // batching merges the add+remove into a no-op.
+              const targetToClean = scrollTargetId || blockId;
+              if (targetToClean) {
+                const processingTimer = setTimeout(() => {
+                  activeTimeoutsRef.current.delete(processingTimer);
+                  setProcessingBlockIds((prev) => prev.filter((id) => id !== targetToClean));
+                }, 1300); // Match streaming-reveal animation duration
+                activeTimeoutsRef.current.add(processingTimer);
+              }
+            } else {
+              // Failed: remove from processing immediately
+              const targetToClean = scrollTargetId || blockId;
+              if (targetToClean) {
+                setProcessingBlockIds((prev) => prev.filter((id) => id !== targetToClean));
               }
             }
 
@@ -305,10 +395,31 @@ export function useContentUpdates(
       }
     );
 
-    return () => dispose();
+    // Watch for early AI block IDs from tool_use events (visual pending-edit indicator only).
+    // Auto-scroll is NOT triggered here — it stays with the content_update reaction
+    // to avoid consuming the processingBlockIds "new entry" signal before the
+    // content is actually applied.
+    const disposePending = reaction(
+      () => store.pendingAIBlockIds.length,
+      () => {
+        for (const blockId of store.pendingAIBlockIds) {
+          highlightBlock(blockId, 'pending-edit');
+        }
+      }
+    );
+
+    return () => {
+      dispose();
+      disposePending();
+      // Clean up active timeouts to prevent state updates after unmount
+      for (const timer of activeTimeoutsRef.current) {
+        clearTimeout(timer);
+      }
+      activeTimeoutsRef.current.clear();
+    };
   }, [editor, store, noteId, applyContentUpdate, addToRetryQueue]);
 
-  return { processingBlockIds };
+  return { processingBlockIds, userEditingBlockId };
 }
 
 /**
@@ -349,7 +460,7 @@ function handleReplaceBlock(editor: Editor, update: ContentUpdateData): void {
 
   // Find the target block by ID
   doc.descendants((node, pos) => {
-    if (node.attrs?.id === update.blockId) {
+    if (node.attrs?.blockId === update.blockId) {
       targetPos = pos;
       targetSize = node.nodeSize;
       return false; // Stop traversal
@@ -371,6 +482,20 @@ function handleReplaceBlock(editor: Editor, update: ContentUpdateData): void {
       .deleteRange({ from: targetPos, to: targetPos + targetSize })
       .insertContentAt(targetPos, contentSource!)
       .run();
+
+    // Preserve original blockId on the first newly inserted node.
+    // BlockIdExtension auto-assigns new IDs to inserted nodes, but we need
+    // the original ID for highlighting, auto-scroll, and DOM queries.
+    const newDoc = editor.state.doc;
+    const nodeAtPos = newDoc.nodeAt(targetPos);
+    if (nodeAtPos && nodeAtPos.attrs?.blockId !== update.blockId) {
+      const { tr } = editor.state;
+      tr.setNodeMarkup(targetPos, undefined, {
+        ...nodeAtPos.attrs,
+        blockId: update.blockId,
+      });
+      editor.view.dispatch(tr);
+    }
   } catch (error) {
     console.error('[AI] Failed to apply replace_block:', error, {
       blockId: update.blockId,
@@ -391,7 +516,7 @@ function handleAppendBlocks(editor: Editor, update: ContentUpdateData): void {
   // Find position after the specified block
   if (update.afterBlockId) {
     doc.descendants((node, pos) => {
-      if (node.attrs?.id === update.afterBlockId) {
+      if (node.attrs?.blockId === update.afterBlockId) {
         insertPos = pos + node.nodeSize;
         return false; // Stop traversal
       }
@@ -413,6 +538,88 @@ function handleAppendBlocks(editor: Editor, update: ContentUpdateData): void {
     console.error('[AI] Failed to apply append_blocks:', error, {
       afterBlockId: update.afterBlockId,
       insertPos,
+    });
+  }
+}
+
+/**
+ * Handle insert_blocks operation.
+ * Inserts content before or after a specified block, or at end of document.
+ */
+function handleInsertBlocks(editor: Editor, update: ContentUpdateData): void {
+  const { doc } = editor.state;
+  let insertPos = doc.content.size; // Default: end of document
+
+  if (update.beforeBlockId) {
+    doc.descendants((node, pos) => {
+      if (node.attrs?.blockId === update.beforeBlockId) {
+        insertPos = pos;
+        return false;
+      }
+      return true;
+    });
+  } else if (update.afterBlockId) {
+    doc.descendants((node, pos) => {
+      if (node.attrs?.blockId === update.afterBlockId) {
+        insertPos = pos + node.nodeSize;
+        return false;
+      }
+      return true;
+    });
+  }
+
+  try {
+    if (update.markdown) {
+      editor.commands.insertContentAt(insertPos, update.markdown);
+    } else if (update.content) {
+      editor.commands.insertContentAt(insertPos, update.content);
+    } else {
+      console.warn('[AI] insert_blocks operation missing both markdown and content');
+    }
+  } catch (error) {
+    console.error('[AI] Failed to apply insert_blocks:', error, {
+      afterBlockId: update.afterBlockId,
+      beforeBlockId: update.beforeBlockId,
+      insertPos,
+    });
+  }
+}
+
+/**
+ * Handle remove_block operation.
+ * Finds node by blockId and deletes it from the document.
+ */
+function handleRemoveBlock(editor: Editor, update: ContentUpdateData): void {
+  if (!update.blockId) {
+    console.warn('[AI] remove_block operation missing blockId');
+    return;
+  }
+
+  const { doc } = editor.state;
+  let targetPos: number | null = null;
+  let targetSize = 0;
+
+  doc.descendants((node, pos) => {
+    if (node.attrs?.blockId === update.blockId) {
+      targetPos = pos;
+      targetSize = node.nodeSize;
+      return false;
+    }
+    return true;
+  });
+
+  if (targetPos === null) {
+    console.warn(`[AI] Block ${update.blockId} not found for remove_block operation`);
+    return;
+  }
+
+  try {
+    editor.commands.deleteRange({ from: targetPos, to: targetPos + targetSize });
+  } catch (error) {
+    console.error('[AI] Failed to apply remove_block:', error, {
+      blockId: update.blockId,
+      targetPos,
+      targetSize,
     });
   }
 }

@@ -40,6 +40,8 @@ import { SelectionToolbar } from './SelectionToolbar';
 import { InlineNoteHeader } from './InlineNoteHeader';
 import { NoteTitleBlock } from './NoteTitleBlock';
 import { CollapsedChatStrip } from './CollapsedChatStrip';
+import { OffScreenAIIndicator } from './OffScreenAIIndicator';
+import { useAIAutoScroll } from '@/hooks/useAIAutoScroll';
 import type { User } from '@/types';
 
 export interface NoteCanvasProps {
@@ -446,11 +448,18 @@ export const NoteCanvas = observer(function NoteCanvas({
   useSelectionContext(editor, aiStore.pilotSpace, noteId, title);
 
   // Apply AI content updates from PilotSpace
-  const { processingBlockIds } = useContentUpdates(
+  const { processingBlockIds, userEditingBlockId } = useContentUpdates(
     editor,
     aiStore.pilotSpace,
     noteId,
     resolvedWorkspaceId ?? undefined
+  );
+
+  // Auto-scroll to AI-focused blocks
+  const { hasOffScreenUpdate, offScreenDirection, scrollToBlock, dismissIndicator } = useAIAutoScroll(
+    scrollRef,
+    processingBlockIds,
+    userEditingBlockId
   );
 
   // Update AIBlockProcessingExtension with current processing block IDs
@@ -605,6 +614,14 @@ export const NoteCanvas = observer(function NoteCanvas({
             {/* TipTap Editor */}
             <EditorContent editor={editor} />
           </div>
+
+          {/* Off-screen AI edit indicator */}
+          <OffScreenAIIndicator
+            isVisible={hasOffScreenUpdate}
+            direction={offScreenDirection}
+            onScrollToBlock={scrollToBlock}
+            onDismiss={dismissIndicator}
+          />
         </div>
       </div>
     </div>

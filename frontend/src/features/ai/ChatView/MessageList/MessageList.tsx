@@ -105,6 +105,8 @@ export const MessageList = observer<MessageListProps>(
     const isInitialMountRef = useRef(true);
     // Debounce for startReached to prevent multiple rapid calls
     const loadMoreTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // Track if startReached fired while guards blocked it (race condition fix)
+    const startReachedPendingRef = useRef(false);
 
     const scrollToBottom = useCallback(() => {
       virtuosoRef.current?.scrollToIndex({
@@ -167,8 +169,14 @@ export const MessageList = observer<MessageListProps>(
      */
     const handleStartReached = useCallback(() => {
       if (!hasMoreMessages || isLoadingMoreMessages || !onLoadMore) {
+        // Track that startReached fired but was blocked (e.g., during session resume
+        // when hasMoreMessages hasn't been set yet). The retry effect below will
+        // call onLoadMore once guards are satisfied.
+        startReachedPendingRef.current = true;
         return;
       }
+
+      startReachedPendingRef.current = false;
 
       // Debounce: clear existing timeout and set new one
       if (loadMoreTimeoutRef.current) {
@@ -178,6 +186,23 @@ export const MessageList = observer<MessageListProps>(
       loadMoreTimeoutRef.current = setTimeout(() => {
         onLoadMore();
       }, 100);
+    }, [hasMoreMessages, isLoadingMoreMessages, onLoadMore]);
+
+    // Retry loading when hasMoreMessages becomes true after startReached was blocked.
+    // Race condition: Virtuoso fires startReached on mount (short list, user already
+    // at top), but hasMoreMessages is still false (async resume not yet complete).
+    // When hasMoreMessages later becomes true, startReached won't re-fire since
+    // the scroll position hasn't changed. This effect bridges that gap.
+    useEffect(() => {
+      if (
+        startReachedPendingRef.current &&
+        hasMoreMessages &&
+        !isLoadingMoreMessages &&
+        onLoadMore
+      ) {
+        startReachedPendingRef.current = false;
+        onLoadMore();
+      }
     }, [hasMoreMessages, isLoadingMoreMessages, onLoadMore]);
 
     // Note: messages.length in deps ensures recompute on MobX in-place push.
@@ -224,6 +249,7 @@ export const MessageList = observer<MessageListProps>(
             ref={virtuosoRef}
             className="absolute inset-0"
             totalCount={totalCount}
+            increaseViewportBy={200}
             followOutput={atBottom ? 'smooth' : false}
             atBottomStateChange={handleAtBottomChange}
             atBottomThreshold={100}

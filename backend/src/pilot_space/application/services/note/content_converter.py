@@ -1,8 +1,7 @@
 """Bidirectional TipTap JSONContent ↔ Markdown converter with block ID preservation.
 
-Converts between TipTap's JSON document format and Markdown, preserving block IDs
-as HTML comments (``<!-- block:uuid -->``) for round-trip fidelity. Also computes
-structural diffs between two TipTap documents at the block level.
+Preserves block IDs as ``<!-- block:uuid -->`` comments (or ¶N refs with BlockRefMap).
+Also computes structural diffs between two TipTap documents at the block level.
 """
 
 from __future__ import annotations
@@ -10,7 +9,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+if TYPE_CHECKING:
+    from pilot_space.ai.mcp.block_ref_map import BlockRefMap
 
 
 class BlockChangeType(str, Enum):
@@ -45,16 +47,15 @@ class ContentConverter:
     # TipTap → Markdown
     # ------------------------------------------------------------------
 
-    def tiptap_to_markdown(self, content: dict[str, Any]) -> str:
-        """Convert TipTap JSONContent document to Markdown string.
+    def tiptap_to_markdown(
+        self,
+        content: dict[str, Any],
+        *,
+        block_ref_map: BlockRefMap | None = None,
+    ) -> str:
+        """Convert TipTap JSONContent to Markdown.
 
-        Block IDs are preserved as ``<!-- block:uuid -->`` comments.
-
-        Args:
-            content: TipTap document root (type: "doc").
-
-        Returns:
-            Markdown string representation.
+        With ``block_ref_map``, uses ``[¶N]`` prefix instead of ``<!-- block:uuid -->``.
         """
         if content.get("type") != "doc":
             return ""
@@ -63,14 +64,26 @@ class ContentConverter:
             return ""
         parts: list[str] = []
         for node in nodes:
-            parts.append(self._node_to_md(node))
+            parts.append(self._node_to_md(node, block_ref_map=block_ref_map))
         return "\n".join(parts)
 
-    def _node_to_md(self, node: dict[str, Any]) -> str:
+    def _node_to_md(
+        self,
+        node: dict[str, Any],
+        *,
+        block_ref_map: BlockRefMap | None = None,
+    ) -> str:
         """Convert a single TipTap node to Markdown."""
         node_type = node.get("type", "")
         block_id = self._get_block_id(node)
-        prefix = f"<!-- block:{block_id} -->\n" if block_id else ""
+
+        if block_ref_map is not None and block_id and block_id in block_ref_map:
+            ref = block_ref_map.to_ref(block_id)
+            prefix = f"[{ref}] "
+        elif block_id:
+            prefix = f"<!-- block:{block_id} -->\n"
+        else:
+            prefix = ""
 
         handler = self._NODE_HANDLERS.get(node_type)
         if handler:
@@ -210,12 +223,6 @@ class ContentConverter:
         """Convert Markdown string to TipTap JSONContent document.
 
         Block ID comments (``<!-- block:uuid -->``) are restored to node attrs.
-
-        Args:
-            markdown: Markdown string.
-
-        Returns:
-            TipTap document (type: "doc").
         """
         if not markdown.strip():
             return {"type": "doc", "content": []}

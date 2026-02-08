@@ -138,6 +138,9 @@ export class PilotSpaceStore {
   workspaceId: string | null = null;
   error: string | null = null;
 
+  /** Block IDs targeted by pending AI tool calls (set on tool_use, cleared on content_update) */
+  pendingAIBlockIds: string[] = [];
+
   /** Pending structured result (set by structured_result event, consumed by message_stop) */
   private pendingStructuredResult: { schemaType: string; data: Record<string, unknown> } | null =
     null;
@@ -445,6 +448,20 @@ export class PilotSpaceStore {
     const citations = this._pendingCitations;
     this._pendingCitations = [];
     return citations;
+  }
+
+  // ========================================
+  // Actions - Pending AI Block IDs (tool_use → auto-scroll)
+  // ========================================
+
+  addPendingAIBlockId(blockId: string): void {
+    if (!this.pendingAIBlockIds.includes(blockId)) {
+      this.pendingAIBlockIds.push(blockId);
+    }
+  }
+
+  removePendingAIBlockId(blockId: string): void {
+    this.pendingAIBlockIds = this.pendingAIBlockIds.filter((id) => id !== blockId);
   }
 
   // ========================================

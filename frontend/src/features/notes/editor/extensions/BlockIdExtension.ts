@@ -77,11 +77,13 @@ export const BlockIdExtension = Extension.create<BlockIdOptions>({
         attributes: {
           [this.options.attributeName]: {
             default: null,
-            parseHTML: (element) => element.getAttribute(`data-${this.options.attributeName}`),
+            parseHTML: (element) =>
+              element.getAttribute('data-block-id') ??
+              element.getAttribute(`data-${this.options.attributeName}`),
             renderHTML: (attributes) => {
               const id = attributes[this.options.attributeName];
               if (!id) return {};
-              return { [`data-${this.options.attributeName}`]: id };
+              return { 'data-block-id': id };
             },
           },
         },

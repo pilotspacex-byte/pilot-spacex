@@ -21,6 +21,7 @@ import { ContextIndicator } from './ContextIndicator';
 import { SkillMenu } from './SkillMenu';
 import { AgentMenu } from './AgentMenu';
 import { SessionResumeMenu, type SessionSummary } from './SessionResumeMenu';
+import { WorkingIndicator } from './WorkingIndicator';
 
 interface ChatInputProps {
   value: string;
@@ -236,7 +237,8 @@ export const ChatInput = observer<ChatInputProps>(
                 'rounded-xl border-border/60 bg-muted/30',
                 'text-sm placeholder:text-muted-foreground/60',
                 'focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:border-primary/40',
-                'transition-colors'
+                'transition-colors',
+                isStreaming && 'chat-input-working'
               )}
               rows={1}
             />
@@ -309,6 +311,9 @@ export const ChatInput = observer<ChatInputProps>(
               </SessionResumeMenu>
             </div>
           </div>
+
+          {/* Working indicator when AI is processing */}
+          <WorkingIndicator isVisible={isStreaming} />
         </div>
       </div>
     );

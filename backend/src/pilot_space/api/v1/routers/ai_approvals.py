@@ -315,7 +315,7 @@ async def _execute_approved_action(
     current_user_id: uuid.UUID,
     session: Any,
 ) -> dict[str, Any]:
-    """Execute the approved action.
+    """Execute the approved action via ApprovalActionExecutor.
 
     Args:
         agent_name: Name of the requesting agent.
@@ -327,9 +327,13 @@ async def _execute_approved_action(
     Returns:
         Execution result.
     """
-    raise NotImplementedError(
-        f"Action execution for '{action_type}' not yet integrated with service layer. "
-        "Approval recorded but action must be executed manually."
+    from pilot_space.ai.sdk.approval_waiter import ApprovalActionExecutor
+
+    executor = ApprovalActionExecutor(session)
+    return await executor.execute(
+        action_type=action_type,
+        payload=payload,
+        user_id=current_user_id,
     )
 
 

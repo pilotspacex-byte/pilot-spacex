@@ -49,6 +49,10 @@ export interface ThinkingBlockEntry {
   blockIndex: number;
   /** Whether this block was redacted by Claude safety system (G-04) */
   redacted?: boolean;
+  /** Timestamp (ms) when this thinking block started */
+  startedAt?: number;
+  /** Duration of this thinking block in milliseconds (set when block ends) */
+  durationMs?: number;
 }
 
 /**
@@ -57,7 +61,7 @@ export interface ThinkingBlockEntry {
  * order they were received from the server, rather than grouped by type.
  */
 export type ContentBlock =
-  | { type: 'thinking'; blockIndex: number; content: string; redacted?: boolean }
+  | { type: 'thinking'; blockIndex: number; content: string; redacted?: boolean; startedAt?: number; durationMs?: number }
   | { type: 'text'; content: string }
   | { type: 'tool_call'; toolCallId: string };
 

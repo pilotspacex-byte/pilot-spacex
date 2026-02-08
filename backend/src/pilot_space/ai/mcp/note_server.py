@@ -1,15 +1,16 @@
 """In-process SDK custom tools for PilotSpace note manipulation.
 
 Creates an SDK MCP server using create_sdk_mcp_server() with 9 note tools.
-Tool handlers push content_update SSE events to a shared asyncio.Queue
-that the PilotSpaceAgent stream method interleaves with SDK messages.
+Mutation tools return structured JSON payloads (status: pending_apply) that
+the SDK pipeline transforms into SSE content_update events via
+transform_user_message_tool_results() in pilotspace_note_helpers.py.
 
 The noteId in events is always overridden from the agent's context
 (not from model args) because LLMs frequently corrupt long UUIDs.
 
 Architecture:
-  ClaudeSDKClient (in-process) → tool handler → pushes to event_queue
-  PilotSpaceAgent._stream_with_space() → reads from event_queue + SDK messages
+  ClaudeSDKClient (in-process) → tool handler → returns pending_apply JSON
+  SDK pipeline → transform_user_message_tool_results() → content_update SSE
   Frontend useContentUpdates hook → TipTap editor updates + API calls
 
 Reference: https://platform.claude.com/docs/en/agent-sdk/custom-tools
@@ -20,9 +21,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
+
+if TYPE_CHECKING:
+    from pilot_space.ai.mcp.block_ref_map import BlockRefMap
 
 logger = logging.getLogger(__name__)
 
@@ -43,28 +47,30 @@ TOOL_NAMES = [
 ]
 
 
-def _sse_event(event_type: str, data: dict[str, Any]) -> str:
-    """Format an SSE event string."""
-    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-
-
 def create_note_tools_server(
     event_queue: asyncio.Queue[str],
     *,
     context_note_id: str | None = None,
     tool_context: Any | None = None,
+    block_ref_map: BlockRefMap | None = None,
 ) -> McpSdkServerConfig:
     """Create an in-process SDK MCP server with 9 note tools.
 
-    Each tool handler pushes content_update SSE events to event_queue
-    and returns a success message for the model to continue with.
+    Mutation tools return structured JSON payloads (status: pending_apply)
+    that the SDK pipeline transforms into SSE content_update events.
+    The event_queue parameter is retained for backward compatibility but
+    is no longer used by note tools (content_update events flow through
+    the SDK tool_result pipeline instead).
 
     Args:
-        event_queue: Queue for SSE events consumed by the stream method.
+        event_queue: Queue retained for API compatibility; not used by note tools.
         context_note_id: The actual note_id from the chat context.
             Overrides model-provided note_id in all events to prevent
             UUID corruption by the LLM.
         tool_context: ToolContext for database access and RLS enforcement.
+        block_ref_map: Optional ¶N block reference map for human-readable
+            block references. When provided, tool handlers resolve ¶N
+            references to UUIDs and use ¶N notation in result text.
 
     Returns:
         McpSdkServerConfig ready for ClaudeAgentOptions.mcp_servers.
@@ -73,6 +79,12 @@ def create_note_tools_server(
     def _resolve_note_id(args: dict[str, Any]) -> str:
         """Use context note_id if available, fall back to model-provided."""
         return context_note_id or args.get("note_id", "")
+
+    def _resolve_block_ref(ref_or_id: str) -> str:
+        """Resolve ¶N reference to UUID if block_ref_map is available."""
+        if block_ref_map is not None:
+            return block_ref_map.resolve(ref_or_id)
+        return ref_or_id
 
     async def _verify_note_workspace(note_id: str) -> str | None:
         """Verify note belongs to current workspace. Returns error message or None."""
@@ -98,12 +110,13 @@ def create_note_tools_server(
     @tool(
         "update_note_block",
         "Update a specific block in a note with new markdown content. "
-        "Use operation='replace' to replace block content, or 'append' to add after it.",
+        "Use operation='replace' to replace block content, or 'append' to add after it. "
+        "Use ¶N references (e.g., ¶1, ¶2) for block_id.",
         {
             "type": "object",
             "properties": {
                 "note_id": {"type": "string", "description": "UUID of the note"},
-                "block_id": {"type": "string", "description": "ID of the block to update"},
+                "block_id": {"type": "string", "description": "Block reference (¶N) or UUID"},
                 "new_content_markdown": {"type": "string", "description": "New markdown content"},
                 "operation": {
                     "type": "string",
@@ -125,29 +138,32 @@ def create_note_tools_server(
         if ws_err:
             return _text_result(f"Error: {ws_err}")
 
+        block_id = _resolve_block_ref(args["block_id"])
         ai_op = "replace_block" if operation == "replace" else "append_blocks"
-        event_data = {
-            "noteId": note_id,
-            "operation": ai_op,
-            "blockId": args["block_id"],
-            "markdown": args["new_content_markdown"],
-            "content": None,
-            "issueData": None,
-            "afterBlockId": args["block_id"] if ai_op == "append_blocks" else None,
-        }
-        await event_queue.put(_sse_event("content_update", event_data))
-        logger.info("[NoteTools] update_note_block: %s block=%s", ai_op, args["block_id"])
-        return _text_result(f"Updated block {args['block_id']} ({operation}).")
+        logger.info("[NoteTools] update_note_block: %s block=%s", ai_op, block_id)
+        return _text_result(
+            json.dumps(
+                {
+                    "status": "pending_apply",
+                    "operation": ai_op,
+                    "note_id": note_id,
+                    "block_id": block_id,
+                    "markdown": args["new_content_markdown"],
+                    "after_block_id": block_id if ai_op == "append_blocks" else None,
+                }
+            )
+        )
 
     @tool(
         "enhance_text",
         "Replace a block's content with an enhanced/improved version. "
-        "Use when user asks to improve, rewrite, or enhance text.",
+        "Use when user asks to improve, rewrite, or enhance text. "
+        "Use ¶N references (e.g., ¶1, ¶2) for block_id.",
         {
             "type": "object",
             "properties": {
                 "note_id": {"type": "string", "description": "UUID of the note"},
-                "block_id": {"type": "string", "description": "ID of the block to enhance"},
+                "block_id": {"type": "string", "description": "Block reference (¶N) or UUID"},
                 "enhanced_markdown": {"type": "string", "description": "Enhanced markdown content"},
             },
             "required": ["note_id", "block_id", "enhanced_markdown"],
@@ -159,18 +175,19 @@ def create_note_tools_server(
         if ws_err:
             return _text_result(f"Error: {ws_err}")
 
-        event_data = {
-            "noteId": note_id,
-            "operation": "replace_block",
-            "blockId": args["block_id"],
-            "markdown": args["enhanced_markdown"],
-            "content": None,
-            "issueData": None,
-            "afterBlockId": None,
-        }
-        await event_queue.put(_sse_event("content_update", event_data))
-        logger.info("[NoteTools] enhance_text: block=%s", args["block_id"])
-        return _text_result(f"Enhanced text in block {args['block_id']}.")
+        block_id = _resolve_block_ref(args["block_id"])
+        logger.info("[NoteTools] enhance_text: block=%s", block_id)
+        return _text_result(
+            json.dumps(
+                {
+                    "status": "pending_apply",
+                    "operation": "replace_block",
+                    "note_id": note_id,
+                    "block_id": block_id,
+                    "markdown": args["enhanced_markdown"],
+                }
+            )
+        )
 
     @tool(
         "write_to_note",
@@ -198,24 +215,25 @@ def create_note_tools_server(
         ws_err = await _verify_note_workspace(note_id)
         if ws_err:
             return _text_result(f"Error: {ws_err}")
-        event_data = {
-            "noteId": note_id,
-            "operation": "append_blocks",
-            "blockId": None,
-            "markdown": markdown,
-            "content": None,
-            "issueData": None,
-            "afterBlockId": None,
-        }
-        await event_queue.put(_sse_event("content_update", event_data))
         logger.info("[NoteTools] write_to_note: appended to note=%s", note_id)
-        return _text_result("Content written to the note successfully.")
+        return _text_result(
+            json.dumps(
+                {
+                    "status": "pending_apply",
+                    "operation": "append_blocks",
+                    "note_id": note_id,
+                    "markdown": markdown,
+                    "after_block_id": None,
+                }
+            )
+        )
 
     @tool(
         "extract_issues",
         "Extract and create multiple issues from note content. "
         "Each issue needs title, description, type (bug/task/feature/improvement), "
-        "and priority (low/medium/high/urgent). Creates inline issue cards in the note.",
+        "and priority (low/medium/high/urgent). Creates inline issue cards in the note. "
+        "Use ¶N references (e.g., ¶1, ¶2) for block_ids.",
         {
             "type": "object",
             "properties": {
@@ -223,7 +241,7 @@ def create_note_tools_server(
                 "block_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Block IDs where issues were found",
+                    "description": "Block references (¶N) or UUIDs where issues were found",
                 },
                 "issues": {
                     "type": "array",
@@ -251,45 +269,50 @@ def create_note_tools_server(
     )
     async def extract_issues(args: dict[str, Any]) -> dict[str, Any]:
         issues = args.get("issues", [])
-        block_ids = args.get("block_ids", [])
+        raw_block_ids = args.get("block_ids", [])
+        # Resolve ¶N references to UUIDs
+        block_ids = [_resolve_block_ref(bid) for bid in raw_block_ids]
         note_id = _resolve_note_id(args)
         ws_err = await _verify_note_workspace(note_id)
         if ws_err:
             return _text_result(f"Error: {ws_err}")
 
-        for idx, issue in enumerate(issues):
-            block_id = block_ids[idx] if idx < len(block_ids) else None
-            issue_data = {
-                "title": issue.get("title", "Untitled Issue"),
-                "description": issue.get("description", ""),
-                "priority": issue.get("priority", "medium"),
-                "type": issue.get("type", "task"),
-                "sourceBlockId": block_id,
-            }
-            event_data = {
-                "noteId": note_id,
-                "operation": "insert_inline_issue",
-                "blockId": block_id,
-                "markdown": None,
-                "content": None,
-                "issueData": issue_data,
-                "afterBlockId": None,
-            }
-            await event_queue.put(_sse_event("content_update", event_data))
+        # Normalize issue data for the emit handler
+        normalized_issues = []
+        for issue in issues:
+            normalized_issues.append(
+                {
+                    "title": issue.get("title", "Untitled Issue"),
+                    "description": issue.get("description", ""),
+                    "priority": issue.get("priority", "medium"),
+                    "type": issue.get("type", "task"),
+                }
+            )
 
         count = len(issues)
         logger.info("[NoteTools] extract_issues: %d issues from note=%s", count, note_id)
-        return _text_result(f"Created {count} issue(s) as inline cards in the note.")
+        return _text_result(
+            json.dumps(
+                {
+                    "status": "pending_apply",
+                    "operation": "create_issues",
+                    "note_id": note_id,
+                    "issues": normalized_issues,
+                    "block_ids": block_ids,
+                }
+            )
+        )
 
     @tool(
         "create_issue_from_note",
         "Create a single issue linked to a specific note block. "
-        "Use for focused issue creation from one section.",
+        "Use for focused issue creation from one section. "
+        "Use ¶N references (e.g., ¶1, ¶2) for block_id.",
         {
             "type": "object",
             "properties": {
                 "note_id": {"type": "string", "description": "UUID of the note"},
-                "block_id": {"type": "string", "description": "Block ID to link"},
+                "block_id": {"type": "string", "description": "Block reference (¶N) or UUID"},
                 "title": {"type": "string", "description": "Issue title"},
                 "description": {"type": "string", "description": "Issue description"},
                 "priority": {
@@ -312,25 +335,25 @@ def create_note_tools_server(
         if ws_err:
             return _text_result(f"Error: {ws_err}")
 
+        block_id = _resolve_block_ref(args["block_id"])
         issue_data = {
             "title": args["title"],
             "description": args["description"],
             "priority": args.get("priority", "medium"),
             "type": args.get("issue_type", "task"),
-            "sourceBlockId": args["block_id"],
         }
-        event_data = {
-            "noteId": note_id,
-            "operation": "insert_inline_issue",
-            "blockId": args["block_id"],
-            "markdown": None,
-            "content": None,
-            "issueData": issue_data,
-            "afterBlockId": None,
-        }
-        await event_queue.put(_sse_event("content_update", event_data))
-        logger.info("[NoteTools] create_issue_from_note: '%s'", args["title"])
-        return _text_result(f"Created issue '{args['title']}' as inline card.")
+        logger.info("[NoteTools] create_issue_from_note: '%s' block=%s", args["title"], block_id)
+        return _text_result(
+            json.dumps(
+                {
+                    "status": "pending_apply",
+                    "operation": "create_single_issue",
+                    "note_id": note_id,
+                    "block_id": block_id,
+                    "issue": issue_data,
+                }
+            )
+        )
 
     @tool(
         "link_existing_issues",

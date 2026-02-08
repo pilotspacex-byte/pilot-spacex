@@ -1285,6 +1285,174 @@
 }
 
 /* =============================================================================
+   CHAT STREAMING EFFECT - Per-chunk fade-in for AI text streaming
+   ============================================================================= */
+.chat-streaming .chat-markdown > * {
+  animation: chatStreamReveal 0.3s ease-out both;
+}
+
+@keyframes chatStreamReveal {
+  from {
+    opacity: 0.4;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--primary);
+  animation: chatCursorBlink 1s steps(2) infinite;
+}
+
+@keyframes chatCursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* =============================================================================
+   CHAT INPUT WORKING INDICATOR - Orange glow when AI is processing
+   ============================================================================= */
+.chat-input-working {
+  border-color: #d9853f !important;
+  animation: chatInputGlow 2s ease-in-out infinite;
+}
+
+@keyframes chatInputGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(217, 133, 63, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 8px 2px rgba(217, 133, 63, 0.15);
+  }
+}
+
+/* =============================================================================
+   AI BLOCK STREAMING REVEAL - Enhanced clip-path + shimmer animation
+   ============================================================================= */
+[data-block-id].ai-block-streaming-reveal {
+  position: relative;
+  animation: blockStreamingReveal 1.2s ease-out forwards;
+  border-left: 2px solid var(--ai);
+  padding-left: 8px;
+  background: var(--ai-muted);
+}
+
+/* Shimmer edge that sweeps across during reveal */
+[data-block-id].ai-block-streaming-reveal::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ai);
+  opacity: 0.6;
+  animation: shimmerEdge 1.2s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes blockStreamingReveal {
+  0% {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.4;
+    background: var(--ai-muted);
+  }
+  80% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    background: var(--ai-muted);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    background: transparent;
+  }
+}
+
+@keyframes shimmerEdge {
+  from { left: 0; }
+  to { left: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-block-id].ai-block-streaming-reveal {
+    animation: none;
+    border-left: 2px solid var(--ai);
+    background: var(--ai-muted);
+    transition: background 0.5s ease-out;
+  }
+  [data-block-id].ai-block-streaming-reveal::after {
+    display: none;
+  }
+}
+
+/* =============================================================================
+   OFF-SCREEN AI INDICATOR
+   Floating pill at bottom-center when AI edits blocks off-screen
+   ============================================================================= */
+
+.ai-offscreen-indicator {
+  animation: offscreenPulse 2s ease-in-out infinite, offscreenBlink 3s ease-in-out infinite;
+}
+
+@keyframes offscreenPulse {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(217, 133, 63, 0.3);
+  }
+  50% {
+    box-shadow: 0 2px 12px rgba(217, 133, 63, 0.5);
+  }
+}
+
+@keyframes offscreenBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* =============================================================================
+   AI BLOCK PENDING EDIT - Orange pulse when AI tool call targets a block
+   ============================================================================= */
+[data-block-id].ai-block-pending-edit {
+  border-left: 2px solid var(--warning);
+  padding-left: 8px;
+  background: rgba(217, 133, 63, 0.08);
+  animation: pendingEditPulse 2s ease-in-out infinite;
+  position: relative;
+}
+
+@keyframes pendingEditPulse {
+  0%, 100% {
+    border-left-color: var(--warning);
+    background: rgba(217, 133, 63, 0.08);
+  }
+  50% {
+    border-left-color: rgba(217, 133, 63, 0.4);
+    background: rgba(217, 133, 63, 0.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-block-id].ai-block-pending-edit {
+    animation: none;
+  }
+}
+
+/* Transition bridge: pending-edit → streaming-reveal */
+[data-block-id].ai-block-pending-edit.ai-block-streaming-reveal {
+  animation: none;
+  border-left-color: var(--ai);
+  background: rgba(107, 143, 173, 0.06);
+  transition: border-left-color 0.3s ease-out, background 0.3s ease-out;
+}
+
+/* =============================================================================
    CHAT MARKDOWN CONTENT STYLES
    Custom prose-like styling for AI chat messages (no @tailwindcss/typography)
    ============================================================================= */
@@ -1737,8 +1905,25 @@
   .inline-issue-node.issue-rainbow-border::before,
   .issue-box-new::before,
   [data-block-id].ai-block-processing::after,
-  .animate-confetti-fall {
+  .animate-confetti-fall,
+  .ai-offscreen-indicator {
     animation: none !important;
+  }
+
+  .chat-streaming .chat-markdown > * {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  .chat-input-working {
+    animation: none !important;
+    box-shadow: 0 0 0 1px rgba(217, 133, 63, 0.3) !important;
+  }
+
+  [data-block-id].ai-block-streaming-reveal {
+    animation: none !important;
+    clip-path: none !important;
+    opacity: 1 !important;
   }
 
   [data-block-id].ai-block-edited {

@@ -1,8 +1,8 @@
 """Unit tests for MCP note server tools (note_server.py).
 
-Tests the in-process SDK MCP server tools that push content_update
-SSE events to a shared asyncio.Queue. Focuses on the write_to_note
-tool and TOOL_NAMES constant.
+Tests the in-process SDK MCP server tools that return structured JSON
+payloads (status: pending_apply) for the SDK pipeline. Focuses on the
+write_to_note tool and TOOL_NAMES constant.
 """
 
 from __future__ import annotations
@@ -59,22 +59,21 @@ class TestWriteToNoteTool:
     """Tests for the write_to_note MCP tool."""
 
     @pytest.mark.asyncio
-    async def test_pushes_append_blocks_event(self) -> None:
-        """write_to_note pushes a content_update event with append_blocks operation."""
+    async def test_returns_pending_apply_json(self) -> None:
+        """write_to_note returns structured JSON with pending_apply status."""
         queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_tools(queue, context_note_id="note-abc")
         write_tool = tools["write_to_note"]
 
         result = await write_tool.handler({"note_id": "ignored", "markdown": "# Hello World"})
 
-        assert "Content written" in result["content"][0]["text"]
-
-        raw_event = queue.get_nowait()
-        parsed = _parse_sse_event(raw_event)
-
-        assert parsed["event"] == "content_update"
-        assert parsed["data"]["operation"] == "append_blocks"
-        assert parsed["data"]["markdown"] == "# Hello World"
+        payload = json.loads(result["content"][0]["text"])
+        assert payload["status"] == "pending_apply"
+        assert payload["operation"] == "append_blocks"
+        assert payload["markdown"] == "# Hello World"
+        assert payload["note_id"] == "note-abc"
+        # Queue should be empty — tools no longer push events directly
+        assert queue.empty()
 
     @pytest.mark.asyncio
     async def test_uses_context_note_id(self) -> None:
@@ -83,12 +82,12 @@ class TestWriteToNoteTool:
         tools = _capture_tools(queue, context_note_id="real-note-uuid")
         write_tool = tools["write_to_note"]
 
-        await write_tool.handler({"note_id": "model-hallucinated-id", "markdown": "Content"})
+        result = await write_tool.handler(
+            {"note_id": "model-hallucinated-id", "markdown": "Content"}
+        )
 
-        raw_event = queue.get_nowait()
-        parsed = _parse_sse_event(raw_event)
-
-        assert parsed["data"]["noteId"] == "real-note-uuid"
+        payload = json.loads(result["content"][0]["text"])
+        assert payload["note_id"] == "real-note-uuid"
 
     @pytest.mark.asyncio
     async def test_rejects_empty_markdown(self) -> None:
@@ -116,34 +115,27 @@ class TestWriteToNoteTool:
         assert queue.empty()
 
     @pytest.mark.asyncio
-    async def test_event_has_null_block_ids(self) -> None:
-        """write_to_note event has null blockId and afterBlockId for end-of-doc append."""
+    async def test_payload_has_null_after_block_id(self) -> None:
+        """write_to_note payload has null after_block_id for end-of-doc append."""
         queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_tools(queue, context_note_id="note-abc")
         write_tool = tools["write_to_note"]
 
-        await write_tool.handler({"note_id": "note-abc", "markdown": "Some content"})
+        result = await write_tool.handler({"note_id": "note-abc", "markdown": "Some content"})
 
-        raw_event = queue.get_nowait()
-        parsed = _parse_sse_event(raw_event)
-
-        assert parsed["data"]["blockId"] is None
-        assert parsed["data"]["afterBlockId"] is None
+        payload = json.loads(result["content"][0]["text"])
+        assert payload["after_block_id"] is None
 
     @pytest.mark.asyncio
-    async def test_event_has_null_issue_data(self) -> None:
-        """write_to_note event has null issueData and content fields."""
+    async def test_no_queue_push(self) -> None:
+        """write_to_note does not push events to the queue (single source of truth)."""
         queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_tools(queue, context_note_id="note-abc")
         write_tool = tools["write_to_note"]
 
         await write_tool.handler({"note_id": "note-abc", "markdown": "Content"})
 
-        raw_event = queue.get_nowait()
-        parsed = _parse_sse_event(raw_event)
-
-        assert parsed["data"]["issueData"] is None
-        assert parsed["data"]["content"] is None
+        assert queue.empty()
 
 
 class TestToolNamesConstant:

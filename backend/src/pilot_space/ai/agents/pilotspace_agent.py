@@ -27,6 +27,7 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
     classify_effort,
     detect_skill_from_message,
     estimate_tokens,
+    merge_sdk_and_queue,
 )
 from pilot_space.ai.agents.role_skill_materializer import materialize_role_skills
 from pilot_space.ai.agents.sse_delta_buffer import DeltaBuffer
@@ -96,11 +97,7 @@ def _has_skill_files(skills_dir: Path) -> bool:
     """
     if not skills_dir.is_dir():
         return False
-    return any(
-        (entry / "SKILL.md").is_file()
-        for entry in skills_dir.iterdir()
-        if entry.is_dir()
-    )
+    return any((entry / "SKILL.md").is_file() for entry in skills_dir.iterdir() if entry.is_dir())
 
 
 @dataclass
@@ -148,7 +145,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         "**Projects** (5 tools): get_project, search_projects, create_project, update_project, update_project_settings.\n"
         "**Comments** (4 tools): create_comment, update_comment, search_comments, get_comments.\n\n"
         "## Entity resolution\n"
-        "Issue/project tools accept UUID or human-readable identifiers (e.g., PILOT-123, PILOT).\n\n"
+        "Issue/project tools accept UUID or human-readable identifiers (e.g., PILOT-123, PILOT).\n"
+        "Note blocks use ¶N references (e.g., ¶1, ¶2). Use these in block_id parameters. "
+        "Never expose raw block UUIDs to users.\n\n"
         "## Approval tiers\n"
         "- Auto-execute: search/get tools (read-only).\n"
         "- Require approval: create/update/link tools.\n"
@@ -302,12 +301,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 yield chunk
 
         except Exception as e:
-            error_data = {
-                "errorCode": "sdk_error",
-                "message": str(e),
-                "retryable": False,
-            }
-            yield f"event: error\ndata: {json.dumps(error_data)}\n\n"
+            err = {"errorCode": "sdk_error", "message": str(e), "retryable": False}
+            yield f"event: error\ndata: {json.dumps(err)}\n\n"
 
     async def _stream_with_space(
         self,
@@ -377,7 +372,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 # the Skill tool is only exposed when the SDK can resolve it.
                 # Prevents "No such tool available: skill" when no skills exist.
                 has_skills = skill_count > 0 or await asyncio.to_thread(
-                    _has_skill_files, space_context.skills_dir,
+                    _has_skill_files,
+                    space_context.skills_dir,
                 )
 
                 tool_context = ToolContext(
@@ -386,15 +382,25 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     user_id=str(context.user_id) if context.user_id else None,
                 )
 
+                # Build ¶N block reference map (AI sees ¶1/¶2 not raw UUIDs)
+                from pilot_space.ai.mcp.block_ref_map import BlockRefMap
+
+                _note_obj = input_data.context.get("note")
+                _note_raw = getattr(_note_obj, "content", {}) if _note_obj else {}
+                ref_map = BlockRefMap.from_tiptap(_note_raw) if _note_raw else None
+                if ref_map is not None and ref_map.is_empty:
+                    ref_map = None
                 context_note_id = input_data.context.get("note_id")
                 note_tools_server = create_note_tools_server(
                     tool_event_queue,
                     context_note_id=str(context_note_id) if context_note_id else None,
                     tool_context=tool_context,
+                    block_ref_map=ref_map,
                 )
                 note_content_server = create_note_content_server(
                     tool_event_queue,
                     tool_context=tool_context,
+                    block_ref_map=ref_map,
                 )
                 issue_tools_server = create_issue_tools_server(
                     tool_event_queue,
@@ -510,7 +516,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
                 self._active_clients[query_session_id] = client
 
-                enriched_message = build_contextual_message(input_data)
+                enriched_message = build_contextual_message(
+                    input_data,
+                    block_ref_map=ref_map,
+                )
                 await client.query(enriched_message, session_id=query_session_id)
 
                 sdk_event_count = 0
@@ -518,10 +527,20 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 tool_event_count = 0
 
                 try:
-                    async for message in client.receive_response():
+                    async for source, item in merge_sdk_and_queue(
+                        client.receive_response(),
+                        tool_event_queue,
+                    ):
+                        if source == "queue":
+                            yield item
+                            capture_content_from_sse(item, content_blocks)
+                            tool_event_count += 1
+                            continue
+
+                        # source == "sdk"
                         sdk_event_count += 1
                         sse_event = self.transform_sdk_message(
-                            message,
+                            item,
                             context,
                             delta_buffer,
                             session_id=session_id_str,
@@ -531,22 +550,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                             yield sse_event
                             capture_content_from_sse(sse_event, content_blocks)
 
-                        # Time-based flush check for buffered deltas
                         if delta_buffer.should_flush():
                             flush_event = delta_buffer.flush()
                             if flush_event:
                                 transformed_count += 1
                                 yield flush_event
                                 capture_content_from_sse(flush_event, content_blocks)
-
-                        try:
-                            while True:
-                                yield tool_event_queue.get_nowait()
-                                tool_event_count += 1
-                        except asyncio.QueueEmpty:
-                            pass
                 except Exception as stream_err:
-                    # Flush partial buffered content before yielding error
                     partial_flush = delta_buffer.flush()
                     if partial_flush:
                         yield partial_flush
@@ -556,23 +566,25 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         stream_err,
                         exc_info=True,
                     )
-                    err_data = {
+                    err = {
                         "errorCode": "stream_error",
                         "message": str(stream_err),
                         "retryable": False,
                     }
-                    yield f"event: error\ndata: {json.dumps(err_data)}\n\n"
+                    yield f"event: error\ndata: {json.dumps(err)}\n\n"
                 else:
-                    # Final flush of any remaining buffered deltas
                     final_flush = delta_buffer.flush()
                     if final_flush:
                         transformed_count += 1
                         yield final_flush
                         capture_content_from_sse(final_flush, content_blocks)
 
+                    # Drain any remaining queue events
                     try:
                         while True:
-                            yield tool_event_queue.get_nowait()
+                            drain_item = tool_event_queue.get_nowait()
+                            yield drain_item
+                            capture_content_from_sse(drain_item, content_blocks)
                             tool_event_count += 1
                     except asyncio.QueueEmpty:
                         pass

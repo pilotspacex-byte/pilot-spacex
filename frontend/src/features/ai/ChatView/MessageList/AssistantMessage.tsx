@@ -52,9 +52,9 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
                     key={`thinking-${block.blockIndex}`}
                     content={block.content}
                     durationMs={
-                      isLastThinkingBlock(block, message.contentBlocks!)
+                      block.durationMs ?? (isLastThinkingBlock(block, message.contentBlocks!)
                         ? message.thinkingDurationMs
-                        : undefined
+                        : undefined)
                     }
                     isStreaming={false}
                   />
@@ -81,9 +81,9 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
                     key={block.blockIndex}
                     content={block.content}
                     durationMs={
-                      block === message.thinkingBlocks![message.thinkingBlocks!.length - 1]
+                      block.durationMs ?? (block === message.thinkingBlocks![message.thinkingBlocks!.length - 1]
                         ? message.thinkingDurationMs
-                        : undefined
+                        : undefined)
                     }
                     isStreaming={false}
                   />

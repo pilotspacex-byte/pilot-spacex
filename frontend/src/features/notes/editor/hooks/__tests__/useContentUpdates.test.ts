@@ -38,7 +38,7 @@ function createMockEditor(overrides?: Partial<Editor>): Editor {
   const mockDoc = {
     descendants: vi.fn(),
     resolve: vi.fn().mockReturnValue({
-      parent: { attrs: { id: null } },
+      parent: { attrs: { blockId: null } },
     }),
     content: { size: 100 },
   };
@@ -150,7 +150,7 @@ describe('useContentUpdates', () => {
       mockDoc.descendants.mockImplementation(
         (callback: (node: unknown, pos: number) => boolean | void) => {
           // Simulate finding the target block
-          const node = { attrs: { id: targetBlockId }, nodeSize: targetSize };
+          const node = { attrs: { blockId: targetBlockId }, nodeSize: targetSize };
           const shouldContinue = callback(node, targetPos);
           return shouldContinue;
         }
@@ -194,7 +194,7 @@ describe('useContentUpdates', () => {
       };
       mockDoc.descendants.mockImplementation(
         (callback: (node: unknown, pos: number) => boolean | void) => {
-          const node = { attrs: { id: targetBlockId }, nodeSize: targetSize };
+          const node = { attrs: { blockId: targetBlockId }, nodeSize: targetSize };
           callback(node, targetPos);
         }
       );
@@ -235,7 +235,7 @@ describe('useContentUpdates', () => {
       };
       mockDoc.descendants.mockImplementation(
         (callback: (node: unknown, pos: number) => boolean | void) => {
-          const node = { attrs: { id: targetBlockId }, nodeSize: targetSize };
+          const node = { attrs: { blockId: targetBlockId }, nodeSize: targetSize };
           callback(node, targetPos);
         }
       );
@@ -268,7 +268,7 @@ describe('useContentUpdates', () => {
 
       // Simulate user selecting the target block
       const mockResolve = vi.fn().mockReturnValue({
-        parent: { attrs: { id: targetBlockId } },
+        parent: { attrs: { blockId: targetBlockId } },
       });
       editor.state.doc.resolve = mockResolve;
 
@@ -346,7 +346,7 @@ describe('useContentUpdates', () => {
       };
       mockDoc.descendants.mockImplementation(
         (callback: (node: unknown, pos: number) => boolean | void) => {
-          const node = { attrs: { id: afterBlockId }, nodeSize: afterBlockSize };
+          const node = { attrs: { blockId: afterBlockId }, nodeSize: afterBlockSize };
           callback(node, afterBlockPos);
         }
       );
@@ -413,7 +413,7 @@ describe('useContentUpdates', () => {
       };
       mockDoc.descendants.mockImplementation(
         (callback: (node: unknown, pos: number) => boolean | void) => {
-          const node = { attrs: { id: afterBlockId }, nodeSize: afterBlockSize };
+          const node = { attrs: { blockId: afterBlockId }, nodeSize: afterBlockSize };
           callback(node, afterBlockPos);
         }
       );
@@ -684,6 +684,16 @@ describe('useContentUpdates', () => {
       expect(el.classList.contains('ai-block-new')).toBe(true);
       vi.advanceTimersByTime(400);
       expect(el.classList.contains('ai-block-new')).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it('should add ai-block-streaming-reveal class and remove after 1300ms', () => {
+      vi.useFakeTimers();
+      const el = createBlockEl('block-1');
+      highlightBlock('block-1', 'streaming-reveal');
+      expect(el.classList.contains('ai-block-streaming-reveal')).toBe(true);
+      vi.advanceTimersByTime(1300);
+      expect(el.classList.contains('ai-block-streaming-reveal')).toBe(false);
       vi.useRealTimers();
     });
 

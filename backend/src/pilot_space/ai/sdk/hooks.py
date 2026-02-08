@@ -15,7 +15,6 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import UTC
 from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID, uuid4
 
@@ -176,6 +175,21 @@ class PermissionCheckHook(PreToolUseHook):
         """
         self._permission_handler = permission_handler
 
+    @staticmethod
+    def strip_mcp_prefix(tool_name: str) -> str:
+        """Strip MCP server prefix from tool name.
+
+        MCP tools arrive as ``mcp__{server_name}__{tool}`` (e.g.
+        ``mcp__pilot-notes__write_to_note``).  Returns the bare tool
+        name (``write_to_note``) so it matches ACTION_CLASSIFICATIONS
+        and TOOL_ACTION_MAPPING keys.
+        """
+        if tool_name.startswith("mcp__"):
+            parts = tool_name.split("__", 2)
+            if len(parts) == 3:
+                return parts[2]
+        return tool_name
+
     async def should_execute(self, context: ToolCallContext) -> HookResult:
         """Check if tool execution requires approval.
 
@@ -185,12 +199,10 @@ class PermissionCheckHook(PreToolUseHook):
         Returns:
             HookResult with permission decision
         """
-        # Map tool name to action name
-        action_name = self.TOOL_ACTION_MAPPING.get(context.tool_name)
+        bare_name = self.strip_mcp_prefix(context.tool_name)
 
-        # If tool not mapped, allow execution (read-only tools)
-        if not action_name:
-            return HookResult.allow_execution(reason=f"Tool '{context.tool_name}' is read-only")
+        # Legacy mapping (old _in_db style names -> action names)
+        action_name = self.TOOL_ACTION_MAPPING.get(bare_name, bare_name)
 
         # Check permission for mapped action
         permission_result = await self._permission_handler.check_permission(
@@ -219,20 +231,27 @@ class PermissionCheckHook(PreToolUseHook):
         Returns:
             Description string for approval UI
         """
-        tool_name = context.tool_name
+        bare_name = self.strip_mcp_prefix(context.tool_name)
         tool_input = context.tool_input
 
-        if tool_name == "create_issue_in_db":
-            return f"Create issue: {tool_input.get('name', 'Untitled')}"
-        if tool_name == "update_issue_in_db":
-            return f"Update issue: {tool_input.get('issue_id')}"
-        if tool_name == "delete_issue_from_db":
-            return f"Delete issue: {tool_input.get('issue_id')}"
-        if tool_name == "merge_pull_request":
-            return f"Merge PR: {tool_input.get('pr_number')}"
-        if tool_name == "create_subtasks":
-            return f"Create {len(tool_input.get('subtasks', []))} subtasks"
-        return f"Execute {tool_name}"
+        descriptions: dict[str, str] = {
+            "create_issue_in_db": f"Create issue: {tool_input.get('name', 'Untitled')}",
+            "update_issue_in_db": f"Update issue: {tool_input.get('issue_id')}",
+            "delete_issue_from_db": f"Delete issue: {tool_input.get('issue_id')}",
+            "merge_pull_request": f"Merge PR: {tool_input.get('pr_number')}",
+            "create_subtasks": f"Create {len(tool_input.get('subtasks', []))} subtasks",
+            # MCP tools (spec 010)
+            "write_to_note": f"Write to note: {tool_input.get('note_id', 'unknown')}",
+            "create_note": f"Create note: {tool_input.get('title', 'Untitled')}",
+            "update_note": f"Update note: {tool_input.get('note_id', 'unknown')}",
+            "create_issue": f"Create issue: {tool_input.get('title', tool_input.get('name', 'Untitled'))}",
+            "update_issue": f"Update issue: {tool_input.get('issue_id', 'unknown')}",
+            "create_project": f"Create project: {tool_input.get('name', 'Untitled')}",
+            "update_project": f"Update project: {tool_input.get('project_id', 'unknown')}",
+            "extract_issues": f"Extract issues from note: {tool_input.get('note_id', 'unknown')}",
+            "transition_issue_state": f"Transition issue {tool_input.get('issue_id', '?')} to {tool_input.get('new_state', '?')}",
+        }
+        return descriptions.get(bare_name, f"Execute {bare_name}")
 
 
 class ValidationHook(PreToolUseHook):
@@ -386,10 +405,13 @@ class PermissionAwareHookExecutor:
         if self._file_hook_executor:
             sdk_hooks = self._file_hook_executor.to_sdk_hooks()
 
-        # Add permission check as a catch-all PreToolUse hook
+        # Add permission check as a catch-all PreToolUse hook.
+        # Timeout must exceed wait_for_approval()'s 300s to avoid
+        # the SDK killing the hook mid-approval-wait.
         permission_matcher = {
             "matcher": ".*",
             "hooks": [self._create_permission_callback()],
+            "timeout": 360,
         }
 
         pre_hooks = sdk_hooks.get("PreToolUse", [])
@@ -449,12 +471,15 @@ class PermissionAwareHookExecutor:
             context: Any,
         ) -> dict[str, Any]:
             """SDK hook callback that enforces DD-003 permissions."""
-            tool_name = input_data.get("tool_name", "")
+            raw_tool_name = input_data.get("tool_name", "")
             tool_input = input_data.get("tool_input", {})
             hook_event_name = input_data.get(
                 "hook_event_name",
                 "PreToolUse",
             )
+
+            # Strip MCP prefix so bare name matches permission tables
+            tool_name = PermissionCheckHook.strip_mcp_prefix(raw_tool_name)
 
             # Build ToolCallContext from SDK callback data
             tool_context = ToolCallContext(
@@ -487,7 +512,11 @@ class PermissionAwareHookExecutor:
             if result.requires_approval:
                 # Emit approval_request SSE event if queue available
                 if event_queue and result.approval_id:
-                    approval_event = _build_approval_sse_event(
+                    from pilot_space.ai.sdk.approval_waiter import (
+                        build_approval_sse_event,
+                    )
+
+                    approval_event = build_approval_sse_event(
                         approval_id=result.approval_id,
                         tool_name=tool_name,
                         tool_input=tool_input,
@@ -495,11 +524,38 @@ class PermissionAwareHookExecutor:
                     )
                     await event_queue.put(approval_event)
 
+                # Block until user approves/rejects or timeout (5 min)
+                if not result.approval_id:
+                    return {
+                        "hookSpecificOutput": {
+                            "hookEventName": hook_event_name,
+                            "permissionDecision": "deny",
+                            "permissionDecisionReason": "Missing approval_id",
+                        },
+                    }
+
+                from pilot_space.ai.sdk.approval_waiter import wait_for_approval
+
+                decision = await wait_for_approval(result.approval_id)
+
+                if decision == "approved":
+                    logger.info(
+                        "Approval %s granted for '%s'",
+                        result.approval_id,
+                        tool_name,
+                    )
+                    return {}  # Empty dict = allow SDK to execute tool
+
+                deny_reason = (
+                    f"User {decision} the action"
+                    if decision == "rejected"
+                    else "Approval request timed out (5 minutes)"
+                )
                 return {
                     "hookSpecificOutput": {
                         "hookEventName": hook_event_name,
-                        "permissionDecision": "ask",
-                        "permissionDecisionReason": result.reason,
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": deny_reason,
                     },
                 }
 
@@ -614,77 +670,3 @@ class SubagentProgressHook:
             return {}
 
         return callback
-
-
-def _classify_urgency(tool_name: str) -> str:
-    """Classify approval urgency based on tool name.
-
-    Destructive operations → high, content creation → medium, other → low.
-    """
-    destructive = {"delete_issue_from_db", "merge_pull_request", "close_pull_request"}
-    content_creation = {"create_issue_in_db", "create_subtasks"}
-    if tool_name in destructive:
-        return "high"
-    if tool_name in content_creation:
-        return "medium"
-    return "low"
-
-
-def _build_affected_entities(tool_name: str, tool_input: dict[str, Any]) -> list[dict[str, str]]:
-    """Extract affected entities from tool input for approval UI."""
-    entities: list[dict[str, str]] = []
-    if "issue_id" in tool_input:
-        entities.append(
-            {
-                "type": "issue",
-                "id": str(tool_input["issue_id"]),
-                "name": str(tool_input.get("name", tool_input.get("issue_id", ""))),
-            }
-        )
-    if "note_id" in tool_input:
-        entities.append(
-            {
-                "type": "note",
-                "id": str(tool_input["note_id"]),
-                "name": str(tool_input.get("note_id", "")),
-            }
-        )
-    if "pr_number" in tool_input:
-        entities.append(
-            {
-                "type": "file",
-                "id": str(tool_input["pr_number"]),
-                "name": f"PR #{tool_input['pr_number']}",
-            }
-        )
-    return entities
-
-
-def _build_approval_sse_event(
-    approval_id: UUID,
-    tool_name: str,
-    tool_input: dict[str, Any],
-    reason: str,
-) -> str:
-    """Build SSE event string for approval_request with all frontend-expected fields."""
-    from datetime import datetime, timedelta
-
-    urgency = _classify_urgency(tool_name)
-    expires_at = datetime.now(tz=UTC) + timedelta(hours=24)
-    affected_entities = _build_affected_entities(tool_name, tool_input)
-
-    action_mapping = PermissionCheckHook.TOOL_ACTION_MAPPING
-    action_type = action_mapping.get(tool_name, tool_name)
-
-    data: dict[str, Any] = {
-        "requestId": str(approval_id),
-        "actionType": action_type,
-        "description": reason,
-        "consequences": f"This will {action_type.replace('_', ' ')} in the workspace.",
-        "affectedEntities": affected_entities,
-        "urgency": urgency,
-        "proposedContent": tool_input,
-        "expiresAt": expires_at.isoformat(),
-        "confidenceTag": "DEFAULT",
-    }
-    return f"event: approval_request\ndata: {json.dumps(data)}\n\n"

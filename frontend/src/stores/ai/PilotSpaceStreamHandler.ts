@@ -365,6 +365,16 @@ export class PilotSpaceStreamHandler {
     };
   }
 
+  /** Finalize durationMs on the last thinking block if it has a startedAt but no durationMs. */
+  private finalizeLastThinkingBlockDuration(): void {
+    const blocks = this.store.streamingState.thinkingBlocks;
+    if (!blocks || blocks.length === 0) return;
+    const last = blocks[blocks.length - 1]!;
+    if (last.startedAt && !last.durationMs) {
+      last.durationMs = Date.now() - last.startedAt;
+    }
+  }
+
   /** Handle content_block_start — tracks block type for progressive rendering. */
   handleContentBlockStart(event: ContentBlockStartEvent): void {
     const { contentType, index, parentToolUseId } = event.data;
@@ -390,6 +400,12 @@ export class PilotSpaceStreamHandler {
         this.store.streamingState.thinkingStartedAt = Date.now();
       }
     } else if (contentType === 'text') {
+      // End thinking phase when text block starts (safety: also handled in handleTextDelta)
+      if (this.store.streamingState.isThinking) {
+        this.store.streamingState.isThinking = false;
+        this.finalizeLastThinkingBlockDuration();
+      }
+
       // Detect duplicate "summary" text blocks: models like kimi-k2.5 emit
       // a content_block_start index:0 text after word-by-word deltas, containing
       // the full text again. Skip these to avoid duplicate content.
@@ -407,6 +423,11 @@ export class PilotSpaceStreamHandler {
       }
       this.store.streamingState.phase = 'content';
     } else if (contentType === 'tool_use') {
+      // End thinking phase when tool_use starts (thinking → tool_use without text in between)
+      if (this.store.streamingState.isThinking) {
+        this.store.streamingState.isThinking = false;
+        this.finalizeLastThinkingBlockDuration();
+      }
       // Track block index for tool_input_delta routing
       this._lastToolUseBlockIndex = index;
       this._skipDuplicateTextBlock = false;
@@ -441,18 +462,26 @@ export class PilotSpaceStreamHandler {
     if (!this.store.streamingState.thinkingBlocks) {
       this.store.streamingState.thinkingBlocks = [];
     }
-    const existing = this.store.streamingState.thinkingBlocks.find(
+    const existingIdx = this.store.streamingState.thinkingBlocks.findIndex(
       (b) => b.blockIndex === turnIndex
     );
-    if (existing) {
-      existing.content += delta;
+    if (existingIdx >= 0) {
+      // Immutable update: replace entry to create new object reference
+      const existing = this.store.streamingState.thinkingBlocks[existingIdx]!;
+      this.store.streamingState.thinkingBlocks[existingIdx] = {
+        ...existing,
+        content: existing.content + delta,
+      };
     } else {
       this.store.streamingState.thinkingBlocks.push({
         content: delta,
         blockIndex: turnIndex,
         redacted,
+        startedAt: Date.now(),
       });
     }
+    // Create new array reference so React memo() on OrderedStreamingBlocks detects changes
+    this.store.streamingState.thinkingBlocks = [...this.store.streamingState.thinkingBlocks];
 
     // Capture thinking block signature for multi-turn verification (G-06)
     if (signature) {
@@ -504,6 +533,15 @@ export class PilotSpaceStreamHandler {
   handleToolUseStart(event: ToolUseEvent): void {
     const { toolCallId, toolName, toolInput } = event.data;
 
+    // Dedup: if tool call already exists, merge input instead of duplicating
+    const existing = this.store.findPendingToolCall(toolCallId);
+    if (existing) {
+      if (toolInput && Object.keys(toolInput).length > 0) {
+        existing.input = toolInput;
+      }
+      return;
+    }
+
     // Create tool call entry with optional parent correlation (G12)
     const toolCall: ToolCall = {
       id: toolCallId,
@@ -521,6 +559,28 @@ export class PilotSpaceStreamHandler {
 
     // Buffer tool call — message doesn't exist in messages[] during streaming
     this.store.addPendingToolCall(toolCall);
+
+    // Extract blockId from note-editing tools for early auto-scroll (before content_update)
+    const NOTE_TOOLS = [
+      'update_note_block',
+      'enhance_text',
+      'write_to_note',
+      'insert_block',
+      'remove_block',
+      'remove_content',
+      'replace_content',
+      'extract_issues',
+      'create_issue_from_note',
+    ];
+    // Strip MCP server prefix (e.g. "mcp__pilot-notes__update_note_block" → "update_note_block")
+    const strippedName = toolName.includes('__') ? toolName.split('__').pop()! : toolName;
+    if (NOTE_TOOLS.includes(strippedName)) {
+      const blockId = toolInput?.block_id ?? toolInput?.blockId;
+      // Skip ¶N block references — they're backend-only notation with no matching DOM element
+      if (typeof blockId === 'string' && !blockId.startsWith('¶')) {
+        this.store.addPendingAIBlockId(blockId);
+      }
+    }
 
     this.store.streamingState.phase = 'tool_use';
 
@@ -547,6 +607,20 @@ export class PilotSpaceStreamHandler {
       pendingTc.output = output;
       if (errorMessage) {
         pendingTc.errorMessage = errorMessage;
+      }
+
+      // Use backend-provided complete toolInput if available
+      if (event.data.toolInput && Object.keys(event.data.toolInput).length > 0) {
+        pendingTc.input = event.data.toolInput;
+      }
+
+      // Parse accumulated partialInput into structured input
+      if (Object.keys(pendingTc.input).length === 0 && pendingTc.partialInput) {
+        try {
+          pendingTc.input = JSON.parse(pendingTc.partialInput);
+        } catch {
+          // Incomplete JSON — leave as-is, partialInput still visible in UI
+        }
       }
       return;
     }
@@ -638,6 +712,9 @@ export class PilotSpaceStreamHandler {
   /** Handle message_stop — finalizes message and adds to history. */
   handleTextComplete(event: MessageStopEvent): void {
     const { messageId, usage, costUsd } = event.data;
+
+    // Finalize any in-progress thinking block duration
+    this.finalizeLastThinkingBlockDuration();
 
     // Calculate thinking duration if thinking occurred
     const thinkingDurationMs = this.store.streamingState.thinkingStartedAt
@@ -844,6 +921,8 @@ export class PilotSpaceStreamHandler {
             blockIndex: tb.blockIndex,
             content: tb.content,
             redacted: tb.redacted,
+            startedAt: tb.startedAt,
+            durationMs: tb.durationMs,
           });
         }
         thinkingIdx++;

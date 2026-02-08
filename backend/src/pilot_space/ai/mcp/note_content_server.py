@@ -7,8 +7,8 @@ Provides 5 tools for searching and modifying note content at the block level:
 - remove_content: Remove matching text from blocks
 - replace_content: Find/replace text with regex support
 
-All mutation tools return operation payloads (status: approval_required) for
-frontend application via SSE content_update events.
+All mutation tools return structured JSON payloads (status: pending_apply or
+approval_required) that the SDK pipeline transforms into SSE content_update events.
 
 Reference: spec 010-enhanced-mcp-tools T008
 """
@@ -19,11 +19,14 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 
 from pilot_space.ai.tools.mcp_server import ToolContext, get_tool_approval_level
+
+if TYPE_CHECKING:
+    from pilot_space.ai.mcp.block_ref_map import BlockRefMap
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +41,6 @@ TOOL_NAMES = [
     f"mcp__{SERVER_NAME}__remove_content",
     f"mcp__{SERVER_NAME}__replace_content",
 ]
-
-
-def _sse_event(event_type: str, data: dict[str, Any]) -> str:
-    """Format an SSE event string."""
-    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 
 def _text_result(text: str) -> dict[str, Any]:
@@ -79,19 +77,36 @@ def create_note_content_server(
     event_queue: asyncio.Queue[str],
     *,
     tool_context: ToolContext | None = None,
+    block_ref_map: BlockRefMap | None = None,
 ) -> McpSdkServerConfig:
     """Create an in-process SDK MCP server with 5 note content tools.
 
-    Each tool handler pushes content_update SSE events to event_queue
-    and returns operation payloads for frontend application.
+    Mutation tools return structured JSON payloads (status: pending_apply)
+    that the SDK pipeline transforms into SSE content_update events.
+    The event_queue parameter is retained for API compatibility but
+    is no longer used by content tools.
 
     Args:
-        event_queue: Queue for SSE events consumed by the stream method.
+        event_queue: Queue retained for API compatibility; not used by content tools.
         tool_context: ToolContext for database access and RLS enforcement.
+        block_ref_map: Optional ¶N block reference map for human-readable
+            block references.
 
     Returns:
         McpSdkServerConfig ready for ClaudeAgentOptions.mcp_servers.
     """
+
+    def _resolve_block_ref(ref_or_id: str) -> str:
+        """Resolve ¶N reference to UUID if block_ref_map is available."""
+        if block_ref_map is not None:
+            return block_ref_map.resolve(ref_or_id)
+        return ref_or_id
+
+    def _format_block_ref(block_id: str) -> str:
+        """Format block UUID as human-readable ¶N reference."""
+        if block_ref_map is not None:
+            return block_ref_map.format_ref(block_id)
+        return block_id
 
     async def _verify_note_workspace(note_id: str | None) -> str | None:
         """Verify note belongs to current workspace. Returns error message or None."""
@@ -213,7 +228,7 @@ def create_note_content_server(
                 return _text_result(f"No matches found for pattern '{pattern}'")
 
             match_summary = "\n".join(
-                f"Line {m['line_number']} (block {m['block_id']}): {m['context']}..."
+                f"Line {m['line_number']} ({_format_block_ref(m['block_id'])}): {m['context']}..."
                 for m in matches[:5]
             )
             more_text = f"\n... and {total - 5} more matches" if total > 5 else ""
@@ -226,7 +241,8 @@ def create_note_content_server(
 
     @tool(
         "insert_block",
-        "Insert new markdown content as blocks at a specific position in the note.",
+        "Insert new markdown content as blocks at a specific position in the note. "
+        "Use ¶N references (e.g., ¶1, ¶2) for position block IDs.",
         {
             "type": "object",
             "properties": {
@@ -237,11 +253,11 @@ def create_note_content_server(
                 },
                 "after_block_id": {
                     "type": "string",
-                    "description": "Insert after this block ID",
+                    "description": "Insert after this block (¶N or UUID)",
                 },
                 "before_block_id": {
                     "type": "string",
-                    "description": "Insert before this block ID",
+                    "description": "Insert before this block (¶N or UUID)",
                 },
             },
             "required": ["note_id", "content_markdown"],
@@ -254,8 +270,12 @@ def create_note_content_server(
             return _text_result(f"Error: {ws_error}")
 
         content_markdown = args.get("content_markdown", "").strip()
-        after_block_id = args.get("after_block_id")
-        before_block_id = args.get("before_block_id")
+        after_block_id = (
+            _resolve_block_ref(args["after_block_id"]) if args.get("after_block_id") else None
+        )
+        before_block_id = (
+            _resolve_block_ref(args["before_block_id"]) if args.get("before_block_id") else None
+        )
 
         if not content_markdown:
             return _text_result("Error: content_markdown cannot be empty")
@@ -264,19 +284,6 @@ def create_note_content_server(
             return _text_result("Error: specify either after_block_id or before_block_id, not both")
 
         position = "after" if after_block_id else "before" if before_block_id else "end"
-        position_block_id = after_block_id or before_block_id
-
-        event_data = {
-            "noteId": note_id,
-            "operation": "insert_blocks",
-            "blockId": position_block_id,
-            "markdown": content_markdown,
-            "content": None,
-            "issueData": None,
-            "afterBlockId": after_block_id,
-            "beforeBlockId": before_block_id,
-        }
-        await event_queue.put(_sse_event("content_update", event_data))
 
         logger.info(
             "[NoteContentTools] insert_block: note=%s, position=%s",
@@ -289,25 +296,23 @@ def create_note_content_server(
             json.dumps(
                 {
                     "status": status,
-                    "operation": "insert_block",
-                    "payload": {
-                        "note_id": note_id,
-                        "content_markdown": content_markdown,
-                        "after_block_id": after_block_id,
-                        "before_block_id": before_block_id,
-                    },
+                    "operation": "insert_blocks",
+                    "note_id": note_id,
+                    "content_markdown": content_markdown,
+                    "after_block_id": after_block_id,
+                    "before_block_id": before_block_id,
                 }
             )
         )
 
     @tool(
         "remove_block",
-        "Remove a specific block from the note by its block ID.",
+        "Remove a specific block from the note. Use ¶N references (e.g., ¶1, ¶2) for block_id.",
         {
             "type": "object",
             "properties": {
                 "note_id": {"type": "string", "description": "UUID of the note"},
-                "block_id": {"type": "string", "description": "Block ID to remove"},
+                "block_id": {"type": "string", "description": "Block reference (¶N) or UUID"},
             },
             "required": ["note_id", "block_id"],
         },
@@ -318,21 +323,10 @@ def create_note_content_server(
         if ws_error:
             return _text_result(f"Error: {ws_error}")
 
-        block_id = args.get("block_id")
+        block_id = _resolve_block_ref(args["block_id"]) if args.get("block_id") else None
 
         if not block_id:
             return _text_result("Error: block_id is required")
-
-        event_data = {
-            "noteId": note_id,
-            "operation": "remove_block",
-            "blockId": block_id,
-            "markdown": None,
-            "content": None,
-            "issueData": None,
-            "afterBlockId": None,
-        }
-        await event_queue.put(_sse_event("content_update", event_data))
 
         logger.info("[NoteContentTools] remove_block: note=%s, block=%s", note_id, block_id)
         approval_level = get_tool_approval_level("remove_block")
@@ -342,7 +336,8 @@ def create_note_content_server(
                 {
                     "status": status,
                     "operation": "remove_block",
-                    "payload": {"note_id": note_id, "block_id": block_id},
+                    "note_id": note_id,
+                    "block_id": block_id,
                 }
             )
         )
@@ -363,7 +358,7 @@ def create_note_content_server(
                 "block_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Specific block IDs to search (or all if not specified)",
+                    "description": "Block references (¶N) or UUIDs to search (or all if omitted)",
                 },
             },
             "required": ["note_id", "pattern"],
@@ -377,7 +372,8 @@ def create_note_content_server(
 
         pattern = args.get("pattern")
         use_regex = args.get("regex", False)
-        block_ids = args.get("block_ids", [])
+        raw_block_ids = args.get("block_ids", [])
+        block_ids = [_resolve_block_ref(bid) for bid in raw_block_ids]
 
         if not pattern:
             return _text_result("Error: pattern is required")
@@ -395,13 +391,10 @@ def create_note_content_server(
                 {
                     "status": status,
                     "operation": "remove_content",
-                    "payload": {
-                        "note_id": note_id,
-                        "pattern": pattern,
-                        "regex": use_regex,
-                        "block_ids": block_ids,
-                    },
-                    "preview": f"Will remove all occurrences of '{pattern}' from note blocks",
+                    "note_id": note_id,
+                    "pattern": pattern,
+                    "regex": use_regex,
+                    "block_ids": block_ids,
                 }
             )
         )
@@ -429,7 +422,7 @@ def create_note_content_server(
                 "block_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Specific block IDs to modify (or all if not specified)",
+                    "description": "Block references (¶N) or UUIDs to modify (or all if omitted)",
                 },
                 "replace_all": {
                     "type": "boolean",
@@ -449,7 +442,8 @@ def create_note_content_server(
         old_pattern = args.get("old_pattern")
         new_content = args.get("new_content")
         use_regex = args.get("regex", False)
-        block_ids = args.get("block_ids", [])
+        raw_block_ids = args.get("block_ids", [])
+        block_ids = [_resolve_block_ref(bid) for bid in raw_block_ids]
         replace_all = args.get("replace_all", True)
 
         if not old_pattern:
@@ -471,15 +465,12 @@ def create_note_content_server(
                 {
                     "status": status,
                     "operation": "replace_content",
-                    "payload": {
-                        "note_id": note_id,
-                        "old_pattern": old_pattern,
-                        "new_content": new_content,
-                        "regex": use_regex,
-                        "block_ids": block_ids,
-                        "replace_all": replace_all,
-                    },
-                    "preview": f"Will replace '{old_pattern}' with '{new_content}' in note blocks",
+                    "note_id": note_id,
+                    "old_pattern": old_pattern,
+                    "new_content": new_content,
+                    "regex": use_regex,
+                    "block_ids": block_ids,
+                    "replace_all": replace_all,
                 }
             )
         )

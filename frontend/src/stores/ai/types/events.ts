@@ -153,6 +153,8 @@ export interface ToolResultEvent extends SSEEvent {
     errorMessage?: string;
     /** Execution duration in milliseconds */
     duration?: number;
+    /** Complete tool input from backend (resolves fragmented streaming input) */
+    toolInput?: Record<string, unknown>;
   };
 }
 
@@ -300,7 +302,14 @@ export interface ContentUpdateData {
   /** Note ID to update */
   noteId: string;
   /** Update operation type */
-  operation: 'replace_block' | 'append_blocks' | 'insert_inline_issue';
+  operation:
+    | 'replace_block'
+    | 'append_blocks'
+    | 'insert_inline_issue'
+    | 'insert_blocks'
+    | 'remove_block'
+    | 'remove_content'
+    | 'replace_content';
   /** Block ID for replace_block operation (null for other operations) */
   blockId: string | null;
   /** Markdown content from AI agent (preferred over JSONContent) */
@@ -326,8 +335,18 @@ export interface ContentUpdateData {
     /** Source block ID where issue was extracted from */
     sourceBlockId?: string;
   } | null;
-  /** Block ID to insert after (for append_blocks operation) */
+  /** Block ID to insert after (for append_blocks/insert_blocks operation) */
   afterBlockId: string | null;
+  /** Block ID to insert before (for insert_blocks operation) */
+  beforeBlockId?: string | null;
+  /** Text pattern for remove_content/replace_content operations */
+  pattern?: string | null;
+  /** Old pattern for replace_content operation */
+  oldPattern?: string | null;
+  /** New content for replace_content operation */
+  newContent?: string | null;
+  /** Block IDs scope for remove_content/replace_content operations */
+  blockIds?: string[];
 }
 
 /**
@@ -632,10 +651,16 @@ export function isContentUpdateEvent(event: unknown): event is ContentUpdateEven
     return false;
   }
 
-  if (
-    !data.operation ||
-    !['replace_block', 'append_blocks', 'insert_inline_issue'].includes(data.operation as string)
-  ) {
+  const VALID_OPERATIONS = [
+    'replace_block',
+    'append_blocks',
+    'insert_inline_issue',
+    'insert_blocks',
+    'remove_block',
+    'remove_content',
+    'replace_content',
+  ];
+  if (!data.operation || !VALID_OPERATIONS.includes(data.operation as string)) {
     return false;
   }
 

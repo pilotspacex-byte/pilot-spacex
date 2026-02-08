@@ -20,8 +20,8 @@ vi.mock('rehype-highlight', () => ({ default: () => {} }));
 
 import { MarkdownContent } from '../MarkdownContent';
 
-/** Tailwind variant class as rendered in DOM */
-const FADE_CLASS = 'animate-fade-up';
+/** CSS class applied to container when streaming */
+const STREAMING_CLASS = 'chat-streaming';
 
 describe('MarkdownContent', () => {
   // ========================================
@@ -44,7 +44,7 @@ describe('MarkdownContent', () => {
 
     // Container div should NOT have fade-up class
     const wrapper = container.firstElementChild;
-    expect(wrapper?.className).not.toContain(FADE_CLASS);
+    expect(wrapper?.className).not.toContain(STREAMING_CLASS);
 
     expect(container.textContent).toContain('Hello world');
     expect(container.textContent).toContain('Second line');
@@ -53,21 +53,19 @@ describe('MarkdownContent', () => {
   it('does not render streaming cursor when isStreaming is false', () => {
     const { container } = render(<MarkdownContent content="Hello world" isStreaming={false} />);
 
-    const cursors = Array.from(container.querySelectorAll('span')).filter(
-      (el) => el.className.includes('animate-pulse') && el.className.includes('bg-primary')
-    );
+    const cursors = container.querySelectorAll('.chat-streaming-cursor');
     expect(cursors).toHaveLength(0);
   });
 
   // ========================================
-  // Streaming: container has fade animation
+  // Streaming: container has streaming class
   // ========================================
 
-  it('applies fade animation class to container when isStreaming is true', () => {
+  it('applies streaming class to container when isStreaming is true', () => {
     const { container } = render(<MarkdownContent content="First line" isStreaming />);
 
     const wrapper = container.firstElementChild;
-    expect(wrapper?.className).toContain(FADE_CLASS);
+    expect(wrapper?.className).toContain(STREAMING_CLASS);
   });
 
   it('renders all content in a single ReactMarkdown instance during streaming', () => {
@@ -89,18 +87,14 @@ describe('MarkdownContent', () => {
   it('renders streaming cursor at the end when isStreaming is true', () => {
     const { container } = render(<MarkdownContent content="Some streaming text" isStreaming />);
 
-    const cursors = Array.from(container.querySelectorAll('span')).filter(
-      (el) => el.className.includes('animate-pulse') && el.className.includes('bg-primary')
-    );
+    const cursors = container.querySelectorAll('.chat-streaming-cursor');
     expect(cursors).toHaveLength(1);
   });
 
   it('cursor has aria-hidden for accessibility', () => {
     const { container } = render(<MarkdownContent content="Text" isStreaming />);
 
-    const cursor = Array.from(container.querySelectorAll('span')).find(
-      (el) => el.className.includes('animate-pulse') && el.className.includes('bg-primary')
-    );
+    const cursor = container.querySelector('.chat-streaming-cursor');
     expect(cursor?.getAttribute('aria-hidden')).toBe('true');
   });
 
@@ -113,19 +107,17 @@ describe('MarkdownContent', () => {
       <MarkdownContent content="Streaming text" isStreaming />
     );
 
-    // Should have animated container
-    expect(container.firstElementChild?.className).toContain(FADE_CLASS);
+    // Should have streaming class on container
+    expect(container.firstElementChild?.className).toContain(STREAMING_CLASS);
 
     // Stop streaming
     rerender(<MarkdownContent content="Streaming text" isStreaming={false} />);
 
-    // No animation on container
-    expect(container.firstElementChild?.className).not.toContain(FADE_CLASS);
+    // No streaming class on container
+    expect(container.firstElementChild?.className).not.toContain(STREAMING_CLASS);
 
     // No cursor
-    const cursors = Array.from(container.querySelectorAll('span')).filter(
-      (el) => el.className.includes('animate-pulse') && el.className.includes('bg-primary')
-    );
+    const cursors = container.querySelectorAll('.chat-streaming-cursor');
     expect(cursors).toHaveLength(0);
   });
 

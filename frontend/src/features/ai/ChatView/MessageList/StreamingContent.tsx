@@ -77,9 +77,9 @@ export const StreamingContent = memo<StreamingContentProps>(
                     <ThinkingBlock
                       key={block.blockIndex}
                       content={block.content}
-                      durationMs={isLastBlock ? thinkingDurationMs : undefined}
+                      durationMs={isLastBlock ? thinkingDurationMs : block.durationMs}
                       isStreaming={isLastBlock && !!isThinking}
-                      thinkingStartedAt={isLastBlock ? thinkingStartedAt : undefined}
+                      thinkingStartedAt={isLastBlock ? thinkingStartedAt : (block.startedAt ?? undefined)}
                       interrupted={interrupted}
                     />
                   );
@@ -152,9 +152,9 @@ const OrderedStreamingBlocks = memo<{
             <ThinkingBlock
               key={`stream-thinking-${block.blockIndex}`}
               content={block.content}
-              durationMs={isLastThinking ? thinkingDurationMs : undefined}
+              durationMs={isLastThinking ? thinkingDurationMs : block.durationMs}
               isStreaming={isLastThinking && !!isThinking}
-              thinkingStartedAt={isLastThinking ? thinkingStartedAt : undefined}
+              thinkingStartedAt={isLastThinking ? thinkingStartedAt : (block.startedAt ?? undefined)}
               interrupted={interrupted}
             />
           );

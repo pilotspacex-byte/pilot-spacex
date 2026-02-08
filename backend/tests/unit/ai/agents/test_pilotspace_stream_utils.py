@@ -1,18 +1,22 @@
 """Unit tests for PilotSpace stream utility functions.
 
-Tests build_structured_content, capture_content_from_sse, and helper functions
-extracted from pilotspace_agent.py for session persistence safety.
+Tests build_structured_content, capture_content_from_sse, helper functions
+extracted from pilotspace_agent.py, and merge_sdk_and_queue concurrent merge.
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
+
+import pytest
 
 from pilot_space.ai.agents.pilotspace_stream_utils import (
     build_structured_content,
     capture_content_from_sse,
     classify_effort,
     detect_skill_from_message,
+    merge_sdk_and_queue,
 )
 
 
@@ -119,7 +123,7 @@ class TestCaptureContentFromSSE:
         """Thinking delta with signature field captures signature."""
         blocks: dict[str, dict[str, Any]] = {}
         sse = (
-            'event: thinking_delta\n'
+            "event: thinking_delta\n"
             'data: {"messageId": "m1", "signature": "EqoB_sig", "blockIndex": 0}\n\n'
         )
         capture_content_from_sse(sse, blocks)
@@ -141,7 +145,7 @@ class TestCaptureContentFromSSE:
         """Tool use events are captured with correct structure."""
         blocks: dict[str, dict[str, Any]] = {}
         sse = (
-            'event: tool_use\n'
+            "event: tool_use\n"
             'data: {"toolCallId": "t1", "toolName": "extract_issues", "toolInput": {"note_id": "n1"}}\n\n'
         )
         capture_content_from_sse(sse, blocks)
@@ -153,7 +157,7 @@ class TestCaptureContentFromSSE:
         """Failed tool results capture error state."""
         blocks: dict[str, dict[str, Any]] = {}
         sse = (
-            'event: tool_result\n'
+            "event: tool_result\n"
             'data: {"toolCallId": "t1", "status": "failed", "errorMessage": "No such tool"}\n\n'
         )
         capture_content_from_sse(sse, blocks)
@@ -189,3 +193,86 @@ class TestDetectSkill:
 
     def test_empty_slash_returns_none(self) -> None:
         assert detect_skill_from_message("/") is None
+
+
+# ---------------------------------------------------------------------------
+# merge_sdk_and_queue
+# ---------------------------------------------------------------------------
+
+
+async def _async_iter_from_list(items: list[Any]):
+    """Helper: create an async iterator from a list."""
+    for item in items:
+        yield item
+
+
+class TestMergeSdkAndQueue:
+    """Test concurrent SDK + queue stream merge."""
+
+    @pytest.mark.asyncio
+    async def test_sdk_items_yielded_as_sdk_source(self) -> None:
+        """SDK messages appear with source='sdk'."""
+        sdk_iter = _async_iter_from_list(["msg1", "msg2"])
+        tool_queue: asyncio.Queue[str] = asyncio.Queue()
+
+        results = []
+        async for source, item in merge_sdk_and_queue(sdk_iter, tool_queue):
+            results.append((source, item))
+
+        assert ("sdk", "msg1") in results
+        assert ("sdk", "msg2") in results
+
+    @pytest.mark.asyncio
+    async def test_queue_items_yielded_as_queue_source(self) -> None:
+        """Queue events appear with source='queue'."""
+        sdk_iter = _async_iter_from_list(["msg1"])
+        tool_queue: asyncio.Queue[str] = asyncio.Queue()
+        await tool_queue.put("approval_event_sse")
+
+        results = []
+        async for source, item in merge_sdk_and_queue(sdk_iter, tool_queue):
+            results.append((source, item))
+
+        assert ("queue", "approval_event_sse") in results
+        assert ("sdk", "msg1") in results
+
+    @pytest.mark.asyncio
+    async def test_finishes_when_sdk_exhausted(self) -> None:
+        """Generator stops when SDK iterator is done, even if queue has items."""
+        sdk_iter = _async_iter_from_list([])
+        tool_queue: asyncio.Queue[str] = asyncio.Queue()
+
+        results = []
+        async for source, item in merge_sdk_and_queue(sdk_iter, tool_queue):
+            results.append((source, item))
+
+        # Should terminate with no items since SDK is empty
+        assert len(results) == 0
+
+    @pytest.mark.asyncio
+    async def test_interleaved_sdk_and_queue(self) -> None:
+        """SDK and queue items can interleave."""
+
+        async def _slow_sdk():
+            yield "sdk_1"
+            await asyncio.sleep(0.05)
+            yield "sdk_2"
+
+        tool_queue: asyncio.Queue[str] = asyncio.Queue()
+
+        results: list[tuple[str, Any]] = []
+
+        async def _producer():
+            await asyncio.sleep(0.02)
+            await tool_queue.put("queue_event")
+
+        producer_task = asyncio.create_task(_producer())
+
+        async for source, item in merge_sdk_and_queue(_slow_sdk(), tool_queue):
+            results.append((source, item))
+
+        await producer_task
+
+        sources = [s for s, _ in results]
+        assert "sdk" in sources
+        assert "queue" in sources

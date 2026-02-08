@@ -2,17 +2,24 @@
 
 Extracted from pilotspace_agent.py for file size compliance.
 Contains SSE content capture, structured content building,
-effort classification, skill detection, and token estimation.
+effort classification, skill detection, token estimation,
+and concurrent SDK+queue stream merging.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
+import logging
 import re
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pilot_space.ai.agents.pilotspace_agent import ChatInput
+
+logger = logging.getLogger(__name__)
 
 
 _SIMPLE_PATTERNS = [
@@ -175,3 +182,78 @@ def build_structured_content(
         result.append(clean_block)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Concurrent SDK + Queue stream merge
+# ---------------------------------------------------------------------------
+
+# Sentinel used to signal the SDK iterator is exhausted.
+_SDK_DONE = object()
+
+
+async def _feed_sdk(sdk_iter: AsyncIterator[Any], out: asyncio.Queue[Any]) -> None:
+    """Drain *sdk_iter* into *out*, appending _SDK_DONE when finished."""
+    try:
+        async for msg in sdk_iter:
+            await out.put(msg)
+    except Exception as exc:
+        logger.error("[StreamMerge] SDK feed error: %s", exc, exc_info=True)
+    finally:
+        await out.put(_SDK_DONE)
+
+
+async def merge_sdk_and_queue(
+    sdk_iter: AsyncIterator[Any],
+    tool_queue: asyncio.Queue[str],
+) -> AsyncIterator[tuple[str, Any]]:
+    """Yield items from both the SDK response stream and tool_event_queue.
+
+    Produces ``("sdk", message)`` for SDK messages and ``("queue", event)``
+    for tool-queue events (e.g. ``approval_request`` SSE strings).
+
+    A background task feeds the SDK iterator into an internal queue so both
+    sources can be awaited concurrently with ``asyncio.wait``.  This prevents
+    the deadlock where a blocking PreToolUse hook (``wait_for_approval``)
+    stops the SDK from producing messages, which in turn prevents the main
+    stream loop from draining the tool_event_queue.
+
+    The generator finishes when the SDK iterator is exhausted.  Any remaining
+    tool_queue items should be drained by the caller after this returns.
+    """
+    sdk_queue: asyncio.Queue[Any] = asyncio.Queue()
+    feeder = asyncio.create_task(_feed_sdk(sdk_iter, sdk_queue))
+
+    sdk_task: asyncio.Task[Any] | None = None
+    queue_task: asyncio.Task[str] | None = None
+
+    try:
+        while True:
+            if sdk_task is None:
+                sdk_task = asyncio.create_task(sdk_queue.get())
+            if queue_task is None:
+                queue_task = asyncio.create_task(tool_queue.get())
+
+            done, _ = await asyncio.wait(
+                {sdk_task, queue_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            for task in done:
+                if task is sdk_task:
+                    item = task.result()
+                    sdk_task = None
+                    if item is _SDK_DONE:
+                        return  # SDK stream finished
+                    yield ("sdk", item)
+                elif task is queue_task:
+                    yield ("queue", task.result())
+                    queue_task = None
+    finally:
+        # Cancel any pending tasks
+        for task in (sdk_task, queue_task):
+            if task is not None and not task.done():
+                task.cancel()
+        feeder.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await feeder

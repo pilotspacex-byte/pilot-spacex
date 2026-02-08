@@ -306,7 +306,7 @@ export const AutoTOC = observer(function AutoTOC({
 
       // Scroll the heading into view
       const editorDom = editor.view.dom;
-      const headingDom = editorDom.querySelector(`[data-blockId="${heading.id}"]`);
+      const headingDom = editorDom.querySelector(`[data-block-id="${heading.id}"]`);
       if (headingDom) {
         headingDom.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -320,7 +320,7 @@ export const AutoTOC = observer(function AutoTOC({
 
     const editorDom = editor.view.dom;
     const headingElements = headings
-      .map((h) => editorDom.querySelector(`[data-blockId="${h.id}"]`))
+      .map((h) => editorDom.querySelector(`[data-block-id="${h.id}"]`))
       .filter(Boolean) as Element[];
 
     if (headingElements.length === 0) return;
@@ -330,7 +330,7 @@ export const AutoTOC = observer(function AutoTOC({
         // Find the first visible heading
         const visibleEntry = entries.find((entry) => entry.isIntersecting);
         if (visibleEntry) {
-          const blockId = visibleEntry.target.getAttribute('data-blockId');
+          const blockId = visibleEntry.target.getAttribute('data-block-id');
           if (blockId) {
             setActiveId(blockId);
           }

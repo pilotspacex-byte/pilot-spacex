@@ -87,11 +87,20 @@ def build_subagent_definitions() -> dict[str, AgentDefinition]:
     }
 
 
-def build_contextual_message(input_data: ChatInput) -> str:
+def build_contextual_message(
+    input_data: ChatInput,
+    *,
+    block_ref_map: Any | None = None,
+) -> str:
     """Enrich user message with note/issue context for the SDK.
 
-    Includes note_id and block_ids so the model can call note tools
-    (extract_issues, update_note_block, etc.) with correct parameters.
+    When ``block_ref_map`` is provided, block references use human-readable
+    ¶N notation instead of raw UUIDs. The model is instructed to use ¶N
+    references when calling note tools.
+
+    Args:
+        input_data: Chat input with message and context.
+        block_ref_map: Optional BlockRefMap for ¶N block references.
     """
     parts: list[str] = []
 
@@ -106,9 +115,19 @@ def build_contextual_message(input_data: ChatInput) -> str:
             note_header += f"\nnote_id: {note_id}"
 
         selected_block_ids = input_data.context.get("selected_block_ids", [])
-        if selected_block_ids:
+        if selected_block_ids and block_ref_map is not None:
+            refs = [block_ref_map.to_ref(str(bid)) for bid in selected_block_ids]
+            note_header += f"\nselected_blocks: {', '.join(refs)}"
+        elif selected_block_ids:
             note_header += (
                 f"\nselected_block_ids: {', '.join(str(bid) for bid in selected_block_ids)}"
+            )
+
+        if block_ref_map is not None and not block_ref_map.is_empty:
+            note_header += (
+                "\n\nBlocks are identified by ¶N references (e.g., ¶1, ¶2). "
+                'Use ¶N when calling note tools (e.g., block_id="¶3"). '
+                "Never expose raw block UUIDs to the user."
             )
 
         if note_content:
@@ -117,7 +136,10 @@ def build_contextual_message(input_data: ChatInput) -> str:
             )
 
             converter = ContentConverter()
-            markdown = converter.tiptap_to_markdown(note_content)
+            markdown = converter.tiptap_to_markdown(
+                note_content,
+                block_ref_map=block_ref_map,
+            )
             if markdown.strip():
                 parts.append(f"<note_context>\n{note_header}\n\n{markdown}\n</note_context>")
         else:
@@ -141,26 +163,9 @@ def transform_sdk_message(  # noqa: PLR0911
 ) -> str | None:
     """Transform Claude SDK message to frontend SSE event.
 
-    SDK Message Types (actual attributes from claude-agent-sdk):
-    - SystemMessage: data(dict), subtype — init message with session_id
-    - AssistantMessage: content(list[TextBlock]), error, model — AI response
-    - ResultMessage: session_id, is_error, result, usage — completion signal
-    - ToolResultMessage: tool_name, result — MCP tool execution result
-
-    Output format matches frontend SSEEvent expectations:
-    - ``event: <type>\\ndata: <json>\\n\\n`` (proper SSE with event prefix)
-    - camelCase field names (messageId, sessionId, delta, stopReason)
-
-    For MCP tool results from note tools, emits content_update events.
-
-    Args:
-        message: SDK message object
-        current_message_id_holder: Mutable dict with "_current_message_id" key for state
-        delta_buffer: Optional buffer for batching delta events (water pumping)
-        app_session_id: Application session ID (UUID) to use instead of SDK's internal ID
-
-    Returns:
-        SSE-formatted string or None if message should be ignored
+    Converts SDK message types (SystemMessage, AssistantMessage, ResultMessage,
+    ToolResultMessage) to ``event: <type>\\ndata: <json>\\n\\n`` SSE format
+    with camelCase field names. Note tool results emit content_update events.
     """
     msg_type = type(message).__name__
 
@@ -176,7 +181,11 @@ def transform_sdk_message(  # noqa: PLR0911
 
     # Handle SDK ToolResultMessage (legacy compat) and ToolResult
     if msg_type in ("ToolResultMessage", "ToolResult"):
-        return transform_tool_result(message)
+        raw_tool_input = getattr(message, "input", None) or getattr(message, "tool_input", None)
+        return transform_tool_result(
+            message,
+            tool_input=raw_tool_input if isinstance(raw_tool_input, dict) else None,
+        )
 
     # Handle UserMessage with ToolResultBlock content (current SDK)
     # The Claude Agent SDK emits tool results as UserMessage objects
@@ -440,18 +449,7 @@ def transform_sdk_message(  # noqa: PLR0911
 
 
 def _handle_tool_use_block(block: Any, message_id: str) -> str | None:
-    """Handle tool_use block from AssistantMessage content.
-
-    Detects AskUserQuestion tool calls and emits ask_user_question SSE events.
-    Other tool_use blocks emit standard tool_use SSE events.
-
-    Args:
-        block: SDK ToolUseBlock (dict or object)
-        message_id: Current message ID
-
-    Returns:
-        SSE event string or None
-    """
+    """Handle tool_use block: AskUserQuestion → ask_user_question event, others → tool_use event."""
     if isinstance(block, dict):
         tool_name = block.get("name", "")
         tool_input = block.get("input", {})
@@ -477,11 +475,7 @@ def _handle_tool_use_block(block: Any, message_id: str) -> str | None:
 
 
 def _handle_server_tool_use_block(block: Any) -> str | None:
-    """Handle server_tool_use block (G-10).
-
-    Server tools (web_search, web_fetch) run on Anthropic's infrastructure.
-    Map to standard tool_use event so frontend renders them uniformly.
-    """
+    """Handle server_tool_use block (G-10): map to standard tool_use event."""
     if isinstance(block, dict):
         tool_name = block.get("name", "server_tool")
         tool_id = block.get("id", block.get("server_tool_use_id", str(uuid4())))
@@ -500,11 +494,7 @@ def _handle_server_tool_use_block(block: Any) -> str | None:
 
 
 def _handle_web_search_result_block(block: Any) -> str | None:
-    """Handle web_search_tool_result block (G-10).
-
-    Emits a tool_result event with search results so the frontend
-    can render them in the tool call output section.
-    """
+    """Handle web_search_tool_result block (G-10): emit tool_result with search results."""
     if isinstance(block, dict):
         tool_id = block.get("tool_use_id", str(uuid4()))
         search_results = block.get("content", [])
@@ -550,13 +540,7 @@ def _emit_ask_user_question_event(
     tool_input: Any,
     message_id: str,
 ) -> str:
-    """Emit ask_user_question SSE event from AskUserQuestion tool call.
-
-    Args:
-        tool_id: Tool call ID (used to submit answer back)
-        tool_input: AskUserQuestion parameters (questions, options, etc.)
-        message_id: Current message ID
-    """
+    """Emit ask_user_question SSE event from AskUserQuestion tool call."""
     questions = []
     if isinstance(tool_input, dict):
         raw_questions = tool_input.get("questions", [])
@@ -591,19 +575,22 @@ def _get_block_type(block: Any) -> str:
 
 
 def _get_block_text(block: Any, attr: str = "text") -> str:
-    """Extract text from SDK content block by attribute name.
-
-    Args:
-        block: SDK content block (dict or object)
-        attr: Attribute name to read ('text' for TextBlock, 'thinking' for ThinkingBlock)
-    """
+    """Extract text from SDK content block by attribute name."""
     if isinstance(block, dict):
         return str(block.get(attr, block.get("text", "")))
     return str(getattr(block, attr, getattr(block, "text", "")))
 
 
-def transform_tool_result(message: Message) -> str | None:
-    """Transform MCP tool result to SSE event (content_update for note tools, tool_result for others)."""
+def transform_tool_result(
+    message: Message,
+    tool_input: dict[str, Any] | None = None,
+) -> str | None:
+    """Transform MCP tool result to SSE event (content_update for note tools, tool_result for others).
+
+    Args:
+        message: SDK ToolResultMessage or ToolResult object.
+        tool_input: Optional original tool input dict for frontend display.
+    """
     result_data = getattr(message, "result", {})
     tool_use_id = getattr(message, "tool_use_id", "")
 
@@ -637,11 +624,19 @@ def transform_tool_result(message: Message) -> str | None:
         if not content_update_event:
             return None
         # Also emit tool_result so frontend ToolCallCard shows completion
+        output_summary: dict[str, Any] = {
+            "operation": operation,
+            "noteId": note_id,
+        }
+        block_id = result_data.get("block_id")
+        if block_id:
+            output_summary["blockId"] = block_id
         tool_result_event = f"event: tool_result\ndata: {
             json.dumps(
                 {
                     'toolCallId': str(tool_use_id) if tool_use_id else str(uuid4()),
                     'status': 'completed',
+                    'output': output_summary,
                 }
             )
         }\n\n"
@@ -669,6 +664,8 @@ def transform_tool_result(message: Message) -> str | None:
         "toolCallId": str(tool_use_id) if tool_use_id else str(uuid4()),
         "status": "failed" if is_error else "completed",
     }
+    if tool_input:
+        tool_result_data["toolInput"] = tool_input
     if not is_error:
         tool_result_data["output"] = output
     if error_message:

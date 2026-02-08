@@ -15,7 +15,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Loader2, Settings, XCircle, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,9 +37,56 @@ function formatDuration(ms: number): string {
   return `${Math.floor(seconds)}s`;
 }
 
+/** Max characters for input preview in the toggle row */
+const INPUT_PREVIEW_MAX = 60;
+
+/** Try to pretty-format partial JSON input. Falls back to raw string. */
+function formatPartialInput(partial: string): string {
+  try {
+    const parsed = JSON.parse(partial);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    // Incomplete JSON — show raw
+    return partial;
+  }
+}
+
+/** Generate a short one-line preview from tool input or partial input. */
+function getInputPreview(input: Record<string, unknown>, partialInput?: string): string | null {
+  // Prefer structured input (completed tools)
+  const keys = Object.keys(input);
+  if (keys.length > 0) {
+    // Show first key-value pair as preview
+    const firstKey = keys[0]!;
+    const value = input[firstKey];
+    const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+    const preview = `${firstKey}: ${valueStr}`;
+    if (preview.length > INPUT_PREVIEW_MAX) {
+      return preview.slice(0, INPUT_PREVIEW_MAX - 1) + '\u2026';
+    }
+    return preview;
+  }
+
+  // Fall back to partial input (streaming)
+  if (partialInput) {
+    // Try to parse partial JSON for first key-value
+    const match = partialInput.match(/"(\w+)":\s*"?([^",}]+)/);
+    if (match) {
+      const preview = `${match[1]}: ${match[2]}`;
+      if (preview.length > INPUT_PREVIEW_MAX) {
+        return preview.slice(0, INPUT_PREVIEW_MAX - 1) + '\u2026';
+      }
+      return preview;
+    }
+  }
+
+  return null;
+}
+
 export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }) => {
   const status = toolCall.status || 'pending';
   const displayName = getToolDisplayName(toolCall.name);
+  const inputPreview = getInputPreview(toolCall.input, toolCall.partialInput);
 
   // Elapsed time: capture start time on mount via lazy state initializer (pure)
   const [startTime] = useState(() => Date.now());
@@ -47,6 +94,15 @@ export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }
   const elapsed = useElapsedTime(startTime, isRunning);
 
   const [isOpen, setIsOpen] = useState(false);
+  const autoExpandedRef = useRef(false);
+
+  // Auto-expand when partialInput starts streaming (so user sees tool input in real-time)
+  useEffect(() => {
+    if (toolCall.partialInput && !autoExpandedRef.current && isRunning) {
+      setIsOpen(true);
+      autoExpandedRef.current = true;
+    }
+  }, [toolCall.partialInput, isRunning]);
 
   // Duration display
   const durationText = isRunning
@@ -85,9 +141,14 @@ export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }
         )}
         {status === 'failed' && <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />}
 
-        {/* Label: "Calling X..." or "Used X" */}
-        <span className="min-w-0 truncate">
-          {status === 'pending' ? `Calling ${displayName}...` : `Used ${displayName}`}
+        {/* Label: "Calling X..." or "Used X" with input preview */}
+        <span className="min-w-0 flex items-baseline gap-1.5 truncate">
+          <span>{status === 'pending' ? `${displayName}...` : `${displayName}`}</span>
+          {inputPreview && (
+            <span className="font-mono text-xs text-muted-foreground/60 truncate">
+              {inputPreview}
+            </span>
+          )}
         </span>
 
         {/* Duration + chevron */}
@@ -107,15 +168,15 @@ export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }
       {/* Collapsible detail - indented, no border */}
       {isOpen && hasDetail && (
         <div className="pl-5 pt-1 space-y-1.5">
-          {/* Partial input while streaming (G-09) */}
-          {status === 'pending' && toolCall.partialInput ? (
+          {/* Partial input while streaming (G-09) — auto-expanded */}
+          {hasInput && toolCall.partialInput ? (
             <div>
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 Input
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ai motion-reduce:animate-none" />
               </span>
-              <pre className="text-xs bg-muted/30 p-1.5 rounded mt-0.5 overflow-x-auto opacity-60 font-mono">
-                {toolCall.partialInput}
+              <pre className="text-xs bg-muted/30 p-1.5 rounded mt-0.5 overflow-x-auto max-h-[200px] overflow-y-auto opacity-60 font-mono whitespace-pre-wrap break-words">
+                {formatPartialInput(toolCall.partialInput)}
               </pre>
             </div>
           ) : Object.keys(toolCall.input).length > 0 ? (

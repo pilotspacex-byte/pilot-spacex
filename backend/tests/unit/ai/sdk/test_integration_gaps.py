@@ -21,11 +21,13 @@ from pilot_space.ai.agents.pilotspace_agent_helpers import (
     transform_sdk_message,
     transform_tool_result,
 )
+from pilot_space.ai.sdk.approval_waiter import (
+    build_affected_entities,
+    build_approval_sse_event,
+    classify_urgency,
+)
 from pilot_space.ai.sdk.hooks import (
     PermissionCheckHook,
-    _build_affected_entities,
-    _build_approval_sse_event,
-    _classify_urgency,
 )
 from pilot_space.ai.sdk.sandbox_config import (
     SandboxSettings,
@@ -232,12 +234,12 @@ class TestToolResultEmission:
 
 
 class TestEnrichedApprovalRequest:
-    """Tests for _build_approval_sse_event with all 9 fields."""
+    """Tests for build_approval_sse_event with all 9 fields."""
 
     def test_all_nine_fields_present(self) -> None:
         """Verify all 9 required fields are in the SSE event."""
         approval_id = uuid4()
-        sse = _build_approval_sse_event(
+        sse = build_approval_sse_event(
             approval_id=approval_id,
             tool_name="delete_issue_from_db",
             tool_input={"issue_id": "ISS-1"},
@@ -259,24 +261,24 @@ class TestEnrichedApprovalRequest:
 
     def test_destructive_tool_urgency_high(self) -> None:
         """Destructive tools (delete_issue_from_db) get urgency 'high'."""
-        assert _classify_urgency("delete_issue_from_db") == "high"
-        assert _classify_urgency("merge_pull_request") == "high"
-        assert _classify_urgency("close_pull_request") == "high"
+        assert classify_urgency("delete_issue_from_db") == "high"
+        assert classify_urgency("merge_pull_request") == "high"
+        assert classify_urgency("close_pull_request") == "high"
 
     def test_content_creation_tool_urgency_medium(self) -> None:
         """Content creation tools (create_issue_in_db) get urgency 'medium'."""
-        assert _classify_urgency("create_issue_in_db") == "medium"
-        assert _classify_urgency("create_subtasks") == "medium"
+        assert classify_urgency("create_issue_in_db") == "medium"
+        assert classify_urgency("create_subtasks") == "medium"
 
     def test_read_only_tool_urgency_low(self) -> None:
         """Read-only or unmapped tools get urgency 'low'."""
-        assert _classify_urgency("summarize_note") == "low"
-        assert _classify_urgency("Read") == "low"
-        assert _classify_urgency("unknown_tool") == "low"
+        assert classify_urgency("summarize_note") == "low"
+        assert classify_urgency("Read") == "low"
+        assert classify_urgency("unknown_tool") == "low"
 
     def test_affected_entities_extracts_issue_id(self) -> None:
         """affectedEntities extracts issue_id from tool_input."""
-        entities = _build_affected_entities(
+        entities = build_affected_entities(
             "delete_issue_from_db",
             {"issue_id": "ISS-99", "name": "Fix login bug"},
         )
@@ -287,7 +289,7 @@ class TestEnrichedApprovalRequest:
 
     def test_affected_entities_extracts_note_id(self) -> None:
         """affectedEntities extracts note_id from tool_input."""
-        entities = _build_affected_entities(
+        entities = build_affected_entities(
             "update_note_block",
             {"note_id": "NOTE-5"},
         )
@@ -297,7 +299,7 @@ class TestEnrichedApprovalRequest:
 
     def test_affected_entities_extracts_pr_number(self) -> None:
         """affectedEntities extracts pr_number from tool_input."""
-        entities = _build_affected_entities(
+        entities = build_affected_entities(
             "merge_pull_request",
             {"pr_number": 42},
         )
@@ -308,7 +310,7 @@ class TestEnrichedApprovalRequest:
 
     def test_affected_entities_multiple_keys(self) -> None:
         """Multiple entity keys produce multiple affected entities."""
-        entities = _build_affected_entities(
+        entities = build_affected_entities(
             "link_commit_to_issue",
             {"issue_id": "ISS-1", "note_id": "NOTE-1", "pr_number": 7},
         )
@@ -319,7 +321,7 @@ class TestEnrichedApprovalRequest:
     def test_expires_at_approximately_24h_future(self) -> None:
         """expiresAt is approximately 24 hours in the future."""
         before = datetime.now(tz=UTC)
-        sse = _build_approval_sse_event(
+        sse = build_approval_sse_event(
             approval_id=uuid4(),
             tool_name="create_issue_in_db",
             tool_input={},
@@ -336,7 +338,7 @@ class TestEnrichedApprovalRequest:
 
     def test_action_type_uses_tool_action_mapping(self) -> None:
         """actionType maps through TOOL_ACTION_MAPPING."""
-        sse = _build_approval_sse_event(
+        sse = build_approval_sse_event(
             approval_id=uuid4(),
             tool_name="delete_issue_from_db",
             tool_input={},
@@ -348,7 +350,7 @@ class TestEnrichedApprovalRequest:
 
     def test_unmapped_tool_uses_tool_name_as_action(self) -> None:
         """Tools not in TOOL_ACTION_MAPPING use tool_name directly."""
-        sse = _build_approval_sse_event(
+        sse = build_approval_sse_event(
             approval_id=uuid4(),
             tool_name="custom_new_tool",
             tool_input={},

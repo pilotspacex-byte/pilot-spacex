@@ -45,7 +45,10 @@ export const MarkdownContent = memo<MarkdownContentProps>(({ content, isStreamin
   if (!content) return null;
 
   return (
-    <div className={cn(MARKDOWN_CLASSES, isStreaming && 'motion-safe:animate-fade-up', className)}>
+    <div
+      className={cn(MARKDOWN_CLASSES, isStreaming && 'chat-streaming', className)}
+      aria-busy={isStreaming}
+    >
       <ReactMarkdown
         remarkPlugins={MarkdownPlugins.remark}
         rehypePlugins={MarkdownPlugins.rehype}
@@ -54,10 +57,7 @@ export const MarkdownContent = memo<MarkdownContentProps>(({ content, isStreamin
         {content}
       </ReactMarkdown>
       {isStreaming && (
-        <span
-          className="ml-0.5 inline-block h-4 w-[2px] motion-safe:animate-pulse motion-reduce:opacity-70 bg-primary"
-          aria-hidden="true"
-        />
+        <span className="chat-streaming-cursor" aria-hidden="true" />
       )}
     </div>
   );

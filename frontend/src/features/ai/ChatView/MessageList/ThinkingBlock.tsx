@@ -14,7 +14,7 @@
 
 'use client';
 
-import { memo, useCallback, useEffect, useReducer } from 'react';
+import { memo, useCallback, useEffect, useReducer, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Loader2, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useElapsedTime } from '@/hooks/useElapsedTime';
@@ -124,6 +124,18 @@ export const ThinkingBlock = memo<ThinkingBlockProps>(
     const { isOpen, toggle: handleToggle } = useStreamingCollapse(isStreaming);
     const elapsed = useElapsedTime(thinkingStartedAt ?? null, isStreaming);
 
+    // Capture thinking duration when streaming ends (for mid-stream thinking → tool transitions).
+    // Uses queueMicrotask to avoid synchronous setState in effect body (react-hooks/set-state-in-effect).
+    const [capturedDuration, setCapturedDuration] = useState<number | undefined>(undefined);
+    useEffect(() => {
+      if (!isStreaming && thinkingStartedAt && !durationMs) {
+        const duration = Date.now() - thinkingStartedAt;
+        queueMicrotask(() => setCapturedDuration(duration));
+      }
+    }, [isStreaming, thinkingStartedAt, durationMs]);
+
+    const effectiveDurationMs = durationMs ?? capturedDuration;
+
     if (!content) return null;
 
     const isRedacted = content.includes(REDACTED_SENTINEL);
@@ -160,8 +172,8 @@ export const ThinkingBlock = memo<ThinkingBlockProps>(
                 ? 'Thinking interrupted'
                 : isStreaming
                   ? 'Thinking...'
-                  : durationMs != null
-                    ? `Thought for ${formatDuration(durationMs)}`
+                  : effectiveDurationMs != null
+                    ? `Thought for ${formatDuration(effectiveDurationMs)}`
                     : 'Thought'}
           </span>
 
