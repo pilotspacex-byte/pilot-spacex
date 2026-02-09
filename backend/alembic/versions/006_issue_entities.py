@@ -443,6 +443,9 @@ def upgrade() -> None:
         DECLARE
             next_seq integer;
         BEGIN
+            -- Advisory lock on project_id to prevent race conditions
+            PERFORM pg_advisory_xact_lock(hashtext(p_project_id::text));
+
             SELECT COALESCE(MAX(sequence_id), 0) + 1
             INTO next_seq
             FROM issues
