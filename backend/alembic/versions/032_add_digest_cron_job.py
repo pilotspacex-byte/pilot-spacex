@@ -12,8 +12,6 @@ Source: specs/012-homepage-note, plan.md Phase 2 (H024)
 
 from collections.abc import Sequence
 
-from alembic import op
-
 # revision identifiers, used by Alembic.
 revision: str = "032_digest_cron_job"
 down_revision: str = "031_homepage_rls"

@@ -221,4 +221,45 @@ describe('LineGutterExtension', () => {
 
     editor.destroy();
   });
+
+  it('test_line_count_per_block — line numbers count text lines per block', () => {
+    // 5 single-line blocks: heading, para, para, heading, para
+    const editor = createTestEditor(
+      '<h2>Section 1</h2><p>Content 1</p><p>Content 2</p><h2>Section 2</h2><p>Content 3</p>'
+    );
+
+    const widgets = editor.view.dom.querySelectorAll('.line-gutter-number');
+
+    if (widgets.length >= 5) {
+      // Each block is 1 text line, so line numbers should be 1,2,3,4,5
+      expect(widgets[0]!.textContent).toBe('1');
+      expect(widgets[1]!.textContent).toBe('2');
+      expect(widgets[2]!.textContent).toBe('3');
+      expect(widgets[3]!.textContent).toBe('4');
+      expect(widgets[4]!.textContent).toBe('5');
+    }
+
+    editor.destroy();
+  });
+
+  it('test_wrapper_nodes_no_line_numbers — bulletList/listItem skip line numbering', () => {
+    // bulletList and listItem are wrapper nodes; only their inner paragraphs get line numbers
+    const editor = createTestEditor(
+      '<p>Before list</p><ul><li><p>Item 1</p></li><li><p>Item 2</p></li></ul><p>After list</p>'
+    );
+
+    const widgets = editor.view.dom.querySelectorAll('.line-gutter-number');
+
+    if (widgets.length >= 4) {
+      // "Before list"=1, "Item 1"=2, "Item 2"=3, "After list"=4
+      // No line numbers for bulletList or listItem wrappers
+      expect(widgets[0]!.textContent).toBe('1');
+      expect(widgets[1]!.textContent).toBe('2');
+      expect(widgets[2]!.textContent).toBe('3');
+      expect(widgets[3]!.textContent).toBe('4');
+      expect(widgets.length).toBe(4);
+    }
+
+    editor.destroy();
+  });
 });

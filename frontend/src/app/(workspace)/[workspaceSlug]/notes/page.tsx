@@ -7,10 +7,12 @@
 import { useCallback, useMemo, useState, use } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
 import {
   FileText,
+  FolderKanban,
   Plus,
   Search,
   Grid3X3,
@@ -49,7 +51,8 @@ import { cn } from '@/lib/utils';
 import { useInfiniteNotes } from '@/features/notes/hooks';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
 import { useWorkspaceStore } from '@/stores/RootStore';
-import type { Note } from '@/types';
+import { projectsApi } from '@/services/api/projects';
+import type { Note, Project } from '@/types';
 
 type ViewMode = 'grid' | 'list';
 type SortBy = 'updated' | 'created' | 'title' | 'wordCount';
@@ -62,10 +65,19 @@ interface NotesPageProps {
 /**
  * Note card component for grid view
  */
-function NoteGridCard({ note, workspaceSlug }: { note: Note; workspaceSlug: string }) {
+function NoteGridCard({
+  note,
+  workspaceSlug,
+  projectMap,
+}: {
+  note: Note;
+  workspaceSlug: string;
+  projectMap: Map<string, Project>;
+}) {
   const updatedAt = formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true });
   const topics = note.topics ?? [];
   const linkedIssues = note.linkedIssues ?? [];
+  const project = note.projectId ? projectMap.get(note.projectId) : undefined;
 
   return (
     <Link href={`/${workspaceSlug}/notes/${note.id}`}>
@@ -82,19 +94,55 @@ function NoteGridCard({ note, workspaceSlug }: { note: Note; workspaceSlug: stri
             </div>
             <div className="flex items-center gap-2">
               {note.isPinned && <Pin className="h-3.5 w-3.5 text-amber-500" />}
-              {linkedIssues.length > 0 && (
-                <Badge variant="secondary" className="text-[10px]">
-                  {linkedIssues.length} issues
-                </Badge>
-              )}
             </div>
           </div>
           <h3 className="mb-1 font-medium text-foreground transition-colors group-hover:text-primary line-clamp-1">
             {note.title || 'Untitled'}
           </h3>
-          <p className="mb-3 line-clamp-2 text-sm text-muted-foreground">
-            {topics.length > 0 ? topics.join(', ') : 'No topics'}
-          </p>
+
+          {/* Project reference */}
+          {project && (
+            <div className="flex items-center gap-1.5 mb-2 text-xs text-muted-foreground">
+              <FolderKanban className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{project.name}</span>
+              <div className="h-1 w-10 rounded-full bg-border overflow-hidden flex-shrink-0">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{
+                    width: `${(project.completedIssueCount / Math.max(project.issueCount, 1)) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Linked issues with state colors, or topics fallback */}
+          {linkedIssues.length > 0 ? (
+            <div className="flex items-center gap-1 mb-3 flex-wrap">
+              {linkedIssues.slice(0, 3).map((issue) => (
+                <span
+                  key={issue.id}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted/50"
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: issue.state.color }}
+                  />
+                  {issue.identifier}
+                </span>
+              ))}
+              {linkedIssues.length > 3 && (
+                <span className="text-[10px] text-muted-foreground">
+                  +{linkedIssues.length - 3}
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="mb-3 line-clamp-2 text-sm text-muted-foreground">
+              {topics.length > 0 ? topics.join(', ') : 'No topics'}
+            </p>
+          )}
+
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{(note.wordCount ?? 0).toLocaleString()} words</span>
             <span>Updated {updatedAt}</span>
@@ -108,10 +156,19 @@ function NoteGridCard({ note, workspaceSlug }: { note: Note; workspaceSlug: stri
 /**
  * Note row component for list view
  */
-function NoteListRow({ note, workspaceSlug }: { note: Note; workspaceSlug: string }) {
+function NoteListRow({
+  note,
+  workspaceSlug,
+  projectMap,
+}: {
+  note: Note;
+  workspaceSlug: string;
+  projectMap: Map<string, Project>;
+}) {
   const updatedAt = formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true });
   const topics = note.topics ?? [];
   const linkedIssues = note.linkedIssues ?? [];
+  const project = note.projectId ? projectMap.get(note.projectId) : undefined;
 
   return (
     <Link href={`/${workspaceSlug}/notes/${note.id}`}>
@@ -131,16 +188,41 @@ function NoteListRow({ note, workspaceSlug }: { note: Note; workspaceSlug: strin
             </h3>
             {note.isPinned && <Pin className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
           </div>
-          <p className="text-sm text-muted-foreground truncate">
-            {topics.length > 0 ? topics.join(', ') : 'No topics'}
-          </p>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {project && (
+              <span className="flex items-center gap-1 truncate">
+                <FolderKanban className="h-3 w-3 flex-shrink-0" />
+                {project.name}
+              </span>
+            )}
+            {project && topics.length > 0 && <span className="text-border">&middot;</span>}
+            <span className="truncate">
+              {topics.length > 0 ? topics.join(', ') : !project ? 'No topics' : ''}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-6 text-sm text-muted-foreground shrink-0">
+        <div className="flex items-center gap-4 text-sm text-muted-foreground shrink-0">
           <span>{(note.wordCount ?? 0).toLocaleString()} words</span>
           {linkedIssues.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {linkedIssues.length} issues
-            </Badge>
+            <div className="flex items-center gap-1">
+              {linkedIssues.slice(0, 3).map((issue) => (
+                <span
+                  key={issue.id}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted/50"
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: issue.state.color }}
+                  />
+                  {issue.identifier}
+                </span>
+              ))}
+              {linkedIssues.length > 3 && (
+                <span className="text-[10px] text-muted-foreground">
+                  +{linkedIssues.length - 3}
+                </span>
+              )}
+            </div>
           )}
           <span className="w-24 text-right">{updatedAt}</span>
         </div>
@@ -215,6 +297,22 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
 
   // Get workspace ID from store or slug
   const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
+
+  // Fetch all projects for lookup on note cards
+  const { data: projectsData } = useQuery({
+    queryKey: ['projects', 'list', workspaceId],
+    queryFn: () => projectsApi.list(workspaceId),
+    enabled: !!workspaceId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const projectMap = useMemo(() => {
+    const map = new Map<string, Project>();
+    for (const project of projectsData?.items ?? []) {
+      map.set(project.id, project);
+    }
+    return map;
+  }, [projectsData]);
 
   // Fetch notes with infinite scroll
   const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteNotes({
@@ -440,7 +538,11 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ delay: Math.min(index * 0.03, 0.3) }}
                     >
-                      <NoteGridCard note={note} workspaceSlug={workspaceSlug} />
+                      <NoteGridCard
+                        note={note}
+                        workspaceSlug={workspaceSlug}
+                        projectMap={projectMap}
+                      />
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -456,7 +558,11 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
                       exit={{ opacity: 0, x: 12 }}
                       transition={{ delay: Math.min(index * 0.02, 0.2) }}
                     >
-                      <NoteListRow note={note} workspaceSlug={workspaceSlug} />
+                      <NoteListRow
+                        note={note}
+                        workspaceSlug={workspaceSlug}
+                        projectMap={projectMap}
+                      />
                     </motion.div>
                   ))}
                 </AnimatePresence>

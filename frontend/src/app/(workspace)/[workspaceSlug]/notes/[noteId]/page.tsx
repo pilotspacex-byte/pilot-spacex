@@ -338,6 +338,8 @@ const NoteDetailPage = observer(function NoteDetailPage() {
           onDelete={handleDelete}
           onTogglePin={handleTogglePin}
           onVersionHistory={handleVersionHistory}
+          projectId={note.projectId}
+          linkedIssues={note.linkedIssues}
         />
 
         {/* Version History Panel - slides in from right */}

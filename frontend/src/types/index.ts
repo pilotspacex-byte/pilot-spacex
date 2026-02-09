@@ -113,7 +113,7 @@ export interface Note {
   workspaceId: string;
   owner?: User;
   collaborators: User[];
-  linkedIssues: Issue[];
+  linkedIssues: LinkedIssueBrief[];
   annotations: NoteAnnotation[];
   topics: string[];
   createdAt: string;
@@ -272,6 +272,16 @@ export interface Label {
   name: string;
   color: string;
   projectId: string;
+}
+
+// Linked Issue Brief (matches backend IssueBriefResponse in note detail)
+export interface LinkedIssueBrief {
+  id: string;
+  identifier: string;
+  name: string;
+  priority: IssuePriority;
+  state: StateBrief;
+  assignee?: UserBrief | null;
 }
 
 // State Brief (matches backend StateBriefSchema)

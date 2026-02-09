@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
-import { DM_Sans, DM_Mono } from 'next/font/google';
+import { DM_Sans, DM_Mono, JetBrains_Mono } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import './globals.css';
 
@@ -11,6 +11,14 @@ const dmSans = DM_Sans({
   variable: '--font-dm-sans',
   display: 'swap',
   weight: ['300', '400', '500', '600', '700'],
+});
+
+// JetBrains Mono - Line gutter numbers
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+  weight: ['400'],
 });
 
 // DM Mono - Code/monospace
@@ -59,7 +67,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${GeistSans.variable} ${GeistMono.variable} ${dmSans.variable} ${dmMono.variable} font-sans antialiased`}
+        className={`${GeistSans.variable} ${GeistMono.variable} ${dmSans.variable} ${dmMono.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
         <Providers>{children}</Providers>
       </body>

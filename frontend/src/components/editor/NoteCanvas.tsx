@@ -34,16 +34,32 @@ import { cn } from '@/lib/utils';
 import { createEditorExtensions } from '@/features/notes/editor/extensions';
 import { useResponsive } from '@/hooks/useMediaQuery';
 import { useWorkspaceStore } from '@/stores/RootStore';
-import type { JSONContent } from '@/types';
+import type { JSONContent, User, LinkedIssueBrief } from '@/types';
+import { NoteMetadata } from './NoteMetadata';
 import { SelectionToolbar } from './SelectionToolbar';
 import { InlineNoteHeader } from './InlineNoteHeader';
-import { NoteTitleBlock } from './NoteTitleBlock';
 import { CollapsedChatStrip } from './CollapsedChatStrip';
 import { OffScreenAIIndicator } from './OffScreenAIIndicator';
 import { useAIAutoScroll } from '@/hooks/useAIAutoScroll';
 import { useEditorSync } from './hooks/useEditorSync';
 import { NoteCanvasMobileLayout } from './NoteCanvasMobileLayout';
-import type { User } from '@/types';
+
+/**
+ * Extract the text content of the first heading node found in the editor document.
+ * Used to sync the note title from the first H1/H2/H3 in the document.
+ * Returns empty string if no heading is found.
+ */
+export function extractFirstHeadingText(doc: {
+  forEach: (callback: (node: { type: { name: string }; textContent: string }) => void) => void;
+}): string {
+  let firstHeadingText = '';
+  doc.forEach((node) => {
+    if (!firstHeadingText && node.type.name === 'heading') {
+      firstHeadingText = node.textContent;
+    }
+  });
+  return firstHeadingText;
+}
 
 export interface NoteCanvasProps {
   /** Note ID for loading */
@@ -92,6 +108,10 @@ export interface NoteCanvasProps {
   onTogglePin?: () => void;
   /** Callback for version history */
   onVersionHistory?: () => void;
+  /** Project ID associated with the note */
+  projectId?: string;
+  /** Issues linked to the note */
+  linkedIssues?: LinkedIssueBrief[];
 }
 
 /**
@@ -165,6 +185,8 @@ export const NoteCanvas = observer(function NoteCanvas({
   onDelete,
   onTogglePin,
   onVersionHistory,
+  projectId,
+  linkedIssues = [],
 }: NoteCanvasProps) {
   const [editorError, setEditorError] = useState<string | null>(null);
   const [isChatViewOpen, setIsChatViewOpen] = useState(true);
@@ -183,6 +205,8 @@ export const NoteCanvas = observer(function NoteCanvas({
   noteIdRef.current = noteId;
   const titleRef = useRef(title);
   titleRef.current = title;
+  const onTitleChangeRef = useRef(onTitleChange);
+  onTitleChangeRef.current = onTitleChange;
 
   const aiStore = getAIStore();
   const workspaceStore = useWorkspaceStore();
@@ -263,6 +287,17 @@ export const NoteCanvas = observer(function NoteCanvas({
 
   // State to track when editor is ready for MobX reactions
   const [isEditorReady, setIsEditorReady] = useState(false);
+
+  // Sync note title from first heading in the editor document
+  const syncTitleFromFirstHeading = useCallback(
+    (ed: Editor) => {
+      const headingText = extractFirstHeadingText(ed.state.doc);
+      if (headingText && headingText !== titleRef.current && onTitleChangeRef.current) {
+        onTitleChangeRef.current(headingText);
+      }
+    },
+    [] // Uses refs to avoid stale closures
+  );
 
   // Create editor extensions with ghost text and margin annotations
   const extensions = useMemo(
@@ -363,6 +398,8 @@ export const NoteCanvas = observer(function NoteCanvas({
         const json = ed.getJSON();
         onChange(json as JSONContent);
       }
+      // Sync note title from the first heading node in the document
+      syncTitleFromFirstHeading(ed);
       // Auto-trigger margin annotations after content changes (debounced in store)
       handleAnnotationAutoTrigger(ed);
     },
@@ -524,6 +561,13 @@ export const NoteCanvas = observer(function NoteCanvas({
         />
       )}
 
+      {/* Note metadata: project + linked issues */}
+      <NoteMetadata
+        projectId={projectId}
+        linkedIssues={linkedIssues}
+        workspaceSlug={workspaceSlug}
+      />
+
       {/* Scrollable Editor Area */}
       <div
         ref={editorContainerRef}
@@ -557,9 +601,6 @@ export const NoteCanvas = observer(function NoteCanvas({
               'max-w-full sm:max-w-[640px] md:max-w-[680px] lg:max-w-[720px] xl:max-w-[760px] 2xl:max-w-[800px]'
             )}
           >
-            {/* Note Title Block - Title as first content block (Notion-style) */}
-            <NoteTitleBlock title={title} onTitleChange={onTitleChange} disabled={readOnly} />
-
             {/* TipTap Editor */}
             <EditorContent editor={editor} />
           </div>

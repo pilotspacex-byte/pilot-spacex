@@ -181,12 +181,10 @@ export function InlineIssueComponent({ node }: NodeViewProps) {
               // State-based styling
               isDone && 'state-done',
               isCancelled && 'opacity-60',
-              // Type-based class for gradient
+              // Type-based class for hover gradient
               `type-${type}`,
-              // Rainbow animation for new issues (always visible)
-              showRainbow && 'issue-rainbow-border',
-              // Done state uses green border
-              isDone && 'issue-done-border'
+              // Rainbow pulse animation for new issues
+              showRainbow && 'issue-rainbow-border'
             )}
             data-issue-id={issueId}
           >
