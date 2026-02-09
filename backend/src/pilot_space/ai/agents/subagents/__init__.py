@@ -11,8 +11,10 @@ Design Decision: DD-058 (SDK mode selection)
 
 Available Subagents:
 - PRReviewSubagent: Interactive code review with architecture/security/performance analysis
-- AIContextSubagent: Conversational issue context aggregation
 - DocGeneratorSubagent: Interactive documentation generation
+
+Note: AIContextSubagent has been replaced by ai_context_agent.py which
+delegates to PilotSpaceAgent with the ai-context skill (DD-086).
 
 Usage:
     from pilot_space.ai.agents.subagents import PRReviewSubagent
@@ -22,12 +24,10 @@ Usage:
         yield chunk  # Stream to client via SSE
 """
 
-from pilot_space.ai.agents.subagents.ai_context_subagent import AIContextSubagent
 from pilot_space.ai.agents.subagents.doc_generator_subagent import DocGeneratorSubagent
 from pilot_space.ai.agents.subagents.pr_review_subagent import PRReviewSubagent
 
 __all__ = [
-    "AIContextSubagent",
     "DocGeneratorSubagent",
     "PRReviewSubagent",
 ]

@@ -28,6 +28,7 @@ from pilot_space.ai.agents.ai_context_agent import (
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from pilot_space.ai.agents.pilotspace_agent import PilotSpaceAgent
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
@@ -112,6 +113,7 @@ class GenerateAIContextService:
         issue_repository: IssueRepository,
         note_repository: NoteRepository,
         integration_link_repository: IntegrationLinkRepository,
+        pilotspace_agent: PilotSpaceAgent,
         tool_registry: ToolRegistry,
         provider_selector: ProviderSelector,
         cost_tracker: CostTracker,
@@ -125,6 +127,7 @@ class GenerateAIContextService:
             issue_repository: Issue repository.
             note_repository: Note repository.
             integration_link_repository: IntegrationLink repository.
+            pilotspace_agent: Centralized PilotSpaceAgent for AI generation.
             tool_registry: MCP tool registry.
             provider_selector: Provider/model selection service.
             cost_tracker: Cost tracking service.
@@ -135,6 +138,7 @@ class GenerateAIContextService:
         self._issue_repo = issue_repository
         self._note_repo = note_repository
         self._link_repo = integration_link_repository
+        self._pilotspace_agent = pilotspace_agent
         self._tool_registry = tool_registry
         self._provider_selector = provider_selector
         self._cost_tracker = cost_tracker
@@ -252,8 +256,9 @@ class GenerateAIContextService:
         # Update input with API key
         agent_input.api_key = anthropic_key
 
-        # Execute agent
+        # Execute agent via PilotSpaceAgent delegation
         agent = AIContextAgent(
+            pilotspace_agent=self._pilotspace_agent,
             tool_registry=self._tool_registry,
             provider_selector=self._provider_selector,
             cost_tracker=self._cost_tracker,

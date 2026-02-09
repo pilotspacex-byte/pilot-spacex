@@ -64,6 +64,7 @@ async def get_ai_context_service(
         raise RuntimeError("DI container not initialized. Check app startup.")
 
     container = request.app.state.container
+    pilotspace_agent = container.pilotspace_agent()
     tool_registry = container.tool_registry()
     provider_selector = container.provider_selector()
     resilient_executor = container.resilient_executor()
@@ -79,6 +80,7 @@ async def get_ai_context_service(
         issue_repository=IssueRepository(session),
         note_repository=NoteRepository(session),
         integration_link_repository=IntegrationLinkRepository(session),
+        pilotspace_agent=pilotspace_agent,
         tool_registry=tool_registry,
         provider_selector=provider_selector,
         cost_tracker=cost_tracker,
@@ -110,6 +112,7 @@ async def get_refine_ai_context_service(
         raise RuntimeError("DI container not initialized. Check app startup.")
 
     container = request.app.state.container
+    pilotspace_agent = container.pilotspace_agent()
     tool_registry = container.tool_registry()
     provider_selector = container.provider_selector()
     resilient_executor = container.resilient_executor()
@@ -123,6 +126,7 @@ async def get_refine_ai_context_service(
         session=session,
         ai_context_repository=AIContextRepository(session),
         issue_repository=IssueRepository(session),
+        pilotspace_agent=pilotspace_agent,
         tool_registry=tool_registry,
         provider_selector=provider_selector,
         cost_tracker=cost_tracker,
