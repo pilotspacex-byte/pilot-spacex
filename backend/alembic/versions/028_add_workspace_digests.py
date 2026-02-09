@@ -20,7 +20,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "028_add_workspace_digests"
-down_revision: str = "027_merge_heads"
+down_revision: str = "026_add_role_based_skills"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -3,7 +3,8 @@
 Extracted from pilotspace_agent.py for file size compliance.
 Contains SSE content capture, structured content building,
 effort classification, skill detection, token estimation,
-and concurrent SDK+queue stream merging.
+MCP server factory, concurrent SDK+queue stream merging,
+and dynamic system prompt assembly.
 """
 
 from __future__ import annotations
@@ -14,12 +15,98 @@ import json
 import logging
 import re
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from claude_agent_sdk import McpServerConfig
+
+from pilot_space.ai.mcp.comment_server import (
+    SERVER_NAME as COMMENT_SERVER_NAME,
+    create_comment_tools_server,
+)
+from pilot_space.ai.mcp.issue_relation_server import (
+    SERVER_NAME as ISSUE_REL_SERVER_NAME,
+    create_issue_relation_tools_server,
+)
+from pilot_space.ai.mcp.issue_server import (
+    SERVER_NAME as ISSUE_SERVER_NAME,
+    create_issue_tools_server,
+)
+from pilot_space.ai.mcp.note_content_server import (
+    SERVER_NAME as NOTE_CONTENT_SERVER_NAME,
+    create_note_content_server,
+)
+from pilot_space.ai.mcp.note_server import (
+    SERVER_NAME as NOTE_SERVER_NAME,
+    create_note_tools_server,
+)
+from pilot_space.ai.mcp.project_server import (
+    SERVER_NAME as PROJECT_SERVER_NAME,
+    create_project_tools_server,
+)
 
 if TYPE_CHECKING:
     from pilot_space.ai.agents.pilotspace_agent import ChatInput
+    from pilot_space.ai.mcp.block_ref_map import BlockRefMap
+    from pilot_space.ai.tools.mcp_server import ToolContext
 
 logger = logging.getLogger(__name__)
+
+
+def build_mcp_servers(
+    tool_event_queue: asyncio.Queue[str],
+    tool_context: ToolContext,
+    input_data: ChatInput,
+) -> tuple[dict[str, McpServerConfig], BlockRefMap | None]:
+    """Build the MCP server dict and block-reference map for an SDK session.
+
+    Constructs a ¶N block reference map from the note context (if present)
+    and instantiates all 6 MCP tool servers.
+
+    Returns:
+        Tuple of (mcp_servers dict keyed by server name, block_ref_map or None).
+    """
+    from pilot_space.ai.mcp.block_ref_map import BlockRefMap
+
+    _note_obj = input_data.context.get("note")
+    _note_raw = getattr(_note_obj, "content", {}) if _note_obj else {}
+    ref_map: BlockRefMap | None = BlockRefMap.from_tiptap(_note_raw) if _note_raw else None
+    if ref_map is not None and ref_map.is_empty:
+        ref_map = None
+
+    context_note_id = input_data.context.get("note_id")
+
+    servers: dict[str, McpServerConfig] = {
+        NOTE_SERVER_NAME: create_note_tools_server(
+            tool_event_queue,
+            context_note_id=str(context_note_id) if context_note_id else None,
+            tool_context=tool_context,
+            block_ref_map=ref_map,
+        ),
+        NOTE_CONTENT_SERVER_NAME: create_note_content_server(
+            tool_event_queue,
+            tool_context=tool_context,
+            block_ref_map=ref_map,
+        ),
+        ISSUE_SERVER_NAME: create_issue_tools_server(
+            tool_event_queue,
+            tool_context=tool_context,
+        ),
+        ISSUE_REL_SERVER_NAME: create_issue_relation_tools_server(
+            tool_event_queue,
+            tool_context=tool_context,
+        ),
+        PROJECT_SERVER_NAME: create_project_tools_server(
+            event_queue=tool_event_queue,
+            tool_context=tool_context,
+        ),
+        COMMENT_SERVER_NAME: create_comment_tools_server(
+            tool_event_queue,
+            tool_context=tool_context,
+        ),
+    }
+
+    return servers, ref_map
 
 
 _SIMPLE_PATTERNS = [
@@ -257,3 +344,112 @@ async def merge_sdk_and_queue(
         feeder.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await feeder
+
+
+# ---------------------------------------------------------------------------
+# Dynamic System Prompt Assembly
+# ---------------------------------------------------------------------------
+
+# Template directories
+_TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+_ROLE_TEMPLATES_DIR = _TEMPLATES_DIR / "role_templates"
+_RULES_DIR = _TEMPLATES_DIR / "rules"
+
+# Rules to inject (compact ones only; ai-confidence.md is 415 lines, too large)
+_INJECTED_RULES = ("issues.md", "notes.md")
+
+# Max characters per rule file to prevent prompt bloat
+_MAX_RULE_CHARS = 4000
+
+
+def _load_role_template(role_type: str) -> str | None:
+    """Load a role template markdown file by role type.
+
+    Args:
+        role_type: Role type string (e.g., 'developer', 'architect').
+
+    Returns:
+        Template content (body only, YAML frontmatter stripped) or None.
+    """
+    template_path = _ROLE_TEMPLATES_DIR / f"{role_type}.md"
+    if not template_path.is_file():
+        logger.debug("Role template not found: %s", template_path)
+        return None
+
+    content = template_path.read_text(encoding="utf-8")
+
+    # Strip YAML frontmatter (--- ... ---)
+    if content.startswith("---"):
+        end_idx = content.find("---", 3)
+        if end_idx != -1:
+            content = content[end_idx + 3 :].strip()
+
+    return content
+
+
+def _load_rules() -> str:
+    """Load compact rule files for system prompt injection.
+
+    Returns:
+        Combined rules as a single string, truncated per file.
+    """
+    parts: list[str] = []
+    for filename in _INJECTED_RULES:
+        rule_path = _RULES_DIR / filename
+        if not rule_path.is_file():
+            logger.debug("Rule file not found: %s", rule_path)
+            continue
+
+        content = rule_path.read_text(encoding="utf-8")
+        if len(content) > _MAX_RULE_CHARS:
+            content = content[:_MAX_RULE_CHARS] + "\n... (truncated)"
+        parts.append(content)
+
+    return "\n\n".join(parts)
+
+
+def build_dynamic_system_prompt(
+    base_prompt: str,
+    role_type: str | None = None,
+    workspace_name: str | None = None,
+    project_names: list[str] | None = None,
+) -> str:
+    """Assemble a dynamic system prompt from base + role + rules.
+
+    Extends the static SYSTEM_PROMPT_BASE with:
+    1. User's primary role template (behavioral adaptation)
+    2. Workspace/project context (entity awareness)
+    3. Compact operational rules (issues.md, notes.md)
+
+    Args:
+        base_prompt: The static SYSTEM_PROMPT_BASE string.
+        role_type: User's primary role (e.g., 'developer', 'architect').
+        workspace_name: Current workspace name for context.
+        project_names: Active project names in the workspace.
+
+    Returns:
+        Assembled system prompt string.
+    """
+    sections: list[str] = [base_prompt]
+
+    # 1. Role-specific section
+    if role_type:
+        role_content = _load_role_template(role_type)
+        if role_content:
+            sections.append(f"\n\n## Your User's Role\n{role_content}")
+
+    # 2. Workspace context
+    if workspace_name or project_names:
+        ctx_parts: list[str] = ["## Workspace Context"]
+        if workspace_name:
+            ctx_parts.append(f"Workspace: {workspace_name}")
+        if project_names:
+            ctx_parts.append(f"Active projects: {', '.join(project_names[:10])}")
+        sections.append("\n\n" + "\n".join(ctx_parts))
+
+    # 3. Operational rules
+    rules = _load_rules()
+    if rules:
+        sections.append(f"\n\n## Operational Rules\n{rules}")
+
+    return "".join(sections)

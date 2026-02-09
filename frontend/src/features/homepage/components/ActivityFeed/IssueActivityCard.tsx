@@ -12,6 +12,14 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import type { ActivityCardIssue, IssuePriority } from '../../types';
 
+/** Safely format a date string as relative time, returning fallback on invalid input. */
+function safeFormatDistance(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'recently';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return 'recently';
+  return formatDistanceToNow(d, { addSuffix: true });
+}
+
 interface IssueActivityCardProps {
   card: ActivityCardIssue;
   workspaceSlug: string;
@@ -132,8 +140,11 @@ export function IssueActivityCard({ card, workspaceSlug }: IssueActivityCardProp
           </Avatar>
         )}
 
-        <time dateTime={card.updated_at} className="shrink-0 text-xs text-muted-foreground">
-          {formatDistanceToNow(new Date(card.updated_at), { addSuffix: true })}
+        <time
+          dateTime={card.updated_at ?? undefined}
+          className="shrink-0 text-xs text-muted-foreground"
+        >
+          {safeFormatDistance(card.updated_at)}
         </time>
       </div>
     </article>

@@ -11,7 +11,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v
 // Types
 export interface GhostTextRequest {
   context: string;
-  cursor_position: number;
+  prefix: string;
+  workspace_id: string;
 }
 
 export interface AIContextRequest {
@@ -267,4 +268,19 @@ export const aiApi = {
    */
   rejectAction: (requestId: string, reason: string) =>
     apiClient.post<ApprovalRequest>(`/ai/approvals/${requestId}/reject`, { reason }),
+
+  /**
+   * List available skills from backend templates.
+   * @returns Skill definitions with UI metadata
+   */
+  listSkills: () =>
+    apiClient.get<{
+      skills: Array<{
+        name: string;
+        description: string;
+        category: string;
+        icon: string;
+        examples: string[];
+      }>;
+    }>('/skills'),
 };

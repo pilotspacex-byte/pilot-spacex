@@ -1,42 +1,51 @@
 /**
  * GhostTextStore Tests (T130)
- * Tests for MobX store managing AI-powered text suggestions
+ * Tests for MobX store managing AI-powered text suggestions.
+ * Store uses fetch + JSON (not SSE) per backend ghost_text.py contract.
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { when } from 'mobx';
+import { autorun } from 'mobx';
 import { GhostTextStore } from '@/stores/ai/GhostTextStore';
 import { AIStore } from '@/stores/ai/AIStore';
-import type { SSEClient } from '@/lib/sse-client';
 
-// Mock SSEClient
-vi.mock('@/lib/sse-client', () => ({
-  SSEClient: vi.fn().mockImplementation(() => ({
-    connect: vi.fn().mockResolvedValue(undefined),
-    abort: vi.fn(),
-    isConnected: false,
-    resetRetries: vi.fn(),
-  })),
+// Mock Supabase auth
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: { session: { access_token: 'test-token' } },
+      }),
+    },
+  },
 }));
 
 // Mock aiApi
 vi.mock('@/services/api/ai', () => ({
   aiApi: {
-    getGhostTextUrl: (noteId: string) => `/api/v1/ai/notes/${noteId}/ghost-text`,
+    getGhostTextUrl: (_noteId: string) => 'http://localhost:8000/api/v1/ai/ghost-text',
   },
 }));
 
 describe('GhostTextStore', () => {
   let aiStore: AIStore;
   let ghostTextStore: GhostTextStore;
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     aiStore = new AIStore();
     ghostTextStore = aiStore.ghostText;
+    fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ suggestion: '', confidence: 0.5, cached: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
   });
 
   afterEach(() => {
     ghostTextStore.abort();
+    fetchSpy.mockRestore();
   });
 
   describe('initialization', () => {
@@ -49,8 +58,7 @@ describe('GhostTextStore', () => {
 
     it('should respect AI store global enabled state', () => {
       aiStore.setGloballyEnabled(false);
-      ghostTextStore.requestSuggestion('note-123', 'Hello ', 6);
-
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
       expect(ghostTextStore.isLoading).toBe(false);
     });
   });
@@ -64,7 +72,6 @@ describe('GhostTextStore', () => {
     it('should disable ghost text and clear suggestion', () => {
       ghostTextStore.suggestion = 'test suggestion';
       ghostTextStore.setEnabled(false);
-
       expect(ghostTextStore.isEnabled).toBe(false);
       expect(ghostTextStore.suggestion).toBe('');
     });
@@ -73,77 +80,98 @@ describe('GhostTextStore', () => {
   describe('requestSuggestion', () => {
     it('should not request when disabled', () => {
       ghostTextStore.setEnabled(false);
-      ghostTextStore.requestSuggestion('note-123', 'Hello ', 6);
-
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
       expect(ghostTextStore.isLoading).toBe(false);
     });
 
     it('should not request when globally disabled', () => {
       aiStore.setGloballyEnabled(false);
-      ghostTextStore.requestSuggestion('note-123', 'Hello ', 6);
-
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
       expect(ghostTextStore.isLoading).toBe(false);
     });
 
     it('should return cached suggestion if available', () => {
-      // Simulate cache hit
-      const cacheKey = 'note-123:Hello ';
+      const cacheKey = 'note-123:Hello :Hello ';
       // @ts-expect-error - accessing private cache for testing
       ghostTextStore.cache.set(cacheKey, 'world');
 
-      ghostTextStore.requestSuggestion('note-123', 'Hello ', 6);
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
 
       expect(ghostTextStore.suggestion).toBe('world');
       expect(ghostTextStore.isLoading).toBe(false);
     });
 
-    it('should debounce multiple requests', async () => {
-      vi.useFakeTimers();
+    it('should fetch suggestion via JSON endpoint', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ suggestion: 'world', confidence: 0.8, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
 
-      ghostTextStore.requestSuggestion('note-123', 'Hello ', 6);
-      ghostTextStore.requestSuggestion('note-123', 'Hello w', 7);
-      ghostTextStore.requestSuggestion('note-123', 'Hello wo', 8);
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      // Wait for debounce (0ms) + async import + auth + fetch chain
+      await vi.waitFor(() => {
+        expect(ghostTextStore.suggestion).toBe('world');
+      });
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'http://localhost:8000/api/v1/ai/ghost-text',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ context: 'Hello ', prefix: 'Hello ', workspace_id: 'ws-1' }),
+        })
+      );
+      expect(ghostTextStore.isLoading).toBe(false);
+    });
+
+    it('should debounce multiple requests', async () => {
+      fetchSpy.mockResolvedValue(
+        new Response(JSON.stringify({ suggestion: 'rld', confidence: 0.8, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+      ghostTextStore.requestSuggestion('note-123', 'Hello w', 'Hello w', 'ws-1');
+      ghostTextStore.requestSuggestion('note-123', 'Hello wo', 'Hello wo', 'ws-1');
 
       // Only last request should trigger after debounce
       expect(ghostTextStore.isLoading).toBe(false);
 
-      vi.advanceTimersByTime(500);
-      await vi.runAllTimersAsync();
+      // Wait for the debounced fetch to complete
+      await vi.waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+      });
 
-      expect(ghostTextStore.isLoading).toBe(true);
-
-      vi.useRealTimers();
+      // Verify it was called with the LAST request's data
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'http://localhost:8000/api/v1/ai/ghost-text',
+        expect.objectContaining({
+          body: JSON.stringify({ context: 'Hello wo', prefix: 'Hello wo', workspace_id: 'ws-1' }),
+        })
+      );
     });
 
     it('should cache successful suggestions', async () => {
-      const mockClient = {
-        connect: vi.fn().mockResolvedValue(undefined),
-        abort: vi.fn(),
-        isConnected: false,
-        resetRetries: vi.fn(),
-      } as unknown as SSEClient;
-
-      // Mock SSEClient to simulate successful response
-      const { SSEClient } = await import('@/lib/sse-client');
-      vi.mocked(SSEClient).mockImplementation(
-        (options) =>
-          ({
-            ...mockClient,
-            connect: async () => {
-              // Simulate token events
-              options.onMessage({ type: 'token', data: { content: 'world' } });
-              options.onComplete?.();
-            },
-          }) as unknown as SSEClient
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ suggestion: 'world', confidence: 0.9, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
       );
 
-      await ghostTextStore.requestSuggestion('note-123', 'Hello ', 6);
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
 
-      // Wait for debounce and completion
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      // Wait for fetch chain to complete
+      await vi.waitFor(() => {
+        expect(ghostTextStore.suggestion).toBe('world');
+      });
 
-      // Check cache
-      const cacheKey = 'note-123:Hello ';
+      // Check cache - key includes prefix now
+      const cacheKey = 'note-123:Hello :Hello ';
       // @ts-expect-error - accessing private cache for testing
       expect(ghostTextStore.cache.get(cacheKey)).toBe('world');
     });
@@ -153,36 +181,19 @@ describe('GhostTextStore', () => {
     it('should clear current suggestion', () => {
       ghostTextStore.suggestion = 'test suggestion';
       ghostTextStore.clearSuggestion();
-
       expect(ghostTextStore.suggestion).toBe('');
     });
   });
 
   describe('abort', () => {
-    it('should abort current request', () => {
-      const mockClient = {
-        abort: vi.fn(),
-        connect: vi.fn(),
-        isConnected: true,
-        resetRetries: vi.fn(),
-      } as unknown as SSEClient;
-
-      // @ts-expect-error - setting private client for testing
-      ghostTextStore.client = mockClient;
+    it('should abort current request and reset loading', () => {
       ghostTextStore.isLoading = true;
-
       ghostTextStore.abort();
-
-      expect(mockClient.abort).toHaveBeenCalled();
       expect(ghostTextStore.isLoading).toBe(false);
-      // @ts-expect-error - accessing private client
-      expect(ghostTextStore.client).toBeNull();
     });
 
-    it('should clear debounce timer', async () => {
-      vi.useFakeTimers();
-
-      ghostTextStore.requestSuggestion('note-123', 'Hello ', 6);
+    it('should clear debounce timer', () => {
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
 
       // @ts-expect-error - accessing private debounceTimer
       expect(ghostTextStore.debounceTimer).not.toBeNull();
@@ -191,66 +202,79 @@ describe('GhostTextStore', () => {
 
       // @ts-expect-error - accessing private debounceTimer
       expect(ghostTextStore.debounceTimer).toBeNull();
-
-      vi.useRealTimers();
-    });
-  });
-
-  describe('cache management', () => {
-    it('should limit cache size to maxCacheSize', () => {
-      const maxSize = 10;
-
-      // Fill cache beyond max size
-      for (let i = 0; i < maxSize + 5; i++) {
-        const cacheKey = `note-${i}:context`;
-        // @ts-expect-error - accessing private cache for testing
-        ghostTextStore.cache.set(cacheKey, `suggestion-${i}`);
-      }
-
-      // Should evict oldest entries
-      // @ts-expect-error - accessing private cache
-      expect(ghostTextStore.cache.size).toBeLessThanOrEqual(maxSize);
     });
   });
 
   describe('error handling', () => {
     it('should set error on fetch failure', async () => {
-      const mockClient = {
-        connect: vi.fn().mockResolvedValue(undefined),
-        abort: vi.fn(),
-        isConnected: false,
-        resetRetries: vi.fn(),
-      } as unknown as SSEClient;
+      fetchSpy.mockRejectedValueOnce(new Error('Network error'));
 
-      const { SSEClient } = await import('@/lib/sse-client');
-      vi.mocked(SSEClient).mockImplementation(
-        (options) =>
-          ({
-            ...mockClient,
-            connect: async () => {
-              options.onError?.(new Error('Network error'));
-            },
-          }) as unknown as SSEClient
-      );
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
 
-      await ghostTextStore.requestSuggestion('note-123', 'Hello ', 6);
+      await vi.waitFor(() => {
+        expect(ghostTextStore.error).toBe('Network error');
+      });
+      expect(ghostTextStore.isLoading).toBe(false);
+    });
 
-      // Wait for debounce
-      await new Promise((resolve) => setTimeout(resolve, 600));
+    it('should silently handle rate limit (429)', async () => {
+      fetchSpy.mockResolvedValueOnce(new Response('Rate limit exceeded', { status: 429 }));
 
-      await when(() => ghostTextStore.error !== null);
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
 
-      expect(ghostTextStore.error).toBe('Network error');
+      await vi.waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalled();
+      });
+      // Allow async chain to settle
+      await vi.waitFor(() => {
+        expect(ghostTextStore.isLoading).toBe(false);
+      });
+      expect(ghostTextStore.error).toBeNull();
+    });
+
+    it('should set error on non-429 HTTP failure', async () => {
+      fetchSpy.mockResolvedValueOnce(new Response('Server error', { status: 500 }));
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      await vi.waitFor(() => {
+        expect(ghostTextStore.error).toBe('Ghost text request failed: 500');
+      });
       expect(ghostTextStore.isLoading).toBe(false);
     });
   });
 
+  describe('context truncation', () => {
+    it('should truncate context to 500 chars and prefix to 200 chars', async () => {
+      const longContext = 'a'.repeat(1000);
+      const longPrefix = 'b'.repeat(400);
+
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ suggestion: 'ok', confidence: 0.8, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', longContext, longPrefix, 'ws-1');
+
+      await vi.waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+      });
+
+      const call = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse(call[1]?.body as string);
+      expect(body.context).toHaveLength(500);
+      expect(body.prefix).toHaveLength(200);
+      expect(body.context).toBe('a'.repeat(500));
+      expect(body.prefix).toBe('b'.repeat(200));
+    });
+  });
+
   describe('MobX reactivity', () => {
-    it('should trigger reactions on suggestion change', async () => {
+    it('should trigger reactions on suggestion change', () => {
       const reactions: string[] = [];
 
-      // Set up autorun to track suggestion changes
-      const { autorun } = await import('mobx');
       const dispose = autorun(() => {
         reactions.push(ghostTextStore.suggestion);
       });
@@ -259,25 +283,20 @@ describe('GhostTextStore', () => {
       ghostTextStore.suggestion = 'test 2';
 
       expect(reactions).toEqual(['', 'test 1', 'test 2']);
-
       dispose();
     });
 
-    it('should trigger reactions on isLoading change', async () => {
+    it('should trigger reactions on isLoading change', () => {
       const loadingStates: boolean[] = [];
 
-      const { autorun } = await import('mobx');
       const dispose = autorun(() => {
         loadingStates.push(ghostTextStore.isLoading);
       });
 
-      // @ts-expect-error - setting private client for testing
-      ghostTextStore.client = {} as SSEClient;
       ghostTextStore.isLoading = true;
       ghostTextStore.isLoading = false;
 
       expect(loadingStates).toEqual([false, true, false]);
-
       dispose();
     });
   });

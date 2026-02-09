@@ -158,6 +158,7 @@ export const DigestPanel = observer(function DigestPanel({
 function formatRelativeTime(isoString: string): string {
   const now = Date.now();
   const then = new Date(isoString).getTime();
+  if (isNaN(then)) return 'recently';
   const diffMs = now - then;
 
   if (diffMs < 60_000) return 'just now';

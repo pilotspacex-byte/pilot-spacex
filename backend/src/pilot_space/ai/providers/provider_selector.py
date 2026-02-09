@@ -197,13 +197,13 @@ class ProviderSelector:
             fallback_provider=Provider.ANTHROPIC.value,
             fallback_model=ANTHROPIC_HAIKU,
         ),
-        # Latency-sensitive → Claude Haiku (cost-optimized, <2s target)
+        # Latency-sensitive → Gemini Flash (DD-011: <1.5s response)
         TaskType.GHOST_TEXT: ProviderConfig(
-            provider=Provider.ANTHROPIC.value,
-            model=ANTHROPIC_HAIKU,
-            reason="Real-time completion requires <2s latency",
-            fallback_provider=Provider.GOOGLE.value,
-            fallback_model=GOOGLE_FLASH,
+            provider=Provider.GOOGLE.value,
+            model=GOOGLE_FLASH,
+            reason="Real-time completion requires <1.5s latency (DD-011)",
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_HAIKU,
         ),
         TaskType.NOTIFICATION_PRIORITY: ProviderConfig(
             provider=Provider.ANTHROPIC.value,

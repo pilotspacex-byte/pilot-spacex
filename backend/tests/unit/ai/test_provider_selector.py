@@ -38,12 +38,12 @@ class TestProviderSelection:
         assert provider == Provider.ANTHROPIC.value
         assert model == ProviderSelector.ANTHROPIC_OPUS
 
-    def test_ghost_text_routes_to_claude_haiku(self, selector: ProviderSelector) -> None:
-        """Verify ghost text uses Claude Haiku for low latency."""
+    def test_ghost_text_routes_to_google_flash(self, selector: ProviderSelector) -> None:
+        """Verify ghost text uses Gemini Flash for <1.5s latency (DD-011)."""
         provider, model = selector.select(TaskType.GHOST_TEXT)
 
-        assert provider == Provider.ANTHROPIC.value
-        assert model == ProviderSelector.ANTHROPIC_HAIKU
+        assert provider == Provider.GOOGLE.value
+        assert model == ProviderSelector.GOOGLE_FLASH
 
     def test_embeddings_route_to_openai(self, selector: ProviderSelector) -> None:
         """Verify embeddings use OpenAI for superior vectors."""
@@ -157,19 +157,19 @@ class TestFallbackLogic:
 
     def test_unhealthy_primary_uses_fallback(self, selector: ProviderSelector) -> None:
         """Verify fallback provider is used when primary is unhealthy."""
-        # Open circuit breaker for Anthropic
+        # Open circuit breaker for Google (Ghost text primary is now Google)
         breaker = CircuitBreaker.get_or_create(
-            Provider.ANTHROPIC.value,
+            Provider.GOOGLE.value,
             CircuitBreakerConfig(failure_threshold=1),
         )
         # Access private state for testing (allowed in unit tests)
         breaker._state.state = breaker._state.state.__class__.OPEN
 
-        # Ghost text should fall back to Google Flash
+        # Ghost text should fall back to Anthropic Haiku
         config = selector.select_with_config(TaskType.GHOST_TEXT)
 
-        assert config.provider == Provider.GOOGLE.value
-        assert config.model == ProviderSelector.GOOGLE_FLASH
+        assert config.provider == Provider.ANTHROPIC.value
+        assert config.model == ProviderSelector.ANTHROPIC_HAIKU
         assert "Fallback" in config.reason
 
 
@@ -293,16 +293,20 @@ class TestDD011Compliance:
             assert provider == Provider.ANTHROPIC.value
             assert model == ProviderSelector.ANTHROPIC_OPUS
 
-    def test_latency_sensitive_tasks_use_claude_haiku(self, selector: ProviderSelector) -> None:
-        """Verify latency-sensitive tasks route to Claude Haiku."""
-        latency_tasks = [
-            TaskType.GHOST_TEXT,
+    def test_latency_sensitive_tasks_use_fast_providers(self, selector: ProviderSelector) -> None:
+        """Verify latency-sensitive tasks route to fast providers per DD-011."""
+        # Ghost text uses Gemini Flash for <1.5s latency
+        provider, model = selector.select(TaskType.GHOST_TEXT)
+        assert provider == Provider.GOOGLE.value
+        assert model == ProviderSelector.GOOGLE_FLASH
+
+        # Other latency tasks use Claude Haiku
+        haiku_tasks = [
             TaskType.NOTIFICATION_PRIORITY,
             TaskType.ASSIGNEE_RECOMMENDATION,
             TaskType.COMMIT_LINKING,
         ]
-
-        for task in latency_tasks:
+        for task in haiku_tasks:
             provider, model = selector.select(task)
             assert provider == Provider.ANTHROPIC.value
             assert model == ProviderSelector.ANTHROPIC_HAIKU
@@ -359,12 +363,12 @@ class TestEdgeCases:
         # Access private state for testing (allowed in unit tests)
         google_breaker._state.state = google_breaker._state.state.__class__.OPEN
 
-        # Ghost text has Google as fallback
+        # Ghost text has Anthropic as fallback (primary is Google)
         config = selector.select_with_config(TaskType.GHOST_TEXT)
 
         # Should return primary even though unhealthy
-        assert config.provider == Provider.ANTHROPIC.value
-        assert config.model == ProviderSelector.ANTHROPIC_HAIKU
+        assert config.provider == Provider.GOOGLE.value
+        assert config.model == ProviderSelector.GOOGLE_FLASH
 
     def test_select_and_select_with_config_return_same_provider(
         self, selector: ProviderSelector

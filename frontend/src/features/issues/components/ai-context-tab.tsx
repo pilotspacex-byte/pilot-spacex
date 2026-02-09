@@ -30,23 +30,24 @@ export const AIContextTab = observer(function AIContextTab({
   issueId,
   className,
 }: AIContextTabProps) {
-  const { aiStore } = useStore();
+  const { aiStore, workspaceStore } = useStore();
   const contextStore = aiStore.aiContext;
   const { copied, handleCopy } = useCopyFeedback();
+  const workspaceId = workspaceStore.currentWorkspaceId ?? undefined;
 
   // Auto-generate context on mount and when issueId changes.
   // Store handles cache hits, dedup, and issue switching internally.
   React.useEffect(() => {
-    contextStore.generateContext(issueId);
-  }, [issueId, contextStore]);
+    contextStore.generateContext(issueId, workspaceId);
+  }, [issueId, contextStore, workspaceId]);
 
   const handleGenerate = () => {
-    contextStore.generateContext(issueId);
+    contextStore.generateContext(issueId, workspaceId);
   };
 
   const handleRegenerate = () => {
     contextStore.clearCache(issueId);
-    contextStore.generateContext(issueId);
+    contextStore.generateContext(issueId, workspaceId);
   };
 
   const handleCopyAll = () => {

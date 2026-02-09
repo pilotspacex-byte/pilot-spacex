@@ -6,10 +6,31 @@
 import type { SkillDefinition, AgentDefinition } from './types';
 
 /**
- * Available skills for invocation
- * Phase 2: Skill Migration from remediation plan
+ * Session-only skills (UI-only, no backend SKILL.md).
+ * Always included regardless of API response.
  */
-export const SKILLS: SkillDefinition[] = [
+export const SESSION_SKILLS: SkillDefinition[] = [
+  {
+    name: 'resume',
+    description: 'Resume a previous conversation session',
+    category: 'session',
+    icon: 'History',
+    examples: ['Continue our last chat', 'Resume discussion about API design'],
+  },
+  {
+    name: 'new',
+    description: 'Start a fresh conversation session',
+    category: 'session',
+    icon: 'Plus',
+    examples: ['Start new chat', 'Fresh conversation'],
+  },
+];
+
+/**
+ * Fallback skills used when the backend API is unavailable.
+ * Does NOT include session skills — those are merged separately.
+ */
+export const FALLBACK_SKILLS: SkillDefinition[] = [
   {
     name: 'extract-issues',
     description: 'Extract structured issues from note content or selected text',
@@ -66,21 +87,13 @@ export const SKILLS: SkillDefinition[] = [
     icon: 'FileText',
     examples: ['Summarize this note', 'Create a brief summary'],
   },
-  {
-    name: 'resume',
-    description: 'Resume a previous conversation session',
-    category: 'session',
-    icon: 'History',
-    examples: ['Continue our last chat', 'Resume discussion about API design'],
-  },
-  {
-    name: 'new',
-    description: 'Start a fresh conversation session',
-    category: 'session',
-    icon: 'Plus',
-    examples: ['Start new chat', 'Fresh conversation'],
-  },
 ];
+
+/**
+ * Combined skills list for backward compatibility.
+ * Prefer using useSkills() hook for dynamic loading.
+ */
+export const SKILLS: SkillDefinition[] = [...SESSION_SKILLS, ...FALLBACK_SKILLS];
 
 /**
  * Available subagents for invocation

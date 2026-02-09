@@ -7,7 +7,6 @@ Available routers:
 - workspace_notes_ai: AI-specific note operations (content updates)
 - projects: Project management
 - issues: Issue tracking with AI enhancement
-- notes: Note canvas
 - cycles: Sprint/cycle management
 - ai_chat: Conversational AI chat endpoint
 - ai_configuration: Workspace AI/LLM provider configuration
@@ -41,19 +40,22 @@ from pilot_space.api.v1.routers.issues_ai_context_streaming import (
     router as issues_ai_context_streaming_router,
 )
 from pilot_space.api.v1.routers.mcp_tools import router as mcp_tools_router
-from pilot_space.api.v1.routers.notes import router as notes_router
 from pilot_space.api.v1.routers.onboarding import router as onboarding_router
 from pilot_space.api.v1.routers.projects import router as projects_router
 from pilot_space.api.v1.routers.role_skills import (
     role_templates_router,
     router as role_skills_router,
 )
+from pilot_space.api.v1.routers.skills import router as skills_router
 from pilot_space.api.v1.routers.webhooks import router as webhooks_router
 from pilot_space.api.v1.routers.workspace_ai_settings import router as workspace_ai_settings_router
 from pilot_space.api.v1.routers.workspace_cycles import router as workspace_cycles_router
 from pilot_space.api.v1.routers.workspace_invitations import router as workspace_invitations_router
 from pilot_space.api.v1.routers.workspace_issues import router as workspace_issues_router
 from pilot_space.api.v1.routers.workspace_members import router as workspace_members_router
+from pilot_space.api.v1.routers.workspace_note_issue_links import (
+    router as workspace_note_issue_links_router,
+)
 from pilot_space.api.v1.routers.workspace_notes import router as workspace_notes_router
 from pilot_space.api.v1.routers.workspace_notes_ai import router as workspace_notes_ai_router
 from pilot_space.api.v1.routers.workspaces import router as workspaces_router
@@ -125,17 +127,18 @@ __all__ = [
     "issues_router",
     "mcp_tools_router",
     "notes_ai_router",
-    "notes_router",
     "onboarding_router",
     "projects_router",
     "role_skills_router",
     "role_templates_router",
+    "skills_router",
     "webhooks_router",
     "workspace_ai_settings_router",
     "workspace_cycles_router",
     "workspace_invitations_router",
     "workspace_issues_router",
     "workspace_members_router",
+    "workspace_note_issue_links_router",
     "workspace_notes_ai_router",
     "workspace_notes_router",
     "workspaces_router",

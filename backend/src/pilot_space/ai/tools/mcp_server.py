@@ -113,7 +113,7 @@ TOOL_APPROVAL_MAP: dict[str, ToolApprovalLevel] = {
     "create_project": ToolApprovalLevel.REQUIRE_APPROVAL,
     "update_project": ToolApprovalLevel.REQUIRE_APPROVAL,
     "update_project_settings": ToolApprovalLevel.REQUIRE_APPROVAL,
-    # Retained tools (6 from note_tools.py, registered in MCP servers)
+    # Note tools (registered in MCP servers via note_server.py)
     "update_note_block": ToolApprovalLevel.REQUIRE_APPROVAL,
     "enhance_text": ToolApprovalLevel.AUTO_EXECUTE,
     "extract_issues": ToolApprovalLevel.REQUIRE_APPROVAL,

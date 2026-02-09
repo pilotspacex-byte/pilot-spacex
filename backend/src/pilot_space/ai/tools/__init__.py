@@ -41,13 +41,6 @@ from pilot_space.ai.tools.mcp_server import (
     ToolRegistry,
     register_tool,
 )
-from pilot_space.ai.tools.note_tools import (
-    create_issue_from_note,
-    enhance_text,
-    extract_issues,
-    link_existing_issues,
-    update_note_block,
-)
 from pilot_space.ai.tools.search_tools import (
     search_codebase,
     semantic_search,
@@ -56,19 +49,14 @@ from pilot_space.ai.tools.search_tools import (
 __all__ = [
     "ToolContext",
     "ToolRegistry",
-    "create_issue_from_note",
     "create_note_annotation",
-    "enhance_text",
-    "extract_issues",
     "get_cycle_context",
     "get_pr_details",
     "get_pr_diff",
     "get_workspace_members",
-    "link_existing_issues",
     "post_pr_comment",
     "register_tool",
     "search_code_in_repo",
     "search_codebase",
     "semantic_search",
-    "update_note_block",
 ]

@@ -275,8 +275,8 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       };
 
-      handler.handleToolInputDelta(delta1);
-      handler.handleToolInputDelta(delta2);
+      handler.handleSSEEvent(delta1);
+      handler.handleSSEEvent(delta2);
 
       const tc = store.findPendingToolCall('tc-1');
       expect(tc?.partialInput).toBe('{"note_id":"note-123"}');
@@ -299,7 +299,7 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       };
 
-      handler.handleToolInputDelta(delta);
+      handler.handleSSEEvent(delta);
 
       const tc = store.findPendingToolCall('tc-2');
       expect(tc?.partialInput).toBe('{"text":"hello"}');
@@ -322,7 +322,7 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       };
 
-      expect(() => handler.handleToolInputDelta(delta)).not.toThrow();
+      expect(() => handler.handleSSEEvent(delta)).not.toThrow();
     });
 
     it('should not crash when pending buffer is empty', () => {
@@ -335,7 +335,7 @@ describe('Phase 1 SDK Features (T57-T59)', () => {
         },
       };
 
-      expect(() => handler.handleToolInputDelta(delta)).not.toThrow();
+      expect(() => handler.handleSSEEvent(delta)).not.toThrow();
     });
   });
 
