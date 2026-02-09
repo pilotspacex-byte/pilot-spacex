@@ -11,6 +11,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
+from pydantic import BaseModel, Field
 
 from pilot_space.api.v1.schemas.note import AIUpdateRequest, AIUpdateResponse
 from pilot_space.dependencies import CurrentUserId, DbSession
@@ -180,6 +181,152 @@ async def ai_update_workspace_note(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+
+
+class ExtractedIssueInput(BaseModel):
+    """Single extracted issue to create."""
+
+    title: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    priority: str = "medium"
+    type: str = "task"
+    source_block_id: str | None = None
+
+
+class CreateExtractedIssuesRequest(BaseModel):
+    """Request to create multiple extracted issues from a note."""
+
+    issues: list[ExtractedIssueInput] = Field(..., min_length=1, max_length=50)
+
+
+class CreateExtractedIssuesResponse(BaseModel):
+    """Response with created issue IDs."""
+
+    created_issue_ids: list[str]
+    count: int
+
+
+@router.post(
+    "/{workspace_id}/notes/{note_id}/create-extracted-issues",
+    response_model=CreateExtractedIssuesResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["workspace-notes-ai"],
+    summary="Create issues from AI extraction results",
+    description=(
+        "Create multiple issues extracted by AI from note content. "
+        "User has explicitly selected which issues to create — no approval needed."
+    ),
+)
+async def create_extracted_issues(
+    workspace_id: WorkspaceIdOrSlug,
+    note_id: NoteIdPath,
+    body: CreateExtractedIssuesRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+    note_repo: NoteRepo,
+    workspace_repo: WorkspaceRepo,
+) -> CreateExtractedIssuesResponse:
+    """Create issues from AI extraction and link them to the note.
+
+    Args:
+        workspace_id: Workspace ID (UUID) or slug.
+        note_id: Note ID the issues were extracted from.
+        body: Extracted issues to create.
+        current_user_id: Current user ID.
+        session: Database session.
+        note_repo: Note repository.
+        workspace_repo: Workspace repository.
+
+    Returns:
+        Created issue IDs and count.
+
+    Raises:
+        HTTPException: If note/workspace not found or validation fails.
+    """
+    from pilot_space.application.services.issue.create_issue_service import (
+        CreateIssuePayload,
+        CreateIssueService,
+    )
+    from pilot_space.infrastructure.database.models.issue import IssuePriority
+    from pilot_space.infrastructure.database.repositories.activity_repository import (
+        ActivityRepository,
+    )
+    from pilot_space.infrastructure.database.repositories.issue_repository import (
+        IssueRepository,
+    )
+    from pilot_space.infrastructure.database.repositories.label_repository import (
+        LabelRepository,
+    )
+    from pilot_space.infrastructure.database.repositories.project_repository import (
+        ProjectRepository,
+    )
+
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+
+    # Verify note exists and belongs to workspace
+    note = await note_repo.get_by_id(note_id)
+    if not note or note.workspace_id != workspace.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Note not found",
+        )
+
+    # Get project_id from note or first workspace project
+    project_id = note.project_id
+    if not project_id:
+        project_repo = ProjectRepository(session=session)
+        projects = await project_repo.get_workspace_projects(workspace.id)
+        if not projects:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Note has no project and workspace has no projects",
+            )
+        project_id = projects[0].id
+
+    priority_map = {
+        "urgent": IssuePriority.URGENT,
+        "high": IssuePriority.HIGH,
+        "medium": IssuePriority.MEDIUM,
+        "low": IssuePriority.LOW,
+        "none": IssuePriority.NONE,
+    }
+
+    issue_repo = IssueRepository(session=session)
+    activity_repo = ActivityRepository(session=session)
+    label_repo = LabelRepository(session=session)
+    service = CreateIssueService(
+        session=session,
+        issue_repository=issue_repo,
+        activity_repository=activity_repo,
+        label_repository=label_repo,
+    )
+    created_ids: list[str] = []
+
+    for extracted in body.issues:
+        payload = CreateIssuePayload(
+            workspace_id=workspace.id,
+            project_id=project_id,
+            reporter_id=current_user_id,
+            name=extracted.title,
+            description=extracted.description,
+            priority=priority_map.get(extracted.priority, IssuePriority.MEDIUM),
+            ai_enhanced=False,
+        )
+        result = await service.execute(payload)
+        created_ids.append(str(result.issue.id))
+
+    await session.commit()
+
+    logger.info(
+        "Created %d extracted issues from note %s",
+        len(created_ids),
+        str(note_id),
+    )
+
+    return CreateExtractedIssuesResponse(
+        created_issue_ids=created_ids,
+        count=len(created_ids),
+    )
 
 
 __all__ = ["router"]

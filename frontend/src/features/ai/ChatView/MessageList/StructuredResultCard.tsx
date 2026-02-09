@@ -10,7 +10,7 @@
 'use client';
 
 import { memo, useState, useCallback, useMemo } from 'react';
-import { CheckCircle2, ListTodo, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle2, ListTodo, Search, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type {
   ExtractedIssue,
@@ -22,6 +22,8 @@ interface StructuredResultCardProps {
   schemaType: string;
   data: Record<string, unknown>;
   className?: string;
+  onCreateIssues?: (selectedIndices: number[]) => void;
+  isCreatingIssues?: boolean;
 }
 
 /** Priority color mapping */
@@ -44,7 +46,17 @@ const PRIORITY_DOTS: Record<string, string> = {
 
 // ─── Extraction Result ───────────────────────────────────────────────────
 
-function ExtractionResultCard({ data }: { data: Record<string, unknown> }) {
+interface ExtractionResultCardProps {
+  data: Record<string, unknown>;
+  onCreateIssues?: (selectedIndices: number[]) => void;
+  isCreatingIssues?: boolean;
+}
+
+function ExtractionResultCard({
+  data,
+  onCreateIssues,
+  isCreatingIssues,
+}: ExtractionResultCardProps) {
   const issues = useMemo(() => (data.issues ?? []) as ExtractedIssue[], [data.issues]);
   const summary = (data.summary ?? '') as string;
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -60,6 +72,17 @@ function ExtractionResultCard({ data }: { data: Record<string, unknown> }) {
 
   const selectAll = useCallback(() => {
     setSelectedIds(new Set(issues.map((_, i) => i)));
+  }, [issues]);
+
+  const selectRecommended = useCallback(() => {
+    const recommended = new Set<number>();
+    issues.forEach((issue, i) => {
+      if (issue.priority === 'high' || issue.priority === 'urgent') {
+        recommended.add(i);
+      }
+    });
+    // If no high/urgent, select all as fallback
+    setSelectedIds(recommended.size > 0 ? recommended : new Set(issues.map((_, i) => i)));
   }, [issues]);
 
   if (issues.length === 0) {
@@ -142,16 +165,46 @@ function ExtractionResultCard({ data }: { data: Record<string, unknown> }) {
         ))}
       </div>
 
-      <div className="flex items-center gap-2 pt-1">
-        <button
-          type="button"
-          onClick={selectAll}
-          className="text-xs text-primary hover:text-primary-hover transition-colors"
-        >
-          Select All
-        </button>
-        {selectedIds.size > 0 && (
-          <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={selectAll}
+            className="text-xs text-primary hover:text-primary-hover transition-colors"
+          >
+            Select All
+          </button>
+          <button
+            type="button"
+            onClick={selectRecommended}
+            className="text-xs text-primary hover:text-primary-hover transition-colors"
+          >
+            Select Recommended
+          </button>
+          {selectedIds.size > 0 && (
+            <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+          )}
+        </div>
+        {onCreateIssues && selectedIds.size > 0 && (
+          <button
+            type="button"
+            onClick={() => onCreateIssues(Array.from(selectedIds))}
+            disabled={isCreatingIssues}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium transition-all',
+              'bg-[var(--ai)] text-white hover:bg-[var(--ai)]/90',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+          >
+            {isCreatingIssues ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-3 w-3" />
+            )}
+            {isCreatingIssues
+              ? 'Creating...'
+              : `Create ${selectedIds.size} Issue${selectedIds.size !== 1 ? 's' : ''}`}
+          </button>
         )}
       </div>
     </div>
@@ -306,26 +359,28 @@ function DuplicateSearchResultCard({ data }: { data: Record<string, unknown> }) 
 
 // ─── Main Component ──────────────────────────────────────────────────────
 
-const SCHEMA_RENDERERS: Record<
-  string,
-  (props: { data: Record<string, unknown> }) => React.ReactElement
-> = {
-  extraction_result: ExtractionResultCard,
-  decomposition_result: DecompositionResultCard,
-  duplicate_search_result: DuplicateSearchResultCard,
-};
-
 export const StructuredResultCard = memo<StructuredResultCardProps>(
-  ({ schemaType, data, className }) => {
-    const Renderer = SCHEMA_RENDERERS[schemaType];
-
-    if (!Renderer) {
-      return (
-        <div className={cn('text-xs text-muted-foreground', className)}>
-          Unknown result type: {schemaType}
-        </div>
-      );
-    }
+  ({ schemaType, data, className, onCreateIssues, isCreatingIssues }) => {
+    const renderContent = () => {
+      switch (schemaType) {
+        case 'extraction_result':
+          return (
+            <ExtractionResultCard
+              data={data}
+              onCreateIssues={onCreateIssues}
+              isCreatingIssues={isCreatingIssues}
+            />
+          );
+        case 'decomposition_result':
+          return <DecompositionResultCard data={data} />;
+        case 'duplicate_search_result':
+          return <DuplicateSearchResultCard data={data} />;
+        default:
+          return (
+            <div className="text-xs text-muted-foreground">Unknown result type: {schemaType}</div>
+          );
+      }
+    };
 
     return (
       <div
@@ -337,7 +392,7 @@ export const StructuredResultCard = memo<StructuredResultCardProps>(
         role="region"
         aria-label={`Structured result: ${schemaType}`}
       >
-        <Renderer data={data} />
+        {renderContent()}
       </div>
     );
   }

@@ -11,7 +11,6 @@ export { AIContextStore } from './AIContextStore';
 export { ApprovalStore } from './ApprovalStore';
 export { AISettingsStore } from './AISettingsStore';
 export { PRReviewStore } from './PRReviewStore';
-export { IssueExtractionStore } from './IssueExtractionStore';
 export { MarginAnnotationStore } from './MarginAnnotationStore';
 export { CostStore } from './CostStore';
 export { PilotSpaceStore } from './PilotSpaceStore';
@@ -29,7 +28,7 @@ export type {
   PRReviewResult,
   TokenUsage,
 } from './PRReviewStore';
-export type { ExtractedIssue } from './IssueExtractionStore';
+export type { ExtractedIssue } from './types/events';
 export type { NoteAnnotation } from './MarginAnnotationStore';
 export type { DateRange, CostByAgentData, CostTrendData } from './CostStore';
 export type {

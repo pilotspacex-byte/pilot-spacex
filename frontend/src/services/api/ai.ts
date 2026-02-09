@@ -283,4 +283,28 @@ export const aiApi = {
         examples: string[];
       }>;
     }>('/skills'),
+
+  /**
+   * Create issues from AI extraction results.
+   * User explicitly selected which issues to create — no approval needed.
+   * @param workspaceId - Workspace UUID
+   * @param noteId - Note UUID the issues were extracted from
+   * @param issues - Selected extracted issues to create
+   * @returns Created issue IDs
+   */
+  createExtractedIssues: (
+    workspaceId: string,
+    noteId: string,
+    issues: Array<{
+      title: string;
+      description?: string;
+      priority?: string;
+      type?: string;
+      source_block_id?: string | null;
+    }>
+  ) =>
+    apiClient.post<{ created_issue_ids: string[]; count: number }>(
+      `/workspaces/${workspaceId}/notes/${noteId}/create-extracted-issues`,
+      { issues }
+    ),
 };

@@ -12,7 +12,6 @@ import { AIContextStore } from './AIContextStore';
 import { ApprovalStore } from './ApprovalStore';
 import { AISettingsStore } from './AISettingsStore';
 import { PRReviewStore } from './PRReviewStore';
-import { IssueExtractionStore } from './IssueExtractionStore';
 import { ConversationStore } from './ConversationStore';
 import { CostStore } from './CostStore';
 import { MarginAnnotationStore } from './MarginAnnotationStore';
@@ -24,7 +23,6 @@ export class AIStore {
   approval: ApprovalStore;
   settings: AISettingsStore;
   prReview: PRReviewStore;
-  issueExtraction: IssueExtractionStore;
   conversation: ConversationStore;
   cost: CostStore;
   marginAnnotation: MarginAnnotationStore;
@@ -41,7 +39,6 @@ export class AIStore {
     this.approval = new ApprovalStore(this);
     this.settings = new AISettingsStore(this);
     this.prReview = new PRReviewStore(this);
-    this.issueExtraction = new IssueExtractionStore(this);
     this.conversation = new ConversationStore(this);
     this.cost = new CostStore(this);
     this.marginAnnotation = new MarginAnnotationStore(this);
@@ -60,7 +57,6 @@ export class AIStore {
     this.ghostText.abort();
     this.aiContext.abort();
     this.prReview.abort();
-    this.issueExtraction.abort();
     this.conversation.abort();
     this.marginAnnotation.abort();
     this.pilotSpace.abort();
@@ -81,7 +77,6 @@ export class AIStore {
     this.ghostText.abort();
     this.aiContext.abort();
     this.prReview.abort();
-    this.issueExtraction.abort();
     this.marginAnnotation.abort();
     this.conversation.clearSession();
     this.pilotSpace.reset();
