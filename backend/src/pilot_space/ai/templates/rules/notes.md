@@ -21,7 +21,7 @@
    - For mid-sentence selection, ensure grammatical continuation
 
 4. **Timing and triggers**:
-   - Delay: 300ms after user stops typing (configurable)
+   - Delay: 500ms after user stops typing (DD-067)
    - Max tokens: 50 tokens per suggestion
    - Model: Gemini 2.0 Flash (lowest latency per DD-011)
    - Cancel on any user input (typing, deletion, cursor movement)

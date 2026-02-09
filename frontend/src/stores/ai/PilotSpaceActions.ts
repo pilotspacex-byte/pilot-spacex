@@ -139,6 +139,22 @@ export class PilotSpaceActions {
       } else {
         throw new Error(`Unexpected response content type: ${contentType}`);
       }
+
+      // Detect silent failure: stream completed without producing an assistant message.
+      // This can happen when the backend returns an empty SSE stream (e.g., missing API key,
+      // provider outage) without sending an error event.
+      const messageCountAfter = this.store.messages.length;
+      const lastMessage = messageCountAfter > 0 ? this.store.messages[messageCountAfter - 1] : null;
+      if (
+        !this.store.error &&
+        lastMessage?.role !== 'assistant' &&
+        !this.store.streamingState.isStreaming
+      ) {
+        runInAction(() => {
+          this.store.error =
+            'No response received from AI. Check your API key configuration or try again.';
+        });
+      }
     } catch (err) {
       runInAction(() => {
         this.store.streamingState = {
@@ -161,7 +177,7 @@ export class PilotSpaceActions {
    *
    * @param requestId - Request identifier
    */
-  async approveRequest(requestId: string): Promise<void> {
+  async approveRequest(requestId: string, modifications?: Record<string, unknown>): Promise<void> {
     const request = this.store.pendingApprovals.find((r) => r.requestId === requestId);
     if (!request) {
       console.error(`Approval request ${requestId} not found`);
@@ -171,14 +187,15 @@ export class PilotSpaceActions {
     try {
       // Send approval to backend via API
       const authHeaders = await this.streamHandler.getAuthHeaders();
-      await fetch(`${API_BASE}/ai/approvals`, {
+      const response = await fetch(`${API_BASE}/approvals/${requestId}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({
-          request_id: requestId,
-          decision: 'approved',
-        }),
+        body: JSON.stringify({ approved: true, ...(modifications && { modifications }) }),
       });
+
+      if (!response.ok) {
+        throw new Error(`Approval failed: ${response.status} ${response.statusText}`);
+      }
 
       runInAction(() => {
         this.store.pendingApprovals = this.store.pendingApprovals.filter(
@@ -209,15 +226,15 @@ export class PilotSpaceActions {
     try {
       // Send rejection to backend via API
       const authHeaders = await this.streamHandler.getAuthHeaders();
-      await fetch(`${API_BASE}/ai/approvals`, {
+      const response = await fetch(`${API_BASE}/approvals/${requestId}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({
-          request_id: requestId,
-          decision: 'rejected',
-          reason,
-        }),
+        body: JSON.stringify({ approved: false, note: reason }),
       });
+
+      if (!response.ok) {
+        throw new Error(`Rejection failed: ${response.status} ${response.statusText}`);
+      }
 
       runInAction(() => {
         this.store.pendingApprovals = this.store.pendingApprovals.filter(
@@ -234,8 +251,8 @@ export class PilotSpaceActions {
   /**
    * Alias for approveRequest to match IPilotSpaceStore interface.
    */
-  async approveAction(id: string, _modifications?: Record<string, unknown>): Promise<void> {
-    await this.approveRequest(id);
+  async approveAction(id: string, modifications?: Record<string, unknown>): Promise<void> {
+    await this.approveRequest(id, modifications);
   }
 
   /**

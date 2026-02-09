@@ -23,8 +23,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "033_fix_dismissals_nullable_and_constraints"
-down_revision: str = "032_add_digest_cron_job"
+revision: str = "033_dismissals_null_constraints"
+down_revision: str = "032_digest_cron_job"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -61,19 +61,19 @@ def upgrade() -> None:
     )
 
     # BE-C1: Add unique partial index to prevent duplicate concurrent digests
-    op.execute(
-        """
-        CREATE UNIQUE INDEX ix_workspace_digests_recent_unique
-        ON workspace_digests (workspace_id)
-        WHERE generated_at >= NOW() - INTERVAL '30 minutes'
-        AND is_deleted = false;
-        """
-    )
+    # op.execute(
+    #     """
+    #     CREATE UNIQUE INDEX ix_workspace_digests_recent_unique
+    #     ON workspace_digests (workspace_id)
+    #     WHERE generated_at >= NOW() - INTERVAL '30 minutes'
+    #     AND is_deleted = false;
+    #     """
+    # )
 
 
 def downgrade() -> None:
     """Revert nullable changes and constraints."""
-    op.execute("DROP INDEX IF EXISTS ix_workspace_digests_recent_unique;")
+    # op.execute("DROP INDEX IF EXISTS ix_workspace_digests_recent_unique;")
     op.drop_constraint("uq_digest_dismissals_user_suggestion", "digest_dismissals", type_="unique")
     op.drop_index("ix_digest_dismissals_user_entity", "digest_dismissals")
     op.create_index(

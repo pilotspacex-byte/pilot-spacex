@@ -48,9 +48,12 @@ import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
 const DESTRUCTIVE_ACTIONS = new Set([
   'delete_issue',
   'merge_pr',
+  'close_issue',
   'archive_workspace',
   'delete_note',
   'delete_comment',
+  'unlink_issue_from_note',
+  'unlink_issues',
 ]);
 
 export function isDestructiveAction(actionType: string): boolean {
@@ -99,6 +102,8 @@ function ConversationLoadingSkeleton() {
 
   return (
     <motion.div
+      role="status"
+      aria-label="Loading conversation"
       className="flex-1 overflow-y-auto px-4 py-6 space-y-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -516,6 +521,7 @@ const ChatViewInternal = observer<ChatViewProps>(
           {store.error && (
             <div className="px-3 pb-3">
               <div
+                role="alert"
                 className="rounded-lg border border-destructive/50 bg-destructive/10 p-2.5"
                 data-testid="error-message"
               >

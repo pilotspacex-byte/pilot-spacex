@@ -1,14 +1,16 @@
 /**
- * PilotSpace Stream Handler - SSE event handling and stream parsing.
+ * PilotSpace Stream Handler - SSE event routing and message lifecycle management.
  *
- * Extracts all SSE event handlers and stream parsing logic from PilotSpaceStore.
- * Operates on the store via a reference passed in the constructor.
+ * Routes SSE events to specialized handlers:
+ * - Tool call lifecycle → PilotSpaceToolCallHandler
+ * - SSE connection/parsing → PilotSpaceSSEParser
+ * - Message, thinking, text, and other events → handled inline
  *
  * @module stores/ai/PilotSpaceStreamHandler
  * @see specs/005-conversational-agent-arch/plan.md (T048)
  */
 import { runInAction } from 'mobx';
-import { SSEClient, type SSEEvent } from '@/lib/sse-client';
+import type { SSEEvent } from '@/lib/sse-client';
 import type { ChatMessage, ContentBlock, MessageRole, ToolCall } from './types/conversation';
 import type {
   MessageStartEvent,
@@ -53,25 +55,14 @@ import {
   isFocusBlockEvent,
 } from './types/events';
 import type { PilotSpaceStore } from './PilotSpaceStore';
-
-/** API base URL for backend requests. */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+import { PilotSpaceToolCallHandler } from './PilotSpaceToolCallHandler';
+import { PilotSpaceSSEParser } from './PilotSpaceSSEParser';
 
 /** Handles SSE event dispatch, stream parsing, and connection management. */
-/** Maximum retry attempts for retryable errors */
-const MAX_RETRY_ATTEMPTS = 3;
-
 export class PilotSpaceStreamHandler {
-  private client: SSEClient | null = null;
-  private _lastParentToolUseId: string | null = null;
-  private _retryCount = 0;
-  private _retryTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Maps content block index → tool call ID for tool_input_delta routing */
-  private _blockIndexToToolCallId = new Map<number, string>();
-  /** Track tool call IDs where block_id has already been extracted from partial input */
-  private _blockIdExtractedIds = new Set<string>();
-  /** Tracks the last content block index seen for tool_use blocks */
-  private _lastToolUseBlockIndex: number | null = null;
+  private toolCallHandler: PilotSpaceToolCallHandler;
+  private sseParser: PilotSpaceSSEParser;
+
   /** Monotonic counter for thinking turns (incremented on each thinking content_block_start).
    *  Models like kimi-k2.5 reset blockIndex to 0 on each agentic turn, so we use our own
    *  counter to distinguish separate thinking blocks. */
@@ -88,179 +79,43 @@ export class PilotSpaceStreamHandler {
   /** Tracks the sequence of content block types for ordered rendering */
   private _blockOrder: Array<'thinking' | 'text' | 'tool_use'> = [];
 
-  constructor(private store: PilotSpaceStore) {}
+  constructor(private store: PilotSpaceStore) {
+    this.toolCallHandler = new PilotSpaceToolCallHandler(store);
+    this.sseParser = new PilotSpaceSSEParser(store, (event) => this.handleSSEEvent(event));
+  }
 
   // ========================================
-  // Stream Connection
+  // Stream Connection (delegates to PilotSpaceSSEParser)
   // ========================================
 
   /** Connect to a specific SSE stream URL (queue mode). */
   async connectToStream(streamUrl: string, _jobId?: string): Promise<void> {
-    this.resetRetryState();
-    // Ensure absolute URL
-    const absoluteUrl = streamUrl.startsWith('http')
-      ? streamUrl
-      : `${API_BASE}${streamUrl.startsWith('/') ? '' : '/'}${streamUrl}`;
-
-    this.client = new SSEClient({
-      url: absoluteUrl,
-      method: 'GET', // Queue mode uses GET for stream endpoint
-      onMessage: (event: SSEEvent) => this.handleSSEEvent(event),
-      onComplete: () => {
-        runInAction(() => {
-          this.store.updateStreamingState({
-            isStreaming: false,
-            streamContent: '',
-            currentMessageId: null,
-          });
-        });
-      },
-      onError: (err) => {
-        runInAction(() => {
-          this.store.updateStreamingState({
-            isStreaming: false,
-            streamContent: '',
-            currentMessageId: null,
-          });
-          this.store.error = err.message;
-        });
-      },
-    });
-
-    await this.client.connect();
+    return this.sseParser.connectToStream(streamUrl);
   }
 
-  /**
-   * Consume SSE events from a fetch Response stream (direct mode).
-   * @param response - Fetch Response with text/event-stream body
-   */
+  /** Consume SSE events from a fetch Response stream (direct mode). */
   async consumeSSEStream(response: Response): Promise<void> {
-    this.resetRetryState();
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('No response body available');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) {
-          // Process remaining buffer
-          if (buffer.trim()) {
-            const events = this.parseSSEBuffer(buffer + '\n\n');
-            for (const event of events) {
-              this.handleSSEEvent(event);
-            }
-          }
-          runInAction(() => {
-            this.store.updateStreamingState({
-              isStreaming: false,
-              streamContent: '',
-              currentMessageId: null,
-            });
-          });
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const events = this.parseSSEBuffer(buffer);
-
-        // Update buffer with remaining unparsed data
-        const lastDoubleNewline = buffer.lastIndexOf('\n\n');
-        if (lastDoubleNewline !== -1) {
-          buffer = buffer.slice(lastDoubleNewline + 2);
-        }
-
-        for (const event of events) {
-          this.handleSSEEvent(event);
-        }
-      }
-    } catch (err) {
-      runInAction(() => {
-        this.store.updateStreamingState({
-          isStreaming: false,
-          streamContent: '',
-          currentMessageId: null,
-        });
-        this.store.error = err instanceof Error ? err.message : 'Stream error';
-      });
-    } finally {
-      reader.releaseLock();
-    }
+    return this.sseParser.consumeSSEStream(response);
   }
 
-  /**
-   * Parse SSE buffer into events.
-   * Returns array of parsed events.
-   */
+  /** Parse SSE buffer into events. */
   parseSSEBuffer(buffer: string): SSEEvent[] {
-    const events: SSEEvent[] = [];
-    const eventBlocks = buffer.split('\n\n').filter((block) => block.trim());
-
-    for (const block of eventBlocks) {
-      const lines = block.split('\n');
-      let eventType = '';
-      let eventData = '';
-
-      for (const line of lines) {
-        if (line.startsWith('event:')) {
-          eventType = line.slice(6).trim();
-        } else if (line.startsWith('data:')) {
-          eventData += line.slice(5).trim();
-        }
-      }
-
-      if (eventType && eventData) {
-        try {
-          const data = JSON.parse(eventData);
-          events.push({ type: eventType, data });
-        } catch {
-          // Skip invalid JSON
-        }
-      }
-    }
-
-    return events;
+    return this.sseParser.parseSSEBuffer(buffer);
   }
 
-  /**
-   * Get Supabase auth headers and workspace context for authenticated requests.
-   */
+  /** Get Supabase auth headers and workspace context for authenticated requests. */
   async getAuthHeaders(): Promise<Record<string, string>> {
-    const headers: Record<string, string> = {};
-
-    try {
-      const { supabase } = await import('@/lib/supabase');
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
-    } catch {
-      console.warn('Failed to get auth session for chat request');
-    }
-
-    const workspaceId = this.store.workspaceId;
-    if (workspaceId) {
-      headers['X-Workspace-Id'] = workspaceId;
-    }
-
-    return headers;
+    return this.sseParser.getAuthHeaders();
   }
 
-  /**
-   * Abort the active SSE client connection.
-   */
+  /** Abort the active SSE client connection. */
   abortClient(): void {
-    this.resetRetryState();
-    this.client?.abort();
-    this.client = null;
+    this.sseParser.abortClient();
+  }
+
+  /** Reset retry state. Call when starting a new stream. */
+  resetRetryState(): void {
+    this.sseParser.resetRetryState();
   }
 
   // ========================================
@@ -270,8 +125,6 @@ export class PilotSpaceStreamHandler {
   /**
    * Handle SSE event from backend.
    * Routes to specific handler based on event type.
-   *
-   * @param sseEvent - SSE event from stream
    */
   handleSSEEvent(sseEvent: SSEEvent): void {
     runInAction(() => {
@@ -307,9 +160,9 @@ export class PilotSpaceStreamHandler {
       } else if (isTextDeltaEvent(event)) {
         this.handleTextDelta(event);
       } else if (isToolUseEvent(event)) {
-        this.handleToolUseStart(event);
+        this.toolCallHandler.handleToolUseStart(event);
       } else if (isToolResultEvent(event)) {
-        this.handleToolResult(event);
+        this.toolCallHandler.handleToolResult(event);
       } else if (isTaskProgressEvent(event)) {
         this.handleTaskUpdate(event);
       } else if (isApprovalRequestEvent(event)) {
@@ -317,7 +170,7 @@ export class PilotSpaceStreamHandler {
       } else if (isAskUserQuestionEvent(event)) {
         this.handleAskUserQuestion(event);
       } else if (isFocusBlockEvent(event)) {
-        this.handleFocusBlock(event);
+        this.toolCallHandler.handleFocusBlock(event);
       } else if (isContentUpdateEvent(event)) {
         this.store.handleContentUpdate(event);
       } else if (isStructuredResultEvent(event)) {
@@ -327,13 +180,13 @@ export class PilotSpaceStreamHandler {
       } else if (isMemoryUpdateEvent(event)) {
         this.handleMemoryUpdate(event);
       } else if (isToolInputDeltaEvent(event)) {
-        this.handleToolInputDelta(event);
+        this.toolCallHandler.handleToolInputDelta(event);
       } else if (isMessageStopEvent(event)) {
         this.handleTextComplete(event);
       } else if (isBudgetWarningEvent(event)) {
         this.handleBudgetWarning(event);
       } else if (isToolAuditEvent(event)) {
-        this.handleToolAudit(event);
+        this.toolCallHandler.handleToolAudit(event);
       } else if (isErrorEvent(event)) {
         this.handleError(event);
       }
@@ -347,11 +200,10 @@ export class PilotSpaceStreamHandler {
     // Update session ID
     this.store.setSessionId(sessionId);
 
-    // Reset parent correlation state
-    this._lastParentToolUseId = null;
-    this._blockIndexToToolCallId.clear();
-    this._blockIdExtractedIds.clear();
-    this._lastToolUseBlockIndex = null;
+    // Reset tool call handler state for new message
+    this.toolCallHandler.resetState();
+
+    // Reset local state
     this._thinkingTurnIndex = -1;
     this._skipDuplicateTextBlock = false;
     this._needsBlockSeparator = false;
@@ -392,9 +244,7 @@ export class PilotSpaceStreamHandler {
     this.store.streamingState.currentBlockIndex = index;
 
     // Store parentToolUseId for subagent correlation (G12)
-    if (parentToolUseId) {
-      this._lastParentToolUseId = parentToolUseId;
-    }
+    this.toolCallHandler.setParentToolUseId(parentToolUseId ?? null);
 
     // Pre-signal phase transitions based on block type (G-01)
     if (contentType === 'thinking') {
@@ -437,7 +287,7 @@ export class PilotSpaceStreamHandler {
         this.finalizeLastThinkingBlockDuration();
       }
       // Track block index for tool_input_delta routing
-      this._lastToolUseBlockIndex = index;
+      this.toolCallHandler.setLastToolUseBlockIndex(index);
       this._skipDuplicateTextBlock = false;
       this._blockOrder.push('tool_use');
       this.syncBlockOrderToState();
@@ -502,8 +352,7 @@ export class PilotSpaceStreamHandler {
     const { delta } = event.data;
 
     // Filter noise text produced by some models between thinking/tool blocks
-    // (e.g., literal "(no content)" or whitespace-only deltas)
-    if (this.isNoiseTextDelta(delta)) {
+    if (this.isNoiseDelta(delta)) {
       return;
     }
 
@@ -535,156 +384,6 @@ export class PilotSpaceStreamHandler {
 
     const words = delta.split(/\s+/).filter((w) => w.length > 0);
     this.store.streamingState.wordCount = (this.store.streamingState.wordCount ?? 0) + words.length;
-  }
-
-  /** Handle tool_use — buffers tool call for attachment on message finalization (T63). */
-  handleToolUseStart(event: ToolUseEvent): void {
-    const { toolCallId, toolName, toolInput } = event.data;
-
-    // Dedup: if tool call already exists, merge input instead of duplicating.
-    // AssistantMessage may re-emit tool_use with full input after StreamEvent
-    // sent it with empty input. Extract block_id from the full input for early scroll.
-    const existing = this.store.findPendingToolCall(toolCallId);
-    if (existing) {
-      if (toolInput && Object.keys(toolInput).length > 0) {
-        existing.input = toolInput;
-        // Extract block_id if not already extracted (late arrival from AssistantMessage)
-        if (!this._blockIdExtractedIds.has(toolCallId)) {
-          this.tryExtractBlockIdFromInput(toolCallId, existing.name, toolInput);
-        }
-      }
-      return;
-    }
-
-    // Create tool call entry with optional parent correlation (G12)
-    const toolCall: ToolCall = {
-      id: toolCallId,
-      name: toolName,
-      input: toolInput,
-      status: 'pending',
-      parentToolUseId: this._lastParentToolUseId ?? undefined,
-    };
-
-    // Map block index to tool call ID for tool_input_delta routing
-    if (this._lastToolUseBlockIndex !== null) {
-      this._blockIndexToToolCallId.set(this._lastToolUseBlockIndex, toolCallId);
-      this._lastToolUseBlockIndex = null;
-    }
-
-    // Buffer tool call — message doesn't exist in messages[] during streaming
-    this.store.addPendingToolCall(toolCall);
-
-    // Extract blockId from note-editing tools for early auto-scroll (before content_update)
-    const NOTE_TOOLS = [
-      'update_note_block',
-      'enhance_text',
-      'write_to_note',
-      'insert_block',
-      'remove_block',
-      'remove_content',
-      'replace_content',
-      'extract_issues',
-      'create_issue_from_note',
-    ];
-    // Strip MCP server prefix (e.g. "mcp__pilot-notes__update_note_block" → "update_note_block")
-    const strippedName = toolName.includes('__') ? toolName.split('__').pop()! : toolName;
-    if (NOTE_TOOLS.includes(strippedName)) {
-      const blockId = toolInput?.block_id ?? toolInput?.blockId;
-      // Skip ¶N block references — they're backend-only notation with no matching DOM element
-      if (typeof blockId === 'string' && !blockId.startsWith('¶')) {
-        this.store.addPendingAIBlockId(blockId);
-        this._blockIdExtractedIds.add(toolCallId);
-      } else if (strippedName === 'write_to_note') {
-        // write_to_note appends at document end — signal scroll to last block
-        this._blockIdExtractedIds.add(toolCallId);
-        this.store.requestNoteEndScroll();
-      }
-    }
-
-    this.store.streamingState.phase = 'tool_use';
-
-    this.store.streamingState.activeToolName = toolName;
-  }
-
-  /** Handle tool_result — updates tool call status/result, checks pending buffer first (T66). */
-  handleToolResult(event: ToolResultEvent): void {
-    this.store.streamingState.activeToolName = null;
-
-    const { status, output, errorMessage } = event.data;
-    // Support both field names: toolCallId (standard) and toolUseId (legacy web search events)
-    const toolCallId = event.data.toolCallId ?? event.data.toolUseId;
-    if (!toolCallId) return;
-
-    // Map backend status to ToolCall status
-    const toolCallStatus: 'pending' | 'completed' | 'failed' =
-      status === 'cancelled' ? 'failed' : status;
-
-    // Check pending buffer first (tool call may not be in messages[] yet)
-    const pendingTc = this.store.findPendingToolCall(toolCallId);
-    if (pendingTc) {
-      pendingTc.status = toolCallStatus;
-      pendingTc.output = output;
-      if (errorMessage) {
-        pendingTc.errorMessage = errorMessage;
-      }
-
-      // Use backend-provided complete toolInput if available
-      if (event.data.toolInput && Object.keys(event.data.toolInput).length > 0) {
-        pendingTc.input = event.data.toolInput;
-      }
-
-      // Parse accumulated partialInput into structured input
-      if (Object.keys(pendingTc.input).length === 0 && pendingTc.partialInput) {
-        try {
-          pendingTc.input = JSON.parse(pendingTc.partialInput);
-        } catch {
-          // Incomplete JSON — leave as-is, partialInput still visible in UI
-        }
-      }
-
-      // Last-resort block_id extraction: if tool_input_delta and tool_use dedup
-      // both missed it, extract from the resolved input now.
-      if (!this._blockIdExtractedIds.has(toolCallId) && Object.keys(pendingTc.input).length > 0) {
-        this.tryExtractBlockIdFromInput(toolCallId, pendingTc.name, pendingTc.input);
-      }
-      return;
-    }
-
-    // Fallback: search finalized messages
-    for (const message of this.store.messages) {
-      if (message.toolCalls) {
-        const toolCall = message.toolCalls.find((tc) => tc.id === toolCallId);
-        if (toolCall) {
-          toolCall.status = toolCallStatus;
-          toolCall.output = output;
-          if (errorMessage) {
-            toolCall.errorMessage = errorMessage;
-          }
-          break;
-        }
-      }
-    }
-  }
-
-  /** Handle focus_block — authoritative backend signal to scroll to / visually prepare a block.
-   *  Emitted immediately before content_update so the target block is visible and
-   *  highlighted (pending-edit) before the content replacement arrives. */
-  handleFocusBlock(event: FocusBlockEvent): void {
-    const { blockId, scrollToEnd } = event.data;
-
-    if (scrollToEnd) {
-      this.store.requestNoteEndScroll();
-      return;
-    }
-
-    if (typeof blockId === 'string' && blockId.length > 0) {
-      this.store.addPendingAIBlockId(blockId);
-      // Scroll directly — don't wait for MobX reaction → React render chain
-      const el = document.querySelector(`[data-block-id="${blockId}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
   }
 
   /** Handle task_progress — updates long-running task state. */
@@ -838,29 +537,6 @@ export class PilotSpaceStreamHandler {
     this.store.sessionState.totalTokens = Math.round((percentUsed / 100) * 8000);
   }
 
-  /** Handle tool_audit — updates tool call with duration info, checks pending buffer first. */
-  handleToolAudit(event: ToolAuditEvent): void {
-    const { toolUseId, durationMs } = event.data;
-
-    // Check pending buffer first (tool call may not be in messages[] yet)
-    const pendingTc = this.store.findPendingToolCall(toolUseId);
-    if (pendingTc) {
-      pendingTc.durationMs = durationMs ?? undefined;
-      return;
-    }
-
-    // Fallback: search finalized messages
-    for (const message of this.store.messages) {
-      if (message.toolCalls) {
-        const toolCall = message.toolCalls.find((tc) => tc.id === toolUseId);
-        if (toolCall) {
-          toolCall.durationMs = durationMs ?? undefined;
-          break;
-        }
-      }
-    }
-  }
-
   /**
    * Handle error event.
    * Implements exponential backoff retry for retryable errors (max 3 attempts).
@@ -869,24 +545,12 @@ export class PilotSpaceStreamHandler {
   handleError(event: ErrorEvent): void {
     const { errorCode, message, retryable, retryAfter } = event.data;
 
-    if (retryable && this._retryCount < MAX_RETRY_ATTEMPTS) {
-      this._retryCount++;
-      // Use server-provided retryAfter or exponential backoff (1s, 2s, 4s)
-      const delaySeconds = retryAfter ?? Math.pow(2, this._retryCount - 1);
-      this.store.error = `[${errorCode}] ${message} — retrying in ${delaySeconds}s (${this._retryCount}/${MAX_RETRY_ATTEMPTS})`;
-
-      this._retryTimer = setTimeout(() => {
-        this._retryTimer = null;
-        // Reconnect: re-consume the current stream if client exists
-        if (this.client) {
-          this.client.connect();
-        }
-      }, delaySeconds * 1000);
-      return;
+    if (retryable) {
+      const willRetry = this.sseParser.handleRetryableError(errorCode, message, retryAfter);
+      if (willRetry) return;
     }
 
     // Non-retryable or max retries exceeded
-    this._retryCount = 0;
     this.store.error = `[${errorCode}] ${message}`;
 
     // Reset streaming state
@@ -897,110 +561,20 @@ export class PilotSpaceStreamHandler {
     };
   }
 
-  /**
-   * Handle citation event — buffer for attachment on message finalization (T64).
-   */
+  /** Handle citation event — buffer for attachment on message finalization (T64). */
   handleCitation(event: CitationEvent): void {
     const { citations } = event.data;
     this.store.addPendingCitations(citations);
   }
 
-  /**
-   * Handle memory_update event — store for UI notification (T73).
-   */
+  /** Handle memory_update event — store for UI notification (T73). */
   handleMemoryUpdate(event: MemoryUpdateEvent): void {
     this.store.lastMemoryUpdate = event.data;
   }
 
-  /** Handle tool_input_delta — accumulates partial JSON on pending tool call (T65). */
-  handleToolInputDelta(event: ToolInputDeltaEvent): void {
-    const { data } = event;
-
-    // Support both backend field formats:
-    // - Original: { toolUseId, inputDelta }
-    // - Stream transformer: { messageId, delta, blockIndex }
-    const inputText = data.inputDelta ?? data.delta ?? '';
-    if (!inputText) return;
-
-    // Match by toolUseId if available, otherwise by blockIndex
-    let tc: ToolCall | undefined;
-    if (data.toolUseId) {
-      tc = this.store.findPendingToolCall(data.toolUseId);
-    } else if (data.blockIndex !== undefined) {
-      tc = this.findPendingToolCallByBlockIndex(data.blockIndex);
-    }
-
-    if (tc) {
-      tc.partialInput = (tc.partialInput ?? '') + inputText;
-
-      // Extract block_id from partial input for NOTE_TOOLS (early auto-scroll).
-      // toolInput is empty at tool_use time — the actual input streams via deltas.
-      if (!this._blockIdExtractedIds.has(tc.id)) {
-        this.tryExtractBlockIdFromDelta(tc);
-      }
-    }
-  }
-
-  /**
-   * Try to extract block_id from accumulated partial tool input.
-   * Called during tool_input_delta to enable early auto-scroll before content_update.
-   */
-  private tryExtractBlockIdFromDelta(tc: ToolCall): void {
-    const NOTE_TOOLS = [
-      'update_note_block',
-      'enhance_text',
-      'insert_block',
-      'remove_block',
-      'remove_content',
-      'replace_content',
-      'extract_issues',
-      'create_issue_from_note',
-    ];
-    const strippedName = tc.name.includes('__') ? tc.name.split('__').pop()! : tc.name;
-    if (!NOTE_TOOLS.includes(strippedName)) return;
-
-    const match = tc.partialInput?.match(/"block_id"\s*:\s*"([^"]+)"/);
-    if (match?.[1]) {
-      this._blockIdExtractedIds.add(tc.id);
-      const blockId = match[1];
-      if (!blockId.startsWith('¶')) {
-        this.store.addPendingAIBlockId(blockId);
-      }
-    }
-  }
-
-  /**
-   * Extract block_id from a complete tool input object.
-   * Used as fallback when tool_input_delta or tool_use dedup paths didn't extract it.
-   */
-  private tryExtractBlockIdFromInput(
-    toolCallId: string,
-    toolName: string,
-    toolInput: Record<string, unknown>
-  ): void {
-    const NOTE_TOOLS = [
-      'update_note_block',
-      'enhance_text',
-      'write_to_note',
-      'insert_block',
-      'remove_block',
-      'remove_content',
-      'replace_content',
-      'extract_issues',
-      'create_issue_from_note',
-    ];
-    const strippedName = toolName.includes('__') ? toolName.split('__').pop()! : toolName;
-    if (!NOTE_TOOLS.includes(strippedName)) return;
-
-    const blockId = toolInput?.block_id ?? toolInput?.blockId;
-    if (typeof blockId === 'string' && !blockId.startsWith('¶')) {
-      this._blockIdExtractedIds.add(toolCallId);
-      this.store.addPendingAIBlockId(blockId);
-    } else if (strippedName === 'write_to_note') {
-      this._blockIdExtractedIds.add(toolCallId);
-      this.store.requestNoteEndScroll();
-    }
-  }
+  // ========================================
+  // Private Helpers
+  // ========================================
 
   /**
    * Sync internal block order + text segments to observable streaming state.
@@ -1062,45 +636,10 @@ export class PilotSpaceStreamHandler {
    * between thinking/tool blocks (e.g., literal "(no content)").
    * Newline-only deltas (\n, \n\n) are NOT noise — they are critical
    * for markdown list formatting and paragraph breaks.
-   * Used by both handleTextDelta and handleThinkingDelta.
    */
   private isNoiseDelta(delta: string): boolean {
     if (delta.length === 0) return true;
     if (delta.trim() === '(no content)') return true;
     return false;
-  }
-
-  /**
-   * Alias for backward compatibility.
-   * @deprecated Use isNoiseDelta instead
-   */
-  private isNoiseTextDelta(delta: string): boolean {
-    return this.isNoiseDelta(delta);
-  }
-
-  /**
-   * Find a pending tool call by its block index.
-   * Used when tool_input_delta arrives with blockIndex instead of toolUseId
-   * (stream transformer format).
-   */
-  private findPendingToolCallByBlockIndex(blockIndex: number): ToolCall | undefined {
-    // The pending tool calls are ordered by insertion.
-    // The blockIndex from content_block_start for tool_use blocks maps to the tool call
-    // that was created when we saw that block index.
-    // Track the mapping via _blockIndexToToolCallId.
-    const toolCallId = this._blockIndexToToolCallId.get(blockIndex);
-    if (toolCallId) {
-      return this.store.findPendingToolCall(toolCallId);
-    }
-    return undefined;
-  }
-
-  /** Reset retry state. Call when starting a new stream. */
-  resetRetryState(): void {
-    this._retryCount = 0;
-    if (this._retryTimer) {
-      clearTimeout(this._retryTimer);
-      this._retryTimer = null;
-    }
   }
 }

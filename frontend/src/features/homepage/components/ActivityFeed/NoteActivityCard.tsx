@@ -14,6 +14,14 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import type { ActivityCardNote } from '../../types';
 import { MAX_ANNOTATION_PREVIEW_LENGTH } from '../../constants';
 
+/** Safely format a date string as relative time, returning fallback on invalid input. */
+function safeFormatDistance(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'recently';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return 'recently';
+  return formatDistanceToNow(d, { addSuffix: true });
+}
+
 interface NoteActivityCardProps {
   card: ActivityCardNote;
   workspaceSlug: string;
@@ -51,7 +59,7 @@ export function NoteActivityCard({ card, workspaceSlug }: NoteActivityCardProps)
   return (
     <article
       role="article"
-      aria-label={`Note: ${card.title}, updated ${formatDistanceToNow(new Date(card.updated_at), { addSuffix: true })}`}
+      aria-label={`Note: ${card.title}, updated ${safeFormatDistance(card.updated_at)}`}
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
@@ -89,7 +97,7 @@ export function NoteActivityCard({ card, workspaceSlug }: NoteActivityCardProps)
           </Badge>
         ))}
         <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-          {card.word_count.toLocaleString()} words
+          {(card.word_count ?? 0).toLocaleString()} words
         </span>
       </div>
 
@@ -116,8 +124,8 @@ export function NoteActivityCard({ card, workspaceSlug }: NoteActivityCardProps)
 
       {/* Timestamp (bottom-right when no annotation) */}
       <div className={cn('flex items-center justify-end', !annotation && 'mt-auto')}>
-        <time dateTime={card.updated_at} className="text-xs text-muted-foreground">
-          {formatDistanceToNow(new Date(card.updated_at), { addSuffix: true })}
+        <time dateTime={card.updated_at ?? undefined} className="text-xs text-muted-foreground">
+          {safeFormatDistance(card.updated_at)}
         </time>
       </div>
     </article>

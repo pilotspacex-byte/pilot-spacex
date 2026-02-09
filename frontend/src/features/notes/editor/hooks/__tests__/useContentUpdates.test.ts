@@ -518,6 +518,59 @@ describe('useContentUpdates', () => {
       );
     });
 
+    it('should bypass conflict detection when user is editing the target block', async () => {
+      const targetBlockId = 'block-456';
+
+      // Simulate user selecting the target block
+      const mockResolve = vi.fn().mockReturnValue({
+        parent: { attrs: { blockId: targetBlockId } },
+      });
+      editor.state.doc.resolve = mockResolve;
+
+      const issueData = {
+        issueId: 'issue-789',
+        issueKey: 'PROJ-42',
+        title: 'Fix bug',
+        type: 'bug' as const,
+        state: 'backlog' as const,
+        priority: 'high' as const,
+        sourceBlockId: targetBlockId,
+      };
+
+      const update: ContentUpdateData = {
+        noteId: 'note-123',
+        operation: 'insert_inline_issue',
+        blockId: targetBlockId,
+        markdown: null,
+        content: null,
+        issueData,
+        afterBlockId: null,
+      };
+
+      renderHook(() => useContentUpdates(editor, store, 'note-123'));
+
+      // Trigger selection update to set userEditingBlock to the same block
+      const selectionHandler = (editor.on as ReturnType<typeof vi.fn>).mock.calls.find(
+        (call) => call[0] === 'selectionUpdate'
+      )?.[1];
+      selectionHandler?.();
+
+      runInAction(() => {
+        store.pendingContentUpdates.push(update);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // insert_inline_issue is non-destructive — should NOT be blocked by conflict detection
+      expect(editor.commands.insertInlineIssue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          issueId: 'issue-789',
+          issueKey: 'PROJ-42',
+          isNew: true,
+        })
+      );
+    });
+
     it('should do nothing when no issueData provided', async () => {
       const update: ContentUpdateData = {
         noteId: 'note-123',
@@ -538,6 +591,130 @@ describe('useContentUpdates', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(editor.commands.insertInlineIssue).not.toHaveBeenCalled();
+    });
+
+    it('should create NoteIssueLink(EXTRACTED) after issue creation', async () => {
+      const mockCreatedIssue = {
+        id: 'created-issue-1',
+        identifier: 'PROJ-99',
+        name: 'New extracted issue',
+        type: 'task',
+        state: { group: 'backlog' },
+        priority: 'medium',
+      };
+
+      const mockIssuesApi = { create: vi.fn().mockResolvedValue(mockCreatedIssue) };
+      const mockNotesApi = { linkIssue: vi.fn().mockResolvedValue({}) };
+
+      vi.doMock('@/services/api/issues', () => ({ issuesApi: mockIssuesApi }));
+      vi.doMock('@/services/api/notes', () => ({ notesApi: mockNotesApi }));
+
+      const update: ContentUpdateData = {
+        noteId: 'note-123',
+        operation: 'insert_inline_issue',
+        blockId: 'block-abc',
+        markdown: null,
+        content: null,
+        issueData: {
+          title: 'New extracted issue',
+          type: 'task' as const,
+          state: 'backlog' as const,
+          priority: 'medium' as const,
+        },
+        afterBlockId: null,
+      };
+
+      renderHook(() => useContentUpdates(editor, store, 'note-123', 'ws-1'));
+
+      runInAction(() => {
+        store.pendingContentUpdates.push(update);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      expect(mockIssuesApi.create).toHaveBeenCalledWith(
+        'ws-1',
+        expect.objectContaining({
+          name: 'New extracted issue',
+        })
+      );
+      expect(mockNotesApi.linkIssue).toHaveBeenCalledWith(
+        'ws-1',
+        'note-123',
+        'created-issue-1',
+        'EXTRACTED',
+        'block-abc'
+      );
+      expect(editor.commands.insertInlineIssue).toHaveBeenCalled();
+
+      vi.doUnmock('@/services/api/issues');
+      vi.doUnmock('@/services/api/notes');
+    });
+
+    it('should still insert inline issue when link creation fails', async () => {
+      const mockCreatedIssue = {
+        id: 'created-issue-2',
+        identifier: 'PROJ-100',
+        name: 'Issue with link failure',
+        type: 'bug',
+        state: { group: 'backlog' },
+        priority: 'high',
+      };
+
+      const mockIssuesApi = { create: vi.fn().mockResolvedValue(mockCreatedIssue) };
+      const mockNotesApi = {
+        linkIssue: vi.fn().mockRejectedValue(new Error('Backend endpoint not available')),
+      };
+
+      vi.doMock('@/services/api/issues', () => ({ issuesApi: mockIssuesApi }));
+      vi.doMock('@/services/api/notes', () => ({ notesApi: mockNotesApi }));
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const update: ContentUpdateData = {
+        noteId: 'note-123',
+        operation: 'insert_inline_issue',
+        blockId: 'block-def',
+        markdown: null,
+        content: null,
+        issueData: {
+          title: 'Issue with link failure',
+          type: 'bug' as const,
+          state: 'backlog' as const,
+          priority: 'high' as const,
+        },
+        afterBlockId: null,
+      };
+
+      renderHook(() => useContentUpdates(editor, store, 'note-123', 'ws-1'));
+
+      runInAction(() => {
+        store.pendingContentUpdates.push(update);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      // Issue creation succeeded
+      expect(mockIssuesApi.create).toHaveBeenCalled();
+      // Link creation was attempted but failed
+      expect(mockNotesApi.linkIssue).toHaveBeenCalled();
+      // Inline issue node was still inserted despite link failure
+      expect(editor.commands.insertInlineIssue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          issueId: 'created-issue-2',
+          issueKey: 'PROJ-100',
+          isNew: true,
+        })
+      );
+      // Warning was logged
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[AI] Failed to create NoteIssueLink(EXTRACTED):',
+        expect.any(Error)
+      );
+
+      warnSpy.mockRestore();
+      vi.doUnmock('@/services/api/issues');
+      vi.doUnmock('@/services/api/notes');
     });
   });
 

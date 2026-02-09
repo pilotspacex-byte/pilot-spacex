@@ -26,6 +26,9 @@ import {
   FileText,
   History,
   Plus,
+  FilePlus,
+  Newspaper,
+  BookOpen,
 } from 'lucide-react';
 import { SKILLS, SKILL_CATEGORIES } from '../constants';
 import type { SkillDefinition } from '../types';
@@ -36,6 +39,8 @@ interface SkillMenuProps {
   onSelect: (skill: SkillDefinition) => void;
   /** Called when user cancels (Esc or Backspace on empty input) - should remove trigger char */
   onCancel?: () => void;
+  /** Dynamic skills from API. Falls back to hardcoded SKILLS if not provided. */
+  skills?: SkillDefinition[];
   children: React.ReactNode;
   /** Custom class for popover content */
   popoverClassName?: string;
@@ -54,22 +59,35 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   FileText,
   History,
   Plus,
+  FilePlus,
+  Newspaper,
+  BookOpen,
 };
 
 export const SkillMenu = memo<SkillMenuProps>(
-  ({ open, onOpenChange, onSelect, onCancel, children, popoverClassName, popoverWidth }) => {
+  ({
+    open,
+    onOpenChange,
+    onSelect,
+    onCancel,
+    skills: skillsProp,
+    children,
+    popoverClassName,
+    popoverWidth,
+  }) => {
     const [searchValue, setSearchValue] = useState('');
+    const activeSkills = skillsProp ?? SKILLS;
 
     const handleSelect = useCallback(
       (skillName: string) => {
-        const skill = SKILLS.find((s) => s.name === skillName);
+        const skill = activeSkills.find((s) => s.name === skillName);
         if (skill) {
           onSelect(skill);
           onOpenChange(false);
           setSearchValue('');
         }
       },
-      [onSelect, onOpenChange]
+      [activeSkills, onSelect, onOpenChange]
     );
 
     const handleKeyDown = useCallback(
@@ -96,7 +114,7 @@ export const SkillMenu = memo<SkillMenuProps>(
     // Group skills by category
     const skillsByCategory = SKILL_CATEGORIES.map((category) => ({
       ...category,
-      skills: SKILLS.filter((s) => s.category === category.id),
+      skills: activeSkills.filter((s) => s.category === category.id),
     })).filter((group) => group.skills.length > 0);
 
     return (
@@ -115,14 +133,15 @@ export const SkillMenu = memo<SkillMenuProps>(
               value={searchValue}
               onValueChange={setSearchValue}
               onKeyDown={handleKeyDown}
+              className="h-8 text-sm"
             />
-            <CommandList>
+            <CommandList className="max-h-[280px]">
               <CommandEmpty>No skills found.</CommandEmpty>
 
               {skillsByCategory.map((group, idx) => {
                 return (
                   <div key={group.id}>
-                    {idx > 0 && <CommandSeparator />}
+                    {idx > 0 && <CommandSeparator className="my-0.5" />}
 
                     <CommandGroup heading={group.label}>
                       {group.skills.map((skill) => {
@@ -133,25 +152,17 @@ export const SkillMenu = memo<SkillMenuProps>(
                             key={skill.name}
                             value={skill.name}
                             onSelect={handleSelect}
-                            className="flex items-start gap-3 py-3"
+                            className="flex items-center gap-2 py-1.5 px-2"
                           >
-                            <SkillIcon className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+                            <SkillIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 
-                            <div className="flex-1 space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-sm font-medium">\{skill.name}</span>
-                              </div>
+                            <span className="font-mono text-xs font-medium shrink-0">
+                              \{skill.name}
+                            </span>
 
-                              <p className="text-xs text-muted-foreground line-clamp-2">
-                                {skill.description}
-                              </p>
-
-                              {skill.examples && skill.examples.length > 0 && (
-                                <p className="text-xs text-muted-foreground/70 italic">
-                                  e.g., &quot;{skill.examples[0]}&quot;
-                                </p>
-                              )}
-                            </div>
+                            <span className="text-xs text-muted-foreground truncate">
+                              {skill.description}
+                            </span>
                           </CommandItem>
                         );
                       })}

@@ -199,7 +199,7 @@ class TestProjectBootstrapper:
 
     @pytest.mark.asyncio
     async def test_claude_md_tool_names_match_registered_tools(self, temp_target_dir: Path) -> None:
-        """Test CLAUDE.md tool names match tools registered in note_tools.py."""
+        """Test CLAUDE.md tool names match tools registered in MCP servers."""
         from pilot_space.ai.templates import CLAUDE_MD_PATH
 
         bootstrapper = ProjectBootstrapper(CLAUDE_MD_PATH.parent)
@@ -208,14 +208,14 @@ class TestProjectBootstrapper:
         claude_file = temp_target_dir / ".claude" / "CLAUDE.md"
         content = claude_file.read_text()
 
-        # Tool names from note_tools.py @register_tool decorators
+        # Tool names from note_server.py MCP server registration
         expected_tools = [
-            "summarize_note",
             "update_note_block",
             "enhance_text",
             "extract_issues",
             "create_issue_from_note",
             "link_existing_issues",
+            "write_to_note",
         ]
 
         for tool_name in expected_tools:

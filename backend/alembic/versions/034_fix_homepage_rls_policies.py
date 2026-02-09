@@ -21,7 +21,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "034_fix_homepage_rls_policies"
-down_revision: str = "033_fix_dismissals_nullable_and_constraints"
+down_revision: str = "033_dismissals_null_constraints"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -74,7 +74,7 @@ def upgrade() -> None:
                 SELECT wm.workspace_id
                 FROM workspace_members wm
                 WHERE wm.user_id = auth.uid()
-                AND wm.role IN ('admin', 'owner')
+                AND wm.role IN ('ADMIN', 'OWNER')
                 AND wm.is_deleted = false
             )
         )
@@ -90,7 +90,7 @@ def upgrade() -> None:
                 SELECT wm.workspace_id
                 FROM workspace_members wm
                 WHERE wm.user_id = auth.uid()
-                AND wm.role IN ('admin', 'owner')
+                AND wm.role IN ('ADMIN', 'OWNER')
                 AND wm.is_deleted = false
             )
         )

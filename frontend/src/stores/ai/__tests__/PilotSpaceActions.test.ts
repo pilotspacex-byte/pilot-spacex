@@ -51,6 +51,87 @@ describe('PilotSpaceActions', () => {
     vi.restoreAllMocks();
   });
 
+  describe('sendMessage', () => {
+    it('should set error when stream completes without assistant response', async () => {
+      // Simulate backend returning SSE stream that immediately closes (empty response)
+      const mockReadableStream = new ReadableStream({
+        start(controller) {
+          controller.close(); // Immediately close = empty stream
+        },
+      });
+
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'text/event-stream' }),
+        body: mockReadableStream,
+      } as unknown as Response);
+
+      await actions.sendMessage('Hello AI');
+
+      // User message should be added
+      expect(store.messages).toHaveLength(1);
+      expect(store.messages[0]!.role).toBe('user');
+
+      // Silent failure detection: no assistant message, so error should be set
+      expect(store.error).toBe(
+        'No response received from AI. Check your API key configuration or try again.'
+      );
+      expect(store.streamingState.isStreaming).toBe(false);
+    });
+
+    it('should not set error when stream produces assistant message', async () => {
+      // Simulate a stream that produces a message_start and message_stop
+      const sseData = [
+        'event: message_start\ndata: {"messageId":"msg-1","sessionId":"sess-1"}\n\n',
+        'event: text_delta\ndata: {"delta":"Hello!"}\n\n',
+        'event: message_stop\ndata: {"messageId":"msg-1","usage":{"totalTokens":10}}\n\n',
+      ].join('');
+
+      const encoder = new TextEncoder();
+      const mockReadableStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(sseData));
+          controller.close();
+        },
+      });
+
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'text/event-stream' }),
+        body: mockReadableStream,
+      } as unknown as Response);
+
+      await actions.sendMessage('Hello AI');
+
+      // Should have user + assistant messages
+      expect(store.messages).toHaveLength(2);
+      expect(store.messages[1]!.role).toBe('assistant');
+      expect(store.error).toBeNull();
+    });
+
+    it('should set error on HTTP failure', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      } as Response);
+
+      await actions.sendMessage('Hello AI');
+
+      expect(store.error).toBe('Chat request failed: 500 Internal Server Error');
+      expect(store.streamingState.isStreaming).toBe(false);
+    });
+
+    it('should set error on network failure', async () => {
+      fetchSpy.mockRejectedValueOnce(new Error('Failed to fetch'));
+
+      await actions.sendMessage('Hello AI');
+
+      expect(store.error).toBe('Failed to fetch');
+      expect(store.streamingState.isStreaming).toBe(false);
+    });
+  });
+
   describe('approveRequest', () => {
     it('should send approval to backend and remove from queue', async () => {
       store.addApproval({
@@ -71,10 +152,10 @@ describe('PilotSpaceActions', () => {
       await actions.approveRequest('req-1');
 
       expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining('/ai/approvals'),
+        expect.stringContaining('/approvals/req-1/resolve'),
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"decision":"approved"'),
+          body: JSON.stringify({ approved: true }),
         })
       );
       expect(store.pendingApprovals).toHaveLength(0);
@@ -122,9 +203,9 @@ describe('PilotSpaceActions', () => {
       await actions.rejectRequest('req-1', 'Not needed');
 
       expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining('/ai/approvals'),
+        expect.stringContaining('/approvals/req-1/resolve'),
         expect.objectContaining({
-          body: expect.stringContaining('"reason":"Not needed"'),
+          body: JSON.stringify({ approved: false, note: 'Not needed' }),
         })
       );
       expect(store.pendingApprovals).toHaveLength(0);
@@ -236,7 +317,14 @@ describe('PilotSpaceActions', () => {
     it('should delegate approveAction to approveRequest', async () => {
       const spy = vi.spyOn(actions, 'approveRequest').mockResolvedValue();
       await actions.approveAction('req-1');
-      expect(spy).toHaveBeenCalledWith('req-1');
+      expect(spy).toHaveBeenCalledWith('req-1', undefined);
+    });
+
+    it('should delegate approveAction with modifications to approveRequest', async () => {
+      const spy = vi.spyOn(actions, 'approveRequest').mockResolvedValue();
+      const mods = { title: 'Updated title' };
+      await actions.approveAction('req-1', mods);
+      expect(spy).toHaveBeenCalledWith('req-1', mods);
     });
 
     it('should delegate rejectAction to rejectRequest', async () => {

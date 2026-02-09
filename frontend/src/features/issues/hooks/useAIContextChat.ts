@@ -8,6 +8,7 @@ import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { ChatMessage, SuggestedQuestion } from '@/components/issues/ContextChat';
+import { supabase } from '@/lib/supabase';
 import { aiContextKeys } from './useAIContext';
 
 // ============================================================================
@@ -43,6 +44,8 @@ const DEFAULT_SUGGESTED_QUESTIONS: SuggestedQuestion[] = [
 export interface UseAIContextChatOptions {
   /** API base URL */
   apiBaseUrl?: string;
+  /** Current workspace ID for X-Workspace-Id header */
+  workspaceId?: string;
   /** Initial suggested questions */
   initialQuestions?: SuggestedQuestion[];
 }
@@ -66,7 +69,11 @@ export function useAIContextChat(
   issueId: string,
   options?: UseAIContextChatOptions
 ): UseAIContextChatReturn {
-  const { apiBaseUrl = '/api/v1', initialQuestions = DEFAULT_SUGGESTED_QUESTIONS } = options ?? {};
+  const {
+    apiBaseUrl = '/api/v1',
+    workspaceId,
+    initialQuestions = DEFAULT_SUGGESTED_QUESTIONS,
+  } = options ?? {};
 
   const queryClient = useQueryClient();
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
@@ -117,11 +124,26 @@ export function useAIContextChat(
       setSuggestedQuestions([]);
 
       try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (workspaceId) {
+          headers['X-Workspace-Id'] = workspaceId;
+        }
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+          }
+        } catch {
+          // Auth unavailable — proceed without token
+        }
+
         const response = await fetch(`${apiBaseUrl}/issues/${issueId}/ai-context/chat`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify({ query: content }),
           signal: abortControllerRef.current.signal,
         });
@@ -221,7 +243,7 @@ export function useAIContextChat(
         abortControllerRef.current = null;
       }
     },
-    [issueId, apiBaseUrl, isTyping, queryClient]
+    [issueId, apiBaseUrl, workspaceId, isTyping, queryClient]
   );
 
   const clearConversation = React.useCallback(() => {

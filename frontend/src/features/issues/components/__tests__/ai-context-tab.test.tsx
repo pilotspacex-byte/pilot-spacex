@@ -121,6 +121,7 @@ describe('AIContextTab', () => {
     vi.clearAllMocks();
     vi.mocked(useStore).mockReturnValue({
       aiStore: { aiContext: mockContextStore },
+      workspaceStore: { currentWorkspaceId: 'ws-123' },
     } as unknown as ReturnType<typeof useStore>);
     mockContextStore.isLoading = false;
     mockContextStore.error = null;
@@ -146,7 +147,7 @@ describe('AIContextTab', () => {
     const button = screen.getByRole('button', { name: /Generate AI context/i });
     fireEvent.click(button);
 
-    expect(mockContextStore.generateContext).toHaveBeenCalledWith('issue-1');
+    expect(mockContextStore.generateContext).toHaveBeenCalledWith('issue-1', 'ws-123');
   });
 
   it('renders loading state with AIContextStreaming', () => {
@@ -184,7 +185,7 @@ describe('AIContextTab', () => {
     });
     fireEvent.click(button);
 
-    expect(mockContextStore.generateContext).toHaveBeenCalledWith('issue-1');
+    expect(mockContextStore.generateContext).toHaveBeenCalledWith('issue-1', 'ws-123');
   });
 
   it('renders results state with all sections', () => {
@@ -250,7 +251,7 @@ describe('AIContextTab', () => {
     fireEvent.click(button);
 
     expect(mockContextStore.clearCache).toHaveBeenCalledWith('issue-1');
-    expect(mockContextStore.generateContext).toHaveBeenCalledWith('issue-1');
+    expect(mockContextStore.generateContext).toHaveBeenCalledWith('issue-1', 'ws-123');
   });
 
   it('renders legacy fallback state', () => {

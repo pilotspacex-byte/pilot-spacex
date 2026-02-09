@@ -109,7 +109,7 @@ export class AIContextStore {
     this.isEnabled = enabled;
   }
 
-  async generateContext(issueId: string): Promise<void> {
+  async generateContext(issueId: string, workspaceId?: string): Promise<void> {
     if (!this.isEnabled || !this.rootStore.isGloballyEnabled) return;
 
     // Always abort any in-flight stream before checking cache to prevent
@@ -153,6 +153,7 @@ export class AIContextStore {
     this.client = new SSEClient({
       url: aiApi.getAIContextUrl(issueId),
       method: 'POST',
+      headers: workspaceId ? { 'X-Workspace-Id': workspaceId } : undefined,
       onMessage: (event: SSEEvent) => {
         if (this.currentIssueId !== streamIssueId) return;
         this.handleEvent(event);

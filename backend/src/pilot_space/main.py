@@ -21,9 +21,11 @@ from pilot_space.api.v1.routers import (
     ai_pr_review_router,
     ai_router,
     ai_sessions_router,
+    ai_tasks_router,
     auth_router,
     cycles_router,
     debug_router,
+    ghost_text_router,
     homepage_notes_from_chat_router,
     homepage_router,
     integrations_router,
@@ -31,18 +33,20 @@ from pilot_space.api.v1.routers import (
     issues_ai_context_streaming_router,
     issues_ai_router,
     issues_router,
+    mcp_tools_router,
     notes_ai_router,
-    notes_router,
     onboarding_router,
     projects_router,
     role_skills_router,
     role_templates_router,
+    skills_router,
     webhooks_router,
     workspace_ai_settings_router,
     workspace_cycles_router,
     workspace_invitations_router,
     workspace_issues_router,
     workspace_members_router,
+    workspace_note_issue_links_router,
     workspace_notes_ai_router,
     workspace_notes_router,
     workspaces_router,
@@ -180,7 +184,6 @@ app.include_router(issues_router, prefix=API_V1_PREFIX)
 app.include_router(issues_ai_router, prefix=API_V1_PREFIX)
 app.include_router(issues_ai_context_router, prefix=API_V1_PREFIX)
 app.include_router(issues_ai_context_streaming_router, prefix=API_V1_PREFIX)
-app.include_router(notes_router, prefix=API_V1_PREFIX)
 if notes_ai_router is not None:
     app.include_router(notes_ai_router, prefix=API_V1_PREFIX)
 app.include_router(cycles_router, prefix=API_V1_PREFIX)
@@ -193,6 +196,9 @@ app.include_router(ai_chat_router, prefix=f"{API_V1_PREFIX}/ai")
 app.include_router(ai_configuration_router, prefix=API_V1_PREFIX)
 app.include_router(ai_costs_router, prefix=API_V1_PREFIX)
 app.include_router(ai_extraction_router, prefix=API_V1_PREFIX)
+app.include_router(ghost_text_router, prefix=API_V1_PREFIX)
+app.include_router(ai_tasks_router, prefix=API_V1_PREFIX)
+app.include_router(mcp_tools_router, prefix=API_V1_PREFIX)
 if ai_pr_review_router is not None:
     app.include_router(ai_pr_review_router, prefix=API_V1_PREFIX)
 app.include_router(ai_sessions_router, prefix=API_V1_PREFIX)
@@ -203,6 +209,7 @@ app.include_router(workspace_cycles_router, prefix=f"{API_V1_PREFIX}/workspaces"
 app.include_router(workspace_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_invitations_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_members_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(workspace_note_issue_links_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_ai_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)
@@ -210,5 +217,6 @@ app.include_router(homepage_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_notes_from_chat_router, prefix=API_V1_PREFIX)
 app.include_router(role_templates_router, prefix=API_V1_PREFIX)
 app.include_router(role_skills_router, prefix=API_V1_PREFIX)
+app.include_router(skills_router, prefix=API_V1_PREFIX)
 if debug_router:
     app.include_router(debug_router, prefix=API_V1_PREFIX)

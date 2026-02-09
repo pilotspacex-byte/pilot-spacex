@@ -41,12 +41,12 @@ def test_pr_review_routes_to_claude_opus(selector: ProviderSelector) -> None:
     assert model == ProviderSelector.ANTHROPIC_OPUS
 
 
-def test_ghost_text_routes_to_claude_haiku(selector: ProviderSelector) -> None:
-    """Verify ghost text uses Claude Haiku for low latency."""
+def test_ghost_text_routes_to_google_flash(selector: ProviderSelector) -> None:
+    """Verify ghost text uses Gemini Flash for <1.5s latency (DD-011)."""
     provider, model = selector.select(TaskType.GHOST_TEXT)
 
-    assert provider == Provider.ANTHROPIC.value
-    assert model == ProviderSelector.ANTHROPIC_HAIKU
+    assert provider == Provider.GOOGLE.value
+    assert model == ProviderSelector.GOOGLE_FLASH
 
 
 def test_embeddings_route_to_openai(selector: ProviderSelector) -> None:
@@ -112,16 +112,20 @@ def test_dd011_code_intensive_tasks_use_claude_opus(selector: ProviderSelector) 
         assert model == ProviderSelector.ANTHROPIC_OPUS
 
 
-def test_dd011_latency_sensitive_use_haiku(selector: ProviderSelector) -> None:
-    """Verify latency-sensitive tasks route to Claude Haiku per DD-011."""
-    latency_tasks = [
-        TaskType.GHOST_TEXT,
+def test_dd011_latency_sensitive_use_fast_providers(selector: ProviderSelector) -> None:
+    """Verify latency-sensitive tasks route to fast providers per DD-011."""
+    # Ghost text uses Gemini Flash for <1.5s latency
+    provider, model = selector.select(TaskType.GHOST_TEXT)
+    assert provider == Provider.GOOGLE.value
+    assert model == ProviderSelector.GOOGLE_FLASH
+
+    # Other latency tasks use Claude Haiku
+    haiku_tasks = [
         TaskType.NOTIFICATION_PRIORITY,
         TaskType.ASSIGNEE_RECOMMENDATION,
         TaskType.COMMIT_LINKING,
     ]
-
-    for task in latency_tasks:
+    for task in haiku_tasks:
         provider, model = selector.select(task)
         assert provider == Provider.ANTHROPIC.value
         assert model == ProviderSelector.ANTHROPIC_HAIKU

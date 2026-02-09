@@ -173,6 +173,7 @@ class PermissionHandler:
         "assignee_recommend": ActionClassification.AUTO_EXECUTE,
         "doc_generate": ActionClassification.AUTO_EXECUTE,
         "diagram_generate": ActionClassification.AUTO_EXECUTE,
+        "review_pull_request": ActionClassification.AUTO_EXECUTE,
         # Note tools — read (AUTO_EXECUTE)
         "search_notes": ActionClassification.AUTO_EXECUTE,
         "search_note_content": ActionClassification.AUTO_EXECUTE,
@@ -183,7 +184,7 @@ class PermissionHandler:
         "remove_block": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
         "remove_content": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
         "replace_content": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
-        # Retained tools (6 from note_tools.py, registered in MCP servers)
+        # Note tools (registered in MCP servers via note_server.py)
         "update_note_block": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
         "enhance_text": ActionClassification.AUTO_EXECUTE,
         "extract_issues": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
@@ -216,6 +217,11 @@ class PermissionHandler:
         # Comment tools — write (CM-001: create_comment auto, update requires approval)
         "create_comment": ActionClassification.AUTO_EXECUTE,
         "update_comment": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        # Non-destructive actions (DD-003 auto-execute)
+        "add_label": ActionClassification.AUTO_EXECUTE,
+        "assign_issue": ActionClassification.AUTO_EXECUTE,
+        "improve_writing": ActionClassification.AUTO_EXECUTE,
+        "summarize": ActionClassification.AUTO_EXECUTE,
         # Legacy actions
         "create_annotation": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
         "link_commit": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
@@ -224,6 +230,7 @@ class PermissionHandler:
         "delete_issue": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
         "merge_pr": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
         "close_issue": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
+        "archive_workspace": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
     }
 
     def __init__(
@@ -254,15 +261,33 @@ class PermissionHandler:
         Returns:
             ActionClassification enum value
         """
-        # Check workspace overrides first
-        if workspace_overrides and action_name in workspace_overrides:
-            return ActionClassification(workspace_overrides[action_name])
-
-        # Fall back to default classification
-        return self.ACTION_CLASSIFICATIONS.get(
+        # Look up default classification
+        default = self.ACTION_CLASSIFICATIONS.get(
             action_name,
             ActionClassification.DEFAULT_REQUIRE_APPROVAL,
         )
+
+        # DD-003: CRITICAL actions cannot be downgraded by workspace overrides.
+        # Destructive operations (delete_issue, merge_pr, archive_workspace)
+        # must always require explicit approval regardless of workspace settings.
+        if default == ActionClassification.CRITICAL_REQUIRE_APPROVAL:
+            if workspace_overrides and action_name in workspace_overrides:
+                requested = ActionClassification(workspace_overrides[action_name])
+                if requested != ActionClassification.CRITICAL_REQUIRE_APPROVAL:
+                    logger.warning(
+                        "Workspace override attempted to downgrade critical action '%s' "
+                        "from %s to %s — ignoring override (DD-003)",
+                        action_name,
+                        default.value,
+                        requested.value,
+                    )
+            return default
+
+        # Non-critical actions may be overridden by workspace settings
+        if workspace_overrides and action_name in workspace_overrides:
+            return ActionClassification(workspace_overrides[action_name])
+
+        return default
 
     async def check_permission(
         self,

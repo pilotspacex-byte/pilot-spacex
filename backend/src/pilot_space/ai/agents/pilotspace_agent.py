@@ -22,6 +22,8 @@ from pilot_space.ai.agents.pilotspace_agent_helpers import (
     transform_sdk_message as transform_sdk_message_helper,
 )
 from pilot_space.ai.agents.pilotspace_stream_utils import (
+    build_dynamic_system_prompt,
+    build_mcp_servers,
     build_structured_content,
     capture_content_from_sse,
     classify_effort,
@@ -32,36 +34,12 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
 from pilot_space.ai.agents.role_skill_materializer import materialize_role_skills
 from pilot_space.ai.agents.sse_delta_buffer import DeltaBuffer
 from pilot_space.ai.context import clear_context, set_workspace_context
-from pilot_space.ai.mcp.comment_server import (
-    SERVER_NAME as COMMENT_SERVER_NAME,
-    TOOL_NAMES as COMMENT_TOOL_NAMES,
-    create_comment_tools_server,
-)
-from pilot_space.ai.mcp.issue_relation_server import (
-    SERVER_NAME as ISSUE_REL_SERVER_NAME,
-    TOOL_NAMES as ISSUE_REL_TOOL_NAMES,
-    create_issue_relation_tools_server,
-)
-from pilot_space.ai.mcp.issue_server import (
-    SERVER_NAME as ISSUE_SERVER_NAME,
-    TOOL_NAMES as ISSUE_TOOL_NAMES,
-    create_issue_tools_server,
-)
-from pilot_space.ai.mcp.note_content_server import (
-    SERVER_NAME as NOTE_CONTENT_SERVER_NAME,
-    TOOL_NAMES as NOTE_CONTENT_TOOL_NAMES,
-    create_note_content_server,
-)
-from pilot_space.ai.mcp.note_server import (
-    SERVER_NAME as NOTE_SERVER_NAME,
-    TOOL_NAMES as NOTE_TOOL_NAMES,
-    create_note_tools_server,
-)
-from pilot_space.ai.mcp.project_server import (
-    SERVER_NAME as PROJECT_SERVER_NAME,
-    TOOL_NAMES as PROJECT_TOOL_NAMES,
-    create_project_tools_server,
-)
+from pilot_space.ai.mcp.comment_server import TOOL_NAMES as COMMENT_TOOL_NAMES
+from pilot_space.ai.mcp.issue_relation_server import TOOL_NAMES as ISSUE_REL_TOOL_NAMES
+from pilot_space.ai.mcp.issue_server import TOOL_NAMES as ISSUE_TOOL_NAMES
+from pilot_space.ai.mcp.note_content_server import TOOL_NAMES as NOTE_CONTENT_TOOL_NAMES
+from pilot_space.ai.mcp.note_server import TOOL_NAMES as NOTE_TOOL_NAMES
+from pilot_space.ai.mcp.project_server import TOOL_NAMES as PROJECT_TOOL_NAMES
 from pilot_space.ai.sdk.sandbox_config import ModelTier, configure_sdk_for_space
 from pilot_space.spaces.manager import SpaceManager
 
@@ -376,47 +354,29 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     space_context.skills_dir,
                 )
 
+                # Query user's primary role for dynamic system prompt (DD-087).
+                from pilot_space.infrastructure.database.repositories.role_skill_repository import (
+                    RoleSkillRepository,
+                )
+
+                _role_repo = RoleSkillRepository(db_session)
+                _primary_role = await _role_repo.get_primary_by_user_workspace(
+                    context.user_id,
+                    context.workspace_id,
+                )
+                _role_type = _primary_role.role_type if _primary_role else None
+
                 tool_context = ToolContext(
                     db_session=db_session,
                     workspace_id=str(context.workspace_id),
                     user_id=str(context.user_id) if context.user_id else None,
                 )
 
-                # Build ¶N block reference map (AI sees ¶1/¶2 not raw UUIDs)
-                from pilot_space.ai.mcp.block_ref_map import BlockRefMap
-
-                _note_obj = input_data.context.get("note")
-                _note_raw = getattr(_note_obj, "content", {}) if _note_obj else {}
-                ref_map = BlockRefMap.from_tiptap(_note_raw) if _note_raw else None
-                if ref_map is not None and ref_map.is_empty:
-                    ref_map = None
-                context_note_id = input_data.context.get("note_id")
-                note_tools_server = create_note_tools_server(
+                # Build ¶N block reference map + 6 MCP tool servers
+                mcp_servers, ref_map = build_mcp_servers(
                     tool_event_queue,
-                    context_note_id=str(context_note_id) if context_note_id else None,
-                    tool_context=tool_context,
-                    block_ref_map=ref_map,
-                )
-                note_content_server = create_note_content_server(
-                    tool_event_queue,
-                    tool_context=tool_context,
-                    block_ref_map=ref_map,
-                )
-                issue_tools_server = create_issue_tools_server(
-                    tool_event_queue,
-                    tool_context=tool_context,
-                )
-                issue_rel_server = create_issue_relation_tools_server(
-                    tool_event_queue,
-                    tool_context=tool_context,
-                )
-                project_tools_server = create_project_tools_server(
-                    event_queue=tool_event_queue,
-                    tool_context=tool_context,
-                )
-                comment_tools_server = create_comment_tools_server(
-                    tool_event_queue,
-                    tool_context=tool_context,
+                    tool_context,
+                    input_data,
                 )
 
                 from pilot_space.ai.sdk.output_schemas import get_skill_output_format
@@ -438,7 +398,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     include_partial_messages=True,
                     memory_enabled=True,
                     citations_enabled=True,
-                    system_prompt_base=self.SYSTEM_PROMPT_BASE,
+                    system_prompt_base=build_dynamic_system_prompt(
+                        self.SYSTEM_PROMPT_BASE,
+                        role_type=_role_type,
+                        workspace_name=input_data.context.get("workspace_name"),
+                        project_names=input_data.context.get("project_names"),
+                    ),
                     output_format=output_format,
                     enable_file_checkpointing=True,
                     effort=effort,
@@ -456,14 +421,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     cwd=sdk_params.get("cwd"),
                     setting_sources=sdk_params.get("setting_sources", ["project"]),
                     allowed_tools=sdk_params.get("allowed_tools", []),
-                    mcp_servers={
-                        NOTE_SERVER_NAME: note_tools_server,
-                        NOTE_CONTENT_SERVER_NAME: note_content_server,
-                        ISSUE_SERVER_NAME: issue_tools_server,
-                        ISSUE_REL_SERVER_NAME: issue_rel_server,
-                        PROJECT_SERVER_NAME: project_tools_server,
-                        COMMENT_SERVER_NAME: comment_tools_server,
-                    },
+                    mcp_servers=mcp_servers,
                     sandbox=sdk_params.get("sandbox"),
                     permission_mode=sdk_params.get("permission_mode", "default"),
                     env=sdk_env,

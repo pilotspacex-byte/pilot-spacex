@@ -210,7 +210,8 @@ export const AIContextPanel = observer(function AIContextPanel({
   issueId,
   className,
 }: AIContextPanelProps) {
-  const { aiStore } = useStore();
+  const { aiStore, workspaceStore } = useStore();
+  const workspaceId = workspaceStore.currentWorkspaceId ?? undefined;
 
   // Generate context on mount if not already loading or has result
   React.useEffect(() => {
@@ -219,17 +220,17 @@ export const AIContextPanel = observer(function AIContextPanel({
       !aiStore.aiContext.result &&
       aiStore.aiContext.currentIssueId !== issueId
     ) {
-      aiStore.aiContext.generateContext(issueId);
+      aiStore.aiContext.generateContext(issueId, workspaceId);
     }
-  }, [issueId, aiStore.aiContext]);
+  }, [issueId, aiStore.aiContext, workspaceId]);
 
   const handleGenerate = () => {
-    aiStore.aiContext.generateContext(issueId);
+    aiStore.aiContext.generateContext(issueId, workspaceId);
   };
 
   const handleRefresh = () => {
     aiStore.aiContext.clearCache(issueId);
-    aiStore.aiContext.generateContext(issueId);
+    aiStore.aiContext.generateContext(issueId, workspaceId);
   };
 
   // Loading state - show streaming progress

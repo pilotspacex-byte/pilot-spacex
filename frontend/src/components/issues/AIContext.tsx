@@ -40,6 +40,7 @@ import { TaskChecklist, type TaskItem } from './TaskChecklist';
 import { ClaudeCodePrompt } from './ClaudeCodePrompt';
 import { ContextChat } from './ContextChat';
 import { useAIContext, useAIContextChat, useExportContext } from '@/features/issues/hooks';
+import { useStore } from '@/stores';
 
 // ============================================================================
 // Types
@@ -285,6 +286,8 @@ export const AIContext = observer(function AIContext({
   className,
 }: AIContextProps) {
   // Hooks
+  const { workspaceStore } = useStore();
+  const workspaceId = workspaceStore.currentWorkspaceId ?? undefined;
   const {
     data: contextData,
     isLoading,
@@ -297,7 +300,7 @@ export const AIContext = observer(function AIContext({
   } = useAIContext(issueId);
 
   const { messages, suggestedQuestions, isTyping, sendMessage, clearConversation } =
-    useAIContextChat(issueId);
+    useAIContextChat(issueId, { workspaceId });
 
   const { exportAsMarkdown, isExporting } = useExportContext(issueId);
 

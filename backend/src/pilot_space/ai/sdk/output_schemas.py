@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ExtractedIssue(BaseModel):
@@ -40,6 +40,8 @@ class ExtractedIssue(BaseModel):
 class ExtractionResult(BaseModel):
     """Result of extract-issues skill invocation."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     schema_type: str = Field(default="extraction_result", alias="schemaType")
     issues: list[ExtractedIssue] = Field(default_factory=list)
     summary: str = Field(default="", description="Brief extraction summary")
@@ -48,6 +50,8 @@ class ExtractionResult(BaseModel):
 
 class Subtask(BaseModel):
     """Single subtask from task decomposition."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     title: str = Field(description="Subtask title")
     description: str = Field(default="", description="Subtask description")
@@ -61,19 +65,109 @@ class Subtask(BaseModel):
         description="Indices of subtasks this depends on (0-based)",
         alias="dependsOn",
     )
+    estimated_days: float | None = Field(
+        default=None,
+        description="Estimated days to complete",
+        alias="estimatedDays",
+    )
+    labels: list[str] = Field(
+        default_factory=list,
+        description="Labels for categorization (e.g., backend, frontend, testing)",
+    )
+    acceptance_criteria: list[str] = Field(
+        default_factory=list,
+        description="Acceptance criteria for the subtask",
+        alias="acceptanceCriteria",
+    )
+    confidence: str = Field(
+        default="DEFAULT",
+        description="Confidence tag: RECOMMENDED, DEFAULT, ALTERNATIVE",
+    )
+    can_parallel_with: list[int] = Field(
+        default_factory=list,
+        description="Indices of subtasks that can run in parallel with this one",
+        alias="canParallelWith",
+    )
 
 
 class DecompositionResult(BaseModel):
     """Result of decompose-tasks skill invocation."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     schema_type: str = Field(default="decomposition_result", alias="schemaType")
     subtasks: list[Subtask] = Field(default_factory=list)
     total_points: int = Field(default=0, alias="totalPoints")
     summary: str = Field(default="", description="Brief decomposition summary")
+    critical_path: list[int] = Field(
+        default_factory=list,
+        description="Ordered list of subtask indices on the critical path",
+        alias="criticalPath",
+    )
+    parallel_opportunities: list[str] = Field(
+        default_factory=list,
+        description="Human-readable descriptions of parallelizable work",
+        alias="parallelOpportunities",
+    )
+
+    @model_validator(mode="after")
+    def validate_dag_no_cycles(self) -> DecompositionResult:
+        """Validate that depends_on references form a valid DAG (no cycles).
+
+        Uses Kahn's algorithm for topological sort. If not all nodes
+        are visited, the graph contains a cycle.
+        """
+        if not self.subtasks:
+            return self
+
+        n = len(self.subtasks)
+
+        # Build adjacency list and in-degree count
+        in_degree = [0] * n
+        adjacency: dict[int, list[int]] = {i: [] for i in range(n)}
+
+        for idx, subtask in enumerate(self.subtasks):
+            for dep in subtask.depends_on:
+                if dep < 0 or dep >= n:
+                    msg = (
+                        f"Subtask '{subtask.title}' (index {idx}) "
+                        f"depends on invalid index {dep} "
+                        f"(valid range: 0-{n - 1})"
+                    )
+                    raise ValueError(msg)
+                if dep == idx:
+                    msg = f"Subtask '{subtask.title}' (index {idx}) depends on itself"
+                    raise ValueError(msg)
+                adjacency[dep].append(idx)
+                in_degree[idx] += 1
+
+        # Kahn's algorithm: BFS from nodes with in_degree == 0
+        queue = [i for i in range(n) if in_degree[i] == 0]
+        visited_count = 0
+
+        while queue:
+            node = queue.pop(0)
+            visited_count += 1
+            for neighbor in adjacency[node]:
+                in_degree[neighbor] -= 1
+                if in_degree[neighbor] == 0:
+                    queue.append(neighbor)
+
+        if visited_count != n:
+            # Find nodes involved in cycle for error message
+            cycle_nodes = [
+                f"'{self.subtasks[i].title}' (index {i})" for i in range(n) if in_degree[i] > 0
+            ]
+            msg = f"Circular dependency detected among subtasks: {', '.join(cycle_nodes)}"
+            raise ValueError(msg)
+
+        return self
 
 
 class DuplicateCandidate(BaseModel):
     """Candidate duplicate issue."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     issue_id: str = Field(description="Issue identifier", alias="issueId")
     issue_key: str = Field(description="Issue key (e.g., PS-42)", alias="issueKey")
@@ -87,6 +181,8 @@ class DuplicateCandidate(BaseModel):
 
 class DuplicateSearchResult(BaseModel):
     """Result of find-duplicates skill invocation."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     schema_type: str = Field(default="duplicate_search_result", alias="schemaType")
     candidates: list[DuplicateCandidate] = Field(default_factory=list)

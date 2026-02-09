@@ -301,13 +301,13 @@ AI decomposes into:
 
 ## Integration Points
 
-- **TaskDecomposerAgent**: Primary agent implementing this workflow
+- **PilotSpaceAgent**: Orchestrator routes to this skill via intent detection or `/decompose-tasks` command
 - **MCP Tools**: Uses `search_codebase` to find similar implementations
 - **Approval Flow**: Task creation requires DEFAULT_REQUIRE_APPROVAL per DD-003
-- **Dependency Graph**: Validates DAG structure (no cycles)
+- **Dependency Graph**: Validates DAG structure (no cycles) via `DecompositionResult` model validator
 
 ## References
 
 - Design Decision: DD-048 (Confidence Tagging)
 - Design Decision: DD-003 (Approval for subtask creation)
-- Agent: `backend/src/pilot_space/ai/agents/task_decomposer_agent.py`
+- Schema: `backend/src/pilot_space/ai/sdk/output_schemas.py`

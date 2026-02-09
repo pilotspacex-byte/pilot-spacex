@@ -187,7 +187,7 @@ AI enhances:
 
 ## Integration Points
 
-- **IssueEnhancerAgent**: Primary agent implementing this workflow
+- **PilotSpaceAgent**: Orchestrator routes to this skill via intent detection or `/enhance-issue` command
 - **MCP Tools**: Uses `search_issues` to find similar issues for label suggestions
 - **Approval Flow**: Enhancement suggestions are AUTO_EXECUTE (non-destructive)
 - **Label Management**: Checks workspace custom labels before suggesting
@@ -196,4 +196,4 @@ AI enhances:
 
 - Design Decision: DD-048 (Confidence Tagging)
 - Design Decision: DD-003 (Auto-execute for suggestions)
-- Agent: `backend/src/pilot_space/ai/agents/issue_enhancer_agent_sdk.py`
+- Schema: `backend/src/pilot_space/ai/sdk/output_schemas.py`

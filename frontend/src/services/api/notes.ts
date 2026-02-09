@@ -54,8 +54,18 @@ export const notesApi = {
     return apiClient.delete<Note>(`/workspaces/${workspaceId}/notes/${noteId}/pin`);
   },
 
-  linkIssue(workspaceId: string, noteId: string, issueId: string): Promise<Note> {
-    return apiClient.post<Note>(`/workspaces/${workspaceId}/notes/${noteId}/issues`, { issueId });
+  linkIssue(
+    workspaceId: string,
+    noteId: string,
+    issueId: string,
+    linkType?: 'EXTRACTED' | 'REFERENCED' | 'RELATED',
+    blockId?: string
+  ): Promise<Note> {
+    return apiClient.post<Note>(`/workspaces/${workspaceId}/notes/${noteId}/issues`, {
+      issueId,
+      linkType,
+      blockId,
+    });
   },
 
   unlinkIssue(workspaceId: string, noteId: string, issueId: string): Promise<Note> {

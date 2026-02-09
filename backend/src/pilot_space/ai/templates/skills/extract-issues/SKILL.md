@@ -180,7 +180,7 @@ Not sure if Redis or in-memory would be better.
 
 ## Integration Points
 
-- **IssueExtractorAgent**: Primary agent implementing this workflow
+- **PilotSpaceAgent**: Orchestrator routes to this skill via intent detection or `/extract-issues` command
 - **MCP Tools**: Uses `search_related_notes` to find similar issues
 - **Approval Flow**: Extracted issues require DEFAULT_REQUIRE_APPROVAL per DD-003
 - **Note Linking**: Creates bidirectional links between issues and source blocks
@@ -189,4 +189,4 @@ Not sure if Redis or in-memory would be better.
 
 - Design Decision: DD-013 (Note-First Workflow)
 - Design Decision: DD-048 (Confidence Tagging)
-- Agent: `backend/src/pilot_space/ai/agents/issue_extractor_sdk_agent.py`
+- Schema: `backend/src/pilot_space/ai/sdk/output_schemas.py`

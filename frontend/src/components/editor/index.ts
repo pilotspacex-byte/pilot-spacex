@@ -14,9 +14,6 @@ export type { AutoTOCProps } from './AutoTOC';
 export { SelectionToolbar } from './SelectionToolbar';
 export type { SelectionToolbarProps } from './SelectionToolbar';
 
-export { IssueExtractionPanel } from './IssueExtractionPanel';
-export type { IssueExtractionPanelProps, ExtractedIssue } from './IssueExtractionPanel';
-
 export { ThreadedDiscussion } from './ThreadedDiscussion';
 export type { ThreadedDiscussionProps, Discussion, DiscussionComment } from './ThreadedDiscussion';
 

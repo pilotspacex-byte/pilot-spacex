@@ -2,15 +2,15 @@
  * Ghost Text Store with debouncing and caching.
  *
  * Manages AI-powered text suggestions with:
- * - Debounced requests (300ms per requirements)
+ * - Debounced requests (500ms per DD-067)
  * - LRU cache for recent suggestions
- * - SSE streaming for real-time updates
+ * - JSON fetch (backend returns GhostTextResponse, not SSE)
  * - Loading indicator during fetch
  *
- * @see T071-T074 (GhostText Integration with 300ms debounce)
+ * @see DD-067 (Ghost text: 500ms/50 tokens/code-aware)
+ * @see DD-011 (Gemini Flash for latency-critical)
  */
 import { makeAutoObservable, runInAction } from 'mobx';
-import { SSEClient, type SSEEvent } from '@/lib/sse-client';
 import { aiApi } from '@/services/api/ai';
 import type { AIStore } from './AIStore';
 
@@ -20,9 +20,8 @@ export class GhostTextStore {
   isEnabled = true;
   error: string | null = null;
 
-  private client: SSEClient | null = null;
+  private abortController: AbortController | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly debounceMs = 300; // 300ms debounce per requirements
   private cache = new Map<string, string>();
   private readonly maxCacheSize = 10;
 
@@ -37,31 +36,32 @@ export class GhostTextStore {
     }
   }
 
-  requestSuggestion(noteId: string, context: string, cursorPosition: number): void {
+  requestSuggestion(noteId: string, context: string, prefix: string, workspaceId: string): void {
     if (!this.isEnabled || !this.rootStore.isGloballyEnabled) return;
 
     // Check cache
-    const cacheKey = `${noteId}:${context.slice(-100)}`;
+    const cacheKey = `${noteId}:${context.slice(-100)}:${prefix.slice(-50)}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
       this.suggestion = cached;
       return;
     }
 
-    // Debounce
+    // Debounce - no additional delay here since GhostTextExtension already
+    // debounces at 500ms per DD-067. Any extra delay here would be additive.
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
 
     this.debounceTimer = setTimeout(() => {
-      this.fetchSuggestion(noteId, context, cursorPosition, cacheKey);
-    }, this.debounceMs);
+      this.fetchSuggestion(context, prefix, workspaceId, cacheKey);
+    }, 0);
   }
 
   private async fetchSuggestion(
-    noteId: string,
     context: string,
-    cursorPosition: number,
+    prefix: string,
+    workspaceId: string,
     cacheKey: string
   ): Promise<void> {
     this.abort();
@@ -72,43 +72,71 @@ export class GhostTextStore {
       this.suggestion = '';
     });
 
-    this.client = new SSEClient({
-      url: aiApi.getGhostTextUrl(noteId),
-      body: {
-        context,
-        cursor_position: cursorPosition,
-      },
-      onMessage: (event: SSEEvent) => {
-        if (event.type === 'token') {
+    this.abortController = new AbortController();
+
+    try {
+      // Backend returns JSON GhostTextResponse { suggestion, confidence, cached }
+      const { supabase } = await import('@/lib/supabase');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
+      const response = await fetch(aiApi.getGhostTextUrl(''), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          context: context.slice(-500),
+          prefix: prefix.slice(-200),
+          workspace_id: workspaceId,
+        }),
+        signal: this.abortController.signal,
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          // Rate limited - silently ignore, don't show error to user
           runInAction(() => {
-            this.suggestion += (event.data as { content: string }).content;
+            this.isLoading = false;
           });
+          return;
         }
-      },
-      onComplete: () => {
-        runInAction(() => {
-          this.isLoading = false;
-          // Cache the result
-          if (this.suggestion) {
-            this.cache.set(cacheKey, this.suggestion);
-            if (this.cache.size > this.maxCacheSize) {
-              const firstKey = this.cache.keys().next().value;
-              if (firstKey) {
-                this.cache.delete(firstKey);
-              }
+        throw new Error(`Ghost text request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      runInAction(() => {
+        this.suggestion = data.suggestion ?? '';
+        this.isLoading = false;
+
+        // Cache the result
+        if (this.suggestion) {
+          this.cache.set(cacheKey, this.suggestion);
+          if (this.cache.size > this.maxCacheSize) {
+            const firstKey = this.cache.keys().next().value;
+            if (firstKey) {
+              this.cache.delete(firstKey);
             }
           }
-        });
-      },
-      onError: (err) => {
-        runInAction(() => {
-          this.isLoading = false;
-          this.error = err.message;
-        });
-      },
-    });
-
-    await this.client.connect();
+        }
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // Request was aborted (user continued typing) - not an error
+        return;
+      }
+      runInAction(() => {
+        this.isLoading = false;
+        this.error = err instanceof Error ? err.message : 'Ghost text failed';
+      });
+    }
   }
 
   clearSuggestion(): void {
@@ -116,8 +144,8 @@ export class GhostTextStore {
   }
 
   abort(): void {
-    this.client?.abort();
-    this.client = null;
+    this.abortController?.abort();
+    this.abortController = null;
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;

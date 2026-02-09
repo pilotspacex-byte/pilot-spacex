@@ -19,6 +19,7 @@ import type {
 import { TokenBudgetRing } from '@/components/ui/token-budget-ring';
 import { ContextIndicator } from './ContextIndicator';
 import { SkillMenu } from './SkillMenu';
+import { useSkills } from '../hooks/useSkills';
 import { AgentMenu } from './AgentMenu';
 import { SessionResumeMenu, type SessionSummary } from './SessionResumeMenu';
 import { WorkingIndicator } from './WorkingIndicator';
@@ -79,6 +80,7 @@ export const ChatInput = observer<ChatInputProps>(
     onClearProjectContext,
     className,
   }) => {
+    const { skills: dynamicSkills } = useSkills();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const inputContainerRef = useRef<HTMLDivElement>(null);
     const [skillMenuOpen, setSkillMenuOpen] = useState(false);
@@ -257,6 +259,7 @@ export const ChatInput = observer<ChatInputProps>(
                 onOpenChange={setSkillMenuOpen}
                 onSelect={handleSkillSelect}
                 onCancel={handleSkillCancel}
+                skills={dynamicSkills}
                 popoverWidth={inputWidth ?? undefined}
               >
                 <Button

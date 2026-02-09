@@ -17,11 +17,10 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { Content, Editor } from '@tiptap/core';
 import { observer } from 'mobx-react-lite';
-import { reaction } from 'mobx';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { GhostTextContext } from '@/features/notes/editor/extensions/GhostTextExtension';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { getAIStore } from '@/stores/ai/AIStore';
 import { useSelectionContext } from '@/features/notes/editor/hooks/useSelectionContext';
 import { useContentUpdates } from '@/features/notes/editor/hooks/useContentUpdates';
@@ -42,6 +41,8 @@ import { NoteTitleBlock } from './NoteTitleBlock';
 import { CollapsedChatStrip } from './CollapsedChatStrip';
 import { OffScreenAIIndicator } from './OffScreenAIIndicator';
 import { useAIAutoScroll } from '@/hooks/useAIAutoScroll';
+import { useEditorSync } from './hooks/useEditorSync';
+import { NoteCanvasMobileLayout } from './NoteCanvasMobileLayout';
 import type { User } from '@/types';
 
 export interface NoteCanvasProps {
@@ -221,11 +222,21 @@ export const NoteCanvas = observer(function NoteCanvas({
   // Ghost text trigger function - delegates to GhostTextStore
   const handleGhostTextTrigger = useCallback(
     (context: GhostTextContext) => {
-      if (!noteId) return;
-      // Request suggestion from store (handles SSE streaming)
-      aiStore.ghostText.requestSuggestion(noteId, context.textBeforeCursor, context.cursorPosition);
+      if (!noteId || !resolvedWorkspaceId) return;
+      // Extract prefix (current line text) from textBeforeCursor
+      const lastNewline = context.textBeforeCursor.lastIndexOf('\n');
+      const prefix =
+        lastNewline >= 0
+          ? context.textBeforeCursor.slice(lastNewline + 1)
+          : context.textBeforeCursor;
+      aiStore.ghostText.requestSuggestion(
+        noteId,
+        context.textBeforeCursor,
+        prefix,
+        resolvedWorkspaceId
+      );
     },
-    [noteId, aiStore.ghostText]
+    [noteId, resolvedWorkspaceId, aiStore.ghostText]
   );
 
   // Auto-trigger margin annotations when content changes (debounced in store)
@@ -252,66 +263,6 @@ export const NoteCanvas = observer(function NoteCanvas({
 
   // State to track when editor is ready for MobX reactions
   const [isEditorReady, setIsEditorReady] = useState(false);
-
-  // Sync ghost text suggestion from store to editor
-  useEffect(() => {
-    // Use editorRef.current which is set in onCreate callback
-    const currentEditor = editorRef.current;
-    if (!currentEditor || currentEditor.isDestroyed) return;
-
-    const disposer = reaction(
-      () => aiStore.ghostText.suggestion,
-      (suggestion: string) => {
-        if (!currentEditor.isDestroyed) {
-          if (suggestion) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (currentEditor.commands as any).setGhostText?.(suggestion);
-          } else {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (currentEditor.commands as any).dismissGhostText?.();
-          }
-        }
-      },
-      { fireImmediately: true }
-    );
-
-    return () => disposer();
-  }, [isEditorReady, aiStore.ghostText]);
-
-  // Sync margin annotations from store to editor extension
-  useEffect(() => {
-    if (!isEditorReady || !noteId) return;
-
-    const disposer = reaction(
-      () => aiStore.marginAnnotation.getAnnotationsForNote(noteId),
-      (storeAnnotations) => {
-        // Build annotation data map for editor extension
-        const annotationMap = new Map();
-        storeAnnotations.forEach((annotation) => {
-          const existing = annotationMap.get(annotation.blockId) || {
-            blockId: annotation.blockId,
-            count: 0,
-            types: [],
-          };
-          existing.count += 1;
-          if (!existing.types.includes(annotation.type)) {
-            existing.types.push(annotation.type);
-          }
-          annotationMap.set(annotation.blockId, existing);
-        });
-
-        // Update editor extension
-        const currentEditor = editorRef.current;
-        if (currentEditor && !currentEditor.isDestroyed) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (currentEditor.commands as any).setAnnotations?.(annotationMap);
-        }
-      },
-      { fireImmediately: true }
-    );
-
-    return () => disposer();
-  }, [isEditorReady, noteId, aiStore.marginAnnotation]);
 
   // Create editor extensions with ghost text and margin annotations
   const extensions = useMemo(
@@ -437,12 +388,8 @@ export const NoteCanvas = observer(function NoteCanvas({
     }
   }, [editor, content]);
 
-  // Fetch persisted annotations on mount
-  useEffect(() => {
-    if (noteId && workspaceSlug && editor && !editor.isDestroyed) {
-      aiStore.marginAnnotation.fetchAnnotations(workspaceSlug, noteId);
-    }
-  }, [noteId, workspaceSlug, editor, aiStore.marginAnnotation]);
+  // Sync ghost text + margin annotations from MobX stores to editor
+  useEditorSync(editorRef, isEditorReady, aiStore, noteId, workspaceSlug, editor);
 
   // Track selection context for ChatView
   useSelectionContext(editor, aiStore.pilotSpace, noteId, title);
@@ -578,7 +525,12 @@ export const NoteCanvas = observer(function NoteCanvas({
       )}
 
       {/* Scrollable Editor Area */}
-      <div ref={editorContainerRef} className="relative flex-1 overflow-auto bg-background">
+      <div
+        ref={editorContainerRef}
+        role="main"
+        aria-label="Note editor"
+        className="relative flex-1 overflow-auto bg-background"
+      >
         {/* Selection Toolbar */}
         <SelectionToolbar
           editor={editor}
@@ -663,6 +615,7 @@ export const NoteCanvas = observer(function NoteCanvas({
                 onResize={handleChatPanelResize}
               >
                 <motion.aside
+                  aria-label="AI Chat Assistant"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -686,57 +639,13 @@ export const NoteCanvas = observer(function NoteCanvas({
 
       {/* Mobile/Tablet: Full-width editor with slide-over ChatView */}
       {isSmallScreen && (
-        <>
-          {/* Full-width editor */}
-          <div className="flex-1 min-w-0">{editorContent}</div>
-
-          {/* Mobile ChatView slide-over */}
-          <AnimatePresence mode="wait">
-            {isChatViewOpen && (
-              <>
-                {/* Backdrop */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
-                  onClick={() => setIsChatViewOpen(false)}
-                  aria-hidden="true"
-                />
-                {/* Slide-over panel */}
-                <motion.aside
-                  initial={{ x: '100%' }}
-                  animate={{ x: 0 }}
-                  exit={{ x: '100%' }}
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className={cn(
-                    'fixed inset-y-0 right-0 z-50',
-                    'w-full max-w-[400px] sm:max-w-[480px]',
-                    'bg-background border-l border-border shadow-xl'
-                  )}
-                >
-                  {/* Close button for mobile */}
-                  <div className="absolute top-3 right-3 z-10">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setIsChatViewOpen(false)}
-                      className="h-8 w-8 rounded-full"
-                    >
-                      <X className="h-4 w-4" />
-                      <span className="sr-only">Close ChatView</span>
-                    </Button>
-                  </div>
-                  <div className="h-full overflow-hidden">{chatViewContent}</div>
-                </motion.aside>
-              </>
-            )}
-          </AnimatePresence>
-
-          {/* Collapsed ChatView strip for mobile */}
-          {!isChatViewOpen && <CollapsedChatStrip onClick={handleChatViewOpen} />}
-        </>
+        <NoteCanvasMobileLayout
+          editorContent={editorContent}
+          chatViewContent={chatViewContent}
+          isChatViewOpen={isChatViewOpen}
+          onClose={() => setIsChatViewOpen(false)}
+          onOpen={handleChatViewOpen}
+        />
       )}
     </div>
   );

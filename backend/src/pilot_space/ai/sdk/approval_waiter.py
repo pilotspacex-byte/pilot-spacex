@@ -47,9 +47,10 @@ async def wait_for_approval(
     Returns:
         "approved", "rejected", or "expired".
     """
-    deadline = asyncio.get_event_loop().time() + timeout_seconds
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout_seconds
 
-    while asyncio.get_event_loop().time() < deadline:
+    while loop.time() < deadline:
         try:
             async with get_db_session() as session:
                 repo = ApprovalRepository(session)
@@ -160,9 +161,29 @@ def classify_urgency(tool_name: str) -> str:
     """Classify approval urgency based on tool name.
 
     Destructive operations -> high, content creation -> medium, other -> low.
+    Recognises both legacy ``_in_db`` names and MCP bare tool names.
     """
-    destructive = {"delete_issue_from_db", "merge_pull_request", "close_pull_request"}
-    content_creation = {"create_issue_in_db", "create_subtasks"}
+    destructive = {
+        "delete_issue_from_db",
+        "merge_pull_request",
+        "close_pull_request",
+        # MCP / canonical action names
+        "delete_issue",
+        "merge_pr",
+        "close_issue",
+        "unlink_issue_from_note",
+        "unlink_issues",
+        "archive_workspace",
+    }
+    content_creation = {
+        "create_issue_in_db",
+        "create_subtasks",
+        # MCP / canonical action names
+        "create_issue",
+        "create_note",
+        "create_project",
+        "extract_issues",
+    }
     if tool_name in destructive:
         return "high"
     if tool_name in content_creation:

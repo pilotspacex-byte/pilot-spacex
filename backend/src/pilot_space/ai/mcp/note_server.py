@@ -394,24 +394,82 @@ def create_note_tools_server(
 
     @tool(
         "link_existing_issues",
-        "Search for existing issues and link them to the note.",
+        "Search for existing issues in the workspace and return candidates "
+        "to link to the current note. Read-only search operation.",
         {
             "type": "object",
             "properties": {
-                "note_id": {"type": "string", "description": "UUID of the note"},
-                "search_query": {"type": "string", "description": "Search query"},
-                "workspace_id": {"type": "string", "description": "Workspace UUID"},
+                "note_id": {
+                    "type": "string",
+                    "description": "UUID of the note to link issues to",
+                },
+                "search_query": {
+                    "type": "string",
+                    "description": "Search query to find matching issues",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 10,
+                    "maximum": 50,
+                    "description": "Maximum number of results",
+                },
             },
-            "required": ["note_id", "search_query", "workspace_id"],
+            "required": ["note_id", "search_query"],
         },
     )
     async def link_existing_issues(args: dict[str, Any]) -> dict[str, Any]:
-        # Read-only search — no content_update event needed
-        logger.info("[NoteTools] link_existing_issues: query='%s'", args["search_query"])
-        return _text_result(
-            f"Issue search for '{args['search_query']}' is not yet implemented. "
-            "Please search manually in the issues list."
+        if not tool_context:
+            return _text_result("Error: tool_context not available")
+
+        from uuid import UUID
+
+        from pilot_space.infrastructure.database.repositories.issue_repository import (
+            IssueRepository,
         )
+
+        note_id = args["note_id"]
+        ws_err = await _verify_note_workspace(note_id)
+        if ws_err:
+            return _text_result(f"Error: {ws_err}")
+
+        try:
+            workspace_id = UUID(tool_context.workspace_id)
+            query = args["search_query"]
+            limit = min(args.get("limit", 10), 50)
+
+            repo = IssueRepository(tool_context.db_session)
+            issues = await repo.search_issues(
+                workspace_id=workspace_id,
+                search_term=query,
+                limit=limit,
+            )
+
+            results = [
+                {
+                    "id": str(issue.id),
+                    "name": issue.name,
+                    "state": issue.state.name if issue.state else "Unknown",
+                    "project": (issue.project.identifier if issue.project else None),
+                }
+                for issue in issues
+            ]
+
+            logger.info(
+                "[NoteTools] link_existing_issues: query='%s', found=%d",
+                query,
+                len(results),
+            )
+
+            if not results:
+                return _text_result(f"No issues found matching '{query}'.")
+
+            return _text_result(
+                f"Found {len(results)} issue(s) matching '{query}':\n"
+                + json.dumps(results, indent=2)
+            )
+        except Exception as e:
+            logger.exception("[NoteTools] link_existing_issues failed")
+            return _text_result(f"Error searching issues: {e!s}")
 
     @tool(
         "search_notes",
@@ -532,7 +590,7 @@ def create_note_tools_server(
         return _text_result(
             json.dumps(
                 {
-                    "status": "approval_required",
+                    "status": "pending_apply",
                     "operation": "create_note",
                     "payload": payload,
                 }
@@ -601,7 +659,7 @@ def create_note_tools_server(
         return _text_result(
             json.dumps(
                 {
-                    "status": "approval_required",
+                    "status": "pending_apply",
                     "operation": "update_note",
                     "payload": {"note_id": note_id, "changes": changes},
                 }
