@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from pilot_space.ai.agents.pilotspace_agent import PilotSpaceAgent
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
@@ -96,6 +97,7 @@ class RefineAIContextService:
         session: AsyncSession,
         ai_context_repository: AIContextRepository,
         issue_repository: IssueRepository,
+        pilotspace_agent: PilotSpaceAgent,
         tool_registry: ToolRegistry,
         provider_selector: ProviderSelector,
         cost_tracker: CostTracker,
@@ -107,6 +109,7 @@ class RefineAIContextService:
             session: Async database session.
             ai_context_repository: AIContext repository.
             issue_repository: Issue repository.
+            pilotspace_agent: Centralized PilotSpaceAgent for AI generation.
             tool_registry: MCP tool registry.
             provider_selector: Provider/model selection service.
             cost_tracker: Cost tracking service.
@@ -115,6 +118,7 @@ class RefineAIContextService:
         self._session = session
         self._context_repo = ai_context_repository
         self._issue_repo = issue_repository
+        self._pilotspace_agent = pilotspace_agent
         self._tool_registry = tool_registry
         self._provider_selector = provider_selector
         self._cost_tracker = cost_tracker
@@ -227,6 +231,7 @@ class RefineAIContextService:
 
         # Execute agent
         agent = AIContextAgent(
+            pilotspace_agent=self._pilotspace_agent,
             tool_registry=self._tool_registry,
             provider_selector=self._provider_selector,
             cost_tracker=self._cost_tracker,
@@ -364,6 +369,7 @@ class RefineAIContextService:
 
         # Stream from agent
         agent = AIContextAgent(
+            pilotspace_agent=self._pilotspace_agent,
             tool_registry=self._tool_registry,
             provider_selector=self._provider_selector,
             cost_tracker=self._cost_tracker,

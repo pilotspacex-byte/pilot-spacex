@@ -137,7 +137,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
     SUBAGENT_MAP: ClassVar[dict[str, str]] = {
         "pr-review": "PRReviewSubagent",
-        "ai-context": "AIContextSubagent",
+        # ai-context: now handled via ai-context skill (DD-086), no longer a subagent
         "doc-gen": "DocGeneratorSubagent",
     }
 
