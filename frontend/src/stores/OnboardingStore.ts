@@ -175,6 +175,13 @@ export class OnboardingStore {
   }
 
   /**
+   * Clean up timeouts to prevent memory leaks.
+   */
+  dispose(): void {
+    this.clearCelebration();
+  }
+
+  /**
    * Reset store to initial state.
    */
   reset(): void {

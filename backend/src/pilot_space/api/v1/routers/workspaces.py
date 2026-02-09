@@ -313,7 +313,13 @@ async def update_workspace(
     update_data = request.model_dump(exclude_unset=True)
     if update_data:
         for key, value in update_data.items():
-            setattr(workspace, key, value)
+            # M-2 fix: merge settings dict instead of replacing
+            if key == "settings" and isinstance(value, dict):
+                existing_settings = workspace.settings or {}
+                existing_settings.update(value)
+                workspace.settings = existing_settings
+            else:
+                setattr(workspace, key, value)
         workspace = await workspace_repo.update(workspace)
 
     logger.info(
@@ -347,15 +353,15 @@ async def delete_workspace(
     """
     workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
 
-    # Check admin role
+    # H-6 fix: workspace deletion is destructive — requires owner role, not just admin
     member = next(
         (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
         None,
     )
-    if not member or not member.is_admin:
+    if not member or not member.is_owner:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
+            detail="Owner role required to delete workspace",
         )
 
     await workspace_repo.delete(workspace)

@@ -1,34 +1,23 @@
 'use client';
 
 import { makeAutoObservable, runInAction, computed } from 'mobx';
-import type { Workspace, User } from '@/types';
+import type {
+  Workspace,
+  WorkspaceRole,
+  WorkspaceMember,
+  CreateWorkspaceData,
+  UpdateWorkspaceData,
+  InviteMemberData,
+} from '@/types';
 import type { AuthStore } from './AuthStore';
 
-export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest';
-
-export interface WorkspaceMember {
-  id: string;
-  userId: string;
-  user: User;
-  workspaceId: string;
-  role: WorkspaceRole;
-  joinedAt: string;
-}
-
-export interface CreateWorkspaceData {
-  name: string;
-  slug?: string;
-}
-
-export interface UpdateWorkspaceData {
-  name?: string;
-  slug?: string;
-}
-
-export interface InviteMemberData {
-  email: string;
-  role: WorkspaceRole;
-}
+export type {
+  WorkspaceRole,
+  WorkspaceMember,
+  CreateWorkspaceData,
+  UpdateWorkspaceData,
+  InviteMemberData,
+};
 
 interface WorkspaceApi {
   list(): Promise<{ items: Workspace[] }>;
