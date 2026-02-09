@@ -10,6 +10,9 @@ import {
   FileText,
   LayoutGrid,
   FolderKanban,
+  MessageSquare,
+  CheckSquare,
+  DollarSign,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -18,16 +21,17 @@ import {
   PinIcon,
   Clock,
   Loader2,
-  Bell,
   LogOut,
   User,
   X,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import { useUIStore, useNoteStore, useNotificationStore, useAuthStore } from '@/stores';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -37,12 +41,17 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useResponsive } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 import type { AuthStore } from '@/stores/AuthStore';
 import type { NotificationStore } from '@/stores/NotificationStore';
+import type { UIStore } from '@/stores/UIStore';
+import { NotificationPanel } from '@/components/layout/notification-panel';
 import { addRecentWorkspace } from '@/components/workspace-selector';
 
 const navigationItems = [
@@ -50,33 +59,33 @@ const navigationItems = [
   { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes' },
   { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues' },
   { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects' },
+  { name: 'AI Chat', path: 'chat', icon: MessageSquare, testId: 'nav-chat' },
+  { name: 'Approvals', path: 'approvals', icon: CheckSquare, testId: 'nav-approvals' },
+  { name: 'Costs', path: 'costs', icon: DollarSign, testId: 'nav-costs' },
 ];
-
-/**
- * Small red dot indicator for unread notifications on user avatar
- */
-const NotificationDot = () => (
-  <span
-    className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar"
-    aria-hidden="true"
-    data-testid="notification-dot"
-  />
-);
 
 /**
  * Claude iOS-inspired user card: single trigger with unified dropdown.
  * Consolidates notification bell, user avatar, profile, and settings.
  */
+const THEME_OPTIONS = [
+  { value: 'light' as const, label: 'Light', icon: Sun },
+  { value: 'dark' as const, label: 'Dark', icon: Moon },
+  { value: 'system' as const, label: 'System', icon: Monitor },
+];
+
 export const SidebarUserControls = observer(function SidebarUserControls({
   collapsed,
   workspaceSlug,
   authStore,
   notificationStore,
+  uiStore,
 }: {
   collapsed: boolean;
   workspaceSlug: string;
   authStore: AuthStore;
   notificationStore: NotificationStore;
+  uiStore: UIStore;
 }) {
   const router = useRouter();
 
@@ -85,7 +94,8 @@ export const SidebarUserControls = observer(function SidebarUserControls({
   const rawInitials = authStore.userInitials;
   const initials =
     rawInitials && rawInitials !== '??' ? rawInitials : displayName.charAt(0).toUpperCase();
-  const hasUnread = notificationStore.unreadCount > 0;
+
+  const ThemeIcon = uiStore.theme === 'dark' ? Moon : uiStore.theme === 'light' ? Sun : Monitor;
 
   const dropdownContent = (
     <DropdownMenuContent side="right" align="end" className="w-56">
@@ -104,18 +114,24 @@ export const SidebarUserControls = observer(function SidebarUserControls({
         </div>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
-      <DropdownMenuItem
-        className="text-xs gap-2"
-        onSelect={() => notificationStore.markAllAsRead()}
-      >
-        <Bell className="h-3.5 w-3.5" />
-        Notifications
-        {hasUnread && (
-          <Badge variant="destructive" className="ml-auto h-4 min-w-4 px-1 text-[9px]">
-            {notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount}
-          </Badge>
-        )}
-      </DropdownMenuItem>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger className="text-xs gap-2">
+          <ThemeIcon className="h-3.5 w-3.5" />
+          Theme
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {THEME_OPTIONS.map((option) => (
+            <DropdownMenuItem
+              key={option.value}
+              className={cn('text-xs gap-2', uiStore.theme === option.value && 'font-semibold')}
+              onSelect={() => uiStore.setTheme(option.value)}
+            >
+              <option.icon className="h-3.5 w-3.5" />
+              {option.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
       <DropdownMenuItem
         className="text-xs gap-2"
         onSelect={() => router.push(`/${workspaceSlug}/settings/profile`)}
@@ -144,7 +160,8 @@ export const SidebarUserControls = observer(function SidebarUserControls({
 
   if (collapsed) {
     return (
-      <div className="flex items-center justify-center border-t border-sidebar-border p-1.5">
+      <div className="flex items-center justify-center gap-1 border-t border-sidebar-border p-1.5">
+        <NotificationPanel store={notificationStore} collapsed />
         <DropdownMenu>
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
@@ -161,7 +178,6 @@ export const SidebarUserControls = observer(function SidebarUserControls({
                       {initials}
                     </AvatarFallback>
                   </Avatar>
-                  {hasUnread && <NotificationDot />}
                 </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>
@@ -174,22 +190,20 @@ export const SidebarUserControls = observer(function SidebarUserControls({
   }
 
   return (
-    <div className="border-t border-sidebar-border px-2 py-2">
+    <div className="flex items-center gap-1 border-t border-sidebar-border px-2 py-2">
+      <NotificationPanel store={notificationStore} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-sidebar-accent/50"
+            className="flex flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-sidebar-accent/50"
             aria-label="Account"
           >
-            <div className="relative shrink-0">
-              <Avatar className="h-7 w-7 border border-border">
-                <AvatarImage src={authStore.user?.avatarUrl ?? ''} alt="User" />
-                <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-medium">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              {hasUnread && <NotificationDot />}
-            </div>
+            <Avatar className="h-7 w-7 shrink-0 border border-border">
+              <AvatarImage src={authStore.user?.avatarUrl ?? ''} alt="User" />
+              <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-medium">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-sidebar-foreground truncate">{displayName}</p>
             </div>
@@ -464,6 +478,7 @@ export const Sidebar = observer(function Sidebar() {
         workspaceSlug={workspaceSlug}
         authStore={authStore}
         notificationStore={notificationStore}
+        uiStore={uiStore}
       />
 
       {/* Collapse Toggle — close button on mobile, chevron toggle on desktop */}

@@ -83,7 +83,9 @@ async def _verify_workspace_membership(
     Raises:
         HTTPException: If workspace not found or user lacks required access.
     """
-    workspace = await workspace_repo.get_by_id(workspace_id)
+    # H-4 fix: Use get_with_members to eagerly load members and avoid
+    # MissingGreenlet errors when iterating workspace.members in async context.
+    workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

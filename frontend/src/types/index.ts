@@ -216,6 +216,8 @@ export interface Project {
 }
 
 // Workspace Types
+export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest';
+
 export interface Workspace {
   id: string;
   name: string;
@@ -228,14 +230,40 @@ export interface Workspace {
   updatedAt: string;
 }
 
+export interface WorkspaceMember {
+  id: string;
+  userId: string;
+  user: User;
+  workspaceId: string;
+  role: WorkspaceRole;
+  joinedAt: string;
+}
+
+export interface CreateWorkspaceData {
+  name: string;
+  slug?: string;
+  description?: string;
+}
+
+export interface UpdateWorkspaceData {
+  name?: string;
+  slug?: string;
+  description?: string;
+}
+
+export interface InviteMemberData {
+  email: string;
+  role: WorkspaceRole;
+}
+
 // User Types
 export interface User {
   id: string;
   email: string;
   name: string;
   avatarUrl?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Label Types

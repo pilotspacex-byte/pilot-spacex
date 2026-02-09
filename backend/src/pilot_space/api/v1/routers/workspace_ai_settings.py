@@ -25,7 +25,6 @@ from pilot_space.dependencies import (
     DbSession,
 )
 from pilot_space.infrastructure.database.models.workspace import Workspace
-from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.database.repositories.workspace_repository import (
     WorkspaceRepository,
 )
@@ -69,8 +68,9 @@ async def _get_admin_workspace(
     Raises:
         HTTPException: If workspace not found or user not admin.
     """
+    # H-4 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
     workspace_repo = WorkspaceRepository(session=session)
-    workspace = await workspace_repo.get_by_id(workspace_id)
+    workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

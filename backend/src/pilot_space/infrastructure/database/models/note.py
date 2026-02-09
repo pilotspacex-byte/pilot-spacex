@@ -25,6 +25,7 @@ from pilot_space.infrastructure.database.base import WorkspaceScopedModel
 from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
+    from pilot_space.infrastructure.database.models.ai_session import AISession
     from pilot_space.infrastructure.database.models.note_annotation import (
         NoteAnnotation,
     )
@@ -53,6 +54,7 @@ class Note(WorkspaceScopedModel):
         template_id: Optional FK to Template used as base.
         owner_id: FK to User who created the note.
         project_id: Optional FK to Project (notes can be project-scoped).
+        source_chat_session_id: Optional FK to AISession (Homepage Hub chat origin).
         annotations: AI annotations in right margin.
         discussions: Threaded discussions on the note.
     """
@@ -126,6 +128,13 @@ class Note(WorkspaceScopedModel):
         nullable=True,
     )
 
+    # Homepage Hub: link to originating AI chat session (US-19)
+    source_chat_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ai_sessions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Relationships
     template: Mapped[Template | None] = relationship(
         "Template",
@@ -139,6 +148,10 @@ class Note(WorkspaceScopedModel):
     project: Mapped[Project | None] = relationship(
         "Project",
         lazy="joined",
+    )
+    source_chat_session: Mapped[AISession | None] = relationship(
+        "AISession",
+        lazy="selectin",
     )
     annotations: Mapped[list[NoteAnnotation]] = relationship(
         "NoteAnnotation",
@@ -169,6 +182,7 @@ class Note(WorkspaceScopedModel):
         Index("ix_notes_is_deleted", "is_deleted"),
         Index("ix_notes_is_guided_template", "is_guided_template"),
         Index("ix_notes_created_at", "created_at"),
+        Index("ix_notes_source_chat_session_id", "source_chat_session_id"),
         # Full-text search index on title
         Index(
             "ix_notes_title_text",

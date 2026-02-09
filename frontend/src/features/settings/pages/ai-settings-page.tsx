@@ -66,7 +66,7 @@ export const AISettingsPage = observer(function AISettingsPage() {
   }
 
   return (
-    <div className="max-w-3xl px-8 py-6">
+    <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="space-y-6">
         {/* Header */}
         <div className="space-y-1">

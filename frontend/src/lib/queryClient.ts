@@ -140,4 +140,12 @@ export const queryKeys = {
     results: (query: string, scope?: string) =>
       [...queryKeys.search.all, 'results', query, scope] as const,
   },
+
+  // Homepage Hub (US-19)
+  homepage: {
+    all: ['homepage'] as const,
+    activity: (workspaceId: string) =>
+      [...queryKeys.homepage.all, 'activity', workspaceId] as const,
+    digest: (workspaceId: string) => [...queryKeys.homepage.all, 'digest', workspaceId] as const,
+  },
 } as const;

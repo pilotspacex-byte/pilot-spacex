@@ -1,6 +1,6 @@
 'use client';
 
-import { makeAutoObservable, reaction, computed } from 'mobx';
+import { makeAutoObservable, reaction, computed, type IReactionDisposer } from 'mobx';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -43,6 +43,7 @@ export class UIStore {
   toasts: Toast[] = [];
 
   private toastTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  private reactionDisposers: IReactionDisposer[] = [];
 
   constructor() {
     makeAutoObservable(this, {
@@ -101,7 +102,7 @@ export class UIStore {
   }
 
   private setupPersistence(): void {
-    reaction(
+    const persistDisposer = reaction(
       () => ({
         sidebarCollapsed: this.sidebarCollapsed,
         sidebarWidth: this.sidebarWidth,
@@ -119,7 +120,7 @@ export class UIStore {
       }
     );
 
-    reaction(
+    const themeDisposer = reaction(
       () => this.resolvedTheme,
       (theme) => {
         if (typeof document === 'undefined') return;
@@ -129,6 +130,8 @@ export class UIStore {
       },
       { fireImmediately: true }
     );
+
+    this.reactionDisposers.push(persistDisposer, themeDisposer);
   }
 
   toggleSidebar(): void {
@@ -266,6 +269,14 @@ export class UIStore {
     this.commandPaletteOpen = false;
     this.searchModalOpen = false;
     this.modals.clear();
+    this.clearAllToasts();
+  }
+
+  dispose(): void {
+    for (const disposer of this.reactionDisposers) {
+      disposer();
+    }
+    this.reactionDisposers = [];
     this.clearAllToasts();
   }
 }
