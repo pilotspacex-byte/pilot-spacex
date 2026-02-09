@@ -236,6 +236,7 @@ class TestCreateIssueTool:
                 {
                     "project_id": "PILOT",
                     "title": "New Bug",
+                    "description": "Bug found in login flow",
                     "priority": "high",
                 }
             )
@@ -277,7 +278,9 @@ class TestCreateIssueTool:
             "pilot_space.ai.mcp.issue_server.resolve_entity_id_strict",
             side_effect=EntityResolutionError("Project 'INVALID' not found"),
         ):
-            result = await tools["create_issue"].handler({"project_id": "INVALID", "title": "X"})
+            result = await tools["create_issue"].handler(
+                {"project_id": "INVALID", "title": "X", "description": "Test"}
+            )
         assert "error" in result["content"][0]["text"].lower()
 
 

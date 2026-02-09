@@ -309,7 +309,9 @@ def create_issue_tools_server(
         if args.get("project_id"):
             try:
                 filters.project_id = await resolve_entity_id_strict(
-                    "project", args["project_id"], tool_context,
+                    "project",
+                    args["project_id"],
+                    tool_context,
                 )
             except EntityResolutionError as e:
                 return _text_result(f"Error: {e}")
@@ -413,7 +415,7 @@ def create_issue_tools_server(
                     "description": "Due date (ISO format: YYYY-MM-DD)",
                 },
             },
-            "required": ["project_id", "title"],
+            "required": ["project_id", "title", "description"],
         },
     )
     async def create_issue(args: dict[str, Any]) -> dict[str, Any]:
@@ -422,7 +424,9 @@ def create_issue_tools_server(
 
         # Resolve project_id
         try:
-            project_uuid = await resolve_entity_id_strict("project", args["project_id"], tool_context)
+            project_uuid = await resolve_entity_id_strict(
+                "project", args["project_id"], tool_context
+            )
         except EntityResolutionError as e:
             return _text_result(f"Error: {e}")
 

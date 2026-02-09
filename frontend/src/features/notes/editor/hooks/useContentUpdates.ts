@@ -265,111 +265,119 @@ export function useContentUpdates(
     const dispose = reaction(
       () => store.pendingContentUpdates.length,
       () => {
-        // Process all updates for this note
-        const processUpdates = async () => {
-          let update = store.consumeContentUpdate(noteId);
-          while (update) {
-            // Add block to processing indicator
-            const blockId = update.blockId || update.issueData?.sourceBlockId || null;
-            if (blockId) {
-              setProcessingBlockIds((prev) => (prev.includes(blockId) ? prev : [...prev, blockId]));
-            }
-
-            const success = await applyContentUpdate(update, userEditingBlockRef.current);
-
-            // Resolve scroll target: use blockId if available, otherwise detect
-            // the last inserted block for append/insert operations (e.g. write_to_note
-            // returns blockId=null because content is appended at document end).
-            let scrollTargetId = blockId;
-            if (success && !scrollTargetId && editor) {
-              if (update.operation === 'append_blocks' || update.operation === 'insert_blocks') {
-                const { doc } = editor.state;
-                let lastBlockId: string | null = null;
-                doc.descendants((node) => {
-                  const bid = node.attrs?.blockId;
-                  if (typeof bid === 'string' && bid) lastBlockId = bid;
-                  return true;
-                });
-                scrollTargetId = lastBlockId;
-                if (scrollTargetId) {
-                  setProcessingBlockIds((prev) =>
-                    prev.includes(scrollTargetId!) ? prev : [...prev, scrollTargetId!]
-                  );
-                }
-              }
-            }
-
-            if (success) {
-              // Transition pending-edit → streaming-reveal with CSS bridge
+        // Defer to microtask to avoid flushSync conflict.
+        // TipTap's ReactRenderer calls flushSync when creating NodeViews,
+        // which conflicts with React's render cycle if triggered from
+        // a MobX reaction during observer re-render.
+        queueMicrotask(() => {
+          // Process all updates for this note
+          const processUpdates = async () => {
+            let update = store.consumeContentUpdate(noteId);
+            while (update) {
+              // Add block to processing indicator
+              const blockId = update.blockId || update.issueData?.sourceBlockId || null;
               if (blockId) {
-                store.removePendingAIBlockId(blockId);
-                // Apply streaming-reveal first (CSS bridge handles both classes)
-                // then remove pending-edit after transition completes
-                highlightBlock(blockId, 'streaming-reveal');
-                const transitionTimer = setTimeout(() => {
-                  activeTimeoutsRef.current.delete(transitionTimer);
-                  const el = document.querySelector(`[data-block-id="${blockId}"]`);
-                  if (el) el.classList.remove('ai-block-pending-edit');
-                }, 300); // Match CSS transition duration
-                activeTimeoutsRef.current.add(transitionTimer);
+                setProcessingBlockIds((prev) =>
+                  prev.includes(blockId) ? prev : [...prev, blockId]
+                );
               }
 
-              // Apply visual highlight after successful operation
-              if (update.operation === 'replace_block' && blockId) {
-                highlightBlock(blockId, 'streaming-reveal');
-              } else if (
-                update.operation === 'append_blocks' ||
-                update.operation === 'insert_blocks'
-              ) {
-                // For inserted blocks, highlight the last newly inserted block
-                if (scrollTargetId && scrollTargetId !== blockId) {
-                  highlightBlock(scrollTargetId, 'new');
-                } else {
-                  // Fallback: try sibling-based detection from anchor
-                  const anchorId = update.afterBlockId || update.beforeBlockId;
-                  if (anchorId) {
-                    const anchorEl = document.querySelector(`[data-block-id="${anchorId}"]`);
-                    const sibling = update.beforeBlockId
-                      ? anchorEl?.previousElementSibling
-                      : anchorEl?.nextElementSibling;
-                    const newBlockId = sibling?.getAttribute('data-block-id');
-                    if (newBlockId) {
-                      highlightBlock(newBlockId, 'new');
-                    }
+              const success = await applyContentUpdate(update, userEditingBlockRef.current);
+
+              // Resolve scroll target: use blockId if available, otherwise detect
+              // the last inserted block for append/insert operations (e.g. write_to_note
+              // returns blockId=null because content is appended at document end).
+              let scrollTargetId = blockId;
+              if (success && !scrollTargetId && editor) {
+                if (update.operation === 'append_blocks' || update.operation === 'insert_blocks') {
+                  const { doc } = editor.state;
+                  let lastBlockId: string | null = null;
+                  doc.descendants((node) => {
+                    const bid = node.attrs?.blockId;
+                    if (typeof bid === 'string' && bid) lastBlockId = bid;
+                    return true;
+                  });
+                  scrollTargetId = lastBlockId;
+                  if (scrollTargetId) {
+                    setProcessingBlockIds((prev) =>
+                      prev.includes(scrollTargetId!) ? prev : [...prev, scrollTargetId!]
+                    );
                   }
                 }
               }
 
-              // Delay removal from processingBlockIds so the auto-scroll hook and
-              // animation have time to detect and react. Without this delay, React 18
-              // batching merges the add+remove into a no-op.
-              const targetToClean = scrollTargetId || blockId;
-              if (targetToClean) {
-                const processingTimer = setTimeout(() => {
-                  activeTimeoutsRef.current.delete(processingTimer);
+              if (success) {
+                // Transition pending-edit → streaming-reveal with CSS bridge
+                if (blockId) {
+                  store.removePendingAIBlockId(blockId);
+                  // Apply streaming-reveal first (CSS bridge handles both classes)
+                  // then remove pending-edit after transition completes
+                  highlightBlock(blockId, 'streaming-reveal');
+                  const transitionTimer = setTimeout(() => {
+                    activeTimeoutsRef.current.delete(transitionTimer);
+                    const el = document.querySelector(`[data-block-id="${blockId}"]`);
+                    if (el) el.classList.remove('ai-block-pending-edit');
+                  }, 300); // Match CSS transition duration
+                  activeTimeoutsRef.current.add(transitionTimer);
+                }
+
+                // Apply visual highlight after successful operation
+                if (update.operation === 'replace_block' && blockId) {
+                  highlightBlock(blockId, 'streaming-reveal');
+                } else if (
+                  update.operation === 'append_blocks' ||
+                  update.operation === 'insert_blocks'
+                ) {
+                  // For inserted blocks, highlight the last newly inserted block
+                  if (scrollTargetId && scrollTargetId !== blockId) {
+                    highlightBlock(scrollTargetId, 'new');
+                  } else {
+                    // Fallback: try sibling-based detection from anchor
+                    const anchorId = update.afterBlockId || update.beforeBlockId;
+                    if (anchorId) {
+                      const anchorEl = document.querySelector(`[data-block-id="${anchorId}"]`);
+                      const sibling = update.beforeBlockId
+                        ? anchorEl?.previousElementSibling
+                        : anchorEl?.nextElementSibling;
+                      const newBlockId = sibling?.getAttribute('data-block-id');
+                      if (newBlockId) {
+                        highlightBlock(newBlockId, 'new');
+                      }
+                    }
+                  }
+                }
+
+                // Delay removal from processingBlockIds so the auto-scroll hook and
+                // animation have time to detect and react. Without this delay, React 18
+                // batching merges the add+remove into a no-op.
+                const targetToClean = scrollTargetId || blockId;
+                if (targetToClean) {
+                  const processingTimer = setTimeout(() => {
+                    activeTimeoutsRef.current.delete(processingTimer);
+                    setProcessingBlockIds((prev) => prev.filter((id) => id !== targetToClean));
+                  }, 1300); // Match streaming-reveal animation duration
+                  activeTimeoutsRef.current.add(processingTimer);
+                }
+              } else {
+                // Failed: remove from processing immediately
+                const targetToClean = scrollTargetId || blockId;
+                if (targetToClean) {
                   setProcessingBlockIds((prev) => prev.filter((id) => id !== targetToClean));
-                }, 1300); // Match streaming-reveal animation duration
-                activeTimeoutsRef.current.add(processingTimer);
+                }
               }
-            } else {
-              // Failed: remove from processing immediately
-              const targetToClean = scrollTargetId || blockId;
-              if (targetToClean) {
-                setProcessingBlockIds((prev) => prev.filter((id) => id !== targetToClean));
+
+              // Add to retry queue if conflict occurred
+              if (!success && update.blockId) {
+                addToRetryQueue(update);
               }
-            }
 
-            // Add to retry queue if conflict occurred
-            if (!success && update.blockId) {
-              addToRetryQueue(update);
+              update = store.consumeContentUpdate(noteId);
             }
-
-            update = store.consumeContentUpdate(noteId);
-          }
-        };
-        processUpdates().catch((err) => {
-          console.error('[AI] Failed to process content updates:', err);
-        });
+          };
+          processUpdates().catch((err) => {
+            console.error('[AI] Failed to process content updates:', err);
+          });
+        }); // end queueMicrotask
       }
     );
 

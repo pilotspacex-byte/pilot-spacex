@@ -449,8 +449,14 @@ export const NoteCanvas = observer(function NoteCanvas({
       (editor.storage as unknown as Record<string, unknown>).aiBlockProcessing = {
         processingBlockIds,
       };
-      // Force decoration update by dispatching an empty transaction
-      editor.view.dispatch(editor.state.tr);
+      // Defer dispatch to avoid flushSync inside React commit phase.
+      // TipTap internally calls flushSync during dispatchTransaction,
+      // which conflicts with React's render cycle when triggered from useEffect.
+      queueMicrotask(() => {
+        if (!editor.isDestroyed) {
+          editor.view.dispatch(editor.state.tr);
+        }
+      });
     }
   }, [editor, processingBlockIds]);
 

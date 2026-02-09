@@ -41,15 +41,20 @@ export function useEditorSync(
     const disposer = reaction(
       () => aiStore.ghostText.suggestion,
       (suggestion: string) => {
-        if (!currentEditor.isDestroyed) {
-          if (suggestion) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (currentEditor.commands as any).setGhostText?.(suggestion);
-          } else {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (currentEditor.commands as any).dismissGhostText?.();
+        // Defer to avoid flushSync conflict: TipTap's ReactRenderer calls
+        // flushSync when dispatching transactions, which conflicts with
+        // React's render cycle if triggered from a MobX reaction.
+        queueMicrotask(() => {
+          if (!currentEditor.isDestroyed) {
+            if (suggestion) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (currentEditor.commands as any).setGhostText?.(suggestion);
+            } else {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (currentEditor.commands as any).dismissGhostText?.();
+            }
           }
-        }
+        });
       },
       { fireImmediately: true }
     );
@@ -64,27 +69,30 @@ export function useEditorSync(
     const disposer = reaction(
       () => aiStore.marginAnnotation.getAnnotationsForNote(noteId),
       (storeAnnotations) => {
-        // Build annotation data map for editor extension
-        const annotationMap = new Map();
-        storeAnnotations.forEach((annotation) => {
-          const existing = annotationMap.get(annotation.blockId) || {
-            blockId: annotation.blockId,
-            count: 0,
-            types: [],
-          };
-          existing.count += 1;
-          if (!existing.types.includes(annotation.type)) {
-            existing.types.push(annotation.type);
-          }
-          annotationMap.set(annotation.blockId, existing);
-        });
+        // Defer to avoid flushSync conflict with TipTap's ReactRenderer.
+        queueMicrotask(() => {
+          // Build annotation data map for editor extension
+          const annotationMap = new Map();
+          storeAnnotations.forEach((annotation) => {
+            const existing = annotationMap.get(annotation.blockId) || {
+              blockId: annotation.blockId,
+              count: 0,
+              types: [],
+            };
+            existing.count += 1;
+            if (!existing.types.includes(annotation.type)) {
+              existing.types.push(annotation.type);
+            }
+            annotationMap.set(annotation.blockId, existing);
+          });
 
-        // Update editor extension
-        const currentEditor = editorRef.current;
-        if (currentEditor && !currentEditor.isDestroyed) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (currentEditor.commands as any).setAnnotations?.(annotationMap);
-        }
+          // Update editor extension
+          const currentEditor = editorRef.current;
+          if (currentEditor && !currentEditor.isDestroyed) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (currentEditor.commands as any).setAnnotations?.(annotationMap);
+          }
+        });
       },
       { fireImmediately: true }
     );

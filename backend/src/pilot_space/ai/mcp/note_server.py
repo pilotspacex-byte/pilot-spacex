@@ -290,7 +290,7 @@ def create_note_tools_server(
                                 "enum": ["bug", "task", "feature", "improvement"],
                             },
                         },
-                        "required": ["title"],
+                        "required": ["title", "description"],
                     },
                     "description": "Issues to create",
                 },
@@ -317,8 +317,8 @@ def create_note_tools_server(
         for issue in issues:
             normalized_issues.append(
                 {
-                    "title": issue.get("title", "Untitled Issue"),
-                    "description": issue.get("description", ""),
+                    "title": issue["title"],
+                    "description": issue["description"],
                     "priority": issue.get("priority", "medium"),
                     "type": issue.get("type", "task"),
                 }
