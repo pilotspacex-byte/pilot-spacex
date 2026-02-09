@@ -81,13 +81,6 @@ function generateBlockId(): string {
 }
 
 /**
- * Checks if a node is a block-level node
- */
-function isBlockNode(node: ProseMirrorNode): boolean {
-  return node.isBlock && !node.isTextblock;
-}
-
-/**
  * BlockIdExtension ensures every block-level node has a unique ID
  * Used for:
  * - Linking annotations to specific blocks
@@ -159,8 +152,8 @@ export const BlockIdExtension = Extension.create<BlockIdOptions>({
               return true;
             }
 
-            // Skip non-block nodes
-            if (!isBlockNode(node) && node.type.name !== 'paragraph') {
+            // Skip non-block nodes (text, inline marks, etc.)
+            if (!node.isBlock) {
               return true;
             }
 

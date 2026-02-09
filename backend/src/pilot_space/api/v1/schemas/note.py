@@ -15,6 +15,7 @@ from uuid import UUID
 from pydantic import Field, field_validator
 
 from pilot_space.api.v1.schemas.base import BaseSchema, EntitySchema, PaginatedResponse
+from pilot_space.api.v1.schemas.issue import IssueBriefResponse
 
 
 class NoteBlockSchema(BaseSchema):
@@ -137,6 +138,10 @@ class NoteDetailResponse(NoteResponse):
     discussion_count: int = Field(
         default=0,
         description="Number of discussions",
+    )
+    linked_issues: list[IssueBriefResponse] = Field(
+        default_factory=list,
+        description="Issues linked to this note",
     )
 
 

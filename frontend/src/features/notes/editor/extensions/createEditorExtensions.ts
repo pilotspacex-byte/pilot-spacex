@@ -7,6 +7,10 @@ import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableCell } from '@tiptap/extension-table-cell';
 import { Markdown } from 'tiptap-markdown';
 import type { AnyExtension, Editor } from '@tiptap/core';
 
@@ -218,6 +222,19 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
       },
     })
   );
+
+  // Table support (for markdown tables from AI content)
+  extensions.push(
+    Table.configure({
+      resizable: false,
+      HTMLAttributes: {
+        class: 'note-table',
+      },
+    })
+  );
+  extensions.push(TableRow);
+  extensions.push(TableHeader);
+  extensions.push(TableCell);
 
   // Placeholder
   extensions.push(

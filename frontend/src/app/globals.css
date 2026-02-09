@@ -977,7 +977,7 @@
 
 /* =============================================================================
    INLINE ISSUE NODE - TipTap NodeView styling
-   Uses border-image for gradient borders (no pseudo-element conflicts)
+   Rainbow border on hover with pulse animation (border-only, not background)
    ============================================================================= */
 .inline-issue-node {
   position: relative;
@@ -995,14 +995,17 @@
   border: 2px solid var(--border-subtle);
   transition:
     border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
     filter var(--duration-fast) var(--ease-out);
 }
 
+/* Gradient border via masked ::before pseudo-element (border-only, hollow center) */
 .inline-issue-node::before {
   content: '';
   position: absolute;
   inset: -2px;
   border-radius: calc(var(--radius-md) + 2px);
+  padding: 2px;
   background: linear-gradient(
     90deg,
     var(--primary) 0%,
@@ -1011,37 +1014,61 @@
     #e74c8c 75%,
     var(--primary) 100%
   );
-  z-index: -1;
+  /* Mask to hollow out center — only the 2px border ring is visible */
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  z-index: 1;
+  pointer-events: none;
   opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-out);
+  transition: opacity var(--duration-normal) var(--ease-out);
 }
 
-/* Hover: show rainbow gradient */
+/* Hover: show rainbow gradient border + subtle glow */
 .inline-issue-node:hover {
   border-color: transparent;
 }
 
 .inline-issue-node:hover::before {
   opacity: 1;
+  animation: rainbow-border-rotate 3s linear infinite;
 }
 
-/* New issues show rainbow gradient with hue-rotate animation */
+/* New issues: pulse border animation on entry */
 .inline-issue-node.issue-rainbow-border {
   border-color: transparent;
 }
 
 .inline-issue-node.issue-rainbow-border::before {
   opacity: 1;
-  animation: issue-border-pulse 2s ease-in-out infinite;
+  animation:
+    rainbow-border-rotate 3s linear infinite,
+    rainbow-border-pulse 2s ease-in-out infinite;
 }
 
-@keyframes issue-border-pulse {
-  0%,
-  100% {
+/* Smooth hue rotation for rainbow cycling */
+@keyframes rainbow-border-rotate {
+  0% {
     filter: hue-rotate(0deg);
   }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+
+/* Pulse glow effect on border */
+@keyframes rainbow-border-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
   50% {
-    filter: hue-rotate(30deg);
+    opacity: 1;
   }
 }
 
@@ -1067,38 +1094,32 @@
   text-overflow: ellipsis;
 }
 
-/* Issue type variants - warm thematic gradients via ::before */
-.inline-issue-node.type-bug {
-  border-color: transparent;
-}
-.inline-issue-node.type-bug::before {
-  opacity: 1;
+/* Issue type variants - thematic gradient on hover only */
+.inline-issue-node.type-bug:hover::before {
   background: linear-gradient(90deg, #d9534f 0%, #d9853f 40%, #c4a035 100%);
 }
 
-.inline-issue-node.type-improvement {
-  border-color: transparent;
-}
-.inline-issue-node.type-improvement::before {
-  opacity: 1;
+.inline-issue-node.type-improvement:hover::before {
   background: linear-gradient(90deg, #29a386 0%, #3cb8a0 40%, #5bb8d0 100%);
 }
 
-.inline-issue-node.type-feature {
-  border-color: transparent;
-}
-.inline-issue-node.type-feature::before {
-  opacity: 1;
+.inline-issue-node.type-feature:hover::before {
   background: linear-gradient(90deg, #6b5b95 0%, #6b8fad 40%, #4a7fb5 100%);
 }
 
-/* .type-task uses default rainbow gradient */
+/* .type-task uses default rainbow gradient on hover */
 
-/* Done state - solid green border */
+/* Done state - solid green border, no rainbow */
 .inline-issue-node.state-done {
   border-color: var(--state-done);
 }
 .inline-issue-node.state-done::before {
+  display: none;
+}
+.inline-issue-node.state-done:hover {
+  border-color: var(--state-done);
+}
+.inline-issue-node.state-done:hover::before {
   display: none;
 }
 
@@ -1128,7 +1149,7 @@
   padding-left: 48px;
 }
 
-.document-canvas .ProseMirror > [data-blockid] {
+.document-canvas .ProseMirror [data-block-id] {
   position: relative;
 }
 
@@ -1136,10 +1157,10 @@
 .line-gutter-number {
   position: absolute;
   left: -44px;
-  top: 0;
+  top: 2px;
   width: 32px;
   text-align: right;
-  font-family: var(--font-mono);
+  font-family: var(--font-jetbrains-mono), var(--font-mono);
   font-size: 0.6875rem;
   line-height: 1.5;
   color: var(--foreground-muted);
@@ -1168,11 +1189,11 @@
 }
 
 /* Selected line highlight (VS Code-style current line) — one-line height only */
-.document-canvas .ProseMirror > [data-blockid].line-gutter-selected {
+.document-canvas .ProseMirror [data-block-id].line-gutter-selected {
   isolation: isolate;
 }
 
-.document-canvas .ProseMirror > [data-blockid].line-gutter-selected::after {
+.document-canvas .ProseMirror [data-block-id].line-gutter-selected::after {
   content: '';
   position: absolute;
   top: 0;
@@ -1206,7 +1227,7 @@
   z-index: 2;
 }
 
-.document-canvas .ProseMirror > [data-blockid]:hover .line-gutter-fold-widget,
+.document-canvas .ProseMirror [data-block-id]:hover .line-gutter-fold-widget,
 .line-gutter-fold-widget:focus-visible {
   opacity: 0.7;
 }
@@ -1531,6 +1552,111 @@
   animation: none;
   pointer-events: none;
   background: transparent;
+}
+
+/* =============================================================================
+   PROSEMIRROR / TIPTAP EDITOR TYPOGRAPHY
+   Tailwind preflight resets list-style, margins, and padding on ul/ol/table.
+   These styles restore proper rendering for AI-generated markdown content.
+   ============================================================================= */
+
+/* --- Lists --- */
+.document-canvas .ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.document-canvas .ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.document-canvas .ProseMirror li {
+  margin: 0.25rem 0;
+}
+
+.document-canvas .ProseMirror li > p {
+  margin: 0;
+}
+
+/* Nested lists */
+.document-canvas .ProseMirror ul ul {
+  list-style-type: circle;
+  margin: 0.125rem 0;
+}
+
+.document-canvas .ProseMirror ul ul ul {
+  list-style-type: square;
+}
+
+.document-canvas .ProseMirror ol ol {
+  list-style-type: lower-alpha;
+  margin: 0.125rem 0;
+}
+
+/* Task list override — no disc markers */
+.document-canvas .ProseMirror ul[data-type='taskList'] {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+/* --- Tables --- */
+.document-canvas .ProseMirror table.note-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.document-canvas .ProseMirror table.note-table th {
+  background: var(--muted);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--foreground);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border-subtle);
+  min-width: 80px;
+}
+
+.document-canvas .ProseMirror table.note-table th:last-child {
+  border-right: none;
+}
+
+.document-canvas .ProseMirror table.note-table td {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  color: var(--foreground);
+  min-width: 80px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.document-canvas .ProseMirror table.note-table td:last-child {
+  border-right: none;
+}
+
+.document-canvas .ProseMirror table.note-table tr:last-child td {
+  border-bottom: none;
+}
+
+.document-canvas .ProseMirror table.note-table tbody tr:hover {
+  background: rgba(243, 242, 239, 0.5);
+}
+
+.dark .document-canvas .ProseMirror table.note-table tbody tr:hover {
+  background: rgba(45, 44, 42, 0.5);
+}
+
+/* Selected table cell highlight */
+.document-canvas .ProseMirror .selectedCell {
+  background: var(--primary-muted);
 }
 
 /* =============================================================================
@@ -1984,6 +2110,7 @@
 
   .issue-rainbow-border::before,
   .inline-issue-node.issue-rainbow-border::before,
+  .inline-issue-node:hover::before,
   .issue-box-new::before,
   [data-block-id].ai-block-processing::after,
   .animate-confetti-fall,

@@ -223,6 +223,9 @@ class NoteRepository(BaseRepository[Note]):
         Returns:
             Note with all relations loaded, or None if not found.
         """
+        from pilot_space.infrastructure.database.models.note_issue_link import (
+            NoteIssueLink,
+        )
         from pilot_space.infrastructure.database.models.threaded_discussion import (
             ThreadedDiscussion,
         )
@@ -232,6 +235,7 @@ class NoteRepository(BaseRepository[Note]):
             .options(
                 selectinload(Note.annotations),
                 selectinload(Note.discussions).selectinload(ThreadedDiscussion.comments),
+                selectinload(Note.issue_links).joinedload(NoteIssueLink.issue),
                 joinedload(Note.owner),
                 joinedload(Note.template),
                 joinedload(Note.project),

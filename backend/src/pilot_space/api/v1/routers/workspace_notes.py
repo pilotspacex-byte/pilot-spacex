@@ -1,8 +1,4 @@
-"""Workspace-scoped Notes API router.
-
-Provides nested CRUD routes for notes under workspaces.
-Supports both UUID and slug for workspace identification.
-"""
+"""Workspace-scoped Notes API router (CRUD + annotations + versions)."""
 
 from __future__ import annotations
 
@@ -19,6 +15,7 @@ from pilot_space.api.v1.schemas.annotation import (
     AnnotationType,
 )
 from pilot_space.api.v1.schemas.base import DeleteResponse, PaginatedResponse
+from pilot_space.api.v1.schemas.issue import IssueBriefResponse
 from pilot_space.api.v1.schemas.note import (
     NoteCreate,
     NoteDetailResponse,
@@ -129,6 +126,12 @@ def _note_to_detail_response(note: Note) -> NoteDetailResponse:
             type="doc",
             content=note.content.get("content", []),
         )
+
+    linked_issues = [
+        IssueBriefResponse.model_validate(link.issue)
+        for link in (note.issue_links or [])
+        if link.issue and not link.is_deleted
+    ]
     return NoteDetailResponse(
         id=note.id,
         created_at=note.created_at,
@@ -141,6 +144,7 @@ def _note_to_detail_response(note: Note) -> NoteDetailResponse:
         content=content,
         annotation_count=len(note.annotations) if note.annotations else 0,
         discussion_count=len(note.discussions) if note.discussions else 0,
+        linked_issues=linked_issues,
     )
 
 

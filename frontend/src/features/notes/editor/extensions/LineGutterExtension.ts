@@ -42,6 +42,25 @@ declare module '@tiptap/core' {
 
 const LINE_GUTTER_KEY = new PluginKey('lineGutter');
 
+/**
+ * Container node types that wrap child content blocks.
+ * These get blockIds but should not receive line numbers or count toward line totals
+ * because their text content is already counted via their child nodes.
+ */
+const WRAPPER_NODE_TYPES = new Set([
+  'bulletList',
+  'orderedList',
+  'listItem',
+  'taskList',
+  'taskItem',
+  'blockquote',
+  'table',
+  'tableRow',
+  'tableCell',
+  'tableHeader',
+  'horizontalRule',
+]);
+
 /** Transaction metadata key for setting the selected block */
 const SELECT_BLOCK_META = 'lineGutterSelectBlock';
 
@@ -87,6 +106,31 @@ function computeHiddenBlockIds(doc: ProseMirrorNode, collapsedBlocks: Set<string
   return hidden;
 }
 
+/** Padding values (px) for wrapper types that indent their children. */
+const INDENT_PX: Record<string, number> = {
+  bulletList: 24, // 1.5rem
+  orderedList: 24, // 1.5rem
+  blockquote: 16, // 1rem
+};
+
+/**
+ * Walk ancestor nodes from `pos` upward and sum the CSS padding-left of
+ * wrapper ancestors. This offset is used to pull nested line numbers back
+ * so they align vertically with top-level line numbers.
+ */
+function computeNestingOffset(doc: ProseMirrorNode, pos: number): number {
+  const $pos = doc.resolve(pos);
+  let offset = 0;
+  for (let d = $pos.depth; d > 0; d--) {
+    const ancestor = $pos.node(d);
+    const indent = INDENT_PX[ancestor.type.name];
+    if (indent) {
+      offset += indent;
+    }
+  }
+  return offset;
+}
+
 function createFoldWidget(blockId: string, isCollapsed: boolean, toggle: () => void): HTMLElement {
   const btn = document.createElement('button');
   btn.className = 'line-gutter-fold-widget';
@@ -114,11 +158,15 @@ function createLineNumberWidget(
   lineNum: number,
   blockId: string,
   blockPos: number,
-  editorInstance: Editor
+  editorInstance: Editor,
+  nestingOffsetPx: number
 ): HTMLElement {
   const span = document.createElement('span');
   span.className = 'line-gutter-number';
   span.textContent = String(lineNum);
+  if (nestingOffsetPx > 0) {
+    span.style.left = `${-44 - nestingOffsetPx}px`;
+  }
   span.setAttribute('role', 'button');
   span.setAttribute('tabindex', '-1');
   span.setAttribute('aria-label', `Select line ${lineNum}`);
@@ -300,35 +348,52 @@ export const LineGutterExtension = Extension.create<LineGutterOptions, LineGutte
               const blockId = node.attrs.blockId as string | undefined;
               if (!blockId) return true;
 
-              lineNum++;
+              const isWrapper = WRAPPER_NODE_TYPES.has(node.type.name);
 
-              // Line number widget inside block (pos+1 = inside block content)
-              // so it positions relative to the block's `position: relative`
-              const contentPos = pos + 1;
+              // Skip wrapper nodes for line counting and line number widgets.
+              // Their text is already counted via child content nodes (paragraph, etc.).
+              if (!isWrapper) {
+                // Count actual text lines in this block (newlines + 1)
+                const text = node.textContent;
+                const blockLines = text ? (text.match(/\n/g)?.length ?? 0) + 1 : 1;
+                const blockStartLine = lineNum + 1;
+                lineNum += blockLines;
 
-              const numWidget = createLineNumberWidget(lineNum, blockId, pos, editor);
+                // Line number widget inside block (pos+1 = inside block content)
+                // so it positions relative to the block's `position: relative`
+                const contentPos = pos + 1;
 
-              decorations.push(
-                Decoration.widget(contentPos, numWidget, {
-                  side: -1,
-                  key: `num-${blockId}`,
-                })
-              );
-
-              // Fold widget for foldable nodes (headings)
-              if (options.foldableTypes.includes(node.type.name)) {
-                const isCollapsed = typedStorage.collapsedBlocks.has(blockId);
-
-                const widget = createFoldWidget(blockId, isCollapsed, () => {
-                  editor.commands.toggleFold(blockId);
-                });
+                const nestingOffset = computeNestingOffset(state.doc, pos);
+                const numWidget = createLineNumberWidget(
+                  blockStartLine,
+                  blockId,
+                  pos,
+                  editor,
+                  nestingOffset
+                );
 
                 decorations.push(
-                  Decoration.widget(contentPos, widget, {
+                  Decoration.widget(contentPos, numWidget, {
                     side: -1,
-                    key: `fold-${blockId}`,
+                    key: `num-${blockId}`,
                   })
                 );
+
+                // Fold widget for foldable nodes (headings)
+                if (options.foldableTypes.includes(node.type.name)) {
+                  const isCollapsed = typedStorage.collapsedBlocks.has(blockId);
+
+                  const widget = createFoldWidget(blockId, isCollapsed, () => {
+                    editor.commands.toggleFold(blockId);
+                  });
+
+                  decorations.push(
+                    Decoration.widget(contentPos, widget, {
+                      side: -1,
+                      key: `fold-${blockId}`,
+                    })
+                  );
+                }
               }
 
               // Highlight selected block (VS Code-style current line)
