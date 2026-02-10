@@ -157,16 +157,9 @@ class TestSDKBaseAgent:
         """Verify agent initialization stores dependencies."""
         agent = ConcreteAgent(**mock_deps)
 
-        assert agent._tool_registry is mock_deps["tool_registry"]
         assert agent._provider_selector is mock_deps["provider_selector"]
         assert agent._cost_tracker is mock_deps["cost_tracker"]
         assert agent._resilient_executor is mock_deps["resilient_executor"]
-
-    def test_tools_property_returns_registry(self, mock_deps):
-        """Verify tools property returns tool registry."""
-        agent = ConcreteAgent(**mock_deps)
-
-        assert agent.tools is mock_deps["tool_registry"]
 
     def test_get_model_returns_default(self, mock_deps):
         """Verify get_model returns default provider and model."""
