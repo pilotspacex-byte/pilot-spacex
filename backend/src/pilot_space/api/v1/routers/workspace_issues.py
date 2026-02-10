@@ -15,24 +15,25 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
+from dependency_injector.wiring import inject
 from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 
 from pilot_space.api.v1.dependencies import (
+    CreateIssueServiceDep,
+    GetIssueServiceDep,
     IssueRepositoryDep,
+    ListIssuesServiceDep,
+    UpdateIssueServiceDep,
     WorkspaceRepositoryDep,
 )
 from pilot_space.api.v1.schemas.base import BaseSchema, DeleteResponse, PaginatedResponse
 from pilot_space.api.v1.schemas.issue import IssueResponse
 from pilot_space.dependencies import DbSession, SyncedUserId
 from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
-from pilot_space.infrastructure.database.models.project import Project
 from pilot_space.infrastructure.database.models.state import State
 from pilot_space.infrastructure.database.models.workspace import Workspace
-from pilot_space.infrastructure.database.repositories.issue_repository import (
-    IssueFilters,
-)
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -204,10 +205,11 @@ def _issue_to_response(issue: Issue) -> WorkspaceIssueResponse:
     tags=["workspace-issues"],
     summary="List issues in workspace",
 )
+@inject
 async def list_workspace_issues(
     workspace_id: WorkspaceIdOrSlug,
     current_user_id: SyncedUserId,
-    issue_repo: IssueRepositoryDep,
+    list_service: ListIssuesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
     project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
     state: Annotated[str | None, Query(description="Filter by state")] = None,
@@ -218,32 +220,34 @@ async def list_workspace_issues(
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
 ) -> PaginatedResponse[WorkspaceIssueResponse]:
     """List all issues in a workspace."""
+    from pilot_space.application.services.issue import ListIssuesPayload
+
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Build filters
-    filters = IssueFilters(
+    # Build service payload
+    payload = ListIssuesPayload(
+        workspace_id=workspace.id,
         project_id=project_id,
         assignee_ids=[assignee_id] if assignee_id else None,
         search_term=search,
-    )
-
-    # Get issues using repository method
-    page = await issue_repo.get_workspace_issues(
-        workspace.id,
-        filters=filters,
         cursor=cursor,
         page_size=page_size,
+        sort_by="created_at",
+        sort_order="desc",
     )
 
-    items = [_issue_to_response(issue) for issue in page.items]
+    # Execute service
+    result = await list_service.execute(payload)
+
+    items = [_issue_to_response(issue) for issue in result.items]
 
     return PaginatedResponse(
         items=items,
-        total=page.total,
-        next_cursor=page.next_cursor,
-        prev_cursor=page.prev_cursor,
-        has_next=page.has_next,
-        has_prev=page.has_prev,
+        total=result.total,
+        next_cursor=result.next_cursor,
+        prev_cursor=result.prev_cursor,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
         page_size=page_size,
     )
 
@@ -254,24 +258,33 @@ async def list_workspace_issues(
     tags=["workspace-issues"],
     summary="Get issue by ID",
 )
+@inject
 async def get_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
     current_user_id: SyncedUserId,
-    issue_repo: IssueRepositoryDep,
+    get_service: GetIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
 ) -> IssueResponse:
     """Get a specific issue by ID."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    issue = await issue_repo.get_by_id_for_response(issue_id)
-    if not issue or issue.workspace_id != workspace.id:
+    # Execute service
+    result = await get_service.execute(issue_id)
+    if not result.found or not result.issue:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Issue not found",
         )
 
-    return IssueResponse.from_issue(issue)
+    # Verify workspace ownership
+    if result.issue.workspace_id != workspace.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Issue not found",
+        )
+
+    return IssueResponse.from_issue(result.issue)
 
 
 @router.post(
@@ -281,80 +294,28 @@ async def get_workspace_issue(
     tags=["workspace-issues"],
     summary="Create a new issue",
 )
+@inject
 async def create_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_data: WorkspaceIssueCreateRequest,
     current_user_id: SyncedUserId,
     session: DbSession,
-    issue_repo: IssueRepositoryDep,
+    create_service: CreateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
 ) -> WorkspaceIssueResponse:
     """Create a new issue in the workspace."""
+    from pilot_space.application.services.issue import CreateIssuePayload
+
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Look up state by name (case-insensitive match)
-    state_name = issue_data.state or "Backlog"
-    # Normalize common frontend state names to DB names
-    state_name_map = {
-        "backlog": "Backlog",
-        "todo": "Todo",
-        "in_progress": "In Progress",
-        "in-progress": "In Progress",
-        "inprogress": "In Progress",
-        "in_review": "In Review",
-        "in-review": "In Review",
-        "inreview": "In Review",
-        "done": "Done",
-        "cancelled": "Cancelled",
-        "canceled": "Cancelled",
-    }
-    normalized_state = state_name_map.get(state_name.lower(), state_name)
-
-    state_result = await session.execute(
-        select(State)
-        .where(
-            State.workspace_id == workspace.id,
-            State.name == normalized_state,
-            State.is_deleted.is_(False),
+    # Validate project_id is provided (required by service)
+    if not issue_data.project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="project_id is required",
         )
-        .limit(1)
-    )
-    state = state_result.scalar_one_or_none()
-    if not state:
-        # Fall back to first state (Backlog)
-        state_result = await session.execute(
-            select(State)
-            .where(State.workspace_id == workspace.id, State.is_deleted.is_(False))
-            .order_by(State.sequence)
-            .limit(1)
-        )
-        state = state_result.scalar_one_or_none()
-        if not state:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No workflow states configured for this workspace",
-            )
 
-    # Get project - use provided or first available
-    project_id = issue_data.project_id
-    if not project_id:
-        proj_result = await session.execute(
-            select(Project)
-            .where(Project.workspace_id == workspace.id, Project.is_deleted.is_(False))
-            .limit(1)
-        )
-        project = proj_result.scalar_one_or_none()
-        if not project:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No projects configured for this workspace",
-            )
-        project_id = project.id
-
-    # Get next sequence ID for this project
-    next_seq = await issue_repo.get_next_sequence_id(project_id)
-
-    # Map priority string to enum
+    # Map priority string to enum for service payload
     priority_map = {
         "urgent": IssuePriority.URGENT,
         "high": IssuePriority.HIGH,
@@ -364,31 +325,47 @@ async def create_workspace_issue(
     }
     priority = priority_map.get(issue_data.priority.lower(), IssuePriority.NONE)
 
-    # Create issue
-    issue = Issue(
+    # Convert label strings to UUIDs if provided
+    label_uuids: list[UUID] = []
+    if issue_data.labels:
+        try:
+            label_uuids = [UUID(label) for label in issue_data.labels]
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid label UUID format: {e}",
+            ) from e
+
+    # Build service payload
+    payload = CreateIssuePayload(
         workspace_id=workspace.id,
-        project_id=project_id,
+        project_id=issue_data.project_id,
+        reporter_id=current_user_id,
         name=issue_data.name,
         description=issue_data.description,
+        description_html=None,
         priority=priority,
-        state_id=state.id,
-        sequence_id=next_seq,
-        reporter_id=current_user_id,
+        state_id=None,  # Service will resolve default state
         assignee_id=issue_data.assignee_id,
+        cycle_id=None,
+        module_id=None,
+        parent_id=None,
         estimate_points=issue_data.estimated_hours,
+        start_date=None,
+        target_date=None,
+        label_ids=label_uuids,
+        ai_enhanced=False,
     )
-    issue = await issue_repo.create(issue)
-    await session.commit()
 
-    # Reload with relations for response
-    await session.refresh(issue, ["project", "state"])
+    # Execute service
+    result = await create_service.execute(payload)
 
     logger.info(
         "Issue created",
-        extra={"issue_id": str(issue.id), "workspace_id": str(workspace.id)},
+        extra={"issue_id": str(result.issue.id), "workspace_id": str(workspace.id)},
     )
 
-    return _issue_to_response(issue)
+    return _issue_to_response(result.issue)
 
 
 @router.patch(
@@ -397,37 +374,26 @@ async def create_workspace_issue(
     tags=["workspace-issues"],
     summary="Update an issue",
 )
+@inject
 async def update_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
     issue_data: WorkspaceIssueUpdateRequest,
     current_user_id: SyncedUserId,
-    session: DbSession,
-    issue_repo: IssueRepositoryDep,
+    update_service: UpdateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
 ) -> IssueResponse:
     """Update an existing issue."""
+    from pilot_space.application.services.issue.update_issue_service import (
+        UNCHANGED,
+        UpdateIssuePayload,
+    )
+
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Scalar-only load for validation (no relationships loaded)
-    issue = await issue_repo.get_by_id_scalar(issue_id)
-
-    if not issue or issue.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Issue not found",
-        )
-
-    # Update fields from request (exclude_unset respects only fields sent)
-    update_data = issue_data.model_dump(exclude_unset=True)
-
-    if "name" in update_data:
-        issue.name = update_data["name"]
-    if "description" in update_data:
-        issue.description = update_data["description"]
-    if "description_html" in update_data:
-        issue.description_html = update_data["description_html"]
-    if "priority" in update_data:
+    # Map priority string to enum if provided
+    priority = UNCHANGED
+    if issue_data.priority is not None:
         priority_map = {
             "urgent": IssuePriority.URGENT,
             "high": IssuePriority.HIGH,
@@ -435,63 +401,85 @@ async def update_workspace_issue(
             "low": IssuePriority.LOW,
             "none": IssuePriority.NONE,
         }
-        issue.priority = priority_map.get(update_data["priority"].lower(), IssuePriority.NONE)
-    if "state_id" in update_data:
-        issue.state_id = update_data["state_id"]
-    if "sort_order" in update_data:
-        issue.sort_order = update_data["sort_order"]
+        priority = priority_map.get(issue_data.priority.lower(), IssuePriority.NONE)
 
-    # Assignee: handle clear flag or update
-    if update_data.get("clear_assignee"):
-        issue.assignee_id = None
-    elif "assignee_id" in update_data:
-        issue.assignee_id = update_data["assignee_id"]
+    # Handle date conversions
+    from datetime import date as date_type
 
-    # Cycle: handle clear flag or update
-    if update_data.get("clear_cycle"):
-        issue.cycle_id = None
-    elif "cycle_id" in update_data:
-        issue.cycle_id = update_data["cycle_id"]
+    start_date_value = UNCHANGED
+    if issue_data.clear_start_date:
+        start_date_value = None
+    elif issue_data.start_date is not None:
+        try:
+            start_date_value = date_type.fromisoformat(issue_data.start_date)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid start_date format: {e}",
+            ) from e
 
-    # Estimate: handle clear flag or update
-    if update_data.get("clear_estimate"):
-        issue.estimate_points = None
-    elif "estimate_points" in update_data:
-        issue.estimate_points = update_data["estimate_points"]
+    target_date_value = UNCHANGED
+    if issue_data.clear_target_date:
+        target_date_value = None
+    elif issue_data.target_date is not None:
+        try:
+            target_date_value = date_type.fromisoformat(issue_data.target_date)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid target_date format: {e}",
+            ) from e
 
-    # Start date: handle clear flag or update
-    if update_data.get("clear_start_date"):
-        issue.start_date = None
-    elif start_date_val := update_data.get("start_date"):
-        from datetime import date as date_type
+    # Build service payload with explicit handling of clear flags
+    payload = UpdateIssuePayload(
+        issue_id=issue_id,
+        actor_id=current_user_id,
+        name=issue_data.name if issue_data.name is not None else UNCHANGED,
+        description=issue_data.description if issue_data.description is not None else UNCHANGED,
+        description_html=issue_data.description_html
+        if issue_data.description_html is not None
+        else UNCHANGED,
+        priority=priority,
+        state_id=issue_data.state_id if issue_data.state_id is not None else UNCHANGED,
+        assignee_id=None
+        if issue_data.clear_assignee
+        else (issue_data.assignee_id if issue_data.assignee_id is not None else UNCHANGED),
+        cycle_id=None
+        if issue_data.clear_cycle
+        else (issue_data.cycle_id if issue_data.cycle_id is not None else UNCHANGED),
+        module_id=UNCHANGED,
+        parent_id=UNCHANGED,
+        estimate_points=None
+        if issue_data.clear_estimate
+        else (issue_data.estimate_points if issue_data.estimate_points is not None else UNCHANGED),
+        start_date=start_date_value,
+        target_date=target_date_value,
+        sort_order=issue_data.sort_order if issue_data.sort_order is not None else UNCHANGED,
+        label_ids=issue_data.label_ids if issue_data.label_ids is not None else UNCHANGED,
+    )
 
-        issue.start_date = date_type.fromisoformat(start_date_val)
+    try:
+        # Execute service with workspace validation
+        result = await update_service.execute(payload)
 
-    # Target date: handle clear flag or update
-    if update_data.get("clear_target_date"):
-        issue.target_date = None
-    elif target_date_val := update_data.get("target_date"):
-        from datetime import date as date_type
-
-        issue.target_date = date_type.fromisoformat(target_date_val)
-
-    # Labels: replace all labels for this issue (bulk SQL, no extra load)
-    if "label_ids" in update_data:
-        label_ids = update_data["label_ids"]
-        await issue_repo.bulk_update_labels(issue.id, label_ids)
-
-    await session.flush()
-    await session.commit()
-
-    # Load only relations needed for response serialization
-    issue = await issue_repo.get_by_id_for_response(issue_id)
+        # Verify workspace ownership
+        if result.issue.workspace_id != workspace.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Issue not found",
+            )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
 
     logger.info(
         "Issue updated",
         extra={"issue_id": str(issue_id), "workspace_id": str(workspace.id)},
     )
 
-    return IssueResponse.from_issue(issue)
+    return IssueResponse.from_issue(result.issue)
 
 
 @router.patch(
@@ -500,24 +488,23 @@ async def update_workspace_issue(
     tags=["workspace-issues"],
     summary="Update issue state",
 )
+@inject
 async def update_workspace_issue_state(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
     body: StateUpdateRequest,
     current_user_id: SyncedUserId,
     session: DbSession,
-    issue_repo: IssueRepositoryDep,
+    update_service: UpdateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
 ) -> WorkspaceIssueResponse:
     """Update issue state (for Kanban drag/drop)."""
-    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    from pilot_space.application.services.issue.update_issue_service import (
+        UNCHANGED,
+        UpdateIssuePayload,
+    )
 
-    issue = await issue_repo.get_by_id(issue_id)
-    if not issue or issue.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Issue not found",
-        )
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
     # Look up state by name
     state_name = body.state
@@ -548,16 +535,43 @@ async def update_workspace_issue_state(
             detail=f"State '{state_name}' not found",
         )
 
-    # Update state
-    issue.state_id = new_state.id
+    # Build service payload (only updating state)
+    payload = UpdateIssuePayload(
+        issue_id=issue_id,
+        actor_id=current_user_id,
+        name=UNCHANGED,
+        description=UNCHANGED,
+        description_html=UNCHANGED,
+        priority=UNCHANGED,
+        state_id=new_state.id,
+        assignee_id=UNCHANGED,
+        cycle_id=UNCHANGED,
+        module_id=UNCHANGED,
+        parent_id=UNCHANGED,
+        estimate_points=UNCHANGED,
+        start_date=UNCHANGED,
+        target_date=UNCHANGED,
+        sort_order=UNCHANGED,
+        label_ids=UNCHANGED,
+    )
 
-    issue = await issue_repo.update(issue)
-    await session.commit()
+    try:
+        # Execute service
+        result = await update_service.execute(payload)
 
-    # Reload with relations for response
-    await session.refresh(issue, ["project", "state"])
+        # Verify workspace ownership
+        if result.issue.workspace_id != workspace.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Issue not found",
+            )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
 
-    return _issue_to_response(issue)
+    return _issue_to_response(result.issue)
 
 
 @router.delete(
@@ -566,6 +580,7 @@ async def update_workspace_issue_state(
     tags=["workspace-issues"],
     summary="Delete an issue",
 )
+@inject
 async def delete_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
@@ -574,7 +589,11 @@ async def delete_workspace_issue(
     issue_repo: IssueRepositoryDep,
     workspace_repo: WorkspaceRepositoryDep,
 ) -> DeleteResponse:
-    """Soft delete an issue."""
+    """Soft delete an issue.
+
+    Note: Ideally this should use a DeleteIssueService for proper domain event handling.
+    TODO: Create DeleteIssueService to track delete activity.
+    """
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
     issue = await issue_repo.get_by_id(issue_id)
@@ -584,7 +603,7 @@ async def delete_workspace_issue(
             detail="Issue not found",
         )
 
-    # Soft delete
+    # Soft delete (infrastructure operation)
     await issue_repo.delete(issue)
     await session.commit()
 
