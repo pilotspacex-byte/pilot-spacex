@@ -3,12 +3,12 @@
 Provides clean, reusable type hints for FastAPI router endpoints using
 the dependency-injector + FastAPI integration pattern.
 
-Pattern from Context7 docs:
-https://python-dependency-injector.ets-labs.io/examples/fastapi.html
+Pattern: Each dependency gets an @inject wrapper function that resolves
+the container provider, then an Annotated type alias wrapping it in Depends().
+This eliminates the need for @inject on router endpoints.
 
 Usage:
     @router.post("/issues")
-    @inject
     async def create_issue(
         request: IssueCreateRequest,
         session: SessionDep,  # Trigger session context
@@ -20,7 +20,7 @@ Usage:
 
 from typing import Annotated
 
-from dependency_injector.wiring import Provide
+from dependency_injector.wiring import Provide, inject
 from fastapi import Depends
 
 from pilot_space.application.services.ai_context import (
@@ -55,6 +55,7 @@ from pilot_space.application.services.integration import (
 from pilot_space.application.services.issue import (
     ActivityService,
     CreateIssueService,
+    DeleteIssueService,
     GetIssueService,
     ListIssuesService,
     UpdateIssueService,
@@ -62,7 +63,12 @@ from pilot_space.application.services.issue import (
 from pilot_space.application.services.note import (
     CreateNoteFromChatService,
     CreateNoteService,
+    DeleteNoteService,
     GetNoteService,
+    ListAnnotationsService,
+    ListNotesService,
+    PinNoteService,
+    UpdateAnnotationService,
     UpdateNoteService,
 )
 from pilot_space.application.services.note.ai_update_service import (
@@ -81,7 +87,12 @@ from pilot_space.application.services.role_skill import (
     UpdateRoleSkillService,
 )
 from pilot_space.application.services.workspace import WorkspaceService
+from pilot_space.application.services.workspace_invitation import (
+    WorkspaceInvitationService,
+)
+from pilot_space.application.services.workspace_member import WorkspaceMemberService
 from pilot_space.container import Container
+from pilot_space.dependencies.auth import CurrentUserId, SessionDep, SyncedUserId
 from pilot_space.infrastructure.database.repositories.activity_repository import (
     ActivityRepository,
 )
@@ -112,256 +123,575 @@ from pilot_space.infrastructure.database.repositories.workspace_repository impor
 
 # ===== Repository Dependencies =====
 
-ActivityRepositoryDep = Annotated[
-    ActivityRepository,
-    Depends(Provide[Container.activity_repository]),
-]
 
-CycleRepositoryDep = Annotated[
-    CycleRepository,
-    Depends(Provide[Container.cycle_repository]),
-]
+@inject
+def _get_activity_repository(
+    repo: ActivityRepository = Depends(Provide[Container.activity_repository]),
+) -> ActivityRepository:
+    return repo
 
-InvitationRepositoryDep = Annotated[
-    InvitationRepository,
-    Depends(Provide[Container.invitation_repository]),
-]
 
-IssueRepositoryDep = Annotated[
-    IssueRepository,
-    Depends(Provide[Container.issue_repository]),
-]
+ActivityRepositoryDep = Annotated[ActivityRepository, Depends(_get_activity_repository)]
 
-NoteIssueLinkRepositoryDep = Annotated[
-    NoteIssueLinkRepository,
-    Depends(Provide[Container.note_issue_link_repository]),
-]
 
-NoteRepositoryDep = Annotated[
-    NoteRepository,
-    Depends(Provide[Container.note_repository]),
-]
+@inject
+def _get_cycle_repository(
+    repo: CycleRepository = Depends(Provide[Container.cycle_repository]),
+) -> CycleRepository:
+    return repo
 
-ProjectRepositoryDep = Annotated[
-    ProjectRepository,
-    Depends(Provide[Container.project_repository]),
-]
 
-UserRepositoryDep = Annotated[
-    UserRepository,
-    Depends(Provide[Container.user_repository]),
-]
+CycleRepositoryDep = Annotated[CycleRepository, Depends(_get_cycle_repository)]
 
-WorkspaceRepositoryDep = Annotated[
-    WorkspaceRepository,
-    Depends(Provide[Container.workspace_repository]),
-]
+
+@inject
+def _get_invitation_repository(
+    repo: InvitationRepository = Depends(Provide[Container.invitation_repository]),
+) -> InvitationRepository:
+    return repo
+
+
+InvitationRepositoryDep = Annotated[InvitationRepository, Depends(_get_invitation_repository)]
+
+
+@inject
+def _get_issue_repository(
+    repo: IssueRepository = Depends(Provide[Container.issue_repository]),
+) -> IssueRepository:
+    return repo
+
+
+IssueRepositoryDep = Annotated[IssueRepository, Depends(_get_issue_repository)]
+
+
+@inject
+def _get_note_issue_link_repository(
+    repo: NoteIssueLinkRepository = Depends(Provide[Container.note_issue_link_repository]),
+) -> NoteIssueLinkRepository:
+    return repo
+
+
+NoteIssueLinkRepositoryDep = Annotated[NoteIssueLinkRepository, Depends(_get_note_issue_link_repository)]
+
+
+@inject
+def _get_note_repository(
+    repo: NoteRepository = Depends(Provide[Container.note_repository]),
+) -> NoteRepository:
+    return repo
+
+
+NoteRepositoryDep = Annotated[NoteRepository, Depends(_get_note_repository)]
+
+
+@inject
+def _get_project_repository(
+    repo: ProjectRepository = Depends(Provide[Container.project_repository]),
+) -> ProjectRepository:
+    return repo
+
+
+ProjectRepositoryDep = Annotated[ProjectRepository, Depends(_get_project_repository)]
+
+
+@inject
+def _get_user_repository(
+    repo: UserRepository = Depends(Provide[Container.user_repository]),
+) -> UserRepository:
+    return repo
+
+
+UserRepositoryDep = Annotated[UserRepository, Depends(_get_user_repository)]
+
+
+@inject
+def _get_workspace_repository(
+    repo: WorkspaceRepository = Depends(Provide[Container.workspace_repository]),
+) -> WorkspaceRepository:
+    return repo
+
+
+WorkspaceRepositoryDep = Annotated[WorkspaceRepository, Depends(_get_workspace_repository)]
 
 # ===== Issue Service Dependencies =====
 
-CreateIssueServiceDep = Annotated[
-    CreateIssueService,
-    Depends(Provide[Container.create_issue_service]),
-]
 
-UpdateIssueServiceDep = Annotated[
-    UpdateIssueService,
-    Depends(Provide[Container.update_issue_service]),
-]
+@inject
+def _get_create_issue_service(
+    svc: CreateIssueService = Depends(Provide[Container.create_issue_service]),
+) -> CreateIssueService:
+    return svc
 
-GetIssueServiceDep = Annotated[
-    GetIssueService,
-    Depends(Provide[Container.get_issue_service]),
-]
 
-ListIssuesServiceDep = Annotated[
-    ListIssuesService,
-    Depends(Provide[Container.list_issues_service]),
-]
+CreateIssueServiceDep = Annotated[CreateIssueService, Depends(_get_create_issue_service)]
 
-ActivityServiceDep = Annotated[
-    ActivityService,
-    Depends(Provide[Container.activity_service]),
-]
+
+@inject
+def _get_update_issue_service(
+    svc: UpdateIssueService = Depends(Provide[Container.update_issue_service]),
+) -> UpdateIssueService:
+    return svc
+
+
+UpdateIssueServiceDep = Annotated[UpdateIssueService, Depends(_get_update_issue_service)]
+
+
+@inject
+def _get_get_issue_service(
+    svc: GetIssueService = Depends(Provide[Container.get_issue_service]),
+) -> GetIssueService:
+    return svc
+
+
+GetIssueServiceDep = Annotated[GetIssueService, Depends(_get_get_issue_service)]
+
+
+@inject
+def _get_list_issues_service(
+    svc: ListIssuesService = Depends(Provide[Container.list_issues_service]),
+) -> ListIssuesService:
+    return svc
+
+
+ListIssuesServiceDep = Annotated[ListIssuesService, Depends(_get_list_issues_service)]
+
+
+@inject
+def _get_activity_service(
+    svc: ActivityService = Depends(Provide[Container.activity_service]),
+) -> ActivityService:
+    return svc
+
+
+ActivityServiceDep = Annotated[ActivityService, Depends(_get_activity_service)]
 
 # ===== Note Service Dependencies =====
 
-CreateNoteServiceDep = Annotated[
-    CreateNoteService,
-    Depends(Provide[Container.create_note_service]),
-]
 
-UpdateNoteServiceDep = Annotated[
-    UpdateNoteService,
-    Depends(Provide[Container.update_note_service]),
-]
+@inject
+def _get_create_note_service(
+    svc: CreateNoteService = Depends(Provide[Container.create_note_service]),
+) -> CreateNoteService:
+    return svc
 
-GetNoteServiceDep = Annotated[
-    GetNoteService,
-    Depends(Provide[Container.get_note_service]),
-]
 
-CreateNoteFromChatServiceDep = Annotated[
-    CreateNoteFromChatService,
-    Depends(Provide[Container.create_note_from_chat_service]),
-]
+CreateNoteServiceDep = Annotated[CreateNoteService, Depends(_get_create_note_service)]
 
-NoteAIUpdateServiceDep = Annotated[
-    NoteAIUpdateService,
-    Depends(Provide[Container.ai_update_note_service]),
-]
+
+@inject
+def _get_update_note_service(
+    svc: UpdateNoteService = Depends(Provide[Container.update_note_service]),
+) -> UpdateNoteService:
+    return svc
+
+
+UpdateNoteServiceDep = Annotated[UpdateNoteService, Depends(_get_update_note_service)]
+
+
+@inject
+def _get_get_note_service(
+    svc: GetNoteService = Depends(Provide[Container.get_note_service]),
+) -> GetNoteService:
+    return svc
+
+
+GetNoteServiceDep = Annotated[GetNoteService, Depends(_get_get_note_service)]
+
+
+@inject
+def _get_create_note_from_chat_service(
+    svc: CreateNoteFromChatService = Depends(Provide[Container.create_note_from_chat_service]),
+) -> CreateNoteFromChatService:
+    return svc
+
+
+CreateNoteFromChatServiceDep = Annotated[CreateNoteFromChatService, Depends(_get_create_note_from_chat_service)]
+
+
+@inject
+def _get_note_ai_update_service(
+    svc: NoteAIUpdateService = Depends(Provide[Container.ai_update_note_service]),
+) -> NoteAIUpdateService:
+    return svc
+
+
+NoteAIUpdateServiceDep = Annotated[NoteAIUpdateService, Depends(_get_note_ai_update_service)]
+
+
+@inject
+def _get_list_notes_service(
+    svc: ListNotesService = Depends(Provide[Container.list_notes_service]),
+) -> ListNotesService:
+    return svc
+
+
+ListNotesServiceDep = Annotated[ListNotesService, Depends(_get_list_notes_service)]
+
+
+@inject
+def _get_delete_note_service(
+    svc: DeleteNoteService = Depends(Provide[Container.delete_note_service]),
+) -> DeleteNoteService:
+    return svc
+
+
+DeleteNoteServiceDep = Annotated[DeleteNoteService, Depends(_get_delete_note_service)]
+
+
+@inject
+def _get_pin_note_service(
+    svc: PinNoteService = Depends(Provide[Container.pin_note_service]),
+) -> PinNoteService:
+    return svc
+
+
+PinNoteServiceDep = Annotated[PinNoteService, Depends(_get_pin_note_service)]
+
+
+@inject
+def _get_list_annotations_service(
+    _: SessionDep,
+    svc: ListAnnotationsService = Depends(Provide[Container.list_annotations_service]),
+) -> ListAnnotationsService:
+    return svc
+
+
+ListAnnotationsServiceDep = Annotated[ListAnnotationsService, Depends(_get_list_annotations_service)]
+
+
+@inject
+def _get_update_annotation_service(
+    svc: UpdateAnnotationService = Depends(Provide[Container.update_annotation_service]),
+) -> UpdateAnnotationService:
+    return svc
+
+
+UpdateAnnotationServiceDep = Annotated[UpdateAnnotationService, Depends(_get_update_annotation_service)]
+
+# ===== Issue Delete Service =====
+
+
+@inject
+def _get_delete_issue_service(
+    svc: DeleteIssueService = Depends(Provide[Container.delete_issue_service]),
+) -> DeleteIssueService:
+    return svc
+
+
+DeleteIssueServiceDep = Annotated[DeleteIssueService, Depends(_get_delete_issue_service)]
 
 # ===== Cycle Service Dependencies =====
 
-CreateCycleServiceDep = Annotated[
-    CreateCycleService,
-    Depends(Provide[Container.create_cycle_service]),
-]
 
-UpdateCycleServiceDep = Annotated[
-    UpdateCycleService,
-    Depends(Provide[Container.update_cycle_service]),
-]
+@inject
+def _get_create_cycle_service(
+    svc: CreateCycleService = Depends(Provide[Container.create_cycle_service]),
+) -> CreateCycleService:
+    return svc
 
-GetCycleServiceDep = Annotated[
-    GetCycleService,
-    Depends(Provide[Container.get_cycle_service]),
-]
 
-AddIssueToCycleServiceDep = Annotated[
-    AddIssueToCycleService,
-    Depends(Provide[Container.add_issue_to_cycle_service]),
-]
+CreateCycleServiceDep = Annotated[CreateCycleService, Depends(_get_create_cycle_service)]
 
-RolloverCycleServiceDep = Annotated[
-    RolloverCycleService,
-    Depends(Provide[Container.rollover_cycle_service]),
-]
+
+@inject
+def _get_update_cycle_service(
+    svc: UpdateCycleService = Depends(Provide[Container.update_cycle_service]),
+) -> UpdateCycleService:
+    return svc
+
+
+UpdateCycleServiceDep = Annotated[UpdateCycleService, Depends(_get_update_cycle_service)]
+
+
+@inject
+def _get_get_cycle_service(
+    svc: GetCycleService = Depends(Provide[Container.get_cycle_service]),
+) -> GetCycleService:
+    return svc
+
+
+GetCycleServiceDep = Annotated[GetCycleService, Depends(_get_get_cycle_service)]
+
+
+@inject
+def _get_add_issue_to_cycle_service(
+    svc: AddIssueToCycleService = Depends(Provide[Container.add_issue_to_cycle_service]),
+) -> AddIssueToCycleService:
+    return svc
+
+
+AddIssueToCycleServiceDep = Annotated[AddIssueToCycleService, Depends(_get_add_issue_to_cycle_service)]
+
+
+@inject
+def _get_rollover_cycle_service(
+    svc: RolloverCycleService = Depends(Provide[Container.rollover_cycle_service]),
+) -> RolloverCycleService:
+    return svc
+
+
+RolloverCycleServiceDep = Annotated[RolloverCycleService, Depends(_get_rollover_cycle_service)]
 
 # ===== AI Context Service Dependencies =====
 
-GenerateAIContextServiceDep = Annotated[
-    GenerateAIContextService,
-    Depends(Provide[Container.generate_ai_context_service]),
-]
 
-RefineAIContextServiceDep = Annotated[
-    RefineAIContextService,
-    Depends(Provide[Container.refine_ai_context_service]),
-]
+@inject
+def _get_generate_ai_context_service(
+    svc: GenerateAIContextService = Depends(Provide[Container.generate_ai_context_service]),
+) -> GenerateAIContextService:
+    return svc
 
-ExportAIContextServiceDep = Annotated[
-    ExportAIContextService,
-    Depends(Provide[Container.export_ai_context_service]),
-]
+
+GenerateAIContextServiceDep = Annotated[GenerateAIContextService, Depends(_get_generate_ai_context_service)]
+
+
+@inject
+def _get_refine_ai_context_service(
+    svc: RefineAIContextService = Depends(Provide[Container.refine_ai_context_service]),
+) -> RefineAIContextService:
+    return svc
+
+
+RefineAIContextServiceDep = Annotated[RefineAIContextService, Depends(_get_refine_ai_context_service)]
+
+
+@inject
+def _get_export_ai_context_service(
+    svc: ExportAIContextService = Depends(Provide[Container.export_ai_context_service]),
+) -> ExportAIContextService:
+    return svc
+
+
+ExportAIContextServiceDep = Annotated[ExportAIContextService, Depends(_get_export_ai_context_service)]
 
 # ===== Annotation Service Dependencies =====
 
-CreateAnnotationServiceDep = Annotated[
-    CreateAnnotationService,
-    Depends(Provide[Container.create_annotation_service]),
-]
+
+@inject
+def _get_create_annotation_service(
+    svc: CreateAnnotationService = Depends(Provide[Container.create_annotation_service]),
+) -> CreateAnnotationService:
+    return svc
+
+
+CreateAnnotationServiceDep = Annotated[CreateAnnotationService, Depends(_get_create_annotation_service)]
 
 # ===== Discussion Service Dependencies =====
 
-CreateDiscussionServiceDep = Annotated[
-    CreateDiscussionService,
-    Depends(Provide[Container.create_discussion_service]),
-]
+
+@inject
+def _get_create_discussion_service(
+    svc: CreateDiscussionService = Depends(Provide[Container.create_discussion_service]),
+) -> CreateDiscussionService:
+    return svc
+
+
+CreateDiscussionServiceDep = Annotated[CreateDiscussionService, Depends(_get_create_discussion_service)]
 
 # ===== Integration Service Dependencies =====
 
-ConnectGitHubServiceDep = Annotated[
-    ConnectGitHubService,
-    Depends(Provide[Container.connect_github_service]),
-]
+
+@inject
+def _get_connect_github_service(
+    svc: ConnectGitHubService = Depends(Provide[Container.connect_github_service]),
+) -> ConnectGitHubService:
+    return svc
+
+
+ConnectGitHubServiceDep = Annotated[ConnectGitHubService, Depends(_get_connect_github_service)]
+
+
+@inject
+def _get_process_github_webhook_service(
+    svc: ProcessGitHubWebhookService = Depends(Provide[Container.process_github_webhook_service]),
+) -> ProcessGitHubWebhookService:
+    return svc
+
 
 ProcessGitHubWebhookServiceDep = Annotated[
-    ProcessGitHubWebhookService,
-    Depends(Provide[Container.process_github_webhook_service]),
+    ProcessGitHubWebhookService, Depends(_get_process_github_webhook_service)
 ]
 
-LinkCommitServiceDep = Annotated[
-    LinkCommitService,
-    Depends(Provide[Container.link_commit_service]),
-]
 
-AutoTransitionServiceDep = Annotated[
-    AutoTransitionService,
-    Depends(Provide[Container.auto_transition_service]),
-]
+@inject
+def _get_link_commit_service(
+    svc: LinkCommitService = Depends(Provide[Container.link_commit_service]),
+) -> LinkCommitService:
+    return svc
+
+
+LinkCommitServiceDep = Annotated[LinkCommitService, Depends(_get_link_commit_service)]
+
+
+@inject
+def _get_auto_transition_service(
+    svc: AutoTransitionService = Depends(Provide[Container.auto_transition_service]),
+) -> AutoTransitionService:
+    return svc
+
+
+AutoTransitionServiceDep = Annotated[AutoTransitionService, Depends(_get_auto_transition_service)]
 
 # ===== Onboarding Service Dependencies =====
 
-CreateGuidedNoteServiceDep = Annotated[
-    CreateGuidedNoteService,
-    Depends(Provide[Container.create_guided_note_service]),
-]
 
-GetOnboardingServiceDep = Annotated[
-    GetOnboardingService,
-    Depends(Provide[Container.get_onboarding_service]),
-]
+@inject
+def _get_create_guided_note_service(
+    svc: CreateGuidedNoteService = Depends(Provide[Container.create_guided_note_service]),
+) -> CreateGuidedNoteService:
+    return svc
 
-UpdateOnboardingServiceDep = Annotated[
-    UpdateOnboardingService,
-    Depends(Provide[Container.update_onboarding_service]),
-]
+
+CreateGuidedNoteServiceDep = Annotated[CreateGuidedNoteService, Depends(_get_create_guided_note_service)]
+
+
+@inject
+def _get_get_onboarding_service(
+    svc: GetOnboardingService = Depends(Provide[Container.get_onboarding_service]),
+) -> GetOnboardingService:
+    return svc
+
+
+GetOnboardingServiceDep = Annotated[GetOnboardingService, Depends(_get_get_onboarding_service)]
+
+
+@inject
+def _get_update_onboarding_service(
+    svc: UpdateOnboardingService = Depends(Provide[Container.update_onboarding_service]),
+) -> UpdateOnboardingService:
+    return svc
+
+
+UpdateOnboardingServiceDep = Annotated[UpdateOnboardingService, Depends(_get_update_onboarding_service)]
 
 # ===== Role Skill Service Dependencies =====
 
-CreateRoleSkillServiceDep = Annotated[
-    CreateRoleSkillService,
-    Depends(Provide[Container.create_role_skill_service]),
-]
 
-UpdateRoleSkillServiceDep = Annotated[
-    UpdateRoleSkillService,
-    Depends(Provide[Container.update_role_skill_service]),
-]
+@inject
+def _get_create_role_skill_service(
+    svc: CreateRoleSkillService = Depends(Provide[Container.create_role_skill_service]),
+) -> CreateRoleSkillService:
+    return svc
 
-DeleteRoleSkillServiceDep = Annotated[
-    DeleteRoleSkillService,
-    Depends(Provide[Container.delete_role_skill_service]),
-]
 
-ListRoleSkillsServiceDep = Annotated[
-    ListRoleSkillsService,
-    Depends(Provide[Container.list_role_skills_service]),
-]
+CreateRoleSkillServiceDep = Annotated[CreateRoleSkillService, Depends(_get_create_role_skill_service)]
 
-GenerateRoleSkillServiceDep = Annotated[
-    GenerateRoleSkillService,
-    Depends(Provide[Container.generate_role_skill_service]),
-]
+
+@inject
+def _get_update_role_skill_service(
+    svc: UpdateRoleSkillService = Depends(Provide[Container.update_role_skill_service]),
+) -> UpdateRoleSkillService:
+    return svc
+
+
+UpdateRoleSkillServiceDep = Annotated[UpdateRoleSkillService, Depends(_get_update_role_skill_service)]
+
+
+@inject
+def _get_delete_role_skill_service(
+    svc: DeleteRoleSkillService = Depends(Provide[Container.delete_role_skill_service]),
+) -> DeleteRoleSkillService:
+    return svc
+
+
+DeleteRoleSkillServiceDep = Annotated[DeleteRoleSkillService, Depends(_get_delete_role_skill_service)]
+
+
+@inject
+def _get_list_role_skills_service(
+    svc: ListRoleSkillsService = Depends(Provide[Container.list_role_skills_service]),
+) -> ListRoleSkillsService:
+    return svc
+
+
+ListRoleSkillsServiceDep = Annotated[ListRoleSkillsService, Depends(_get_list_role_skills_service)]
+
+
+@inject
+def _get_generate_role_skill_service(
+    svc: GenerateRoleSkillService = Depends(Provide[Container.generate_role_skill_service]),
+) -> GenerateRoleSkillService:
+    return svc
+
+
+GenerateRoleSkillServiceDep = Annotated[GenerateRoleSkillService, Depends(_get_generate_role_skill_service)]
 
 # ===== Homepage Service Dependencies =====
 
-GetActivityServiceDep = Annotated[
-    GetActivityService,
-    Depends(Provide[Container.get_activity_service]),
-]
 
-GetDigestServiceDep = Annotated[
-    GetDigestService,
-    Depends(Provide[Container.get_digest_service]),
-]
+@inject
+def _get_get_activity_service(
+    svc: GetActivityService = Depends(Provide[Container.get_activity_service]),
+) -> GetActivityService:
+    return svc
 
-DismissSuggestionServiceDep = Annotated[
-    DismissSuggestionService,
-    Depends(Provide[Container.dismiss_suggestion_service]),
-]
+
+GetActivityServiceDep = Annotated[GetActivityService, Depends(_get_get_activity_service)]
+
+
+@inject
+def _get_get_digest_service(
+    svc: GetDigestService = Depends(Provide[Container.get_digest_service]),
+) -> GetDigestService:
+    return svc
+
+
+GetDigestServiceDep = Annotated[GetDigestService, Depends(_get_get_digest_service)]
+
+
+@inject
+def _get_dismiss_suggestion_service(
+    svc: DismissSuggestionService = Depends(Provide[Container.dismiss_suggestion_service]),
+) -> DismissSuggestionService:
+    return svc
+
+
+DismissSuggestionServiceDep = Annotated[DismissSuggestionService, Depends(_get_dismiss_suggestion_service)]
 
 # ===== Workspace Service Dependencies =====
 
-WorkspaceServiceDep = Annotated[
-    WorkspaceService,
-    Depends(Provide[Container.workspace_service]),
-]
 
-__all__ = [
+@inject
+def _get_workspace_service(
+    svc: WorkspaceService = Depends(Provide[Container.workspace_service]),
+) -> WorkspaceService:
+    return svc
+
+
+WorkspaceServiceDep = Annotated[WorkspaceService, Depends(_get_workspace_service)]
+
+
+@inject
+def _get_workspace_member_service(
+    svc: WorkspaceMemberService = Depends(Provide[Container.workspace_member_service]),
+) -> WorkspaceMemberService:
+    return svc
+
+
+WorkspaceMemberServiceDep = Annotated[WorkspaceMemberService, Depends(_get_workspace_member_service)]
+
+
+@inject
+def _get_workspace_invitation_service(
+    svc: WorkspaceInvitationService = Depends(Provide[Container.workspace_invitation_service]),
+) -> WorkspaceInvitationService:
+    return svc
+
+
+WorkspaceInvitationServiceDep = Annotated[WorkspaceInvitationService, Depends(_get_workspace_invitation_service)]
+
+__all__ = [  # noqa: RUF022
     # Repository Dependencies
     "ActivityRepositoryDep",
+    "CycleRepositoryDep",
+    "InvitationRepositoryDep",
+    "IssueRepositoryDep",
+    "NoteIssueLinkRepositoryDep",
+    "NoteRepositoryDep",
+    "ProjectRepositoryDep",
+    "UserRepositoryDep",
+    "WorkspaceRepositoryDep",
+
     # Service Dependencies
     "ActivityServiceDep",
     "AddIssueToCycleServiceDep",
@@ -375,7 +705,8 @@ __all__ = [
     "CreateNoteFromChatServiceDep",
     "CreateNoteServiceDep",
     "CreateRoleSkillServiceDep",
-    "CycleRepositoryDep",
+    "DeleteIssueServiceDep",
+    "DeleteNoteServiceDep",
     "DeleteRoleSkillServiceDep",
     "DismissSuggestionServiceDep",
     "ExportAIContextServiceDep",
@@ -387,24 +718,23 @@ __all__ = [
     "GetIssueServiceDep",
     "GetNoteServiceDep",
     "GetOnboardingServiceDep",
-    "InvitationRepositoryDep",
-    "IssueRepositoryDep",
     "LinkCommitServiceDep",
+    "ListAnnotationsServiceDep",
     "ListIssuesServiceDep",
+    "ListNotesServiceDep",
     "ListRoleSkillsServiceDep",
     "NoteAIUpdateServiceDep",
-    "NoteIssueLinkRepositoryDep",
-    "NoteRepositoryDep",
+    "PinNoteServiceDep",
     "ProcessGitHubWebhookServiceDep",
-    "ProjectRepositoryDep",
     "RefineAIContextServiceDep",
     "RolloverCycleServiceDep",
+    "UpdateAnnotationServiceDep",
     "UpdateCycleServiceDep",
     "UpdateIssueServiceDep",
     "UpdateNoteServiceDep",
     "UpdateOnboardingServiceDep",
     "UpdateRoleSkillServiceDep",
-    "UserRepositoryDep",
-    "WorkspaceRepositoryDep",
     "WorkspaceServiceDep",
+    "WorkspaceMemberServiceDep",
+    "WorkspaceInvitationServiceDep",
 ]

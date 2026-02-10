@@ -46,6 +46,7 @@ from pilot_space.application.services.integration import (
 from pilot_space.application.services.issue import (
     ActivityService,
     CreateIssueService,
+    DeleteIssueService,
     GetIssueService,
     ListIssuesService,
     UpdateIssueService,
@@ -53,7 +54,12 @@ from pilot_space.application.services.issue import (
 from pilot_space.application.services.note import (
     CreateNoteFromChatService,
     CreateNoteService,
+    DeleteNoteService,
     GetNoteService,
+    ListAnnotationsService,
+    ListNotesService,
+    PinNoteService,
+    UpdateAnnotationService,
     UpdateNoteService,
 )
 from pilot_space.application.services.note.ai_update_service import (
@@ -72,6 +78,10 @@ from pilot_space.application.services.role_skill import (
     UpdateRoleSkillService,
 )
 from pilot_space.application.services.workspace import WorkspaceService
+from pilot_space.application.services.workspace_invitation import (
+    WorkspaceInvitationService,
+)
+from pilot_space.application.services.workspace_member import WorkspaceMemberService
 from pilot_space.config import get_settings
 from pilot_space.dependencies.auth import get_current_session
 from pilot_space.infrastructure.auth.supabase_auth import SupabaseAuth
@@ -196,7 +206,6 @@ class Container(containers.DeclarativeContainer):
             # AI routers
             "pilot_space.api.v1.routers.ai",
             "pilot_space.api.v1.routers.ai_chat",
-            # "pilot_space.api.v1.routers.ai_chat_reconnect",  # TODO: Fix imports
             "pilot_space.api.v1.routers.ai_annotations",
             "pilot_space.api.v1.routers.ai_approvals",
             "pilot_space.api.v1.routers.ai_configuration",
@@ -220,9 +229,9 @@ class Container(containers.DeclarativeContainer):
             "pilot_space.api.v1.routers.role_skills",
             "pilot_space.api.v1.routers.skills",
             "pilot_space.api.v1.routers.mcp_tools",
-            "pilot_space.api.v1.routers.debug",
             # Dependencies
             "pilot_space.dependencies",
+            "pilot_space.api.v1.dependencies",
         ],
     )
 
@@ -595,19 +604,16 @@ class Container(containers.DeclarativeContainer):
 
     get_issue_service = providers.Factory(
         GetIssueService,
-        session=providers.Callable(get_current_session),
         issue_repository=issue_repository,
     )
 
     list_issues_service = providers.Factory(
         ListIssuesService,
-        session=providers.Callable(get_current_session),
         issue_repository=issue_repository,
     )
 
     activity_service = providers.Factory(
         ActivityService,
-        session=providers.Callable(get_current_session),
         activity_repository=activity_repository,
     )
 
@@ -642,6 +648,45 @@ class Container(containers.DeclarativeContainer):
         NoteAIUpdateService,
         session=providers.Callable(get_current_session),
         note_repository=note_repository,
+        activity_repository=activity_repository,
+    )
+
+    list_notes_service = providers.Factory(
+        ListNotesService,
+        session=providers.Callable(get_current_session),
+        note_repository=note_repository,
+    )
+
+    delete_note_service = providers.Factory(
+        DeleteNoteService,
+        session=providers.Callable(get_current_session),
+        note_repository=note_repository,
+        activity_repository=activity_repository,
+    )
+
+    pin_note_service = providers.Factory(
+        PinNoteService,
+        session=providers.Callable(get_current_session),
+        note_repository=note_repository,
+    )
+
+    list_annotations_service = providers.Factory(
+        ListAnnotationsService,
+        session=providers.Callable(get_current_session),
+        annotation_repository=note_annotation_repository,
+    )
+
+    update_annotation_service = providers.Factory(
+        UpdateAnnotationService,
+        session=providers.Callable(get_current_session),
+        annotation_repository=note_annotation_repository,
+    )
+
+    # Issue Delete Service
+    delete_issue_service = providers.Factory(
+        DeleteIssueService,
+        session=providers.Callable(get_current_session),
+        issue_repository=issue_repository,
         activity_repository=activity_repository,
     )
 
@@ -831,6 +876,18 @@ class Container(containers.DeclarativeContainer):
         WorkspaceService,
         workspace_repo=workspace_repository,
         user_repo=user_repository,
+        invitation_repo=invitation_repository,
+        label_repo=label_repository,
+    )
+
+    workspace_member_service = providers.Factory(
+        WorkspaceMemberService,
+        workspace_repo=workspace_repository,
+    )
+
+    workspace_invitation_service = providers.Factory(
+        WorkspaceInvitationService,
+        workspace_repo=workspace_repository,
         invitation_repo=invitation_repository,
     )
 

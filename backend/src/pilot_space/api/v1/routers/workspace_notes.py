@@ -5,10 +5,17 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from dependency_injector.wiring import inject
+from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from pilot_space.api.v1.dependencies import (
     CreateNoteServiceDep,
+    DeleteNoteServiceDep,
+    GetNoteServiceDep,
+    ListAnnotationsServiceDep,
+    ListNotesServiceDep,
+    PinNoteServiceDep,
+    UpdateAnnotationServiceDep,
     UpdateNoteServiceDep,
     WorkspaceRepositoryDep,
 )
@@ -31,31 +38,11 @@ from pilot_space.dependencies.auth import CurrentUserId, SessionDep, SyncedUserI
 from pilot_space.infrastructure.database.models.note import Note
 from pilot_space.infrastructure.database.models.note_annotation import NoteAnnotation
 from pilot_space.infrastructure.database.models.workspace import Workspace
-from pilot_space.infrastructure.database.repositories.note_annotation_repository import (
-    NoteAnnotationRepository,
-)
-from pilot_space.infrastructure.database.repositories.note_repository import (
-    NoteRepository,
-)
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-def get_note_repository(session: SessionDep) -> NoteRepository:
-    """Get note repository with session."""
-    return NoteRepository(session=session)
-
-
-def get_annotation_repository(session: SessionDep) -> NoteAnnotationRepository:
-    """Get annotation repository with session."""
-    return NoteAnnotationRepository(session=session)
-
-
-NoteRepo = Annotated[NoteRepository, Depends(get_note_repository)]
-AnnotationRepo = Annotated[NoteAnnotationRepository, Depends(get_annotation_repository)]
 
 # Accept string to support both UUID and slug
 WorkspaceIdOrSlug = Annotated[str, Path(description="Workspace ID (UUID) or slug")]
@@ -153,65 +140,43 @@ def _note_to_detail_response(note: Note) -> NoteDetailResponse:
 async def list_workspace_notes(
     workspace_id: WorkspaceIdOrSlug,
     current_user_id: CurrentUserId,
-    session: SessionDep,
-    note_repo: NoteRepo,
+    list_service: ListNotesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
     project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
     is_pinned: Annotated[bool | None, Query(description="Filter by pin status")] = None,
     search: Annotated[str | None, Query(description="Search query")] = None,
     cursor: Annotated[str | None, Query(description="Pagination cursor")] = None,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> PaginatedResponse[NoteResponse]:
-    """List all notes in a workspace.
+    """List all notes in a workspace."""
+    from pilot_space.application.services.note import ListNotesPayload
 
-    Args:
-        workspace_id: The workspace ID (UUID) or slug.
-        current_user_id: Current user ID.
-        note_repo: Note repository.
-        workspace_repo: Workspace repository.
-        project_id: Optional project filter.
-        is_pinned: Optional pin status filter.
-        search: Optional search query.
-        cursor: Pagination cursor.
-        page_size: Page size.
-
-    Returns:
-        Paginated list of notes.
-    """
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Get notes
+    # Get notes via service
     offset = int(cursor) if cursor and cursor.isdigit() else 0
 
-    if search:
-        notes = await note_repo.search_by_title(
-            workspace.id,
-            search,
+    result = await list_service.execute(
+        ListNotesPayload(
+            workspace_id=workspace.id,
             project_id=project_id,
-            limit=page_size,
-        )
-    elif project_id:
-        notes = await note_repo.get_by_project(project_id, limit=page_size)
-    elif is_pinned:
-        notes = await note_repo.get_pinned_notes(workspace.id, limit=page_size)
-    else:
-        notes = await note_repo.get_by_workspace(
-            workspace.id,
+            is_pinned=is_pinned,
+            search=search,
             limit=page_size,
             offset=offset,
         )
+    )
 
-    items = [_note_to_response(note) for note in notes]
-    total = len(items)
-    has_next = len(items) == page_size
-    next_cursor = str(offset + page_size) if has_next else None
+    items = [_note_to_response(note) for note in result.notes]
+    next_cursor = str(offset + page_size) if result.has_next else None
 
     return PaginatedResponse(
         items=items,
-        total=total,
+        total=result.total,
         next_cursor=next_cursor,
         prev_cursor=str(max(0, offset - page_size)) if offset > 0 else None,
-        has_next=has_next,
+        has_next=result.has_next,
         has_prev=offset > 0,
         page_size=page_size,
     )
@@ -227,30 +192,21 @@ async def get_workspace_note(
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
-    session: SessionDep,
-    note_repo: NoteRepo,
+    get_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep
 ) -> NoteDetailResponse:
-    """Get a specific note by ID.
+    """Get a specific note by ID."""
+    from pilot_space.application.services.note import GetNoteOptions
 
-    Args:
-        workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID.
-        current_user_id: Current user ID.
-        session: Database session.
-        note_repo: Note repository.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        Note details.
-
-    Raises:
-        HTTPException: If note not found.
-    """
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Get note with all relations
-    note = await note_repo.get_with_all_relations(note_id)
+    # Get note with all relations via service
+    note = await get_service.get_by_id(
+        note_id,
+        options=GetNoteOptions(include_all_relations=True),
+    )
+
     if not note or note.workspace_id != workspace.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -389,43 +345,36 @@ async def delete_workspace_note(
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
-    session: SessionDep,
-    note_repo: NoteRepo,
+    delete_service: DeleteNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> DeleteResponse:
-    """Soft delete a note.
+    """Soft delete a note with activity tracking."""
+    from pilot_space.application.services.note import DeleteNotePayload
 
-    Args:
-        workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID.
-        current_user_id: Current user ID.
-        session: Database session.
-        note_repo: Note repository.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        Delete confirmation.
-    """
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Get note
-    note = await note_repo.get_by_id(note_id)
-    if not note or note.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found",
+    try:
+        # Execute service
+        result = await delete_service.execute(
+            DeleteNotePayload(
+                note_id=note_id,
+                actor_id=current_user_id,
+            )
         )
 
-    # Soft delete
-    await note_repo.delete(note)
-    await session.commit()
+        logger.info(
+            "Note deleted",
+            extra={"note_id": str(note_id), "workspace_id": str(workspace.id)},
+        )
 
-    logger.info(
-        "Note deleted",
-        extra={"note_id": str(note_id), "workspace_id": str(workspace.id)},
-    )
+        return DeleteResponse(id=result.note_id, message="Note deleted successfully")
 
-    return DeleteResponse(id=note_id, message="Note deleted successfully")
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
 
 
 @router.post(
@@ -438,39 +387,38 @@ async def pin_workspace_note(
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
-    session: SessionDep,
-    note_repo: NoteRepo,
+    pin_service: PinNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> NoteResponse:
-    """Pin a note for quick access.
+    """Pin a note for quick access."""
+    from pilot_space.application.services.note import PinNotePayload
 
-    Args:
-        workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID.
-        current_user_id: Current user ID.
-        session: Database session.
-        note_repo: Note repository.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        Updated note.
-    """
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Get note
-    note = await note_repo.get_by_id(note_id)
-    if not note or note.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found",
+    try:
+        # Execute service
+        result = await pin_service.execute(
+            PinNotePayload(
+                note_id=note_id,
+                is_pinned=True,
+            )
         )
 
-    # Pin
-    note.is_pinned = True
-    note = await note_repo.update(note)
-    await session.commit()
+        # Verify workspace ownership
+        if result.note.workspace_id != workspace.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Note not found",
+            )
 
-    return _note_to_response(note)
+        return _note_to_response(result.note)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
 
 
 @router.delete(
@@ -483,39 +431,38 @@ async def unpin_workspace_note(
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
-    session: SessionDep,
-    note_repo: NoteRepo,
+    pin_service: PinNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> NoteResponse:
-    """Unpin a note.
+    """Unpin a note."""
+    from pilot_space.application.services.note import PinNotePayload
 
-    Args:
-        workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID.
-        current_user_id: Current user ID.
-        session: Database session.
-        note_repo: Note repository.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        Updated note.
-    """
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Get note
-    note = await note_repo.get_by_id(note_id)
-    if not note or note.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found",
+    try:
+        # Execute service
+        result = await pin_service.execute(
+            PinNotePayload(
+                note_id=note_id,
+                is_pinned=False,
+            )
         )
 
-    # Unpin
-    note.is_pinned = False
-    note = await note_repo.update(note)
-    await session.commit()
+        # Verify workspace ownership
+        if result.note.workspace_id != workspace.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Note not found",
+            )
 
-    return _note_to_response(note)
+        return _note_to_response(result.note)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
 
 
 # =============================================================================
@@ -553,36 +500,30 @@ async def get_note_annotations(
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
-    session: SessionDep,
-    note_repo: NoteRepo,
-    annotation_repo: AnnotationRepo,
+    list_annotations_service: ListAnnotationsServiceDep,
+    get_note_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> list[AnnotationResponse]:
-    """Get all annotations for a note.
+    """Get all annotations for a note."""
+    from pilot_space.application.services.note import ListAnnotationsPayload
 
-    Args:
-        workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID.
-        current_user_id: Current user ID.
-        note_repo: Note repository.
-        annotation_repo: Annotation repository.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        List of annotations.
-    """
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
     # Verify note exists and belongs to workspace
-    note = await note_repo.get_by_id(note_id)
+    note = await get_note_service.get_by_id(note_id)
     if not note or note.workspace_id != workspace.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Note not found",
         )
 
-    annotations = await annotation_repo.get_by_note(note_id)
-    return [_annotation_to_response(a) for a in annotations]
+    # Get annotations via service
+    result = await list_annotations_service.execute(
+        ListAnnotationsPayload(note_id=note_id)
+    )
+
+    return [_annotation_to_response(a) for a in result.annotations]
 
 
 @router.patch(
@@ -597,27 +538,13 @@ async def update_annotation_status(
     annotation_id: Annotated[UUID, Path(description="Annotation ID")],
     status_update: AnnotationStatusUpdate,
     current_user_id: CurrentUserId,
-    session: SessionDep,
-    note_repo: NoteRepo,
-    annotation_repo: AnnotationRepo,
+    update_annotation_service: UpdateAnnotationServiceDep,
+    get_note_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> AnnotationResponse:
-    """Update annotation status (accept/reject/dismiss).
-
-    Args:
-        workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID.
-        annotation_id: The annotation ID.
-        status_update: New status data.
-        current_user_id: Current user ID.
-        session: Database session.
-        note_repo: Note repository.
-        annotation_repo: Annotation repository.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        Updated annotation.
-    """
+    """Update annotation status (accept/reject/dismiss)."""
+    from pilot_space.application.services.note import UpdateAnnotationPayload
     from pilot_space.infrastructure.database.models.note_annotation import (
         AnnotationStatus as DBAnnotationStatus,
     )
@@ -625,36 +552,45 @@ async def update_annotation_status(
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
     # Verify note exists and belongs to workspace
-    note = await note_repo.get_by_id(note_id)
+    note = await get_note_service.get_by_id(note_id)
     if not note or note.workspace_id != workspace.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Note not found",
         )
 
-    # Get annotation
-    annotation = await annotation_repo.get_by_id(annotation_id)
-    if not annotation or annotation.note_id != note_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Annotation not found",
+    try:
+        # Execute service
+        result = await update_annotation_service.execute(
+            UpdateAnnotationPayload(
+                annotation_id=annotation_id,
+                status=DBAnnotationStatus(status_update.status.value),
+            )
         )
 
-    # Update status
-    annotation.status = DBAnnotationStatus(status_update.status.value)
-    await annotation_repo.update(annotation)
-    await session.commit()
+        # Verify annotation belongs to note
+        if result.annotation.note_id != note_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Annotation not found",
+            )
 
-    logger.info(
-        "Annotation status updated",
-        extra={
-            "annotation_id": str(annotation_id),
-            "note_id": str(note_id),
-            "new_status": status_update.status.value,
-        },
-    )
+        logger.info(
+            "Annotation status updated",
+            extra={
+                "annotation_id": str(annotation_id),
+                "note_id": str(note_id),
+                "new_status": status_update.status.value,
+            },
+        )
 
-    return _annotation_to_response(annotation)
+        return _annotation_to_response(result.annotation)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
 
 
 @router.get(
@@ -667,29 +603,19 @@ async def get_note_versions(
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
-    session: SessionDep,
-    note_repo: NoteRepo,
+    get_note_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> list[Any]:
     """Get version history for a note.
 
     Note: Version history feature is not yet fully implemented.
     Returns an empty list for now.
-
-    Args:
-        workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID.
-        current_user_id: Current user ID.
-        note_repo: Note repository.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        List of note versions (empty until feature is implemented).
     """
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
     # Verify note exists and belongs to workspace
-    note = await note_repo.get_by_id(note_id)
+    note = await get_note_service.get_by_id(note_id)
     if not note or note.workspace_id != workspace.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
