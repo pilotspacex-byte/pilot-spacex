@@ -124,7 +124,12 @@ class Activity(WorkspaceScopedModel):
 
     # Type of activity
     activity_type: Mapped[ActivityType] = mapped_column(
-        SQLEnum(ActivityType, name="activity_type", create_type=False, values_callable=lambda x: [e.value for e in x],),
+        SQLEnum(
+            ActivityType,
+            name="activity_type",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
         nullable=False,
     )
 
