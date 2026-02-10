@@ -11,9 +11,9 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, HTTPException, Path, Query, status
 
-from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
+from pilot_space.api.v1.dependencies import WorkspaceServiceDep
 from pilot_space.api.v1.schemas.base import DeleteResponse, PaginatedResponse
 from pilot_space.api.v1.schemas.issue import LabelBriefSchema
 from pilot_space.api.v1.schemas.workspace import (
@@ -22,99 +22,34 @@ from pilot_space.api.v1.schemas.workspace import (
     WorkspaceResponse,
     WorkspaceUpdate,
 )
+from pilot_space.application.services.workspace import (
+    CreateWorkspacePayload,
+    DeleteWorkspacePayload,
+    GetWorkspacePayload,
+    ListLabelsPayload,
+    ListWorkspacesPayload,
+    UpdateWorkspacePayload,
+)
 from pilot_space.dependencies import (
     CurrentUser,
     CurrentUserId,
-    DbSession,
 )
-from pilot_space.infrastructure.database.models.workspace import Workspace
-from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
-from pilot_space.infrastructure.database.repositories.label_repository import (
-    LabelRepository,
-)
+from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
-
-def get_label_repository(session: DbSession) -> LabelRepository:
-    """Get label repository with session."""
-    return LabelRepository(session=session)
-
-
-LabelRepo = Annotated[LabelRepository, Depends(get_label_repository)]
-
-
 # Type alias for endpoints that accept both UUID and slug
 WorkspaceIdOrSlug = Annotated[str, Path(description="Workspace ID (UUID) or slug")]
-
-
-def _is_valid_uuid(value: str) -> bool:
-    """Check if a string is a valid UUID."""
-    try:
-        UUID(value)
-        return True
-    except ValueError:
-        return False
-
-
-async def _resolve_workspace(
-    workspace_id_or_slug: str,
-    workspace_repo: WorkspaceRepositoryDep,
-    *,
-    load_members: bool = False,
-) -> Workspace:
-    """Resolve workspace by UUID or slug.
-
-    Args:
-        workspace_id_or_slug: UUID string or slug.
-        workspace_repo: Workspace repository.
-        load_members: If True, eagerly load members relationship.
-    """
-    if _is_valid_uuid(workspace_id_or_slug):
-        if load_members:
-            workspace = await workspace_repo.get_with_members(UUID(workspace_id_or_slug))
-        else:
-            workspace = await workspace_repo.get_by_id(UUID(workspace_id_or_slug))
-    elif load_members:
-        workspace = await workspace_repo.get_by_slug_with_members(workspace_id_or_slug)
-    else:
-        workspace = await workspace_repo.get_by_slug(workspace_id_or_slug)
-
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
-    return workspace
-
-
-def _workspace_to_response(
-    workspace: Workspace,
-    current_user_role: str | None = None,
-) -> WorkspaceDetailResponse:
-    """Convert workspace model to response."""
-    return WorkspaceDetailResponse(
-        id=workspace.id,
-        created_at=workspace.created_at,
-        updated_at=workspace.updated_at,
-        name=workspace.name,
-        slug=workspace.slug,
-        description=workspace.description,
-        owner_id=workspace.owner_id,
-        member_count=len(workspace.members) if workspace.members else 0,
-        project_count=len(workspace.projects) if workspace.projects else 0,
-        settings=workspace.settings,
-        current_user_role=current_user_role,
-    )
 
 
 @router.get("", response_model=PaginatedResponse[WorkspaceResponse], tags=["workspaces"])
 async def list_workspaces(
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
+    session: SessionDep,
+    service: WorkspaceServiceDep,
     cursor: str | None = Query(default=None, description="Pagination cursor"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ) -> PaginatedResponse[WorkspaceResponse]:
@@ -122,15 +57,21 @@ async def list_workspaces(
 
     Args:
         current_user: Authenticated user.
-        workspace_repo: Workspace repository.
+        session: Database session (triggers ContextVar).
+        service: Workspace service.
         cursor: Pagination cursor.
         page_size: Number of items per page.
 
     Returns:
         Paginated list of workspaces.
     """
-    # Get user's workspaces (not paginated in this simple implementation)
-    workspaces = await workspace_repo.get_user_workspaces(user_id=current_user.user_id)
+    result = await service.list_workspaces(
+        ListWorkspacesPayload(
+            user_id=current_user.user_id,
+            cursor=cursor,
+            page_size=page_size,
+        )
+    )
 
     items = [
         WorkspaceResponse(
@@ -144,27 +85,16 @@ async def list_workspaces(
             member_count=len(ws.members) if ws.members else 0,
             project_count=len(ws.projects) if ws.projects else 0,
         )
-        for ws in workspaces
+        for ws in result.workspaces
     ]
 
-    # Apply simple pagination
-    total = len(items)
-    start_idx = 0
-    if cursor:
-        # Simple cursor: just use offset
-        start_idx = int(cursor) if cursor.isdigit() else 0
-    end_idx = start_idx + page_size
-    paginated_items = items[start_idx:end_idx]
-    has_next = end_idx < total
-    has_prev = start_idx > 0
-
     return PaginatedResponse(
-        items=paginated_items,
-        total=total,
-        next_cursor=str(end_idx) if has_next else None,
-        prev_cursor=str(max(0, start_idx - page_size)) if has_prev else None,
-        has_next=has_next,
-        has_prev=has_prev,
+        items=items,
+        total=result.total,
+        next_cursor=result.next_cursor,
+        prev_cursor=result.prev_cursor,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
         page_size=page_size,
     )
 
@@ -178,14 +108,16 @@ async def list_workspaces(
 async def create_workspace(
     request: WorkspaceCreate,
     current_user_id: CurrentUserId,
-    workspace_repo: WorkspaceRepositoryDep,
+    session: SessionDep,
+    service: WorkspaceServiceDep,
 ) -> WorkspaceDetailResponse:
     """Create a new workspace.
 
     Args:
         request: Workspace creation data.
         current_user_id: Authenticated user ID.
-        workspace_repo: Workspace repository.
+        session: Database session (triggers ContextVar).
+        service: Workspace service.
 
     Returns:
         Created workspace.
@@ -193,50 +125,51 @@ async def create_workspace(
     Raises:
         HTTPException: If slug already exists.
     """
-    # Check slug uniqueness
-    existing = await workspace_repo.get_by_slug(request.slug)
-    if existing:
+    try:
+        result = await service.create_workspace(
+            CreateWorkspacePayload(
+                name=request.name,
+                slug=request.slug,
+                description=request.description,
+                owner_id=current_user_id,
+            )
+        )
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Workspace with slug '{request.slug}' already exists",
-        )
+            detail=str(e),
+        ) from e
 
-    # Create workspace entity
-    workspace = Workspace(
-        name=request.name,
-        slug=request.slug,
-        description=request.description,
-        owner_id=current_user_id,
+    workspace = result.workspace
+    return WorkspaceDetailResponse(
+        id=workspace.id,
+        created_at=workspace.created_at,
+        updated_at=workspace.updated_at,
+        name=workspace.name,
+        slug=workspace.slug,
+        description=workspace.description,
+        owner_id=workspace.owner_id,
+        member_count=1,  # Just created with owner
+        project_count=0,
+        settings=workspace.settings,
+        current_user_role="owner",
     )
-    workspace = await workspace_repo.create(workspace)
-
-    # Add creator as workspace owner (FR-007)
-    await workspace_repo.add_member(
-        workspace_id=workspace.id,
-        user_id=current_user_id,
-        role=WorkspaceRole.OWNER,
-    )
-
-    logger.info(
-        "Workspace created",
-        extra={"workspace_id": str(workspace.id), "slug": workspace.slug},
-    )
-
-    return _workspace_to_response(workspace, current_user_role="owner")
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceDetailResponse, tags=["workspaces"])
 async def get_workspace(
     workspace_id: WorkspaceIdOrSlug,
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
+    session: SessionDep,
+    service: WorkspaceServiceDep,
 ) -> WorkspaceDetailResponse:
     """Get workspace by ID or slug.
 
     Args:
         workspace_id: Workspace identifier (UUID or slug).
         current_user: Authenticated user.
-        workspace_repo: Workspace repository.
+        session: Database session (triggers ContextVar).
+        service: Workspace service.
 
     Returns:
         Workspace details.
@@ -244,22 +177,38 @@ async def get_workspace(
     Raises:
         HTTPException: If workspace not found or user not a member.
     """
-    workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
-
-    # Check membership
-    member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not member:
+    try:
+        result = await service.get_workspace(
+            GetWorkspacePayload(
+                workspace_id_or_slug=workspace_id,
+                user_id=current_user.user_id,
+            )
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+            detail=error_msg,
+        ) from e
 
-    return _workspace_to_response(
-        workspace,
-        current_user_role=member.role.value if member else "member",
+    workspace = result.workspace
+    return WorkspaceDetailResponse(
+        id=workspace.id,
+        created_at=workspace.created_at,
+        updated_at=workspace.updated_at,
+        name=workspace.name,
+        slug=workspace.slug,
+        description=workspace.description,
+        owner_id=workspace.owner_id,
+        member_count=result.member_count,
+        project_count=result.project_count,
+        settings=workspace.settings,
+        current_user_role=result.current_user_role,
     )
 
 
@@ -268,7 +217,8 @@ async def update_workspace(
     workspace_id: WorkspaceIdOrSlug,
     request: WorkspaceUpdate,
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
+    session: SessionDep,
+    service: WorkspaceServiceDep,
 ) -> WorkspaceDetailResponse:
     """Update workspace.
 
@@ -278,7 +228,8 @@ async def update_workspace(
         workspace_id: Workspace identifier (UUID or slug).
         request: Update data.
         current_user: Authenticated user.
-        workspace_repo: Workspace repository.
+        session: Database session (triggers ContextVar).
+        service: Workspace service.
 
     Returns:
         Updated workspace.
@@ -286,82 +237,92 @@ async def update_workspace(
     Raises:
         HTTPException: If workspace not found or user not admin.
     """
-    workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
+    update_data = request.model_dump(exclude_unset=True)
 
-    # Check admin role
-    member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not member or not member.is_admin:
+    try:
+        result = await service.update_workspace(
+            UpdateWorkspacePayload(
+                workspace_id_or_slug=workspace_id,
+                user_id=current_user.user_id,
+                name=update_data.get("name"),
+                description=update_data.get("description"),
+                settings=update_data.get("settings"),
+            )
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+            detail=error_msg,
+        ) from e
 
-    # Update workspace
-    update_data = request.model_dump(exclude_unset=True)
-    if update_data:
-        for key, value in update_data.items():
-            # M-2 fix: merge settings dict instead of replacing
-            if key == "settings" and isinstance(value, dict):
-                existing_settings = workspace.settings or {}
-                existing_settings.update(value)
-                workspace.settings = existing_settings
-            else:
-                setattr(workspace, key, value)
-        workspace = await workspace_repo.update(workspace)
-
-    logger.info(
-        "Workspace updated",
-        extra={"workspace_id": str(workspace_id)},
+    workspace = result.workspace
+    return WorkspaceDetailResponse(
+        id=workspace.id,
+        created_at=workspace.created_at,
+        updated_at=workspace.updated_at,
+        name=workspace.name,
+        slug=workspace.slug,
+        description=workspace.description,
+        owner_id=workspace.owner_id,
+        member_count=len(workspace.members) if workspace.members else 0,
+        project_count=len(workspace.projects) if workspace.projects else 0,
+        settings=workspace.settings,
+        current_user_role="admin",  # Already verified in service
     )
-
-    return _workspace_to_response(workspace, current_user_role="admin")
 
 
 @router.delete("/{workspace_id}", response_model=DeleteResponse, tags=["workspaces"])
 async def delete_workspace(
     workspace_id: WorkspaceIdOrSlug,
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
+    session: SessionDep,
+    service: WorkspaceServiceDep,
 ) -> DeleteResponse:
     """Soft delete workspace.
 
-    Requires admin role.
+    Requires owner role.
 
     Args:
         workspace_id: Workspace identifier (UUID or slug).
         current_user: Authenticated user.
-        workspace_repo: Workspace repository.
+        session: Database session (triggers ContextVar).
+        service: Workspace service.
 
     Returns:
         Delete confirmation.
 
     Raises:
-        HTTPException: If workspace not found or user not admin.
+        HTTPException: If workspace not found or user not owner.
     """
-    workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
-
-    # H-6 fix: workspace deletion is destructive — requires owner role, not just admin
-    member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not member or not member.is_owner:
+    try:
+        result = await service.delete_workspace(
+            DeleteWorkspacePayload(
+                workspace_id_or_slug=workspace_id,
+                user_id=current_user.user_id,
+            )
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner role required to delete workspace",
-        )
+            detail=error_msg,
+        ) from e
 
-    await workspace_repo.delete(workspace)
-
-    logger.info(
-        "Workspace deleted",
-        extra={"workspace_id": str(workspace_id)},
+    return DeleteResponse(
+        id=result.workspace_id,
+        message="Workspace deleted successfully",
     )
-
-    return DeleteResponse(id=workspace.id, message="Workspace deleted successfully")
 
 
 # ============================================================================
@@ -377,8 +338,8 @@ async def delete_workspace(
 async def list_workspace_labels(
     workspace_id: WorkspaceIdOrSlug,
     current_user_id: CurrentUserId,
-    workspace_repo: WorkspaceRepositoryDep,
-    label_repo: LabelRepo,
+    session: SessionDep,
+    service: WorkspaceServiceDep,
     project_id: Annotated[UUID | None, Query(description="Filter by project ID")] = None,
 ) -> list[LabelBriefSchema]:
     """List labels available in a workspace.
@@ -389,8 +350,8 @@ async def list_workspace_labels(
     Args:
         workspace_id: Workspace identifier (UUID or slug).
         current_user_id: Authenticated user ID.
-        workspace_repo: Workspace repository.
-        label_repo: Label repository.
+        session: Database session (triggers ContextVar).
+        service: Workspace service.
         project_id: Optional project filter.
 
     Returns:
@@ -399,23 +360,27 @@ async def list_workspace_labels(
     Raises:
         HTTPException: If workspace not found or user not a member.
     """
-    workspace = await _resolve_workspace(workspace_id, workspace_repo, load_members=True)
-
-    # Check membership
-    is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
-    if not is_member:
+    try:
+        result = await service.list_labels(
+            ListLabelsPayload(
+                workspace_id_or_slug=workspace_id,
+                user_id=current_user_id,
+                project_id=project_id,
+            )
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+            detail=error_msg,
+        ) from e
 
-    labels = await label_repo.get_workspace_labels(
-        workspace.id,
-        include_project_labels=True,
-        project_id=project_id,
-    )
-
-    return [LabelBriefSchema.model_validate(label) for label in labels]
+    return [LabelBriefSchema.model_validate(label) for label in result.labels]
 
 
 __all__ = ["router"]

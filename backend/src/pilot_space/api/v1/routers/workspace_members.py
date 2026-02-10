@@ -6,65 +6,27 @@ Routes are mounted under /workspaces/{workspace_id}/members.
 
 from __future__ import annotations
 
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, HTTPException, status
 
-from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
+from pilot_space.api.v1.dependencies import WorkspaceMemberServiceDep
 from pilot_space.api.v1.schemas.workspace import (
     WorkspaceMemberResponse,
     WorkspaceMemberUpdate,
 )
+from pilot_space.application.services.workspace_member import (
+    ListMembersPayload,
+    RemoveMemberPayload,
+    UpdateMemberRolePayload,
+)
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep
-from pilot_space.infrastructure.database.models.workspace import Workspace
-from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
-# Type alias for endpoints that accept both UUID and slug
-WorkspaceIdOrSlug = Annotated[str, Path(description="Workspace ID (UUID) or slug")]
-
-
-def _is_valid_uuid(value: str) -> bool:
-    """Check if a string is a valid UUID."""
-    try:
-        UUID(value)
-        return True
-    except ValueError:
-        return False
-
-
-async def _resolve_workspace_with_members(
-    workspace_id_or_slug: str,
-    workspace_repo: WorkspaceRepositoryDep,
-) -> Workspace:
-    """Resolve workspace by UUID or slug with members eagerly loaded.
-
-    Args:
-        workspace_id_or_slug: UUID string or slug.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        Workspace with members loaded.
-
-    Raises:
-        HTTPException: If workspace not found.
-    """
-    if _is_valid_uuid(workspace_id_or_slug):
-        workspace = await workspace_repo.get_with_members(UUID(workspace_id_or_slug))
-    else:
-        workspace = await workspace_repo.get_by_slug_with_members(workspace_id_or_slug)
-
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
-    return workspace
 
 
 @router.get(
@@ -73,17 +35,18 @@ async def _resolve_workspace_with_members(
     tags=["workspaces"],
 )
 async def list_workspace_members(
-    workspace_id: WorkspaceIdOrSlug,
+    workspace_id: UUID,
     session: SessionDep,
     current_user_id: CurrentUserId,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: WorkspaceMemberServiceDep,
 ) -> list[WorkspaceMemberResponse]:
     """List workspace members.
 
     Args:
-        workspace_id: Workspace identifier (UUID or slug).
+        workspace_id: Workspace identifier.
+        session: Database session (triggers ContextVar).
         current_user_id: Authenticated user ID.
-        workspace_repo: Workspace repository.
+        service: Workspace member service.
 
     Returns:
         List of workspace members.
@@ -91,15 +54,24 @@ async def list_workspace_members(
     Raises:
         HTTPException: If workspace not found or user not a member.
     """
-    workspace = await _resolve_workspace_with_members(workspace_id, workspace_repo)
-
-    # Check membership
-    is_member = any(m.user_id == current_user_id for m in (workspace.members or []))
-    if not is_member:
+    try:
+        result = await service.list_members(
+            ListMembersPayload(
+                workspace_id=workspace_id,
+                requesting_user_id=current_user_id,
+            )
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+            detail=error_msg,
+        ) from e
 
     return [
         WorkspaceMemberResponse(
@@ -110,7 +82,7 @@ async def list_workspace_members(
             role=member.role.value,
             joined_at=member.created_at,
         )
-        for member in (workspace.members or [])
+        for member in result.members
     ]
 
 
@@ -125,7 +97,7 @@ async def update_workspace_member(
     request: WorkspaceMemberUpdate,
     session: SessionDep,
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: WorkspaceMemberServiceDep,
 ) -> WorkspaceMemberResponse:
     """Update member role.
 
@@ -135,8 +107,9 @@ async def update_workspace_member(
         workspace_id: Workspace identifier.
         user_id: Member user ID.
         request: Update data.
+        session: Database session (triggers ContextVar).
         current_user: Authenticated user.
-        workspace_repo: Workspace repository.
+        service: Workspace member service.
 
     Returns:
         Updated member.
@@ -144,59 +117,28 @@ async def update_workspace_member(
     Raises:
         HTTPException: If not found or not admin.
     """
-    # H-1 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
-    workspace = await workspace_repo.get_with_members(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
+    try:
+        result = await service.update_member_role(
+            UpdateMemberRolePayload(
+                workspace_id=workspace_id,
+                target_user_id=user_id,
+                new_role=request.role,
+                actor_id=current_user.user_id,
+            )
         )
-
-    # Check admin role
-    current_member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not current_member or not current_member.is_admin:
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+            detail=error_msg,
+        ) from e
 
-    # Find target member
-    target_member = next(
-        (m for m in (workspace.members or []) if m.user_id == user_id),
-        None,
-    )
-    if not target_member:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Member not found",
-        )
-
-    # Update role
-    role = WorkspaceRole(request.role)
-
-    # Ownership transfer guard (FR-017, T020a)
-    if role == WorkspaceRole.OWNER:
-        if not current_member.is_owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only the workspace owner can transfer ownership",
-            )
-        # Demote current owner to admin
-        await workspace_repo.update_member_role(
-            workspace_id, current_user.user_id, WorkspaceRole.ADMIN
-        )
-
-    updated_member = await workspace_repo.update_member_role(workspace_id, user_id, role)
-
-    if not updated_member:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Member not found",
-        )
-
+    updated_member = result.updated_member
     return WorkspaceMemberResponse(
         user_id=updated_member.user_id,
         email=updated_member.user.email if updated_member.user else "",
@@ -217,7 +159,7 @@ async def remove_workspace_member(
     user_id: UUID,
     session: SessionDep,
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: WorkspaceMemberServiceDep,
 ) -> None:
     """Remove member from workspace.
 
@@ -226,56 +168,37 @@ async def remove_workspace_member(
     Args:
         workspace_id: Workspace identifier.
         user_id: Member user ID.
+        session: Database session (triggers ContextVar).
         current_user: Authenticated user.
-        workspace_repo: Workspace repository.
+        service: Workspace member service.
 
     Raises:
         HTTPException: If not found or not authorized.
     """
-    # H-2 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
-    workspace = await workspace_repo.get_with_members(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
+    try:
+        await service.remove_member(
+            RemoveMemberPayload(
+                workspace_id=workspace_id,
+                target_user_id=user_id,
+                actor_id=current_user.user_id,
+            )
         )
-
-    # Check authorization (admin/owner or self)
-    current_member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    is_admin = current_member is not None and current_member.is_admin
-    is_self = user_id == current_user.user_id
-
-    if not (is_admin or is_self):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required to remove other members",
-        )
-
-    # M-5 fix: prevent owner from removing themselves (leaves workspace ownerless)
-    if is_self and current_member and current_member.is_owner:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Workspace owner cannot remove themselves. Transfer ownership first.",
-        )
-
-    # Prevent removing the only admin/owner (count both OWNER and ADMIN roles)
-    if is_self and is_admin:
-        admin_count = sum(1 for m in (workspace.members or []) if m.is_admin)
-        if admin_count == 1:
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
+        if "only admin" in error_msg.lower() or "owner cannot remove" in error_msg.lower():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot remove the only admin from workspace",
-            )
-
-    await workspace_repo.remove_member(workspace_id, user_id)
-
-    logger.info(
-        "Workspace member removed",
-        extra={"workspace_id": str(workspace_id), "user_id": str(user_id)},
-    )
+                detail=error_msg,
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_msg,
+        ) from e
 
 
 __all__ = ["router"]

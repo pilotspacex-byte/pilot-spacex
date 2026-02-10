@@ -11,14 +11,17 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 
 from pilot_space.api.v1.dependencies import (
-    InvitationRepositoryDep,
-    WorkspaceRepositoryDep,
+    WorkspaceInvitationServiceDep,
     WorkspaceServiceDep,
 )
 from pilot_space.api.v1.schemas.workspace import (
     InvitationCreateRequest,
     InvitationResponse,
     WorkspaceMemberResponse,
+)
+from pilot_space.application.services.workspace_invitation import (
+    CancelInvitationPayload,
+    ListInvitationsPayload,
 )
 from pilot_space.dependencies.auth import CurrentUser, SessionDep
 from pilot_space.infrastructure.logging import get_logger
@@ -40,7 +43,6 @@ async def add_workspace_member(
     request: InvitationCreateRequest,
     session: SessionDep,
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
     workspace_service: WorkspaceServiceDep,
 ) -> WorkspaceMemberResponse | InvitationResponse:
     """Invite or add a member to workspace.
@@ -50,26 +52,9 @@ async def add_workspace_member(
     Requires admin or owner role.
 
     Source: FR-014, FR-015, FR-016, US3.
+
+    Note: Authorization check is now in service layer.
     """
-    # H-3 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
-    workspace = await workspace_repo.get_with_members(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
-
-    # Check admin/owner role
-    current_member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not current_member or not current_member.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
     try:
         result = await workspace_service.invite_member(
             workspace_id=workspace_id,
@@ -121,33 +106,32 @@ async def list_workspace_invitations(
     workspace_id: UUID,
     session: SessionDep,
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
-    invitation_repo: InvitationRepositoryDep,
+    service: WorkspaceInvitationServiceDep,
 ) -> list[InvitationResponse]:
     """List invitations for a workspace.
 
     Requires admin or owner role.
     Source: plan.md API Contract Endpoint 2.
     """
-    # H-3 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
-    workspace = await workspace_repo.get_with_members(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
+    try:
+        result = await service.list_invitations(
+            ListInvitationsPayload(
+                workspace_id=workspace_id,
+                requesting_user_id=current_user.user_id,
+            )
         )
-
-    current_member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not current_member or not current_member.is_admin:
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+            detail=error_msg,
+        ) from e
 
-    invitations = await invitation_repo.get_by_workspace(workspace_id)
     return [
         InvitationResponse(
             id=inv.id,
@@ -159,7 +143,7 @@ async def list_workspace_invitations(
             expires_at=inv.expires_at,
             created_at=inv.created_at,
         )
-        for inv in invitations
+        for inv in result.invitations
     ]
 
 
@@ -173,45 +157,32 @@ async def cancel_workspace_invitation(
     invitation_id: UUID,
     session: SessionDep,
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
-    invitation_repo: InvitationRepositoryDep,
+    service: WorkspaceInvitationServiceDep,
 ) -> None:
     """Cancel a pending invitation.
 
     Requires admin or owner role.
     Source: plan.md API Contract Endpoint 3, US3 acceptance scenario 5.
     """
-    # H-3 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
-    workspace = await workspace_repo.get_with_members(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
+    try:
+        await service.cancel_invitation(
+            CancelInvitationPayload(
+                workspace_id=workspace_id,
+                invitation_id=invitation_id,
+                actor_id=current_user.user_id,
+            )
         )
-
-    current_member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not current_member or not current_member.is_admin:
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower() or "already processed" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
-    result = await invitation_repo.cancel(invitation_id)
-    if result is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invitation not found or already processed",
-        )
-
-    # H-5 fix: verify invitation belongs to this workspace (cross-workspace security)
-    if result.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invitation not found or already processed",
-        )
+            detail=error_msg,
+        ) from e
 
 
 __all__ = ["router"]

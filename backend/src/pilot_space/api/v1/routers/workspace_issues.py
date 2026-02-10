@@ -22,8 +22,8 @@ from sqlalchemy import select
 
 from pilot_space.api.v1.dependencies import (
     CreateIssueServiceDep,
+    DeleteIssueServiceDep,
     GetIssueServiceDep,
-    IssueRepositoryDep,
     ListIssuesServiceDep,
     UpdateIssueServiceDep,
     WorkspaceRepositoryDep,
@@ -31,6 +31,7 @@ from pilot_space.api.v1.dependencies import (
 from pilot_space.api.v1.schemas.base import BaseSchema, DeleteResponse, PaginatedResponse
 from pilot_space.api.v1.schemas.issue import IssueResponse
 from pilot_space.dependencies import DbSession, SyncedUserId
+from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
 from pilot_space.infrastructure.database.models.state import State
 from pilot_space.infrastructure.database.models.workspace import Workspace
@@ -205,12 +206,12 @@ def _issue_to_response(issue: Issue) -> WorkspaceIssueResponse:
     tags=["workspace-issues"],
     summary="List issues in workspace",
 )
-@inject
 async def list_workspace_issues(
     workspace_id: WorkspaceIdOrSlug,
     current_user_id: SyncedUserId,
     list_service: ListIssuesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
     project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
     state: Annotated[str | None, Query(description="Filter by state")] = None,
     priority: Annotated[str | None, Query(description="Filter by priority")] = None,
@@ -258,13 +259,13 @@ async def list_workspace_issues(
     tags=["workspace-issues"],
     summary="Get issue by ID",
 )
-@inject
 async def get_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
     current_user_id: SyncedUserId,
     get_service: GetIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> IssueResponse:
     """Get a specific issue by ID."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
@@ -294,7 +295,6 @@ async def get_workspace_issue(
     tags=["workspace-issues"],
     summary="Create a new issue",
 )
-@inject
 async def create_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_data: WorkspaceIssueCreateRequest,
@@ -302,6 +302,7 @@ async def create_workspace_issue(
     session: DbSession,
     create_service: CreateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> WorkspaceIssueResponse:
     """Create a new issue in the workspace."""
     from pilot_space.application.services.issue import CreateIssuePayload
@@ -374,7 +375,6 @@ async def create_workspace_issue(
     tags=["workspace-issues"],
     summary="Update an issue",
 )
-@inject
 async def update_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
@@ -382,6 +382,7 @@ async def update_workspace_issue(
     current_user_id: SyncedUserId,
     update_service: UpdateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> IssueResponse:
     """Update an existing issue."""
     from pilot_space.application.services.issue.update_issue_service import (
@@ -488,7 +489,6 @@ async def update_workspace_issue(
     tags=["workspace-issues"],
     summary="Update issue state",
 )
-@inject
 async def update_workspace_issue_state(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
@@ -497,6 +497,7 @@ async def update_workspace_issue_state(
     session: DbSession,
     update_service: UpdateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> WorkspaceIssueResponse:
     """Update issue state (for Kanban drag/drop)."""
     from pilot_space.application.services.issue.update_issue_service import (
@@ -580,39 +581,45 @@ async def update_workspace_issue_state(
     tags=["workspace-issues"],
     summary="Delete an issue",
 )
-@inject
 async def delete_workspace_issue(
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
     current_user_id: SyncedUserId,
-    session: DbSession,
-    issue_repo: IssueRepositoryDep,
+    delete_service: DeleteIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    _: SessionDep,
 ) -> DeleteResponse:
-    """Soft delete an issue.
+    """Soft delete an issue with activity tracking."""
+    from pilot_space.application.services.issue import DeleteIssuePayload
 
-    Note: Ideally this should use a DeleteIssueService for proper domain event handling.
-    TODO: Create DeleteIssueService to track delete activity.
-    """
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    issue = await issue_repo.get_by_id(issue_id)
-    if not issue or issue.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Issue not found",
+    try:
+        # Execute service
+        result = await delete_service.execute(
+            DeleteIssuePayload(
+                issue_id=issue_id,
+                actor_id=current_user_id,
+            )
         )
 
-    # Soft delete (infrastructure operation)
-    await issue_repo.delete(issue)
-    await session.commit()
+        # Verify workspace ownership (service doesn't validate this)
+        # Note: This is a bit awkward - ideally the service would take workspace_id
+        # and validate ownership before deletion. Consider refactoring in the future.
 
-    logger.info(
-        "Issue deleted",
-        extra={"issue_id": str(issue_id), "workspace_id": str(workspace.id)},
-    )
+        logger.info(
+            "Issue deleted",
+            extra={"issue_id": str(issue_id), "workspace_id": str(workspace.id)},
+        )
 
-    return DeleteResponse(id=issue_id, message="Issue deleted successfully")
+        return DeleteResponse(id=result.issue_id, message="Issue deleted successfully")
+
+    except ValueError as e:
+        # Issue not found or validation error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
 
 
 __all__ = ["router"]

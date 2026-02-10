@@ -11,6 +11,11 @@ from pilot_space.application.services.issue.create_issue_service import (
     CreateIssuePayload,
     CreateIssueService,
 )
+from pilot_space.application.services.issue.delete_issue_service import (
+    DeleteIssuePayload,
+    DeleteIssueResult,
+    DeleteIssueService,
+)
 from pilot_space.application.services.issue.get_issue_service import (
     GetIssueService,
 )
@@ -28,6 +33,9 @@ __all__ = [
     "CreateActivityPayload",
     "CreateIssuePayload",
     "CreateIssueService",
+    "DeleteIssuePayload",
+    "DeleteIssueResult",
+    "DeleteIssueService",
     "GetIssueService",
     "ListIssuesPayload",
     "ListIssuesService",

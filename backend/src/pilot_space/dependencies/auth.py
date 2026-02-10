@@ -267,7 +267,7 @@ async def require_workspace_admin(
 CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]
 DbSession = Annotated[AsyncSession, Depends(get_session)]
-SessionDep = Annotated[AsyncSession, Depends(get_session)]  # FastAPI best practice naming
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 WorkspaceMemberId = Annotated[UUID, Depends(require_workspace_member)]
 WorkspaceAdminId = Annotated[UUID, Depends(require_workspace_admin)]
 
