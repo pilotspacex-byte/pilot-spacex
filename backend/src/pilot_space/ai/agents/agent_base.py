@@ -105,7 +105,6 @@ class SDKBaseAgent[InputT, OutputT](ABC):
 
     def __init__(
         self,
-        tool_registry: ToolRegistry,
         provider_selector: ProviderSelector,
         cost_tracker: CostTracker,
         resilient_executor: ResilientExecutor,
@@ -118,15 +117,9 @@ class SDKBaseAgent[InputT, OutputT](ABC):
             cost_tracker: Cost_tracker service
             resilient_executor: Retry and circuit breaker service
         """
-        self._tool_registry = tool_registry
         self._provider_selector = provider_selector
         self._cost_tracker = cost_tracker
         self._resilient_executor = resilient_executor
-
-    @property
-    def tools(self) -> ToolRegistry:
-        """Access to MCP tool registry."""
-        return self._tool_registry
 
     def get_model(self) -> tuple[str, str]:
         """Get provider and model for this agent.
