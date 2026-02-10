@@ -412,4 +412,3 @@ backend/src/pilot_space/api/v1/schemas/
 - `/backend/src/pilot_space/application/CLAUDE.md` — Service layer, payloads, domain services
 - `docs/dev-pattern/45-pilot-space-patterns.md` — Project-specific patterns
 - `docs/DESIGN_DECISIONS.md` — Design decision context for schema choices
-

@@ -9,6 +9,7 @@
 This directory contains MobX stores that manage **UI state only** (per DD-065). Server state is managed exclusively by TanStack Query.
 
 **Core Philosophy**:
+
 - **MobX = UI State**: Local UI interactions, modals, theme, sidebar collapsed, etc.
 - **TanStack Query = Server State**: Notes, issues, cycles, workspace members, etc.
 - **Never mix**: Do not store API responses in MobX. Do not fetch in TanStack Query selectors.
@@ -126,15 +127,15 @@ Manages Supabase authentication with session lifecycle.
 ```tsx
 class AuthStore {
   // Auth state
-  user: AuthUser | null = null;           // Current user
-  session: Session | null = null;         // Supabase session
-  isLoading = true;                       // Loading initial state
+  user: AuthUser | null = null; // Current user
+  session: Session | null = null; // Supabase session
+  isLoading = true; // Loading initial state
   error: string | null = null;
 
   // Computed
-  get isAuthenticated(): boolean;         // user !== null && session !== null
-  get userDisplayName(): string;          // name or email prefix
-  get userInitials(): string;             // 1-2 letter initials (e.g., "TD")
+  get isAuthenticated(): boolean; // user !== null && session !== null
+  get userDisplayName(): string; // name or email prefix
+  get userInitials(): string; // 1-2 letter initials (e.g., "TD")
 }
 ```
 
@@ -218,24 +219,24 @@ UI layout state with localStorage persistence and theme management.
 ```tsx
 class UIStore {
   // Layout
-  sidebarCollapsed = false;               // Sidebar toggle
-  sidebarWidth = 260;                     // Resizable width
-  marginPanelWidth = 200;                 // Annotations panel width
+  sidebarCollapsed = false; // Sidebar toggle
+  sidebarWidth = 260; // Resizable width
+  marginPanelWidth = 200; // Annotations panel width
 
   // Theme
-  theme: Theme = 'system';                // 'light' | 'dark' | 'system'
-  hydrated = false;                       // SSR-safe hydration flag
+  theme: Theme = 'system'; // 'light' | 'dark' | 'system'
+  hydrated = false; // SSR-safe hydration flag
 
   // Modals & Overlays
   commandPaletteOpen = false;
   searchModalOpen = false;
-  modals: Map<string, ModalState> = new Map();  // Named modals
-  toasts: Toast[] = [];                   // Toast notifications (max 5 visible)
+  modals: Map<string, ModalState> = new Map(); // Named modals
+  toasts: Toast[] = []; // Toast notifications (max 5 visible)
 
   // Computed
-  get activeToasts(): Toast[];            // First 5 toasts
+  get activeToasts(): Toast[]; // First 5 toasts
   get resolvedTheme(): 'light' | 'dark'; // Computed from system preference
-  get hasOpenModal(): boolean;            // Any modal open?
+  get hasOpenModal(): boolean; // Any modal open?
 }
 ```
 
@@ -372,8 +373,8 @@ Current workspace and members state.
 
 ```tsx
 class WorkspaceStore {
-  workspaces: Map<string, Workspace> = new Map();  // All workspaces user can access
-  currentWorkspaceId: string | null = null;        // Currently selected workspace
+  workspaces: Map<string, Workspace> = new Map(); // All workspaces user can access
+  currentWorkspaceId: string | null = null; // Currently selected workspace
   members: Map<string, WorkspaceMember[]> = new Map();
   isLoading = false;
   isSaving = false;
@@ -381,12 +382,12 @@ class WorkspaceStore {
 
   // Computed
   get currentWorkspace(): Workspace | null;
-  get workspaceList(): Workspace[];               // Sorted by name
+  get workspaceList(): Workspace[]; // Sorted by name
   get currentMembers(): WorkspaceMember[];
   get memberCount(): number;
-  get currentUserRole(): WorkspaceRole | null;    // From AuthStore + members
-  get isAdmin(): boolean;                         // role === 'admin' || 'owner'
-  get isOwner(): boolean;                         // role === 'owner'
+  get currentUserRole(): WorkspaceRole | null; // From AuthStore + members
+  get isAdmin(): boolean; // role === 'admin' || 'owner'
+  get isOwner(): boolean; // role === 'owner'
 }
 ```
 
@@ -448,7 +449,7 @@ class NotificationStore {
   // Computed
   get unreadCount(): number;
   get unreadNotifications(): Notification[];
-  get sortedNotifications(): Notification[];  // By createdAt descending
+  get sortedNotifications(): Notification[]; // By createdAt descending
 }
 ```
 
@@ -477,7 +478,7 @@ Note editor state with auto-save and dirty tracking (but NOT server data).
 ```tsx
 class NoteStore {
   // Core state
-  notes: Map<string, Note> = new Map();      // Cache only (primary in TanStack Query)
+  notes: Map<string, Note> = new Map(); // Cache only (primary in TanStack Query)
   currentNoteId: string | null = null;
   isLoading = false;
   isSaving = false;
@@ -502,7 +503,7 @@ class NoteStore {
   // Computed
   get currentNote(): Note | null;
   get notesList(): Note[];
-  get filteredNotes(): Note[];  // Apply pinnedOnly + searchQuery filters
+  get filteredNotes(): Note[]; // Apply pinnedOnly + searchQuery filters
   get hasUnsavedChanges(): boolean;
 }
 ```
@@ -573,16 +574,16 @@ reset(): void;
 ```tsx
 // ❌ Wrong - full server response in MobX
 class BadStore {
-  note: Note | null = null;  // API response stored in MobX
+  note: Note | null = null; // API response stored in MobX
   saveNote() {
-    this.note = await noteApi.update(this.note);  // Direct mutation
+    this.note = await noteApi.update(this.note); // Direct mutation
   }
 }
 
 // ✅ Correct - UI state in MobX, server state in TanStack
 class GoodStore {
-  currentNoteId: string | null = null;  // Only ID in MobX
-  isSaving = false;                     // UI state
+  currentNoteId: string | null = null; // Only ID in MobX
+  isSaving = false; // UI state
 
   // Component uses TanStack Query separately:
   // const { data: note } = useQuery(['notes', noteId], ...)
@@ -600,7 +601,7 @@ Issue filtering, sorting, and AI suggestions (but NOT server data).
 
 ```tsx
 class IssueStore {
-  issues: Map<string, Issue> = new Map();   // Cache only
+  issues: Map<string, Issue> = new Map(); // Cache only
   currentIssueId: string | null = null;
   isLoading = false;
   isSaving = false;
@@ -618,9 +619,9 @@ class IssueStore {
   assigneeRecommendations: AssigneeRecommendation[] = [];
 
   // Filters & Sorting
-  filters: IssueFilters = {};     // state, priority, type, assignee, project
-  groupBy: GroupBy = 'state';     // 'state' | 'priority' | 'assignee' | 'project'
-  sortBy: SortBy = 'updated';     // 'created' | 'updated' | 'priority' | 'title'
+  filters: IssueFilters = {}; // state, priority, type, assignee, project
+  groupBy: GroupBy = 'state'; // 'state' | 'priority' | 'assignee' | 'project'
+  sortBy: SortBy = 'updated'; // 'created' | 'updated' | 'priority' | 'title'
   sortOrder: SortOrder = 'desc';
   searchQuery = '';
   viewMode: 'board' | 'list' | 'table' = 'board';
@@ -646,7 +647,7 @@ export interface DuplicateCandidate {
   issueId: string;
   identifier: string;
   title: string;
-  similarity: number;        // 0-1, threshold: 0.7
+  similarity: number; // 0-1, threshold: 0.7
   explanation: string | null;
 }
 ```
@@ -773,12 +774,12 @@ export class AIStore {
   approval: ApprovalStore;
   settings: AISettingsStore;
   prReview: PRReviewStore;
-  conversation: ConversationStore;    // Deprecated
+  conversation: ConversationStore; // Deprecated
   cost: CostStore;
   marginAnnotation: MarginAnnotationStore;
-  pilotSpace: PilotSpaceStore;         // Unified agent
+  pilotSpace: PilotSpaceStore; // Unified agent
 
-  isGloballyEnabled = true;             // Master switch
+  isGloballyEnabled = true; // Master switch
   globalError: string | null = null;
 
   constructor() {
@@ -819,14 +820,14 @@ Inline text suggestions with debouncing and caching (per DD-067: Gemini Flash, <
 
 ```tsx
 class GhostTextStore {
-  suggestion = '';               // Suggested text
-  isLoading = false;             // Fetching state
-  isEnabled = true;              // Toggle
+  suggestion = ''; // Suggested text
+  isLoading = false; // Fetching state
+  isEnabled = true; // Toggle
   error: string | null = null;
 
   private abortController: AbortController | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private cache = new Map<string, string>();  // LRU cache (max 10 items)
+  private cache = new Map<string, string>(); // LRU cache (max 10 items)
 }
 ```
 
@@ -945,12 +946,12 @@ class AIContextStore {
   isEnabled = true;
   error: string | null = null;
   currentIssueId: string | null = null;
-  phases: AIContextPhase[] = [];      // Legacy
+  phases: AIContextPhase[] = []; // Legacy
   result: AIContextResult | null = null;
   sectionErrors: Map<string, string> = new Map();
 
   private client: SSEClient | null = null;
-  private cache = new Map<string, AIContextResult>();  // Max 20 items
+  private cache = new Map<string, AIContextResult>(); // Max 20 items
 }
 ```
 
@@ -958,11 +959,11 @@ class AIContextStore {
 
 ```tsx
 export interface AIContextResult {
-  summary: ContextSummary | null;        // Issue title + description
+  summary: ContextSummary | null; // Issue title + description
   relatedIssues: ContextRelatedIssue[]; // Blocking/blocked_by/relates
-  relatedDocs: ContextRelatedDoc[];     // API docs, ADRs
-  tasks: ContextTask[];                 // Subtasks with estimates
-  prompts: ContextPrompt[];             // Claude Code prompts
+  relatedDocs: ContextRelatedDoc[]; // API docs, ADRs
+  tasks: ContextTask[]; // Subtasks with estimates
+  prompts: ContextPrompt[]; // Claude Code prompts
 }
 ```
 
@@ -989,10 +990,10 @@ Central orchestration for all user-facing AI conversations per DD-086.
 ```tsx
 class PilotSpaceStore {
   // ====== Messages & Streaming ======
-  messages: ChatMessage[] = [];           // Full conversation history
+  messages: ChatMessage[] = []; // Full conversation history
   streamingState: StreamingState = {
     isStreaming: false,
-    streamContent: '',                    // Accumulated text delta
+    streamContent: '', // Accumulated text delta
     currentMessageId: null,
     thinkingContent: '',
     isThinking: false,
@@ -1010,7 +1011,7 @@ class PilotSpaceStore {
     createdAt: null,
     lastActivityAt: null,
   };
-  forkSessionId: string | null = null;   // For "what-if" branches
+  forkSessionId: string | null = null; // For "what-if" branches
 
   // ====== Message Pagination (Scroll-Up Loading) ======
   totalMessages: number = 0;
@@ -1023,7 +1024,7 @@ class PilotSpaceStore {
   pendingContentUpdates: ContentUpdateEvent['data'][] = [];
 
   // ====== Context ======
-  noteContext: NoteContext | null = null;        // Selected text/blocks
+  noteContext: NoteContext | null = null; // Selected text/blocks
   issueContext: IssueContext | null = null;
   projectContext: { projectId: string; name?: string; slug?: string } | null = null;
   workspaceId: string | null = null;
@@ -1049,10 +1050,10 @@ class PilotSpaceStore {
   get streamContent(): string;
   get pendingToolCalls(): ToolCall[];
   get hasUnresolvedApprovals(): boolean;
-  get activeTasks(): TaskState[];       // filter status === 'pending' || 'in_progress'
-  get completedTasks(): TaskState[];    // filter status === 'completed'
-  get conversationContext(): ConversationContext | null;  // Composite context
-  get tokenBudgetPercent(): number;     // (sessionState.totalTokens / 8000) * 100
+  get activeTasks(): TaskState[]; // filter status === 'pending' || 'in_progress'
+  get completedTasks(): TaskState[]; // filter status === 'completed'
+  get conversationContext(): ConversationContext | null; // Composite context
+  get tokenBudgetPercent(): number; // (sessionState.totalTokens / 8000) * 100
 }
 ```
 
@@ -1063,13 +1064,13 @@ export interface TaskState {
   id: string;
   subject: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  progress: number;                     // 0-100%
+  progress: number; // 0-100%
   description?: string;
   currentStep?: string;
   totalSteps?: number;
   estimatedSecondsRemaining?: number;
-  agentName?: string;                   // Subagent executing task
-  model?: string;                       // Claude Opus, Sonnet, etc.
+  agentName?: string; // Subagent executing task
+  model?: string; // Claude Opus, Sonnet, etc.
   createdAt: Date;
   updatedAt: Date;
 }
@@ -1080,7 +1081,7 @@ export interface TaskState {
 ```tsx
 export interface ApprovalRequest {
   requestId: string;
-  actionType: string;                   // 'delete_issue', 'merge_pr', etc.
+  actionType: string; // 'delete_issue', 'merge_pr', etc.
   description: string;
   consequences?: string;
   affectedEntities: Array<{
@@ -1091,7 +1092,7 @@ export interface ApprovalRequest {
   }>;
   urgency: 'low' | 'medium' | 'high';
   proposedContent?: unknown;
-  expiresAt: Date;                      // 24h TTL
+  expiresAt: Date; // 24h TTL
   confidenceTag?: ConfidenceTag;
   createdAt: Date;
 }
@@ -1225,7 +1226,7 @@ Margin annotations (inline AI suggestions) per block.
 
 ```tsx
 class MarginAnnotationStore {
-  annotations: Map<string, NoteAnnotation[]> = new Map();  // noteId -> annotations
+  annotations: Map<string, NoteAnnotation[]> = new Map(); // noteId -> annotations
   isLoading = false;
   isEnabled = true;
   error: string | null = null;
@@ -1307,6 +1308,7 @@ export const IssueList = observer(function IssueList() {
 ```
 
 **Key Patterns**:
+
 - **makeAutoObservable**: Enable automatic tracking. Declare expensive computed properties in second arg.
 - **Computed**: Auto-memoized, runs only if dependencies change (fast).
 - **Reactions**: Side effects (auto-save, localStorage, fetches). Set up in constructor, store disposers, clean up in `dispose()`.
@@ -1323,18 +1325,20 @@ export const IssueList = observer(function IssueList() {
 **Golden Rule**: MobX = UI state (selectedId, filters, modals). TanStack Query = server state (notes, issues, cycles).
 
 **Correct Pattern**:
+
 - MobX stores: Visibility, selection, form inputs, editing mode
 - TanStack hooks: useQuery for fetches, useMutation for updates with optimistic updates + rollback
 - Never store API responses in MobX
 
 **Anti-Pattern**: ❌ Storing API data in MobX
+
 ```tsx
 class BadStore {
-  issue: Issue | null = null;  // ❌ No caching, manual sync, no refetch
+  issue: Issue | null = null; // ❌ No caching, manual sync, no refetch
 }
 
 class GoodStore {
-  selectedIssueId: string | null = null;  // ✅ Only ID, let TanStack manage data
+  selectedIssueId: string | null = null; // ✅ Only ID, let TanStack manage data
 }
 // Component: const { data: issue } = useQuery(['issues', selectedIssueId], ...)
 ```
@@ -1343,13 +1347,13 @@ class GoodStore {
 
 ## Common Gotchas & Solutions
 
-| Issue | Problem | Solution |
-|-------|---------|----------|
-| Forgot `observer()` | Component won't re-render on observable changes | Wrap with `observer(function Name() {...})` |
-| Missing `runInAction` | Mutations after `await` trigger warnings in strict mode | Wrap post-async mutations: `runInAction(() => { this.data = x; })` |
-| Storing API data | No caching, manual sync, no refetch | Keep only IDs in MobX; store responses in TanStack Query |
-| Computed with unstable deps | Infinite loops or stale computed values | Ensure computed depends only on stable observables |
-| Forgetting dispose | Memory leaks from reaction subscriptions | Store disposers, call in `dispose()` on logout |
+| Issue                       | Problem                                                 | Solution                                                           |
+| --------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------ |
+| Forgot `observer()`         | Component won't re-render on observable changes         | Wrap with `observer(function Name() {...})`                        |
+| Missing `runInAction`       | Mutations after `await` trigger warnings in strict mode | Wrap post-async mutations: `runInAction(() => { this.data = x; })` |
+| Storing API data            | No caching, manual sync, no refetch                     | Keep only IDs in MobX; store responses in TanStack Query           |
+| Computed with unstable deps | Infinite loops or stale computed values                 | Ensure computed depends only on stable observables                 |
+| Forgetting dispose          | Memory leaks from reaction subscriptions                | Store disposers, call in `dispose()` on logout                     |
 
 ---
 
@@ -1417,6 +1421,7 @@ frontend/src/stores/
 ## Generation Metadata
 
 **Refactoring Summary**:
+
 - **Original**: 1,954 lines | **After**: 1,469 lines | **Reduction**: -25% (485 lines)
 - **Changes**: Removed all testing sections (150+ lines). Reduced code examples to single concise pattern. Removed performance optimization section. Compressed gotchas to table format.
 
@@ -1445,20 +1450,20 @@ frontend/src/stores/
 
 ## Quick Reference: When to Use Which Store
 
-| Use Case | Store | Pattern |
-|----------|-------|---------|
-| User authentication | AuthStore | Supabase + subscriptions |
-| Layout (sidebar, theme) | UIStore | Reactions + localStorage |
-| Current workspace selection | WorkspaceStore | Computed properties |
-| Note editor dirty state | NoteStore | Auto-save + reactions |
-| Issue filters & sorting | IssueStore | Computed filtering |
-| Cycle selection | CycleStore | CRUD + state |
-| Inline text suggestions | GhostTextStore | Debounced + cached |
-| Issue context | AIContextStore | SSE streaming + cache |
-| Human-in-the-loop approvals | ApprovalStore + PilotSpaceStore | Queue + UI state |
-| AI conversations | PilotSpaceStore | SSE + session mgmt |
-| Margin annotations | MarginAnnotationStore | Inline UI state |
-| Cost tracking | CostStore | Read-only metrics |
+| Use Case                    | Store                           | Pattern                  |
+| --------------------------- | ------------------------------- | ------------------------ |
+| User authentication         | AuthStore                       | Supabase + subscriptions |
+| Layout (sidebar, theme)     | UIStore                         | Reactions + localStorage |
+| Current workspace selection | WorkspaceStore                  | Computed properties      |
+| Note editor dirty state     | NoteStore                       | Auto-save + reactions    |
+| Issue filters & sorting     | IssueStore                      | Computed filtering       |
+| Cycle selection             | CycleStore                      | CRUD + state             |
+| Inline text suggestions     | GhostTextStore                  | Debounced + cached       |
+| Issue context               | AIContextStore                  | SSE streaming + cache    |
+| Human-in-the-loop approvals | ApprovalStore + PilotSpaceStore | Queue + UI state         |
+| AI conversations            | PilotSpaceStore                 | SSE + session mgmt       |
+| Margin annotations          | MarginAnnotationStore           | Inline UI state          |
+| Cost tracking               | CostStore                       | Read-only metrics        |
 
 ---
 

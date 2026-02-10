@@ -24,33 +24,33 @@ All modules follow consistent structure: `components/`, `hooks/`, optional `page
 
 ### Core Modules (6)
 
-| Module | Purpose | Status | Files |
-|--------|---------|--------|-------|
-| **[notes](#notes-module)** | Block-based editor, ghost text, issue extraction | Production | 40+ |
-| **[issues](#issues-module)** | Issue CRUD, AI context, activity tracking | Production | 24 components + 15 hooks |
-| **[ai](#ai-module)** | Unified conversational interface, SSE streaming, approvals | Production | 25+ components |
-| **[approvals](#approvals-module)** | Human-in-the-loop workflow (DD-003) | Production | 3 components |
-| **[cycles](#cycles-module)** | Sprint management, burndown charts | Production | 5 components + 6 hooks |
-| **[homepage](#homepage-module)** | Landing page (Note-First), activity feed, digest | Production | 28 files |
+| Module                             | Purpose                                                    | Status     | Files                    |
+| ---------------------------------- | ---------------------------------------------------------- | ---------- | ------------------------ |
+| **[notes](#notes-module)**         | Block-based editor, ghost text, issue extraction           | Production | 40+                      |
+| **[issues](#issues-module)**       | Issue CRUD, AI context, activity tracking                  | Production | 24 components + 15 hooks |
+| **[ai](#ai-module)**               | Unified conversational interface, SSE streaming, approvals | Production | 25+ components           |
+| **[approvals](#approvals-module)** | Human-in-the-loop workflow (DD-003)                        | Production | 3 components             |
+| **[cycles](#cycles-module)**       | Sprint management, burndown charts                         | Production | 5 components + 6 hooks   |
+| **[homepage](#homepage-module)**   | Landing page (Note-First), activity feed, digest           | Production | 28 files                 |
 
 ### Integration Modules (2)
 
-| Module | Purpose | Status | Files |
-|--------|---------|--------|-------|
-| **[github](#github-integration-module)** | PR review, linking, OAuth | Production | 5+ components |
-| **[integrations](#integrations-module)** | PR review hooks (supports future integrations) | Production | 2 hooks |
+| Module                                   | Purpose                                        | Status     | Files         |
+| ---------------------------------------- | ---------------------------------------------- | ---------- | ------------- |
+| **[github](#github-integration-module)** | PR review, linking, OAuth                      | Production | 5+ components |
+| **[integrations](#integrations-module)** | PR review hooks (supports future integrations) | Production | 2 hooks       |
 
 ### Configuration Modules (2)
 
-| Module | Purpose | Status | Files |
-|--------|---------|--------|-------|
+| Module                           | Purpose                                           | Status     | Files                   |
+| -------------------------------- | ------------------------------------------------- | ---------- | ----------------------- |
 | **[settings](#settings-module)** | Workspace, members, AI providers, profile, skills | Production | 5 pages + 10 components |
-| **[costs](#costs-module)** | AI cost tracking by agent/user/day | Production | 1 page + 5 components |
+| **[costs](#costs-module)**       | AI cost tracking by agent/user/day                | Production | 1 page + 5 components   |
 
 ### Onboarding Module (1)
 
-| Module | Purpose | Status | Files |
-|--------|---------|--------|-------|
+| Module                               | Purpose                | Status     | Files                  |
+| ------------------------------------ | ---------------------- | ---------- | ---------------------- |
 | **[onboarding](#onboarding-module)** | 3-step workspace setup | Production | 6 components + 3 hooks |
 
 ---
@@ -82,10 +82,14 @@ Feature Module/
 
 ```typescript
 // ✅ MobX: UI state
-class UIStore { @observable isModalOpen = false; }
+class UIStore {
+  @observable isModalOpen = false;
+}
 
 // ✅ TanStack Query: Server data
-function useNoteData(id) { return useQuery({ queryKey: ['notes', id], queryFn: () => notesApi.get(id) }); }
+function useNoteData(id) {
+  return useQuery({ queryKey: ['notes', id], queryFn: () => notesApi.get(id) });
+}
 
 // ❌ Never store API data in MobX (causes infinite loops)
 ```
@@ -119,6 +123,7 @@ export type { UseNotesOptions } from './useNotes';
 ### 5. File Size Limit (700 lines max)
 
 **Enforced**: Ensures testability, reviewability, IDE performance. If exceeding:
+
 1. Extract sub-components to subfolder
 2. Extract hooks to `hooks/`
 3. Extract logic to `services/`
@@ -136,6 +141,7 @@ export type { UseNotesOptions } from './useNotes';
 **Philosophy**: Note-First workflow (DD-013) — users think in notes, issues emerge from refined thinking.
 
 **Key Features**:
+
 - **Editor**: 13 TipTap extensions (BlockId, GhostText, Annotations, IssueLinking, CodeBlocks, etc.)
 - **Ghost Text**: 500ms pause trigger, 50-token max, Gemini Flash
 - **Auto-Save**: 2s debounce, 3-retry exponential backoff, dirty state tracking
@@ -143,11 +149,13 @@ export type { UseNotesOptions } from './useNotes';
 - **Issue Extraction**: Rainbow-bordered extraction boxes, approval-based creation (DD-003)
 
 **State Management**:
+
 - **MobX**: `NoteStore` (current note, dirty state, annotations)
 - **TanStack Query**: `useNote()`, `useNotes()`, `useCreateNote()`, `useUpdateNote()`
 - **PilotSpaceStore**: SSE content updates, approval requests
 
 **Architecture**:
+
 ```
 NoteCanvas (observer)
 ├── EditorToolbar (AI toggles)
@@ -164,6 +172,7 @@ NoteCanvas (observer)
 ```
 
 **Integration Points**:
+
 - **AI Layer**: SSE content_update → `useContentUpdates()` hook
 - **Issues**: Issue extraction → approval → `NoteIssueLink` (EXTRACTED)
 - **Homepage**: Recent notes → activity feed
@@ -179,6 +188,7 @@ NoteCanvas (observer)
 **Purpose**: Issue CRUD, detail view, properties (state/priority/labels/etc.), sub-issues, activity timeline, AI context aggregation.
 
 **Key Features**:
+
 - **State Machine**: Backlog → Todo → In Progress → In Review → Done (enforced)
 - **State-Cycle Constraints**: In Progress/In Review require active cycle
 - **Inline Editing**: Title + description with 2s debounce
@@ -189,11 +199,13 @@ NoteCanvas (observer)
 - **Keyboard Shortcuts**: Cmd+S save, Escape close sidebar
 
 **State Management**:
+
 - **MobX**: `IssueStore` (saveStatus Map, per-field indicators)
 - **TanStack Query**: `useIssueDetail()`, `useUpdateIssue()`, `useActivities()`, `useAddComment()`
 - **AI Stores**: `AIContextStore` (context generation), `ExtractionStore` (if extracted from note)
 
 **Architecture** (70/30 split):
+
 ```
 IssueDetailPage
 ├── IssueHeader (title, AI badge, delete)
@@ -210,6 +222,7 @@ IssueDetailPage
 ```
 
 **Properties Panel Features**:
+
 - State selector (enforces state machine)
 - Priority/Type dropdowns
 - Assignee search (workspace members)
@@ -219,12 +232,14 @@ IssueDetailPage
 - Dates (start_at, target_end_at)
 
 **AI Context Features**:
+
 - Generate aggregated context (5m cache)
 - Sections: Summary, Related Issues, Docs, Tasks, Claude Code prompt
 - Copy to clipboard functionality
 - Regenerate option
 
 **Integration Points**:
+
 - **Notes**: Issue links via `NoteIssueLink`
 - **GitHub**: PR linking + review comments
 - **AI**: Context generation, task decomposition
@@ -241,6 +256,7 @@ IssueDetailPage
 **Purpose**: Unified conversational interface (ChatView), SSE streaming (DD-066), skill invocation (DD-087), human-in-the-loop approvals (DD-003).
 
 **Key Features**:
+
 - **ChatView**: 25-component tree (messages, tasks, approvals)
 - **SSE Streaming**: 8+ event types (message_start, text_delta, tool_use, approval_request, etc.)
 - **Skills**: Slash commands (/extract-issues, /enhance-issue, etc.)
@@ -250,6 +266,7 @@ IssueDetailPage
 - **Context Switching**: Note/Issue/Project context indicators
 
 **State Management**:
+
 - **MobX**: `PilotSpaceStore` (centralized AI state, all interactions route through here)
   - `messages: ChatMessage[]`
   - `isStreaming: boolean`
@@ -259,6 +276,7 @@ IssueDetailPage
 - **Independent**: `GhostTextStore` (fast-path <2.5s SLA, bypasses PilotSpaceStore)
 
 **Architecture**:
+
 ```
 ChatView (observer)
 ├── ChatHeader (title, status)
@@ -284,6 +302,7 @@ ChatView (observer)
 ```
 
 **SSE Event Flow**:
+
 ```
 Backend → SSE Event → PilotSpaceStore.handleEvent() → Specific handler
 message_start → Create new message
@@ -298,6 +317,7 @@ error → Toast notification
 ```
 
 **Approval Flow** (DD-003):
+
 ```
 AI requests approval (destructive operation)
 → ApprovalOverlay modal appears (non-dismissable)
@@ -309,6 +329,7 @@ AI requests approval (destructive operation)
 ```
 
 **Skill Invocation**:
+
 ```
 User types "/extract-issues"
 → SDK detects skill intent
@@ -320,6 +341,7 @@ User types "/extract-issues"
 ```
 
 **Integration Points**:
+
 - **Notes**: Context switching, content updates
 - **Issues**: AI context generation, task decomposition
 - **Approvals**: Destructive action overlay
@@ -337,11 +359,13 @@ User types "/extract-issues"
 **Purpose**: Human-in-the-loop approval UI for AI-generated actions (DD-003).
 
 **Approval Categories**:
+
 - **Non-Destructive** (auto-execute, notify): Add label, transition state
 - **Content Creation** (require approval, configurable): Extract issues, post comment
 - **Destructive** (always require approval, non-dismissable): Delete issue, merge PR
 
 **Key Features**:
+
 - **Approval Queue**: 5 tabs (Pending, Approved, Rejected, Expired, All)
 - **Card View**: Status badge, action type, context preview, quick actions
 - **Detail Modal**: Full metadata, risk assessment, payload preview, note field
@@ -349,9 +373,11 @@ User types "/extract-issues"
 - **Risk Assessment**: Color-coded risk level (green/yellow/red)
 
 **State Management**:
+
 - **MobX**: `ApprovalStore` (approval list, pending count, filter state)
 
 **Architecture**:
+
 ```
 ApprovalQueuePage
 ├── Tabs (Pending | Approved | Rejected | Expired | All)
@@ -373,6 +399,7 @@ ApprovalQueuePage
 ```
 
 **API Integration**:
+
 ```
 GET /api/v1/ai/approvals?status=pending|approved|rejected|expired
 POST /api/v1/ai/approvals/{id}/resolve
@@ -380,6 +407,7 @@ POST /api/v1/ai/approvals/{id}/resolve
 ```
 
 **Integration Points**:
+
 - **PilotSpaceStore**: Emits `approval_request` SSE event
 - **Router**: `/[workspaceSlug]/approvals`
 - **Shell**: Shows pending approval badge in header
@@ -395,6 +423,7 @@ POST /api/v1/ai/approvals/{id}/resolve
 **Purpose**: Sprint/cycle management with state-cycle constraints, burndown visualization, velocity tracking.
 
 **Key Features**:
+
 - **CRUD**: Create, update, delete, activate, complete cycles
 - **State-Cycle Constraints**: Enforced at frontend + backend
   - Backlog: No cycle
@@ -408,10 +437,12 @@ POST /api/v1/ai/approvals/{id}/resolve
 - **Cycle Selector**: Quick assignment, validation logic
 
 **State Management**:
+
 - **MobX**: `CycleStore` (cycle list, active cycle, filtering)
 - **TanStack Query**: `useCycle()`, `useCycles()`, `useCycleBurndown()`, `useVelocity()`
 
 **Architecture**:
+
 ```
 CycleDetailPage
 ├── CycleHeader (name, status badge, dates)
@@ -422,6 +453,7 @@ CycleDetailPage
 ```
 
 **Frontend Constraint Enforcement**:
+
 ```typescript
 // When transitioning to In Progress
 if (newState === 'in_progress' && !issue.cycle_id) {
@@ -434,6 +466,7 @@ if (newState === 'in_progress' && !issue.cycle_id) {
 ```
 
 **Integration Points**:
+
 - **Issues**: State transitions, property panel
 - **Homepage**: Activity indicators (cycle progress)
 - **Velocity metrics**: Project health dashboard
@@ -449,15 +482,18 @@ if (newState === 'in_progress' && !issue.cycle_id) {
 **Purpose**: Primary landing page (Note-First workflow, DD-013). Three zones: compact chat, activity feed, AI digest.
 
 **Key Features** (H047):
+
 - **Compact ChatView** (Zone 1): Collapsed 48px, expands 400px on click
 - **Activity Feed** (Zone 2): Recent notes/issues grouped by time (Today, Yesterday, This Week), infinite scroll
 - **AI Digest** (Zone 3): 12 suggestion categories (stale issues, missing docs, duplicates, etc.)
 
 **State Management**:
+
 - **MobX**: `HomepageUIStore` (chat expanded state, active zone for F6 cycling)
 - **TanStack Query**: `useHomepageActivity()` (infinite query), `useWorkspaceDigest()` (5m cache)
 
 **Architecture** (Desktop 3-col, Mobile stacked):
+
 ```
 HomepageHub
 ├── CompactChatView (collapsed/expanded toggle)
@@ -475,6 +511,7 @@ HomepageHub
 ```
 
 **Digest Categories**:
+
 1. Stale Issues (14+ days)
 2. Missing Documentation
 3. Inconsistent Status
@@ -489,18 +526,21 @@ HomepageHub
 12. Release Readiness
 
 **Keyboard Shortcuts**:
+
 - `/` → Focus chat input
 - `F6` → Cycle to next zone
 - `Shift+F6` → Cycle to previous zone
 - `Escape` → Close expanded chat
 
 **Accessibility** (WCAG 2.2 AA):
+
 - ARIA landmarks for 3 zones
 - Keyboard navigation (Tab, Enter, Escape)
 - Focus management (trap in modal)
 - Reduced motion support
 
 **Integration Points**:
+
 - **Notes**: Activity feed, draft indicator
 - **Issues**: Activity feed, state changes
 - **AI Chat**: PilotSpaceStore context switching
@@ -517,6 +557,7 @@ HomepageHub
 **Purpose**: PR review, linking, OAuth integration (DD-004: GitHub + Slack only in MVP).
 
 **Key Features**:
+
 - **OAuth Flow**: User authorization → token exchange → Supabase Vault encryption
 - **Repository Management**: List repos, sync toggle, webhook status
 - **PR Linking**: Search by repo:PR# → link to issue → view status
@@ -524,10 +565,12 @@ HomepageHub
 - **Severity Tags**: 🔴 Critical, 🟡 Warning, 🟢 Info
 
 **State Management**:
+
 - **MobX**: `GitHubStore` (connection status, repos, linked PRs)
 - **TanStack Query**: `useGitHubAuth()`, `useGitHubRepos()`, `usePRReview()`
 
 **Architecture**:
+
 ```
 GitHubSettingsPage
 ├── OAuth button (Connect/Disconnect)
@@ -542,6 +585,7 @@ GitHubSettingsPage
 ```
 
 **Webhook Flow**:
+
 ```
 GitHub PR opened/updated
 → Webhook to /webhooks/github
@@ -553,6 +597,7 @@ GitHub PR opened/updated
 ```
 
 **Integration Points**:
+
 - **Issues**: PR linking in properties panel
 - **Settings**: OAuth configuration (AI Providers page)
 - **Activities**: PR events in activity feed
@@ -568,13 +613,16 @@ GitHub PR opened/updated
 **Purpose**: Support for PR review integration (currently GitHub, extensible for future integrations).
 
 **Key Features**:
+
 - `usePRReview()`: Query PR review results
 - `usePRReviewStatus()`: Real-time review status
 
 **State Management**:
+
 - **TanStack Query**: PR review queries
 
 **Integration Points**:
+
 - **GitHub**: PR review data
 - **Issues**: PR review badges
 
@@ -587,6 +635,7 @@ GitHub PR opened/updated
 **Purpose**: Workspace configuration, member management, AI provider setup, user profile, AI skills.
 
 **Key Features**:
+
 - **Workspace General**: Edit name/slug/description, delete (owner-only)
 - **Member Management**: List, invite, change roles, remove (admin+)
 - **AI Providers**: API keys (Anthropic, OpenAI), feature toggles (5 switches)
@@ -594,16 +643,19 @@ GitHub PR opened/updated
 - **AI Skills**: Create/edit/regenerate/remove role-based skills (max 3 per workspace)
 
 **Permission Model** (4-tier):
+
 - **Owner**: Full control
 - **Admin**: Manage members, settings, AI config
 - **Member**: View/toggle (if keys set), edit skills
 - **Guest**: Read-only
 
 **State Management**:
+
 - **MobX**: `AISettingsStore`, `WorkspaceStore`, `AuthStore`
 - **TanStack Query**: `useWorkspaceSettings()`, `useWorkspaceMembers()`, `useWorkspaceInvitations()`
 
 **Architecture** (5 pages):
+
 ```
 SettingsPage (router root)
 ├── WorkspaceGeneralPage (name, slug, description, delete)
@@ -614,11 +666,13 @@ SettingsPage (router root)
 ```
 
 **API Key Validation**:
+
 - Anthropic: `sk-ant-*`, min 10 chars
 - OpenAI: `sk-*`, min 10 chars
 - All keys encrypted via Supabase Vault (AES-256-GCM)
 
 **Integration Points**:
+
 - **RLS**: Database-level permission enforcement
 - **Supabase Vault**: API key encryption
 - **AI Layer**: Feature toggles affect agent behavior
@@ -634,6 +688,7 @@ SettingsPage (router root)
 **Purpose**: AI cost tracking and analytics (provider routing insights per DD-011).
 
 **Key Features**:
+
 - **Cost Dashboard**: Summary cards + 2 charts + user table
 - **Cost Trends**: Daily cost line chart (AreaChart)
 - **Cost by Agent**: Provider distribution donut chart
@@ -649,9 +704,11 @@ SettingsPage (router root)
 | ai_context_agent | Anthropic | Claude Sonnet | Context aggregation |
 
 **State Management**:
+
 - **MobX**: `CostStore` (summary data, date range, loading state)
 
 **Architecture**:
+
 ```
 CostDashboardPage
 ├── DateRangeSelector (presets)
@@ -666,6 +723,7 @@ CostDashboardPage
 ```
 
 **API Integration**:
+
 ```
 GET /workspaces/{workspace_id}/ai/costs/summary
   Query: { start_date: YYYY-MM-DD, end_date: YYYY-MM-DD }
@@ -673,12 +731,14 @@ GET /workspaces/{workspace_id}/ai/costs/summary
 ```
 
 **Business Context**:
+
 - BYOK (Bring Your Own Key) — users provide API keys
 - Backend tracks tokens (prompt/completion/cached) + USD costs
 - Frontend displays cost insights without storing keys
 - Cost tracking per agent enables provider routing optimization
 
 **Integration Points**:
+
 - **AI Layer**: Token usage logging
 - **Settings**: API key configuration
 - **Dashboard**: Cost visibility for admins
@@ -694,15 +754,18 @@ GET /workspaces/{workspace_id}/ai/costs/summary
 **Purpose**: 3-step workspace setup (role selection, skill generation, completion celebration).
 
 **Key Features**:
+
 - **Step 1**: User role selection (developer, manager, designer, custom)
 - **Step 2**: AI skill generation (generate 3 persona-specific skills)
 - **Step 3**: Completion celebration + redirect to homepage
 
 **State Management**:
+
 - **MobX**: `OnboardingStore` (current step, selected role, skills)
 - **TanStack Query**: `useOnboardingState()`, `useRoleSkillActions()`
 
 **Architecture**:
+
 ```
 OnboardingFlow
 ├── OnboardingChecklist (top nav, step indicators)
@@ -714,6 +777,7 @@ OnboardingFlow
 ```
 
 **Integration Points**:
+
 - **Settings**: Skills created via `/api/v1/skills` endpoint
 - **Homepage**: Shown until onboarding completed
 - **Auth**: Triggered on first workspace creation
@@ -761,20 +825,21 @@ See `docs/dev-pattern/` for detailed query key factory patterns, MobX reactions,
 
 ## Troubleshooting Guide
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| Component not re-rendering on store update | Missing `observer()` wrapper | Wrap with `observer(function Component() { ... })` |
-| Query not refetching after mutation | Invalidation key mismatch | Ensure `queryKey` in invalidation matches `useQuery` key exactly |
-| Infinite scroll not triggering | Sentinel not visible or IntersectionObserver not set | Verify sentinel ref is appended, observer threshold correct |
-| SSE connection dropping | Token expiration or network timeout | Refresh token before SSE connect, implement exponential backoff retry |
-| Ghost text not triggering | Debounce not 500ms or callback missing | Check `debounceMs: 500` in config, verify `onTrigger` callback defined |
-| Block IDs lost after AI edit | BlockIdExtension running before content update | Ensure BlockIdExtension is last in extension array |
+| Issue                                      | Cause                                                | Fix                                                                    |
+| ------------------------------------------ | ---------------------------------------------------- | ---------------------------------------------------------------------- |
+| Component not re-rendering on store update | Missing `observer()` wrapper                         | Wrap with `observer(function Component() { ... })`                     |
+| Query not refetching after mutation        | Invalidation key mismatch                            | Ensure `queryKey` in invalidation matches `useQuery` key exactly       |
+| Infinite scroll not triggering             | Sentinel not visible or IntersectionObserver not set | Verify sentinel ref is appended, observer threshold correct            |
+| SSE connection dropping                    | Token expiration or network timeout                  | Refresh token before SSE connect, implement exponential backoff retry  |
+| Ghost text not triggering                  | Debounce not 500ms or callback missing               | Check `debounceMs: 500` in config, verify `onTrigger` callback defined |
+| Block IDs lost after AI edit               | BlockIdExtension running before content update       | Ensure BlockIdExtension is last in extension array                     |
 
 ---
 
 ## Learning Resources
 
 **In this codebase**:
+
 - Main docs: `/CLAUDE.md`, `frontend/CLAUDE.md`
 - Design decisions: `docs/DESIGN_DECISIONS.md` (DD-065 state split, DD-003 approvals)
 - Dev patterns: `docs/dev-pattern/45-pilot-space-patterns.md`
@@ -803,4 +868,3 @@ See `docs/dev-pattern/` for detailed query key factory patterns, MobX reactions,
 **Last Updated**: 2026-02-10
 **Audience**: Frontend developers, new team members, feature reviewers
 **Next Review**: Post-Phase 8 completion (March 2026)
-

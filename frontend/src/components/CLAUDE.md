@@ -18,6 +18,7 @@ This directory contains all shared UI components for Pilot Space frontend organi
 6. **Utilities** — Workspace selector, role icons, guards
 
 All components follow:
+
 - **TypeScript strict mode** (type-safe props, no `any`)
 - **WCAG 2.2 AA accessibility** (keyboard nav, ARIA labels, focus management)
 - **MobX + TanStack Query state management** (UI state ≠ server state)
@@ -179,6 +180,7 @@ frontend/src/components/
 All shadcn/ui components extend via Tailwind classes, CSS variables, or composition (not direct modification). Use `cn()` utility to merge classNames.
 
 **Custom Additions**:
+
 - **Button**: 6 variants (default, secondary, outline, ghost, destructive, ai), 5 sizes
 - **Card**: CardHeader, CardContent, CardFooter with grid-based layout
 - **FAB**: Custom floating action button (bottom-right, Escape to close)
@@ -237,26 +239,30 @@ NoteCanvas (responsive)
 
 All extensions live in `editor/extensions/` and are independently testable. Key extensions:
 
-| Extension | Purpose | Key Feature |
-|-----------|---------|------------|
-| **BlockIdExtension** | Auto-assign unique IDs to blocks | UUID generation for AI tool references |
-| **GhostTextExtension** | Inline autocomplete on 500ms pause | Gemini Flash, 50 token max, Tab/Escape handling |
-| **MarginAnnotationExtension** | Visual margin hints in left gutter | Color-coded by type, hover to expand |
-| **IssueLinkExtension** | Auto-detect PS-123 syntax | Hover preview, state colors, keyboard nav |
-| **CodeBlockExtension** | Syntax-highlighted code blocks | lowlight integration, copy button |
-| **SlashCommandExtension** | `/slash` commands for formatting | Command menu, AI commands |
-| **MentionExtension** | `@mention` for notes/issues | Autocomplete popup |
-| **LineGutterExtension** | Line numbers + fold buttons | Nested indentation |
-| **ParagraphSplitExtension** | Double-newline → new paragraph | Paste transformation |
-| **AIBlockProcessingExtension** | Track blocks being processed by AI | CSS class for pending blocks |
+| Extension                      | Purpose                            | Key Feature                                     |
+| ------------------------------ | ---------------------------------- | ----------------------------------------------- |
+| **BlockIdExtension**           | Auto-assign unique IDs to blocks   | UUID generation for AI tool references          |
+| **GhostTextExtension**         | Inline autocomplete on 500ms pause | Gemini Flash, 50 token max, Tab/Escape handling |
+| **MarginAnnotationExtension**  | Visual margin hints in left gutter | Color-coded by type, hover to expand            |
+| **IssueLinkExtension**         | Auto-detect PS-123 syntax          | Hover preview, state colors, keyboard nav       |
+| **CodeBlockExtension**         | Syntax-highlighted code blocks     | lowlight integration, copy button               |
+| **SlashCommandExtension**      | `/slash` commands for formatting   | Command menu, AI commands                       |
+| **MentionExtension**           | `@mention` for notes/issues        | Autocomplete popup                              |
+| **LineGutterExtension**        | Line numbers + fold buttons        | Nested indentation                              |
+| **ParagraphSplitExtension**    | Double-newline → new paragraph     | Paste transformation                            |
+| **AIBlockProcessingExtension** | Track blocks being processed by AI | CSS class for pending blocks                    |
 
 **Extension Base Pattern**:
 
 ```tsx
 export const CustomExtension = Extension.create({
   name: 'custom',
-  addGlobalAttributes() { /* ... */ },
-  addProseMirrorPlugins() { /* plugins with Plugin + PluginKey */ },
+  addGlobalAttributes() {
+    /* ... */
+  },
+  addProseMirrorPlugins() {
+    /* plugins with Plugin + PluginKey */
+  },
 });
 ```
 
@@ -286,6 +292,7 @@ reaction(
 ```
 
 **Key points**:
+
 - No save button (auto-save only)
 - 2s debounce (not configurable)
 - SaveStatus indicator shows state
@@ -301,6 +308,7 @@ reaction(
 Responsive shell with mobile-aware sidebar.
 
 **Features**:
+
 - Skip-to-main-content link (accessibility)
 - Sidebar: inline on desktop, overlay on mobile
 - Mobile backdrop with blur
@@ -313,19 +321,21 @@ Responsive shell with mobile-aware sidebar.
 // Desktop (lg+): Inline sidebar + resizable
 <aside className="fixed width...">
   <Sidebar width={uiStore.sidebarWidth} />
-</aside>
+</aside>;
 
 // Mobile (<lg): Fixed overlay sidebar
-{isSmallScreen && sidebarOpen && (
-  <motion.aside
-    initial={{ x: -260 }}
-    animate={{ x: 0 }}
-    exit={{ x: -260 }}
-    className="fixed inset-y-0 left-0 z-50 w-[260px]"
-  >
-    <Sidebar />
-  </motion.aside>
-)}
+{
+  isSmallScreen && sidebarOpen && (
+    <motion.aside
+      initial={{ x: -260 }}
+      animate={{ x: 0 }}
+      exit={{ x: -260 }}
+      className="fixed inset-y-0 left-0 z-50 w-[260px]"
+    >
+      <Sidebar />
+    </motion.aside>
+  );
+}
 ```
 
 ### Sidebar — Navigation + User Controls
@@ -424,15 +434,15 @@ Anti-pattern: Storing API data in MobX (`@observable note: Note`). Use TanStack 
 
 ## Common Anti-Patterns
 
-| Anti-Pattern | Why Bad | Fix |
-|--------------|---------|-----|
-| Storing API data in MobX | Breaks TanStack Query caching | Use `useQuery()` instead |
-| Inline styles | Breaks design system consistency | Use Tailwind classes |
-| Hardcoded colors | Not themeable, breaks dark mode | Use CSS variables (e.g., `bg-primary`) |
-| Nested ternaries | Hard to read | Use separate `{condition && <Component />}` lines |
-| Missing ARIA labels | Inaccessible to screen readers | Add `aria-label` + `title` to icon buttons |
-| No focus trap in modals | Focus escapes to page | Trap Tab key within modal, focus on open |
-| Blocking I/O in components | Blocks rendering, freezes UI | Use `useQuery()` for async data |
+| Anti-Pattern               | Why Bad                          | Fix                                               |
+| -------------------------- | -------------------------------- | ------------------------------------------------- |
+| Storing API data in MobX   | Breaks TanStack Query caching    | Use `useQuery()` instead                          |
+| Inline styles              | Breaks design system consistency | Use Tailwind classes                              |
+| Hardcoded colors           | Not themeable, breaks dark mode  | Use CSS variables (e.g., `bg-primary`)            |
+| Nested ternaries           | Hard to read                     | Use separate `{condition && <Component />}` lines |
+| Missing ARIA labels        | Inaccessible to screen readers   | Add `aria-label` + `title` to icon buttons        |
+| No focus trap in modals    | Focus escapes to page            | Trap Tab key within modal, focus on open          |
+| Blocking I/O in components | Blocks rendering, freezes UI     | Use `useQuery()` for async data                   |
 
 ---
 
@@ -441,6 +451,7 @@ Anti-pattern: Storing API data in MobX (`@observable note: Note`). Use TanStack 
 Before committing component changes:
 
 **Type Safety & Design**:
+
 - [ ] TypeScript strict mode passes: `pnpm type-check`
 - [ ] No `any` types (use generics or unions)
 - [ ] Uses shadcn/ui base components
@@ -448,6 +459,7 @@ Before committing component changes:
 - [ ] File under 700 lines
 
 **Accessibility**:
+
 - [ ] Keyboard navigation works (Tab, Enter, Escape)
 - [ ] ARIA labels on icon buttons + form inputs
 - [ ] Focus trap in modals
@@ -455,12 +467,14 @@ Before committing component changes:
 - [ ] 4.5:1 contrast ratio
 
 **State Management**:
+
 - [ ] MobX state vs TanStack Query split correct
 - [ ] observer() wrapper on MobX components
 - [ ] No API data in MobX stores
 - [ ] Optimistic updates have rollback
 
 **Code Quality**:
+
 - [ ] Linting passes: `pnpm lint`
 - [ ] No console errors/warnings
 - [ ] No hardcoded colors or inline styles

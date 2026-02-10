@@ -519,4 +519,3 @@ All integrations require:
 - Bidirectional sync (Pilot Space → GitHub)
 - Rate limit pooling across workspaces
 - Distributed webhook deduplication (currently in-memory)
-

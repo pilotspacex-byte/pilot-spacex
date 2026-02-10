@@ -16,13 +16,13 @@ All three gates must PASS. **80% test coverage requirement** catches 85% of regr
 
 ### Critical Constants
 
-| Constraint | Value | Rationale |
-|-----------|-------|-----------|
-| File size limit | 700 lines | Component files >700 lines become unmaintainable. Split by feature or extract sub-components. |
-| Accessibility | WCAG 2.2 AA | 4.5:1 contrast, keyboard nav, ARIA labels required. Inclusive design benefits all users. |
-| Performance | FCP <1.5s, LCP <2.5s | Core Web Vitals directly impact user retention and SEO rankings. |
-| Auto-save debounce | 2s (fixed) | Frontend constant. Not configurable. Prevents excessive API calls. |
-| Ghost text trigger | 500ms pause | GhostTextExtension constant. Balances responsiveness with cost. |
+| Constraint         | Value                | Rationale                                                                                     |
+| ------------------ | -------------------- | --------------------------------------------------------------------------------------------- |
+| File size limit    | 700 lines            | Component files >700 lines become unmaintainable. Split by feature or extract sub-components. |
+| Accessibility      | WCAG 2.2 AA          | 4.5:1 contrast, keyboard nav, ARIA labels required. Inclusive design benefits all users.      |
+| Performance        | FCP <1.5s, LCP <2.5s | Core Web Vitals directly impact user retention and SEO rankings.                              |
+| Auto-save debounce | 2s (fixed)           | Frontend constant. Not configurable. Prevents excessive API calls.                            |
+| Ghost text trigger | 500ms pause          | GhostTextExtension constant. Balances responsiveness with cost.                               |
 
 ### Development Commands
 
@@ -42,14 +42,14 @@ All three gates must PASS. **80% test coverage requirement** catches 85% of regr
 
 ### Technology Stack
 
-| Component | Technology | Version | Decision |
-|-----------|-----------|---------|----------|
-| Framework | Next.js (App Router) | 14+ | -- |
-| UI State | MobX | 6+ | DD-065 (clear ownership) |
-| Server State | TanStack Query | 5+ | DD-065 (caching + sync) |
-| Styling | TailwindCSS + shadcn/ui | 3.4+ | -- |
-| Rich Text | TipTap/ProseMirror | 2+ | -- |
-| Language | TypeScript | 5.3+ | -- |
+| Component    | Technology              | Version | Decision                 |
+| ------------ | ----------------------- | ------- | ------------------------ |
+| Framework    | Next.js (App Router)    | 14+     | --                       |
+| UI State     | MobX                    | 6+      | DD-065 (clear ownership) |
+| Server State | TanStack Query          | 5+      | DD-065 (caching + sync)  |
+| Styling      | TailwindCSS + shadcn/ui | 3.4+    | --                       |
+| Rich Text    | TipTap/ProseMirror      | 2+      | --                       |
+| Language     | TypeScript              | 5.3+    | --                       |
 
 ### Project Structure
 
@@ -131,11 +131,13 @@ Backend API (FastAPI on :8000)
 **Golden Rule**: Store API responses in TanStack Query. Store UI state in MobX.
 
 **MobX** (`@observable`, `@action`, `@computed`):
+
 - UI state: modal visibility, selected items, editing mode, form inputs
 - App state: current user, workspace, theme, sidebar collapsed
 - Derived state: active tasks, pending approvals, completion percentage
 
 **TanStack Query** (`useQuery`, `useMutation`):
+
 - Server data: notes, issues, cycles, members
 - Caching, background sync, stale time management
 - Optimistic updates with rollback
@@ -145,8 +147,8 @@ Backend API (FastAPI on :8000)
 ```tsx
 // ❌ WRONG - API data in MobX
 class EditorStore {
-  @observable note: Note | null = null;  // ❌ Use TanStack Query instead
-  @observable issues: Issue[] = [];       // ❌ Use TanStack Query instead
+  @observable note: Note | null = null; // ❌ Use TanStack Query instead
+  @observable issues: Issue[] = []; // ❌ Use TanStack Query instead
 }
 
 // ✅ CORRECT - UI state in MobX
@@ -169,6 +171,7 @@ function useNote(noteId: string) {
 ### Store Organization
 
 **RootStore** (singleton, created at app startup):
+
 ```typescript
 export class RootStore {
   auth: AuthStore;
@@ -199,6 +202,7 @@ function MyComponent() {
 **Root**: `AIStore` (singleton, aggregates all AI feature stores)
 
 **Feature Stores**:
+
 1. **PilotSpaceStore**: Central orchestrator for all conversational AI (note sync, skill routing, approvals)
 2. **GhostTextStore**: Inline autocomplete state (suggestion, loading, position)
 3. **AIContextStore**: Issue context aggregation (related issues, notes, docs, dependencies)
@@ -212,6 +216,7 @@ function MyComponent() {
 11. **AnnotationStore**: Margin annotation UI state (expanded annotations, scroll sync)
 
 **Access Pattern**:
+
 ```typescript
 const { pilotSpaceStore, ghostTextStore, approvalStore } = useStore().ai;
 ```
@@ -219,6 +224,7 @@ const { pilotSpaceStore, ghostTextStore, approvalStore } = useStore().ai;
 ### Observable Patterns
 
 **Making Stores**:
+
 ```typescript
 import { makeAutoObservable } from 'mobx';
 import { observer } from 'mobx-react-lite';
@@ -254,6 +260,7 @@ export const IssueDetail = observer(function IssueDetail() {
 ```
 
 **Reactions (Side Effects)**:
+
 ```typescript
 import { reaction } from 'mobx';
 
@@ -281,21 +288,21 @@ All extensions live in `frontend/src/features/notes/editor/extensions/`. Each ex
 
 ### Extension Catalog with Line Counts
 
-| # | Extension | Lines | Purpose | Key Features |
-|---|-----------|-------|---------|--------------|
-| 1 | **BlockIdExtension** | 203 | Assign unique IDs to blocks | UUID generation, AI edit guard, navigation key bypass |
-| 2 | **GhostTextExtension** | 519 | Inline autocomplete on 500ms pause | Debounce, context capture, Tab/Right/Escape handling |
-| 3 | **AnnotationMark** | 149 | Mark wrapper for margin annotations | CSS Anchor Positioning, hover effects |
-| 4 | **MarginAnnotationExtension** | 395 | Visual indicators in left gutter | Color-coded by annotation type, click to expand |
-| 5 | **MarginAnnotationAutoTriggerExtension** | 220 | Auto-trigger AI annotations | Debounce, context blocks, SSE integration |
-| 6 | **IssueLinkExtension** | 458 | Auto-detect PS-123 syntax | Hover preview card, state colors, keyboard nav |
-| 7 | **InlineIssueExtension** | 410 | Inline PS-123 rendering as badge | State colors, priority indicators, click navigation |
-| 8 | **CodeBlockExtension** | 444 | Syntax-highlighted code blocks | lowlight integration, line numbers, copy button |
-| 9 | **SlashCommandExtension** | 392 | `/slash` commands for formatting | Command menu, AI commands, keyboard nav |
-| 10 | **MentionExtension** | 418 | `@mention` for notes/issues/agents | Autocomplete popup, click navigation |
-| 11 | **LineGutterExtension** | 427 | Line numbers + fold buttons | Nested indentation, collapse/expand logic |
-| 12 | **ParagraphSplitExtension** | 330 | Double-newline → new paragraph | Paste transformation, hard break conversion |
-| 13 | **AIBlockProcessingExtension** | 81 | Track blocks being processed by AI | CSS class application, highlight pending blocks |
+| #   | Extension                                | Lines | Purpose                             | Key Features                                          |
+| --- | ---------------------------------------- | ----- | ----------------------------------- | ----------------------------------------------------- |
+| 1   | **BlockIdExtension**                     | 203   | Assign unique IDs to blocks         | UUID generation, AI edit guard, navigation key bypass |
+| 2   | **GhostTextExtension**                   | 519   | Inline autocomplete on 500ms pause  | Debounce, context capture, Tab/Right/Escape handling  |
+| 3   | **AnnotationMark**                       | 149   | Mark wrapper for margin annotations | CSS Anchor Positioning, hover effects                 |
+| 4   | **MarginAnnotationExtension**            | 395   | Visual indicators in left gutter    | Color-coded by annotation type, click to expand       |
+| 5   | **MarginAnnotationAutoTriggerExtension** | 220   | Auto-trigger AI annotations         | Debounce, context blocks, SSE integration             |
+| 6   | **IssueLinkExtension**                   | 458   | Auto-detect PS-123 syntax           | Hover preview card, state colors, keyboard nav        |
+| 7   | **InlineIssueExtension**                 | 410   | Inline PS-123 rendering as badge    | State colors, priority indicators, click navigation   |
+| 8   | **CodeBlockExtension**                   | 444   | Syntax-highlighted code blocks      | lowlight integration, line numbers, copy button       |
+| 9   | **SlashCommandExtension**                | 392   | `/slash` commands for formatting    | Command menu, AI commands, keyboard nav               |
+| 10  | **MentionExtension**                     | 418   | `@mention` for notes/issues/agents  | Autocomplete popup, click navigation                  |
+| 11  | **LineGutterExtension**                  | 427   | Line numbers + fold buttons         | Nested indentation, collapse/expand logic             |
+| 12  | **ParagraphSplitExtension**              | 330   | Double-newline → new paragraph      | Paste transformation, hard break conversion           |
+| 13  | **AIBlockProcessingExtension**           | 81    | Track blocks being processed by AI  | CSS class application, highlight pending blocks       |
 
 **Note**: Total extension code ~4,800 lines. Individually testable via `createEditorExtensions()` factory.
 
@@ -347,7 +354,7 @@ export const BlockIdExtension = Extension.create<BlockIdOptions>({
 ```typescript
 // From GhostTextExtension.ts
 export interface GhostTextOptions {
-  debounceMs: number;     // 500ms default
+  debounceMs: number; // 500ms default
   minChars: number;
   className: string;
   enabled: boolean;
@@ -520,7 +527,10 @@ const updateIssueMutation = useMutation({
   onMutate: async (newData) => {
     await queryClient.cancelQueries({ queryKey: issueDetailKeys.detail(issueId) });
     const previous = queryClient.getQueryData<Issue>(issueDetailKeys.detail(issueId));
-    queryClient.setQueryData<Issue>(issueDetailKeys.detail(issueId), (old) => ({ ...old, ...newData }));
+    queryClient.setQueryData<Issue>(issueDetailKeys.detail(issueId), (old) => ({
+      ...old,
+      ...newData,
+    }));
     return { previous };
   },
   onError: (err, _, context) => {
@@ -544,16 +554,16 @@ SSE events handled: `message_start`, `text_delta`, `tool_use`, `tool_result`, `c
 
 ### SSE Event Types (8 Total)
 
-| Event | Payload | Frontend Action |
-|-------|---------|-----------------|
-| `message_start` | `{ id, role }` | Create new message, show streaming indicator |
-| `text_delta` | `{ delta }` | Append to current message content |
-| `tool_use` | `{ id, name, input }` | Add tool call card, show tool details |
-| `tool_result` | `{ id, content }` | Update tool result display |
-| `content_update` | `{ block_id, content }` | Apply TipTap JSON patch to editor |
-| `approval_request` | `{ request_id, ...details }` | Show modal overlay (non-dismissable) |
-| `task_progress` | `{ task_id, status, progress }` | Update task panel progress bar |
-| `message_stop` | `{}` | Hide streaming indicator, commit message |
+| Event              | Payload                         | Frontend Action                              |
+| ------------------ | ------------------------------- | -------------------------------------------- |
+| `message_start`    | `{ id, role }`                  | Create new message, show streaming indicator |
+| `text_delta`       | `{ delta }`                     | Append to current message content            |
+| `tool_use`         | `{ id, name, input }`           | Add tool call card, show tool details        |
+| `tool_result`      | `{ id, content }`               | Update tool result display                   |
+| `content_update`   | `{ block_id, content }`         | Apply TipTap JSON patch to editor            |
+| `approval_request` | `{ request_id, ...details }`    | Show modal overlay (non-dismissable)         |
+| `task_progress`    | `{ task_id, status, progress }` | Update task panel progress bar               |
+| `message_stop`     | `{}`                            | Hide streaming indicator, commit message     |
 
 ---
 
@@ -624,13 +634,19 @@ export function useIssueDetail(issueId: string) {
   const updateMutation = useMutation({
     mutationFn: (data: UpdateIssueData) => issuesApi.update(workspaceId, issueId, data),
   });
-  return { issue, isLoading, update: updateMutation.mutateAsync, isUpdating: updateMutation.isPending };
+  return {
+    issue,
+    isLoading,
+    update: updateMutation.mutateAsync,
+    isUpdating: updateMutation.isPending,
+  };
 }
 ```
 
 ### Accessibility Patterns
 
 WCAG 2.2 AA compliance is mandatory. Requirements:
+
 - Keyboard navigation: Enter, Space, Tab, Arrow keys. Use `role="button"` with `onKeyDown` for divs.
 - ARIA labels: All interactive elements must have `aria-label` or `aria-labelledby`.
 - Focus management: Modal dialogs trap focus. Use `useRef` + `useEffect` for focus restoration.
@@ -717,47 +733,54 @@ Non-dismissable modal. 24h countdown. Content diff display. Implementation: `Dia
 Rate confidence (0-1) before submitting PR:
 
 **State Management**:
-- [ ] MobX (UI state) vs TanStack Query (server state) separation correct: ___
-- [ ] No API data stored in MobX stores: ___
-- [ ] Optimistic updates use snapshot + rollback pattern: ___
-- [ ] observer() wrapper on all MobX-consuming components: ___
+
+- [ ] MobX (UI state) vs TanStack Query (server state) separation correct: \_\_\_
+- [ ] No API data stored in MobX stores: \_\_\_
+- [ ] Optimistic updates use snapshot + rollback pattern: \_\_\_
+- [ ] observer() wrapper on all MobX-consuming components: \_\_\_
 
 **Accessibility**:
-- [ ] Keyboard navigation functional (Tab, Enter, Escape, Arrow keys): ___
-- [ ] ARIA labels/descriptions for interactive elements: ___
-- [ ] Focus management correct (modals trap focus): ___
-- [ ] Reduced motion support (`motion-reduce:` Tailwind classes): ___
+
+- [ ] Keyboard navigation functional (Tab, Enter, Escape, Arrow keys): \_\_\_
+- [ ] ARIA labels/descriptions for interactive elements: \_\_\_
+- [ ] Focus management correct (modals trap focus): \_\_\_
+- [ ] Reduced motion support (`motion-reduce:` Tailwind classes): \_\_\_
 
 **Performance**:
-- [ ] Dynamic imports for code-split components: ___
-- [ ] Virtual scroll used for lists >500 items: ___
-- [ ] Images optimized (Next.js Image component): ___
-- [ ] No unnecessary re-renders (observer() wrapping, useMemo, useCallback): ___
+
+- [ ] Dynamic imports for code-split components: \_\_\_
+- [ ] Virtual scroll used for lists >500 items: \_\_\_
+- [ ] Images optimized (Next.js Image component): \_\_\_
+- [ ] No unnecessary re-renders (observer() wrapping, useMemo, useCallback): \_\_\_
 
 **TipTap Editor** (if applicable):
-- [ ] Extensions properly typed with Options interface: ___
-- [ ] Block IDs preserved through all edits: ___
-- [ ] Ghost text tested at 500ms debounce: ___
-- [ ] Issue link pattern matching tested (PS-123, PROJECT-999): ___
+
+- [ ] Extensions properly typed with Options interface: \_\_\_
+- [ ] Block IDs preserved through all edits: \_\_\_
+- [ ] Ghost text tested at 500ms debounce: \_\_\_
+- [ ] Issue link pattern matching tested (PS-123, PROJECT-999): \_\_\_
 
 **AI Integration** (if applicable):
-- [ ] AI interactions through PilotSpaceStore (never siloed stores): ___
-- [ ] SSE events mapped correctly per event catalog: ___
-- [ ] Approval flow implemented for destructive actions (DD-003): ___
-- [ ] Content updates properly parsed from SSE JSON patches: ___
+
+- [ ] AI interactions through PilotSpaceStore (never siloed stores): \_\_\_
+- [ ] SSE events mapped correctly per event catalog: \_\_\_
+- [ ] Approval flow implemented for destructive actions (DD-003): \_\_\_
+- [ ] Content updates properly parsed from SSE JSON patches: \_\_\_
 
 **Code Quality**:
-- [ ] File stays under 700 lines: ___
-- [ ] TypeScript strict mode passes: ___
-- [ ] No `any` types (except approved escape hatches): ___
-- [ ] No console errors/warnings: ___
-- [ ] Tests cover happy path + error cases: ___
+
+- [ ] File stays under 700 lines: \_\_\_
+- [ ] TypeScript strict mode passes: \_\_\_
+- [ ] No `any` types (except approved escape hatches): \_\_\_
+- [ ] No console errors/warnings: \_\_\_
+- [ ] Tests cover happy path + error cases: \_\_\_
 
 **Testing**:
-- [ ] Unit tests for hooks (useNote, useIssue, etc.): ___
-- [ ] Integration tests for mutations (optimistic + rollback): ___
-- [ ] E2E tests for critical paths (note create, issue update): ___
-- [ ] Accessibility tests (axe, ARIA): ___
+
+- [ ] Unit tests for hooks (useNote, useIssue, etc.): \_\_\_
+- [ ] Integration tests for mutations (optimistic + rollback): \_\_\_
+- [ ] E2E tests for critical paths (note create, issue update): \_\_\_
+- [ ] Accessibility tests (axe, ARIA): \_\_\_
 
 **If any score <0.9, refine implementation before submitting.**
 
@@ -774,15 +797,15 @@ Rate confidence (0-1) before submitting PR:
 
 ### Key Files to Reference
 
-| Topic | File |
-|-------|------|
-| State management | `frontend/src/stores/RootStore.ts`, `stores/ai/PilotSpaceStore.ts` |
-| API clients | `frontend/src/services/api/index.ts` |
-| SSE streaming | `frontend/src/lib/sse-client.ts` |
-| Editor extensions | `frontend/src/features/notes/editor/extensions/` |
-| TanStack Query setup | `frontend/src/lib/queryClient.ts` |
-| UI design tokens | `specs/001-pilot-space-mvp/ui-design-spec.md` v4.0 |
-| Feature components | `frontend/src/features/*/components/` |
+| Topic                | File                                                               |
+| -------------------- | ------------------------------------------------------------------ |
+| State management     | `frontend/src/stores/RootStore.ts`, `stores/ai/PilotSpaceStore.ts` |
+| API clients          | `frontend/src/services/api/index.ts`                               |
+| SSE streaming        | `frontend/src/lib/sse-client.ts`                                   |
+| Editor extensions    | `frontend/src/features/notes/editor/extensions/`                   |
+| TanStack Query setup | `frontend/src/lib/queryClient.ts`                                  |
+| UI design tokens     | `specs/001-pilot-space-mvp/ui-design-spec.md` v4.0                 |
+| Feature components   | `frontend/src/features/*/components/`                              |
 
 ---
 
@@ -830,10 +853,10 @@ Rate confidence (0-1) before submitting PR:
 --border: #e5e2dd;
 
 /* Accents */
---primary: #29a386;           /* Teal-green */
+--primary: #29a386; /* Teal-green */
 --primary-hover: #238f74;
---ai: #6b8fad;                /* Dusty blue */
---destructive: #d9534f;       /* Red */
+--ai: #6b8fad; /* Dusty blue */
+--destructive: #d9534f; /* Red */
 ```
 
 ### Issue State Colors

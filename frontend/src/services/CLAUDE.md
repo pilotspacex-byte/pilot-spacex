@@ -41,12 +41,12 @@ const issue = await issuesApi.get(workspaceId, issueId);
 
 **Key Components**:
 
-| Component | Purpose | Details |
-|-----------|---------|---------|
-| `ApiError` | Custom error class | RFC 7807 compliant, includes `status`, `type`, `detail`, `isRetryable` |
-| `ApiProblemDetails` | Error interface | Matches FastAPI exception format: `{ title, status, detail, errors }` |
-| `apiClient` | HTTP methods | GET, POST, PUT, PATCH, DELETE with `<T>` generic return types |
-| Interceptors | Auth + error handling | Request: Add Bearer token. Response: Handle 401/429/403/500+, show toast |
+| Component           | Purpose               | Details                                                                  |
+| ------------------- | --------------------- | ------------------------------------------------------------------------ |
+| `ApiError`          | Custom error class    | RFC 7807 compliant, includes `status`, `type`, `detail`, `isRetryable`   |
+| `ApiProblemDetails` | Error interface       | Matches FastAPI exception format: `{ title, status, detail, errors }`    |
+| `apiClient`         | HTTP methods          | GET, POST, PUT, PATCH, DELETE with `<T>` generic return types            |
+| Interceptors        | Auth + error handling | Request: Add Bearer token. Response: Handle 401/429/403/500+, show toast |
 
 **Request Flow**:
 
@@ -71,11 +71,11 @@ Request → Interceptor (add auth) → Axios → Response
 ```typescript
 // Standard paginated response (all list endpoints)
 interface PaginatedResponse<T> {
-  items: T[];           // Result array
-  total: number;        // Total count across all pages
-  page: number;         // Current page (1-based)
-  pageSize: number;     // Items per page
-  hasMore: boolean;     // True if more pages exist
+  items: T[]; // Result array
+  total: number; // Total count across all pages
+  page: number; // Current page (1-based)
+  pageSize: number; // Items per page
+  hasMore: boolean; // True if more pages exist
 }
 
 // Optional standard wrapper (not always used)
@@ -101,16 +101,16 @@ TipTap documents + metadata. Methods: `list`, `get`, `create`, `update`, `update
 
 ### 3-10. Remaining Clients
 
-| Client | Scope | Key Methods |
-|--------|-------|-----------|
-| **AI** | SSE streaming, settings, approvals, costs, chat | `getGhostTextUrl()`, `getWorkspaceSettings()`, `listApprovals()`, `getCostSummary()`, `createConversationSession()` |
-| **Workspaces** | CRUD, member mgmt | `list`, `get`, `create`, `update`, `delete`, `getMembers()`, `inviteMember()`, `updateMemberRole()` |
-| **Projects** | Lightweight CRUD | `list`, `get`, `create`, `update`, `delete` (mostly stable) |
-| **Cycles** | Sprint planning, metrics | `list`, `get`, `create`, `update`, `addIssue()`, `rollover()`, `getBurndownData()`, `getVelocityData()` |
-| **Approvals** | Human-in-the-loop (DD-003) | `listPending()`, `list()`, `approve()`, `reject()`, `getPendingCount()` |
-| **Integrations** | GitHub OAuth, PR webhooks | `getGitHubAuthUrl()`, `completeGitHubAuth()`, `listRepositories()`, `getBranchName()`, `getWebhookStatus()` |
-| **Onboarding** | First-time setup | `getOnboardingState()`, `updateOnboardingStep()`, `validateProviderKey()`, `createGuidedNote()` |
-| **Role Skills** | SDLC roles, AI generation | `getTemplates()`, `getRoleSkills()`, `createRoleSkill()`, `generateSkill()`, `updateDefaultRole()` |
+| Client           | Scope                                           | Key Methods                                                                                                         |
+| ---------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **AI**           | SSE streaming, settings, approvals, costs, chat | `getGhostTextUrl()`, `getWorkspaceSettings()`, `listApprovals()`, `getCostSummary()`, `createConversationSession()` |
+| **Workspaces**   | CRUD, member mgmt                               | `list`, `get`, `create`, `update`, `delete`, `getMembers()`, `inviteMember()`, `updateMemberRole()`                 |
+| **Projects**     | Lightweight CRUD                                | `list`, `get`, `create`, `update`, `delete` (mostly stable)                                                         |
+| **Cycles**       | Sprint planning, metrics                        | `list`, `get`, `create`, `update`, `addIssue()`, `rollover()`, `getBurndownData()`, `getVelocityData()`             |
+| **Approvals**    | Human-in-the-loop (DD-003)                      | `listPending()`, `list()`, `approve()`, `reject()`, `getPendingCount()`                                             |
+| **Integrations** | GitHub OAuth, PR webhooks                       | `getGitHubAuthUrl()`, `completeGitHubAuth()`, `listRepositories()`, `getBranchName()`, `getWebhookStatus()`         |
+| **Onboarding**   | First-time setup                                | `getOnboardingState()`, `updateOnboardingStep()`, `validateProviderKey()`, `createGuidedNote()`                     |
+| **Role Skills**  | SDLC roles, AI generation                       | `getTemplates()`, `getRoleSkills()`, `createRoleSkill()`, `generateSkill()`, `updateDefaultRole()`                  |
 
 **Note**: All clients return snake_case from backend, auto-transform to camelCase on frontend. SSE endpoints return URLs only (no HTTP call).
 
@@ -183,7 +183,7 @@ For non-critical endpoints (e.g., optional context fetch):
 ```typescript
 const context = await aiApi.getAIContext(issueId).catch((error) => {
   console.error('Failed to load AI context (non-blocking):', error);
-  return null;  // Graceful degradation
+  return null; // Graceful degradation
 });
 ```
 
@@ -205,14 +205,14 @@ const context = await aiApi.getAIContext(issueId).catch((error) => {
 
 ### Key Features
 
-| Feature | Implementation |
-|---------|-----------------|
-| **POST with body** | Uses fetch ReadableStream instead of EventSource |
-| **Auth headers** | Automatically adds Bearer token from Supabase session |
-| **Event parsing** | Handles chunked delivery of `event:` + `data:` lines |
-| **Reconnection** | Exponential backoff (1s → 2s → 4s → 8s) up to 3 retries |
-| **Abort control** | AbortController for cancellation |
-| **Type safety** | `SSEEvent { type, data }` with parsed JSON |
+| Feature            | Implementation                                          |
+| ------------------ | ------------------------------------------------------- |
+| **POST with body** | Uses fetch ReadableStream instead of EventSource        |
+| **Auth headers**   | Automatically adds Bearer token from Supabase session   |
+| **Event parsing**  | Handles chunked delivery of `event:` + `data:` lines    |
+| **Reconnection**   | Exponential backoff (1s → 2s → 4s → 8s) up to 3 retries |
+| **Abort control**  | AbortController for cancellation                        |
+| **Type safety**    | `SSEEvent { type, data }` with parsed JSON              |
 
 **Setup**: `new SSEClient({ url, method: 'POST', body, onMessage, onError, onComplete })`. Methods: `connect()`, `abort()`.
 
@@ -377,6 +377,7 @@ export function IssueDetail({ workspaceId, issueId }: Props) {
 ## Refactoring Notes (2026-02-10)
 
 **Changes Made**:
+
 - Removed all testing sections (MSW, React Testing Library examples)
 - Consolidated code examples (kept 1 complete integration example)
 - Collapsed TanStack Query sections (patterns → brief bullets)
@@ -385,9 +386,9 @@ export function IssueDetail({ workspaceId, issueId }: Props) {
 - Final line count: ~350 lines (from 470) — 25% reduction
 
 **Preserved**:
+
 - Full 9-client API catalog with method tables
 - RFC 7807 error handling details
 - Event format documentation
 - Response transformation patterns
 - Workspace scoping + RLS notes
-
