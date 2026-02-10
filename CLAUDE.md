@@ -770,5 +770,3 @@ Read index at `docs/claude-sdk.txt` for full documentation.
 ## Recent Changes
 
 - 007-issue-detail-page: Added TypeScript 5.3+ / Next.js 14+ (App Router) + React 18, MobX 6+, TanStack Query 5+, TipTap 3.16+, TailwindCSS 3.4+, shadcn/ui
-
-

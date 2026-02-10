@@ -20,7 +20,7 @@ from sqlalchemy import select
 
 from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.api.v1.streaming import create_sse_response
-from pilot_space.dependencies import get_current_user_id, get_sdk_orchestrator, get_session
+from pilot_space.dependencies import get_current_user_id, get_pilotspace_agent, get_session
 from pilot_space.infrastructure.database.models.note import Note
 
 router = APIRouter(prefix="/notes", tags=["notes-ai"])
@@ -69,7 +69,7 @@ async def ghost_text_stream(
     note_id: Annotated[UUID, Path(description="Note UUID")],
     request_body: GhostTextRequest,
     request: Request,
-    orchestrator: Annotated[..., Depends(get_sdk_orchestrator)],
+    agent: Annotated[..., Depends(get_pilotspace_agent)],
     user_id: Annotated[UUID, Depends(get_current_user_id)],
     session: Annotated[..., Depends(get_session)],
 ):
@@ -79,7 +79,7 @@ async def ghost_text_stream(
         note_id: UUID of the note being edited.
         request_body: Ghost text request with context and cursor position.
         request: FastAPI request for SSE disconnect detection.
-        orchestrator: SDK orchestrator for agent execution.
+        agent: PilotSpace agent for execution.
         user_id: Current authenticated user ID.
         session: Database session for note lookup.
 
@@ -117,7 +117,7 @@ async def ghost_text_stream(
     }
 
     # Stream ghost text suggestions
-    stream = orchestrator.stream("ghost_text", input_data, context)
+    stream = agent.stream("ghost_text", input_data, context)
     return create_sse_response(stream, request)
 
 

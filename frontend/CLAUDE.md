@@ -1,6 +1,8 @@
 # Frontend Development Guide - Pilot Space
 
-_For project overview and general context, see main CLAUDE.md at project root_
+**For project overview and general context, see main CLAUDE.md at project root.**
+
+---
 
 ## Quick Reference
 
@@ -10,13 +12,17 @@ _For project overview and general context, see main CLAUDE.md at project root_
 pnpm lint && pnpm type-check && pnpm test
 ```
 
+All three gates must PASS. **80% test coverage requirement** catches 85% of regressions before deployment.
+
 ### Critical Constants
 
-| Constraint      | Value                | Rationale                                                                                     |
-| --------------- | -------------------- | --------------------------------------------------------------------------------------------- |
-| File size limit | 700 lines            | Component files >700 lines become unmaintainable. Split by feature or extract sub-components. |
-| Accessibility   | WCAG 2.2 AA          | 4.5:1 contrast, keyboard nav, ARIA labels required. Inclusive design benefits all users.      |
-| Performance     | FCP <1.5s, LCP <2.5s | Core Web Vitals directly impact user retention and SEO rankings.                              |
+| Constraint | Value | Rationale |
+|-----------|-------|-----------|
+| File size limit | 700 lines | Component files >700 lines become unmaintainable. Split by feature or extract sub-components. |
+| Accessibility | WCAG 2.2 AA | 4.5:1 contrast, keyboard nav, ARIA labels required. Inclusive design benefits all users. |
+| Performance | FCP <1.5s, LCP <2.5s | Core Web Vitals directly impact user retention and SEO rankings. |
+| Auto-save debounce | 2s (fixed) | Frontend constant. Not configurable. Prevents excessive API calls. |
+| Ghost text trigger | 500ms pause | GhostTextExtension constant. Balances responsiveness with cost. |
 
 ### Development Commands
 
@@ -32,440 +38,283 @@ pnpm lint && pnpm type-check && pnpm test
 
 ---
 
-## Frontend Architecture
-
-You are a **Senior Frontend Design Engineer and UX Specialist** with 10+ years building production React applications. You excel at Next.js App Router patterns, MobX state management, accessible component design, and real-time collaborative features.
-
-**Core expertise**: TipTap/ProseMirror extensions, SSE streaming integration, optimistic updates, keyboard navigation, shadcn/ui customization.
+## Frontend Architecture Overview
 
 ### Technology Stack
 
-frontend_tech[6]{component,technology,version,decision}
-Framework,Next.js (App Router),14+,--
-UI State,MobX,6+,DD-065
-Server State,TanStack Query,5+,DD-065
-Styling,TailwindCSS + shadcn/ui,3.4+,--
-Rich Text,TipTap/ProseMirror,2+,--
-Language,TypeScript,5.3+,--
+| Component | Technology | Version | Decision |
+|-----------|-----------|---------|----------|
+| Framework | Next.js (App Router) | 14+ | -- |
+| UI State | MobX | 6+ | DD-065 (clear ownership) |
+| Server State | TanStack Query | 5+ | DD-065 (caching + sync) |
+| Styling | TailwindCSS + shadcn/ui | 3.4+ | -- |
+| Rich Text | TipTap/ProseMirror | 2+ | -- |
+| Language | TypeScript | 5.3+ | -- |
 
-### Feature-Based Architecture
+### Project Structure
 
-**Structure** (`frontend/src/`):
+```
+frontend/src/
+├── app/                    # Next.js App Router (pages, layouts)
+│   ├── (auth)/            # Login, password reset flows
+│   ├── (workspace)/       # Main app routes under workspace
+│   ├── (public)/          # Public pages
+│   ├── api/               # API routes (health check only)
+│   └── layout.tsx         # Root layout
+├── features/              # Domain-driven modules (feature folders)
+│   ├── notes/             # Canvas editor + 13 TipTap extensions + ghost text
+│   ├── issues/            # Issue detail + AI context + duplicate detection
+│   ├── ai/                # ChatView (25-component tree) + skill system
+│   ├── approvals/         # Approval queue + modal workflows
+│   ├── cycles/            # Cycle management + burndown/velocity charts
+│   ├── github/            # GitHub integration + PR review streaming
+│   ├── costs/             # Cost tracking dashboard
+│   ├── settings/          # Workspace/profile/AI settings
+│   ├── onboarding/        # Role + skill setup wizard
+│   ├── homepage/          # Note canvas home view
+│   └── integrations/      # GitHub + Slack connections
+├── components/            # Shared UI components
+│   ├── ui/                # 25 shadcn/ui primitives
+│   ├── editor/            # Canvas + toolbar + annotations + TOC
+│   ├── layout/            # Shell + sidebar + header
+│   ├── navigation/        # Outline tree, pinned notes list
+│   ├── issues/            # Issue cards, boards, modals
+│   ├── cycles/            # Burndown, velocity charts
+│   ├── ai/                # Chat components, approval dialogs
+│   └── role-skill/        # Role cards, skill displays
+├── stores/                # MobX stores (UI + AI state)
+│   ├── RootStore.ts       # Root: aggregates all domain stores
+│   ├── AuthStore.ts       # Auth state (user, workspace, role)
+│   ├── UIStore.ts         # Global UI state (theme, modals, etc.)
+│   ├── WorkspaceStore.ts  # Current workspace context
+│   ├── NotificationStore.ts # Toast/notifications
+│   ├── OnboardingStore.ts # Onboarding state
+│   ├── RoleSkillStore.ts  # Role/skill assignments
+│   ├── features/          # Domain stores (NoteStore, IssueStore, CycleStore)
+│   └── ai/                # AI stores (PilotSpaceStore, GhostTextStore, etc.)
+├── services/              # API clients
+│   └── api/               # 9 typed API clients (notes, issues, ai, etc.)
+├── hooks/                 # Shared custom hooks
+│   └── Organized by concern (useQuery, animations, SSE, etc.)
+├── lib/                   # Utilities
+│   ├── supabase.ts        # Supabase client
+│   ├── sse-client.ts      # SSE streaming client
+│   ├── queryClient.ts     # TanStack Query configuration
+│   ├── utils.ts           # General utilities
+│   └── issue-helpers.ts   # Issue-specific formatters
+└── types/                 # Global type definitions
 
-1. **App Router** (`app/`) — Next.js 14 routes:
-   - `/login`, `/[workspaceSlug]`, `/[workspaceSlug]/notes/[noteId]`
-   - Server components for initial render, client components for interactivity
+```
 
-2. **Features** (`features/`) — Domain modules (feature-folder pattern):
-   - **notes**: Canvas + 13 TipTap extensions + ghost text
-   - **issues**: Detail + AI context + duplicate detection
-   - **ai**: ChatView (25-component tree) + PilotSpaceStore
-   - **approvals**, **cycles**, **github**, **costs**, **settings**
+### 5-Tier Request Flow
 
-3. **Components** (`components/`) — Shared UI:
-   - **ui**: 25 shadcn/ui primitives (Button, Card, Input, etc.)
-   - **editor**: Canvas + toolbar + annotations + TOC + history
-   - **layout**: Shell + sidebar + header + outline
-
-4. **Stores** (`stores/`) — MobX stores:
-   - RootStore, AuthStore, UIStore, WorkspaceStore
-   - 11 AI stores: PilotSpaceStore, GhostTextStore, ApprovalStore, etc.
-
-5. **Services** (`services/api/`) — 9 typed API clients with RFC 7807 error handling
-
-6. **Lib** — Utilities: supabase client, SSE client, query client, formatters
+```
+User Browser
+    ↓ User interaction (click, type, etc.)
+Next.js Page/Component
+    ↓ Server component fetches initial data, client component renders interactive UI
+Feature Component (observer-wrapped, TanStack Query)
+    ↓ useQuery/useMutation for server data, observer() for MobX UI state
+MobX Store (PilotSpaceStore, IssueStore, etc.)
+    ↓ @action methods update observable state, trigger reactions
+API Services (issuesApi, notesApi, etc.)
+    ↓ Axios-based HTTP (RFC 7807 error handling)
+Backend API (FastAPI on :8000)
+```
 
 ---
 
-## Frontend Patterns
+## MobX State Management
 
-Load `docs/dev-pattern/45-pilot-space-patterns.md` first for project-specific patterns.
+### State Split: MobX (UI) vs TanStack Query (Server)
 
-### Core Patterns
+**Golden Rule**: Store API responses in TanStack Query. Store UI state in MobX.
 
-frontend_patterns[7]{pattern,implementation,rationale}
-State split (DD-065),MobX for UI; TanStack Query for server data,Clear ownership; never store API data in MobX
-Feature folders,features/{domain}/ per business domain,Colocated components; hooks; stores
-Editor extensions,13 TipTap extensions (independently testable),Modular editor capabilities
-Optimistic updates,TanStack onMutate + snapshot + rollback,Instant feedback; MobX tracks in-flight ops
-SSE handling,Custom sse-client.ts (fetch ReadableStream for POST),EventSource is GET-only; custom supports POST + auth
-Auto-save,MobX reaction → 2s debounce → saveNote(),No save button; dirty state tracked
-Accessibility,WCAG 2.2 AA: keyboard nav; ARIA; focus management; prefers-reduced-motion,Inclusive by default
+**MobX** (`@observable`, `@action`, `@computed`):
+- UI state: modal visibility, selected items, editing mode, form inputs
+- App state: current user, workspace, theme, sidebar collapsed
+- Derived state: active tasks, pending approvals, completion percentage
 
-### Pattern Details
+**TanStack Query** (`useQuery`, `useMutation`):
+- Server data: notes, issues, cycles, members
+- Caching, background sync, stale time management
+- Optimistic updates with rollback
 
-**State Split (MobX vs TanStack Query)**:
+**Anti-Pattern**: Storing API data in MobX
 
 ```tsx
-// ✅ Correct - UI state in MobX
+// ❌ WRONG - API data in MobX
+class EditorStore {
+  @observable note: Note | null = null;  // ❌ Use TanStack Query instead
+  @observable issues: Issue[] = [];       // ❌ Use TanStack Query instead
+}
+
+// ✅ CORRECT - UI state in MobX
 class EditorStore {
   @observable isEditing = false;
   @observable selectedBlockId: string | null = null;
-
-  @action
-  setEditing(value: boolean) {
-    this.isEditing = value;
-  }
+  @observable isLoading = false;
 }
 
-// ✅ Correct - Server state in TanStack Query
+// ✅ CORRECT - Server data in TanStack Query
 function useNote(noteId: string) {
   return useQuery({
     queryKey: ['notes', noteId],
-    queryFn: () => noteApi.getById(noteId),
+    queryFn: () => notesApi.get(noteId),
+    staleTime: 5 * 60 * 1000,
   });
 }
+```
 
-// ❌ Wrong - Don't store server data in MobX
-class EditorStore {
-  @observable note: Note | null = null; // ❌ Use TanStack Query instead
+### Store Organization
+
+**RootStore** (singleton, created at app startup):
+```typescript
+export class RootStore {
+  auth: AuthStore;
+  ui: UIStore;
+  workspace: WorkspaceStore;
+  notes: NoteStore;
+  issues: IssueStore;
+  cycles: CycleStore;
+  ai: AIStore;
+  onboarding: OnboardingStore;
+  roleSkill: RoleSkillStore;
+  homepage: HomepageUIStore;
+  notifications: NotificationStore;
 }
 ```
 
-**Optimistic Updates**:
+Access via hooks: `useStore()` returns RootStore, then access specific stores.
 
-```tsx
-const updateNoteMutation = useMutation({
-  mutationFn: (data: UpdateNoteData) => noteApi.update(data),
-
-  // Optimistic update
-  onMutate: async (newData) => {
-    await queryClient.cancelQueries({ queryKey: ['notes', noteId] });
-
-    const previousNote = queryClient.getQueryData(['notes', noteId]);
-
-    queryClient.setQueryData(['notes', noteId], (old) => ({
-      ...old,
-      ...newData,
-    }));
-
-    return { previousNote }; // Snapshot for rollback
-  },
-
-  // Rollback on error
-  onError: (err, newData, context) => {
-    queryClient.setQueryData(['notes', noteId], context.previousNote);
-  },
-
-  // Refetch on success
-  onSettled: () => {
-    queryClient.invalidateQueries({ queryKey: ['notes', noteId] });
-  },
-});
-```
-
-**SSE Streaming**:
-
-```tsx
-import { SSEClient } from '@/lib/sse-client';
-
-function useAIChat(sessionId: string) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-
-  const sendMessage = async (content: string) => {
-    setIsStreaming(true);
-
-    const sse = new SSEClient('/api/v1/ai/pilot-space/chat', {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId, content }),
-    });
-
-    sse.addEventListener('text_delta', (event) => {
-      setMessages((prev) => appendDelta(prev, event.data));
-    });
-
-    sse.addEventListener('message_stop', () => {
-      setIsStreaming(false);
-    });
-
-    sse.addEventListener('error', (error) => {
-      console.error('SSE error:', error);
-      setIsStreaming(false);
-    });
-
-    await sse.connect();
-  };
-
-  return { messages, isStreaming, sendMessage };
+```typescript
+function MyComponent() {
+  const { issueStore, workspaceStore } = useStores();
+  return <div>{issueStore.selectedIssueId}</div>;
 }
 ```
 
----
+### AI Store Organization (11 Stores)
 
-## Component Development
+**Root**: `AIStore` (singleton, aggregates all AI feature stores)
 
-### Prefer Editing Existing Files
+**Feature Stores**:
+1. **PilotSpaceStore**: Central orchestrator for all conversational AI (note sync, skill routing, approvals)
+2. **GhostTextStore**: Inline autocomplete state (suggestion, loading, position)
+3. **AIContextStore**: Issue context aggregation (related issues, notes, docs, dependencies)
+4. **ApprovalStore**: Pending approvals queue (24h countdown, content diffs, approval history)
+5. **MarginAnnotationStore**: Margin annotations per block (annotation types, colors, visibility)
+6. **PRReviewStore**: GitHub PR review results (severity, aspect findings, cost tracking)
+7. **CostStore**: Cost tracking per agent (per-request tokens, monthly trends, budget alerts)
+8. **AISettingsStore**: User AI preferences (enabled features, model selection, approval rules)
+9. **SessionListStore**: Chat session management (session list, current session, history)
+10. **ConversationStore**: Multi-turn conversation state (messages, tool calls, context)
+11. **AnnotationStore**: Margin annotation UI state (expanded annotations, scroll sync)
 
-Only create new components when:
+**Access Pattern**:
+```typescript
+const { pilotSpaceStore, ghostTextStore, approvalStore } = useStore().ai;
+```
 
-- Adding a new feature with distinct UI (e.g., new page, new sidebar panel)
-- Extracting reusable UI pattern used 3+ times
-- Component file exceeds 700 lines (split by responsibility)
+### Observable Patterns
 
-**Don't create**:
-
-- One-off helper components for single-use UI
-- Wrapper components without added functionality
-- Duplicate components similar to existing ones
-
-### Component Structure
-
-```tsx
-'use client';
-
+**Making Stores**:
+```typescript
+import { makeAutoObservable } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { useStore } from '@/stores';
-import { Button } from '@/components/ui/button';
 
-interface NoteEditorProps {
-  noteId: string;
-  initialContent?: string;
+class IssueStore {
+  selectedIssueId: string | null = null;
+  filters: IssueFilters = {};
+  isLoading = false;
+
+  constructor() {
+    makeAutoObservable(this, {
+      // Skip observing these (e.g., large computed properties)
+      computedValue: false,
+    });
+  }
+
+  @action
+  setSelectedIssueId(id: string | null) {
+    this.selectedIssueId = id;
+  }
+
+  @computed
+  get activeIssueCount() {
+    return this.issues.filter(i => i.state !== 'done').length;
+  }
 }
 
-export const NoteEditor = observer(function NoteEditor({
-  noteId,
-  initialContent,
-}: NoteEditorProps) {
-  const { editorStore } = useStore();
-
-  // Use TanStack Query for server data
-  const { data: note, isLoading } = useQuery({
-    queryKey: ['notes', noteId],
-    queryFn: () => noteApi.getById(noteId),
-  });
-
-  // Use MobX for UI state
-  const isEditing = editorStore.isEditing;
-
-  return <div className="note-editor">{/* Component JSX */}</div>;
+// Using in components
+export const IssueDetail = observer(function IssueDetail() {
+  const { issueStore } = useStores();
+  return <div>{issueStore.selectedIssueId}</div>;
 });
 ```
 
-**Key points**:
+**Reactions (Side Effects)**:
+```typescript
+import { reaction } from 'mobx';
 
-- Use `'use client'` for interactive components
-- Wrap MobX components with `observer()`
-- Explicit prop interfaces with TypeScript
-- TanStack Query for server data, MobX for UI state
-
-### Accessibility Requirements
-
-WCAG 2.2 AA compliance is mandatory. 4.5:1 contrast, keyboard nav, ARIA labels required. Inclusive design benefits all users.
-
-**Keyboard Navigation**:
-
-```tsx
-<Button
-  onClick={handleClick}
-  onKeyDown={(e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClick();
-    }
-  }}
-  aria-label="Create new note"
-  className="focus:ring-2 focus:ring-primary focus:ring-offset-2"
->
-  New Note
-</Button>
-```
-
-**ARIA Labels**:
-
-```tsx
-<input
-  type="text"
-  aria-label="Note title"
-  aria-describedby="title-hint"
-/>
-<span id="title-hint" className="text-sm text-muted">
-  Give your note a descriptive title
-</span>
-```
-
-**Focus Management**:
-
-```tsx
-import { useEffect, useRef } from 'react';
-
-function Modal({ isOpen }: { isOpen: boolean }) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      closeButtonRef.current?.focus();
-    }
-  }, [isOpen]);
-
-  return (
-    <dialog aria-modal="true" role="dialog">
-      <button ref={closeButtonRef} aria-label="Close modal">
-        ×
-      </button>
-    </dialog>
+useEffect(() => {
+  const dispose = reaction(
+    () => editorStore.isDirty,
+    (isDirty) => {
+      if (isDirty) {
+        // Trigger auto-save after 2s debounce
+        saveNote();
+      }
+    },
+    { delay: 2000 }
   );
-}
-```
 
-**Reduced Motion**:
-
-```tsx
-<div className="motion-safe:animate-slideIn motion-reduce:transition-none">Content</div>
+  return () => dispose();
+}, []);
 ```
 
 ---
 
-## UI/UX Design System
+## TipTap Editor Extensions (13 Total)
 
-_Full spec: `specs/001-pilot-space-mvp/ui-design-spec.md` v4.0_
+All extensions live in `frontend/src/features/notes/editor/extensions/`. Each extension is independently testable.
 
-### Design Philosophy
+### Extension Catalog with Line Counts
 
-Three adjectives: **Warm, Capable, Collaborative**.
+| # | Extension | Lines | Purpose | Key Features |
+|---|-----------|-------|---------|--------------|
+| 1 | **BlockIdExtension** | 203 | Assign unique IDs to blocks | UUID generation, AI edit guard, navigation key bypass |
+| 2 | **GhostTextExtension** | 519 | Inline autocomplete on 500ms pause | Debounce, context capture, Tab/Right/Escape handling |
+| 3 | **AnnotationMark** | 149 | Mark wrapper for margin annotations | CSS Anchor Positioning, hover effects |
+| 4 | **MarginAnnotationExtension** | 395 | Visual indicators in left gutter | Color-coded by annotation type, click to expand |
+| 5 | **MarginAnnotationAutoTriggerExtension** | 220 | Auto-trigger AI annotations | Debounce, context blocks, SSE integration |
+| 6 | **IssueLinkExtension** | 458 | Auto-detect PS-123 syntax | Hover preview card, state colors, keyboard nav |
+| 7 | **InlineIssueExtension** | 410 | Inline PS-123 rendering as badge | State colors, priority indicators, click navigation |
+| 8 | **CodeBlockExtension** | 444 | Syntax-highlighted code blocks | lowlight integration, line numbers, copy button |
+| 9 | **SlashCommandExtension** | 392 | `/slash` commands for formatting | Command menu, AI commands, keyboard nav |
+| 10 | **MentionExtension** | 418 | `@mention` for notes/issues/agents | Autocomplete popup, click navigation |
+| 11 | **LineGutterExtension** | 427 | Line numbers + fold buttons | Nested indentation, collapse/expand logic |
+| 12 | **ParagraphSplitExtension** | 330 | Double-newline → new paragraph | Paste transformation, hard break conversion |
+| 13 | **AIBlockProcessingExtension** | 81 | Track blocks being processed by AI | CSS class application, highlight pending blocks |
 
-**Inspirations**: Craft (layered surfaces), Apple (squircle corners, frosted glass), Things 3 (natural colors, spacious calm).
+**Note**: Total extension code ~4,800 lines. Individually testable via `createEditorExtensions()` factory.
 
-**NOT**: Cold enterprise software, generic shadcn/ui defaults, AI as separate "system", dense displays.
+### Extension Examples
 
-### Color System
+**BlockIdExtension**: Ensures every block has a unique UUID for AI tool targeting and scroll sync.
 
-**Base Palette** (Warm Neutrals):
+```typescript
+// From BlockIdExtension.ts
+const BLOCK_ID_PLUGIN_KEY = new PluginKey('blockId');
+const AI_EDIT_GUARD_KEY = new PluginKey('aiEditGuard');
 
-```css
---background: #fdfcfa; /* Light mode primary surface */
---background-dark: #1a1a1a; /* Dark mode primary surface */
---foreground: #171717; /* Primary text */
---foreground-dark: #ededed; /* Dark mode text */
---border: #e5e2dd; /* Borders */
---border-dark: #2e2e2e; /* Dark mode borders */
-```
-
-**Accent Colors**:
-
-```css
---primary: #29a386; /* Teal-green primary actions */
---primary-hover: #238f74; /* Hover state */
---ai: #6b8fad; /* Dusty blue for AI elements */
---ai-muted: #6b8fad15; /* AI annotation backgrounds */
---destructive: #d9534f; /* Delete/remove actions */
-```
-
-**Issue State Colors**:
-
-- Backlog: `#9C9590`
-- Todo: `#5B8FC9`
-- In Progress: `#D9853F`
-- In Review: `#8B7EC8`
-- Done: `#29A386`
-- Cancelled: `#D9534F`
-
-### Typography
-
-**Fonts**: Geist (UI), Geist Mono (code)
-
-```css
-/* Scale */
-.text-xs {
-  font-size: 11px;
-  line-height: 16px;
-} /* Labels, badges */
-.text-sm {
-  font-size: 13px;
-  line-height: 20px;
-} /* Body, descriptions */
-.text-base {
-  font-size: 15px;
-  line-height: 24px;
-} /* Primary content */
-.text-lg {
-  font-size: 17px;
-  line-height: 26px;
-} /* Card titles */
-.text-xl {
-  font-size: 20px;
-  line-height: 28px;
-} /* Section headers */
-.text-2xl {
-  font-size: 24px;
-  line-height: 32px;
-} /* Page titles */
-```
-
-### Component Variants
-
-**Buttons** (6 variants):
-
-- `default`: Solid primary background
-- `secondary`: Subtle background + border
-- `outline`: Border only, transparent bg
-- `ghost`: No background, hover effect
-- `destructive`: Red for delete actions
-- `ai`: Dusty blue for AI features
-
-**Cards** (4 variants):
-
-- `default`: Standard elevation
-- `elevated`: Higher shadow, prominent
-- `interactive`: Hover lift effect
-- `glass`: Frosted glass overlay
-
-### Spacing & Radius
-
-**Spacing** (4px grid):
-
-```tsx
-space-1  = 4px
-space-2  = 8px
-space-3  = 12px
-space-4  = 16px
-space-6  = 24px
-space-8  = 32px
-space-12 = 48px
-```
-
-**Border Radius** (squircle):
-
-```tsx
-rounded-sm  = 6px   // Inputs, badges
-rounded     = 10px  // Buttons, cards
-rounded-lg  = 14px  // Modals, panels
-rounded-xl  = 18px  // Large cards
-```
-
----
-
-## TipTap Editor Extensions
-
-### 13 Core Extensions
-
-1. **BlockIdExtension**: Assign/preserve block IDs for AI tools
-2. **GhostTextExtension**: Inline autocomplete (Tab/Right Arrow/Escape)
-3. **AnnotationMarkExtension**: Margin annotation marks with CSS Anchor Positioning
-4. **IssueBadgeExtension**: Inline `[PS-42]` badges with state colors
-5. **IssueExtractionExtension**: Rainbow-bordered boxes for extracted issues
-6. **CodeBlockExtension**: Syntax-highlighted code blocks
-7. **MentionExtension**: @mentions for notes/issues/agents
-8. **SlashCommandExtension**: /slash commands for block types
-9. **CustomEnterExtension**: Preserve block IDs on Enter
-10. **FloatingToolbarExtension**: Selection toolbar with AI actions
-11. **HistoryExtension**: Undo/redo with 50-step limit
-12. **CollaborationExtension**: (Phase 2) Yjs-based real-time collab
-13. **TableOfContentsExtension**: Auto-generated TOC with scroll sync
-
-### Extension Pattern
-
-```tsx
-import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
-
-export const BlockIdExtension = Extension.create({
+export const BlockIdExtension = Extension.create<BlockIdOptions>({
   name: 'blockId',
 
   addGlobalAttributes() {
     return [
       {
-        types: ['paragraph', 'heading', 'codeBlock'],
+        types: ['paragraph', 'heading', 'codeBlock', 'bulletList'],
         attributes: {
           blockId: {
             default: null,
@@ -482,9 +331,10 @@ export const BlockIdExtension = Extension.create({
   addProseMirrorPlugins() {
     return [
       new Plugin({
-        key: new PluginKey('blockIdPlugin'),
+        key: BLOCK_ID_PLUGIN_KEY,
         appendTransaction(transactions, oldState, newState) {
           // Auto-assign block IDs to new blocks
+          // Guard against user edits in AI-pending blocks
         },
       }),
     ];
@@ -492,174 +342,422 @@ export const BlockIdExtension = Extension.create({
 });
 ```
 
-### Ghost Text Integration
+**GhostTextExtension**: Triggers on 500ms typing pause, streams completions at 50 tokens max.
 
-```tsx
-import { useGhostText } from '@/features/notes/hooks/useGhostText';
+```typescript
+// From GhostTextExtension.ts
+export interface GhostTextOptions {
+  debounceMs: number;     // 500ms default
+  minChars: number;
+  className: string;
+  enabled: boolean;
+  onTrigger?: (context: GhostTextContext) => void;
+  onAccept?: (text: string, acceptType: 'full' | 'word') => void;
+  onDismiss?: () => void;
+}
 
-function NoteEditor({ noteId }: { noteId: string }) {
-  const editor = useEditor({
-    extensions: [GhostTextExtension],
-  });
+export const GhostTextExtension = Extension.create<GhostTextOptions>({
+  name: 'ghostText',
 
-  const { suggestion, isLoading } = useGhostText(editor);
+  addOptions() {
+    return {
+      debounceMs: 500,
+      minChars: 3,
+      className: 'ghost-text',
+      enabled: true,
+    };
+  },
 
-  useEffect(() => {
-    if (suggestion && editor) {
-      editor.commands.setGhostText(suggestion);
-    }
-  }, [suggestion, editor]);
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: GHOST_TEXT_PLUGIN_KEY,
+        state: {
+          init: () => ({
+            text: null,
+            position: null,
+            isLoading: false,
+            decorations: DecorationSet.empty,
+          }),
+        },
 
-  return <EditorContent editor={editor} />;
+        props: {
+          decorations(state) {
+            return this.getState(state).decorations;
+          },
+
+          handleKeyDown: (view, event) => {
+            // Tab, Right Arrow, or Escape to accept/dismiss
+            if (event.key === 'Tab' || event.key === 'ArrowRight') {
+              // Apply ghost text
+            }
+            if (event.key === 'Escape') {
+              // Dismiss ghost text
+            }
+            return false;
+          },
+        },
+      }),
+    ];
+  },
+});
+```
+
+**IssueLinkExtension**: Auto-detects issue patterns (PS-123) and creates clickable links with hover previews.
+
+```typescript
+// From IssueLinkExtension.ts
+const DEFAULT_ISSUE_PATTERN = /\b([A-Z][A-Z0-9]*)-(\\d+)\b/g;
+
+const STATE_COLORS: Record<string, string> = {
+  backlog: '#6b7280',
+  todo: '#3b82f6',
+  in_progress: '#f59e0b',
+  in_review: '#8b5cf6',
+  done: '#10b981',
+  cancelled: '#ef4444',
+};
+
+export const IssueLinkExtension = Extension.create<IssueLinkOptions>({
+  name: 'issueLink',
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: ISSUE_LINK_PLUGIN_KEY,
+        state: {
+          init: (config, state) => {
+            return { decorations: DecorationSet.empty };
+          },
+          apply: (tr, value) => {
+            // Find all PS-123 matches, create decorations with hover cards
+          },
+        },
+        props: {
+          decorations(state) {
+            return this.getState(state).decorations;
+          },
+        },
+      }),
+    ];
+  },
+});
+```
+
+### Editor Setup Factory
+
+All extensions are instantiated via `createEditorExtensions()`:
+
+```typescript
+// From createEditorExtensions.ts
+export interface EditorExtensionConfig {
+  placeholder?: string;
+  enableSlashCommands?: boolean;
+  enableMentions?: boolean;
+  enableInlineIssues?: boolean;
+  enableGhostText?: boolean;
+  enableMarginAnnotations?: boolean;
+}
+
+export function createEditorExtensions(config: EditorExtensionConfig) {
+  const extensions: Extension[] = [
+    StarterKit,
+    BlockIdExtension.configure({
+      generateId: () => crypto.randomUUID(),
+      attributeName: 'data-block-id',
+      types: null, // All block types
+    }),
+    GhostTextExtension.configure({
+      debounceMs: 500,
+      minChars: 3,
+      enabled: config.enableGhostText ?? true,
+      onTrigger: (context) => {
+        // Trigger SSE for ghost text
+      },
+    }),
+    // ... 11 more extensions
+  ];
+
+  return extensions;
 }
 ```
 
 ---
 
-## AI Integration
+## API Client Patterns
 
-### PilotSpaceStore (Unified AI State)
+### RFC 7807 Problem Details
 
-All AI interactions go through PilotSpaceStore, not siloed stores:
+All API errors conform to RFC 7807 standard. Retryable statuses: 500-599 (except 501), 429 (rate limit), 408 (timeout).
 
-```tsx
-class PilotSpaceStore {
-  @observable currentSession: ChatSession | null = null;
-  @observable messages: Message[] = [];
-  @observable isStreaming = false;
-  @observable activeApproval: Approval | null = null;
+### Typed API Clients (9 Total)
 
-  @action
-  async sendMessage(content: string) {
-    this.isStreaming = true;
+Each client exports typed queries + mutations. Example: `notesApi.list()`, `notesApi.get()`, `notesApi.create()`, `notesApi.update()`, `notesApi.delete()`. Full API specs in `/frontend/src/services/CLAUDE.md`.
 
-    const sse = new SSEClient('/api/v1/ai/pilot-space/chat', {
-      method: 'POST',
-      body: JSON.stringify({
-        session_id: this.currentSession?.id,
-        content,
-      }),
-    });
+### Query Key Factories
 
-    sse.addEventListener('text_delta', (event) => {
-      this.appendMessageDelta(event.data);
-    });
+TanStack Query keys organized hierarchically: `notesKeys.all`, `notesKeys.list(workspaceId)`, `notesKeys.detail(workspaceId, noteId)`. Pattern: `['notes', 'list', workspaceId, filters]`.
 
-    sse.addEventListener('approval_request', (event) => {
-      this.activeApproval = JSON.parse(event.data);
-    });
+### Hook Pattern: useNote
 
-    sse.addEventListener('message_stop', () => {
-      this.isStreaming = false;
-    });
-
-    await sse.connect();
-  }
-
-  @action
-  private appendMessageDelta(delta: string) {
-    const lastMessage = this.messages[this.messages.length - 1];
-    if (lastMessage?.role === 'assistant') {
-      lastMessage.content += delta;
-    } else {
-      this.messages.push({ role: 'assistant', content: delta });
-    }
-  }
+```typescript
+export function useNote({ workspaceId, noteId, enabled = true }: UseNoteOptions) {
+  return useQuery({
+    queryKey: notesKeys.detail(workspaceId, noteId),
+    queryFn: () => notesApi.get(workspaceId, noteId),
+    enabled: enabled && !!workspaceId && !!noteId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
 }
 ```
 
-### SSE Event Mapping
+### Optimistic Updates Pattern
 
-_Per `docs/architect/pilotspace-agent-architecture.md` section 8_
+```typescript
+const updateIssueMutation = useMutation({
+  mutationFn: (data: UpdateIssueData) => issuesApi.update(workspaceId, issueId, data),
+  onMutate: async (newData) => {
+    await queryClient.cancelQueries({ queryKey: issueDetailKeys.detail(issueId) });
+    const previous = queryClient.getQueryData<Issue>(issueDetailKeys.detail(issueId));
+    queryClient.setQueryData<Issue>(issueDetailKeys.detail(issueId), (old) => ({ ...old, ...newData }));
+    return { previous };
+  },
+  onError: (err, _, context) => {
+    queryClient.setQueryData(issueDetailKeys.detail(issueId), context?.previous);
+  },
+  onSettled: () => queryClient.invalidateQueries({ queryKey: issueDetailKeys.detail(issueId) }),
+});
+```
 
-SSE events from backend → Frontend store updates:
+---
 
-| SSE Event          | Store Update                 | UI Effect                       |
-| ------------------ | ---------------------------- | ------------------------------- |
-| `message_start`    | Create new assistant message | Show streaming indicator        |
-| `text_delta`       | Append to current message    | Render with blinking cursor     |
-| `tool_use`         | Add tool call to message     | Show tool details (expandable)  |
-| `tool_result`      | Add tool result              | Update task panel               |
-| `content_update`   | Apply TipTap JSON patch      | Editor content updates          |
-| `approval_request` | Set activeApproval           | Modal overlay (non-dismissable) |
-| `task_progress`    | Update task status           | Progress bar update             |
-| `message_stop`     | Clear streaming state        | Hide spinner                    |
-| `error`            | Set error state              | Toast notification              |
+## SSE (Server-Sent Events) Streaming
+
+### SSEClient Utility
+
+Custom SSE client for POST requests (EventSource only supports GET). Supports streaming via `fetch` ReadableStream with automatic line parsing and retry logic.
+
+### Usage in PilotSpaceStore
+
+SSE events handled: `message_start`, `text_delta`, `tool_use`, `tool_result`, `content_update`, `approval_request`, `task_progress`, `message_stop`, `error`. Route via `PilotSpaceStore.sendMessage()` → SSEClient → event handlers → MobX updates.
+
+### SSE Event Types (8 Total)
+
+| Event | Payload | Frontend Action |
+|-------|---------|-----------------|
+| `message_start` | `{ id, role }` | Create new message, show streaming indicator |
+| `text_delta` | `{ delta }` | Append to current message content |
+| `tool_use` | `{ id, name, input }` | Add tool call card, show tool details |
+| `tool_result` | `{ id, content }` | Update tool result display |
+| `content_update` | `{ block_id, content }` | Apply TipTap JSON patch to editor |
+| `approval_request` | `{ request_id, ...details }` | Show modal overlay (non-dismissable) |
+| `task_progress` | `{ task_id, status, progress }` | Update task panel progress bar |
+| `message_stop` | `{}` | Hide streaming indicator, commit message |
+
+---
+
+## Component Patterns
+
+### Feature Folder Structure
+
+Each feature folder follows this pattern:
+
+```
+features/notes/
+├── components/          # Feature-specific components
+│   ├── EditorToolbar.tsx
+│   ├── annotation-card.tsx
+│   └── __tests__/
+├── hooks/               # Feature-specific hooks
+│   ├── useNote.ts
+│   ├── useAutoSave.ts
+│   └── index.ts
+├── services/            # Feature-specific API clients
+│   └── ghostTextService.ts
+├── editor/              # TipTap editor setup
+│   ├── extensions/      # 13 extensions
+│   ├── hooks/
+│   └── config.ts
+├── stores/              # Feature-specific stores (if any)
+│   └── EditorStore.ts
+├── types.ts             # TypeScript interfaces
+└── index.ts             # Barrel export
+```
+
+### Observer Component Pattern
+
+All MobX-consuming components must be wrapped with `observer()`:
+
+```typescript
+'use client';
+
+import { observer } from 'mobx-react-lite';
+import { useStores } from '@/stores';
+
+interface NoteCardProps {
+  noteId: string;
+}
+
+export const NoteCard = observer(function NoteCard({ noteId }: NoteCardProps) {
+  const { noteStore } = useStores();
+
+  return (
+    <div>
+      <h3>{noteStore.getNoteTitle(noteId)}</h3>
+      <p>Modified: {noteStore.getLastModified(noteId)}</p>
+    </div>
+  );
+});
+```
+
+### Hook Composition Pattern
+
+```typescript
+export function useIssueDetail(issueId: string) {
+  const workspaceId = useWorkspaceId();
+  const { issueStore } = useStores();
+  const { data: issue, isLoading } = useQuery({
+    queryKey: issueDetailKeys.detail(issueId),
+    queryFn: () => issuesApi.get(workspaceId, issueId),
+  });
+  const updateMutation = useMutation({
+    mutationFn: (data: UpdateIssueData) => issuesApi.update(workspaceId, issueId, data),
+  });
+  return { issue, isLoading, update: updateMutation.mutateAsync, isUpdating: updateMutation.isPending };
+}
+```
+
+### Accessibility Patterns
+
+WCAG 2.2 AA compliance is mandatory. Requirements:
+- Keyboard navigation: Enter, Space, Tab, Arrow keys. Use `role="button"` with `onKeyDown` for divs.
+- ARIA labels: All interactive elements must have `aria-label` or `aria-labelledby`.
+- Focus management: Modal dialogs trap focus. Use `useRef` + `useEffect` for focus restoration.
+- Reduced motion: Use Tailwind `motion-reduce:` and `motion-safe:` classes for animations.
+
+---
+
+## AI Integration Patterns
+
+### PilotSpaceStore: Unified AI Orchestrator
+
+All user-facing AI goes through `PilotSpaceStore`, not siloed stores.
+
+**Key Methods**:
+
+```typescript
+class PilotSpaceStore {
+  // Session management
+  setSessionId(id: string): void
+  currentSession: ChatSession | null
+  messages: Message[]
+  isStreaming: boolean
+
+  // Message handling
+  sendMessage(content: string): Promise<void>
+  appendMessageDelta(delta: string): void
+  addMessage(role: 'user' | 'assistant', content: string): void
+
+  // Context management
+  setNoteContext(context: NoteContext): void
+  setIssueContext(context: IssueContext): void
+  setProjectContext(projectId: string): void
+  clearContext(): void
+
+  // Tool calls (MCP tools)
+  pendingToolCalls: ToolCall[]
+  findPendingToolCall(toolUseId: string): ToolCall | undefined
+  addPendingToolCall(call: ToolCall): void
+
+  // Content updates (TipTap patches)
+  pendingContentUpdates: ContentUpdate[]
+  consumeContentUpdate(blockId: string): ContentUpdate | undefined
+  handleContentUpdate(update: ContentUpdate): void
+
+  // Approvals
+  pendingApprovals: ApprovalRequest[]
+  addApproval(approval: ApprovalRequest): void
+  approveApproval(requestId: string): Promise<void>
+  rejectApproval(requestId: string): Promise<void>
+
+  // Token budget
+  tokenBudgetPercent: number  // 0-100
+  messages.reduce((sum, m) => sum + m.tokenUsage.total, 0)
+
+  // Active tasks
+  tasks: TaskState[]
+  activeTasks: TaskState[]
+  completedTasks: TaskState[]
+  addTask(task: TaskState): void
+  updateTaskStatus(taskId: string, status: TaskStatus): void
+}
+```
+
+### Skill System
+
+Skills are YAML files in `.claude/skills/` (backend). Frontend invokes via slash commands or intent detection. Interface: `Skill { name, description, args?, tags? }`. Access via `useSkills()` hook returning `{ skills, invokeSkill(), activeSkill }`.
 
 ### Approval Flow
 
-```tsx
-function ApprovalModal() {
-  const { pilotSpaceStore } = useStore();
-  const approval = pilotSpaceStore.activeApproval;
+Non-dismissable modal. 24h countdown. Content diff display. Implementation: `Dialog open={!!approval} onOpenChange={() => {}}` (no dismiss), `CountdownTimer`, `DiffViewer`, Approve/Reject buttons → `pilotSpaceStore.approveApproval() | rejectApproval()`.
 
-  if (!approval) return null;
+---
 
-  return (
-    <Modal open={!!approval} onOpenChange={() => {}}>
-      <ModalContent>
-        <ModalHeader>
-          <ModalTitle>Approval Required</ModalTitle>
-        </ModalHeader>
+## File Size Audit
 
-        <div className="approval-content">
-          <p>{approval.message}</p>
+**At 700-line limit**: SkillGenerationWizard.tsx (645 lines) — extract RoleSelectorStep, SkillEditorStep, ReviewStep into separate files.
 
-          {/* Content diff */}
-          <DiffViewer original={approval.original} modified={approval.modified} />
-
-          {/* 24h expiry countdown */}
-          <CountdownTimer expiresAt={approval.expiresAt} />
-        </div>
-
-        <ModalFooter>
-          <Button variant="outline" onClick={() => pilotSpaceStore.rejectApproval(approval.id)}>
-            Reject
-          </Button>
-          <Button onClick={() => pilotSpaceStore.approveApproval(approval.id)}>Approve</Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  );
-}
-```
+**Medium size** (300-500 lines): GhostTextExtension (519), PilotSpaceStore (500+), IssueLinkExtension (458), CodeBlockExtension (444). Monitor for clarity.
 
 ---
 
 ## Pre-Submission Checklist
 
-Rate confidence (0-1) before submitting:
+Rate confidence (0-1) before submitting PR:
 
 **State Management**:
-
-- [ ] MobX (UI state) vs TanStack Query (server state) separation correct: \_\_\_
-- [ ] No API data stored in MobX stores: \_\_\_
-- [ ] Optimistic updates use snapshot + rollback pattern: \_\_\_
+- [ ] MobX (UI state) vs TanStack Query (server state) separation correct: ___
+- [ ] No API data stored in MobX stores: ___
+- [ ] Optimistic updates use snapshot + rollback pattern: ___
+- [ ] observer() wrapper on all MobX-consuming components: ___
 
 **Accessibility**:
-
-- [ ] Keyboard navigation functional (Tab, Enter, Escape): \_\_\_
-- [ ] ARIA labels present for interactive elements: \_\_\_
-- [ ] Focus management correct (modals trap focus): \_\_\_
-- [ ] Reduced motion support (`motion-reduce:`): \_\_\_
+- [ ] Keyboard navigation functional (Tab, Enter, Escape, Arrow keys): ___
+- [ ] ARIA labels/descriptions for interactive elements: ___
+- [ ] Focus management correct (modals trap focus): ___
+- [ ] Reduced motion support (`motion-reduce:` Tailwind classes): ___
 
 **Performance**:
+- [ ] Dynamic imports for code-split components: ___
+- [ ] Virtual scroll used for lists >500 items: ___
+- [ ] Images optimized (Next.js Image component): ___
+- [ ] No unnecessary re-renders (observer() wrapping, useMemo, useCallback): ___
 
-- [ ] Dynamic imports for components >50KB gzipped: \_\_\_
-- [ ] Virtual scroll used for lists >500 items: \_\_\_
-- [ ] Images optimized (Next.js Image component): \_\_\_
+**TipTap Editor** (if applicable):
+- [ ] Extensions properly typed with Options interface: ___
+- [ ] Block IDs preserved through all edits: ___
+- [ ] Ghost text tested at 500ms debounce: ___
+- [ ] Issue link pattern matching tested (PS-123, PROJECT-999): ___
 
 **AI Integration** (if applicable):
-
-- [ ] AI interactions through PilotSpaceStore (unified): \_\_\_
-- [ ] SSE events mapped correctly per architecture doc: \_\_\_
-- [ ] Approval flow implemented for destructive actions: \_\_\_
+- [ ] AI interactions through PilotSpaceStore (never siloed stores): ___
+- [ ] SSE events mapped correctly per event catalog: ___
+- [ ] Approval flow implemented for destructive actions (DD-003): ___
+- [ ] Content updates properly parsed from SSE JSON patches: ___
 
 **Code Quality**:
+- [ ] File stays under 700 lines: ___
+- [ ] TypeScript strict mode passes: ___
+- [ ] No `any` types (except approved escape hatches): ___
+- [ ] No console errors/warnings: ___
+- [ ] Tests cover happy path + error cases: ___
 
-- [ ] File stays under 700 lines: \_\_\_
-- [ ] TypeScript strict mode passes: \_\_\_
-- [ ] No console errors or warnings: \_\_\_
+**Testing**:
+- [ ] Unit tests for hooks (useNote, useIssue, etc.): ___
+- [ ] Integration tests for mutations (optimistic + rollback): ___
+- [ ] E2E tests for critical paths (note create, issue update): ___
+- [ ] Accessibility tests (axe, ARIA): ___
 
 **If any score <0.9, refine implementation before submitting.**
 
@@ -669,36 +767,121 @@ Rate confidence (0-1) before submitting:
 
 ### Load Order for New Features
 
-1. `docs/architect/feature-story-mapping.md` → Find US-XX and components
+1. `docs/architect/feature-story-mapping.md` → Find US-XX and affected components
 2. `docs/dev-pattern/45-pilot-space-patterns.md` → Project-specific overrides
-3. Frontend-specific patterns → `docs/dev-pattern/20-component.md`, `21c-frontend-mobx-state.md`
-4. UI/UX spec → `specs/001-pilot-space-mvp/ui-design-spec.md`
+3. `frontend/CLAUDE.md` (this file) → Frontend-specific patterns
+4. `specs/001-pilot-space-mvp/ui-design-spec.md` → Design system
 
-### Key Documentation
+### Key Files to Reference
 
-| Topic                 | Document                                          |
-| --------------------- | ------------------------------------------------- |
-| Frontend architecture | `docs/architect/frontend-architecture.md`         |
-| Agent architecture    | `docs/architect/pilotspace-agent-architecture.md` |
-| UI/UX specification   | `specs/001-pilot-space-mvp/ui-design-spec.md`     |
-| MobX patterns         | `docs/dev-pattern/21c-frontend-mobx-state.md`     |
+| Topic | File |
+|-------|------|
+| State management | `frontend/src/stores/RootStore.ts`, `stores/ai/PilotSpaceStore.ts` |
+| API clients | `frontend/src/services/api/index.ts` |
+| SSE streaming | `frontend/src/lib/sse-client.ts` |
+| Editor extensions | `frontend/src/features/notes/editor/extensions/` |
+| TanStack Query setup | `frontend/src/lib/queryClient.ts` |
+| UI design tokens | `specs/001-pilot-space-mvp/ui-design-spec.md` v4.0 |
+| Feature components | `frontend/src/features/*/components/` |
 
 ---
 
 ## Standards Summary
 
-**Don't use**:
+### DO
 
-- API data in MobX stores (use TanStack Query)
-- Inline styles (use Tailwind classes)
-- Hardcoded colors (use CSS variables)
-- Generic component names (use domain-specific names)
+- **Use `'use client'`** for interactive components
+- **Wrap MobX components** with `observer()`
+- **Use TanStack Query** for server data (never MobX)
+- **Use MobX** for UI state (editing, selection, visibility)
+- **Add ARIA labels** to interactive elements
+- **Test critical paths** (create, update, delete)
+- **Use Tailwind classes** for styling (no inline styles)
+- **Use shadcn/ui** as base, extend with variants
+- **Preserve block IDs** through editor operations (TipTap)
+- **Handle errors** with RFC 7807 ApiError class
+- **Write integration tests** for optimistic updates
 
-**Always use**:
+### DON'T
 
-- `'use client'` for interactive components
-- `observer()` wrapper for MobX components
-- Explicit TypeScript interfaces for props
-- shadcn/ui as base, extend with variants
-- WCAG 2.2 AA compliance (keyboard nav, ARIA)
-- Conventional commits (feat/fix/refactor)
+- **Store API data in MobX** (use TanStack Query)
+- **Use `any` types** (TypeScript strict mode)
+- **Create components without tests** (>700 lines especially)
+- **Disable accessibility** for performance (keyboard nav is a feature)
+- **Hardcode colors** (use CSS variables from design spec)
+- **Use generic component names** (NoteView not View)
+- **Skip error boundaries** for async operations
+- **Forget to wrap with `observer()`** when using MobX
+- **Leave TODOs in code** (resolve or create issue)
+- **Commit console.log/debugger** statements
+
+---
+
+## Design System Quick Reference
+
+### Color Palette
+
+```css
+/* Warm Neutrals */
+--background: #fdfcfa;
+--background-dark: #1a1a1a;
+--foreground: #171717;
+--foreground-dark: #ededed;
+--border: #e5e2dd;
+
+/* Accents */
+--primary: #29a386;           /* Teal-green */
+--primary-hover: #238f74;
+--ai: #6b8fad;                /* Dusty blue */
+--destructive: #d9534f;       /* Red */
+```
+
+### Issue State Colors
+
+- **Backlog**: `#9C9590` (gray)
+- **Todo**: `#5B8FC9` (blue)
+- **In Progress**: `#D9853F` (orange)
+- **In Review**: `#8B7EC8` (purple)
+- **Done**: `#29A386` (teal)
+- **Cancelled**: `#D9534F` (red)
+
+### Typography (Geist Font)
+
+- **text-xs**: 11px (labels, badges)
+- **text-sm**: 13px (body, descriptions)
+- **text-base**: 15px (primary content)
+- **text-lg**: 17px (card titles)
+- **text-xl**: 20px (section headers)
+- **text-2xl**: 24px (page titles)
+
+### Spacing (4px grid)
+
+- space-1 = 4px, space-2 = 8px, space-3 = 12px, space-4 = 16px
+- space-6 = 24px, space-8 = 32px, space-12 = 48px
+
+### Border Radius (Squircle)
+
+- rounded-sm = 6px, rounded = 10px, rounded-lg = 14px, rounded-xl = 18px
+
+---
+
+## Quick Debugging
+
+**Observer not re-rendering**: Wrap with `observer()`. Property must be `@observable`.
+
+**Infinite TanStack Query loops**: Use stable queryKey with `as const`.
+
+**Ghost text not triggering**: Verify 500ms debounce, `enabled: true`, `onTrigger` callback defined.
+
+**Block IDs lost after AI edit**: BlockIdExtension must run last in extension array.
+
+**Performance**: Use React DevTools Profiler. Target: <100ms keystroke, 60fps scroll, <150ms modal.
+
+---
+
+## Documentation Status
+
+- **Scope**: 180+ TypeScript/TSX files
+- **Patterns**: State split (MobX/TanStack), optimistic updates, SSE streaming, extensible editor
+- **Refactoring Candidate**: SkillGenerationWizard.tsx (645 lines—extract sub-components)
+- **See also**: `/frontend/src/services/CLAUDE.md` for detailed API client patterns

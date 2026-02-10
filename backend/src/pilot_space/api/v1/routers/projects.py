@@ -21,7 +21,6 @@ from pilot_space.api.v1.schemas.project import (
 )
 from pilot_space.dependencies import CurrentUser, DbSession
 from pilot_space.infrastructure.database.models.project import Project
-from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.database.repositories.project_repository import (
     ProjectRepository,
 )

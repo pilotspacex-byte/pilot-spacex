@@ -50,7 +50,6 @@ if TYPE_CHECKING:
     from pilot_space.ai.providers.provider_selector import ProviderSelector
     from pilot_space.ai.sdk.permission_handler import PermissionHandler
     from pilot_space.ai.sdk.session_handler import SessionHandler
-    from pilot_space.ai.sdk.skill_registry import SkillRegistry
     from pilot_space.ai.tools.mcp_server import ToolRegistry
 
 
@@ -149,7 +148,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         resilient_executor: ResilientExecutor,
         permission_handler: PermissionHandler,
         session_handler: SessionHandler | None,
-        skill_registry: SkillRegistry,
         space_manager: SpaceManager | None = None,
         subagents: dict[str, Any] | None = None,
         key_storage: SecureKeyStorage | None = None,
@@ -162,7 +160,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         )
         self._permission_handler = permission_handler
         self._session_handler = session_handler
-        self._skill_registry = skill_registry
         self._space_manager = space_manager
         self._subagents = subagents or {}
         self._key_storage = key_storage

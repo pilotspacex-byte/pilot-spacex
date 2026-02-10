@@ -211,7 +211,6 @@ class Container(containers.DeclarativeContainer):
 
     tool_registry = providers.Singleton(_create_tool_registry)
 
-
     @staticmethod
     def _create_space_manager() -> Any:
         """Create SpaceManager for agent isolation.
@@ -262,9 +261,8 @@ class Container(containers.DeclarativeContainer):
         approval_service = ApprovalService(session=None)  # type: ignore[arg-type]
         permission_handler = PermissionHandler(approval_service=approval_service)
 
-        # SkillRegistry was removed during 005-conversational-agent-arch migration.
-        # Skills are now loaded by PilotSpaceAgent from the space's .claude/skills/ directory.
-        skill_registry = None  # type: ignore[arg-type]
+        # Skills are now loaded by PilotSpaceAgent from the space's .claude/skills/ directory
+        # (DD-086 migration from siloed SkillRegistry to filesystem-based auto-discovery).
 
         session_handler = None
         if session_manager is not None:
@@ -279,7 +277,6 @@ class Container(containers.DeclarativeContainer):
             resilient_executor=resilient_executor,
             permission_handler=permission_handler,
             session_handler=session_handler,
-            skill_registry=skill_registry,
             space_manager=space_manager,
         )
 

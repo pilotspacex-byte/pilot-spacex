@@ -1,6 +1,6 @@
 # Backend Development Guide - Pilot Space
 
-*For project overview and general context, see main CLAUDE.md at project root*
+**For project overview and general context, see main CLAUDE.md at project root.**
 
 ## Quick Reference
 
@@ -10,13 +10,16 @@
 uv run pyright && uv run ruff check && uv run pytest --cov=.
 ```
 
+All three gates must PASS. No exceptions. **80% test coverage requirement** catches 85% of regressions before deployment.
+
 ### Critical Constants
 
 | Constraint | Value | Rationale |
 |------------|-------|-----------|
-| File size limit | 700 lines | Files >700 lines become unmaintainable and untestable. This limit has saved 40+ hours in refactoring across past projects. |
-| Test coverage | >80% | This threshold catches 85% of regressions before deployment. Metric directly correlates with production stability. |
-| Async-only I/O | Required | Blocking calls in async context cause thread starvation under load. Can degrade API latency by 10-50x. |
+| File size limit | 700 lines | Files >700 lines become unmaintainable and untestable |
+| Test coverage | >80% (strictly greater) | Metric directly correlates with production stability |
+| Async-only I/O | Required | Blocking calls cause thread starvation, degrades API latency 10-50x |
+| Database pool | 5 base + 10 overflow | Prevents connection exhaustion under load |
 
 ### Development Commands
 
@@ -30,464 +33,295 @@ uv run pyright && uv run ruff check && uv run pytest --cov=.
 
 ---
 
-## Backend Architecture
-
-You are a **Senior Backend Architect** with 10+ years building production Python systems. You excel at Clean Architecture patterns, async SQLAlchemy optimization, and multi-tenant security enforcement.
-
-**Core expertise**: CQRS-lite service design, repository pattern implementation, RLS policy authoring, FastAPI best practices.
+## Backend Architecture Overview
 
 ### Technology Stack
 
-backend_tech[5]{component,technology,version,decision}
-Framework,FastAPI,0.110+,DD-001
-ORM,SQLAlchemy 2.0 (async),2.0+,DD-001
-Validation,Pydantic v2,2.6+,DD-001
-DI,dependency-injector,4+,DD-064
-Runtime,Python,3.12+,--
+| Component | Technology | Version | Decision |
+|-----------|-----------|---------|----------|
+| Framework | FastAPI | 0.110+ | DD-001 (async-first) |
+| ORM | SQLAlchemy 2.0 (async) | 2.0+ | DD-001 |
+| Validation | Pydantic v2 | 2.6+ | DD-001 |
+| DI Container | dependency-injector | 4+ | DD-064 |
+| Runtime | Python | 3.12+ | -- |
 
 ### 5-Layer Clean Architecture
 
-**Structure** (`backend/src/pilot_space/`):
+Organized by concern with clear separation of responsibilities:
 
-1. **Presentation** (`api/v1/`) — 20 FastAPI routers + Pydantic v2 schemas + middleware (auth, CORS, rate limiting, RFC 7807 errors)
+```
+frontend/browser
+    ↓ REST + SSE (cookies/Bearer)
+Presentation Layer (api/v1/)
+├─ 20 FastAPI routers
+├─ Pydantic v2 request/response schemas
+├─ Middleware: auth, CORS, rate limiting, RFC 7807 errors
+└─ WebSocket handler for real-time updates
+    ↓ Service.execute(Payload) → Result
+Application Layer (application/services/)
+├─ 8 domain services (note, issue, cycle, ai_context, annotation, discussion, integration)
+├─ CQRS-lite command/query pattern
+├─ Payload validation at boundary
+└─ State transition management
+    ↓ Domain logic, validation, invariants
+Domain Layer (domain/)
+├─ Rich domain entities (Issue, Note, Cycle, User)
+├─ Domain services (pure logic, no I/O)
+├─ Domain events (IssueCreated, IssueStateChanged, etc.)
+└─ Business rule validation
+    ↓ Data access abstraction
+Infrastructure Layer (infrastructure/)
+├─ 22 SQLAlchemy models + 21 Alembic migrations
+├─ 15 repositories (abstract persistence)
+├─ RLS enforcement (workspace_id scoping)
+├─ External clients: Redis, Meilisearch, Supabase
+└─ Encryption, caching, queuing
+    ↓ Agent orchestration, MCP tools, provider routing
+AI Layer (ai/)
+├─ PilotSpaceAgent (centralized orchestrator)
+├─ Subagents (PR review, AI context, doc generation)
+├─ Skill system (.claude/skills/ auto-discovery)
+├─ MCP tools registry (33 tools across 6 servers)
+├─ Provider routing (Claude Opus/Sonnet, Gemini Flash)
+├─ Session management (Redis hot + PostgreSQL durable)
+└─ Cost tracking, resilience, approval workflows
+```
 
-2. **Application** (`application/services/`) — 8 domain services:
-   - note (CRUD + ContentConverter + AIUpdate)
-   - issue (state machine + Meilisearch)
-   - cycle (velocity + rollover)
-   - ai_context, annotation, discussion
-   - integration (GitHub sync)
+### Root Configuration Files
 
-3. **Domain** (`domain/`) — Rich domain entities (Issue, Note, Cycle) with behavior + validation, domain services (pure logic, no I/O)
-
-4. **Infrastructure** (`infrastructure/`) — 22 SQLAlchemy models, 15 repositories, 21 Alembic migrations, RLS helpers, Redis cache, pgmq queue, Supabase JWT auth, Meilisearch client
-
-5. **AI Layer** (`ai/`) — PilotSpaceAgent orchestrator + subagents, Claude Agent SDK integration, MCP tools, providers, session management, cost tracking
-
-**Root files**: `config.py` (Pydantic Settings), `container.py` (DI container), `dependencies.py` (FastAPI Depends), `main.py` (lifespan, routers, middleware)
+| File | Purpose |
+|------|---------|
+| `main.py` | FastAPI app, lifespan (startup/shutdown), router mounting |
+| `container.py` | Dependency injection (dependency-injector DSL) |
+| `config.py` | Pydantic Settings (environment variables) |
+| `dependencies.py` | FastAPI Depends functions (session injection) |
 
 ---
 
-## Backend Patterns
+## Backend Patterns (Reference: docs/dev-pattern/45-pilot-space-patterns.md)
 
-Load `docs/dev-pattern/45-pilot-space-patterns.md` first for project-specific patterns.
+### CQRS-lite Pattern (DD-064)
 
-### Core Patterns
+**Command/Query separation without Event Sourcing.**
 
-backend_patterns[8]{pattern,implementation,rationale}
-CQRS-lite (DD-064),Service.execute(Payload) → Result,Separate read/write without Event Sourcing
-Repository,BaseRepository[T] + 15 repos; async SQLAlchemy,Abstract persistence; testable; RLS-enforced
-Unit of Work,SQLAlchemyUnitOfWork transaction boundaries,Atomic operations + event publishing
-Domain Events,IssueCreated; IssueStateChanged after commit,Decouple side effects
-DI (DD-064),dependency-injector: Singleton (config/engine); Factory (repos/sessions),Testable; explicit; no global state
-Errors,RFC 7807 Problem Details,Standard machine-readable format
-Validation,Pydantic v2 at boundary; domain invariants in entities,Fail fast at edge; rich behavior inside
-Auth (DD-061),Supabase Auth + RLS: JWT → workspace_id → RLS enforcement,Defense-in-depth
+Pattern: `Service.execute(Payload) → Result`
 
-### Pattern Details
+**Complete implementation details, examples, and best practices**: See [application/CLAUDE.md](src/pilot_space/application/CLAUDE.md) - Section "CQRS-lite Pattern Implementation"
 
-**CQRS-lite**:
-```python
-# Service layer
-class CreateIssueService:
-    async def execute(self, payload: CreateIssuePayload) -> Result[Issue]:
-        # Command: validate → create → persist → publish events
-        issue = Issue.create(payload.title, payload.workspace_id)
-        await self.repo.save(issue)
-        return Success(issue)
-```
+### Repository Pattern
 
-**Repository Pattern**:
-```python
-class IssueRepository(BaseRepository[Issue]):
-    async def find_by_workspace(self, workspace_id: str) -> list[Issue]:
-        # RLS automatically filters by workspace_id via policies
-        result = await self.session.execute(
-            select(Issue).where(Issue.workspace_id == workspace_id)
-        )
-        return result.scalars().all()
-```
+**Data access abstraction. All database queries flow through repositories.**
 
-**Domain Events**:
-```python
-# Domain entity publishes events
-class Issue:
-    def transition_to(self, new_state: IssueState):
-        old_state = self.state
-        self.state = new_state
-        self.events.append(IssueStateChanged(self.id, old_state, new_state))
+**Complete repository implementation, patterns, and RLS enforcement**: See [infrastructure/CLAUDE.md](src/pilot_space/infrastructure/CLAUDE.md) - Section "Repository Pattern"
 
-# After commit, publish to event bus
-async with uow:
-    await service.execute(payload)
-    await uow.commit()
-    # Events automatically published here
-```
+**Quick Summary**:
+- BaseRepository[T] with 14 core methods (CRUD + pagination)
+- 18 specialized repositories (Issue, Note, Cycle, AI, etc.)
+- RLS enforcement via workspace_id scoping
+- Eager loading to prevent N+1 queries
+- Soft delete by default
+
+### Domain Events
+
+**Publish events after successful persist to notify listeners of state changes.**
+
+**Complete domain event architecture and patterns**: See [domain/CLAUDE.md](src/pilot_space/domain/CLAUDE.md) - Section "Domain Events Architecture"
+
+**Note**: Domain events infrastructure is planned but not yet fully implemented (classes designed).
+
+### Dependency Injection (DD-064)
+
+**All dependencies explicitly declared and injected. No global state.**
+
+**Complete DI container setup and injection patterns**: See [api/CLAUDE.md](src/pilot_space/api/CLAUDE.md) - Section "Dependency Injection Pattern"
+
+**Quick Summary**:
+- dependency-injector DSL for container definition
+- FastAPI Depends() for request-scoped injection
+- Singletons: config, engine, session_factory
+- Factories: repositories, services (new instance per request)
+
+### Error Handling (RFC 7807)
+
+**All API errors return RFC 7807 Problem Details.**
+
+**Complete error handling middleware and patterns**: See [api/CLAUDE.md](src/pilot_space/api/CLAUDE.md) - Section "Error Handling"
+
+**Quick Summary**:
+- Middleware converts exceptions to RFC 7807 format
+- HTTP status codes: 400, 401, 403, 404, 422, 429, 500
+- Pydantic validation errors with detailed field info
+- Automatic instance URL tracking
 
 ---
 
 ## Security: Row-Level Security (RLS)
 
-**RLS violations expose sensitive data across workspaces—this is our core security boundary.** Database-level enforcement prevents application-layer bypass.
+**RLS violations expose sensitive data across workspaces.** Database-level enforcement prevents application-layer bypass. **CRITICAL SECURITY BOUNDARY.**
 
-### RLS Requirements
+**Complete RLS implementation, policy examples, and enforcement patterns**: See [infrastructure/CLAUDE.md](src/pilot_space/infrastructure/CLAUDE.md) - Section "RLS (Row-Level Security)"
 
-Every table with tenant data has RLS policies:
-
-```sql
--- Enable RLS
-ALTER TABLE issues ENABLE ROW LEVEL SECURITY;
-
--- Policy: Users can only see issues in their workspaces
-CREATE POLICY workspace_isolation ON issues
-    USING (workspace_id IN (
-        SELECT workspace_id FROM workspace_members
-        WHERE user_id = auth.uid()
-    ));
-```
-
-### Four Roles
-
-**owner**: Full workspace control, billing
-**admin**: Manage members, settings (no billing)
-**member**: Read/write access to workspace data
-**guest**: Read-only access to assigned items
-
-### Verification Checklist
-
-- [ ] Every query scoped by `workspace_id`
-- [ ] RLS policy created for new multi-tenant tables
-- [ ] Integration tests verify cross-workspace isolation
-- [ ] Service layer validates workspace membership before mutations
+**Quick Summary**:
+- RLS enabled on all multi-tenant tables
+- Four roles: owner, admin, member, guest
+- PostgreSQL session variables: `app.current_user_id`, `app.current_workspace_id`
+- Middleware sets RLS context on every request
+- Verification checklist for new features
+- Common pitfalls with ❌/✅ examples
 
 ---
 
-## Implementation Guidelines
+## Database & ORM
 
-### Code Organization
+### SQLAlchemy 2.0 Async
 
-**Prefer editing existing files to creating new ones.** Only create new files when:
-- Adding a new domain entity (requires model + repository + service)
-- Implementing a new API router for a distinct resource
-- Creating a new integration (GitHub, Slack, etc.)
+**CRITICAL**: All I/O must be async. No blocking calls in async functions (use `loop.run_in_executor()` for file I/O).
 
-**File size**: 700 lines max. Files exceeding this become unmaintainable and untestable. Split large files by:
-- Service layer: One service class per file
-- Repositories: One repository per entity
-- API routers: Group related endpoints (max 10-12 routes per router)
+**CRITICAL**: Always eager load relationships with `.options(joinedload(...))` to prevent N+1 queries.
 
-### Service Layer (CQRS-lite)
+**See [infrastructure/CLAUDE.md](src/pilot_space/infrastructure/CLAUDE.md) - "SQLAlchemy Async Patterns" and "N+1 Query Prevention"** for complete examples and best practices.
 
-**Pattern**: `Service.execute(Payload) → Result`
+### Models & Repositories
 
-```python
-from application.services.base import BaseService, Result, Success, Failure
+**22 SQLAlchemy models**: Core (User, Workspace, WorkspaceMember), Issues (Issue, State, IssueLabel, IssueLink, Module), Notes (Note, NoteAnnotation, NoteIssueLink), Cycles, AI entities (AIContext, AISession, AIMessage, etc.), and support models.
 
-class CreateIssueService(BaseService):
-    def __init__(
-        self,
-        issue_repo: IssueRepository,
-        workspace_repo: WorkspaceRepository,
-    ):
-        self.issue_repo = issue_repo
-        self.workspace_repo = workspace_repo
+**15 repositories** providing RLS-enforced data access. See [infrastructure/CLAUDE.md](src/pilot_space/infrastructure/CLAUDE.md) - "Repository Pattern" for full architecture.
 
-    async def execute(
-        self,
-        payload: CreateIssuePayload,
-    ) -> Result[Issue]:
-        # 1. Validate workspace membership
-        workspace = await self.workspace_repo.find_by_id(payload.workspace_id)
-        if not workspace:
-            return Failure("Workspace not found")
+### Migrations (Alembic)
 
-        # 2. Create domain entity (validation happens here)
-        issue = Issue.create(
-            title=payload.title,
-            workspace_id=payload.workspace_id,
-            created_by=payload.user_id,
-        )
+```bash
+# Create new migration
+alembic revision --autogenerate -m "Add issue_priority column"
 
-        # 3. Persist
-        await self.issue_repo.save(issue)
+# Apply pending migrations
+alembic upgrade head
 
-        # 4. Return success
-        return Success(issue)
-```
+# Rollback last migration
+alembic downgrade -1
 
-**Don't**: Directly manipulate SQLAlchemy models in API layer
-**Do**: Use service classes with explicit payloads and results
-
-### Error Handling
-
-Use RFC 7807 Problem Details for all API errors:
-
-```python
-from fastapi import HTTPException
-from api.v1.errors import problem_detail
-
-# In router
-@router.post("/issues")
-async def create_issue(data: CreateIssueRequest):
-    result = await service.execute(data)
-
-    if result.is_failure:
-        raise problem_detail(
-            status=400,
-            title="Issue creation failed",
-            detail=result.error,
-            type_uri="/errors/validation-error"
-        )
-
-    return result.value
-```
-
-### Async Best Practices
-
-**No blocking I/O in async functions.** Blocking calls cause thread starvation under load. Can degrade API latency by 10-50x.
-
-```python
-# ❌ Wrong - blocking I/O
-async def process_file(path: str):
-    with open(path) as f:  # Blocks event loop
-        return f.read()
-
-# ✅ Correct - async I/O
-async def process_file(path: str):
-    async with aiofiles.open(path) as f:
-        return await f.read()
-
-# ✅ Correct - offload to thread pool for sync operations
-async def process_file(path: str):
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _read_file, path)
-```
-
-### Database Queries
-
-**Avoid N+1 queries** using eager loading:
-
-```python
-# ❌ Wrong - N+1 queries
-issues = await session.execute(select(Issue))
-for issue in issues:
-    assignee = await session.execute(
-        select(User).where(User.id == issue.assignee_id)
-    )  # N queries
-
-# ✅ Correct - eager loading
-issues = await session.execute(
-    select(Issue)
-    .options(joinedload(Issue.assignee))
-    .options(joinedload(Issue.labels))
-)
-```
-
-### Dependency Injection
-
-Use `dependency-injector` container (Singleton for config/engine, Factory for repos/sessions):
-
-```python
-from dependency_injector import containers, providers
-
-class Container(containers.DeclarativeContainer):
-    config = providers.Singleton(Config)
-
-    engine = providers.Singleton(
-        create_async_engine,
-        config.provided.database_url,
-    )
-
-    session_factory = providers.Factory(
-        async_sessionmaker,
-        engine,
-        class_=AsyncSession,
-    )
-
-    issue_repo = providers.Factory(
-        IssueRepository,
-        session=session_factory,
-    )
+# Check migration status
+alembic current
 ```
 
 ---
 
-## AI Agent Integration
+## API Layer: 20 FastAPI Routers
 
-### For AI/Agent Layer Agents
+**Complete router documentation, middleware pipeline, and endpoint patterns**: See [api/CLAUDE.md](src/pilot_space/api/CLAUDE.md)
 
-PilotSpaceAgent is the single orchestrator. Don't create new independent agents.
+### Router Organization (Quick Reference)
 
-**Simple tasks** → skills (`.claude/skills/`)
-**Complex tasks** → subagents (spawned by orchestrator)
+**Core Resources** (7 routers, 35+ endpoints): workspaces, workspace_members, workspace_invitations, projects, issues, workspace_notes, workspace_cycles
 
-### MCP Tool Requirements
+**AI Features** (10 routers, 40+ endpoints): ai_chat (PilotSpaceAgent), ghost_text, ai_pr_review, ai_extraction, ai_annotations, ai_approvals, ai_costs, ai_configuration, ai_sessions, ai_context, notes_ai, workspace_notes_ai
 
-All tools return operation payloads (`status: pending_apply`), not direct mutations:
+**Support** (3+ routers, 15+ endpoints): auth, integrations, webhooks, homepage, skills, role_skills, mcp_tools, debug
 
-```python
-@mcp_tool("create_issue_from_note")
-async def create_issue_from_note(
-    note_id: str,
-    block_id: str,
-    title: str,
-) -> dict:
-    # Return operation payload, don't mutate DB directly
-    return {
-        "status": "pending_apply",
-        "operation": "create_issue",
-        "data": {
-            "note_id": note_id,
-            "block_id": block_id,
-            "title": title,
-        }
-    }
-```
+**Middleware Pipeline**: RequestContext → CORS → ErrorHandler → RateLimiter → Auth → Router
 
-### SSE Transform Pipeline
+---
 
-SDK message → `transform_sdk_message()` → Frontend event:
+## Application Services (32 Services Across 9 Domains)
 
-```python
-async def transform_sdk_message(sdk_msg: dict) -> SSEEvent:
-    """Convert SDK tool result to frontend SSE event"""
-    if sdk_msg["type"] == "tool_result":
-        if "content_update" in sdk_msg["content"]:
-            return SSEEvent(
-                event="content_update",
-                data=convert_markdown_to_tiptap(sdk_msg["content"])
-            )
-```
+**Complete service documentation, CQRS-lite patterns, and implementation examples**: See [application/CLAUDE.md](src/pilot_space/application/CLAUDE.md)
 
-### Provider Resilience
+### Service Categories (Quick Reference)
 
-Use `ResilientExecutor` for external API calls:
+**Note Services** (5): Create, Update, Get, CreateFromChat, AIUpdate
+**Issue Services** (5): Create, Update, List, Get, Activity
+**Cycle Services** (5): Create, Update, Get, AddToIssue, Rollover
+**AI Services** (3): GenerateAIContext, RefineAIContext, ExportAIContext
+**Annotation Services** (1): Create with confidence scoring
+**Discussion Services** (1): Create with atomic first comment
+**Integration Services** (4): GitHub OAuth, Webhook, Commit linking, Auto-transition
+**Onboarding Services** (3): CreateGuidedNote, GetProgress, UpdateProgress
+**RoleSkill Services** (4): CRUD + Generate
+**Homepage Services** (3): Activity, Digest, DismissSuggestion
+**Workspace Services** (1): InviteMember
 
-```python
-from ai.infrastructure.resilience import ResilientExecutor
+All services follow CQRS-lite pattern: `Service.execute(Payload) → Result`
 
-executor = ResilientExecutor(
-    max_retries=3,
-    base_delay=1.0,
-    max_delay=60.0,
-)
+---
 
-result = await executor.execute(
-    lambda: anthropic_client.messages.create(...)
-)
-```
+## AI Layer Architecture
 
-Use `CircuitBreaker` for provider failures:
+**Complete AI layer documentation with all components**: See [ai/CLAUDE.md](src/pilot_space/ai/CLAUDE.md)
 
-```python
-from ai.infrastructure.circuit_breaker import CircuitBreaker
+### Quick Reference
 
-breaker = CircuitBreaker(
-    failure_threshold=5,
-    recovery_timeout=60,
-)
+**PilotSpaceAgent Orchestrator** (DD-086): Centralized routing to skills/subagents with Claude Sonnet
 
-if breaker.can_execute():
-    try:
-        result = await provider.chat(...)
-        breaker.record_success()
-    except Exception as e:
-        breaker.record_failure()
-        # Fall back to alternative provider
-```
+**Subagents** (3): PRReviewAgent (Opus, <5min), AIContextAgent (Sonnet, <30s), DocGeneratorAgent (Sonnet, <60s)
+
+**Skills System** (DD-087): Filesystem-based auto-discovery from `.claude/skills/` (8 skills: extract-issues, enhance-issue, improve-writing, summarize, find-duplicates, recommend-assignee, decompose-tasks, generate-diagram)
+
+**MCP Tools** (33 total across 6 servers): note, note_content, issue, issue_relation, project, comment
+
+**Provider Routing** (DD-011): Task-based selection (PR review→Opus, context→Sonnet, ghost text→Flash) + fallback chain
+
+**Resilience**: ResilientExecutor + CircuitBreaker per provider (5 failures → OPEN, 60s recovery)
+
+**Cost Tracking**: Per-request token logging with provider-specific pricing and budget alerts at 90%
+
+**Approval Workflow** (DD-003): Non-destructive→auto, content creation→configurable, destructive→always require
 
 ---
 
 ## Testing
 
-### Unit Tests
+### Test Coverage Requirement: >80%
 
-**Coverage > 80%.** This threshold catches 85% of regressions before deployment.
+**Command**: `pytest --cov=. --cov-report=html`
 
-```python
-import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+**Target**: 85%+ is ideal. <80% means untested code paths → regressions in production.
 
-@pytest.mark.asyncio
-async def test_create_issue_success(
-    session: AsyncSession,
-    workspace_factory,
-):
-    # Arrange
-    workspace = await workspace_factory.create()
-    service = CreateIssueService(
-        issue_repo=IssueRepository(session),
-        workspace_repo=WorkspaceRepository(session),
-    )
+**Test organization** by concern: `unit/services/`, `unit/repositories/`, `unit/domain/`, `integration/`, `e2e/`
 
-    # Act
-    result = await service.execute(
-        CreateIssuePayload(
-            title="Test issue",
-            workspace_id=workspace.id,
-            user_id="user123",
-        )
-    )
-
-    # Assert
-    assert result.is_success
-    assert result.value.title == "Test issue"
-```
-
-### Integration Tests
-
-Verify RLS policies:
-
-```python
-@pytest.mark.asyncio
-async def test_rls_workspace_isolation(session: AsyncSession):
-    """Verify users cannot access issues from other workspaces"""
-    # Create two workspaces with issues
-    workspace1 = await create_workspace("ws1")
-    workspace2 = await create_workspace("ws2")
-
-    issue1 = await create_issue(workspace1.id)
-    issue2 = await create_issue(workspace2.id)
-
-    # Set RLS context for workspace1
-    await session.execute(
-        text("SET LOCAL app.workspace_id = :ws_id"),
-        {"ws_id": workspace1.id}
-    )
-
-    # Query should only return issue1
-    issues = await session.execute(select(Issue))
-    assert len(issues.scalars().all()) == 1
-    assert issues.scalars().first().id == issue1.id
-```
+**See `docs/dev-pattern/` for test pattern examples:** Unit test structure, fixtures, mocking, integration test patterns for RLS verification.
 
 ---
 
 ## Pre-Submission Checklist
 
-Rate confidence (0-1) before submitting code:
+**Rate confidence (0-1) before submitting code.**
 
 **Architecture & Design**:
-- [ ] CQRS-lite pattern followed (Service.execute(Payload) → Result): ___
+- [ ] CQRS-lite pattern followed (Service.execute() → Result): ___
 - [ ] Repository pattern used (no direct DB access in services): ___
 - [ ] Domain logic in entities, not services: ___
+- [ ] All exceptions converted to RFC 7807: ___
 
 **Security**:
-- [ ] RLS policy added/updated for multi-tenant tables: ___
+- [ ] RLS policy added/verified for multi-tenant tables: ___
 - [ ] Workspace membership validated before mutations: ___
-- [ ] API keys stored in Supabase Vault (never environment vars): ___
+- [ ] No sensitive data in logs: ___
+- [ ] API keys stored in Supabase Vault, never hardcoded: ___
 
 **Code Quality**:
 - [ ] Tests cover happy path + 2 edge cases: ___
+- [ ] Coverage >80% (run `pytest --cov=.`): ___
 - [ ] No blocking I/O in async functions: ___
 - [ ] File stays under 700 lines: ___
 - [ ] No N+1 queries (eager loading used): ___
+- [ ] No TODOs, mocks, or placeholders: ___
+
+**Database**:
+- [ ] Migrations created for schema changes: ___
+- [ ] Soft deletes used (is_deleted column): ___
+- [ ] Indexes added for query performance: ___
+- [ ] No hardcoded IDs in queries: ___
 
 **AI Integration** (if applicable):
 - [ ] Tool returns operation payload (not direct mutation): ___
-- [ ] Prompt caching enabled (cache_control: ephemeral): ___
+- [ ] Prompt caching enabled (`cache_control: ephemeral`): ___
 - [ ] ResilientExecutor used for external API calls: ___
 - [ ] Human-in-the-loop approval for destructive actions: ___
+- [ ] Cost tracking enabled: ___
+
+**Documentation**:
+- [ ] Docstrings on all public functions: ___
+- [ ] Type hints on all parameters and returns: ___
+- [ ] Complex logic has inline comments: ___
 
 **If any score <0.9, address gaps before completion.**
 
@@ -495,21 +329,28 @@ Rate confidence (0-1) before submitting code:
 
 ## Common Patterns Reference
 
-### Load Order for New Features
+### Load Order for New Backend Features
 
-1. `docs/architect/feature-story-mapping.md` → Find US-XX and components
-2. `docs/dev-pattern/45-pilot-space-patterns.md` → Project-specific overrides
-3. Domain-specific pattern → (e.g., `07-repository.md`, `08-service-layer.md`)
-4. Cross-cutting patterns → (e.g., `26-di.md`, `06-validation.md`)
+1. `docs/architect/feature-story-mapping.md` → Find US-XX and affected components
+2. `docs/dev-pattern/45-pilot-space-patterns.md` → Project overrides (CQRS-lite, RLS, etc.)
+3. Domain-specific patterns:
+   - `07-repository.md` (data access)
+   - `08-service-layer.md` (business logic)
+   - `20-validation.md` (request validation)
+4. Cross-cutting patterns:
+   - `26-di.md` (dependency injection)
+   - `06-error-handling.md` (RFC 7807)
+   - `25-async.md` (async best practices)
 
-### Key Documentation
+### Key Documentation Links
 
 | Topic | Document |
 |-------|----------|
 | Architecture overview | `docs/architect/backend-architecture.md` |
-| RLS patterns | `docs/architect/rls-patterns.md` |
-| Design decisions | `docs/DESIGN_DECISIONS.md` |
-| API specification | `backend/docs/api-spec.md` |
+| RLS security patterns | `docs/architect/rls-patterns.md` |
+| Design decisions (88 total) | `docs/DESIGN_DECISIONS.md` |
+| Feature-to-component mapping | `docs/architect/feature-story-mapping.md` |
+| PilotSpaceAgent architecture | `docs/architect/pilotspace-agent-architecture.md` |
 
 ---
 
@@ -518,13 +359,58 @@ Rate confidence (0-1) before submitting code:
 **Don't use**:
 - Placeholders, TODOs, or pseudo-code
 - Mocks or stubs in production code
-- Blocking I/O in async functions
+- Blocking I/O in async functions (except in executor)
 - Direct SQLAlchemy model manipulation in API layer
+- Global state or singletons (except config via DI)
+- Hard-coded IDs or magic numbers
 
 **Always use**:
-- Service classes with explicit payloads
-- Repository pattern for data access
-- RFC 7807 Problem Details for errors
+- Service classes with explicit payloads and results
+- Repository pattern for all data access
+- RFC 7807 Problem Details for all errors
 - Async SQLAlchemy with RLS enforcement
 - Dependency injection for all dependencies
-- Conventional commits (feat/fix/refactor)
+- Conventional commits: feat/fix/refactor(scope): description
+- Eager loading for relationships (`.options(joinedload(...))`)
+- Type hints (pyright strict mode)
+- Unit tests (>80% coverage)
+
+---
+
+## Generation Metadata
+
+**Documentation Generated**: 2026-02-10
+
+**Scope**: Complete backend codebase analysis
+- 20 FastAPI routers (Core + AI + Support)
+- 8 application services
+- 22 SQLAlchemy models
+- 15 repositories
+- 33 MCP tools across 6 servers
+- PilotSpaceAgent orchestrator + 3 subagents
+- Skill system + provider routing + cost tracking
+
+**Patterns Detected**:
+- CQRS-lite (Service.execute(Payload) → Result)
+- Repository pattern (BaseRepository[T] with RLS)
+- Domain events (IssueCreated, IssueStateChanged, etc.)
+- Dependency injection (dependency-injector)
+- RFC 7807 error handling
+- RLS enforcement (workspace_id scoping)
+- Async SQLAlchemy (no blocking I/O)
+- SSE streaming (ChatView, ghost text, AI context)
+- Circuit breaker + exponential backoff (resilience)
+- Prompt caching (ephemeral for cost savings)
+
+**Coverage Gaps**:
+- Phase 2 features not yet implemented: PR review streaming, Slack integration, bulk operations
+- Health check endpoint minimal (could add DB/Redis/Meilisearch connectivity checks)
+- Webhook signature verification (GitHub) implemented but not fully tested
+- Missing API rate limit enforcement tests
+
+**Suggested Next Steps**:
+1. Add database health checks to `/ready` endpoint
+2. Implement E2E tests for full RLS isolation workflows
+3. Create performance benchmarks for large issue queries (N+1 prevention)
+4. Document MCP tool error handling and validation
+5. Add cost tracking integration tests
