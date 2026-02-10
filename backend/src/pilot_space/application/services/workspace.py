@@ -475,9 +475,7 @@ class WorkspaceService:
         )
 
         # Check membership
-        is_member = any(
-            m.user_id == payload.user_id for m in (workspace.members or [])
-        )
+        is_member = any(m.user_id == payload.user_id for m in (workspace.members or []))
         if not is_member:
             msg = "Not a member of this workspace"
             raise ValueError(msg)

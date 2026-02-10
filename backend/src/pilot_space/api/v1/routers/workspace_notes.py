@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from dependency_injector.wiring import inject
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from pilot_space.api.v1.dependencies import (
@@ -194,7 +193,7 @@ async def get_workspace_note(
     current_user_id: CurrentUserId,
     get_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep
+    _: SessionDep,
 ) -> NoteDetailResponse:
     """Get a specific note by ID."""
     from pilot_space.application.services.note import GetNoteOptions
@@ -519,9 +518,7 @@ async def get_note_annotations(
         )
 
     # Get annotations via service
-    result = await list_annotations_service.execute(
-        ListAnnotationsPayload(note_id=note_id)
-    )
+    result = await list_annotations_service.execute(ListAnnotationsPayload(note_id=note_id))
 
     return [_annotation_to_response(a) for a in result.annotations]
 

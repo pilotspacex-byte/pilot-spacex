@@ -28,7 +28,6 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-
 @router.get(
     "/{workspace_id}/members",
     response_model=list[WorkspaceMemberResponse],

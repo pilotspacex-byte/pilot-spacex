@@ -92,7 +92,7 @@ from pilot_space.application.services.workspace_invitation import (
 )
 from pilot_space.application.services.workspace_member import WorkspaceMemberService
 from pilot_space.container import Container
-from pilot_space.dependencies.auth import CurrentUserId, SessionDep, SyncedUserId
+from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.database.repositories.activity_repository import (
     ActivityRepository,
 )
@@ -171,7 +171,9 @@ def _get_note_issue_link_repository(
     return repo
 
 
-NoteIssueLinkRepositoryDep = Annotated[NoteIssueLinkRepository, Depends(_get_note_issue_link_repository)]
+NoteIssueLinkRepositoryDep = Annotated[
+    NoteIssueLinkRepository, Depends(_get_note_issue_link_repository)
+]
 
 
 @inject
@@ -305,7 +307,9 @@ def _get_create_note_from_chat_service(
     return svc
 
 
-CreateNoteFromChatServiceDep = Annotated[CreateNoteFromChatService, Depends(_get_create_note_from_chat_service)]
+CreateNoteFromChatServiceDep = Annotated[
+    CreateNoteFromChatService, Depends(_get_create_note_from_chat_service)
+]
 
 
 @inject
@@ -356,7 +360,9 @@ def _get_list_annotations_service(
     return svc
 
 
-ListAnnotationsServiceDep = Annotated[ListAnnotationsService, Depends(_get_list_annotations_service)]
+ListAnnotationsServiceDep = Annotated[
+    ListAnnotationsService, Depends(_get_list_annotations_service)
+]
 
 
 @inject
@@ -366,7 +372,9 @@ def _get_update_annotation_service(
     return svc
 
 
-UpdateAnnotationServiceDep = Annotated[UpdateAnnotationService, Depends(_get_update_annotation_service)]
+UpdateAnnotationServiceDep = Annotated[
+    UpdateAnnotationService, Depends(_get_update_annotation_service)
+]
 
 # ===== Issue Delete Service =====
 
@@ -420,7 +428,9 @@ def _get_add_issue_to_cycle_service(
     return svc
 
 
-AddIssueToCycleServiceDep = Annotated[AddIssueToCycleService, Depends(_get_add_issue_to_cycle_service)]
+AddIssueToCycleServiceDep = Annotated[
+    AddIssueToCycleService, Depends(_get_add_issue_to_cycle_service)
+]
 
 
 @inject
@@ -442,7 +452,9 @@ def _get_generate_ai_context_service(
     return svc
 
 
-GenerateAIContextServiceDep = Annotated[GenerateAIContextService, Depends(_get_generate_ai_context_service)]
+GenerateAIContextServiceDep = Annotated[
+    GenerateAIContextService, Depends(_get_generate_ai_context_service)
+]
 
 
 @inject
@@ -452,7 +464,9 @@ def _get_refine_ai_context_service(
     return svc
 
 
-RefineAIContextServiceDep = Annotated[RefineAIContextService, Depends(_get_refine_ai_context_service)]
+RefineAIContextServiceDep = Annotated[
+    RefineAIContextService, Depends(_get_refine_ai_context_service)
+]
 
 
 @inject
@@ -462,7 +476,9 @@ def _get_export_ai_context_service(
     return svc
 
 
-ExportAIContextServiceDep = Annotated[ExportAIContextService, Depends(_get_export_ai_context_service)]
+ExportAIContextServiceDep = Annotated[
+    ExportAIContextService, Depends(_get_export_ai_context_service)
+]
 
 # ===== Annotation Service Dependencies =====
 
@@ -474,7 +490,9 @@ def _get_create_annotation_service(
     return svc
 
 
-CreateAnnotationServiceDep = Annotated[CreateAnnotationService, Depends(_get_create_annotation_service)]
+CreateAnnotationServiceDep = Annotated[
+    CreateAnnotationService, Depends(_get_create_annotation_service)
+]
 
 # ===== Discussion Service Dependencies =====
 
@@ -486,7 +504,9 @@ def _get_create_discussion_service(
     return svc
 
 
-CreateDiscussionServiceDep = Annotated[CreateDiscussionService, Depends(_get_create_discussion_service)]
+CreateDiscussionServiceDep = Annotated[
+    CreateDiscussionService, Depends(_get_create_discussion_service)
+]
 
 # ===== Integration Service Dependencies =====
 
@@ -542,7 +562,9 @@ def _get_create_guided_note_service(
     return svc
 
 
-CreateGuidedNoteServiceDep = Annotated[CreateGuidedNoteService, Depends(_get_create_guided_note_service)]
+CreateGuidedNoteServiceDep = Annotated[
+    CreateGuidedNoteService, Depends(_get_create_guided_note_service)
+]
 
 
 @inject
@@ -562,7 +584,9 @@ def _get_update_onboarding_service(
     return svc
 
 
-UpdateOnboardingServiceDep = Annotated[UpdateOnboardingService, Depends(_get_update_onboarding_service)]
+UpdateOnboardingServiceDep = Annotated[
+    UpdateOnboardingService, Depends(_get_update_onboarding_service)
+]
 
 # ===== Role Skill Service Dependencies =====
 
@@ -574,7 +598,9 @@ def _get_create_role_skill_service(
     return svc
 
 
-CreateRoleSkillServiceDep = Annotated[CreateRoleSkillService, Depends(_get_create_role_skill_service)]
+CreateRoleSkillServiceDep = Annotated[
+    CreateRoleSkillService, Depends(_get_create_role_skill_service)
+]
 
 
 @inject
@@ -584,7 +610,9 @@ def _get_update_role_skill_service(
     return svc
 
 
-UpdateRoleSkillServiceDep = Annotated[UpdateRoleSkillService, Depends(_get_update_role_skill_service)]
+UpdateRoleSkillServiceDep = Annotated[
+    UpdateRoleSkillService, Depends(_get_update_role_skill_service)
+]
 
 
 @inject
@@ -594,7 +622,9 @@ def _get_delete_role_skill_service(
     return svc
 
 
-DeleteRoleSkillServiceDep = Annotated[DeleteRoleSkillService, Depends(_get_delete_role_skill_service)]
+DeleteRoleSkillServiceDep = Annotated[
+    DeleteRoleSkillService, Depends(_get_delete_role_skill_service)
+]
 
 
 @inject
@@ -614,7 +644,9 @@ def _get_generate_role_skill_service(
     return svc
 
 
-GenerateRoleSkillServiceDep = Annotated[GenerateRoleSkillService, Depends(_get_generate_role_skill_service)]
+GenerateRoleSkillServiceDep = Annotated[
+    GenerateRoleSkillService, Depends(_get_generate_role_skill_service)
+]
 
 # ===== Homepage Service Dependencies =====
 
@@ -646,7 +678,9 @@ def _get_dismiss_suggestion_service(
     return svc
 
 
-DismissSuggestionServiceDep = Annotated[DismissSuggestionService, Depends(_get_dismiss_suggestion_service)]
+DismissSuggestionServiceDep = Annotated[
+    DismissSuggestionService, Depends(_get_dismiss_suggestion_service)
+]
 
 # ===== Workspace Service Dependencies =====
 
@@ -668,7 +702,9 @@ def _get_workspace_member_service(
     return svc
 
 
-WorkspaceMemberServiceDep = Annotated[WorkspaceMemberService, Depends(_get_workspace_member_service)]
+WorkspaceMemberServiceDep = Annotated[
+    WorkspaceMemberService, Depends(_get_workspace_member_service)
+]
 
 
 @inject
@@ -678,7 +714,9 @@ def _get_workspace_invitation_service(
     return svc
 
 
-WorkspaceInvitationServiceDep = Annotated[WorkspaceInvitationService, Depends(_get_workspace_invitation_service)]
+WorkspaceInvitationServiceDep = Annotated[
+    WorkspaceInvitationService, Depends(_get_workspace_invitation_service)
+]
 
 __all__ = [  # noqa: RUF022
     # Repository Dependencies
@@ -691,7 +729,6 @@ __all__ = [  # noqa: RUF022
     "ProjectRepositoryDep",
     "UserRepositoryDep",
     "WorkspaceRepositoryDep",
-
     # Service Dependencies
     "ActivityServiceDep",
     "AddIssueToCycleServiceDep",

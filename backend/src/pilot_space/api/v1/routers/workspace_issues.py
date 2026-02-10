@@ -15,7 +15,6 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from dependency_injector.wiring import inject
 from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
