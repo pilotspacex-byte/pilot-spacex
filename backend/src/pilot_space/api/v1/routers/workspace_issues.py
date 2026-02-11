@@ -259,12 +259,12 @@ async def list_workspace_issues(
     summary="Get issue by ID",
 )
 async def get_workspace_issue(
+    _: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
     current_user_id: SyncedUserId,
     get_service: GetIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> IssueResponse:
     """Get a specific issue by ID."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)

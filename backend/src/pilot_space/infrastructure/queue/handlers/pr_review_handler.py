@@ -12,17 +12,8 @@ Handles:
 
 from __future__ import annotations
 
-# TODO: These classes need to be properly defined in pr_review_subagent.py
-# For now, creating stubs to allow the module to import
-from dataclasses import (
-    dataclass,
-    dataclass as _dc,
-    field,
-)
-from enum import (
-    Enum as _Enum,
-    StrEnum,
-)
+from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -33,36 +24,19 @@ from pilot_space.ai.agents.subagents.pr_review_subagent import (
     PRReviewSubagent,
 )
 from pilot_space.ai.prompts.pr_review import format_review_as_markdown
+from pilot_space.api.v1.schemas.pr_review import (
+    ReviewComment,
+    ReviewSeverity,
+)
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.infrastructure.queue.models import QueueName
-
-
-class ReviewSeverity(_Enum):
-    """Temporary stub for ReviewSeverity."""
-
-    CRITICAL = "critical"
-    WARNING = "warning"
-    INFO = "info"
-
-
-@_dc
-class ReviewComment:
-    """Temporary stub for ReviewComment."""
-
-    severity: ReviewSeverity
-    message: str
-    file_path: str | None = None
-    line_number: int | None = None
-
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
-    from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
-    from pilot_space.ai.tools.mcp_server import ToolRegistry
     from pilot_space.infrastructure.database.repositories import (
         AIConfigurationRepository,
         IntegrationRepository,
@@ -206,11 +180,9 @@ class PRReviewJobHandler:
         queue_client: SupabaseQueueClient,
         integration_repo: IntegrationRepository,
         ai_config_repo: AIConfigurationRepository,
-        tool_registry: ToolRegistry,
         provider_selector: ProviderSelector,
         cost_tracker: CostTracker,
         resilient_executor: ResilientExecutor,
-        key_storage: SecureKeyStorage,
     ) -> None:
         """Initialize handler.
 
@@ -219,22 +191,18 @@ class PRReviewJobHandler:
             queue_client: Supabase queue client.
             integration_repo: Integration repository.
             ai_config_repo: AI configuration repository.
-            tool_registry: Registry for MCP tool access.
             provider_selector: Provider/model selection service.
             cost_tracker: Cost tracking service.
             resilient_executor: Retry and circuit breaker service.
-            key_storage: Secure API key storage service.
         """
         self._session = session
         self._queue = queue_client
         self._integration_repo = integration_repo
         self._ai_config_repo = ai_config_repo
         self._agent = PRReviewSubagent(
-            tool_registry=tool_registry,
             provider_selector=provider_selector,
             cost_tracker=cost_tracker,
             resilient_executor=resilient_executor,
-            key_storage=key_storage,
         )
 
     async def execute(self, payload: PRReviewJobPayload) -> PRReviewJobResult:
@@ -628,11 +596,9 @@ async def handle_pr_review_job(
     queue_client: SupabaseQueueClient,
     integration_repo: IntegrationRepository,
     ai_config_repo: AIConfigurationRepository,
-    tool_registry: ToolRegistry,
     provider_selector: ProviderSelector,
     cost_tracker: CostTracker,
     resilient_executor: ResilientExecutor,
-    key_storage: SecureKeyStorage,
     payload: PRReviewJobPayload,
 ) -> PRReviewJobResult:
     """Process a single PR review job from the queue.
@@ -657,11 +623,9 @@ async def handle_pr_review_job(
         queue_client=queue_client,
         integration_repo=integration_repo,
         ai_config_repo=ai_config_repo,
-        tool_registry=tool_registry,
         provider_selector=provider_selector,
         cost_tracker=cost_tracker,
         resilient_executor=resilient_executor,
-        key_storage=key_storage,
     )
     return await handler.execute(payload)
 

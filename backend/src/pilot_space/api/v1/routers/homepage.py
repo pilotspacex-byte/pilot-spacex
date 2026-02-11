@@ -199,13 +199,15 @@ async def get_digest(
         GetDigestPayload,
         GetDigestService,
     )
-    from pilot_space.infrastructure.database.repositories.homepage_repository import (
-        HomepageRepository,
+    from pilot_space.infrastructure.database.repositories.digest_repository import (
+        DigestRepository,
+        DismissalRepository,
     )
 
-    repo = HomepageRepository(session)
+    repo = DigestRepository(session)
+    dismissal_repo = DismissalRepository(session)
 
-    service = GetDigestService(session, repo)
+    service = GetDigestService(session, repo, dismissal_repo)
     result = await service.execute(
         GetDigestPayload(
             workspace_id=workspace_id,
@@ -337,8 +339,12 @@ async def dismiss_suggestion(
         DismissSuggestionPayload,
         DismissSuggestionService,
     )
+    from pilot_space.infrastructure.database.repositories.digest_repository import (
+        DismissalRepository,
+    )
 
-    service = DismissSuggestionService(session)
+    dismissal_repo = DismissalRepository(session)
+    service = DismissSuggestionService(session, dismissal_repo)
     await service.execute(
         DismissSuggestionPayload(
             workspace_id=workspace_id,
@@ -392,8 +398,12 @@ async def create_note_from_chat(
         CreateNoteFromChatPayload as ServicePayload,
         CreateNoteFromChatService,
     )
+    from pilot_space.infrastructure.database.repositories.note_repository import (
+        NoteRepository,
+    )
 
-    service = CreateNoteFromChatService(session)
+    note_repo = NoteRepository(session)
+    service = CreateNoteFromChatService(session, note_repo)
 
     try:
         result = await service.execute(

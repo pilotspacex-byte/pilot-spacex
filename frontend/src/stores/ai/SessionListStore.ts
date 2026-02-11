@@ -1,12 +1,6 @@
 /**
  * SessionListStore - Manages conversation session list and operations.
- *
- * Handles:
- * - Fetching recent sessions
- * - Resuming existing sessions
- * - Deleting sessions
- * - Session metadata display
- *
+ * Handles fetching, resuming, deleting sessions, and session metadata display.
  * @module stores/ai/SessionListStore
  * @see T075-T079 (Session Persistence UI)
  */
@@ -120,11 +114,10 @@ export class SessionListStore {
   }
 
   /**
-   * Get active (non-expired) sessions.
+   * Get active sessions (all sessions are now visible; backend handles expiry).
    */
   get activeSessions(): SessionSummary[] {
-    const now = new Date();
-    return this.sessions.filter((session) => session.expiresAt > now);
+    return [...this.sessions];
   }
 
   /**
@@ -504,11 +497,8 @@ export class SessionListStore {
     // need a dedicated fetch to find sessions for this specific context.
     await this.fetchSessions(5, contextId);
 
-    // Find the most recent active session matching this context
-    const now = new Date();
-    const matchingSession = this.recentSessions.find(
-      (s) => s.contextId === contextId && s.expiresAt > now
-    );
+    // Find the most recent session matching this context
+    const matchingSession = this.recentSessions.find((s) => s.contextId === contextId);
 
     if (matchingSession) {
       await this.resumeSession(matchingSession.sessionId);

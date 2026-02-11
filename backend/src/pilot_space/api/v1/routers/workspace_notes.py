@@ -137,11 +137,11 @@ def _note_to_detail_response(note: Note) -> NoteDetailResponse:
     summary="List notes in workspace",
 )
 async def list_workspace_notes(
+    _: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     current_user_id: CurrentUserId,
     list_service: ListNotesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
     project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
     is_pinned: Annotated[bool | None, Query(description="Filter by pin status")] = None,
     search: Annotated[str | None, Query(description="Search query")] = None,
@@ -188,12 +188,12 @@ async def list_workspace_notes(
     summary="Get note by ID",
 )
 async def get_workspace_note(
+    _: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
     get_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> NoteDetailResponse:
     """Get a specific note by ID."""
     from pilot_space.application.services.note import GetNoteOptions
@@ -341,12 +341,12 @@ async def update_workspace_note(
     summary="Delete a note",
 )
 async def delete_workspace_note(
+    _: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
     delete_service: DeleteNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> DeleteResponse:
     """Soft delete a note with activity tracking."""
     from pilot_space.application.services.note import DeleteNotePayload
@@ -383,12 +383,12 @@ async def delete_workspace_note(
     summary="Pin a note",
 )
 async def pin_workspace_note(
+    _: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
     pin_service: PinNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> NoteResponse:
     """Pin a note for quick access."""
     from pilot_space.application.services.note import PinNotePayload
@@ -427,12 +427,12 @@ async def pin_workspace_note(
     summary="Unpin a note",
 )
 async def unpin_workspace_note(
+    _: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
     pin_service: PinNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> NoteResponse:
     """Unpin a note."""
     from pilot_space.application.services.note import PinNotePayload
@@ -496,13 +496,13 @@ def _annotation_to_response(annotation: NoteAnnotation) -> AnnotationResponse:
     summary="Get note annotations",
 )
 async def get_note_annotations(
+    _: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
     list_annotations_service: ListAnnotationsServiceDep,
     get_note_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> list[AnnotationResponse]:
     """Get all annotations for a note."""
     from pilot_space.application.services.note import ListAnnotationsPayload
@@ -530,6 +530,7 @@ async def get_note_annotations(
     summary="Update annotation status",
 )
 async def update_annotation_status(
+    _: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     annotation_id: Annotated[UUID, Path(description="Annotation ID")],
@@ -538,7 +539,6 @@ async def update_annotation_status(
     update_annotation_service: UpdateAnnotationServiceDep,
     get_note_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> AnnotationResponse:
     """Update annotation status (accept/reject/dismiss)."""
     from pilot_space.application.services.note import UpdateAnnotationPayload
@@ -597,12 +597,12 @@ async def update_annotation_status(
     summary="Get note version history",
 )
 async def get_note_versions(
+    _: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
     get_note_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> list[Any]:
     """Get version history for a note.
 

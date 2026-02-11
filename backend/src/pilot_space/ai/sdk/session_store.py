@@ -180,99 +180,93 @@ class SessionStore:
         Returns:
             Loaded RedisSession or None if not found.
         """
+        # Load from database using raw SQL to avoid ORM selectin-loaded
+        # relationships (user, workspace, messages, tasks) which trigger
+        # MissingGreenlet errors in async context.
         try:
-            # Try Redis first
-            try:
-                redis_session = await self._session_manager.get_session(session_id)
-                logger.debug("Session found in Redis: %s", session_id)
+            from sqlalchemy import text
 
-                # Ensure context index exists (may have expired separately)
-                if redis_session.context_id is not None:
-                    from pilot_space.ai.session.session_manager import SESSION_TTL_SECONDS
+            row = (
+                await self._db.execute(
+                    text(
+                        "SELECT id, user_id, workspace_id, agent_name, context_id, "
+                        "title, session_data, total_cost_usd, turn_count, "
+                        "created_at, updated_at, expires_at "
+                        "FROM ai_sessions WHERE id = :sid"
+                    ),
+                    {"sid": session_id},
+                )
+            ).first()
 
-                    index_key = self._session_manager._user_session_index_key(  # type: ignore[attr-defined]  # noqa: SLF001
-                        redis_session.user_id,
-                        redis_session.agent_name,
-                        redis_session.context_id,
-                    )
-                    await self._session_manager._redis.set(  # type: ignore[attr-defined]  # noqa: SLF001
-                        index_key,
-                        str(session_id),
-                        ttl=SESSION_TTL_SECONDS,
-                    )
-
-                return redis_session
-            except SessionNotFoundError:
-                pass
-
-            # Load from database
-            from sqlalchemy import select
-
-            from pilot_space.infrastructure.database.models.ai_session import (
-                AISession as DBSession,
-            )
-
-            stmt = select(DBSession).where(DBSession.id == session_id)
-            result = await self._db.execute(stmt)
-            db_session = result.scalar_one_or_none()
-
-            if not db_session:
+            if not row:
                 logger.warning("Session not found in database: %s", session_id)
                 return None
 
-            # Check expiration
-            if db_session.expires_at < datetime.now(UTC):
-                logger.warning("Session expired in database: %s", session_id)
-                return None
+            # Extend TTL if expired (allow resuming historical sessions)
+            if row.expires_at < datetime.now(UTC):
+                new_expires = datetime.now(UTC) + timedelta(hours=SESSION_TTL_HOURS)
+                await self._db.execute(
+                    text("UPDATE ai_sessions SET expires_at = :exp WHERE id = :sid"),
+                    {"exp": new_expires, "sid": session_id},
+                )
+                await self._db.flush()
+                logger.info("session_store_ttl_extended", session_id=str(session_id))
+                expires_at = new_expires
+            else:
+                expires_at = row.expires_at
+
+            # Parse session_data (comes as dict from JSONB)
+            session_data = row.session_data or {}
 
             # Reconstruct messages
-            messages_data = db_session.session_data.get("messages", [])
+            messages_data = session_data.get("messages", [])
             messages = [AIMessage.from_dict(msg) for msg in messages_data]
 
             # Create Redis session
             redis_session = RedisSession(
-                id=db_session.id,
-                user_id=db_session.user_id,
-                workspace_id=db_session.workspace_id,
-                agent_name=db_session.agent_name,
-                context_id=db_session.context_id,
-                context=db_session.session_data.get("context", {}),
+                id=row.id,
+                user_id=row.user_id,
+                workspace_id=row.workspace_id,
+                agent_name=row.agent_name,
+                context_id=row.context_id,
+                context=session_data.get("context", {}),
                 messages=messages,
-                total_cost_usd=float(db_session.total_cost_usd),
-                turn_count=db_session.turn_count,
-                created_at=db_session.created_at,
-                updated_at=db_session.updated_at,
-                expires_at=db_session.expires_at,
+                total_cost_usd=float(row.total_cost_usd),
+                turn_count=row.turn_count,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+                expires_at=expires_at,
             )
 
-            # Restore to Redis via public interface
-            from pilot_space.ai.session.session_manager import SESSION_TTL_SECONDS
+            # Restore to Redis (best-effort, don't fail resume if Redis is down)
+            try:
+                from pilot_space.ai.session.session_manager import SESSION_TTL_SECONDS
 
-            # Use internal methods with type ignore for private access
-            session_key = self._session_manager._session_key(session_id)  # type: ignore[attr-defined]  # noqa: SLF001
-            await self._session_manager._redis.set(  # type: ignore[attr-defined]  # noqa: SLF001
-                session_key,
-                redis_session.to_dict(),
-                ttl=SESSION_TTL_SECONDS,
-            )
+                session_key = self._session_manager._session_key(session_id)  # type: ignore[attr-defined]  # noqa: SLF001
+                await self._session_manager._redis.set(  # type: ignore[attr-defined]  # noqa: SLF001
+                    session_key,
+                    redis_session.to_dict(),
+                    ttl=SESSION_TTL_SECONDS,
+                )
 
-            # Restore context index for session lookup
-            index_key = self._session_manager._user_session_index_key(  # type: ignore[attr-defined]  # noqa: SLF001
-                db_session.user_id,
-                db_session.agent_name,
-                db_session.context_id,
-            )
-            await self._session_manager._redis.set(  # type: ignore[attr-defined]  # noqa: SLF001
-                index_key,
-                str(session_id),
-                ttl=SESSION_TTL_SECONDS,
-            )
+                index_key = self._session_manager._user_session_index_key(  # type: ignore[attr-defined]  # noqa: SLF001
+                    row.user_id,
+                    row.agent_name,
+                    row.context_id,
+                )
+                await self._session_manager._redis.set(  # type: ignore[attr-defined]  # noqa: SLF001
+                    index_key,
+                    str(session_id),
+                    ttl=SESSION_TTL_SECONDS,
+                )
+            except Exception:
+                logger.warning("Failed to restore session %s to Redis (non-fatal)", session_id)
 
             logger.info(
                 "session_store_restored",
                 session_id=str(session_id),
                 turn_count=redis_session.turn_count,
-                context_id=str(db_session.context_id) if db_session.context_id else None,
+                context_id=str(row.context_id) if row.context_id else None,
             )
 
             return redis_session
@@ -301,11 +295,7 @@ class SessionStore:
             RedisSession if found and not expired, None otherwise.
         """
         try:
-            from sqlalchemy import and_, desc, select
-
-            from pilot_space.infrastructure.database.models.ai_session import (
-                AISession as DBSession,
-            )
+            from sqlalchemy import text
 
             logger.info(
                 "session_store_load_by_context_searching",
@@ -315,24 +305,26 @@ class SessionStore:
                 now=datetime.now(UTC).isoformat(),
             )
 
-            stmt = (
-                select(DBSession)
-                .where(
-                    and_(
-                        DBSession.user_id == user_id,
-                        DBSession.agent_name == agent_name,
-                        DBSession.context_id == context_id,
-                        DBSession.expires_at > datetime.now(UTC),
-                    )
+            # Use raw SQL to avoid ORM selectin-loaded relationships
+            # which trigger MissingGreenlet errors in async context.
+            row = (
+                await self._db.execute(
+                    text(
+                        "SELECT id, expires_at FROM ai_sessions "
+                        "WHERE user_id = :uid AND agent_name = :aname "
+                        "AND context_id = :cid AND expires_at > :now "
+                        "ORDER BY updated_at DESC LIMIT 1"
+                    ),
+                    {
+                        "uid": user_id,
+                        "aname": agent_name,
+                        "cid": context_id,
+                        "now": datetime.now(UTC),
+                    },
                 )
-                .order_by(desc(DBSession.updated_at))
-                .limit(1)
-            )
+            ).first()
 
-            result = await self._db.execute(stmt)
-            db_session = result.scalar_one_or_none()
-
-            if not db_session:
+            if not row:
                 logger.info(
                     "session_store_load_by_context_not_found",
                     user_id=str(user_id),
@@ -343,14 +335,14 @@ class SessionStore:
 
             logger.info(
                 "session_store_load_by_context_found",
-                session_id=str(db_session.id),
+                session_id=str(row.id),
                 user_id=str(user_id),
                 context_id=str(context_id),
-                expires_at=db_session.expires_at.isoformat(),
+                expires_at=row.expires_at.isoformat(),
             )
 
             # Reuse load_from_db to restore to Redis
-            return await self.load_from_db(db_session.id)
+            return await self.load_from_db(row.id)
 
         except Exception:
             logger.exception(
@@ -397,7 +389,13 @@ class SessionStore:
             conditions.append(DBSession.agent_name == agent_name)
 
         if context_id:
-            conditions.append(DBSession.context_id == context_id)
+            context_id_str = str(context_id)
+            conditions.append(
+                or_(
+                    DBSession.context_id == context_id,
+                    DBSession.session_data["context_history"].cast(String).contains(context_id_str),
+                )
+            )
 
         # Search by title or context_history content
         if search:
@@ -408,9 +406,6 @@ class SessionStore:
                     DBSession.session_data["context_history"].cast(String).ilike(search_pattern),
                 )
             )
-
-        # Filter out expired sessions
-        conditions.append(DBSession.expires_at > datetime.now(UTC))
 
         stmt = (
             select(DBSession)
@@ -435,6 +430,7 @@ class SessionStore:
                 "created_at": session.created_at.isoformat(),
                 "updated_at": session.updated_at.isoformat(),
                 "expires_at": session.expires_at.isoformat(),
+                "is_expired": session.expires_at < datetime.now(UTC),
             }
             for session in sessions
         ]

@@ -104,7 +104,6 @@ from pilot_space.application.services.workspace_invitation import (
 )
 from pilot_space.application.services.workspace_member import WorkspaceMemberService
 from pilot_space.container import Container
-from pilot_space.dependencies.auth import SessionDep
 
 # ===== Issue Service Dependencies =====
 
@@ -245,7 +244,6 @@ PinNoteServiceDep = Annotated[PinNoteService, Depends(_get_pin_note_service)]
 
 @inject
 def _get_list_annotations_service(
-    _: SessionDep,
     svc: ListAnnotationsService = Depends(Provide[Container.list_annotations_service]),
 ) -> ListAnnotationsService:
     return svc

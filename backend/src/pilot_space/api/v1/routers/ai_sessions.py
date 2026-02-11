@@ -15,6 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.dependencies import CurrentUserId, DbSession, SessionManagerDep
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
@@ -76,6 +77,7 @@ class SessionListItem(BaseModel):
     created_at: str = Field(..., description="Creation timestamp")
     updated_at: str = Field(..., description="Last update timestamp")
     expires_at: str = Field(..., description="Expiration timestamp")
+    is_expired: bool = Field(False, description="Whether this session has expired")
 
 
 class SessionGroup(BaseModel):
@@ -205,7 +207,7 @@ async def list_sessions(
     user_id: CurrentUserId,
     db_session: DbSession,
     session_manager: SessionManagerDep,
-    workspace_id: UUID | None = Query(None, description="Filter by workspace"),
+    workspace_id: WorkspaceId,
     agent_name: str | None = Query(None, description="Filter by agent"),
     context_id: UUID | None = Query(
         None, description="Filter by context entity (note_id, issue_id)"
@@ -220,7 +222,7 @@ async def list_sessions(
         user_id: Current user ID (from auth).
         db_session: Database session.
         session_manager: Session manager.
-        workspace_id: Optional workspace filter.
+        workspace_id: Workspace ID from X-Workspace-Id header.
         agent_name: Optional agent filter.
         search: Optional search query (matches title and context_history).
         group_by: 'date' to group sessions by date (Today, Yesterday, weekday, date).
@@ -236,7 +238,7 @@ async def list_sessions(
         raise HTTPException(status_code=503, detail="Session manager not available")
 
     # Set RLS context so PostgreSQL policies allow access
-    await set_rls_context(db_session, user_id)
+    await set_rls_context(db_session, user_id, workspace_id)
 
     from pilot_space.ai.sdk.session_store import SessionStore
 
@@ -264,6 +266,7 @@ async def list_sessions(
             created_at=s["created_at"],
             updated_at=s["updated_at"],
             expires_at=s["expires_at"],
+            is_expired=s.get("is_expired", False),
         )
         for s in sessions_data
     ]
@@ -346,6 +349,7 @@ async def resume_session(
     user_id: CurrentUserId,
     db_session: DbSession,
     session_manager: SessionManagerDep,
+    workspace_id: WorkspaceId,
     limit: int = Query(3, ge=1, le=100, description="Max messages to return (latest first)"),
     offset: int = Query(0, ge=0, description="Skip N most recent messages (for loading older)"),
 ) -> SessionResumeResponse:
@@ -374,19 +378,19 @@ async def resume_session(
         raise HTTPException(status_code=503, detail="Session manager not available")
 
     # Set RLS context so PostgreSQL policies allow access
-    await set_rls_context(db_session, user_id)
+    await set_rls_context(db_session, user_id, workspace_id)
 
     from pilot_space.ai.sdk.session_store import SessionStore
 
     store = SessionStore(session_manager, db_session)
 
-    # Load from database (also restores to Redis)
+    # Load from database (also restores to Redis, extends TTL if expired)
     session = await store.load_from_db(session_id)
 
     if not session:
         raise HTTPException(
             status_code=404,
-            detail="Session not found or expired",
+            detail="Session not found",
         )
 
     # Verify ownership
@@ -458,6 +462,7 @@ async def delete_session(
     user_id: CurrentUserId,
     db_session: DbSession,
     session_manager: SessionManagerDep,
+    workspace_id: WorkspaceId,
 ) -> dict[str, str]:
     """Delete a session.
 
@@ -480,7 +485,7 @@ async def delete_session(
         raise HTTPException(status_code=503, detail="Session manager not available")
 
     # Set RLS context so PostgreSQL policies allow access
-    await set_rls_context(db_session, user_id)
+    await set_rls_context(db_session, user_id, workspace_id)
 
     from pilot_space.ai.sdk.session_store import SessionStore
 
