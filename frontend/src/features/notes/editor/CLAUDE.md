@@ -125,6 +125,41 @@ Content changed
 
 ---
 
+## 6. PM Block Content Updates
+
+Two operations for AI-initiated PM block management:
+
+**Operation Types**:
+
+1. **insert_pm_block**: Insert a new PM block node (non-destructive, no conflict detection)
+2. **update_pm_block**: Update an existing PM block's data attribute (respects edit guard FR-048)
+
+**Data Flow**:
+
+```
+Backend SSE content_update event (operation: insert_pm_block/update_pm_block)
+  -> PilotSpaceStore.pendingContentUpdates
+  -> useContentUpdates hook (MobX reaction)
+  -> handleInsertPMBlock / handleUpdatePMBlock (contentUpdateHandlers.ts)
+  -> TipTap editor insertContentAt / setNodeMarkup
+```
+
+**Edit Guard (FR-048)**: The `useBlockEditGuard` hook tracks user-edited blocks. When `PMBlockNodeView.onDataChange` is called (user edits), the block is marked via `markEdited(blockId)`. The `update_pm_block` handler checks `isBlockEdited()` before applying. If the block was user-edited, the update is silently skipped.
+
+**pmBlockData payload**:
+
+```json
+{
+  "blockType": "decision",
+  "data": "{\"title\":\"...\",\"status\":\"open\",...}",
+  "version": 1
+}
+```
+
+Note: `data` must be a JSON-encoded string, not a raw object.
+
+---
+
 ## Common Patterns
 
 ### Fetch a Note

@@ -49,6 +49,7 @@ Detailed documentation is organized in submodule guides:
 
 - **[agents/CLAUDE.md](agents/CLAUDE.md)** -- PilotSpaceAgent orchestrator, subagents (PR Review, Doc Generator), session management, approval workflow, message transformation pipeline
 - **[mcp/CLAUDE.md](mcp/CLAUDE.md)** -- MCP Tools System (33 tools, 6 servers), Skills System (8 skills, YAML auto-discovery), Role Skill Dynamic Templates (8 role templates)
+- **[templates/rules/pm_blocks.md](templates/rules/pm_blocks.md)** -- PM block types, TipTap JSON format, insert/update operations, edit guard rules
 - **[providers/CLAUDE.md](providers/CLAUDE.md)** -- Provider Routing (DD-011, 20 task types), Resilience patterns (retry + circuit breaker), Cost tracking (per-request BYOK pricing)
 
 ---

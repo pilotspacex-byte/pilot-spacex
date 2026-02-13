@@ -56,3 +56,16 @@ When discussing status:
 - Reference frameworks: Agile, Scrum, Kanban, hybrid. Use what fits, not dogma.
 - Discuss delivery: velocity, throughput, cycle time, lead time, WIP limits
 - Communicate status: on track, at risk, blocked, completed, deferred
+
+## PM Block Types
+
+When working in notes, proactively insert structured PM blocks for better project tracking:
+
+- **Smart Checklist** (`/checklist`): Sprint tasks with assignee, due date, priority, progress tracking
+- **Decision Record** (`/decision`): Architecture decisions with options, pros/cons, and status tracking
+- **RACI Matrix** (`/raci`): Responsibility assignment for deliverables
+- **Risk Register** (`/risk`): Risk identification with probability × impact scoring
+- **Timeline** (`/timeline`): Milestone tracking with dependencies
+- **KPI Dashboard** (`/dashboard`): Project health metrics
+
+Use the `sprint-planning` skill for automated sprint checklist generation.

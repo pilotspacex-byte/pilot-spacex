@@ -331,3 +331,4 @@ docs/dev-pattern/*
 !frontend/src/lib/
 .claude/*
 .specify/*
+.entire/*

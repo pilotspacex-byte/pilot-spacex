@@ -18,6 +18,7 @@ from uuid import uuid4
 
 import pytest
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.tools.mcp_server import ToolContext
 
 # ---------------------------------------------------------------------------
@@ -60,7 +61,7 @@ def _capture_comment_tools(
         return original_create(name=name, version=version, tools=tools)
 
     with patch.object(module, "create_sdk_mcp_server", side_effect=_intercept_create):
-        module.create_comment_tools_server(event_queue, tool_context=tool_context)
+        module.create_comment_tools_server(EventPublisher(event_queue), tool_context=tool_context)
 
     return captured["tools"]  # type: ignore[return-value]
 
@@ -144,14 +145,14 @@ class TestServerConfiguration:
 
         queue: asyncio.Queue[str] = asyncio.Queue()
         with pytest.raises(ValueError, match="tool_context is required"):
-            create_comment_tools_server(queue, tool_context=None)
+            create_comment_tools_server(EventPublisher(queue), tool_context=None)
 
     def test_server_creation_success(self) -> None:
         from pilot_space.ai.mcp.comment_server import create_comment_tools_server
 
         ctx = _make_mock_context()
         queue: asyncio.Queue[str] = asyncio.Queue()
-        server = create_comment_tools_server(queue, tool_context=ctx)
+        server = create_comment_tools_server(EventPublisher(queue), tool_context=ctx)
 
         assert isinstance(server, dict)
         assert server["type"] == "sdk"

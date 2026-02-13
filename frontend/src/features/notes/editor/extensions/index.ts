@@ -34,7 +34,6 @@ export {
 } from './IssueLinkExtension';
 export {
   CodeBlockExtension,
-  codeBlockStyles,
   lowlight,
   SUPPORTED_LANGUAGES,
   type CodeBlockOptions,

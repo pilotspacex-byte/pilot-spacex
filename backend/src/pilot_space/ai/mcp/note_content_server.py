@@ -1,27 +1,29 @@
 """In-process SDK MCP server for note content manipulation tools.
 
-Provides 5 tools for searching and modifying note content at the block level:
+Provides 7 tools for searching and modifying note content at the block level:
 - search_note_content: Find text patterns within note blocks
 - insert_block: Insert new blocks at specific positions
 - remove_block: Delete a block from the note
 - remove_content: Remove matching text from blocks
 - replace_content: Find/replace text with regex support
+- create_pm_block: Insert PM blocks (dashboard, timeline, etc.) as rich widgets
+- update_pm_block: Update data of an existing PM block
 
-All mutation tools return structured JSON payloads (status: pending_apply or
-approval_required) that the SDK pipeline transforms into SSE content_update events.
+Mutation tools emit SSE events directly via EventPublisher and return
+short text confirmations to avoid echoing content back as LLM input tokens.
 
 Reference: spec 010-enhanced-mcp-tools T008
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.tools.mcp_server import ToolContext, get_tool_approval_level
 from pilot_space.infrastructure.logging import get_logger
 
@@ -40,7 +42,17 @@ TOOL_NAMES = [
     f"mcp__{SERVER_NAME}__remove_block",
     f"mcp__{SERVER_NAME}__remove_content",
     f"mcp__{SERVER_NAME}__replace_content",
+    f"mcp__{SERVER_NAME}__create_pm_block",
+    f"mcp__{SERVER_NAME}__update_pm_block",
 ]
+
+_VALID_PM_BLOCK_TYPES = frozenset({"decision", "form", "raci", "risk", "timeline", "dashboard"})
+
+# Regex to detect a JSON code fence wrapping TipTap JSON (e.g. taskList)
+_JSON_FENCE_RE = re.compile(
+    r"^```(?:json)?\s*\n(.*?)\n```\s*$",
+    re.DOTALL,
+)
 
 
 def _text_result(text: str) -> dict[str, Any]:
@@ -74,20 +86,18 @@ def _extract_block_text(block: dict[str, Any]) -> str:
 
 
 def create_note_content_server(
-    event_queue: asyncio.Queue[str],
+    publisher: EventPublisher,
     *,
     tool_context: ToolContext | None = None,
     block_ref_map: BlockRefMap | None = None,
 ) -> McpSdkServerConfig:
-    """Create an in-process SDK MCP server with 5 note content tools.
+    """Create an in-process SDK MCP server with 7 note content tools.
 
-    Mutation tools return structured JSON payloads (status: pending_apply)
-    that the SDK pipeline transforms into SSE content_update events.
-    The event_queue parameter is retained for API compatibility but
-    is no longer used by content tools.
+    Mutation tools emit SSE events directly via publisher and return
+    short text confirmations.
 
     Args:
-        event_queue: Queue retained for API compatibility; not used by content tools.
+        publisher: EventPublisher for SSE event delivery.
         tool_context: ToolContext for database access and RLS enforcement.
         block_ref_map: Optional ¶N block reference map for human-readable
             block references.
@@ -107,24 +117,6 @@ def create_note_content_server(
         if block_ref_map is not None:
             return block_ref_map.format_ref(block_id)
         return block_id
-
-    async def _emit_focus_block(
-        note_id: str,
-        block_id: str | None = None,
-        *,
-        scroll_to_end: bool = False,
-    ) -> None:
-        """Push focus_block SSE event to queue for immediate frontend delivery."""
-        if not block_id and not scroll_to_end:
-            return
-        event_data = json.dumps(
-            {
-                "noteId": note_id,
-                "blockId": block_id,
-                "scrollToEnd": scroll_to_end,
-            }
-        )
-        await event_queue.put(f"event: focus_block\ndata: {event_data}\n\n")
 
     async def _verify_note_workspace(note_id: str | None) -> str | None:
         """Verify note belongs to current workspace. Returns error message or None."""
@@ -291,13 +283,6 @@ def create_note_content_server(
             _resolve_block_ref(args["before_block_id"]) if args.get("before_block_id") else None
         )
 
-        # Emit focus_block BEFORE DB call so frontend can scroll immediately
-        focus_id = before_block_id or after_block_id
-        if focus_id:
-            await _emit_focus_block(note_id or "", focus_id)
-        else:
-            await _emit_focus_block(note_id or "", scroll_to_end=True)
-
         ws_error = await _verify_note_workspace(note_id)
         if ws_error:
             return _text_result(f"Error: {ws_error}")
@@ -317,18 +302,43 @@ def create_note_content_server(
         )
         approval_level = get_tool_approval_level("insert_block")
         status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
-        return _text_result(
-            json.dumps(
-                {
-                    "status": status,
-                    "operation": "insert_blocks",
-                    "note_id": note_id,
-                    "content_markdown": content_markdown,
-                    "after_block_id": after_block_id,
-                    "before_block_id": before_block_id,
-                }
-            )
+        focus_id = before_block_id or after_block_id
+
+        # Detect JSON code fence wrapping TipTap structured content (e.g. taskList).
+        # Send as `content` (JSONContent) so TipTap processes it with full node attributes
+        # instead of markdown which loses metadata like assignee, dueDate, priority.
+        content_payload: dict[str, Any] = {
+            "status": status,
+            "operation": "insert_blocks",
+            "noteId": note_id,
+            "afterBlockId": after_block_id,
+            "beforeBlockId": before_block_id,
+        }
+
+        fence_match = _JSON_FENCE_RE.match(content_markdown)
+        if fence_match:
+            try:
+                parsed = json.loads(fence_match.group(1))
+                if isinstance(parsed, dict) and parsed.get("type") in (
+                    "taskList",
+                    "bulletList",
+                    "orderedList",
+                ):
+                    content_payload["content"] = parsed
+                else:
+                    content_payload["markdown"] = content_markdown
+            except (json.JSONDecodeError, TypeError):
+                content_payload["markdown"] = content_markdown
+        else:
+            content_payload["markdown"] = content_markdown
+
+        await publisher.publish_focus_and_content(
+            note_id or "",
+            focus_id,
+            content_payload,
+            scroll_to_end=not focus_id,
         )
+        return _text_result(f"Block inserted ({position}).")
 
     @tool(
         "remove_block",
@@ -349,25 +359,23 @@ def create_note_content_server(
         if not block_id:
             return _text_result("Error: block_id is required")
 
-        # Emit focus_block BEFORE DB call so frontend can scroll immediately
-        await _emit_focus_block(note_id or "", block_id)
-
         ws_error = await _verify_note_workspace(note_id)
         if ws_error:
             return _text_result(f"Error: {ws_error}")
         logger.info("[NoteContentTools] remove_block: note=%s, block=%s", note_id, block_id)
         approval_level = get_tool_approval_level("remove_block")
         status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
-        return _text_result(
-            json.dumps(
-                {
-                    "status": status,
-                    "operation": "remove_block",
-                    "note_id": note_id,
-                    "block_id": block_id,
-                }
-            )
+        await publisher.publish_focus_and_content(
+            note_id or "",
+            block_id,
+            {
+                "status": status,
+                "operation": "remove_block",
+                "noteId": note_id,
+                "blockId": block_id,
+            },
         )
+        return _text_result(f"Block ¶{block_id[:8]} removed.")
 
     @tool(
         "remove_content",
@@ -398,10 +406,6 @@ def create_note_content_server(
         raw_block_ids = args.get("block_ids", [])
         block_ids = [_resolve_block_ref(bid) for bid in raw_block_ids]
 
-        # Emit focus_block BEFORE DB call so frontend can scroll immediately
-        if block_ids:
-            await _emit_focus_block(note_id or "", block_ids[0])
-
         ws_error = await _verify_note_workspace(note_id)
         if ws_error:
             return _text_result(f"Error: {ws_error}")
@@ -417,18 +421,19 @@ def create_note_content_server(
         )
         approval_level = get_tool_approval_level("remove_content")
         status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
-        return _text_result(
-            json.dumps(
-                {
-                    "status": status,
-                    "operation": "remove_content",
-                    "note_id": note_id,
-                    "pattern": pattern,
-                    "regex": use_regex,
-                    "block_ids": block_ids,
-                }
-            )
+        await publisher.publish_focus_and_content(
+            note_id or "",
+            block_ids[0] if block_ids else None,
+            {
+                "status": status,
+                "operation": "remove_content",
+                "noteId": note_id,
+                "pattern": pattern,
+                "regex": use_regex,
+                "blockIds": block_ids,
+            },
         )
+        return _text_result("Content removed.")
 
     @tool(
         "replace_content",
@@ -473,10 +478,6 @@ def create_note_content_server(
         block_ids = [_resolve_block_ref(bid) for bid in raw_block_ids]
         replace_all = args.get("replace_all", True)
 
-        # Emit focus_block BEFORE DB call so frontend can scroll immediately
-        focus_id = block_ids[0] if block_ids else None
-        await _emit_focus_block(note_id or "", focus_id)
-
         ws_error = await _verify_note_workspace(note_id)
         if ws_error:
             return _text_result(f"Error: {ws_error}")
@@ -495,20 +496,167 @@ def create_note_content_server(
         )
         approval_level = get_tool_approval_level("replace_content")
         status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
-        return _text_result(
-            json.dumps(
-                {
-                    "status": status,
-                    "operation": "replace_content",
-                    "note_id": note_id,
-                    "old_pattern": old_pattern,
-                    "new_content": new_content,
-                    "regex": use_regex,
-                    "block_ids": block_ids,
-                    "replace_all": replace_all,
-                }
-            )
+        focus_id = block_ids[0] if block_ids else None
+        await publisher.publish_focus_and_content(
+            note_id or "",
+            focus_id,
+            {
+                "status": status,
+                "operation": "replace_content",
+                "noteId": note_id,
+                "oldPattern": old_pattern,
+                "newContent": new_content,
+                "regex": use_regex,
+                "blockIds": block_ids,
+                "replaceAll": replace_all,
+            },
         )
+        return _text_result("Content replaced.")
+
+    @tool(
+        "create_pm_block",
+        "Insert a PM block (dashboard, timeline, decision, form, raci, risk) "
+        "as a rich widget. Use ¶N references for after_block_id.",
+        {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string", "description": "UUID of the note"},
+                "block_type": {
+                    "type": "string",
+                    "enum": sorted(_VALID_PM_BLOCK_TYPES),
+                    "description": "PM block type",
+                },
+                "data": {
+                    "type": "object",
+                    "description": "Block data object (title, widgets/options/milestones, etc.)",
+                },
+                "after_block_id": {
+                    "type": "string",
+                    "description": "Insert after this block (¶N or UUID). Omit to append at end.",
+                },
+            },
+            "required": ["note_id", "block_type", "data"],
+        },
+    )
+    async def create_pm_block(args: dict[str, Any]) -> dict[str, Any]:
+        note_id = args.get("note_id")
+        block_type = args.get("block_type", "")
+        data_obj = args.get("data", {})
+        after_block_id = (
+            _resolve_block_ref(args["after_block_id"]) if args.get("after_block_id") else None
+        )
+
+        if not data_obj:
+            return _text_result("Error: data cannot be empty")
+
+        ws_error = await _verify_note_workspace(note_id)
+        if ws_error:
+            return _text_result(f"Error: {ws_error}")
+
+        if block_type not in _VALID_PM_BLOCK_TYPES:
+            return _text_result(
+                f"Error: invalid block_type '{block_type}'. "
+                f"Must be one of: {', '.join(sorted(_VALID_PM_BLOCK_TYPES))}"
+            )
+
+        logger.info(
+            "[NoteContentTools] create_pm_block: note=%s, type=%s",
+            note_id,
+            block_type,
+        )
+        approval_level = get_tool_approval_level("insert_block")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        await publisher.publish_focus_and_content(
+            note_id or "",
+            after_block_id,
+            {
+                "status": status,
+                "operation": "insert_pm_block",
+                "noteId": note_id,
+                "pmBlockData": {
+                    "blockType": block_type,
+                    "data": json.dumps(data_obj),
+                    "version": 1,
+                },
+                "afterBlockId": after_block_id,
+            },
+            scroll_to_end=not after_block_id,
+        )
+        return _text_result(f"PM block ({block_type}) inserted.")
+
+    @tool(
+        "update_pm_block",
+        "Update the data of an existing PM block. Use ¶N references for block_id.",
+        {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string", "description": "UUID of the note"},
+                "block_id": {
+                    "type": "string",
+                    "description": "Block reference (¶N) or UUID of the PM block to update",
+                },
+                "data": {
+                    "type": "object",
+                    "description": "Updated block data object",
+                },
+                "block_type": {
+                    "type": "string",
+                    "enum": sorted(_VALID_PM_BLOCK_TYPES),
+                    "description": "PM block type (optional, for type change)",
+                },
+            },
+            "required": ["note_id", "block_id", "data"],
+        },
+    )
+    async def update_pm_block(args: dict[str, Any]) -> dict[str, Any]:
+        note_id = args.get("note_id")
+        block_id = _resolve_block_ref(args["block_id"]) if args.get("block_id") else None
+        data_obj = args.get("data", {})
+        block_type = args.get("block_type")
+
+        if not block_id:
+            return _text_result("Error: block_id is required")
+
+        if not data_obj:
+            return _text_result("Error: data cannot be empty")
+
+        ws_error = await _verify_note_workspace(note_id)
+        if ws_error:
+            return _text_result(f"Error: {ws_error}")
+
+        if block_type and block_type not in _VALID_PM_BLOCK_TYPES:
+            return _text_result(
+                f"Error: invalid block_type '{block_type}'. "
+                f"Must be one of: {', '.join(sorted(_VALID_PM_BLOCK_TYPES))}"
+            )
+
+        logger.info(
+            "[NoteContentTools] update_pm_block: note=%s, block=%s",
+            note_id,
+            block_id,
+        )
+        approval_level = get_tool_approval_level("update_pm_block")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+
+        pm_block_data: dict[str, Any] = {
+            "data": json.dumps(data_obj),
+            "version": 1,
+        }
+        if block_type:
+            pm_block_data["blockType"] = block_type
+
+        await publisher.publish_focus_and_content(
+            note_id or "",
+            block_id,
+            {
+                "status": status,
+                "operation": "update_pm_block",
+                "noteId": note_id,
+                "blockId": block_id,
+                "pmBlockData": pm_block_data,
+            },
+        )
+        return _text_result(f"PM block {block_id[:8]} updated.")
 
     return create_sdk_mcp_server(
         name=SERVER_NAME,
@@ -519,5 +667,7 @@ def create_note_content_server(
             remove_block,
             remove_content,
             replace_content,
+            create_pm_block,
+            update_pm_block,
         ],
     )

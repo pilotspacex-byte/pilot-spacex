@@ -6,10 +6,14 @@
  *
  * Processing block IDs are read from `editor.storage.aiBlockProcessing.processingBlockIds`.
  * NoteCanvas updates this storage when content_update SSE events arrive.
+ *
+ * Memory optimization: Caches DecorationSet by doc identity + processingBlockIds
+ * array reference. Non-doc state changes (cursor, focus) skip rebuild entirely.
  */
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 
 export interface AIBlockProcessingOptions {
   /** Block ID attribute name (must match BlockIdExtension) */
@@ -41,6 +45,11 @@ export const AIBlockProcessingExtension = Extension.create<AIBlockProcessingOpti
   addProseMirrorPlugins() {
     const { storage, options } = this;
 
+    // Module-level cache: skip rebuild when doc + processingBlockIds unchanged
+    let cachedDoc: ProseMirrorNode | null = null;
+    let cachedBlockIds: string[] | null = null;
+    let cachedDecorations: DecorationSet = DecorationSet.empty;
+
     return [
       new Plugin({
         key: AI_BLOCK_PROCESSING_KEY,
@@ -50,7 +59,15 @@ export const AIBlockProcessingExtension = Extension.create<AIBlockProcessingOpti
             const processingBlockIds = typedStorage.processingBlockIds;
 
             if (!processingBlockIds || processingBlockIds.length === 0) {
+              cachedDoc = null;
+              cachedBlockIds = null;
+              cachedDecorations = DecorationSet.empty;
               return DecorationSet.empty;
+            }
+
+            // Cache hit: same doc + same array reference → zero allocation
+            if (state.doc === cachedDoc && processingBlockIds === cachedBlockIds) {
+              return cachedDecorations;
             }
 
             const processingSet = new Set(processingBlockIds);
@@ -69,7 +86,10 @@ export const AIBlockProcessingExtension = Extension.create<AIBlockProcessingOpti
               return true;
             });
 
-            return DecorationSet.create(state.doc, decorations);
+            cachedDoc = state.doc;
+            cachedBlockIds = processingBlockIds;
+            cachedDecorations = DecorationSet.create(state.doc, decorations);
+            return cachedDecorations;
           },
         },
       }),

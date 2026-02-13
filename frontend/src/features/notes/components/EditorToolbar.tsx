@@ -7,8 +7,6 @@
 import { observer } from 'mobx-react-lite';
 
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { getAIStore } from '@/stores/ai';
 
@@ -22,19 +20,9 @@ export interface EditorToolbarProps {
 }
 
 /**
- * EditorToolbar with AI feature toggles
- *
- * Features:
- * - Ghost text AI suggestions toggle
- * - Future: Auto-format, spell check, etc.
- *
- * @example
- * ```tsx
- * <EditorToolbar
- *   noteId={noteId}
- *   workspaceId={workspaceId}
- * />
- * ```
+ * EditorToolbar — AI status indicators only.
+ * Content editing is handled by the Pilot Space Agent via content_update SSE events.
+ * Text formatting is available through the floating SelectionToolbar.
  */
 export const EditorToolbar = observer(function EditorToolbar({
   noteId: _noteId,
@@ -42,50 +30,36 @@ export const EditorToolbar = observer(function EditorToolbar({
   className,
 }: EditorToolbarProps) {
   const aiStore = getAIStore();
+  const isLoading = aiStore.ghostText.isLoading;
+  const error = aiStore.ghostText.error;
+
+  // Hide toolbar entirely when no AI activity
+  if (!isLoading && !error) return null;
 
   return (
     <div
       className={cn(
-        'flex items-center gap-2 px-4 py-2 border-b border-border bg-background',
+        'flex items-center gap-2 px-4 py-1.5 border-b border-border bg-background',
         className
       )}
-      role="toolbar"
-      aria-label="Editor toolbar"
+      role="status"
+      aria-label="AI status"
+      aria-live="polite"
     >
-      {/* AI Features Section */}
-      <div className="flex items-center gap-2">
-        <Tooltip>
-          <TooltipContent side="bottom" className="max-w-xs">
-            <p className="font-medium">Ghost Text AI Suggestions</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Get real-time AI-powered text completions while typing. Press Tab to accept, Esc to
-              dismiss.
-            </p>
-          </TooltipContent>
-        </Tooltip>
-      </div>
-
-      <Separator orientation="vertical" className="h-6" />
-
-      {/* Future: Additional editor controls */}
-      <div className="flex items-center gap-1">{/* Placeholder for future features */}</div>
-
-      {/* Status indicator when loading */}
-      {aiStore.ghostText.isLoading && (
-        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+      {isLoading && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <div className="flex gap-1">
             <div className="h-1.5 w-1.5 rounded-full bg-ai animate-bounce [animation-delay:0ms]" />
             <div className="h-1.5 w-1.5 rounded-full bg-ai animate-bounce [animation-delay:150ms]" />
             <div className="h-1.5 w-1.5 rounded-full bg-ai animate-bounce [animation-delay:300ms]" />
           </div>
-          <span>Thinking...</span>
+          <span>AI thinking...</span>
         </div>
       )}
 
-      {/* Error indicator */}
-      {aiStore.ghostText.error && (
-        <div className="ml-auto flex items-center gap-2 text-xs text-destructive">
-          <span>{aiStore.ghostText.error}</span>
+      {error && (
+        <div className="flex items-center gap-2 text-xs text-destructive">
+          <span>{error}</span>
           <Button
             variant="ghost"
             size="sm"

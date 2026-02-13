@@ -8,8 +8,8 @@ All project identifiers go through resolve_entity_id() for UUID/identifier resol
 Project mutations return operation payloads for approval flow.
 
 Architecture:
-  ClaudeSDKClient (in-process) → tool handler → pushes to event_queue
-  PilotSpaceAgent._stream_with_space() → reads from event_queue + SDK messages
+  ClaudeSDKClient (in-process) → tool handler → pushes via EventPublisher
+  PilotSpaceAgent._stream_with_space() → reads from queue + SDK messages
   Frontend useContentUpdates hook → Project updates + API calls
 
 Reference: spec 010-enhanced-mcp-tools Phase 4 (PR-001 to PR-005)
@@ -17,13 +17,13 @@ Reference: spec 010-enhanced-mcp-tools Phase 4 (PR-001 to PR-005)
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from typing import Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.tools.entity_resolver import resolve_entity_id
 from pilot_space.ai.tools.mcp_server import ToolContext, get_tool_approval_level
 from pilot_space.infrastructure.logging import get_logger
@@ -46,28 +46,23 @@ TOOL_NAMES = [
 _IDENTIFIER_PATTERN = re.compile(r"^[A-Z]{2,10}$")
 
 
-def _sse_event(event_type: str, data: dict[str, Any]) -> str:
-    """Format an SSE event string."""
-    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-
-
 def _text_result(text: str) -> dict[str, Any]:
     """Create a standard MCP tool text result."""
     return {"content": [{"type": "text", "text": text}]}
 
 
 def create_project_tools_server(
-    event_queue: asyncio.Queue[str],
+    publisher: EventPublisher,
     *,
     tool_context: ToolContext | None = None,
 ) -> McpSdkServerConfig:
     """Create an in-process SDK MCP server with 5 project tools.
 
-    Each tool handler pushes content_update SSE events to event_queue
+    Each tool handler pushes SSE events via EventPublisher
     and returns a success message for the model to continue with.
 
     Args:
-        event_queue: Queue for SSE events consumed by the stream method.
+        publisher: EventPublisher for SSE event delivery.
         tool_context: ToolContext for database access and RLS enforcement.
 
     Returns:
@@ -369,7 +364,7 @@ def create_project_tools_server(
             ],
         }
 
-        await event_queue.put(_sse_event("approval_request", event_data))
+        await publisher.publish_approval_request(event_data)
         logger.info("[ProjectTools] create_project: %s (approval required)", identifier)
         return _text_result(
             f"Project '{identifier}' creation requested. "
@@ -476,7 +471,7 @@ def create_project_tools_server(
             },
         }
 
-        await event_queue.put(_sse_event("approval_request", event_data))
+        await publisher.publish_approval_request(event_data)
         logger.info("[ProjectTools] update_project: %s (approval required)", project.identifier)
         return _text_result(
             f"Project '{project.identifier}' update requested. "
@@ -549,7 +544,7 @@ def create_project_tools_server(
             "settings_diff": new_settings,
         }
 
-        await event_queue.put(_sse_event("approval_request", event_data))
+        await publisher.publish_approval_request(event_data)
         logger.info(
             "[ProjectTools] update_project_settings: %s (approval required)",
             project.identifier,

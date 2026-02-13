@@ -4,10 +4,10 @@
  * Notes List Page - T113
  * Grid/List view, search, filter, sort, infinite scroll
  */
-import { useCallback, useMemo, useState, use } from 'react';
+import { useCallback, useMemo, useRef, useState, use } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -47,11 +47,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
-import { useInfiniteNotes } from '@/features/notes/hooks';
+import { useInfiniteNotes, notesKeys } from '@/features/notes/hooks';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
 import { useWorkspaceStore } from '@/stores/RootStore';
 import { projectsApi } from '@/services/api/projects';
+import { notesApi } from '@/services/api';
 import type { Note, Project } from '@/types';
 
 type ViewMode = 'grid' | 'list';
@@ -69,10 +71,12 @@ function NoteGridCard({
   note,
   workspaceSlug,
   projectMap,
+  onPrefetch,
 }: {
   note: Note;
   workspaceSlug: string;
   projectMap: Map<string, Project>;
+  onPrefetch: () => void;
 }) {
   const updatedAt = formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true });
   const topics = note.topics ?? [];
@@ -80,7 +84,7 @@ function NoteGridCard({
   const project = note.projectId ? projectMap.get(note.projectId) : undefined;
 
   return (
-    <Link href={`/${workspaceSlug}/notes/${note.id}`}>
+    <Link href={`/${workspaceSlug}/notes/${note.id}`} onMouseEnter={onPrefetch}>
       <Card
         className={cn(
           'group cursor-pointer transition-all duration-200',
@@ -160,10 +164,12 @@ function NoteListRow({
   note,
   workspaceSlug,
   projectMap,
+  onPrefetch,
 }: {
   note: Note;
   workspaceSlug: string;
   projectMap: Map<string, Project>;
+  onPrefetch: () => void;
 }) {
   const updatedAt = formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true });
   const topics = note.topics ?? [];
@@ -171,7 +177,7 @@ function NoteListRow({
   const project = note.projectId ? projectMap.get(note.projectId) : undefined;
 
   return (
-    <Link href={`/${workspaceSlug}/notes/${note.id}`}>
+    <Link href={`/${workspaceSlug}/notes/${note.id}`} onMouseEnter={onPrefetch}>
       <div
         className={cn(
           'group flex items-center gap-4 rounded-lg border border-border p-4',
@@ -286,6 +292,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
   const { workspaceSlug } = use(params);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const workspaceStore = useWorkspaceStore();
 
   // View state
@@ -374,6 +381,30 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
 
     return notes;
   }, [allNotes, searchQuery, sortBy, sortOrder]);
+
+  // Virtual scroll for list view
+  const LIST_ITEM_HEIGHT = 72;
+  const INITIAL_ANIMATED_COUNT = 15;
+  const listParentRef = useRef<HTMLDivElement>(null);
+
+  const listVirtualizer = useVirtualizer({
+    count: filteredNotes.length,
+    getScrollElement: () => listParentRef.current,
+    estimateSize: () => LIST_ITEM_HEIGHT,
+    overscan: 5,
+  });
+
+  // Prefetch note detail on hover for instant navigation
+  const handlePrefetchNote = useCallback(
+    (noteId: string) => {
+      queryClient.prefetchQuery({
+        queryKey: notesKeys.detail(workspaceId, noteId),
+        queryFn: () => notesApi.get(workspaceId, noteId),
+        staleTime: 60_000,
+      });
+    },
+    [queryClient, workspaceId]
+  );
 
   // Handle create note
   const handleCreateNote = useCallback(() => {
@@ -520,73 +551,123 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
-        {isLoading ? (
+      {isLoading ? (
+        <div className="flex-1 overflow-auto p-6">
           <GridSkeleton />
-        ) : filteredNotes.length === 0 ? (
+        </div>
+      ) : filteredNotes.length === 0 ? (
+        <div className="flex-1 overflow-auto p-6">
           <EmptyState onCreate={handleCreateNote} />
-        ) : (
-          <>
-            {viewMode === 'grid' ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <AnimatePresence mode="popLayout">
-                  {filteredNotes.map((note, index) => (
+        </div>
+      ) : viewMode === 'grid' ? (
+        <div className="flex-1 overflow-auto p-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <AnimatePresence mode="popLayout">
+              {filteredNotes.map((note, index) => (
+                <motion.div
+                  key={note.id}
+                  initial={index < INITIAL_ANIMATED_COUNT ? { opacity: 0, y: 12 } : false}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={
+                    index < INITIAL_ANIMATED_COUNT
+                      ? { delay: Math.min(index * 0.03, 0.3) }
+                      : undefined
+                  }
+                >
+                  <NoteGridCard
+                    note={note}
+                    workspaceSlug={workspaceSlug}
+                    projectMap={projectMap}
+                    onPrefetch={() => handlePrefetchNote(note.id)}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+          {/* Load more (grid) */}
+          {hasNextPage && (
+            <div className="flex justify-center pt-8">
+              <Button variant="outline" onClick={handleLoadMore} disabled={isFetchingNextPage}>
+                {isFetchingNextPage ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  'Load more'
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div ref={listParentRef} className="flex-1 overflow-auto p-6">
+          <div
+            style={{
+              height: listVirtualizer.getTotalSize(),
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {listVirtualizer.getVirtualItems().map((virtualRow) => {
+              const note = filteredNotes[virtualRow.index];
+              if (!note) return null;
+              const isInitialBatch = virtualRow.index < INITIAL_ANIMATED_COUNT;
+              return (
+                <div
+                  key={note.id}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: virtualRow.size,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  {isInitialBatch ? (
                     <motion.div
-                      key={note.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ delay: Math.min(index * 0.03, 0.3) }}
-                    >
-                      <NoteGridCard
-                        note={note}
-                        workspaceSlug={workspaceSlug}
-                        projectMap={projectMap}
-                      />
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <AnimatePresence mode="popLayout">
-                  {filteredNotes.map((note, index) => (
-                    <motion.div
-                      key={note.id}
                       initial={{ opacity: 0, x: -12 }}
                       animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 12 }}
-                      transition={{ delay: Math.min(index * 0.02, 0.2) }}
+                      transition={{ delay: Math.min(virtualRow.index * 0.02, 0.2) }}
                     >
                       <NoteListRow
                         note={note}
                         workspaceSlug={workspaceSlug}
                         projectMap={projectMap}
+                        onPrefetch={() => handlePrefetchNote(note.id)}
                       />
                     </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
-
-            {/* Load more */}
-            {hasNextPage && (
-              <div className="flex justify-center pt-8">
-                <Button variant="outline" onClick={handleLoadMore} disabled={isFetchingNextPage}>
-                  {isFetchingNextPage ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
                   ) : (
-                    'Load more'
+                    <NoteListRow
+                      note={note}
+                      workspaceSlug={workspaceSlug}
+                      projectMap={projectMap}
+                      onPrefetch={() => handlePrefetchNote(note.id)}
+                    />
                   )}
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Load more (list) */}
+          {hasNextPage && (
+            <div className="flex justify-center pt-8">
+              <Button variant="outline" onClick={handleLoadMore} disabled={isFetchingNextPage}>
+                {isFetchingNextPage ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  'Load more'
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 });

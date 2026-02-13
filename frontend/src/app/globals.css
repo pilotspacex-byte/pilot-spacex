@@ -1602,6 +1602,11 @@
   padding-left: 0;
 }
 
+.document-canvas .ProseMirror li[data-type='taskItem'] div p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 /* --- Tables --- */
 .document-canvas .ProseMirror table.note-table {
   width: 100%;
@@ -2093,6 +2098,469 @@
 
 .animate-confetti-fall {
   animation: confetti-fall 2s ease-out forwards;
+}
+
+/* =============================================================================
+   CODE BLOCK EXTENSION STYLES
+   Unified design for regular code blocks and mermaid diagram blocks.
+   Both share the "editor block card" aesthetic: warm surface, contained header
+   row, consistent radius (--radius-lg: 14px), polished interaction states.
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   REGULAR CODE BLOCKS
+   DOM: .code-block-wrapper[style="position: relative"]
+          > .code-block-language-selector (absolute, hover-reveal)
+          > .code-block-copy-button       (absolute, hover-reveal)
+          > pre > code
+   --------------------------------------------------------------------------- */
+
+/* Wrapper — outer card container */
+.code-block-wrapper {
+  margin: 16px 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--background-subtle);
+  transition:
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.code-block-wrapper:hover {
+  border-color: var(--border);
+  box-shadow:
+    0 2px 4px hsl(30 10% 10% / 0.03),
+    0 4px 8px hsl(30 10% 10% / 0.03);
+}
+
+.dark .code-block-wrapper:hover {
+  box-shadow:
+    0 2px 4px hsl(0 0% 0% / 0.15),
+    0 4px 8px hsl(0 0% 0% / 0.1);
+}
+
+/* Focus-within ring for keyboard accessibility */
+.code-block-wrapper:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.15);
+}
+
+/* <pre> — code surface with header clearance for floating controls */
+.code-block-wrapper pre {
+  margin: 0;
+  padding: 36px 16px 14px;
+  overflow-x: auto;
+  background: var(--muted) !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.code-block-wrapper code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Scrollbar inside code blocks */
+.code-block-wrapper pre::-webkit-scrollbar {
+  height: 6px;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-thumb {
+  background: hsl(30 10% 80%);
+  border-radius: 3px;
+}
+
+.dark .code-block-wrapper pre::-webkit-scrollbar-thumb {
+  background: hsl(30 5% 30%);
+}
+
+/* Language selector — top-left floating pill */
+.code-block-language-selector {
+  opacity: 0;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.code-block-wrapper:hover .code-block-language-selector,
+.code-block-wrapper:focus-within .code-block-language-selector {
+  opacity: 1;
+}
+
+.code-block-language-select {
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 500 !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--background) !important;
+  color: var(--muted-foreground) !important;
+  cursor: pointer !important;
+  transition:
+    border-color var(--duration-fast) ease,
+    color var(--duration-fast) ease !important;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6966' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 4px center !important;
+  padding-right: 20px !important;
+}
+
+.code-block-language-select:hover {
+  border-color: var(--primary) !important;
+  color: var(--foreground) !important;
+}
+
+.code-block-language-select:focus {
+  outline: none !important;
+  border-color: var(--ring) !important;
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.15) !important;
+}
+
+/* Copy button — top-right floating pill */
+.code-block-copy-button {
+  opacity: 0;
+  transition:
+    opacity var(--duration-fast) ease,
+    background var(--duration-fast) ease,
+    border-color var(--duration-fast) ease !important;
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 500 !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--background) !important;
+  color: var(--muted-foreground) !important;
+}
+
+.code-block-wrapper:hover .code-block-copy-button,
+.code-block-wrapper:focus-within .code-block-copy-button {
+  opacity: 1;
+}
+
+.code-block-copy-button:hover {
+  border-color: var(--primary) !important;
+  color: var(--foreground) !important;
+  background: var(--background) !important;
+}
+
+.code-block-copy-button:focus-visible {
+  outline: none !important;
+  border-color: var(--ring) !important;
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.15) !important;
+}
+
+.code-block-copy-button:active {
+  transform: scale(0.97);
+}
+
+/* ---------------------------------------------------------------------------
+   MERMAID DIAGRAM BLOCKS
+   DOM: .mermaid-unified-block
+          > .mermaid-toolbar (toggle buttons)
+          > .mermaid-preview-section (React MermaidPreview)
+          > pre.mermaid-code-section > code
+   --------------------------------------------------------------------------- */
+
+/* Outer card — matches code block card aesthetic */
+.mermaid-unified-block {
+  margin: 16px 0;
+  overflow: hidden;
+  transition:
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.mermaid-unified-block:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.15);
+}
+
+/* Toolbar — header row with segmented control */
+.mermaid-unified-block .mermaid-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 4px 6px;
+}
+
+/* Toggle buttons — segmented pill style.
+   Uses button[class] for specificity over Tailwind's base reset. */
+.mermaid-unified-block button.mermaid-toggle-btn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+  box-sizing: border-box;
+  user-select: none;
+  min-height: 28px;
+}
+
+.mermaid-unified-block button.mermaid-toggle-btn:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.mermaid-unified-block button.mermaid-toggle-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.2);
+}
+
+.mermaid-unified-block button.mermaid-toggle-btn:active {
+  transform: scale(0.97);
+}
+
+/* Active toggle — elevated surface with warm shadow */
+.mermaid-unified-block button.mermaid-toggle-btn.active {
+  color: var(--foreground);
+  background: var(--background);
+  box-shadow:
+    0 1px 2px hsl(30 10% 10% / 0.06),
+    0 1px 3px hsl(30 10% 10% / 0.04);
+}
+
+.dark .mermaid-unified-block button.mermaid-toggle-btn.active {
+  background: var(--muted);
+  box-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.2),
+    0 1px 3px hsl(0 0% 0% / 0.15);
+}
+
+/* Code section — editable source area, flush against toolbar */
+.mermaid-unified-block .mermaid-code-section {
+  margin: 0;
+  padding: 14px 16px;
+  border: none;
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-x: auto;
+  color: var(--foreground);
+  tab-size: 4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mermaid-unified-block .mermaid-code-section code {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* Scrollbar inside mermaid code section */
+.mermaid-unified-block .mermaid-code-section::-webkit-scrollbar {
+  height: 6px;
+}
+
+.mermaid-unified-block .mermaid-code-section::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mermaid-unified-block .mermaid-code-section::-webkit-scrollbar-thumb {
+  background: hsl(30 10% 80%);
+  border-radius: 3px;
+}
+
+.dark .mermaid-unified-block .mermaid-code-section::-webkit-scrollbar-thumb {
+  background: hsl(30 5% 30%);
+}
+
+/* Preview section — clean diagram area with breathing room */
+.mermaid-unified-block .mermaid-preview-section {
+  min-height: 80px;
+  background: var(--background);
+}
+
+.dark .mermaid-unified-block .mermaid-preview-section {
+  background: var(--card);
+}
+
+/* ---------------------------------------------------------------------------
+   SYNTAX HIGHLIGHTING FOR EDITOR CODE BLOCKS + MERMAID
+   Lowlight inline decorations apply .hljs-* classes to both regular code
+   blocks and mermaid NodeView contentDOM.
+   --------------------------------------------------------------------------- */
+
+/* Light mode */
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-comment,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-quote {
+  color: #9c9590;
+  font-style: italic;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-keyword,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-selector-tag {
+  color: #c9726c;
+  font-weight: 500;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-literal,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-number,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-boolean {
+  color: #5b8fc9;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-string,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-attr {
+  color: #6b8fad;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-title,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-section,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-title.function_ {
+  color: #29a386;
+  font-weight: 500;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-name,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-selector-class,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-selector-id,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-attribute {
+  color: #8b7ec8;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-variable,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-template-variable {
+  color: #d9853f;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-type,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-built_in,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-class .hljs-title {
+  color: #238f74;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-tag {
+  color: #29a386;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-regexp,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-link {
+  color: #6b8fad;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-symbol,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-bullet {
+  color: #5b8fc9;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-meta {
+  color: #9c9590;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-deletion {
+  color: #b54b47;
+  background-color: #fdf2f1;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-addition {
+  color: #29a386;
+  background-color: #f0faf6;
+}
+
+/* Mermaid-specific: operator arrows get teal color */
+.mermaid-unified-block .hljs-operator {
+  color: #29a386;
+}
+
+/* Dark mode */
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-comment,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-quote {
+  color: #7a7572;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-keyword,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-selector-tag {
+  color: #e8a49f;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-literal,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-number,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-boolean {
+  color: #8eb8e5;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-string,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-attr {
+  color: #a3c4db;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-title,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-section,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-title.function_ {
+  color: #4ecba8;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-name,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-selector-class,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-selector-id,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-attribute {
+  color: #b5a9e0;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-variable,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-template-variable {
+  color: #f0a968;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-type,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-built_in,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-class .hljs-title {
+  color: #5ed4b1;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-tag {
+  color: #4ecba8;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-regexp,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-link {
+  color: #a3c4db;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-symbol,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-bullet {
+  color: #8eb8e5;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-meta {
+  color: #7a7572;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-deletion {
+  color: #f0b4b0;
+  background-color: rgba(181, 75, 71, 0.2);
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-addition {
+  color: #8fe8ca;
+  background-color: rgba(41, 163, 134, 0.2);
+}
+
+.dark .mermaid-unified-block .hljs-operator {
+  color: #4ecba8;
 }
 
 /* =============================================================================

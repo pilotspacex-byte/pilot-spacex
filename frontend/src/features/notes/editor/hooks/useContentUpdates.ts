@@ -27,7 +27,11 @@ import {
   handleAppendBlocks,
   handleInsertBlocks,
   handleRemoveBlock,
+  handleReplaceContent,
+  handleRemoveContent,
   handleInsertInlineIssue,
+  handleInsertPMBlock,
+  handleUpdatePMBlock,
 } from './contentUpdateHandlers';
 
 // Re-export highlightBlock for consumers that import from this module
@@ -118,7 +122,8 @@ export function useContentUpdates(
 
       // Conflict detection: skip if user is editing the target block
       // Exception: insert_inline_issue is non-destructive (adds inline badge, doesn't replace content)
-      const isNonDestructiveOp = update.operation === 'insert_inline_issue';
+      const isNonDestructiveOp =
+        update.operation === 'insert_inline_issue' || update.operation === 'insert_pm_block';
       if (!isNonDestructiveOp && update.blockId && update.blockId === userEditingBlockId) {
         console.warn(`[AI] Skipping update for block ${update.blockId} - user is editing`);
 
@@ -155,12 +160,22 @@ export function useContentUpdates(
               inFlightIssuesRef.current
             );
             break;
+          case 'insert_pm_block':
+            handleInsertPMBlock(editor, update);
+            break;
+          case 'update_pm_block':
+            handleUpdatePMBlock(editor, update, (blockId) => {
+              const storage = editor.storage as unknown as Record<string, unknown>;
+              const guard = storage?.blockEditGuard as { editedBlockIds: Set<string> } | undefined;
+              return guard?.editedBlockIds.has(blockId) ?? false;
+            });
+            break;
           case 'remove_content':
+            handleRemoveContent(editor, update);
+            break;
           case 'replace_content':
-            // Inline content operations require server-side processing.
-            // Log and skip — these are handled via API re-fetch.
-            console.warn(`[AI] ${update.operation} not yet handled in frontend, skipping`);
-            return false;
+            handleReplaceContent(editor, update);
+            break;
           default:
             console.warn('[AI] Unknown content update operation:', update);
             return false;

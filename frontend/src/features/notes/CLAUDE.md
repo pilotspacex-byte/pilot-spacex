@@ -63,7 +63,7 @@ frontend/src/features/notes/
 
 ---
 
-## 13 TipTap Extensions Breakdown
+## 16 TipTap Extensions Breakdown
 
 | #   | Extension                                | Purpose                                   | Debounce | Config                              |
 | --- | ---------------------------------------- | ----------------------------------------- | -------- | ----------------------------------- |
@@ -80,6 +80,9 @@ frontend/src/features/notes/
 | 11  | **ParagraphSplitExtension**              | Visual block separation on Enter          | -        | `convertDoubleHardBreak: true`      |
 | 12  | **AIBlockProcessingExtension**           | Visual indicator on AI processing         | -        | Reads `editor.storage.aiProcessing` |
 | 13  | **LineGutterExtension**                  | Line numbers + heading fold/unfold        | -        | `foldableTypes: ['heading']`        |
+| 14  | **PMBlockExtension**                     | Generic atom node for PM block types      | -        | `blockType, data, version`          |
+| 15  | **TaskItemEnhanced**                     | Enhanced taskItem with metadata attrs     | -        | `assignee, dueDate, priority, etc.` |
+| 16  | **ProgressBarDecoration**                | Progress bar above TaskList nodes         | -        | `stateful plugin, map on non-doc`   |
 
 ---
 

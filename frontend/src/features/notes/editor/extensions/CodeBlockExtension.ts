@@ -6,12 +6,14 @@
  * - Syntax highlighting via lowlight
  * - Copy code button
  * - Optional line numbers
+ * - Mermaid diagram preview (FR-004): unified NodeView with preview/code toggle
  */
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { createMermaidNodeView } from './MermaidNodeView';
 
 export interface CodeBlockOptions {
   /** Default language for new code blocks */
@@ -59,12 +61,125 @@ export const SUPPORTED_LANGUAGES: Record<string, string> = {
   sql: 'SQL',
   graphql: 'GraphQL',
   dockerfile: 'Dockerfile',
+  mermaid: 'Mermaid',
 };
 
 /**
  * Create the lowlight instance with common languages
  */
 const lowlight = createLowlight(common);
+
+/**
+ * Custom highlight.js language definition for Mermaid diagrams.
+ * Covers: diagram types, direction keywords, arrows, comments, strings,
+ * subgraph/end blocks, participant/actor labels, and style directives.
+ */
+function hljsMermaid(hljs: Parameters<import('highlight.js').LanguageFn>[0]) {
+  return {
+    name: 'Mermaid',
+    case_insensitive: false,
+    keywords: {
+      keyword: [
+        'graph',
+        'flowchart',
+        'sequenceDiagram',
+        'classDiagram',
+        'stateDiagram',
+        'stateDiagram-v2',
+        'erDiagram',
+        'gantt',
+        'pie',
+        'mindmap',
+        'gitGraph',
+        'C4Context',
+        'C4Container',
+        'C4Component',
+        'C4Deployment',
+        'journey',
+        'requirementDiagram',
+        'subgraph',
+        'end',
+      ],
+      built_in: [
+        'participant',
+        'actor',
+        'Note',
+        'note',
+        'loop',
+        'alt',
+        'else',
+        'opt',
+        'par',
+        'and',
+        'critical',
+        'break',
+        'rect',
+        'activate',
+        'deactivate',
+        'destroy',
+        'title',
+        'section',
+        'dateFormat',
+        'axisFormat',
+        'class',
+        'style',
+        'linkStyle',
+        'classDef',
+        'click',
+        'callback',
+        'direction',
+      ],
+      literal: [
+        'TD',
+        'TB',
+        'BT',
+        'LR',
+        'RL',
+        'left of',
+        'right of',
+        'over',
+        'open',
+        'closed',
+        'active',
+        'done',
+        'crit',
+        'milestone',
+      ],
+    },
+    contains: [
+      hljs.QUOTE_STRING_MODE,
+      hljs.APOS_STRING_MODE,
+      {
+        className: 'comment',
+        begin: '%%',
+        end: '$',
+        relevance: 10,
+      },
+      {
+        className: 'operator',
+        begin: /-->>|--?>[>|x]?|<--?|===>?|-.->?|-\.-|[|>{}[\]()]/,
+        relevance: 0,
+      },
+      {
+        className: 'symbol',
+        begin: /:::|---/,
+        relevance: 0,
+      },
+      {
+        className: 'number',
+        begin: /\b\d{4}-\d{2}-\d{2}\b/,
+        relevance: 5,
+      },
+      {
+        className: 'type',
+        begin: /\b[A-Z][a-zA-Z0-9_]*\b/,
+        relevance: 0,
+      },
+    ],
+  };
+}
+
+lowlight.register({ mermaid: hljsMermaid });
 
 /**
  * Creates language selector element
@@ -75,8 +190,10 @@ function createLanguageSelector(
   pos: number,
   onLanguageChange?: (language: string, pos: number) => void
 ): HTMLElement {
+  const ac = new AbortController();
   const container = document.createElement('div');
   container.className = 'code-block-language-selector';
+  (container as HTMLElement & { _abort?: AbortController })._abort = ac;
   container.style.cssText = `
     position: absolute;
     top: 8px;
@@ -98,7 +215,6 @@ function createLanguageSelector(
     outline: none;
   `;
 
-  // Add language options
   languages.forEach((lang) => {
     const option = document.createElement('option');
     option.value = lang;
@@ -107,10 +223,14 @@ function createLanguageSelector(
     select.appendChild(option);
   });
 
-  select.addEventListener('change', (e) => {
-    const target = e.target as HTMLSelectElement;
-    onLanguageChange?.(target.value, pos);
-  });
+  select.addEventListener(
+    'change',
+    (e) => {
+      const target = e.target as HTMLSelectElement;
+      onLanguageChange?.(target.value, pos);
+    },
+    { signal: ac.signal }
+  );
 
   container.appendChild(select);
   return container;
@@ -120,10 +240,12 @@ function createLanguageSelector(
  * Creates copy button element
  */
 function createCopyButton(code: string, onCopy?: (code: string) => void): HTMLElement {
+  const ac = new AbortController();
   const button = document.createElement('button');
   button.className = 'code-block-copy-button';
   button.setAttribute('aria-label', 'Copy code');
   button.setAttribute('type', 'button');
+  (button as HTMLElement & { _abort?: AbortController })._abort = ac;
   button.style.cssText = `
     position: absolute;
     top: 8px;
@@ -142,7 +264,6 @@ function createCopyButton(code: string, onCopy?: (code: string) => void): HTMLEl
     gap: 4px;
   `;
 
-  // Copy icon (simple SVG)
   const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   icon.setAttribute('width', '14');
   icon.setAttribute('height', '14');
@@ -173,41 +294,49 @@ function createCopyButton(code: string, onCopy?: (code: string) => void): HTMLEl
   button.appendChild(icon);
   button.appendChild(text);
 
-  // Hover effect
-  button.addEventListener('mouseenter', () => {
-    button.style.backgroundColor = 'var(--accent, #f3f4f6)';
-    button.style.color = 'var(--foreground, #111827)';
-  });
-  button.addEventListener('mouseleave', () => {
-    button.style.backgroundColor = 'var(--background, white)';
-    button.style.color = 'var(--muted-foreground, #6b7280)';
-  });
+  const sig = { signal: ac.signal };
 
-  // Click handler
-  button.addEventListener('click', async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  button.addEventListener(
+    'mouseenter',
+    () => {
+      button.style.backgroundColor = 'var(--accent, #f3f4f6)';
+      button.style.color = 'var(--foreground, #111827)';
+    },
+    sig
+  );
+  button.addEventListener(
+    'mouseleave',
+    () => {
+      button.style.backgroundColor = 'var(--background, white)';
+      button.style.color = 'var(--muted-foreground, #6b7280)';
+    },
+    sig
+  );
 
-    try {
-      await navigator.clipboard.writeText(code);
+  button.addEventListener(
+    'click',
+    async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-      // Show success feedback
-      text.textContent = 'Copied!';
-      button.style.color = 'var(--success, #10b981)';
-
-      setTimeout(() => {
-        text.textContent = 'Copy';
-        button.style.color = 'var(--muted-foreground, #6b7280)';
-      }, 2000);
-
-      onCopy?.(code);
-    } catch (_err) {
-      text.textContent = 'Failed';
-      setTimeout(() => {
-        text.textContent = 'Copy';
-      }, 2000);
-    }
-  });
+      try {
+        await navigator.clipboard.writeText(code);
+        text.textContent = 'Copied!';
+        button.style.color = 'var(--success, #10b981)';
+        setTimeout(() => {
+          text.textContent = 'Copy';
+          button.style.color = 'var(--muted-foreground, #6b7280)';
+        }, 2000);
+        onCopy?.(code);
+      } catch (_err) {
+        text.textContent = 'Failed';
+        setTimeout(() => {
+          text.textContent = 'Copy';
+        }, 2000);
+      }
+    },
+    sig
+  );
 
   return button;
 }
@@ -247,25 +376,20 @@ function createLineNumbers(lineCount: number): HTMLElement {
 }
 
 /**
- * CodeBlockExtension with enhanced UI
+ * ProseMirror widget `destroy` callback. Aborts all event listeners
+ * registered via AbortController on the widget's DOM node.
+ */
+function abortWidgetListeners(node: Node) {
+  const el = node as HTMLElement & { _abort?: AbortController };
+  el._abort?.abort();
+}
+
+/**
+ * CodeBlockExtension with enhanced UI and mermaid diagram preview.
  *
- * @example
- * ```tsx
- * import { CodeBlockExtension } from './extensions/CodeBlockExtension';
- *
- * const editor = new Editor({
- *   extensions: [
- *     CodeBlockExtension.configure({
- *       defaultLanguage: 'typescript',
- *       lineNumbers: true,
- *       showCopyButton: true,
- *       onLanguageChange: (lang, pos) => {
- *         editor.commands.updateAttributes('codeBlock', { language: lang });
- *       },
- *     }),
- *   ],
- * });
- * ```
+ * Mermaid blocks use a custom NodeView (MermaidNodeView) that renders a
+ * single unified card with preview/code toggle. Non-mermaid blocks use
+ * the standard lowlight NodeView with decoration-based UI widgets.
  */
 export const CodeBlockExtension = CodeBlockLowlight.extend<CodeBlockOptions>({
   addOptions() {
@@ -281,77 +405,119 @@ export const CodeBlockExtension = CodeBlockLowlight.extend<CodeBlockOptions>({
     };
   },
 
+  addNodeView() {
+    const parentNodeView = this.parent?.();
+    return (props) => {
+      // Mermaid blocks: use unified NodeView with preview/code toggle
+      if ((props.node.attrs.language as string) === 'mermaid') {
+        return createMermaidNodeView({
+          node: props.node,
+          view: props.editor.view,
+          getPos: props.getPos,
+        });
+      }
+      // Non-mermaid: delegate to parent (lowlight syntax highlighting)
+      if (parentNodeView) {
+        return parentNodeView(props);
+      }
+      // Fallback: plain <pre><code>
+      const pre = document.createElement('pre');
+      const code = document.createElement('code');
+      pre.appendChild(code);
+      return { dom: pre, contentDOM: code };
+    };
+  },
+
   addProseMirrorPlugins() {
     const parentPlugins = this.parent?.() ?? [];
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const extension = this;
+
+    /** Build decorations for non-mermaid code blocks only. */
+    function buildDecorations(doc: ProseMirrorNode): DecorationSet {
+      const decorations: Decoration[] = [];
+
+      doc.descendants((node: ProseMirrorNode, pos: number) => {
+        if (node.type.name !== 'codeBlock') return true;
+
+        const language = (node.attrs.language as string) || extension.options.defaultLanguage;
+        // Mermaid blocks are handled by MermaidNodeView — skip decorations
+        if (language === 'mermaid') return false;
+
+        const code = node.textContent;
+        const lineCount = code.split('\n').length;
+
+        // Wrapper decoration for positioning
+        decorations.push(
+          Decoration.node(pos, pos + node.nodeSize, {
+            class: 'code-block-wrapper',
+            style: `position: relative; ${extension.options.lineNumbers ? 'padding-left: 48px;' : ''}`,
+          })
+        );
+
+        // Language selector
+        decorations.push(
+          Decoration.widget(
+            pos + 1,
+            () =>
+              createLanguageSelector(
+                language,
+                extension.options.languages,
+                pos,
+                extension.options.onLanguageChange
+              ),
+            { side: -1, key: `lang-selector-${pos}`, destroy: abortWidgetListeners }
+          )
+        );
+
+        // Copy button
+        if (extension.options.showCopyButton) {
+          decorations.push(
+            Decoration.widget(pos + 1, () => createCopyButton(code, extension.options.onCopy), {
+              side: -1,
+              key: `copy-btn-${pos}`,
+              destroy: abortWidgetListeners,
+            })
+          );
+        }
+
+        // Line numbers
+        if (extension.options.lineNumbers) {
+          decorations.push(
+            Decoration.widget(pos + 1, () => createLineNumbers(lineCount), {
+              side: -1,
+              key: `line-nums-${pos}`,
+            })
+          );
+        }
+
+        return false;
+      });
+
+      return DecorationSet.create(doc, decorations);
+    }
 
     return [
       ...parentPlugins,
       new Plugin({
         key: CODE_BLOCK_UI_PLUGIN_KEY,
 
+        state: {
+          init(_, state): DecorationSet {
+            return buildDecorations(state.doc);
+          },
+
+          apply(tr, decorationSet, _oldState, newState): DecorationSet {
+            if (!tr.docChanged) {
+              return decorationSet.map(tr.mapping, tr.doc);
+            }
+            return buildDecorations(newState.doc);
+          },
+        },
+
         props: {
           decorations(state) {
-            const decorations: Decoration[] = [];
-
-            state.doc.descendants((node: ProseMirrorNode, pos: number) => {
-              if (node.type.name !== 'codeBlock') {
-                return true;
-              }
-
-              const language = (node.attrs.language as string) || extension.options.defaultLanguage;
-              const code = node.textContent;
-              const lineCount = code.split('\n').length;
-
-              // Add wrapper decoration for positioning
-              decorations.push(
-                Decoration.node(pos, pos + node.nodeSize, {
-                  class: 'code-block-wrapper',
-                  style: `position: relative; ${extension.options.lineNumbers ? 'padding-left: 48px;' : ''}`,
-                })
-              );
-
-              // Language selector widget
-              decorations.push(
-                Decoration.widget(
-                  pos + 1,
-                  () =>
-                    createLanguageSelector(
-                      language,
-                      extension.options.languages,
-                      pos,
-                      extension.options.onLanguageChange
-                    ),
-                  { side: -1, key: `lang-selector-${pos}` }
-                )
-              );
-
-              // Copy button widget
-              if (extension.options.showCopyButton) {
-                decorations.push(
-                  Decoration.widget(
-                    pos + 1,
-                    () => createCopyButton(code, extension.options.onCopy),
-                    { side: -1, key: `copy-btn-${pos}` }
-                  )
-                );
-              }
-
-              // Line numbers widget
-              if (extension.options.lineNumbers) {
-                decorations.push(
-                  Decoration.widget(pos + 1, () => createLineNumbers(lineCount), {
-                    side: -1,
-                    key: `line-nums-${pos}`,
-                  })
-                );
-              }
-
-              return false;
-            });
-
-            return DecorationSet.create(state.doc, decorations);
+            return CODE_BLOCK_UI_PLUGIN_KEY.getState(state) as DecorationSet | undefined;
           },
         },
       }),
@@ -371,12 +537,10 @@ export const CodeBlockExtension = CodeBlockLowlight.extend<CodeBlockOptions>({
           return false;
         }
 
-        // Check if cursor is at the end of the code block
         const isAtEnd = $from.parentOffset === $from.parent.content.size;
         const endsWithDoubleNewline = $from.parent.textContent.endsWith('\n\n');
 
         if (isAtEnd && endsWithDoubleNewline) {
-          // Delete the trailing newlines and exit the code block
           return editor
             .chain()
             .command(({ tr }: { tr: import('@tiptap/pm/state').Transaction }) => {
@@ -395,49 +559,3 @@ export const CodeBlockExtension = CodeBlockLowlight.extend<CodeBlockOptions>({
 
 // Re-export the lowlight instance for external configuration
 export { lowlight };
-
-/**
- * CSS styles for code block (add to your global stylesheet)
- */
-export const codeBlockStyles = `
-  .code-block-wrapper {
-    margin: 16px 0;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .code-block-wrapper pre {
-    margin: 0;
-    padding: 40px 16px 16px;
-    overflow-x: auto;
-    background: var(--muted, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
-    border-radius: 8px;
-  }
-
-  .code-block-wrapper code {
-    font-family: var(--font-mono, 'JetBrains Mono', monospace);
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  .code-block-language-selector {
-    opacity: 0;
-    transition: opacity 0.15s ease;
-  }
-
-  .code-block-copy-button {
-    opacity: 0;
-    transition: opacity 0.15s ease;
-  }
-
-  .code-block-wrapper:hover .code-block-language-selector,
-  .code-block-wrapper:hover .code-block-copy-button {
-    opacity: 1;
-  }
-
-  .code-block-language-select:focus {
-    outline: 2px solid var(--ring, #3b82f6);
-    outline-offset: 2px;
-  }
-`;

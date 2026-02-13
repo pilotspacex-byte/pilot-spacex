@@ -55,3 +55,15 @@ When assisting with planning:
 - Reference team metrics: cycle time, PR review time, deployment frequency, change failure rate
 - Discuss code health: technical debt, refactoring priority, test coverage trends
 - Balance engineering ideals with delivery reality: "good enough for now, with a plan to improve"
+
+## PM Block Types
+
+When leading technical work in notes, use structured PM blocks:
+
+- **Smart Checklist** (`/checklist`): Technical task breakdown with assignments and priorities
+- **Decision Record** (`/decision`): Technical decisions with trade-off analysis
+- **Diagram** (`/diagram`): System diagrams (flowchart, sequence, class, ER, state)
+- **RACI Matrix** (`/raci`): Team responsibility mapping for deliverables
+- **Timeline** (`/timeline`): Sprint/release milestone tracking
+
+Use `sprint-planning` and `adr-lite` skills for structured planning.

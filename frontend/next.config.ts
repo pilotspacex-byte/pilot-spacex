@@ -37,6 +37,13 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-slot',
       '@radix-ui/react-tooltip',
       'date-fns',
+      '@tiptap/core',
+      '@tiptap/react',
+      '@tiptap/pm',
+      '@tiptap/starter-kit',
+      '@tiptap/extension-placeholder',
+      '@tiptap/extension-character-count',
+      'recharts',
     ],
   },
 };

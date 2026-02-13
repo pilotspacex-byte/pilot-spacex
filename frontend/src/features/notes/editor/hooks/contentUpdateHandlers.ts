@@ -360,3 +360,198 @@ export async function handleInsertInlineIssue(
     isNew: true, // Enable animation for newly inserted issues
   });
 }
+
+/**
+ * Handle replace_content operation.
+ * Finds text matching oldPattern in target blocks (or all blocks) and replaces
+ * with newContent. Supports scoping via blockIds.
+ */
+export function handleReplaceContent(editor: Editor, update: ContentUpdateData): void {
+  const { oldPattern, newContent, blockIds } = update;
+
+  if (!oldPattern) {
+    console.warn('[AI] replace_content operation missing oldPattern');
+    return;
+  }
+  if (newContent == null) {
+    console.warn('[AI] replace_content operation missing newContent');
+    return;
+  }
+
+  const { doc, tr } = editor.state;
+  let replaced = false;
+
+  doc.descendants((node, pos) => {
+    // Skip non-text-bearing nodes
+    if (!node.isTextblock) return true;
+
+    // If blockIds specified, only process those blocks
+    const nodeBlockId = node.attrs?.blockId;
+    if (blockIds && blockIds.length > 0 && !blockIds.includes(nodeBlockId)) {
+      return true;
+    }
+
+    // Search within this block's text content
+    node.descendants((child, childOffset) => {
+      if (!child.isText || !child.text) return false;
+
+      const idx = child.text.indexOf(oldPattern);
+      if (idx === -1) return false;
+
+      // Calculate absolute position: block pos + 1 (open tag) + child offset + match index
+      const from = pos + 1 + childOffset + idx;
+      const to = from + oldPattern.length;
+
+      tr.replaceWith(from, to, editor.state.schema.text(newContent));
+      replaced = true;
+
+      return false;
+    });
+
+    return true;
+  });
+
+  if (replaced) {
+    editor.view.dispatch(tr);
+  } else {
+    console.warn('[AI] replace_content: pattern not found in target blocks', {
+      oldPattern,
+      blockIds,
+    });
+  }
+}
+
+/**
+ * Handle remove_content operation.
+ * Finds text matching pattern in target blocks (or all blocks) and removes it.
+ */
+export function handleRemoveContent(editor: Editor, update: ContentUpdateData): void {
+  const { pattern } = update;
+
+  if (!pattern) {
+    console.warn('[AI] remove_content operation missing pattern');
+    return;
+  }
+
+  // Reuse replace_content logic with empty replacement
+  handleReplaceContent(editor, {
+    ...update,
+    operation: 'replace_content',
+    oldPattern: pattern,
+    newContent: '',
+  });
+}
+
+/**
+ * Find the insert position after a specified block, or at end of document.
+ * Shared helper for append/insert/pm-block operations.
+ */
+function findInsertPosition(editor: Editor, afterBlockId: string | null): number {
+  const { doc } = editor.state;
+  let insertPos = doc.content.size;
+
+  if (afterBlockId) {
+    doc.descendants((node, pos) => {
+      if (node.attrs?.blockId === afterBlockId) {
+        insertPos = pos + node.nodeSize;
+        return false;
+      }
+      return true;
+    });
+  }
+
+  return insertPos;
+}
+
+/**
+ * Handle insert_pm_block operation.
+ * Inserts a new pmBlock atom node at the specified position.
+ * Non-destructive — no conflict detection needed.
+ */
+export function handleInsertPMBlock(editor: Editor, update: ContentUpdateData): void {
+  if (!update.pmBlockData) {
+    console.warn('[AI] insert_pm_block operation missing pmBlockData');
+    return;
+  }
+
+  const { blockType, data, version } = update.pmBlockData;
+  const insertPos = findInsertPosition(editor, update.afterBlockId);
+
+  try {
+    editor.commands.insertContentAt(insertPos, {
+      type: 'pmBlock',
+      attrs: {
+        blockType,
+        data,
+        version: version ?? 1,
+      },
+    });
+  } catch (error) {
+    console.error('[AI] Failed to insert PM block:', error, {
+      blockType,
+      afterBlockId: update.afterBlockId,
+      insertPos,
+    });
+  }
+}
+
+/**
+ * Handle update_pm_block operation.
+ * Updates the data attribute of an existing pmBlock node.
+ * Checks edit guard — skips if user has manually edited the block.
+ */
+export function handleUpdatePMBlock(
+  editor: Editor,
+  update: ContentUpdateData,
+  isBlockEdited?: (blockId: string) => boolean
+): void {
+  if (!update.blockId) {
+    console.warn('[AI] update_pm_block operation missing blockId');
+    return;
+  }
+
+  if (!update.pmBlockData) {
+    console.warn('[AI] update_pm_block operation missing pmBlockData');
+    return;
+  }
+
+  // Respect edit guard (FR-048)
+  if (isBlockEdited?.(update.blockId)) {
+    console.warn(`[AI] Skipping update_pm_block for user-edited block ${update.blockId}`);
+    return;
+  }
+
+  const { doc } = editor.state;
+  let targetPos: number | null = null;
+
+  doc.descendants((node, pos) => {
+    if (node.type.name === 'pmBlock' && node.attrs?.blockId === update.blockId) {
+      targetPos = pos;
+      return false;
+    }
+    return true;
+  });
+
+  if (targetPos === null) {
+    console.warn(`[AI] PM Block ${update.blockId} not found for update_pm_block`);
+    return;
+  }
+
+  try {
+    const { tr } = editor.state;
+    const node = doc.nodeAt(targetPos);
+    if (!node) return;
+
+    tr.setNodeMarkup(targetPos, undefined, {
+      ...node.attrs,
+      data: update.pmBlockData.data,
+      ...(update.pmBlockData.version != null && { version: update.pmBlockData.version }),
+    });
+    editor.view.dispatch(tr);
+  } catch (error) {
+    console.error('[AI] Failed to update PM block:', error, {
+      blockId: update.blockId,
+      targetPos,
+    });
+  }
+}

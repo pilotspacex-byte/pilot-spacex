@@ -1,7 +1,7 @@
 """In-process SDK custom tools for PilotSpace comment manipulation.
 
 Creates an SDK MCP server using create_sdk_mcp_server() with 4 comment tools.
-Tool handlers push content_update SSE events to a shared asyncio.Queue
+Tool handlers push content_update SSE events via EventPublisher
 that the PilotSpaceAgent stream method interleaves with SDK messages.
 
 Comment tools work with ThreadedDiscussion (discussion threads) and
@@ -9,8 +9,8 @@ DiscussionComment (individual comments) models, supporting discussions
 on notes, issues, and other discussion threads.
 
 Architecture:
-  ClaudeSDKClient (in-process) → tool handler → pushes to event_queue
-  PilotSpaceAgent._stream_with_space() → reads from event_queue + SDK messages
+  ClaudeSDKClient (in-process) → tool handler → pushes via EventPublisher
+  PilotSpaceAgent._stream_with_space() → reads from queue + SDK messages
   Frontend useContentUpdates hook → updates UI + API calls
 
 Reference: https://platform.claude.com/docs/en/agent-sdk/custom-tools
@@ -18,7 +18,6 @@ Reference: https://platform.claude.com/docs/en/agent-sdk/custom-tools
 
 from __future__ import annotations
 
-import asyncio
 import json
 import uuid
 from typing import Any
@@ -27,6 +26,7 @@ from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.tools.mcp_server import ToolContext, get_tool_approval_level
 from pilot_space.infrastructure.database.models.discussion_comment import (
     DiscussionComment,
@@ -50,18 +50,13 @@ TOOL_NAMES = [
 ]
 
 
-def _sse_event(event_type: str, data: dict[str, Any]) -> str:
-    """Format an SSE event string."""
-    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-
-
 def _text_result(text: str) -> dict[str, Any]:
     """Create a standard MCP tool text result."""
     return {"content": [{"type": "text", "text": text}]}
 
 
 def create_comment_tools_server(
-    event_queue: asyncio.Queue[str],
+    publisher: EventPublisher,
     *,
     tool_context: ToolContext | None = None,
 ) -> McpSdkServerConfig:
@@ -71,7 +66,7 @@ def create_comment_tools_server(
     models and returns operation payloads or search results.
 
     Args:
-        event_queue: Queue for SSE events consumed by the stream method.
+        publisher: EventPublisher for SSE event delivery.
         tool_context: ToolContext for database access and RLS enforcement.
 
     Returns:
@@ -230,7 +225,7 @@ def create_comment_tools_server(
             "workspaceId": str(workspace_id),
             "parentCommentId": str(parent_comment_id) if parent_comment_id else None,
         }
-        await event_queue.put(_sse_event("content_update", event_data))
+        await publisher.publish_content_update(event_data)
 
         status_label = "Approval required" if status == "approval_required" else "Pending apply"
         return _text_result(f"Comment on {target_type} {target_id} requested. {status_label}.")
@@ -311,7 +306,7 @@ def create_comment_tools_server(
             "oldContent": old_content,
             "newContent": new_content.strip(),
         }
-        await event_queue.put(_sse_event("content_update", event_data))
+        await publisher.publish_content_update(event_data)
 
         return _text_result(
             f"Comment {comment_id} update requested. Approval required. "

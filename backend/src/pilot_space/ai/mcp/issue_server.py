@@ -16,9 +16,8 @@ Reference: spec 010-enhanced-mcp-tools Phase 3 (T010-T012)
 
 from __future__ import annotations
 
-import asyncio
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
@@ -28,6 +27,9 @@ from pilot_space.ai.tools.entity_resolver import (
     resolve_entity_id_strict,
 )
 from pilot_space.ai.tools.mcp_server import ToolContext, get_tool_approval_level
+
+if TYPE_CHECKING:
+    from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.infrastructure.database.repositories.issue_link_repository import (
     IssueLinkRepository,
 )
@@ -92,7 +94,7 @@ def _operation_payload(
 
 
 def create_issue_tools_server(
-    event_queue: asyncio.Queue[str],
+    publisher: EventPublisher,
     *,
     tool_context: ToolContext | None = None,
 ) -> McpSdkServerConfig:

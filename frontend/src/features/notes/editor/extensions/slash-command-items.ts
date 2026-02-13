@@ -117,6 +117,223 @@ export function getDefaultCommands(
       execute: (editor) => editor.chain().focus().toggleCodeBlock().run(),
     },
     {
+      name: 'checklist',
+      label: 'Checklist',
+      description: 'Insert a smart checklist with progress tracking',
+      icon: 'ListChecks',
+      group: 'blocks',
+      keywords: ['checklist', 'todo', 'tasks', 'sprint', 'done', 'progress'],
+      execute: (editor) =>
+        editor
+          .chain()
+          .focus()
+          .toggleTaskList()
+          .insertContent([
+            {
+              type: 'taskItem',
+              attrs: { checked: false },
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: 'First item' }] }],
+            },
+            {
+              type: 'taskItem',
+              attrs: { checked: false },
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Second item' }] }],
+            },
+            {
+              type: 'taskItem',
+              attrs: { checked: false },
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Third item' }] }],
+            },
+          ])
+          .run(),
+    },
+    {
+      name: 'diagram',
+      label: 'Diagram',
+      description: 'Insert a Mermaid diagram',
+      icon: 'GitBranch',
+      group: 'blocks',
+      keywords: ['mermaid', 'flowchart', 'sequence', 'gantt', 'class', 'er', 'diagram', 'chart'],
+      execute: (editor) =>
+        editor
+          .chain()
+          .focus()
+          .setCodeBlock({ language: 'mermaid' })
+          .insertContent('flowchart TD\n  A[Start] --> B[End]')
+          .run(),
+    },
+    {
+      name: 'decision',
+      label: 'Decision Record',
+      description: 'Insert a decision record with options and pros/cons',
+      icon: 'Scale',
+      group: 'blocks',
+      keywords: ['decision', 'adr', 'choose', 'option', 'vote', 'pros', 'cons'],
+      execute: (editor) =>
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'pmBlock',
+            attrs: {
+              blockType: 'decision',
+              data: JSON.stringify({
+                title: 'Untitled Decision',
+                type: 'binary',
+                status: 'open',
+                options: [
+                  { id: 'opt-1', label: 'Option A', pros: [], cons: [] },
+                  { id: 'opt-2', label: 'Option B', pros: [], cons: [] },
+                ],
+                linkedIssueIds: [],
+              }),
+              version: 1,
+            },
+          })
+          .run(),
+    },
+    {
+      name: 'form',
+      label: 'Form',
+      description: 'Insert an interactive form with validation',
+      icon: 'ClipboardList',
+      group: 'blocks',
+      keywords: ['form', 'input', 'survey', 'questionnaire', 'fields'],
+      execute: (editor) =>
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'pmBlock',
+            attrs: {
+              blockType: 'form',
+              data: JSON.stringify({
+                title: 'Untitled Form',
+                description: '',
+                fields: [{ id: 'f-1', type: 'text', label: 'Field 1', required: true }],
+                responses: [],
+              }),
+              version: 1,
+            },
+          })
+          .run(),
+    },
+    {
+      name: 'raci',
+      label: 'RACI Matrix',
+      description: 'Insert a RACI responsibility matrix',
+      icon: 'Grid3X3',
+      group: 'blocks',
+      keywords: ['raci', 'responsibility', 'matrix', 'accountable', 'consulted', 'informed'],
+      execute: (editor) =>
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'pmBlock',
+            attrs: {
+              blockType: 'raci',
+              data: JSON.stringify({
+                title: 'RACI Matrix',
+                stakeholders: ['Person A', 'Person B'],
+                deliverables: [{ id: 'd-1', name: 'Deliverable 1', assignments: {} }],
+              }),
+              version: 1,
+            },
+          })
+          .run(),
+    },
+    {
+      name: 'risk',
+      label: 'Risk Register',
+      description: 'Insert a risk register with scoring',
+      icon: 'ShieldAlert',
+      group: 'blocks',
+      keywords: ['risk', 'register', 'probability', 'impact', 'mitigation'],
+      execute: (editor) =>
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'pmBlock',
+            attrs: {
+              blockType: 'risk',
+              data: JSON.stringify({
+                title: 'Risk Register',
+                risks: [
+                  {
+                    id: 'r-1',
+                    description: 'Risk 1',
+                    probability: 3,
+                    impact: 3,
+                    mitigation: '',
+                    strategy: 'mitigate',
+                    owner: '',
+                  },
+                ],
+              }),
+              version: 1,
+            },
+          })
+          .run(),
+    },
+    {
+      name: 'timeline',
+      label: 'Timeline',
+      description: 'Insert a project timeline with milestones',
+      icon: 'CalendarClock',
+      group: 'blocks',
+      keywords: ['timeline', 'milestone', 'schedule', 'roadmap', 'gantt'],
+      execute: (editor) =>
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'pmBlock',
+            attrs: {
+              blockType: 'timeline',
+              data: JSON.stringify({
+                title: 'Project Timeline',
+                milestones: [
+                  {
+                    id: 'm-1',
+                    name: 'Milestone 1',
+                    date: '',
+                    status: 'on-track',
+                    dependencies: [],
+                  },
+                ],
+              }),
+              version: 1,
+            },
+          })
+          .run(),
+    },
+    {
+      name: 'dashboard',
+      label: 'KPI Dashboard',
+      description: 'Insert a KPI dashboard with metrics',
+      icon: 'BarChart3',
+      group: 'blocks',
+      keywords: ['dashboard', 'kpi', 'metric', 'chart', 'widget'],
+      execute: (editor) =>
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: 'pmBlock',
+            attrs: {
+              blockType: 'dashboard',
+              data: JSON.stringify({
+                title: 'KPI Dashboard',
+                widgets: [{ id: 'w-1', metric: 'Metric 1', value: 0, trend: 'flat', unit: '' }],
+              }),
+              version: 1,
+            },
+          })
+          .run(),
+    },
+    {
       name: 'divider',
       label: 'Divider',
       description: 'Visually divide blocks',

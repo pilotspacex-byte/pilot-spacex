@@ -1,6 +1,19 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
+
+// Expose vi as jest so @testing-library/dom detects fake timers correctly.
+// RTL's waitFor checks `typeof jest !== 'undefined'` to decide whether to
+// advance fake timers during polling. Without this, waitFor hangs under
+// vi.useFakeTimers() because it falls back to real setInterval polling.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(globalThis as any).jest = {
+  ...vi,
+  advanceTimersByTime: vi.advanceTimersByTime.bind(vi),
+};
+
+// Configure RTL to advance timers when using fake timers
+configure({ asyncWrapper: async (cb) => cb() });
 
 // Cleanup after each test
 afterEach(() => {

@@ -7,6 +7,11 @@
  * Selected block highlight uses ProseMirror plugin state field (not mutable storage)
  * to guarantee decorations stay in sync.
  *
+ * Memory optimization: Uses `state` field with `init`/`apply` instead of
+ * `props.decorations(state)`. Decorations are only rebuilt when the document
+ * changes or fold/select meta is dispatched — cursor blink, selection, and
+ * focus events return the previous DecorationSet (zero allocation).
+ *
  * @module features/notes/editor/extensions/LineGutterExtension
  */
 import { Extension } from '@tiptap/core';
@@ -64,9 +69,13 @@ const WRAPPER_NODE_TYPES = new Set([
 /** Transaction metadata key for setting the selected block */
 const SELECT_BLOCK_META = 'lineGutterSelectBlock';
 
-/** Plugin state: tracks which block is highlighted */
+/** Transaction metadata key for signaling fold/expand rebuild */
+const LINE_GUTTER_REBUILD = 'lineGutterRebuild';
+
+/** Plugin state: tracks which block is highlighted + decoration set */
 interface LineGutterPluginState {
   selectedBlockId: string | null;
+  decorations: DecorationSet;
 }
 
 /**
@@ -193,6 +202,82 @@ function createLineNumberWidget(
   return span;
 }
 
+/**
+ * Build a full DecorationSet for line numbers, fold widgets, selected block
+ * highlight, and hidden blocks.
+ */
+function buildGutterDecorations(
+  state: EditorState,
+  selectedBlockId: string | null,
+  storage: LineGutterStorage,
+  options: LineGutterOptions,
+  editor: Editor
+): DecorationSet {
+  const hiddenBlocks = computeHiddenBlockIds(state.doc, storage.collapsedBlocks);
+  const decorations: Decoration[] = [];
+  let lineNum = 0;
+
+  state.doc.descendants((node, pos) => {
+    const blockId = node.attrs.blockId as string | undefined;
+    if (!blockId) return true;
+
+    const isWrapper = WRAPPER_NODE_TYPES.has(node.type.name);
+
+    if (!isWrapper) {
+      const text = node.textContent;
+      const blockLines = text ? (text.match(/\n/g)?.length ?? 0) + 1 : 1;
+      const blockStartLine = lineNum + 1;
+      lineNum += blockLines;
+
+      const contentPos = pos + 1;
+      const nestingOffset = computeNestingOffset(state.doc, pos);
+      const numWidget = createLineNumberWidget(blockStartLine, blockId, pos, editor, nestingOffset);
+
+      decorations.push(
+        Decoration.widget(contentPos, numWidget, {
+          side: -1,
+          key: `num-${blockId}`,
+        })
+      );
+
+      if (options.foldableTypes.includes(node.type.name)) {
+        const isCollapsed = storage.collapsedBlocks.has(blockId);
+
+        const widget = createFoldWidget(blockId, isCollapsed, () => {
+          editor.commands.toggleFold(blockId);
+        });
+
+        decorations.push(
+          Decoration.widget(contentPos, widget, {
+            side: -1,
+            key: `fold-${blockId}`,
+          })
+        );
+      }
+    }
+
+    if (selectedBlockId === blockId) {
+      decorations.push(
+        Decoration.node(pos, pos + node.nodeSize, {
+          class: 'line-gutter-selected',
+        })
+      );
+    }
+
+    if (hiddenBlocks.has(blockId)) {
+      decorations.push(
+        Decoration.node(pos, pos + node.nodeSize, {
+          class: 'line-gutter-hidden',
+        })
+      );
+    }
+
+    return true;
+  });
+
+  return DecorationSet.create(state.doc, decorations);
+}
+
 export const LineGutterExtension = Extension.create<LineGutterOptions, LineGutterStorage>({
   name: 'lineGutter',
 
@@ -228,7 +313,9 @@ export const LineGutterExtension = Extension.create<LineGutterOptions, LineGutte
             typedStorage.collapsedBlocks.add(blockId);
           }
 
-          dispatch(state.tr);
+          const tr = state.tr;
+          tr.setMeta(LINE_GUTTER_REBUILD, true);
+          dispatch(tr);
           return true;
         },
 
@@ -244,7 +331,9 @@ export const LineGutterExtension = Extension.create<LineGutterOptions, LineGutte
           if (!dispatch) return false;
           const typedStorage = this.storage as LineGutterStorage;
           typedStorage.collapsedBlocks.clear();
-          dispatch(state.tr);
+          const tr = state.tr;
+          tr.setMeta(LINE_GUTTER_REBUILD, true);
+          dispatch(tr);
           return true;
         },
 
@@ -267,7 +356,9 @@ export const LineGutterExtension = Extension.create<LineGutterOptions, LineGutte
             return true;
           });
 
-          dispatch(state.tr);
+          const tr = state.tr;
+          tr.setMeta(LINE_GUTTER_REBUILD, true);
+          dispatch(tr);
           return true;
         },
 
@@ -306,118 +397,58 @@ export const LineGutterExtension = Extension.create<LineGutterOptions, LineGutte
 
   addProseMirrorPlugins() {
     const { storage, options, editor } = this;
+    const typedStorage = storage as LineGutterStorage;
 
     return [
       new Plugin({
         key: LINE_GUTTER_KEY,
 
         state: {
-          init(): LineGutterPluginState {
-            return { selectedBlockId: null };
+          init(_, state): LineGutterPluginState {
+            return {
+              selectedBlockId: null,
+              decorations: buildGutterDecorations(state, null, typedStorage, options, editor),
+            };
           },
 
-          apply(tr, prev): LineGutterPluginState {
-            // Check for explicit select/clear via transaction metadata
+          apply(tr, prev, _oldState, newState): LineGutterPluginState {
+            // 1. Resolve selectedBlockId changes
+            let selectedBlockId = prev.selectedBlockId;
             const selectMeta = tr.getMeta(SELECT_BLOCK_META) as string | null | undefined;
             if (selectMeta !== undefined) {
-              return { selectedBlockId: selectMeta };
+              selectedBlockId = selectMeta;
+            } else if (prev.selectedBlockId !== null && tr.selectionSet) {
+              selectedBlockId = null;
             }
 
-            // Any other transaction (typing, clicking in content) clears selection
-            // unless it's a collapseAll/expandAll/toggleFold (no selection change)
-            if (prev.selectedBlockId !== null && tr.selectionSet) {
-              return { selectedBlockId: null };
+            const selectionChanged = selectedBlockId !== prev.selectedBlockId;
+            const rebuildMeta = tr.getMeta(LINE_GUTTER_REBUILD) as boolean | undefined;
+
+            // 2. Determine if decorations need rebuilding
+            if (tr.docChanged || rebuildMeta || selectionChanged) {
+              return {
+                selectedBlockId,
+                decorations: buildGutterDecorations(
+                  newState,
+                  selectedBlockId,
+                  typedStorage,
+                  options,
+                  editor
+                ),
+              };
             }
 
+            // 3. No change — return previous state (zero allocation)
             return prev;
           },
         },
 
         props: {
           decorations(state) {
-            const typedStorage = storage as LineGutterStorage;
             const pluginState = LINE_GUTTER_KEY.getState(state) as
               | LineGutterPluginState
               | undefined;
-            const selectedBlockId = pluginState?.selectedBlockId ?? null;
-            const hiddenBlocks = computeHiddenBlockIds(state.doc, typedStorage.collapsedBlocks);
-            const decorations: Decoration[] = [];
-            let lineNum = 0;
-
-            state.doc.descendants((node, pos) => {
-              const blockId = node.attrs.blockId as string | undefined;
-              if (!blockId) return true;
-
-              const isWrapper = WRAPPER_NODE_TYPES.has(node.type.name);
-
-              // Skip wrapper nodes for line counting and line number widgets.
-              // Their text is already counted via child content nodes (paragraph, etc.).
-              if (!isWrapper) {
-                // Count actual text lines in this block (newlines + 1)
-                const text = node.textContent;
-                const blockLines = text ? (text.match(/\n/g)?.length ?? 0) + 1 : 1;
-                const blockStartLine = lineNum + 1;
-                lineNum += blockLines;
-
-                // Line number widget inside block (pos+1 = inside block content)
-                // so it positions relative to the block's `position: relative`
-                const contentPos = pos + 1;
-
-                const nestingOffset = computeNestingOffset(state.doc, pos);
-                const numWidget = createLineNumberWidget(
-                  blockStartLine,
-                  blockId,
-                  pos,
-                  editor,
-                  nestingOffset
-                );
-
-                decorations.push(
-                  Decoration.widget(contentPos, numWidget, {
-                    side: -1,
-                    key: `num-${blockId}`,
-                  })
-                );
-
-                // Fold widget for foldable nodes (headings)
-                if (options.foldableTypes.includes(node.type.name)) {
-                  const isCollapsed = typedStorage.collapsedBlocks.has(blockId);
-
-                  const widget = createFoldWidget(blockId, isCollapsed, () => {
-                    editor.commands.toggleFold(blockId);
-                  });
-
-                  decorations.push(
-                    Decoration.widget(contentPos, widget, {
-                      side: -1,
-                      key: `fold-${blockId}`,
-                    })
-                  );
-                }
-              }
-
-              // Highlight selected block (VS Code-style current line)
-              if (selectedBlockId === blockId) {
-                decorations.push(
-                  Decoration.node(pos, pos + node.nodeSize, {
-                    class: 'line-gutter-selected',
-                  })
-                );
-              }
-
-              // Hide collapsed blocks
-              if (hiddenBlocks.has(blockId)) {
-                decorations.push(
-                  Decoration.node(pos, pos + node.nodeSize, {
-                    class: 'line-gutter-hidden',
-                  })
-                );
-              }
-
-              return true;
-            });
-
-            return DecorationSet.create(state.doc, decorations);
+            return pluginState?.decorations ?? DecorationSet.empty;
           },
         },
       }),

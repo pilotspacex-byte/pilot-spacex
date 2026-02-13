@@ -19,6 +19,8 @@ from uuid import uuid4
 
 import pytest
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
+
 if TYPE_CHECKING:
     from pilot_space.ai.tools.mcp_server import ToolContext
 
@@ -59,7 +61,7 @@ def _capture_relation_tools(
         return orig(name=name, version=version, tools=tools)
 
     with patch.object(mod, "create_sdk_mcp_server", side_effect=intercept):
-        mod.create_issue_relation_tools_server(queue, tool_context=ctx)
+        mod.create_issue_relation_tools_server(EventPublisher(queue), tool_context=ctx)
     return captured["tools"]
 
 
@@ -87,7 +89,9 @@ class TestIssueRelationServerConfiguration:
     def test_server_creation(self, mock_tool_context: ToolContext) -> None:
         from pilot_space.ai.mcp.issue_relation_server import create_issue_relation_tools_server
 
-        server = create_issue_relation_tools_server(asyncio.Queue(), tool_context=mock_tool_context)
+        server = create_issue_relation_tools_server(
+            EventPublisher(asyncio.Queue()), tool_context=mock_tool_context
+        )
         assert server["type"] == "sdk"
         assert server["name"] == "pilot-issue-relations"
 

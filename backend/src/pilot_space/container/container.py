@@ -223,7 +223,6 @@ class Container(InfraContainer):
         UpdateNoteService,
         session=providers.Callable(get_current_session),
         note_repository=InfraContainer.note_repository,
-        activity_repository=InfraContainer.activity_repository,
     )
 
     get_note_service = providers.Factory(

@@ -253,11 +253,12 @@ async def profile_sdk_client_lifecycle() -> None:
         )
 
         # Profile 3: MCP tool registration overhead
+        from pilot_space.ai.mcp.event_publisher import EventPublisher
         from pilot_space.ai.mcp.note_server import create_note_tools_server
 
         async def mcp_tool_setup_op():
             tool_queue: asyncio.Queue[str] = asyncio.Queue()
-            server = create_note_tools_server(tool_queue, context_note_id=None)
+            server = create_note_tools_server(EventPublisher(tool_queue), context_note_id=None)
             return server
 
         await profiler.profile_operation("MCP Tool Server Setup", mcp_tool_setup_op)

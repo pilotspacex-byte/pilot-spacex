@@ -16,6 +16,7 @@ from uuid import uuid4
 
 import pytest
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.tools.mcp_server import ToolContext
 
 # ---------------------------------------------------------------------------
@@ -95,7 +96,9 @@ def _capture_note_tools(
         return original_create(name=name, version=version, tools=tools)
 
     with patch.object(module, "create_sdk_mcp_server", side_effect=_intercept_create):
-        module.create_note_tools_server(queue, context_note_id=None, tool_context=ctx)
+        module.create_note_tools_server(
+            EventPublisher(queue), context_note_id=None, tool_context=ctx
+        )
 
     return captured["tools"]  # type: ignore[return-value]
 
@@ -115,7 +118,7 @@ def _capture_issue_tools(
         return original_create(name=name, version=version, tools=tools)
 
     with patch.object(module, "create_sdk_mcp_server", side_effect=_intercept_create):
-        module.create_issue_tools_server(queue, tool_context=ctx)
+        module.create_issue_tools_server(EventPublisher(queue), tool_context=ctx)
 
     return captured["tools"]  # type: ignore[return-value]
 
@@ -135,7 +138,7 @@ def _capture_relation_tools(
         return original_create(name=name, version=version, tools=tools)
 
     with patch.object(module, "create_sdk_mcp_server", side_effect=_intercept_create):
-        module.create_issue_relation_tools_server(queue, tool_context=ctx)
+        module.create_issue_relation_tools_server(EventPublisher(queue), tool_context=ctx)
 
     return captured["tools"]  # type: ignore[return-value]
 
@@ -155,7 +158,7 @@ def _capture_comment_tools(
         return original_create(name=name, version=version, tools=tools)
 
     with patch.object(module, "create_sdk_mcp_server", side_effect=_intercept_create):
-        module.create_comment_tools_server(queue, tool_context=ctx)
+        module.create_comment_tools_server(EventPublisher(queue), tool_context=ctx)
 
     return captured["tools"]  # type: ignore[return-value]
 

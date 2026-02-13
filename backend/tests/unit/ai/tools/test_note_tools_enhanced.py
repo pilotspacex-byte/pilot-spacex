@@ -4,6 +4,10 @@ Tests for 8 new note tools covering CRUD operations and content manipulation.
 Tests follow SDK MCP server pattern - intercept tools from server creation
 and call handler functions directly with args dict.
 
+Mutation tools (insert_block, remove_block, remove_content, replace_content)
+emit SSE events via EventPublisher and return short text confirmations.
+Metadata tools (create_note, update_note) still return JSON payloads.
+
 Reference: spec 010-enhanced-mcp-tools Phase 2
 """
 
@@ -18,6 +22,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.tools.mcp_server import ToolContext
 
 
@@ -61,7 +66,7 @@ def _capture_note_tools(
 
     with patch.object(ns_module, "create_sdk_mcp_server", side_effect=_intercept_create):
         ns_module.create_note_tools_server(
-            event_queue,
+            EventPublisher(event_queue),
             context_note_id=None,
             tool_context=tool_context,
         )
@@ -85,11 +90,35 @@ def _capture_content_tools(
 
     with patch.object(ncs_module, "create_sdk_mcp_server", side_effect=_intercept_create):
         ncs_module.create_note_content_server(
-            event_queue,
+            EventPublisher(event_queue),
             tool_context=tool_context,
         )
 
     return captured["tools"]
+
+
+def _parse_sse(raw: str) -> dict:
+    """Parse an SSE event string into {event, data} dict."""
+    lines = raw.strip().split("\n")
+    event_type = ""
+    data_str = ""
+    for line in lines:
+        if line.startswith("event: "):
+            event_type = line[7:]
+        elif line.startswith("data: "):
+            data_str = line[6:]
+    return {"event": event_type, "data": json.loads(data_str)}
+
+
+def _drain_content_update(queue: asyncio.Queue[str]) -> dict:
+    """Drain queue and return the content_update event data."""
+    while not queue.empty():
+        raw = queue.get_nowait()
+        parsed = _parse_sse(raw)
+        if parsed["event"] == "content_update":
+            return parsed["data"]
+    msg = "No content_update event found in queue"
+    raise AssertionError(msg)
 
 
 class TestSearchNotes:
@@ -120,11 +149,15 @@ class TestSearchNotes:
 
 
 class TestCreateNote:
-    """Test suite for create_note tool (NT-002)."""
+    """Test suite for create_note tool (NT-002).
+
+    create_note is a metadata-only tool that still returns JSON payload
+    in the tool result (not emitted via SSE).
+    """
 
     @pytest.mark.asyncio
     async def test_create_note_with_content(self) -> None:
-        """Verify create_note returns approval_required payload with content."""
+        """Verify create_note returns operation payload with content."""
         queue = asyncio.Queue()
         tools = _capture_note_tools(queue)
         create_tool = tools["create_note"]
@@ -137,7 +170,6 @@ class TestCreateNote:
         )
 
         data = json.loads(result["content"][0]["text"])
-        assert data["status"] == "approval_required"
         assert data["operation"] == "create_note"
         assert data["payload"]["title"] == "New Note"
         assert "content_markdown" in data["payload"]
@@ -152,7 +184,6 @@ class TestCreateNote:
         result = await create_tool.handler({"title": "Empty Note"})
 
         data = json.loads(result["content"][0]["text"])
-        assert data["status"] == "approval_required"
         assert data["payload"]["title"] == "Empty Note"
         assert "content_markdown" not in data["payload"]
 
@@ -175,7 +206,11 @@ class TestCreateNote:
 
 
 class TestUpdateNote:
-    """Test suite for update_note tool (NT-003)."""
+    """Test suite for update_note tool (NT-003).
+
+    update_note is a metadata-only tool that still returns JSON payload
+    in the tool result (not emitted via SSE).
+    """
 
     @pytest.mark.asyncio
     async def test_update_note_partial_update(self) -> None:
@@ -193,7 +228,6 @@ class TestUpdateNote:
         )
 
         data = json.loads(result["content"][0]["text"])
-        assert data["status"] == "approval_required"
         assert data["operation"] == "update_note"
         assert data["payload"]["note_id"] == note_id
         assert "title" in data["payload"]["changes"]
@@ -235,11 +269,7 @@ class TestUpdateNote:
 
 
 class TestSearchNoteContent:
-    """Test suite for search_note_content tool (NT-004).
-
-    Database-dependent search_note_content functionality will be covered by integration tests.
-    These unit tests verify tool registration and basic structure.
-    """
+    """Test suite for search_note_content tool (NT-004)."""
 
     def test_search_note_content_tool_registered(self) -> None:
         """Verify search_note_content tool is registered in content server."""
@@ -267,12 +297,15 @@ class TestSearchNoteContent:
 
 
 class TestInsertBlock:
-    """Test suite for insert_block tool (NT-005)."""
+    """Test suite for insert_block tool (NT-005).
+
+    insert_block emits SSE events via EventPublisher — verify queue events.
+    """
 
     @pytest.mark.asyncio
     async def test_insert_block_after_position(self, mock_tool_context: ToolContext) -> None:
-        """Verify insert_block creates payload with after_block_id."""
-        queue = asyncio.Queue()
+        """Verify insert_block emits content_update with after_block_id."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         insert_tool = tools["insert_block"]
 
@@ -285,16 +318,16 @@ class TestInsertBlock:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
-        assert data["status"] == "approval_required"
+        assert "inserted" in result["content"][0]["text"].lower()
+        data = _drain_content_update(queue)
         assert data["operation"] == "insert_blocks"
         assert data["after_block_id"] == "block-123"
         assert data["before_block_id"] is None
 
     @pytest.mark.asyncio
     async def test_insert_block_before_position(self, mock_tool_context: ToolContext) -> None:
-        """Verify insert_block creates payload with before_block_id."""
-        queue = asyncio.Queue()
+        """Verify insert_block emits content_update with before_block_id."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         insert_tool = tools["insert_block"]
 
@@ -307,14 +340,15 @@ class TestInsertBlock:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
+        assert "inserted" in result["content"][0]["text"].lower()
+        data = _drain_content_update(queue)
         assert data["before_block_id"] == "block-456"
         assert data["after_block_id"] is None
 
     @pytest.mark.asyncio
     async def test_insert_block_append(self, mock_tool_context: ToolContext) -> None:
         """Verify insert_block appends when no position specified."""
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         insert_tool = tools["insert_block"]
 
@@ -326,7 +360,8 @@ class TestInsertBlock:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
+        assert "inserted" in result["content"][0]["text"].lower()
+        data = _drain_content_update(queue)
         assert data["after_block_id"] is None
         assert data["before_block_id"] is None
 
@@ -336,8 +371,8 @@ class TestRemoveBlock:
 
     @pytest.mark.asyncio
     async def test_remove_block_valid_block(self, mock_tool_context: ToolContext) -> None:
-        """Verify remove_block returns approval_required payload."""
-        queue = asyncio.Queue()
+        """Verify remove_block emits content_update SSE event."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         remove_tool = tools["remove_block"]
 
@@ -349,15 +384,15 @@ class TestRemoveBlock:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
-        assert data["status"] == "approval_required"
+        assert "removed" in result["content"][0]["text"].lower()
+        data = _drain_content_update(queue)
         assert data["operation"] == "remove_block"
         assert data["block_id"] == "block-789"
 
     @pytest.mark.asyncio
     async def test_remove_block_invalid_block(self, mock_tool_context: ToolContext) -> None:
         """Verify remove_block validates block_id presence."""
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         remove_tool = tools["remove_block"]
 
@@ -377,8 +412,8 @@ class TestRemoveContent:
 
     @pytest.mark.asyncio
     async def test_remove_content_pattern_match(self, mock_tool_context: ToolContext) -> None:
-        """Verify remove_content creates payload with pattern."""
-        queue = asyncio.Queue()
+        """Verify remove_content emits content_update with pattern."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         remove_tool = tools["remove_content"]
 
@@ -390,15 +425,15 @@ class TestRemoveContent:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
-        assert data["status"] == "approval_required"
+        assert "removed" in result["content"][0]["text"].lower()
+        data = _drain_content_update(queue)
         assert data["operation"] == "remove_content"
         assert data["pattern"] == "deprecated"
 
     @pytest.mark.asyncio
     async def test_remove_content_scoped_blocks(self, mock_tool_context: ToolContext) -> None:
         """Verify remove_content can target specific blocks."""
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         remove_tool = tools["remove_content"]
 
@@ -411,7 +446,7 @@ class TestRemoveContent:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
+        data = _drain_content_update(queue)
         assert data["block_ids"] == ["block-1", "block-2"]
 
 
@@ -420,8 +455,8 @@ class TestReplaceContent:
 
     @pytest.mark.asyncio
     async def test_replace_content_simple_replace(self, mock_tool_context: ToolContext) -> None:
-        """Verify replace_content creates payload for simple find/replace."""
-        queue = asyncio.Queue()
+        """Verify replace_content emits content_update for simple find/replace."""
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         replace_tool = tools["replace_content"]
 
@@ -434,8 +469,8 @@ class TestReplaceContent:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
-        assert data["status"] == "approval_required"
+        assert "replaced" in result["content"][0]["text"].lower()
+        data = _drain_content_update(queue)
         assert data["operation"] == "replace_content"
         assert data["old_pattern"] == "foo"
         assert data["new_content"] == "bar"
@@ -445,7 +480,7 @@ class TestReplaceContent:
         self, mock_tool_context: ToolContext
     ) -> None:
         """Verify replace_content supports regex mode."""
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         replace_tool = tools["replace_content"]
 
@@ -459,13 +494,13 @@ class TestReplaceContent:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
+        data = _drain_content_update(queue)
         assert data["regex"] is True
 
     @pytest.mark.asyncio
     async def test_replace_content_replace_all_flag(self, mock_tool_context: ToolContext) -> None:
         """Verify replace_content respects replace_all flag."""
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_content_tools(queue, tool_context=mock_tool_context)
         replace_tool = tools["replace_content"]
 
@@ -479,7 +514,7 @@ class TestReplaceContent:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
+        data = _drain_content_update(queue)
         assert data["replace_all"] is False
 
 
@@ -504,11 +539,11 @@ class TestToolNamesConstant:
         for name in expected:
             assert name in TOOL_NAMES
 
-    def test_note_content_server_has_5_tools(self) -> None:
-        """Verify note_content_server TOOL_NAMES has 5 entries."""
+    def test_note_content_server_has_7_tools(self) -> None:
+        """Verify note_content_server TOOL_NAMES has 7 entries."""
         from pilot_space.ai.mcp.note_content_server import TOOL_NAMES
 
-        assert len(TOOL_NAMES) == 5
+        assert len(TOOL_NAMES) == 7
 
     def test_note_content_server_tool_names(self) -> None:
         """Verify note_content_server TOOL_NAMES includes all 5 content tools."""

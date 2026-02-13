@@ -86,6 +86,122 @@
    - Annotations link to blocks via `block_id`
    - Enables "show in note" navigation from issue view
 
+## PM Block Types:
+
+1. **Diagrams** (mermaid code blocks):
+   - Insert via `insert_block` with markdown containing ` ```mermaid ` fenced code
+   - 10 supported types: flowchart, sequence, gantt, class, ER, state, C4, pie, mindmap, git graph
+   - Frontend auto-renders SVG preview below code block
+   - Max 100 nodes per diagram for performance
+
+2. **Smart Checklist** (enhanced taskList):
+   - Insert via `insert_block` with taskList JSON content
+   - Each taskItem supports: assignee, dueDate, priority (none/low/medium/high/urgent), isOptional, conditionalParentId
+   - Optional items excluded from progress bar denominator
+   - Conditional items greyed out when parent unchecked
+
+3. **Decision Record** (pmBlock type: decision):
+   - Insert via `insert_block` with pmBlock JSON: `{ "type": "pmBlock", "attrs": { "blockType": "decision", "data": "..." } }`
+   - Status: open → decided → superseded
+   - Options: each with label, description, pros[], cons[], effort, risk
+   - Always include at least 2 options for binary decisions
+
+4. **Form Block** (pmBlock type: form):
+   - 10 field types: text, textarea, number, date, select, multiselect, checkbox, rating, email, url
+   - Include validation rules (required, min, max, pattern)
+
+5. **RACI Matrix** (pmBlock type: raci):
+   - Rows = deliverables, columns = stakeholders
+   - Exactly one Accountable (A) per deliverable (constraint)
+
+6. **Risk Register** (pmBlock type: risk):
+   - Each risk: description, probability (1-5), impact (1-5), score = P × I
+   - Color coding: green (1-6), yellow (7-12), red (13-25)
+   - Mitigation strategies: avoid, mitigate, transfer, accept
+
+7. **Timeline** (pmBlock type: timeline):
+   - Milestones with dates, dependencies, status (on-track/at-risk/blocked)
+
+8. **KPI Dashboard** (pmBlock type: dashboard):
+   - Widgets with metric name, current value, trend (up/down/flat)
+
+## PM Block TipTap JSON Format:
+
+When inserting PM blocks via `insert_block`, use this TipTap JSON structure:
+
+```json
+{
+  "type": "pmBlock",
+  "attrs": {
+    "blockType": "decision",
+    "data": "{\"title\":\"Choose DB\",\"options\":[...]}",
+    "version": 1
+  }
+}
+```
+
+**Important**: The `data` field MUST be a JSON-encoded string, not a raw object.
+The frontend parses it via `JSON.parse()` in the renderer.
+
+Supported `blockType` values: `decision`, `form`, `raci`, `risk`, `timeline`, `dashboard`.
+
+For `insert_pm_block` content_update operations, provide `pmBlockData`:
+```json
+{
+  "operation": "insert_pm_block",
+  "pmBlockData": {
+    "blockType": "decision",
+    "data": "{\"title\":\"...\",\"status\":\"open\",\"options\":[...]}",
+    "version": 1
+  },
+  "afterBlockId": "target-block-id"
+}
+```
+
+For `update_pm_block`, provide `blockId` and updated `pmBlockData`:
+```json
+{
+  "operation": "update_pm_block",
+  "blockId": "existing-pm-block-id",
+  "pmBlockData": {
+    "blockType": "decision",
+    "data": "{\"title\":\"...\",\"status\":\"decided\",...}",
+    "version": 1
+  }
+}
+```
+
+**Edit guard (FR-048)**: `update_pm_block` respects the user edit guard.
+If a user has manually edited a PM block, the agent MUST NOT update it.
+Instead, create a new block with the revised content.
+
+## Batch Writing Strategy:
+
+When the user asks to write, draft, or document content longer than 3 paragraphs,
+split the output into multiple sequential tool calls (2-4 paragraphs each).
+
+**Why**: Users see content appear progressively, giving real-time streaming feedback
+instead of a long wait followed by a sudden content dump.
+
+**Pattern**:
+1. First batch: `write_to_note(note_id, markdown)` — appends 2-4 paragraphs at the end.
+2. Read the newly created block references (¶N) from the tool result.
+3. Subsequent batches: `insert_block(note_id, content_markdown, after_block_id=¶N)` —
+   where ¶N is the last block from the previous batch.
+4. Break at natural boundaries: after a heading, after a list, after a code block,
+   or at the end of a logical section.
+
+**Example** — user asks "Write an architecture overview":
+- Batch 1: `write_to_note` with `# Architecture Overview\n\n## Goals\n\nParagraph about goals...`
+- Batch 2: `insert_block` after ¶3 with `## Components\n\nComponent description...`
+- Batch 3: `insert_block` after ¶6 with `## Data Flow\n\nFlow description...\n\n## Summary\n\n...`
+
+**Short content** (≤3 paragraphs): Use a single `write_to_note` call — no batching needed.
+
+**Updating existing blocks**: Use `update_note_block(block_id, new_content_markdown)` for
+single-block replacements. For multi-block rewrites, replace each block individually with
+sequential `update_note_block` calls (one per block being changed).
+
 ## AI Context for Notes:
 
 1. **When generating ghost text**:

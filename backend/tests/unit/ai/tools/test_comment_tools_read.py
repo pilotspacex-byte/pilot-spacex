@@ -13,6 +13,7 @@ from uuid import uuid4
 
 import pytest
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.tools.mcp_server import ToolContext
 
 # ---------------------------------------------------------------------------
@@ -51,7 +52,7 @@ def _capture_comment_tools(
         return original_create(name=name, version=version, tools=tools)
 
     with patch.object(module, "create_sdk_mcp_server", side_effect=_intercept_create):
-        module.create_comment_tools_server(event_queue, tool_context=tool_context)
+        module.create_comment_tools_server(EventPublisher(event_queue), tool_context=tool_context)
 
     return captured["tools"]  # type: ignore[return-value]
 

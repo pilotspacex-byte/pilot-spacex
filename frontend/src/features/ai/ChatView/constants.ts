@@ -87,6 +87,14 @@ export const FALLBACK_SKILLS: SkillDefinition[] = [
     icon: 'FileText',
     examples: ['Summarize this note', 'Create a brief summary'],
   },
+  {
+    name: 'generate-pm-blocks',
+    description:
+      'Generate PM blocks (decision, risk, timeline, RACI, form, dashboard) from description',
+    category: 'planning',
+    icon: 'LayoutDashboard',
+    examples: ['Generate PM blocks for sprint planning', 'Create risk register and timeline'],
+  },
 ];
 
 /**
@@ -160,6 +168,7 @@ export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   extract_issues: 'Extracting Issues',
   create_issue_from_note: 'Creating Issue',
   link_existing_issues: 'Linking Issues',
+  create_pm_block: 'Creating PM Block',
 };
 
 /**

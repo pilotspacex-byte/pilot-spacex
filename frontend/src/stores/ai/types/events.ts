@@ -48,50 +48,32 @@ export interface SSEEvent {
   data: unknown;
 }
 
-/**
- * Message start event.
- * Signals the beginning of a new assistant message.
- */
+/** Signals the beginning of a new assistant message. */
 export interface MessageStartEvent extends SSEEvent {
   type: 'message_start';
   data: {
-    /** Unique message identifier (UUIDv4) */
     messageId: string;
-    /** Session identifier for multi-turn context */
     sessionId: string;
-    /** AI model being used */
     model?: string;
   };
 }
 
-/**
- * Content block start event.
- * Indicates a new content block (text or tool use) is starting.
- */
+/** New content block (text or tool use) starting. */
 export interface ContentBlockStartEvent extends SSEEvent {
   type: 'content_block_start';
   data: {
-    /** Content block index (0-based) */
     index: number;
-    /** Content block type */
     contentType: 'text' | 'tool_use' | 'thinking';
-    /** Parent tool use ID for subagent content correlation (G12) */
     parentToolUseId?: string;
   };
 }
 
-/**
- * Text delta event.
- * Streamed text content chunk for progressive rendering.
- */
+/** Streamed text content chunk for progressive rendering. */
 export interface TextDeltaEvent extends SSEEvent {
   type: 'text_delta';
   data: {
-    /** Message ID this delta belongs to */
     messageId: string;
-    /** Text content chunk (append to existing content) */
     delta: string;
-    /** Content block index (for multi-block messages) */
     index?: number;
   };
 }
@@ -295,14 +277,9 @@ export interface AskUserQuestionEvent extends SSEEvent {
   };
 }
 
-/**
- * Content update event data.
- * Data payload for content_update SSE event.
- */
+/** Content update event data payload for content_update SSE event. */
 export interface ContentUpdateData {
-  /** Note ID to update */
   noteId: string;
-  /** Update operation type */
   operation:
     | 'replace_block'
     | 'append_blocks'
@@ -310,44 +287,37 @@ export interface ContentUpdateData {
     | 'insert_blocks'
     | 'remove_block'
     | 'remove_content'
-    | 'replace_content';
-  /** Block ID for replace_block operation (null for other operations) */
+    | 'replace_content'
+    | 'insert_pm_block'
+    | 'update_pm_block';
   blockId: string | null;
   /** Markdown content from AI agent (preferred over JSONContent) */
   markdown: string | null;
-  /** TipTap JSONContent for block content (fallback, null for insert_inline_issue) */
+  /** TipTap JSONContent for block content (fallback) */
   content: Record<string, unknown> | null;
-  /** Issue data for insert_inline_issue operation (null for other operations) */
   issueData: {
-    /** Issue identifier (optional — created by frontend if missing) */
     issueId?: string;
-    /** Issue key e.g. PROJ-42 (optional — created by frontend if missing) */
     issueKey?: string;
-    /** Issue title */
     title: string;
-    /** Issue description (optional — used when creating issue) */
     description?: string;
-    /** Issue type */
     type?: 'bug' | 'improvement' | 'feature' | 'task';
-    /** Issue state */
     state?: 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
-    /** Issue priority */
     priority?: 'urgent' | 'high' | 'medium' | 'low' | 'none';
-    /** Source block ID where issue was extracted from */
     sourceBlockId?: string;
   } | null;
-  /** Block ID to insert after (for append_blocks/insert_blocks operation) */
   afterBlockId: string | null;
-  /** Block ID to insert before (for insert_blocks operation) */
   beforeBlockId?: string | null;
-  /** Text pattern for remove_content/replace_content operations */
   pattern?: string | null;
-  /** Old pattern for replace_content operation */
   oldPattern?: string | null;
-  /** New content for replace_content operation */
   newContent?: string | null;
-  /** Block IDs scope for remove_content/replace_content operations */
   blockIds?: string[];
+  /** PM block data for insert_pm_block/update_pm_block operations */
+  pmBlockData?: {
+    blockType: string;
+    /** JSON-encoded block data string */
+    data: string;
+    version?: number;
+  };
 }
 
 /**
@@ -604,125 +574,26 @@ export interface FocusBlockEvent extends SSEEvent {
   };
 }
 
-/**
- * Type guard to narrow SSEEvent to specific event type.
- *
- * @example
- * ```typescript
- * if (isMessageStartEvent(event)) {
- *   console.log(event.messageId);
- * }
- * ```
- */
-export function isMessageStartEvent(event: SSEEvent): event is MessageStartEvent {
-  return event.type === 'message_start';
-}
-
-export function isContentBlockStartEvent(event: SSEEvent): event is ContentBlockStartEvent {
-  return event.type === 'content_block_start';
-}
-
-export function isTextDeltaEvent(event: SSEEvent): event is TextDeltaEvent {
-  return event.type === 'text_delta';
-}
-
-export function isThinkingDeltaEvent(event: SSEEvent): event is ThinkingDeltaEvent {
-  return event.type === 'thinking_delta';
-}
-
-export function isToolUseEvent(event: SSEEvent): event is ToolUseEvent {
-  return event.type === 'tool_use';
-}
-
-export function isToolResultEvent(event: SSEEvent): event is ToolResultEvent {
-  return event.type === 'tool_result';
-}
-
-export function isTaskProgressEvent(event: SSEEvent): event is TaskProgressEvent {
-  return event.type === 'task_progress';
-}
-
-export function isApprovalRequestEvent(event: SSEEvent): event is ApprovalRequestEvent {
-  return event.type === 'approval_request';
-}
-
-export function isContentUpdateEvent(event: unknown): event is ContentUpdateEvent {
-  if (!event || typeof event !== 'object') {
-    return false;
-  }
-
-  const e = event as { type?: string; data?: unknown };
-
-  // Must have type 'content_update'
-  if (e.type !== 'content_update') {
-    return false;
-  }
-
-  // Must have data field
-  if (!e.data || typeof e.data !== 'object') {
-    return false;
-  }
-
-  const data = e.data as Record<string, unknown>;
-
-  // Must have required fields in data
-  if (!data.noteId || typeof data.noteId !== 'string') {
-    return false;
-  }
-
-  const VALID_OPERATIONS = [
-    'replace_block',
-    'append_blocks',
-    'insert_inline_issue',
-    'insert_blocks',
-    'remove_block',
-    'remove_content',
-    'replace_content',
-  ];
-  if (!data.operation || !VALID_OPERATIONS.includes(data.operation as string)) {
-    return false;
-  }
-
-  // All required fields present and valid
-  return true;
-}
-
-export function isAskUserQuestionEvent(event: SSEEvent): event is AskUserQuestionEvent {
-  return event.type === 'ask_user_question';
-}
-
-export function isStructuredResultEvent(event: SSEEvent): event is StructuredResultEvent {
-  return event.type === 'structured_result';
-}
-
-export function isMessageStopEvent(event: SSEEvent): event is MessageStopEvent {
-  return event.type === 'message_stop';
-}
-
-export function isBudgetWarningEvent(event: SSEEvent): event is BudgetWarningEvent {
-  return event.type === 'budget_warning';
-}
-
-export function isToolAuditEvent(event: SSEEvent): event is ToolAuditEvent {
-  return event.type === 'tool_audit';
-}
-
-export function isErrorEvent(event: SSEEvent): event is ErrorEvent {
-  return event.type === 'error';
-}
-
-export function isCitationEvent(event: SSEEvent): event is CitationEvent {
-  return event.type === 'citation';
-}
-
-export function isMemoryUpdateEvent(event: SSEEvent): event is MemoryUpdateEvent {
-  return event.type === 'memory_update';
-}
-
-export function isToolInputDeltaEvent(event: SSEEvent): event is ToolInputDeltaEvent {
-  return event.type === 'tool_input_delta';
-}
-
-export function isFocusBlockEvent(event: SSEEvent): event is FocusBlockEvent {
-  return event.type === 'focus_block';
-}
+// Type guards extracted to ./event-guards.ts to keep this file under 700 lines.
+// Re-export for backward compatibility.
+export {
+  isMessageStartEvent,
+  isContentBlockStartEvent,
+  isTextDeltaEvent,
+  isThinkingDeltaEvent,
+  isToolUseEvent,
+  isToolResultEvent,
+  isTaskProgressEvent,
+  isApprovalRequestEvent,
+  isContentUpdateEvent,
+  isAskUserQuestionEvent,
+  isStructuredResultEvent,
+  isMessageStopEvent,
+  isBudgetWarningEvent,
+  isToolAuditEvent,
+  isErrorEvent,
+  isCitationEvent,
+  isMemoryUpdateEvent,
+  isToolInputDeltaEvent,
+  isFocusBlockEvent,
+} from './event-guards';

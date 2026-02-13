@@ -18,11 +18,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import McpServerConfig
+from claude_agent_sdk._internal import message_parser as _sdk_parser
 
 from pilot_space.ai.mcp.comment_server import (
     SERVER_NAME as COMMENT_SERVER_NAME,
     create_comment_tools_server,
 )
+from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.mcp.issue_relation_server import (
     SERVER_NAME as ISSUE_REL_SERVER_NAME,
     create_issue_relation_tools_server,
@@ -52,6 +54,25 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Monkey-patch: SDK 0.1.x crashes on thinking blocks without 'signature'
+# (KeyError → MessageParseError).  Patch the parser to default signature="".
+# Remove once claude-agent-sdk ships a fix.
+# ---------------------------------------------------------------------------
+_original_parse_message = _sdk_parser.parse_message
+
+
+def _patched_parse_message(data: dict[str, Any]) -> Any:
+    """Wrap SDK parse_message to tolerate missing 'signature' in thinking blocks."""
+    if data.get("type") == "assistant":
+        for block in data.get("message", {}).get("content", []):
+            if block.get("type") == "thinking" and "signature" not in block:
+                block["signature"] = ""
+    return _original_parse_message(data)
+
+
+_sdk_parser.parse_message = _patched_parse_message  # type: ignore[assignment]
+
 
 def build_mcp_servers(
     tool_event_queue: asyncio.Queue[str],
@@ -76,32 +97,34 @@ def build_mcp_servers(
 
     context_note_id = input_data.context.get("note_id")
 
+    publisher = EventPublisher(tool_event_queue)
+
     servers: dict[str, McpServerConfig] = {
         NOTE_SERVER_NAME: create_note_tools_server(
-            tool_event_queue,
+            publisher,
             context_note_id=str(context_note_id) if context_note_id else None,
             tool_context=tool_context,
             block_ref_map=ref_map,
         ),
         NOTE_CONTENT_SERVER_NAME: create_note_content_server(
-            tool_event_queue,
+            publisher,
             tool_context=tool_context,
             block_ref_map=ref_map,
         ),
         ISSUE_SERVER_NAME: create_issue_tools_server(
-            tool_event_queue,
+            publisher,
             tool_context=tool_context,
         ),
         ISSUE_REL_SERVER_NAME: create_issue_relation_tools_server(
-            tool_event_queue,
+            publisher,
             tool_context=tool_context,
         ),
         PROJECT_SERVER_NAME: create_project_tools_server(
-            event_queue=tool_event_queue,
+            publisher=publisher,
             tool_context=tool_context,
         ),
         COMMENT_SERVER_NAME: create_comment_tools_server(
-            tool_event_queue,
+            publisher,
             tool_context=tool_context,
         ),
     }
@@ -369,7 +392,7 @@ _ROLE_TEMPLATES_DIR = _TEMPLATES_DIR / "role_templates"
 _RULES_DIR = _TEMPLATES_DIR / "rules"
 
 # Rules to inject (compact ones only; ai-confidence.md is 415 lines, too large)
-_INJECTED_RULES = ("issues.md", "notes.md")
+_INJECTED_RULES = ("issues.md", "notes.md", "pm_blocks.md")
 
 # Max characters per rule file to prevent prompt bloat
 _MAX_RULE_CHARS = 4000

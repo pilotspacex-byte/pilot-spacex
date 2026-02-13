@@ -1,0 +1,264 @@
+'use client';
+
+/**
+ * NoteCanvasLayout - Responsive layout rendering for NoteCanvas.
+ * Extracted from NoteCanvas to stay under 700-line limit.
+ *
+ * Handles:
+ * - Desktop: ResizablePanelGroup (editor + ChatView side-by-side)
+ * - Mobile: NoteCanvasMobileLayout (overlay ChatView)
+ * - Header, metadata, toolbar, editor content area
+ * - Off-screen AI indicator
+ *
+ * Responsive behavior:
+ * - Ultra-large (2xl+): Wider content, larger ChatView panel, more padding
+ * - Large desktop (xl-2xl): Standard wide layout
+ * - Desktop (lg-xl): Side-by-side layout with ChatView panel
+ * - Tablet (md-lg): Collapsible ChatView, full-width editor
+ * - Mobile (<md): Overlay ChatView panel, compact header
+ */
+import { lazy, Suspense } from 'react';
+import { EditorContent } from '@tiptap/react';
+import { observer } from 'mobx-react-lite';
+import { motion } from 'motion/react';
+
+const ChatView = lazy(() =>
+  import('@/features/ai/ChatView/ChatView').then((m) => ({ default: m.ChatView }))
+);
+
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { cn } from '@/lib/utils';
+import { NoteMetadata } from './NoteMetadata';
+import { SelectionToolbar } from './SelectionToolbar';
+import { InlineNoteHeader } from './InlineNoteHeader';
+import { CollapsedChatStrip } from './CollapsedChatStrip';
+import { OffScreenAIIndicator } from './OffScreenAIIndicator';
+import { NoteCanvasMobileLayout } from './NoteCanvasMobileLayout';
+
+import type { NoteCanvasProps } from './NoteCanvasEditor';
+import { useNoteCanvasEditor, EditorErrorFallback, EditorSkeleton } from './NoteCanvasEditor';
+
+/**
+ * NoteCanvas component with responsive layout per Prototype v4
+ * Layout: [Document Canvas | AI ChatView]
+ */
+export const NoteCanvasLayout = observer(function NoteCanvasLayout(props: NoteCanvasProps) {
+  const {
+    noteId,
+    readOnly = false,
+    isLoading = false,
+    error = null,
+    workspaceId,
+    title = 'Untitled',
+    author,
+    createdAt,
+    updatedAt,
+    wordCount = 0,
+    isPinned = false,
+    isAIAssisted = false,
+    topics,
+    workspaceSlug = '',
+    onShare,
+    onExport,
+    onDelete,
+    onTogglePin,
+    onVersionHistory,
+    projectId,
+    linkedIssues = [],
+  } = props;
+
+  const {
+    editor,
+    editorContainerRef,
+    scrollRef,
+    chatPanelRef,
+    isChatViewOpen,
+    setIsChatViewOpen,
+    chatPanelState,
+    isSmallScreen,
+    aiStore,
+    hasOffScreenUpdate,
+    offScreenDirection,
+    scrollToBlock,
+    dismissIndicator,
+    handleChatViewOpen,
+    handleChatPanelToggle,
+    handleChatPanelResize,
+    handleRetry,
+    editorError,
+  } = useNoteCanvasEditor(props);
+
+  // Show error state
+  if (error || editorError) {
+    return (
+      <EditorErrorFallback error={error ?? editorError ?? 'Unknown error'} onRetry={handleRetry} />
+    );
+  }
+
+  // Show loading state
+  if (isLoading || !editor) {
+    return <EditorSkeleton />;
+  }
+
+  // Editor content component - reusable for both resizable and non-resizable layouts
+  const editorContent = (
+    <div className="flex flex-col min-w-0 overflow-hidden h-full">
+      {/* Inline Note Header - Fixed at top, outside scrollable area */}
+      {(title || createdAt) && (
+        <InlineNoteHeader
+          title={title}
+          author={author}
+          createdAt={createdAt ?? new Date().toISOString()}
+          updatedAt={updatedAt}
+          wordCount={wordCount}
+          isPinned={isPinned}
+          isAIAssisted={isAIAssisted}
+          topics={topics}
+          workspaceSlug={workspaceSlug}
+          onShare={onShare}
+          onExport={onExport}
+          onDelete={onDelete}
+          onTogglePin={onTogglePin}
+          onVersionHistory={onVersionHistory}
+          disabled={readOnly}
+        />
+      )}
+
+      {/* Note metadata: project + linked issues */}
+      <NoteMetadata
+        projectId={projectId}
+        linkedIssues={linkedIssues}
+        workspaceSlug={workspaceSlug}
+      />
+
+      {/* Scrollable Editor Area */}
+      <div
+        ref={editorContainerRef}
+        role="main"
+        aria-label="Note editor"
+        className="relative flex-1 overflow-auto bg-background"
+      >
+        {/* Selection Toolbar */}
+        <SelectionToolbar
+          editor={editor}
+          workspaceId={workspaceId}
+          noteId={noteId}
+          onChatViewOpen={handleChatViewOpen}
+        />
+
+        {/* Editor Content - Responsive padding and width */}
+        <div
+          ref={scrollRef}
+          className={cn(
+            'h-full overflow-auto scrollbar-thin',
+            'px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20',
+            'py-3 sm:py-4 lg:py-6 2xl:py-8'
+          )}
+        >
+          <div
+            className={cn(
+              'mx-auto document-canvas',
+              'max-w-full sm:max-w-[640px] md:max-w-[680px] lg:max-w-[720px] xl:max-w-[760px] 2xl:max-w-[800px]'
+            )}
+          >
+            {/* TipTap Editor */}
+            <EditorContent editor={editor} />
+          </div>
+
+          {/* Off-screen AI edit indicator */}
+          <OffScreenAIIndicator
+            isVisible={hasOffScreenUpdate}
+            direction={offScreenDirection}
+            onScrollToBlock={scrollToBlock}
+            onDismiss={dismissIndicator}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  // ChatView content component - reusable for both mobile and desktop
+  // Lazy-loaded: ChatView (~200KB) only loads when chat panel opens
+  const chatViewContent = (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+          Loading AI chat...
+        </div>
+      }
+    >
+      <ChatView store={aiStore.pilotSpace} autoFocus onClose={() => setIsChatViewOpen(false)} />
+    </Suspense>
+  );
+
+  return (
+    <div className="flex h-full bg-background overflow-hidden" data-testid="note-editor">
+      {/* Desktop: Resizable two-panel layout (lg and above) */}
+      {!isSmallScreen && (
+        <>
+          {isChatViewOpen ? (
+            <ResizablePanelGroup
+              orientation="horizontal"
+              className="h-full"
+              id="note-editor-layout"
+            >
+              {/* Editor Panel - min 50% (when ChatView at max), default 62% */}
+              <ResizablePanel id="editor-panel" defaultSize="62%" minSize="50%" className="min-w-0">
+                {editorContent}
+              </ResizablePanel>
+
+              {/* Resize Handle with toggle button */}
+              <ResizableHandle
+                withHandle
+                toggleState={chatPanelState}
+                onToggle={handleChatPanelToggle}
+              />
+
+              {/* ChatView Panel - min 30% - default 38% (current), max 50% */}
+              <ResizablePanel
+                id="chat-panel"
+                defaultSize="38%"
+                minSize="30%"
+                maxSize="50%"
+                className="min-w-0"
+                panelRef={chatPanelRef}
+                onResize={handleChatPanelResize}
+              >
+                <motion.aside
+                  aria-label="AI Chat Assistant"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  className="h-full w-full overflow-hidden border-l border-border"
+                >
+                  {chatViewContent}
+                </motion.aside>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          ) : (
+            <>
+              {/* Full-width editor when ChatView is closed */}
+              <div className="flex-1 min-w-0">{editorContent}</div>
+              {/* Collapsed ChatView strip */}
+              <CollapsedChatStrip onClick={handleChatViewOpen} />
+            </>
+          )}
+        </>
+      )}
+
+      {/* Mobile/Tablet: Full-width editor with slide-over ChatView */}
+      {isSmallScreen && (
+        <NoteCanvasMobileLayout
+          editorContent={editorContent}
+          chatViewContent={chatViewContent}
+          isChatViewOpen={isChatViewOpen}
+          onClose={() => setIsChatViewOpen(false)}
+          onOpen={handleChatViewOpen}
+        />
+      )}
+    </div>
+  );
+});
+
+export default NoteCanvasLayout;

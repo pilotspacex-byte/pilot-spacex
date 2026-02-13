@@ -18,6 +18,8 @@ from uuid import uuid4
 
 import pytest
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
+
 if TYPE_CHECKING:
     from pilot_space.ai.tools.mcp_server import ToolContext
 
@@ -66,7 +68,9 @@ def _capture_project_tools(
         return original_create(name=name, version=version, tools=tools)
 
     with patch.object(module, "create_sdk_mcp_server", side_effect=_intercept_create):
-        module.create_project_tools_server(event_queue=event_queue, tool_context=tool_context)
+        module.create_project_tools_server(
+            publisher=EventPublisher(event_queue), tool_context=tool_context
+        )
 
     return captured["tools"]  # type: ignore[return-value]
 
@@ -106,7 +110,7 @@ class TestServerConfiguration:
         event_queue = asyncio.Queue()
 
         with pytest.raises(ValueError, match="ToolContext is required"):
-            create_project_tools_server(event_queue=event_queue, tool_context=None)
+            create_project_tools_server(publisher=EventPublisher(event_queue), tool_context=None)
 
     def test_server_creation_success(
         self,
@@ -117,7 +121,7 @@ class TestServerConfiguration:
 
         event_queue = asyncio.Queue()
         server = create_project_tools_server(
-            event_queue=event_queue,
+            publisher=EventPublisher(event_queue),
             tool_context=mock_tool_context,
         )
 

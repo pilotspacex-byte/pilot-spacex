@@ -68,11 +68,7 @@ ALL_TOOL_NAMES: list[str] = [
 
 
 def _has_skill_files(skills_dir: Path) -> bool:
-    """Check if any SKILL.md files exist under skills_dir subdirectories.
-
-    Scans one level deep: ``skills_dir/<subdir>/SKILL.md``.  Returns True
-    on the first match so the check is fast for large directories.
-    """
+    """Check if any SKILL.md files exist under skills_dir subdirectories."""
     if not skills_dir.is_dir():
         return False
     return any((entry / "SKILL.md").is_file() for entry in skills_dir.iterdir() if entry.is_dir())
@@ -112,8 +108,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         "You help teams capture ideas in notes, extract issues, review PRs, and manage workflows.\n\n"
         "## Note writing vs. chat response\n"
         "- <note_context> present + user asks to write/draft/document/add content → "
-        "use `write_to_note`, then summarize in chat.\n"
+        "use note tools, then summarize in chat.\n"
         "- Questions, analysis, or conversation → respond in chat only.\n\n"
+        "## Batch writing (IMPORTANT)\n"
+        "For long content (>3 paragraphs), use MULTIPLE sequential tool calls with 2-4 paragraphs each "
+        "instead of one large call. First batch: `write_to_note`. Subsequent: `insert_block` with "
+        "`after_block_id` from previous batch. Break at natural boundaries. "
+        "See injected notes.md rules for details.\n\n"
         "## Tool categories\n"
         "**Notes** (9 tools): write_to_note, update_note_block, enhance_text, "
         "extract_issues, create_issue_from_note, link_existing_issues, search_notes, create_note, update_note.\n"
@@ -122,17 +123,27 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         "link_issue_to_note, unlink_issue_from_note, link_issues, unlink_issues, add_sub_issue, transition_issue_state.\n"
         "**Projects** (5 tools): get_project, search_projects, create_project, update_project, update_project_settings.\n"
         "**Comments** (4 tools): create_comment, update_comment, search_comments, get_comments.\n\n"
+        "## PM blocks\n"
+        "See injected pm_blocks.md rules for structured block types (decision, form, raci, risk, timeline, dashboard), "
+        "mermaid diagrams, smart checklists, and insert/update operations.\n\n"
         "## Entity resolution\n"
         "Issue/project tools accept UUID or human-readable identifiers (e.g., PILOT-123, PILOT).\n"
         "Note blocks use ¶N references (e.g., ¶1, ¶2). Use these in block_id parameters. "
         "Never expose raw block UUIDs to users.\n\n"
-        "## Approval tiers\n"
-        "- Auto-execute: search/get tools (read-only).\n"
-        "- Require approval: create/update/link tools.\n"
-        "- Always require: unlink tools (destructive).\n\n"
+        "## Tool selection (notes)\n"
+        "- New content at end of note → `write_to_note`\n"
+        "- New content at specific position → `insert_block` (with after_block_id/before_block_id)\n"
+        "- Replace entire block → `update_note_block` (operation=replace)\n"
+        "- Find-and-replace text within blocks → `replace_content` (supports regex)\n"
+        "- Remove a block entirely → `remove_block`\n"
+        "- Remove text within a block → `remove_content`\n\n"
+        "## Execution mode\n"
+        "Read-only tools (search, get) auto-execute. "
+        "Content creation/mutation follows workspace approval settings. "
+        "Destructive actions (remove, unlink, delete) always require approval.\n"
+        "Operations return payloads that the frontend applies via content_update events.\n\n"
         "Subagents: pr-review, ai-context, doc-generator.\n"
-        "Return operation payloads; never mutate DB directly. "
-        "Destructive actions always require human approval."
+        "Return operation payloads; never mutate DB directly."
     )
 
     SUBAGENT_MAP: ClassVar[dict[str, str]] = {
@@ -325,9 +336,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             db_session_cm = get_db_session()
             db_session = await db_session_cm.__aenter__()
 
-            # Single try/finally guards the entire DB session lifetime.
-            # All materialization, MCP server creation, SDK config, and streaming
-            # happen inside so the session is always closed — even if setup throws.
+            # try/finally guards DB session lifetime (always closed even if setup throws).
             client: ClaudeSDKClient | None = None
             query_session_id = session_id_str or "default"
             stream_completed = False
@@ -430,11 +439,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         "include_partial_messages",
                         True,
                     ),
-                    # Parameters previously dropped from sdk_params (Bug fix):
-                    # Without system_prompt, the model lacks tool descriptions and
-                    # approval tier guidance. Without max_thinking_tokens, the SDK
-                    # subprocess mishandles thinking block signatures during tool use,
-                    # causing "Missing required field: 'signature'" API errors.
+                    # Bug fix: system_prompt + max_thinking_tokens required to avoid
+                    # "Missing required field: 'signature'" SDK errors.
                     system_prompt=sdk_config.system_prompt_base,
                     max_thinking_tokens=sdk_config.max_thinking_tokens,
                     max_budget_usd=sdk_config.max_budget_usd,
@@ -672,26 +678,20 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
             return ClaudeSDKClient(sdk_options), session_id_str
 
-    async def execute(
-        self,
-        input_data: ChatInput,
-        context: AgentContext,
-    ) -> ChatOutput:
+    async def execute(self, input_data: ChatInput, context: AgentContext) -> ChatOutput:
         """Non-streaming execution that collects all chunks into ChatOutput."""
-        chunks: list[str] = []
-        async for chunk in self.stream(input_data, context):
-            processed_chunk = chunk[6:] if chunk.startswith("data: ") else chunk
-            chunks.append(processed_chunk)
-
-        full_response = "".join(chunks)
-        return ChatOutput(
-            response=full_response,
-            session_id=input_data.session_id
+        chunks = [
+            chunk[6:] if chunk.startswith("data: ") else chunk
+            async for chunk in self.stream(input_data, context)
+        ]
+        sid = (
+            input_data.session_id
             or context.operation_id
-            or UUID("00000000-0000-0000-0000-000000000000"),
+            or UUID("00000000-0000-0000-0000-000000000000")
+        )
+        return ChatOutput(
+            response="".join(chunks),
+            session_id=sid,
             tasks=[],
-            metadata={
-                "agent": self.AGENT_NAME,
-                "model": self.DEFAULT_MODEL_TIER.model_id,
-            },
+            metadata={"agent": self.AGENT_NAME, "model": self.DEFAULT_MODEL_TIER.model_id},
         )

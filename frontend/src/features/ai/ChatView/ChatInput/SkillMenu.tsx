@@ -29,6 +29,7 @@ import {
   FilePlus,
   Newspaper,
   BookOpen,
+  LayoutDashboard,
 } from 'lucide-react';
 import { SKILLS, SKILL_CATEGORIES } from '../constants';
 import type { SkillDefinition } from '../types';
@@ -62,6 +63,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   FilePlus,
   Newspaper,
   BookOpen,
+  LayoutDashboard,
 };
 
 export const SkillMenu = memo<SkillMenuProps>(

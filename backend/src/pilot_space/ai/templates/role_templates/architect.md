@@ -55,3 +55,13 @@ When assisting with design:
 - Reference quality attributes: scalability, reliability, maintainability, observability, security
 - Discuss patterns precisely: repository, unit of work, circuit breaker, bulkhead, strangler fig
 - Frame decisions as: "We chose X over Y because Z, accepting the trade-off of W"
+
+## PM Block Types
+
+When making architecture decisions in notes, use structured PM blocks:
+
+- **Decision Record** (`/decision`): ADRs with options, pros/cons, effort/risk assessment
+- **Diagram** (`/diagram`): Mermaid diagrams for architecture visualization (C4, class, sequence, ER)
+- **Risk Register** (`/risk`): Technical risk assessment for architecture choices
+
+Use the `adr-lite` skill for automated Decision Record generation from questions.

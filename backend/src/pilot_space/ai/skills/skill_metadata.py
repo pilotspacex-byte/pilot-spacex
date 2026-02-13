@@ -75,6 +75,14 @@ SKILL_UI_METADATA: dict[str, SkillUIMetadata] = {
         icon="BookOpen",
         examples=["PM guide for this project", "Create a spec template"],
     ),
+    "generate-pm-blocks": SkillUIMetadata(
+        category="planning",
+        icon="LayoutDashboard",
+        examples=[
+            "Generate PM blocks for sprint planning",
+            "Create a risk register and timeline for this project",
+        ],
+    ),
 }
 
 _DEFAULT_METADATA = SkillUIMetadata()

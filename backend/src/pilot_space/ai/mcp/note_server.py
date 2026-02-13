@@ -1,29 +1,20 @@
-"""In-process SDK custom tools for PilotSpace note manipulation.
+"""In-process SDK MCP server with 9 note tools.
 
-Creates an SDK MCP server using create_sdk_mcp_server() with 9 note tools.
-Mutation tools return structured JSON payloads (status: pending_apply) that
-the SDK pipeline transforms into SSE content_update events via
-transform_user_message_tool_results() in pilotspace_note_helpers.py.
-
-The noteId in events is always overridden from the agent's context
-(not from model args) because LLMs frequently corrupt long UUIDs.
-
-Architecture:
-  ClaudeSDKClient (in-process) → tool handler → returns pending_apply JSON
-  SDK pipeline → transform_user_message_tool_results() → content_update SSE
-  Frontend useContentUpdates hook → TipTap editor updates + API calls
-
-Reference: https://platform.claude.com/docs/en/agent-sdk/custom-tools
+Mutation tools emit SSE events directly via EventPublisher and return
+short text confirmations to avoid echoing content back as LLM input tokens.
+Note IDs are overridden from agent context (not model args) to prevent
+LLM UUID corruption.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
+from pilot_space.ai.tools.mcp_server import get_tool_approval_level
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -49,32 +40,19 @@ TOOL_NAMES = [
 
 
 def create_note_tools_server(
-    event_queue: asyncio.Queue[str],
+    publisher: EventPublisher,
     *,
     context_note_id: str | None = None,
     tool_context: Any | None = None,
     block_ref_map: BlockRefMap | None = None,
 ) -> McpSdkServerConfig:
-    """Create an in-process SDK MCP server with 9 note tools.
-
-    Mutation tools return structured JSON payloads (status: pending_apply)
-    that the SDK pipeline transforms into SSE content_update events.
-    The event_queue parameter is retained for backward compatibility but
-    is no longer used by note tools (content_update events flow through
-    the SDK tool_result pipeline instead).
+    """Create SDK MCP server with 9 note tools.
 
     Args:
-        event_queue: Queue retained for API compatibility; not used by note tools.
-        context_note_id: The actual note_id from the chat context.
-            Overrides model-provided note_id in all events to prevent
-            UUID corruption by the LLM.
-        tool_context: ToolContext for database access and RLS enforcement.
-        block_ref_map: Optional ¶N block reference map for human-readable
-            block references. When provided, tool handlers resolve ¶N
-            references to UUIDs and use ¶N notation in result text.
-
-    Returns:
-        McpSdkServerConfig ready for ClaudeAgentOptions.mcp_servers.
+        publisher: EventPublisher for SSE event delivery.
+        context_note_id: Overrides model-provided note_id to prevent UUID corruption.
+        tool_context: ToolContext for DB access and RLS enforcement.
+        block_ref_map: ¶N block reference map for human-readable references.
     """
 
     def _resolve_note_id(args: dict[str, Any]) -> str:
@@ -86,29 +64,6 @@ def create_note_tools_server(
         if block_ref_map is not None:
             return block_ref_map.resolve(ref_or_id)
         return ref_or_id
-
-    async def _emit_focus_block(
-        note_id: str,
-        block_id: str | None = None,
-        *,
-        scroll_to_end: bool = False,
-    ) -> None:
-        """Push focus_block SSE event to queue for immediate frontend delivery.
-
-        Called at the START of each mutation tool — before any DB work —
-        so the frontend can scroll to and visually prepare the block before
-        the content_update arrives after tool execution.
-        """
-        if not block_id and not scroll_to_end:
-            return
-        event_data = json.dumps(
-            {
-                "noteId": note_id,
-                "blockId": block_id,
-                "scrollToEnd": scroll_to_end,
-            }
-        )
-        await event_queue.put(f"event: focus_block\ndata: {event_data}\n\n")
 
     async def _verify_note_workspace(note_id: str) -> str | None:
         """Verify note belongs to current workspace. Returns error message or None."""
@@ -159,8 +114,6 @@ def create_note_tools_server(
 
         note_id = _resolve_note_id(args)
         block_id = _resolve_block_ref(args["block_id"])
-        # Emit focus_block BEFORE DB call so frontend can scroll immediately
-        await _emit_focus_block(note_id, block_id)
 
         ws_err = await _verify_note_workspace(note_id)
         if ws_err:
@@ -170,18 +123,21 @@ def create_note_tools_server(
         logger.info(
             "mcp_tool_invoked", tool="update_note_block", operation=ai_op, block_id=block_id
         )
-        return _text_result(
-            json.dumps(
-                {
-                    "status": "pending_apply",
-                    "operation": ai_op,
-                    "note_id": note_id,
-                    "block_id": block_id,
-                    "markdown": args["new_content_markdown"],
-                    "after_block_id": block_id if ai_op == "append_blocks" else None,
-                }
-            )
+        approval_level = get_tool_approval_level("update_note_block")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        await publisher.publish_focus_and_content(
+            note_id,
+            block_id,
+            {
+                "status": status,
+                "operation": ai_op,
+                "noteId": note_id,
+                "blockId": block_id,
+                "markdown": args["new_content_markdown"],
+                "afterBlockId": block_id if ai_op == "append_blocks" else None,
+            },
         )
+        return _text_result(f"Block ¶{block_id[:8]} {ai_op.replace('_', ' ')}d.")
 
     @tool(
         "enhance_text",
@@ -201,24 +157,25 @@ def create_note_tools_server(
     async def enhance_text(args: dict[str, Any]) -> dict[str, Any]:
         note_id = _resolve_note_id(args)
         block_id = _resolve_block_ref(args["block_id"])
-        # Emit focus_block BEFORE DB call so frontend can scroll immediately
-        await _emit_focus_block(note_id, block_id)
 
         ws_err = await _verify_note_workspace(note_id)
         if ws_err:
             return _text_result(f"Error: {ws_err}")
         logger.info("mcp_tool_invoked", tool="enhance_text", block_id=block_id)
-        return _text_result(
-            json.dumps(
-                {
-                    "status": "pending_apply",
-                    "operation": "replace_block",
-                    "note_id": note_id,
-                    "block_id": block_id,
-                    "markdown": args["enhanced_markdown"],
-                }
-            )
+        approval_level = get_tool_approval_level("enhance_text")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        await publisher.publish_focus_and_content(
+            note_id,
+            block_id,
+            {
+                "status": status,
+                "operation": "replace_block",
+                "noteId": note_id,
+                "blockId": block_id,
+                "markdown": args["enhanced_markdown"],
+            },
         )
+        return _text_result(f"Block ¶{block_id[:8]} enhanced.")
 
     @tool(
         "write_to_note",
@@ -243,24 +200,26 @@ def create_note_tools_server(
             return _text_result("Error: markdown content cannot be empty.")
 
         note_id = _resolve_note_id(args)
-        # Emit focus_block BEFORE DB call so frontend can scroll immediately
-        await _emit_focus_block(note_id, scroll_to_end=True)
 
         ws_err = await _verify_note_workspace(note_id)
         if ws_err:
             return _text_result(f"Error: {ws_err}")
         logger.info("mcp_tool_invoked", tool="write_to_note", note_id=note_id)
-        return _text_result(
-            json.dumps(
-                {
-                    "status": "pending_apply",
-                    "operation": "append_blocks",
-                    "note_id": note_id,
-                    "markdown": markdown,
-                    "after_block_id": None,
-                }
-            )
+        approval_level = get_tool_approval_level("write_to_note")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        await publisher.publish_focus_and_content(
+            note_id,
+            None,
+            {
+                "status": status,
+                "operation": "append_blocks",
+                "noteId": note_id,
+                "markdown": markdown,
+                "afterBlockId": None,
+            },
+            scroll_to_end=True,
         )
+        return _text_result("Content appended to note.")
 
     @tool(
         "extract_issues",
@@ -307,9 +266,6 @@ def create_note_tools_server(
         # Resolve ¶N references to UUIDs
         block_ids = [_resolve_block_ref(bid) for bid in raw_block_ids]
         note_id = _resolve_note_id(args)
-        # Emit focus_block BEFORE DB call so frontend can scroll immediately
-        if block_ids:
-            await _emit_focus_block(note_id, block_ids[0])
 
         ws_err = await _verify_note_workspace(note_id)
         if ws_err:
@@ -329,17 +285,20 @@ def create_note_tools_server(
 
         count = len(issues)
         logger.info("mcp_tool_invoked", tool="extract_issues", issue_count=count, note_id=note_id)
-        return _text_result(
-            json.dumps(
-                {
-                    "status": "pending_apply",
-                    "operation": "create_issues",
-                    "note_id": note_id,
-                    "issues": normalized_issues,
-                    "block_ids": block_ids,
-                }
-            )
+        approval_level = get_tool_approval_level("extract_issues")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        await publisher.publish_focus_and_content(
+            note_id,
+            block_ids[0] if block_ids else None,
+            {
+                "status": status,
+                "operation": "create_issues",
+                "noteId": note_id,
+                "issues": normalized_issues,
+                "blockIds": block_ids,
+            },
         )
+        return _text_result(f"Extracted {count} issue(s) from note.")
 
     @tool(
         "create_issue_from_note",
@@ -370,8 +329,6 @@ def create_note_tools_server(
     async def create_issue_from_note(args: dict[str, Any]) -> dict[str, Any]:
         note_id = _resolve_note_id(args)
         block_id = _resolve_block_ref(args["block_id"])
-        # Emit focus_block BEFORE DB call so frontend can scroll immediately
-        await _emit_focus_block(note_id, block_id)
 
         ws_err = await _verify_note_workspace(note_id)
         if ws_err:
@@ -388,17 +345,20 @@ def create_note_tools_server(
             title=args["title"][:80],
             block_id=block_id,
         )
-        return _text_result(
-            json.dumps(
-                {
-                    "status": "pending_apply",
-                    "operation": "create_single_issue",
-                    "note_id": note_id,
-                    "block_id": block_id,
-                    "issue": issue_data,
-                }
-            )
+        approval_level = get_tool_approval_level("create_issue_from_note")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        await publisher.publish_focus_and_content(
+            note_id,
+            block_id,
+            {
+                "status": status,
+                "operation": "create_single_issue",
+                "noteId": note_id,
+                "blockId": block_id,
+                "issue": issue_data,
+            },
         )
+        return _text_result(f"Issue '{args['title'][:50]}' created from ¶{block_id[:8]}.")
 
     @tool(
         "link_existing_issues",
@@ -598,10 +558,12 @@ def create_note_tools_server(
             payload["project_id"] = args["project_id"]
 
         logger.info("mcp_tool_invoked", tool="create_note", title=title[:80])
+        approval_level = get_tool_approval_level("create_note")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         return _text_result(
             json.dumps(
                 {
-                    "status": "pending_apply",
+                    "status": status,
                     "operation": "create_note",
                     "payload": payload,
                 }
@@ -667,10 +629,12 @@ def create_note_tools_server(
             return _text_result("Error: no changes specified")
 
         logger.info("mcp_tool_invoked", tool="update_note", note_id=note_id, changes=changes)
+        approval_level = get_tool_approval_level("update_note")
+        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         return _text_result(
             json.dumps(
                 {
-                    "status": "pending_apply",
+                    "status": status,
                     "operation": "update_note",
                     "payload": {"note_id": note_id, "changes": changes},
                 }

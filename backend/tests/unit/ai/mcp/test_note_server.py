@@ -1,7 +1,7 @@
 """Unit tests for MCP note server tools (note_server.py).
 
-Tests the in-process SDK MCP server tools that return structured JSON
-payloads (status: pending_apply) for the SDK pipeline. Focuses on the
+Tests the in-process SDK MCP server tools that emit SSE events via
+EventPublisher and return short text confirmations. Focuses on the
 write_to_note tool and TOOL_NAMES constant.
 """
 
@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
+from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.mcp.note_server import (
     SERVER_NAME,
     TOOL_NAMES,
@@ -33,7 +34,7 @@ def _parse_sse_event(raw: str) -> dict:
     return {"event": event_type, "data": json.loads(data_str)}
 
 
-def _capture_tools(event_queue: asyncio.Queue[str], context_note_id: str | None = None):
+def _capture_tools(publisher: EventPublisher, context_note_id: str | None = None):
     """Create note server and capture the SdkMcpTool objects.
 
     Patches create_sdk_mcp_server in the note_server module to intercept
@@ -50,52 +51,70 @@ def _capture_tools(event_queue: asyncio.Queue[str], context_note_id: str | None 
         return original_create(name=name, version=version, tools=tools)
 
     with patch.object(ns_module, "create_sdk_mcp_server", side_effect=_intercept_create):
-        create_note_tools_server(event_queue, context_note_id=context_note_id)
+        create_note_tools_server(publisher, context_note_id=context_note_id)
 
     return captured["tools"]
+
+
+def _drain_queue(queue: asyncio.Queue[str]) -> list[dict]:
+    """Drain all SSE events from queue and parse them."""
+    events = []
+    while not queue.empty():
+        raw = queue.get_nowait()
+        events.append(_parse_sse_event(raw))
+    return events
 
 
 class TestWriteToNoteTool:
     """Tests for the write_to_note MCP tool."""
 
     @pytest.mark.asyncio
-    async def test_returns_pending_apply_json(self) -> None:
-        """write_to_note returns structured JSON with pending_apply status."""
+    async def test_emits_content_update_and_returns_confirmation(self) -> None:
+        """write_to_note emits content_update SSE and returns short confirmation."""
         queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_tools(queue, context_note_id="note-abc")
+        publisher = EventPublisher(queue)
+        tools = _capture_tools(publisher, context_note_id="note-abc")
         write_tool = tools["write_to_note"]
 
         result = await write_tool.handler({"note_id": "ignored", "markdown": "# Hello World"})
 
-        payload = json.loads(result["content"][0]["text"])
-        assert payload["status"] == "pending_apply"
-        assert payload["operation"] == "append_blocks"
-        assert payload["markdown"] == "# Hello World"
-        assert payload["note_id"] == "note-abc"
-        # Queue may contain focus_block events but no content_update events
-        while not queue.empty():
-            event = queue.get_nowait()
-            assert "content_update" not in event, "content_update must not be pushed to queue"
+        # Tool result is a short confirmation (not the full payload)
+        text = result["content"][0]["text"]
+        assert "Content appended" in text
+
+        # SSE events emitted to queue
+        events = _drain_queue(queue)
+        event_types = [e["event"] for e in events]
+        assert "focus_block" in event_types
+        assert "content_update" in event_types
+
+        # Verify content_update payload
+        cu = next(e for e in events if e["event"] == "content_update")
+        assert cu["data"]["status"] in ("pending_apply", "approval_required")
+        assert cu["data"]["operation"] == "append_blocks"
+        assert cu["data"]["markdown"] == "# Hello World"
+        assert cu["data"]["noteId"] == "note-abc"
 
     @pytest.mark.asyncio
     async def test_uses_context_note_id(self) -> None:
         """write_to_note uses context_note_id instead of model-provided note_id."""
         queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_tools(queue, context_note_id="real-note-uuid")
+        publisher = EventPublisher(queue)
+        tools = _capture_tools(publisher, context_note_id="real-note-uuid")
         write_tool = tools["write_to_note"]
 
-        result = await write_tool.handler(
-            {"note_id": "model-hallucinated-id", "markdown": "Content"}
-        )
+        await write_tool.handler({"note_id": "model-hallucinated-id", "markdown": "Content"})
 
-        payload = json.loads(result["content"][0]["text"])
-        assert payload["note_id"] == "real-note-uuid"
+        events = _drain_queue(queue)
+        cu = next(e for e in events if e["event"] == "content_update")
+        assert cu["data"]["noteId"] == "real-note-uuid"
 
     @pytest.mark.asyncio
     async def test_rejects_empty_markdown(self) -> None:
         """write_to_note returns error text for empty markdown content."""
         queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_tools(queue, context_note_id="note-abc")
+        publisher = EventPublisher(queue)
+        tools = _capture_tools(publisher, context_note_id="note-abc")
         write_tool = tools["write_to_note"]
 
         result = await write_tool.handler({"note_id": "note-abc", "markdown": ""})
@@ -108,7 +127,8 @@ class TestWriteToNoteTool:
     async def test_rejects_whitespace_only_markdown(self) -> None:
         """write_to_note rejects whitespace-only markdown."""
         queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_tools(queue, context_note_id="note-abc")
+        publisher = EventPublisher(queue)
+        tools = _capture_tools(publisher, context_note_id="note-abc")
         write_tool = tools["write_to_note"]
 
         result = await write_tool.handler({"note_id": "note-abc", "markdown": "   \n\t  "})
@@ -120,27 +140,30 @@ class TestWriteToNoteTool:
     async def test_payload_has_null_after_block_id(self) -> None:
         """write_to_note payload has null after_block_id for end-of-doc append."""
         queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_tools(queue, context_note_id="note-abc")
+        publisher = EventPublisher(queue)
+        tools = _capture_tools(publisher, context_note_id="note-abc")
         write_tool = tools["write_to_note"]
 
-        result = await write_tool.handler({"note_id": "note-abc", "markdown": "Some content"})
+        await write_tool.handler({"note_id": "note-abc", "markdown": "Some content"})
 
-        payload = json.loads(result["content"][0]["text"])
-        assert payload["after_block_id"] is None
+        events = _drain_queue(queue)
+        cu = next(e for e in events if e["event"] == "content_update")
+        assert cu["data"]["afterBlockId"] is None
 
     @pytest.mark.asyncio
-    async def test_no_content_update_queue_push(self) -> None:
-        """write_to_note does not push content_update to queue (single source of truth)."""
+    async def test_focus_block_emitted_with_scroll_to_end(self) -> None:
+        """write_to_note emits focus_block with scrollToEnd=True."""
         queue: asyncio.Queue[str] = asyncio.Queue()
-        tools = _capture_tools(queue, context_note_id="note-abc")
+        publisher = EventPublisher(queue)
+        tools = _capture_tools(publisher, context_note_id="note-abc")
         write_tool = tools["write_to_note"]
 
         await write_tool.handler({"note_id": "note-abc", "markdown": "Content"})
 
-        # focus_block is allowed in queue; content_update is not
-        while not queue.empty():
-            event = queue.get_nowait()
-            assert "content_update" not in event, "content_update must not be pushed to queue"
+        events = _drain_queue(queue)
+        fb = next(e for e in events if e["event"] == "focus_block")
+        assert fb["data"]["scrollToEnd"] is True
+        assert fb["data"]["noteId"] == "note-abc"
 
 
 class TestToolNamesConstant:

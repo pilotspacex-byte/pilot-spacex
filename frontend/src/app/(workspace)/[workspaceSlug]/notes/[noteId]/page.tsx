@@ -110,8 +110,11 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   // Get workspace from WorkspaceGuard context (guaranteed to be loaded)
   const { workspace } = useWorkspace();
 
-  // Local state for content that triggers autosave (updated by editor onChange)
-  const [localContent, setLocalContent] = useState<JSONContent | null>(null);
+  // Ref-based content tracking to avoid re-renders on every keystroke.
+  // Only the saveVersion counter (a number) lives in state to trigger debounced auto-save.
+  const contentRef = useRef<JSONContent | null>(null);
+  const [saveVersion, setSaveVersion] = useState(0);
+  const [contentInitialized, setContentInitialized] = useState(false);
 
   // Get workspace ID from context (preferred) or store fallback
   const workspaceId = workspace?.id ?? workspaceStore.currentWorkspace?.id ?? workspaceSlug;
@@ -139,18 +142,21 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   useEffect(() => {
     if (prevNoteIdRef.current !== null && prevNoteIdRef.current !== noteId) {
       // Note changed, reset everything
-      setLocalContent(null);
+      contentRef.current = null;
+      setContentInitialized(false);
+      setSaveVersion(0);
       setIsAutosaveReady(false);
     }
     prevNoteIdRef.current = noteId;
   }, [noteId]);
 
-  // Initialize local content when note loads
+  // Initialize content ref when note loads (no re-render triggered)
   useEffect(() => {
-    if (note?.content && localContent === null) {
-      setLocalContent(note.content);
+    if (note?.content && !contentInitialized) {
+      contentRef.current = note.content;
+      setContentInitialized(true);
     }
-  }, [note?.content, localContent]);
+  }, [note?.content, contentInitialized]);
 
   // Note: Annotations are fetched by NoteCanvas via MobX store (aiStore.marginAnnotation)
   // to prevent duplicate API requests
@@ -189,17 +195,18 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     onSuccess: () => setShowVersionHistory(false),
   });
 
-  // Auto-save for content - watches localContent which is updated by editor onChange
-  // Only enabled after content is initialized to prevent saving initial load as a change
+  // Auto-save for content - saveVersion (number) triggers debounce, content read from ref at save time.
+  // This avoids re-rendering the entire component tree on every keystroke.
   const {
     status: _saveStatus,
     save: manualSave,
     reset: resetAutoSave,
   } = useAutoSave({
-    data: localContent,
-    onSave: async (content) => {
+    data: saveVersion,
+    onSave: async () => {
+      const content = contentRef.current;
       if (content) {
-        await updateNote.mutateAsync({ content: content as JSONContent });
+        await updateNote.mutateAsync({ content });
       }
     },
     enabled: !!note && isAutosaveReady,
@@ -212,10 +219,10 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     resetAutoSaveRef.current = resetAutoSave;
   }, [resetAutoSave]);
 
-  // After content is set, reset autosave baseline and enable it
-  // This ensures savedDataRef.current = localContent before autosave starts watching
+  // After content is initialized, reset autosave baseline and enable it
+  // This ensures savedDataRef.current = saveVersion (0) before autosave starts watching
   useEffect(() => {
-    if (localContent !== null && !isAutosaveReady) {
+    if (contentInitialized && !isAutosaveReady) {
       // Use ref to avoid stale closure issues
       resetAutoSaveRef.current();
       // Small delay to ensure React state has settled
@@ -224,7 +231,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [localContent, isAutosaveReady]);
+  }, [contentInitialized, isAutosaveReady]);
 
   // Set page title
   useEffect(() => {
@@ -246,9 +253,10 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     };
   }, [note, noteStore]);
 
-  // Handle content change - update local state to trigger autosave
+  // Handle content change - store in ref (no re-render), bump version to trigger debounced auto-save
   const handleContentChange = useCallback((content: JSONContent) => {
-    setLocalContent(content);
+    contentRef.current = content;
+    setSaveVersion((v) => v + 1);
   }, []);
 
   // Handle manual save (Cmd+S)
