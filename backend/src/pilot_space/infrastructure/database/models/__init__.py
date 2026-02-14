@@ -72,6 +72,7 @@ from pilot_space.infrastructure.database.models.state import (
     State,
     StateGroup,
 )
+from pilot_space.infrastructure.database.models.task import Task
 from pilot_space.infrastructure.database.models.template import Template
 from pilot_space.infrastructure.database.models.threaded_discussion import (
     DiscussionStatus,
@@ -143,6 +144,7 @@ __all__ = [
     "SoftDeleteMixin",
     "State",
     "StateGroup",
+    "Task",
     "TaskStatus",
     "Template",
     "ThreadedDiscussion",

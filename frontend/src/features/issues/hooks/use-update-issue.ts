@@ -29,6 +29,9 @@ function buildOptimisticPatch(data: UpdateIssueData): Partial<Issue> {
   if (data.sortOrder !== undefined) patch.sortOrder = data.sortOrder;
   if (data.assigneeId !== undefined) patch.assigneeId = data.assigneeId;
   if (data.cycleId !== undefined) patch.cycleId = data.cycleId;
+  if (data.acceptanceCriteria !== undefined) patch.acceptanceCriteria = data.acceptanceCriteria;
+  if (data.technicalRequirements !== undefined)
+    patch.technicalRequirements = data.technicalRequirements;
 
   // Handle clear operations
   if (data.clearAssignee) {

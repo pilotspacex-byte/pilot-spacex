@@ -98,6 +98,7 @@ from pilot_space.application.services.role_skill import (
     ListRoleSkillsService,
     UpdateRoleSkillService,
 )
+from pilot_space.application.services.task_service import TaskService
 from pilot_space.application.services.workspace import WorkspaceService
 from pilot_space.application.services.workspace_invitation import (
     WorkspaceInvitationService,
@@ -619,6 +620,18 @@ def _get_auth_service(
 
 AuthServiceDep = Annotated[AuthService, Depends(_get_auth_service)]
 
+# ===== Task Service Dependencies =====
+
+
+@inject
+def _get_task_service(
+    svc: TaskService = Depends(Provide[Container.task_service]),
+) -> TaskService:
+    return svc
+
+
+TaskServiceDep = Annotated[TaskService, Depends(_get_task_service)]
+
 __all__ = [  # noqa: RUF022
     # Repository Dependencies
     "ActivityRepositoryDep",
@@ -676,4 +689,5 @@ __all__ = [  # noqa: RUF022
     "WorkspaceServiceDep",
     "WorkspaceMemberServiceDep",
     "WorkspaceInvitationServiceDep",
+    "TaskServiceDep",
 ]

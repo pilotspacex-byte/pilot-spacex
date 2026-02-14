@@ -2,24 +2,22 @@
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { Sparkles, RefreshCw, AlertCircle, Copy, Check, Link, CheckSquare } from 'lucide-react';
+import { Sparkles, RefreshCw, AlertCircle, Link, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/stores';
-import {
-  generateFullContextMarkdown,
-  generateSectionMarkdown,
-  copyToClipboard,
-} from '@/lib/copy-context';
-import { useCopyFeedback } from '@/features/issues/hooks/use-copy-feedback';
+import { generateSectionMarkdown, copyToClipboard } from '@/lib/copy-context';
+import { tasksApi } from '@/services/api/tasks';
 import { AIContextStreaming } from './ai-context-streaming';
 import { ContextSummaryCard } from './context-summary-card';
 import { ContextSection } from './context-section';
 import { RelatedIssuesSection } from './related-issues-section';
 import { RelatedDocsSection } from './related-docs-section';
 import { AITasksSection } from './ai-tasks-section';
+import { CloneContextPanel } from './clone-context-panel';
+import type { ExportFormat } from './clone-context-panel';
 
 export interface AIContextTabProps {
   issueId: string;
@@ -32,7 +30,6 @@ export const AIContextTab = observer(function AIContextTab({
 }: AIContextTabProps) {
   const { aiStore, workspaceStore } = useStore();
   const contextStore = aiStore.aiContext;
-  const { copied, handleCopy } = useCopyFeedback();
   const workspaceId = workspaceStore.currentWorkspaceId ?? undefined;
 
   // Auto-generate context on mount and when issueId changes.
@@ -50,10 +47,18 @@ export const AIContextTab = observer(function AIContextTab({
     contextStore.generateContext(issueId, workspaceId);
   };
 
-  const handleCopyAll = () => {
-    if (!contextStore.result) return;
-    void handleCopy(() => copyToClipboard(generateFullContextMarkdown(contextStore.result!)));
-  };
+  const handleExportContext = React.useCallback(
+    async (format: ExportFormat): Promise<string | null> => {
+      if (!workspaceId) return null;
+      try {
+        const result = await tasksApi.exportContext(workspaceId, issueId, format);
+        return result.content;
+      } catch {
+        return null;
+      }
+    },
+    [workspaceId, issueId]
+  );
 
   const handleCopyRelated = async (): Promise<boolean> => {
     if (!contextStore.result) return false;
@@ -162,19 +167,19 @@ export const AIContextTab = observer(function AIContextTab({
               <h2 className="text-lg font-semibold">Full Context for AI Implementation</h2>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCopyAll}
-                aria-label="Copy all context to clipboard"
-              >
-                {copied ? (
-                  <Check className="size-4 mr-1.5" aria-hidden="true" />
-                ) : (
-                  <Copy className="size-4 mr-1.5" aria-hidden="true" />
-                )}
-                {copied ? 'Copied!' : 'Copy All'}
-              </Button>
+              <CloneContextPanel
+                onExport={handleExportContext}
+                isLoading={contextStore.isLoading}
+                stats={
+                  contextStore.result
+                    ? {
+                        tasksCount: contextStore.result.tasks?.length ?? 0,
+                        relatedIssuesCount: contextStore.result.relatedIssues?.length ?? 0,
+                        relatedDocsCount: contextStore.result.relatedDocs?.length ?? 0,
+                      }
+                    : undefined
+                }
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -242,6 +247,7 @@ export const AIContextTab = observer(function AIContextTab({
                 <AITasksSection
                   tasks={contextStore.result.tasks}
                   prompts={contextStore.result.prompts}
+                  issueId={issueId}
                 />
               </ContextSection>
             </>

@@ -26,6 +26,8 @@ import {
   SubIssuesList,
   ActivityTimeline,
   IssuePropertiesPanel,
+  AcceptanceCriteriaEditor,
+  TechnicalRequirementsEditor,
 } from '@/features/issues/components';
 import {
   useIssueDetail,
@@ -209,6 +211,18 @@ const IssueDetailPage = observer(function IssueDetailPage() {
                   content={issue.descriptionHtml ?? issue.description}
                   issueId={issueId}
                   workspaceId={workspaceId}
+                />
+                <Separator />
+                <AcceptanceCriteriaEditor
+                  issueId={issueId}
+                  workspaceId={workspaceId}
+                  criteria={issue.acceptanceCriteria ?? []}
+                />
+                <Separator />
+                <TechnicalRequirementsEditor
+                  issueId={issueId}
+                  workspaceId={workspaceId}
+                  value={issue.technicalRequirements ?? ''}
                 />
                 <Separator />
                 <SubIssuesList

@@ -69,6 +69,9 @@ from pilot_space.infrastructure.database.repositories.role_skill_repository impo
     RoleSkillRepository,
     RoleTemplateRepository,
 )
+from pilot_space.infrastructure.database.repositories.task_repository import (
+    TaskRepository,
+)
 from pilot_space.infrastructure.database.repositories.template_repository import (
     TemplateRepository,
 )
@@ -108,6 +111,7 @@ __all__ = [
     "ProjectRepository",
     "RoleSkillRepository",
     "RoleTemplateRepository",
+    "TaskRepository",
     "TemplateRepository",
     "UserRepository",
     "WorkspaceRepository",

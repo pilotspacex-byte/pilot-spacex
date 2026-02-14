@@ -68,7 +68,21 @@ AI decomposes into:
         "Schema supports email and OAuth login",
         "Indexes on email and session_token fields",
         "Migration script tested"
-      ]
+      ],
+      "code_references": [
+        {
+          "file": "backend/src/pilot_space/infrastructure/database/models/user.py",
+          "lines": "1-50",
+          "description": "Existing User model to extend",
+          "badge": "Model"
+        },
+        {
+          "file": "backend/alembic/versions/",
+          "description": "Migration directory for new schema",
+          "badge": "Migration"
+        }
+      ],
+      "ai_prompt": "Create database schema for user sessions with proper indexes.\n\n## Context\nIssue: AUTH-42 - Implement user authentication system\nAdd support for both email and OAuth login with session management.\n\n## Requirements\n- Create users, sessions, and refresh_tokens tables\n- Add indexes on email and session_token fields\n- Write migration script for schema changes\n\n## Acceptance Criteria\n- [x] Schema supports email and OAuth login\n- [x] Indexes on email and session_token fields\n- [x] Migration script tested\n\n## Files to Reference\n- `backend/src/pilot_space/infrastructure/database/models/user.py` (lines 1-50) - Existing User model to extend\n- `backend/alembic/versions/` - Migration directory for new schema\n\n## Technical Constraints\n- Use SQLAlchemy 2.0 async\n- Follow repository pattern\n- Ensure RLS policies for multi-tenant isolation"
     },
     {
       "order": 2,

@@ -35,6 +35,8 @@ export interface Issue {
   aiGenerated?: boolean;
   hasAiEnhancements: boolean;
   aiMetadata?: Record<string, unknown>;
+  acceptanceCriteria?: string[];
+  technicalRequirements?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +74,8 @@ export interface UpdateIssueData {
   targetDate?: string;
   sortOrder?: number;
   labelIds?: string[];
+  acceptanceCriteria?: string[];
+  technicalRequirements?: string;
   clearAssignee?: boolean;
   clearCycle?: boolean;
   clearModule?: boolean;
@@ -370,6 +374,65 @@ export interface SuggestedTask {
   description: string;
   estimatedHours?: number;
   priority: IssuePriority;
+}
+
+// Task Management (013)
+export type TaskStatus = 'todo' | 'in_progress' | 'done';
+
+export interface Task {
+  id: string;
+  issueId: string;
+  workspaceId: string;
+  title: string;
+  description?: string;
+  acceptanceCriteria: string[];
+  status: TaskStatus;
+  sortOrder: number;
+  estimatedHours?: number;
+  codeReferences: CodeReference[];
+  aiPrompt?: string;
+  aiGenerated: boolean;
+  dependencyIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskCreate {
+  title: string;
+  description?: string;
+  acceptanceCriteria?: string[];
+  estimatedHours?: number;
+  codeReferences?: CodeReference[];
+  aiPrompt?: string;
+}
+
+export interface TaskUpdate {
+  title?: string;
+  description?: string;
+  acceptanceCriteria?: string[];
+  status?: TaskStatus;
+  estimatedHours?: number;
+  codeReferences?: CodeReference[];
+  aiPrompt?: string;
+  sortOrder?: number;
+}
+
+export interface TaskListResponse {
+  tasks: Task[];
+  total: number;
+  completed: number;
+  completionPercent: number;
+}
+
+export interface ContextExportResponse {
+  content: string;
+  format: 'markdown' | 'claude_code' | 'task_list';
+  generatedAt: string;
+  stats: {
+    tasksCount: number;
+    relatedIssuesCount: number;
+    relatedDocsCount: number;
+  };
 }
 
 // Ghost Text Types

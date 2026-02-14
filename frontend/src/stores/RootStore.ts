@@ -12,6 +12,7 @@ import { AIStore, getAIStore } from './ai';
 import { OnboardingStore } from './OnboardingStore';
 import { RoleSkillStore } from './RoleSkillStore';
 import { HomepageUIStore } from '@/features/homepage/stores/HomepageUIStore';
+import { TaskStore } from '@/stores/TaskStore';
 
 export class RootStore {
   auth: AuthStore;
@@ -25,6 +26,7 @@ export class RootStore {
   onboarding: OnboardingStore;
   roleSkill: RoleSkillStore;
   homepage: HomepageUIStore;
+  tasks: TaskStore;
 
   constructor() {
     this.auth = new AuthStore();
@@ -38,6 +40,7 @@ export class RootStore {
     this.onboarding = new OnboardingStore();
     this.roleSkill = new RoleSkillStore();
     this.homepage = new HomepageUIStore();
+    this.tasks = new TaskStore();
 
     // Wire cross-store references
     this.workspace.setAuthStore(this.auth);
@@ -54,6 +57,7 @@ export class RootStore {
     this.onboarding.reset();
     this.roleSkill.reset();
     this.homepage.reset();
+    this.tasks.reset();
   }
 
   dispose(): void {
@@ -122,6 +126,11 @@ export function useHomepageStore(): HomepageUIStore {
   return useStores().homepage;
 }
 
+/** Hook to access the TaskStore from context. */
+export function useTaskStore(): TaskStore {
+  return useStores().tasks;
+}
+
 /**
  * Convenient hook to access multiple stores at once.
  * Returns an object with named stores for destructuring.
@@ -141,5 +150,6 @@ export function useStore() {
     onboardingStore: store.onboarding,
     roleSkillStore: store.roleSkill,
     homepageStore: store.homepage,
+    taskStore: store.tasks,
   };
 }

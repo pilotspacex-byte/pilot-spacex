@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.note_issue_link import NoteIssueLink
     from pilot_space.infrastructure.database.models.project import Project
     from pilot_space.infrastructure.database.models.state import State
+    from pilot_space.infrastructure.database.models.task import Task
     from pilot_space.infrastructure.database.models.user import User
 
 
@@ -212,6 +213,17 @@ class Issue(WorkspaceScopedModel):
     #   "enhancement_timestamp": "2026-01-24T10:00:00Z"
     # }
 
+    # Task management fields (013-task-management)
+    acceptance_criteria: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONBCompat,
+        nullable=True,
+        default=None,
+    )
+    technical_requirements: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     # Relationships
     project: Mapped[Project] = relationship(
         "Project",
@@ -275,6 +287,12 @@ class Issue(WorkspaceScopedModel):
         "AIContext",
         back_populates="issue",
         uselist=False,
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    tasks: Mapped[list[Task]] = relationship(
+        "Task",
+        back_populates="issue",
         cascade="all, delete-orphan",
         lazy="selectin",
     )

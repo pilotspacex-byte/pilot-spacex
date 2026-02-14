@@ -66,3 +66,15 @@ export type { IssuePropertiesPanelProps } from './issue-properties-panel';
 
 export { ActivityTimeline } from './activity-timeline';
 export type { ActivityTimelineProps } from './activity-timeline';
+
+export { CloneContextPanel } from './clone-context-panel';
+export type { CloneContextPanelProps, ExportFormat } from './clone-context-panel';
+
+export { AcceptanceCriteriaEditor } from './acceptance-criteria-editor';
+export type { AcceptanceCriteriaEditorProps } from './acceptance-criteria-editor';
+
+export { TechnicalRequirementsEditor } from './technical-requirements-editor';
+export type { TechnicalRequirementsEditorProps } from './technical-requirements-editor';
+
+export { TaskDependencyGraph } from './task-dependency-graph';
+export type { TaskDependencyGraphProps } from './task-dependency-graph';

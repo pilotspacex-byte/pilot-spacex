@@ -72,6 +72,7 @@ from pilot_space.application.services.role_skill import (
     ListRoleSkillsService,
     UpdateRoleSkillService,
 )
+from pilot_space.application.services.task_service import TaskService
 from pilot_space.application.services.workspace import WorkspaceService
 from pilot_space.application.services.workspace_invitation import (
     WorkspaceInvitationService,
@@ -507,6 +508,14 @@ class Container(InfraContainer):
     get_pr_review_status_service = providers.Factory(
         GetPRReviewStatusService,
         cache_client=InfraContainer.redis_client,
+    )
+
+    # Task Services
+    task_service = providers.Factory(
+        TaskService,
+        session=providers.Callable(get_current_session),
+        task_repository=InfraContainer.task_repository,
+        issue_repository=InfraContainer.issue_repository,
     )
 
 

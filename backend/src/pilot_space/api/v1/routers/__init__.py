@@ -56,6 +56,7 @@ from pilot_space.api.v1.routers.workspace_note_issue_links import (
 )
 from pilot_space.api.v1.routers.workspace_notes import router as workspace_notes_router
 from pilot_space.api.v1.routers.workspace_notes_ai import router as workspace_notes_ai_router
+from pilot_space.api.v1.routers.workspace_tasks import router as workspace_tasks_router
 from pilot_space.api.v1.routers.workspaces import router as workspaces_router
 from pilot_space.infrastructure.logging import get_logger
 
@@ -136,5 +137,6 @@ __all__ = [
     "workspace_note_issue_links_router",
     "workspace_notes_ai_router",
     "workspace_notes_router",
+    "workspace_tasks_router",
     "workspaces_router",
 ]

@@ -84,6 +84,9 @@ from pilot_space.infrastructure.database.repositories.project_repository import 
 from pilot_space.infrastructure.database.repositories.role_skill_repository import (
     RoleSkillRepository,
 )
+from pilot_space.infrastructure.database.repositories.task_repository import (
+    TaskRepository,
+)
 from pilot_space.infrastructure.database.repositories.template_repository import (
     TemplateRepository,
 )
@@ -233,6 +236,11 @@ class InfraContainer(containers.DeclarativeContainer):
 
     template_repository = providers.Factory(
         TemplateRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    task_repository = providers.Factory(
+        TaskRepository,
         session=providers.Callable(get_current_session),
     )
 

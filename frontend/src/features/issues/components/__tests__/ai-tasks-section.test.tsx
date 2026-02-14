@@ -3,6 +3,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AITasksSection } from '../ai-tasks-section';
 import type { ContextTask, ContextPrompt } from '@/stores/ai/AIContextStore';
 
+vi.mock('@/stores', () => ({
+  useTaskStore: vi.fn(() => ({
+    fetchTasks: vi.fn(),
+    getTasksForIssue: vi.fn(() => []),
+    getCompletedCount: vi.fn(() => 0),
+    isDecomposing: false,
+    error: null,
+    decomposeTasks: vi.fn(),
+    reorderTasks: vi.fn(),
+    updateTask: vi.fn(),
+    updateStatus: vi.fn(),
+  })),
+  useWorkspaceStore: vi.fn(() => ({
+    currentWorkspaceId: 'test-workspace-id',
+  })),
+}));
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
+
 vi.mock('@/components/ui/checkbox', () => ({
   Checkbox: ({
     checked,
@@ -110,7 +131,7 @@ describe('AITasksSection', () => {
   it('toggles checkbox and adds line-through styling when task is checked', () => {
     render(<AITasksSection tasks={mockTasks} prompts={[]} />);
 
-    const firstTaskCheckbox = screen.getByLabelText('Implement authentication');
+    const firstTaskCheckbox = screen.getByLabelText(/Mark "Implement authentication" as/);
     const firstTaskTitle = screen.getByText('Implement authentication');
 
     expect(firstTaskCheckbox).not.toBeChecked();
@@ -217,9 +238,9 @@ describe('AITasksSection', () => {
   it('maintains separate checked state for multiple tasks', () => {
     render(<AITasksSection tasks={mockTasks} prompts={[]} />);
 
-    const task1Checkbox = screen.getByLabelText('Implement authentication');
-    const task2Checkbox = screen.getByLabelText('Add user profile page');
-    const task3Checkbox = screen.getByLabelText('Create dashboard');
+    const task1Checkbox = screen.getByLabelText(/Mark "Implement authentication" as/);
+    const task2Checkbox = screen.getByLabelText(/Mark "Add user profile page" as/);
+    const task3Checkbox = screen.getByLabelText(/Mark "Create dashboard" as/);
 
     fireEvent.click(task1Checkbox);
 
