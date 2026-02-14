@@ -1,22 +1,15 @@
 # Editor Components Architecture
 
-**File**: `frontend/src/components/editor/CLAUDE.md`
-**Scope**: NoteCanvas architecture, TipTap extensions, editor-specific components
-**Parent**: [`../CLAUDE.md`](../CLAUDE.md) (Shared Components)
-
----
-
-## Overview
-
-The editor components directory contains the TipTap-integrated note canvas and all supporting UI components for the Note-First workflow. NoteCanvas is the central editor integrating TipTap with 13 extensions and AI features.
+**Scope**: NoteCanvas, TipTap extensions, editor-specific components
+**Parent**: [`../CLAUDE.md`](../CLAUDE.md)
 
 ---
 
 ## NoteCanvas Architecture
 
-**File**: `NoteCanvas.tsx`
+**Implementation**: `NoteCanvas.tsx`
 
-Central editor component. Props: `noteId`, `content` (TipTap JSON), `readOnly`, `onChange`, `onSave`, `isLoading`, `workspaceId`, `workspaceSlug`, metadata (title, author, createdAt, updatedAt).
+Central editor component. Props: `noteId`, `content` (TipTap JSON), `readOnly`, `onChange`, `onSave`, `isLoading`, `workspaceId`, `workspaceSlug`, metadata (title, author, dates).
 
 ### Layout (65/35 Split)
 
@@ -24,15 +17,11 @@ Central editor component. Props: `noteId`, `content` (TipTap JSON), `readOnly`, 
 NoteCanvas (responsive)
 ├── Left (65%): Editor
 │   ├── InlineNoteHeader (merged)
-│   ├── EditorContent (TipTap)
-│   │   ├── 13 extensions (ghost text, annotations, etc)
-│   │   └── Custom TipTap commands
+│   ├── EditorContent (TipTap) + 13 extensions
 │   ├── SelectionToolbar (float on selection)
 │   ├── MarginAnnotations (AI hints)
 │   └── ThreadedDiscussion (per-block)
-│
 ├── ResizableHandle (draggable)
-│
 └── Right (35%): ChatView
     ├── ChatMessage list
     ├── AI Tool use + results
@@ -45,19 +34,19 @@ NoteCanvas (responsive)
 - **xl-2xl**: Standard wide layout
 - **lg-xl**: Side-by-side with ChatView
 - **md-lg**: ChatView collapsible
-- **<md**: Mobile overlay layout (NoteCanvasMobileLayout)
+- **<md**: Mobile overlay (NoteCanvasMobileLayout)
 
 ### State Management
 
 - **TanStack Query**: Note content loading/saving
-- **MobX EditorStore**: Selection state, toolbar visibility, active blocks
+- **MobX**: Selection state, toolbar visibility, active blocks
 - **SSE Streaming**: Real-time content updates from AI
 
 ---
 
 ## 13 TipTap Extensions
 
-All extensions live in `extensions/` and are independently testable.
+All extensions live in `extensions/` and are independently testable. Instantiated via `createEditorExtensions()` factory.
 
 | #   | Extension                                | Purpose                                   | Key Feature                                     |
 | --- | ---------------------------------------- | ----------------------------------------- | ----------------------------------------------- |
@@ -75,58 +64,19 @@ All extensions live in `extensions/` and are independently testable.
 | 12  | **AIBlockProcessingExtension**           | Track blocks being processed by AI        | CSS class for pending blocks                    |
 | 13  | **LineGutterExtension**                  | Line numbers + fold buttons               | Nested indentation, foldable headings           |
 
-### Extension Base Pattern
-
-```tsx
-export const CustomExtension = Extension.create({
-  name: 'custom',
-  addGlobalAttributes() {
-    /* ... */
-  },
-  addProseMirrorPlugins() {
-    /* plugins with Plugin + PluginKey */
-  },
-});
-```
+All extensions follow `Extension.create({ name, addGlobalAttributes?, addProseMirrorPlugins? })` pattern. See individual extension files for implementation.
 
 ---
 
-## Auto-Save Pattern
+## Auto-Save
 
-```tsx
-// In NoteCanvas and other editors:
-import { reaction } from 'mobx';
+No save button -- auto-save only. MobX reaction triggers 2s debounce on content changes. SaveStatus indicator shows idle/saving/saved/error. Error notification with retry on click. Dirty state tracked in MobX.
 
-// MobX reaction triggers 2s debounce
-reaction(
-  () => editorStore.isDirty,
-  (isDirty) => {
-    if (isDirty) {
-      debounceTimer = setTimeout(async () => {
-        const result = await saveNote(noteId, editorContent);
-        if (result.ok) {
-          editorStore.setSaveStatus('saved');
-          editorStore.setDirty(false);
-        } else {
-          editorStore.setSaveStatus('error', result.error);
-        }
-      }, 2000);
-    }
-  }
-);
-```
-
-**Key points**:
-
-- No save button (auto-save only)
-- 2s debounce (not configurable)
-- SaveStatus indicator shows state
-- Error notification + retry on click
-- Dirty state tracked in MobX
+See `NoteCanvas.tsx` and `NoteStore.ts` for implementation.
 
 ---
 
-## Editor Component List
+## Editor Components
 
 | Component                      | Purpose                                       |
 | ------------------------------ | --------------------------------------------- |
@@ -170,16 +120,10 @@ frontend/src/components/editor/
 ├── CollapsedChatStrip.tsx        # Collapsed chat indicator
 ├── NoteMetadata.tsx              # Word count, topics, dates
 ├── extensions/                   # TipTap extensions (13 total)
-│   ├── margin-annotation-extension.ts
-│   ├── ghost-text-extension.ts
-│   └── __tests__/
 ├── plugins/                      # ProseMirror plugins
-│   ├── annotation-positioning.ts
-│   └── ghost-text-decoration.ts
 ├── hooks/
 │   └── useEditorSync.ts
-├── index.ts                      # Barrel export (11 components)
-├── CLAUDE.md                     # This file
+├── index.ts                      # Barrel export
 └── __tests__/
 ```
 
@@ -189,6 +133,5 @@ frontend/src/components/editor/
 
 - **Parent Components**: [`../CLAUDE.md`](../CLAUDE.md)
 - **Notes Feature Module**: [`../../features/notes/CLAUDE.md`](../../features/notes/CLAUDE.md)
-- **Editor Feature Deep-Dives**: [`../../features/notes/editor/CLAUDE.md`](../../features/notes/editor/CLAUDE.md)
 - **AI Stores**: [`../../stores/ai/CLAUDE.md`](../../stores/ai/CLAUDE.md)
 - **Design Decisions**: DD-067 (ghost text), DD-013 (Note-First)

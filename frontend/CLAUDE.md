@@ -38,7 +38,7 @@ All three gates must PASS. **80% test coverage requirement** catches 85% of regr
 
 Next.js 14+ App Router, TypeScript 5.3+, MobX 6+ (UI state), TanStack Query 5+ (server state), TailwindCSS + shadcn/ui, TipTap/ProseMirror for rich text. Feature-based folder structure under `src/features/`.
 
-5-tier request flow: Browser → Next.js Page → Feature Component (observer + TanStack Query) → MobX Store → API Service → Backend.
+5-tier request flow: Browser -> Next.js Page -> Feature Component (observer + TanStack Query) -> MobX Store -> API Service -> Backend.
 
 **Full structure and feature modules**: See [`src/features/CLAUDE.md`](src/features/CLAUDE.md)
 
@@ -56,9 +56,9 @@ RootStore aggregates domain stores (auth, ui, workspace, notes, issues, cycles, 
 
 ## TipTap Editor
 
-13 extensions in `src/features/notes/editor/extensions/` (~4,800 lines total). Key extensions: BlockIdExtension (UUID per block), GhostTextExtension (500ms debounce, Tab/Escape), IssueLinkExtension (PS-123 auto-detection), SlashCommandExtension, MentionExtension. All instantiated via `createEditorExtensions()` factory.
+16 extensions in `src/features/notes/editor/extensions/`. Key extensions: BlockIdExtension (UUID per block), GhostTextExtension (500ms debounce, Tab/Escape), IssueLinkExtension (PS-123 auto-detection), SlashCommandExtension, MentionExtension. All instantiated via `createEditorExtensions()` factory.
 
-**Full extension catalog, code examples, and editor setup**: See [`src/features/notes/CLAUDE.md`](src/features/notes/CLAUDE.md)
+**Full extension catalog and editor setup**: See [`src/features/notes/CLAUDE.md`](src/features/notes/CLAUDE.md)
 
 ---
 
@@ -68,7 +68,7 @@ RootStore aggregates domain stores (auth, ui, workspace, notes, issues, cycles, 
 
 **Full API client patterns and query key factories**: See [`src/services/CLAUDE.md`](src/services/CLAUDE.md)
 
-Custom SSE client for POST requests. 8 event types: `message_start`, `text_delta`, `tool_use`, `tool_result`, `content_update`, `approval_request`, `task_progress`, `message_stop`. Route via `PilotSpaceStore.sendMessage()` → SSEClient → event handlers → MobX updates.
+Custom SSE client for POST requests. 8 event types: `message_start`, `text_delta`, `tool_use`, `tool_result`, `content_update`, `approval_request`, `task_progress`, `message_stop`. Route via `PilotSpaceStore.sendMessage()` -> SSEClient -> event handlers -> MobX updates.
 
 **Full SSE patterns and AI streaming**: See [`src/features/ai/CLAUDE.md`](src/features/ai/CLAUDE.md)
 
@@ -101,7 +101,7 @@ All user-facing AI goes through `PilotSpaceStore` (not siloed stores). Skills ar
 | --ai          | #6B8FAD | #7DA4C4 | Dusty blue AI elements |
 | --destructive | #D9534F | #E06560 | Delete/remove          |
 
-**Typography**: Geist font, text-xs (11px) → text-2xl (24px). **Spacing**: 4px grid. **Radius**: squircle 6-18px.
+**Typography**: Geist font, text-xs (11px) to text-2xl (24px). **Spacing**: 4px grid. **Radius**: squircle 6-18px.
 
 **Full color system, component specs, page catalog**: See [`specs/001-pilot-space-mvp/ui-design-spec.md`](../specs/001-pilot-space-mvp/ui-design-spec.md) v4.0
 
@@ -152,7 +152,7 @@ Rate confidence (0-1) before submitting PR. **If any score <0.9, refine before s
 
 ## File Size Audit
 
-**At 700-line limit**: SkillGenerationWizard.tsx (645 lines) — extract sub-components.
+**At 700-line limit**: SkillGenerationWizard.tsx (645 lines) -- extract sub-components.
 **Medium size** (300-500): GhostTextExtension (519), PilotSpaceStore (500+), IssueLinkExtension (458). Monitor.
 
 ---
@@ -161,10 +161,10 @@ Rate confidence (0-1) before submitting PR. **If any score <0.9, refine before s
 
 ### Load Order for New Features
 
-1. `docs/architect/feature-story-mapping.md` → Find US-XX and affected components
-2. `docs/dev-pattern/45-pilot-space-patterns.md` → Project-specific overrides
-3. This file → Frontend-specific patterns
-4. `specs/001-pilot-space-mvp/ui-design-spec.md` → Design system
+1. `docs/architect/feature-story-mapping.md` -> Find US-XX and affected components
+2. `docs/dev-pattern/45-pilot-space-patterns.md` -> Project-specific overrides
+3. This file -> Frontend-specific patterns
+4. `specs/001-pilot-space-mvp/ui-design-spec.md` -> Design system
 
 ### Key Files
 

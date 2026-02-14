@@ -1,14 +1,12 @@
-# GitHub Integration Module - PR Review & Linking
+# GitHub Integration Module
 
-_For project overview and frontend architecture, see main CLAUDE.md and `frontend/CLAUDE.md`_
+_For project overview, see main `CLAUDE.md` and `frontend/CLAUDE.md`_
 
-## Overview
+## Purpose
 
-The **github** module implements GitHub integration for PR reviews, repository management, and issue-PR linking.
+GitHub integration for OAuth connection, repository management, PR-to-issue linking, and AI-powered PR review with GitHub comments.
 
-**File Path**: `frontend/src/features/github/`
-**Purpose**: GitHub OAuth, PR linking, AI review integration
-**Layer**: Feature module
+**Design Decisions**: DD-004 (MVP scope), DD-011 (provider routing)
 
 ---
 
@@ -17,209 +15,65 @@ The **github** module implements GitHub integration for PR reviews, repository m
 ```
 frontend/src/features/github/
 ├── pages/
-│   └── github-settings-page.tsx   # GitHub OAuth + repo management
+│   └── github-settings-page.tsx   # OAuth + repo management
 ├── components/
 │   ├── github-connect-button.tsx  # OAuth trigger
 │   ├── repo-selector.tsx          # Repo list + sync toggle
 │   ├── pr-link-card.tsx           # Link PR to issue
 │   ├── pr-review-status.tsx       # Review status display
-│   └── webhook-status.tsx         # Webhook connection status
+│   └── webhook-status.tsx         # Connection status
 ├── hooks/
 │   ├── useGitHubAuth.ts           # OAuth + token management
-│   ├── useGitHubRepos.ts          # Fetch user repos
+│   ├── useGitHubRepos.ts          # Fetch repos
 │   ├── useLinkPR.ts               # Link PR to issue mutation
-│   └── usePRReview.ts             # Get PR review results
-└── __tests__/                     # Integration + unit tests
+│   └── usePRReview.ts             # PR review results
+└── __tests__/
 ```
 
 ---
 
-## GitHub OAuth Flow
+## Features
 
-**Purpose**: Connect workspace to GitHub App.
+### OAuth Flow
 
-**Flow**:
-1. User clicks "Connect GitHub" button
-2. OAuth popup → GitHub authorization
-3. User grants permissions (repos:read, pull_requests:write, workflow:read)
-4. Redirect → `/callback?code=...&state=...`
-5. Backend exchange code for token + refresh
-6. Store token in Supabase Vault (encrypted)
-7. Refresh list of connected repos
+Connect GitHub -> OAuth popup -> user grants permissions (repos:read, pull_requests:write, workflow:read) -> redirect with code -> backend exchanges for token -> stored in Supabase Vault (encrypted) -> repo list refreshes.
 
-**UI States**:
-- **Not Connected**: Show "Connect GitHub" button
-- **Connecting**: Loading spinner + "Authorizing..."
-- **Connected**: Show repo list + sync status
-- **Error**: Show error message + retry button
+**UI States**: Not Connected (button), Connecting (spinner), Connected (repo list), Error (retry).
 
----
+### Repository Management
 
-## Repository Management
+List repos, sync toggle (enable/disable for PR linking), webhook status indicator, manual refresh. Sync on: register webhook + listen for PR events. Sync off: optionally unregister webhook.
 
-**Features**:
-- **List Repos**: Fetch repos user has access to
-- **Sync Toggle**: Enable/disable repo for PR linking
-- **Webhook Status**: Show if webhook is registered
-- **Manual Refresh**: Trigger repo list refresh
+### PR Linking
 
-**Sync Toggle Logic**:
-```typescript
-// When toggling repo on/off
-await updateRepoSettings(repoId, { synced: newValue });
+In issue detail sidebar "Linked PRs" section. Search by `github-org/repo-name#123`, fetch from GitHub API, confirm link -> creates `IssueGitHubPRLink` record.
 
-// If syncing ON:
-//   - Check webhook exists, register if needed
-//   - Start listening for PR events
-// If syncing OFF:
-//   - Unregister webhook (optional)
-//   - Stop listening for PR events
-```
+### PR Review (AI)
+
+Triggered by GitHub webhook (PR opened/updated) -> backend queues (pgmq) -> PRReviewAgent (Claude Opus) analyzes -> comments posted to GitHub PR -> SSE notification to frontend. Severity: Critical (red), Warning (yellow), Info (green).
 
 ---
 
-## PR Linking
+## API Endpoints
 
-**Purpose**: Link GitHub PRs to Pilot Space issues.
-
-**UI**: Issue detail page sidebar → "Linked PRs" section
 ```
-🔗 PR Linking
-├─ #123: Add user auth feature
-├─ #124: Fix login bug
-└─ [+ Link PR]
+POST   /github/oauth/authorize          -> { oauth_url }
+GET    /github/repos                     -> GitHubRepository[]
+PATCH  /github/repos/{repoId}/settings   -> GitHubRepository
+POST   /github/pr/link                   -> IssueGitHubPRLink
+GET    /github/pr/{owner}/{repo}/{number} -> GitHubPR
+DELETE /github/pr/link/{linkId}
 ```
-
-**Search**: User searches by repo:PR#
-```
-github-org/repo-name#123
-→ Fetches PR from GitHub API
-→ Shows PR title, description, status
-→ User confirms link → Creates IssueGitHubPRLink record
-```
-
----
-
-## PR Review Integration
-
-**Purpose**: AI-powered PR reviews via GitHub comments.
-
-**Trigger**: Webhook from GitHub (PR opened/updated)
-
-**Flow**:
-1. GitHub webhook → `/webhooks/github` (backend)
-2. Backend queues PR for review (pgmq)
-3. PRReviewAgent (Claude Opus) analyzes PR
-4. Agent generates comments by aspect (architecture, security, quality, docs)
-5. Comments posted to GitHub PR
-6. SSE notification sent to frontend
-7. Frontend shows badge: "PR Review: 3 issues, 2 warnings"
-
-**Severity Tags**:
-- 🔴 **Critical**: Breaking changes, security issues
-- 🟡 **Warning**: Code style, minor issues
-- 🟢 **Info**: Documentation, suggestions
 
 ---
 
 ## State Management
 
-### GitHubStore (MobX)
-
-```typescript
-isConnected: boolean
-repos: GitHubRepository[]
-isLoading: boolean
-error: string | null
-linkedPRs: Map<string, GitHubPR>  // By issue ID
-```
-
-**Actions**:
-- `connectGitHub(token)`: Store token
-- `disconnectGitHub()`: Clear token
-- `loadRepos()`: Fetch repos
-- `syncRepoSettings(repoId, settings)`: Update sync status
-- `linkPR(issueId, prUrl)`: Create link
-- `unlinkPR(issueId, prUrl)`: Remove link
-
----
-
-## API Integration
-
-### Endpoints
-
-```
-POST /github/oauth/authorize
-  Response: { oauth_url: string }
-
-GET /github/repos
-  Response: GitHubRepository[]
-
-PATCH /github/repos/{repoId}/settings
-  Body: { synced: boolean }
-  Response: GitHubRepository
-
-POST /github/pr/link
-  Body: { issue_id, pr_url }
-  Response: IssueGitHubPRLink
-
-GET /github/pr/{owner}/{repo}/{number}
-  Response: GitHubPR
-
-DELETE /github/pr/link/{linkId}
-  Response: void
-```
-
----
-
-## Testing
-
-### Critical Scenarios
-
-- [ ] OAuth flow completes successfully
-- [ ] Repos list loads + displays correctly
-- [ ] Sync toggle enables/disables webhook
-- [ ] Link PR by URL search
-- [ ] PR review posts comments to GitHub
-- [ ] PR status badge displays
-- [ ] Disconnect removes token + clears state
-- [ ] Error handling on auth failure
-
-**Commands**:
-```bash
-pnpm test features/github
-pnpm test --coverage features/github
-```
-
----
-
-## Quality Gates
-
-```bash
-pnpm lint && pnpm type-check && pnpm test
-```
-
-**Coverage**: >80%
+**GitHubStore** (MobX): See `stores/` for `isConnected`, `repos`, `linkedPRs` (Map by issue ID), and actions (connect, disconnect, loadRepos, syncSettings, linkPR, unlinkPR).
 
 ---
 
 ## Related Documentation
 
-- **DD-004**: MVP scope (GitHub + Slack only)
-- **DD-011**: Provider routing
 - `docs/architect/frontend-architecture.md`
 - `docs/dev-pattern/45-pilot-space-patterns.md`
-
----
-
-## Summary
-
-GitHub module integrates PR reviews and linking:
-- **OAuth**: Connect GitHub account
-- **Repos**: List + sync management
-- **PR Linking**: Link issues to PRs
-- **PR Review**: AI analysis with GitHub comments
-- **Status**: Webhook + review indicators
-
-**Status**: Production
-**Test Coverage**: Target >80%
