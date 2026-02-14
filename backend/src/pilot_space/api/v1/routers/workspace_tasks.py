@@ -293,13 +293,17 @@ async def export_context(
     current_user_id: SyncedUserId,
     workspace_repo: WorkspaceRepositoryDep,
     service: TaskServiceDep,
-    format: str = Query(default="markdown", pattern="^(markdown|claude_code|task_list)$"),
+    export_format: str = Query(
+        default="markdown",
+        alias="format",
+        pattern="^(markdown|claude_code|task_list)$",
+    ),
 ) -> ContextExportResponse:
     """Export issue context with tasks in various formats."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
     try:
-        result = await service.export_context(issue_id, workspace.id, format)
+        result = await service.export_context(issue_id, workspace.id, export_format)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 

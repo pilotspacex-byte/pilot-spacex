@@ -87,7 +87,7 @@ ALTER TABLE issues
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `acceptance_criteria` | `JSONB` (array of strings) | Checklist of what "done" means |
+| `acceptance_criteria` | `JSONB` (array of `{text: str, done: bool}`) | Checklist of what "done" means, with completion tracking |
 | `technical_requirements` | `TEXT` | Free-text constraints, patterns, non-functional requirements |
 
 **Rationale**: `context_files`, `context_code_snippets`, and `git_references` are NOT stored on the Issue model. They are generated dynamically by the AI Context generation pipeline (already exists) and cached in Redis. Storing them on the issue would create stale data as the codebase evolves.
@@ -143,7 +143,7 @@ CREATE INDEX idx_tasks_status ON tasks(status) WHERE NOT is_deleted;
 |-------|------|-------------|
 | `title` | `VARCHAR(500)` | Task name (imperative form) |
 | `description` | `TEXT` | What to do, detailed instructions |
-| `acceptance_criteria` | `JSONB` | Array of strings — per-task done criteria |
+| `acceptance_criteria` | `JSONB` | Array of `{text: str, done: bool}` — per-task done criteria |
 | `status` | `VARCHAR(20)` | `todo` / `in_progress` / `done` |
 | `sort_order` | `INTEGER` | Display order within issue |
 | `estimated_hours` | `NUMERIC(5,1)` | Time estimate (0.5-40h) |

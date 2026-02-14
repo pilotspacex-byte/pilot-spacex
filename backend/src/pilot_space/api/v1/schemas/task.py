@@ -26,7 +26,8 @@ class TaskCreateRequest(BaseSchema):
     title: str = Field(..., min_length=1, max_length=500, description="Task title")
     description: str | None = Field(None, max_length=10000, description="Task description")
     acceptance_criteria: list[dict[str, Any]] | None = Field(
-        None, description="Acceptance criteria items"
+        None,
+        description="Acceptance criteria items as [{text: str, done: bool}]",
     )
     estimated_hours: float | None = Field(None, ge=0, le=999.9, description="Estimated hours")
     code_references: list[CodeReferenceSchema] | None = None
@@ -69,14 +70,14 @@ class TaskResponse(BaseSchema):
     issue_id: UUID
     title: str
     description: str | None
-    acceptance_criteria: list[dict[str, Any]] | None
+    acceptance_criteria: list[dict[str, Any]] = Field(default_factory=list)
     status: str
     sort_order: int
     estimated_hours: float | None
-    code_references: list[dict[str, Any]] | None
+    code_references: list[dict[str, Any]] = Field(default_factory=list)
     ai_prompt: str | None
     ai_generated: bool
-    dependency_ids: list[str] | None
+    dependency_ids: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -89,16 +90,16 @@ class TaskResponse(BaseSchema):
             issue_id=task.issue_id,
             title=task.title,
             description=task.description,
-            acceptance_criteria=task.acceptance_criteria,
+            acceptance_criteria=task.acceptance_criteria or [],
             status=task.status.value if hasattr(task.status, "value") else task.status,
             sort_order=task.sort_order,
             estimated_hours=float(task.estimated_hours)
             if task.estimated_hours is not None
             else None,
-            code_references=task.code_references,
+            code_references=task.code_references or [],
             ai_prompt=task.ai_prompt,
             ai_generated=task.ai_generated,
-            dependency_ids=task.dependency_ids,
+            dependency_ids=task.dependency_ids or [],
             created_at=task.created_at,
             updated_at=task.updated_at,
         )

@@ -215,13 +215,8 @@ class TaskService:
 
         await self._task_repo.bulk_update_order(issue_id, task_ids)
 
-        # Reuse already-fetched tasks with updated sort_order
-        order_map = {tid: idx for idx, tid in enumerate(task_ids)}
-        sorted_tasks = sorted(existing, key=lambda t: order_map.get(t.id, len(task_ids)))
-        for task in sorted_tasks:
-            if task.id in order_map:
-                task.sort_order = order_map[task.id]
-        return list(sorted_tasks)
+        # Re-fetch to get fresh updated_at timestamps and sort_order
+        return list(await self._task_repo.list_by_issue(issue_id))
 
     async def export_context(
         self,
@@ -311,16 +306,28 @@ class TaskService:
                 if task.ai_prompt:
                     lines.append(f"   Prompt: {task.ai_prompt}")
 
-        lines.extend(
-            [
-                "",
-                "## Constraints",
-                "- Follow existing code patterns and conventions",
-                "- Write tests for all changes (>80% coverage)",
-                "- Keep files under 700 lines",
-                "- Use async/await for all I/O operations",
-            ]
-        )
+        if hasattr(issue, "technical_requirements") and issue.technical_requirements:
+            lines.extend(["", "## Constraints"])
+            for line in issue.technical_requirements.strip().splitlines():
+                stripped = line.strip()
+                if stripped:
+                    prefix = "" if stripped.startswith("-") else "- "
+                    lines.append(f"{prefix}{stripped}")
+        else:
+            lines.extend(
+                [
+                    "",
+                    "## Constraints",
+                    "- Follow existing code patterns and conventions",
+                    "- Write tests for all changes (>80% coverage)",
+                ]
+            )
+
+        if hasattr(issue, "acceptance_criteria") and issue.acceptance_criteria:
+            lines.extend(["", "## Acceptance Criteria"])
+            for ac in issue.acceptance_criteria:
+                text = ac.get("text", "") if isinstance(ac, dict) else str(ac)
+                lines.append(f"- [ ] {text}")
 
         return "\n".join(lines)
 
@@ -422,17 +429,12 @@ class TaskService:
         Raises:
             ValueError: If issue not found or workspace mismatch
         """
-        # Validate issue exists and belongs to workspace
-        issue = await self._issue_repo.get_by_id_scalar(issue_id)
+        # Validate issue exists and belongs to workspace (single query with relationships)
+        issue = await self._issue_repo.get_by_id(issue_id)
         if not issue:
             raise ValueError(f"Issue {issue_id} not found")
         if issue.workspace_id != workspace_id:
             raise ValueError("Issue does not belong to workspace")
-
-        # Get full issue for prompt generation
-        full_issue = await self._issue_repo.get_by_id(issue_id)
-        if not full_issue:
-            raise ValueError(f"Issue {issue_id} not found")
 
         created_tasks: list[Task] = []
 
@@ -443,7 +445,7 @@ class TaskService:
                 task_description=subtask_data.get("description"),
                 acceptance_criteria=subtask_data.get("acceptance_criteria"),
                 code_references=subtask_data.get("code_references"),
-                issue=full_issue,
+                issue=issue,
             )
 
             # Map decomposition output to CreateTaskPayload

@@ -190,10 +190,11 @@ function drawGraph(ctx: CanvasRenderingContext2D, positions: NodePosition[], tas
 // ============================================================================
 
 function buildDescription(tasks: GraphTask[]): string {
+  const indexById = new Map(tasks.map((t, i) => [t.id, i + 1]));
   const lines = tasks.map((t, i) => {
     const deps =
       t.dependencyIds.length > 0
-        ? ` depends on task ${t.dependencyIds.map((_, j) => j + 1).join(', ')}`
+        ? ` depends on task ${t.dependencyIds.map((depId) => indexById.get(depId) ?? '?').join(', ')}`
         : ' (root task)';
     return `Task ${i + 1}: ${t.title}, status ${t.status}${deps}`;
   });

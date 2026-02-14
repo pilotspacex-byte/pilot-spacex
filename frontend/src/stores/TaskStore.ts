@@ -174,9 +174,15 @@ export class TaskStore {
     try {
       await tasksApi.decompose(workspaceId, issueId);
       await this.fetchTasks(workspaceId, issueId);
-    } catch (err) {
+    } catch (err: unknown) {
       runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to decompose tasks';
+        const status = (err as { status?: number }).status;
+        if (status === 501) {
+          this.error =
+            'AI decomposition is not yet available. Use the chat /decompose-tasks command instead.';
+        } else {
+          this.error = err instanceof Error ? err.message : 'Failed to decompose tasks';
+        }
       });
     } finally {
       runInAction(() => {
