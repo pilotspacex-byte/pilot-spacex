@@ -12,13 +12,13 @@ Workspace configuration with strict role-based access control: workspace general
 
 ## Pages & Routes
 
-| Route | Page | Purpose |
-|-------|------|---------|
-| `/settings` | `workspace-general-page.tsx` | Name, slug, description, delete (owner-only) |
-| `/settings/profile` | `profile-settings-page.tsx` | Display name, avatar, email |
-| `/settings/members` | `members-settings-page.tsx` | Invite, remove, change roles |
-| `/settings/ai-providers` | `ai-settings-page.tsx` | API keys, feature toggles, provider status |
-| `/settings/skills` | `skills-settings-page.tsx` | Role-based AI skills (max 3 per workspace) |
+| Route                    | Page                         | Purpose                                      |
+| ------------------------ | ---------------------------- | -------------------------------------------- |
+| `/settings`              | `workspace-general-page.tsx` | Name, slug, description, delete (owner-only) |
+| `/settings/profile`      | `profile-settings-page.tsx`  | Display name, avatar, email                  |
+| `/settings/members`      | `members-settings-page.tsx`  | Invite, remove, change roles                 |
+| `/settings/ai-providers` | `ai-settings-page.tsx`       | API keys, feature toggles, provider status   |
+| `/settings/skills`       | `skills-settings-page.tsx`   | Role-based AI skills (max 3 per workspace)   |
 
 ---
 
@@ -35,12 +35,12 @@ Workspace configuration with strict role-based access control: workspace general
 
 ## Permission Model
 
-| Role | Workspace | Members | AI Settings | Skills | Delete |
-|------|-----------|---------|-------------|--------|--------|
-| Owner | Full | Manage all | Full | Full | Yes |
-| Admin | Full | Manage (except owner) | Full | Full | No |
-| Member | Read/Write | View | View/toggle | Full | No |
-| Guest | Read-only | View | View | No access | No |
+| Role   | Workspace  | Members               | AI Settings | Skills    | Delete |
+| ------ | ---------- | --------------------- | ----------- | --------- | ------ |
+| Owner  | Full       | Manage all            | Full        | Full      | Yes    |
+| Admin  | Full       | Manage (except owner) | Full        | Full      | No     |
+| Member | Read/Write | View                  | View/toggle | Full      | No     |
+| Guest  | Read-only  | View                  | View        | No access | No     |
 
 Permission checks: `workspaceStore.isAdmin` (admin OR owner), `workspaceStore.isOwner` (owner only). Backend enforces via RLS policies.
 
@@ -49,6 +49,7 @@ Permission checks: `workspaceStore.isAdmin` (admin OR owner), `workspaceStore.is
 ## State Management
 
 **MobX Stores**:
+
 - `rootStore.ai.settings` (AISettingsStore): settings, isLoading, isSaving, loadSettings, saveSettings, validateKey
 - `rootStore.workspace` (WorkspaceStore): currentUserRole, isAdmin, isOwner, updateMemberRole, removeMember, inviteMember
 - `rootStore.auth` (AuthStore): user, updateProfile

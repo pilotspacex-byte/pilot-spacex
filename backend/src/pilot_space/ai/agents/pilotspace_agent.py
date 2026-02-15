@@ -1,4 +1,4 @@
-"""PilotSpace Agent - Centralized orchestrator routing to skills, subagents, or direct responses."""
+"""PilotSpace Agent - Centralized orchestrator."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import shutil
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
 
@@ -17,8 +16,10 @@ from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, ClaudeSDKClien
 
 from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
 from pilot_space.ai.agents.pilotspace_agent_helpers import (
+    ALL_TOOL_NAMES,
     build_contextual_message,
     build_subagent_definitions,
+    has_skill_files,
     transform_sdk_message as transform_sdk_message_helper,
 )
 from pilot_space.ai.agents.pilotspace_stream_utils import (
@@ -29,17 +30,13 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
     classify_effort,
     detect_skill_from_message,
     estimate_tokens,
+    extract_question_data_from_blocks,
+    extract_tool_calls_from_blocks,
     merge_sdk_and_queue,
 )
 from pilot_space.ai.agents.role_skill_materializer import materialize_role_skills
 from pilot_space.ai.agents.sse_delta_buffer import DeltaBuffer
 from pilot_space.ai.context import clear_context, set_workspace_context
-from pilot_space.ai.mcp.comment_server import TOOL_NAMES as COMMENT_TOOL_NAMES
-from pilot_space.ai.mcp.issue_relation_server import TOOL_NAMES as ISSUE_REL_TOOL_NAMES
-from pilot_space.ai.mcp.issue_server import TOOL_NAMES as ISSUE_TOOL_NAMES
-from pilot_space.ai.mcp.note_content_server import TOOL_NAMES as NOTE_CONTENT_TOOL_NAMES
-from pilot_space.ai.mcp.note_server import TOOL_NAMES as NOTE_TOOL_NAMES
-from pilot_space.ai.mcp.project_server import TOOL_NAMES as PROJECT_TOOL_NAMES
 from pilot_space.ai.sdk.sandbox_config import ModelTier, configure_sdk_for_space
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.spaces.manager import SpaceManager
@@ -55,23 +52,6 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
-
-# Aggregated tool names across all MCP servers (33 tools total: 27 spec + 6 retained)
-ALL_TOOL_NAMES: list[str] = [
-    *NOTE_TOOL_NAMES,
-    *NOTE_CONTENT_TOOL_NAMES,
-    *ISSUE_TOOL_NAMES,
-    *ISSUE_REL_TOOL_NAMES,
-    *PROJECT_TOOL_NAMES,
-    *COMMENT_TOOL_NAMES,
-]
-
-
-def _has_skill_files(skills_dir: Path) -> bool:
-    """Check if any SKILL.md files exist under skills_dir subdirectories."""
-    if not skills_dir.is_dir():
-        return False
-    return any((entry / "SKILL.md").is_file() for entry in skills_dir.iterdir() if entry.is_dir())
 
 
 @dataclass
@@ -143,7 +123,16 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         "Destructive actions (remove, unlink, delete) always require approval.\n"
         "Operations return payloads that the frontend applies via content_update events.\n\n"
         "Subagents: pr-review, ai-context, doc-generator.\n"
-        "Return operation payloads; never mutate DB directly."
+        "Return operation payloads; never mutate DB directly.\n\n"
+        "## User interaction (ask_user tool)\n"
+        "When you need user input, clarification, or a decision, use the ask_user MCP tool.\n"
+        "- questions: array (max 4 items), each with:\n"
+        "  - question: string (the question text)\n"
+        "  - header: string (short label, max 12 chars, e.g. 'Auth method')\n"
+        "  - options: array of {label: string, description: string} (2-4 options per question)\n"
+        "  - multiSelect: boolean (default false)\n"
+        "After calling ask_user, do NOT add any commentary — just end your response.\n"
+        "The user's answer will arrive as the next message in the conversation."
     )
 
     SUBAGENT_MAP: ClassVar[dict[str, str]] = {
@@ -181,7 +170,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         return build_subagent_definitions()
 
     async def _get_api_key(self, workspace_id: UUID | None) -> str:
-        """Get API key from Vault (per-workspace BYOK) or ANTHROPIC_API_KEY env var."""
         if workspace_id and self._key_storage:
             try:
                 key = await self._key_storage.get_api_key(workspace_id, "anthropic")
@@ -202,7 +190,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         return api_key
 
     async def interrupt_session(self, session_id: str) -> bool:
-        """Interrupt active SDK client for a given session. Returns True if sent."""
         client = self._active_clients.get(session_id)
         if not client:
             logger.debug("[SDK/Interrupt] No active client for session %s", session_id)
@@ -226,7 +213,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         tool_call_id: str,
         result: str,
     ) -> None:
-        """Submit user answer for AskUserQuestion tool call via follow-up query."""
         client = self._active_clients.get(session_id)
         if not client:
             raise ValueError(f"No active client for session {session_id}")
@@ -242,12 +228,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         delta_buffer: DeltaBuffer | None = None,
         session_id: str | None = None,
     ) -> str | None:
-        """Transform SDK message to SSE event string, or None to skip."""
         return transform_sdk_message_helper(
             message,
             self._message_id_holder,
             delta_buffer,
             app_session_id=session_id,
+            user_id=context.user_id,
         )
 
     async def stream(
@@ -255,21 +241,15 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         input_data: ChatInput,
         context: AgentContext,
     ) -> AsyncIterator[str]:
-        """Execute agent with streaming via Claude SDK subprocess."""
         try:
             api_key = await self._get_api_key(context.workspace_id)
             subagent_definitions = self._build_subagent_definitions()
             session_id_str = str(input_data.session_id) if input_data.session_id else None
 
-            # Resume when explicit resume_session_id is set by the router
             resume_id: str | None = None
             if input_data.resume_session_id and session_id_str:
                 resume_id = session_id_str
-                logger.info(
-                    "Resuming SDK session: %s (requested: %s)",
-                    resume_id,
-                    input_data.resume_session_id,
-                )
+                logger.info("Resuming SDK session: %s", resume_id)
 
             if not (self._space_manager and context.workspace_id and context.user_id):
                 raise ValueError(  # noqa: TRY301
@@ -299,7 +279,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         session_id_str: str | None,
         resume_id: str | None = None,
     ) -> AsyncIterator[str]:
-        """Stream using SpaceManager for sandboxed execution."""
         assert self._space_manager is not None
         assert context.workspace_id is not None
         assert context.user_id is not None
@@ -329,22 +308,18 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 event_queue=tool_event_queue,
             )
 
-            # Build ToolContext for MCP servers that need DB access
             from pilot_space.ai.tools.mcp_server import ToolContext
             from pilot_space.infrastructure.database import get_db_session
 
             db_session_cm = get_db_session()
             db_session = await db_session_cm.__aenter__()
 
-            # try/finally guards DB session lifetime (always closed even if setup throws).
             client: ClaudeSDKClient | None = None
             query_session_id = session_id_str or "default"
             stream_completed = False
             content_blocks: dict[str, dict[str, Any]] = {}
 
             try:
-                # Materialize user's role skills into space's .claude/skills/
-                # directory so the SDK auto-discovers them (FR-006/FR-007).
                 skill_count = await materialize_role_skills(
                     db_session=db_session,
                     user_id=context.user_id,
@@ -352,15 +327,11 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     skills_dir=space_context.skills_dir,
                 )
 
-                # Detect whether any skill files exist (role or system) so
-                # the Skill tool is only exposed when the SDK can resolve it.
-                # Prevents "No such tool available: skill" when no skills exist.
                 has_skills = skill_count > 0 or await asyncio.to_thread(
-                    _has_skill_files,
+                    has_skill_files,
                     space_context.skills_dir,
                 )
 
-                # Query user's primary role for dynamic system prompt (DD-087).
                 from pilot_space.infrastructure.database.repositories.role_skill_repository import (
                     RoleSkillRepository,
                 )
@@ -372,13 +343,15 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 )
                 _role_type = _primary_role.role_type if _primary_role else None
 
+                if input_data.user_id is None:
+                    raise ValueError("user_id is required for AI interactions")
+
                 tool_context = ToolContext(
                     db_session=db_session,
                     workspace_id=str(context.workspace_id),
                     user_id=str(context.user_id) if context.user_id else None,
                 )
 
-                # Build ¶N block reference map + 6 MCP tool servers
                 mcp_servers, ref_map = build_mcp_servers(
                     tool_event_queue,
                     tool_context,
@@ -422,6 +395,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 if "PATH" not in sdk_env:
                     sdk_env["PATH"] = os.environ.get("PATH", "")
 
+                from pilot_space.ai.sdk.question_adapter import create_can_use_tool_callback
+
+                can_use_tool_cb = create_can_use_tool_callback(tool_event_queue, context.user_id)
+
                 sdk_options = ClaudeAgentOptions(
                     model=sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
                     cwd=sdk_params.get("cwd"),
@@ -439,8 +416,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         "include_partial_messages",
                         True,
                     ),
-                    # Bug fix: system_prompt + max_thinking_tokens required to avoid
-                    # "Missing required field: 'signature'" SDK errors.
                     system_prompt=sdk_config.system_prompt_base,
                     max_thinking_tokens=sdk_config.max_thinking_tokens,
                     max_budget_usd=sdk_config.max_budget_usd,
@@ -448,6 +423,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     fallback_model=sdk_config.fallback_model,
                     output_format=sdk_config.output_format,
                     enable_file_checkpointing=sdk_config.enable_file_checkpointing,
+                    can_use_tool=can_use_tool_cb,
                 )
 
                 set_workspace_context(context.workspace_id, context.user_id)
@@ -464,7 +440,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
                 client = ClaudeSDKClient(sdk_options)
 
-                # Initialize delta buffer for water pumping (SSE event reduction)
                 delta_buffer = DeltaBuffer()
 
                 await client.connect()
@@ -552,7 +527,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         yield final_flush
                         capture_content_from_sse(final_flush, content_blocks)
 
-                    # Drain any remaining queue events
                     try:
                         while True:
                             drain_item = tool_event_queue.get_nowait()
@@ -597,10 +571,14 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                             )
                             structured_content = build_structured_content(content_blocks)
                             if structured_content:
+                                question_data = extract_question_data_from_blocks(content_blocks)
+                                tool_calls = extract_tool_calls_from_blocks(content_blocks)
                                 await self._session_handler.add_message(
                                     session_id=input_data.session_id,
                                     role="assistant",
                                     content=structured_content,
+                                    question_data=question_data,
+                                    tool_calls=tool_calls,
                                 )
                             logger.debug(
                                 "[SDK/Space] Persisted messages to session %s (%d blocks)",

@@ -214,25 +214,129 @@ describe('PilotSpaceActions', () => {
   });
 
   describe('submitQuestionAnswer', () => {
-    it('should send answer to backend and resolve pending question', async () => {
+    it('should resolve question inline and send as new chat turn via sendMessage', async () => {
       store.setSessionId('sess-1');
       store.pendingQuestion = {
         questionId: 'q-1',
         questions: [{ question: 'Priority?', options: [], multiSelect: false }],
       };
+      // Add an assistant message with questionData so resolveQuestion can find it
+      store.messages.push({
+        id: 'msg-prev',
+        role: 'assistant',
+        content: 'I need some info.',
+        timestamp: new Date(),
+        questionData: {
+          questionId: 'q-1',
+          questions: [{ question: 'Priority?', options: [], multiSelect: false }],
+        },
+      });
 
-      fetchSpy.mockResolvedValueOnce({ ok: true } as Response);
+      // Mock two fetches: one for the [ANSWER:] sendMessage, one for the silent failure check
+      const mockReadableStream = new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      });
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'text/event-stream' }),
+        body: mockReadableStream,
+      } as unknown as Response);
 
-      await actions.submitQuestionAnswer('q-1', 'High');
+      await actions.submitQuestionAnswer('q-1', 'High', { q0: 'High' });
 
+      // Should POST to /ai/chat with [ANSWER:questionId] prefix (via sendMessage)
       expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining('/ai/chat/answer'),
+        expect.stringContaining('/ai/chat'),
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"answer":"High"'),
+          body: expect.stringContaining('[ANSWER:q-1] High'),
         })
       );
-      expect(store.pendingQuestion?.resolvedAnswer).toBe('High');
+      // No separate user message — answer is embedded in assistant message
+      const userMsg = store.messages.find((m) => m.role === 'user' && m.metadata?.isAnswerMessage);
+      expect(userMsg).toBeUndefined();
+      // Pending question should be cleared
+      expect(store.pendingQuestion).toBeNull();
+      // Q&A should be embedded in the assistant message via questionData.answers
+      const assistantMsg = store.messages.find((m) => m.id === 'msg-prev');
+      expect(assistantMsg?.questionData?.answers).toEqual({ q0: 'High' });
+      // isSubmittingAnswer should be reset
+      expect(store.isSubmittingAnswer).toBe(false);
+    });
+
+    it('should handle SSE stream response after answer submission', async () => {
+      store.setSessionId('sess-1');
+      store.pendingQuestion = {
+        questionId: 'q-2',
+        questions: [{ question: 'Which?', options: [], multiSelect: false }],
+      };
+
+      const sseData = [
+        'event: message_start\ndata: {"messageId":"msg-a","sessionId":"sess-1"}\n\n',
+        'event: text_delta\ndata: {"delta":"Got it."}\n\n',
+        'event: message_stop\ndata: {"messageId":"msg-a","usage":{"totalTokens":5}}\n\n',
+      ].join('');
+
+      const encoder = new TextEncoder();
+      const mockStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(sseData));
+          controller.close();
+        },
+      });
+
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'text/event-stream' }),
+        body: mockStream,
+      } as unknown as Response);
+
+      await actions.submitQuestionAnswer('q-2', 'Option A');
+
+      // Pending question cleared
+      expect(store.pendingQuestion).toBeNull();
+      // Assistant response processed (user message from sendMessage + assistant from stream)
+      expect(store.messages.some((m) => m.role === 'assistant')).toBe(true);
+    });
+
+    it('should rollback optimistic update and set error on HTTP failure', async () => {
+      store.setSessionId('sess-1');
+      store.pendingQuestion = {
+        questionId: 'q-3',
+        questions: [{ question: 'Test?', options: [], multiSelect: false }],
+      };
+      // Add assistant message with questionData for rollback verification
+      store.messages.push({
+        id: 'msg-fail',
+        role: 'assistant',
+        content: 'Question for you.',
+        timestamp: new Date(),
+        questionData: {
+          questionId: 'q-3',
+          questions: [{ question: 'Test?', options: [], multiSelect: false }],
+        },
+      });
+
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      } as Response);
+
+      await actions.submitQuestionAnswer('q-3', 'answer', { q0: 'answer' });
+
+      expect(store.error).toContain('500 Internal Server Error');
+      expect(store.streamingState.isStreaming).toBe(false);
+      // Rollback: pendingQuestion restored
+      expect(store.pendingQuestion).toEqual({
+        questionId: 'q-3',
+        questions: [{ question: 'Test?', options: [], multiSelect: false }],
+      });
+      // Rollback: answers cleared from assistant message
+      const msg = store.messages.find((m) => m.id === 'msg-fail');
+      expect(msg?.questionData?.answers).toBeUndefined();
     });
 
     it('should do nothing when sessionId is null', async () => {
@@ -271,7 +375,7 @@ describe('PilotSpaceActions', () => {
   });
 
   describe('clear', () => {
-    it('should reset all conversation state', () => {
+    it('should reset all conversation state including pendingQuestion', () => {
       store.addMessage({ id: '1', role: 'user', content: 'Hi', timestamp: new Date() });
       store.setSessionId('sess-1');
       store.setForkSessionId('fork-1');
@@ -285,6 +389,10 @@ describe('PilotSpaceActions', () => {
         expiresAt: new Date(),
         createdAt: new Date(),
       });
+      store.pendingQuestion = {
+        questionId: 'q-1',
+        questions: [{ question: 'Test?', options: [], multiSelect: false }],
+      };
       store.error = 'some error';
 
       actions.clear();
@@ -294,6 +402,7 @@ describe('PilotSpaceActions', () => {
       expect(store.forkSessionId).toBeNull();
       expect(store.tasks.size).toBe(0);
       expect(store.pendingApprovals).toHaveLength(0);
+      expect(store.pendingQuestion).toBeNull();
       expect(store.error).toBeNull();
     });
   });

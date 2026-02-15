@@ -8,15 +8,15 @@
 
 ## Store Overview
 
-| Store              | File                                    | Purpose                              |
-| ------------------ | --------------------------------------- | ------------------------------------ |
-| **AuthStore**      | `stores/AuthStore.ts`                   | Supabase auth + session lifecycle    |
-| **UIStore**        | `stores/UIStore.ts`                     | Theme, layout, modals, toasts        |
-| **WorkspaceStore** | `stores/WorkspaceStore.ts`              | Current workspace + members + roles  |
-| **NoteStore**      | `stores/features/notes/NoteStore.ts`    | Editor state, auto-save, annotations |
-| **IssueStore**     | `stores/features/issues/IssueStore.ts`  | Filters, sorting, AI suggestions     |
-| **CycleStore**     | `stores/features/cycles/CycleStore.ts`  | Cycle CRUD, burndown, velocity       |
-| **NotificationStore** | `stores/NotificationStore.ts`        | Notification inbox                   |
+| Store                 | File                                   | Purpose                              |
+| --------------------- | -------------------------------------- | ------------------------------------ |
+| **AuthStore**         | `stores/AuthStore.ts`                  | Supabase auth + session lifecycle    |
+| **UIStore**           | `stores/UIStore.ts`                    | Theme, layout, modals, toasts        |
+| **WorkspaceStore**    | `stores/WorkspaceStore.ts`             | Current workspace + members + roles  |
+| **NoteStore**         | `stores/features/notes/NoteStore.ts`   | Editor state, auto-save, annotations |
+| **IssueStore**        | `stores/features/issues/IssueStore.ts` | Filters, sorting, AI suggestions     |
+| **CycleStore**        | `stores/features/cycles/CycleStore.ts` | Cycle CRUD, burndown, velocity       |
+| **NotificationStore** | `stores/NotificationStore.ts`          | Notification inbox                   |
 
 All stores are initialized by RootStore and accessed via hooks.
 
@@ -33,6 +33,7 @@ Manages Supabase authentication with session lifecycle.
 **Key Computed**: `isAuthenticated`, `userDisplayName`, `userInitials`
 
 **Key Actions**:
+
 - `login(email, password)`, `loginWithOAuth(provider)`, `signup(email, password, name)`, `logout()`
 - `updateProfile(data)`, `resetPassword(email)`, `refreshSession()`
 
@@ -47,6 +48,7 @@ Subscribes to `supabase.auth.onAuthStateChange()` internally. Cleans up subscrip
 UI layout state with localStorage persistence and theme management.
 
 **Key Observables**:
+
 - Layout: `sidebarCollapsed`, `sidebarWidth` (220-400px), `marginPanelWidth` (150-350px)
 - Theme: `theme` ('light'|'dark'|'system'), `hydrated` (SSR-safe flag)
 - Modals: `commandPaletteOpen`, `searchModalOpen`, `modals: Map<string, ModalState>`
@@ -55,6 +57,7 @@ UI layout state with localStorage persistence and theme management.
 **Key Computed**: `activeToasts`, `resolvedTheme`, `hasOpenModal`
 
 **Key Actions**:
+
 - Layout: `toggleSidebar()`, `setSidebarWidth()`, `setMarginPanelWidth()`
 - Theme: `setTheme()` -- auto-persists to localStorage, updates DOM classList
 - Modals: `openModal(id, data?)`, `closeModal(id)`, `closeAllModals()`
@@ -75,6 +78,7 @@ Current workspace and members state.
 **Key Computed**: `currentWorkspace`, `workspaceList` (sorted), `currentMembers`, `memberCount`, `currentUserRole`, `isAdmin`, `isOwner`
 
 **Key Actions**:
+
 - CRUD: `loadWorkspaces()`, `createWorkspace()`, `updateWorkspace()`, `deleteWorkspace()`
 - Members: `loadMembers()`, `inviteMember()`, `removeMember()`, `updateMemberRole()`
 - Selection: `setCurrentWorkspace(id)`
@@ -90,6 +94,7 @@ Cross-store: `setAuthStore()` wires AuthStore for `currentUserRole` computed.
 Note editor state with auto-save and dirty tracking (NOT server data).
 
 **Key Observables**:
+
 - `notes: Map` (cache only -- primary in TanStack Query), `currentNoteId`, `isLoading`, `isSaving`
 - Auto-save: `lastSavedAt`, `_originalContent` (private, for dirty tracking)
 - Editor: `ghostTextSuggestion`, `isGhostTextLoading`
@@ -99,6 +104,7 @@ Note editor state with auto-save and dirty tracking (NOT server data).
 **Key Computed**: `currentNote`, `notesList`, `filteredNotes`, `hasUnsavedChanges`
 
 **Key Actions**:
+
 - `setCurrentNote(id)`, `loadNote(id)`, `loadNotes()`
 - `setSearchQuery()`, `setPinnedOnly()`
 - Annotations: `addAnnotation()`, `updateAnnotation()`, `removeAnnotation()`, `selectAnnotation()`
@@ -114,12 +120,14 @@ Auto-save uses MobX reaction with 2s debounce on content changes. Tracks dirty s
 Issue filtering, sorting, and AI suggestions (NOT server data).
 
 **Key Observables**:
+
 - `issues: Map` (cache only), `currentIssueId`, `isLoading`, `isSaving`
 - AI: `aiContext`, `enhancementSuggestion`, `duplicateCheckResult`, `assigneeRecommendations`
 - Filters: `filters: IssueFilters`, `groupBy`, `sortBy`, `sortOrder`, `searchQuery`, `viewMode` ('board'|'list'|'table')
 - Inline editing: `saveStatus: Map<string, 'idle'|'saving'|'saved'|'error'>`
 
 **Key Actions**:
+
 - Selection: `setCurrentIssue(id)`, `loadIssues()`, `loadIssueDetail(id)`
 - Filters: `setFilter()`, `setGroupBy()`, `setSortBy()`, `setSearchQuery()`, `setViewMode()`
 - AI: `loadAIContext()`, `enhanceIssue()`, `checkDuplicates()`, `getAssigneeRecommendations()`
@@ -136,6 +144,7 @@ AI suggestion types: `EnhancementSuggestion`, `DuplicateCandidate`, `AssigneeRec
 Sprint/cycle management with burndown and velocity tracking.
 
 **Key Observables**:
+
 - `cycles: Map`, `currentCycleId`, `cycleIssues: Map`
 - Charts: `burndownData`, `velocityData`
 - Loading: `isLoading`, `isSaving`, `isLoadingIssues`, `isLoadingBurndown`, `isLoadingVelocity`
@@ -145,6 +154,7 @@ Sprint/cycle management with burndown and velocity tracking.
 **Key Computed**: `activeCycle`, `cycleList`, `filteredCycles`
 
 **Key Actions**:
+
 - CRUD: `loadCycles()`, `createCycle()`, `updateCycle()`, `deleteCycle()`, `rolloverCycle()`
 - Issues: `loadCycleIssues()`, `assignIssueToCycle()`, `removeIssueFromCycle()`
 - Metrics: `loadBurndown()`, `loadVelocity()`

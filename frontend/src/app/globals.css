@@ -43,6 +43,7 @@
   --color-ai-muted: var(--ai-muted);
   --color-ai-border: var(--ai-border);
   --color-ai-hover: var(--ai-hover);
+  --color-ai-bg: var(--ai-bg);
 
   /* Issue state colors */
   --color-state-backlog: var(--state-backlog);
@@ -152,6 +153,12 @@
   --ai-border: #b8ccdb;
   --ai-foreground: #ffffff;
 
+  /* AI Inline Card Background */
+  --ai-bg: #eef2f7;
+
+  /* Question Request - Warm cream background for QuestionBlock */
+  --color-question-bg: #f5f0eb;
+
   /* Issue States (v4 exact values) */
   --state-backlog: #9c9590;
   --state-todo: #5b8fc9;
@@ -240,6 +247,12 @@
   --ai-muted: #1f2d38;
   --ai-border: #4a6b85;
   --ai-foreground: #ffffff;
+
+  /* AI Inline Card Background */
+  --ai-bg: #1f252c;
+
+  /* Question Request - Dark warm background for QuestionBlock */
+  --color-question-bg-dark: #252220;
 
   /* Issue States */
   --state-backlog: #7a7570;

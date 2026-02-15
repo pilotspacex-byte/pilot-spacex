@@ -363,8 +363,6 @@ def configure_sdk_for_space(
         "Bash",
         # Subagents
         "Task",
-        # User interaction
-        "AskUserQuestion",
         # Web access
         "WebFetch",
         "WebSearch",

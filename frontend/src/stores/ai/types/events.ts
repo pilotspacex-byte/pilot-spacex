@@ -24,7 +24,7 @@ export type SSEEventType =
   | 'tool_result'
   | 'task_progress'
   | 'approval_request'
-  | 'ask_user_question'
+  | 'question_request'
   | 'content_update'
   | 'structured_result'
   | 'message_stop'
@@ -237,13 +237,23 @@ export interface AffectedEntity {
 }
 
 /**
- * Question option for AskUserQuestion.
+ * Question option for QuestionRequest.
  */
 export interface QuestionOption {
   /** Display label */
   label: string;
   /** Description of this option */
   description?: string;
+}
+
+/**
+ * Condition to skip a question based on a previous question's answer.
+ */
+export interface SkipCondition {
+  /** 0-based index of the referenced question */
+  questionIndex: number;
+  /** If this label is selected in the referenced question, skip this question */
+  selectedLabel: string;
 }
 
 /**
@@ -258,20 +268,24 @@ export interface AgentQuestion {
   multiSelect: boolean;
   /** Short header label */
   header?: string;
+  /** Conditions to skip this question based on previous answers */
+  skipWhen?: SkipCondition[];
 }
 
 /**
- * Ask user question event.
+ * Question request event.
  * AI agent needs clarification during execution.
- * Frontend renders inline QuestionCard for user response.
+ * Frontend renders inline QuestionBlock for user response.
  */
-export interface AskUserQuestionEvent extends SSEEvent {
-  type: 'ask_user_question';
+export interface QuestionRequestEvent extends SSEEvent {
+  type: 'question_request';
   data: {
     /** Message ID this question belongs to */
     messageId: string;
     /** Question ID (tool call ID, used to submit answer) */
     questionId: string;
+    /** Tool call ID that triggered this question */
+    toolCallId: string;
     /** Questions to display */
     questions: AgentQuestion[];
   };
@@ -586,7 +600,7 @@ export {
   isTaskProgressEvent,
   isApprovalRequestEvent,
   isContentUpdateEvent,
-  isAskUserQuestionEvent,
+  isQuestionRequestEvent,
   isStructuredResultEvent,
   isMessageStopEvent,
   isBudgetWarningEvent,

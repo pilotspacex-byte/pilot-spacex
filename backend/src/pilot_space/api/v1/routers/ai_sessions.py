@@ -141,22 +141,31 @@ def _parse_message_content(content: str) -> dict[str, Any]:
         - content: Plain text content (concatenated from text blocks)
         - content_blocks: Ordered content blocks for interleaved rendering
         - thinking_blocks: Extracted thinking block entries
+        - tool_calls: Tool call records extracted from content (fallback for pre-persist sessions)
     """
-    # Check if content is a JSON array of structured blocks
+    empty = {
+        "content": content,
+        "content_blocks": None,
+        "thinking_blocks": None,
+        "tool_calls": None,
+    }
     if not content or not content.strip().startswith("["):
-        return {"content": content, "content_blocks": None, "thinking_blocks": None}
+        return empty
 
     try:
         blocks = json.loads(content)
         if not isinstance(blocks, list):
-            return {"content": content, "content_blocks": None, "thinking_blocks": None}
+            return empty
     except (json.JSONDecodeError, TypeError):
-        return {"content": content, "content_blocks": None, "thinking_blocks": None}
+        return empty
 
     # Parse structured blocks
     text_parts: list[str] = []
     content_blocks: list[dict[str, Any]] = []
     thinking_blocks: list[dict[str, Any]] = []
+    # Collect tool_use/tool_result for pairing
+    tool_use_map: dict[str, dict[str, Any]] = {}
+    tool_result_map: dict[str, dict[str, Any]] = {}
 
     for idx, block in enumerate(blocks):
         if not isinstance(block, dict):
@@ -171,34 +180,44 @@ def _parse_message_content(content: str) -> dict[str, Any]:
 
         elif block_type == "thinking":
             thinking = block.get("thinking", "")
-            thinking_blocks.append(
-                {
-                    "content": thinking,
-                    "blockIndex": idx,
-                    "redacted": False,
-                }
-            )
-            content_blocks.append(
-                {
-                    "type": "thinking",
-                    "blockIndex": idx,
-                    "content": thinking,
-                }
-            )
+            thinking_blocks.append({"content": thinking, "blockIndex": idx, "redacted": False})
+            content_blocks.append({"type": "thinking", "blockIndex": idx, "content": thinking})
 
         elif block_type == "tool_use":
             tool_id = block.get("id", "")
-            content_blocks.append(
-                {
-                    "type": "tool_call",
-                    "toolCallId": tool_id,
-                }
-            )
+            content_blocks.append({"type": "tool_call", "toolCallId": tool_id})
+            if tool_id:
+                tool_use_map[tool_id] = block
+
+        elif block_type == "tool_result":
+            tid = block.get("tool_use_id", "")
+            if tid:
+                tool_result_map[tid] = block
+
+    # Build tool_calls by pairing tool_use + tool_result
+    tool_calls: list[dict[str, Any]] = []
+    for tid, use_block in tool_use_map.items():
+        record: dict[str, Any] = {
+            "id": tid,
+            "name": use_block.get("name", ""),
+            "input": use_block.get("input", {}),
+        }
+        res = tool_result_map.get(tid)
+        if res:
+            is_error = res.get("is_error", False)
+            record["status"] = "failed" if is_error else "completed"
+            record["output"] = res.get("content", "")
+            if is_error:
+                record["error_message"] = res.get("content", "")
+        else:
+            record["status"] = "pending"
+        tool_calls.append(record)
 
     return {
         "content": "".join(text_parts),
         "content_blocks": content_blocks if content_blocks else None,
         "thinking_blocks": thinking_blocks if thinking_blocks else None,
+        "tool_calls": tool_calls if tool_calls else None,
     }
 
 
@@ -438,8 +457,18 @@ async def resume_session(
                 msg_dict["content_blocks"] = parsed["content_blocks"]
             if parsed["thinking_blocks"]:
                 msg_dict["thinking_blocks"] = parsed["thinking_blocks"]
+            # Prefer persisted tool_calls; fall back to content-extracted ones
+            persisted_tc = getattr(msg, "tool_calls", None)
+            tool_calls = persisted_tc or parsed["tool_calls"]
+            if tool_calls:
+                msg_dict["tool_calls"] = tool_calls
         else:
             msg_dict["content"] = msg.content
+
+        # Include question_data for session resume Q&A rendering
+        question_data = getattr(msg, "question_data", None)
+        if question_data is not None:
+            msg_dict["question_data"] = question_data
 
         messages.append(msg_dict)
 

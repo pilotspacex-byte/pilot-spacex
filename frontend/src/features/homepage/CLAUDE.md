@@ -67,12 +67,12 @@ Time-grouped (Today, Yesterday, This Week -- non-empty buckets only). 20 items/p
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `/` | Focus chat input (if not typing) |
-| `F6` / `Shift+F6` | Cycle zones forward/backward |
-| `Escape` | Close expanded chat |
-| `Tab` | Focus trap in chat (when expanded) |
+| Shortcut          | Action                             |
+| ----------------- | ---------------------------------- |
+| `/`               | Focus chat input (if not typing)   |
+| `F6` / `Shift+F6` | Cycle zones forward/backward       |
+| `Escape`          | Close expanded chat                |
+| `Tab`             | Focus trap in chat (when expanded) |
 
 ARIA landmarks on all three zones. Reduced motion support via CSS media query.
 

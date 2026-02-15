@@ -12,12 +12,12 @@ Issue CRUD with inline editing, property management, state transitions, activity
 
 ## Critical Constants
 
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| Debounce MS | 2000 | Auto-save delay for title/description |
-| AI Context Cache | 5 minutes | Stale time for generated context |
-| Activity Page Size | 50 | Offset pagination per request |
-| Issue Stale Time | 30 seconds | Detail query cache time |
+| Constant           | Value      | Purpose                               |
+| ------------------ | ---------- | ------------------------------------- |
+| Debounce MS        | 2000       | Auto-save delay for title/description |
+| AI Context Cache   | 5 minutes  | Stale time for generated context      |
+| Activity Page Size | 50         | Offset pagination per request         |
+| Issue Stale Time   | 30 seconds | Detail query cache time               |
 
 ---
 
@@ -124,26 +124,26 @@ IssueDetailPage
 
 ### TanStack Query (Server State)
 
-| Hook | Pattern | Stale Time | Key Feature |
-|------|---------|-----------|---|
-| `useIssueDetail` | Query | 30s | Enabled gating |
-| `useUpdateIssue` | Mutation | -- | Optimistic + rollback |
-| `useActivities` | InfiniteQuery | -- | 50/page, sentinel |
-| `useAddComment` | Mutation | -- | Invalidates activities |
-| `useCreateSubIssue` | Mutation | -- | Invalidates parent |
-| `useWorkspaceMembers` | Query | 60s | Enabled gating |
-| `useWorkspaceLabels` | Query | 60s | Enabled gating |
-| `useProjectCycles` | Query | 60s | Enabled gating |
-| `useAIContext` | Query | 5m | Generate/regenerate |
-| `useAIContextChat` | -- | -- | SSE message state |
+| Hook                  | Pattern       | Stale Time | Key Feature            |
+| --------------------- | ------------- | ---------- | ---------------------- |
+| `useIssueDetail`      | Query         | 30s        | Enabled gating         |
+| `useUpdateIssue`      | Mutation      | --         | Optimistic + rollback  |
+| `useActivities`       | InfiniteQuery | --         | 50/page, sentinel      |
+| `useAddComment`       | Mutation      | --         | Invalidates activities |
+| `useCreateSubIssue`   | Mutation      | --         | Invalidates parent     |
+| `useWorkspaceMembers` | Query         | 60s        | Enabled gating         |
+| `useWorkspaceLabels`  | Query         | 60s        | Enabled gating         |
+| `useProjectCycles`    | Query         | 60s        | Enabled gating         |
+| `useAIContext`        | Query         | 5m         | Generate/regenerate    |
+| `useAIContextChat`    | --            | --         | SSE message state      |
 
 ### MobX (UI State)
 
-| Hook/Store | Purpose |
-|------------|---------|
-| `useSaveStatus(fieldName)` | Per-field save indicator (idle/saving/saved/error) |
-| `IssueStore.aggregateSaveStatus` | Priority: saving > error > saved > idle |
-| `AIContextStore` | Context generation state (isLoading, phases, error) |
+| Hook/Store                       | Purpose                                             |
+| -------------------------------- | --------------------------------------------------- |
+| `useSaveStatus(fieldName)`       | Per-field save indicator (idle/saving/saved/error)  |
+| `IssueStore.aggregateSaveStatus` | Priority: saving > error > saved > idle             |
+| `AIContextStore`                 | Context generation state (isLoading, phases, error) |
 
 Query key factories: See `hooks/use-issue-detail.ts`, `hooks/use-activities.ts`, `hooks/useAIContext.ts`.
 
@@ -153,13 +153,13 @@ Store implementation: See `stores/features/IssueStore.ts`, `stores/ai/AIContextS
 
 ## Troubleshooting
 
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| Save status not showing | useSaveStatus not called consistently | Verify fieldName matches |
-| Optimistic update no rollback | onMutate doesn't return snapshot | Check snapshot capture + onError |
-| AI Context takes >30s | Search timeouts | Check phases array |
-| Infinite scroll not triggering | Sentinel not visible | Verify IntersectionObserver |
-| State transition fails | Backend rejects (RLS?) | Check state machine + constraints |
+| Problem                        | Cause                                 | Solution                          |
+| ------------------------------ | ------------------------------------- | --------------------------------- |
+| Save status not showing        | useSaveStatus not called consistently | Verify fieldName matches          |
+| Optimistic update no rollback  | onMutate doesn't return snapshot      | Check snapshot capture + onError  |
+| AI Context takes >30s          | Search timeouts                       | Check phases array                |
+| Infinite scroll not triggering | Sentinel not visible                  | Verify IntersectionObserver       |
+| State transition fails         | Backend rejects (RLS?)                | Check state machine + constraints |
 
 ---
 

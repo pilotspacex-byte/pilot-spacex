@@ -19,12 +19,12 @@ References:
 - docs/architect/claude-agent-sdk-architecture.md
 """
 
-from pilot_space.ai.session.session_manager import (
+from pilot_space.ai.session.session_manager import SessionManager
+from pilot_space.ai.session.session_models import (
     SESSION_TTL_SECONDS,
     AIMessage,
     AISession,
     SessionExpiredError,
-    SessionManager,
     SessionNotFoundError,
 )
 

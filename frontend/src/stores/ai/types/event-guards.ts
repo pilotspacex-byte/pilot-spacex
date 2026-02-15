@@ -16,7 +16,7 @@ import type {
   TaskProgressEvent,
   ApprovalRequestEvent,
   ContentUpdateEvent,
-  AskUserQuestionEvent,
+  QuestionRequestEvent,
   StructuredResultEvent,
   MessageStopEvent,
   BudgetWarningEvent,
@@ -113,8 +113,8 @@ export function isContentUpdateEvent(event: unknown): event is ContentUpdateEven
   return true;
 }
 
-export function isAskUserQuestionEvent(event: SSEEvent): event is AskUserQuestionEvent {
-  return event.type === 'ask_user_question';
+export function isQuestionRequestEvent(event: SSEEvent): event is QuestionRequestEvent {
+  return event.type === 'question_request';
 }
 
 export function isStructuredResultEvent(event: SSEEvent): event is StructuredResultEvent {

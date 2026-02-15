@@ -4,15 +4,28 @@
  * Follows shadcn/ui AI conversation component pattern with scroll-to-bottom.
  */
 
-import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Button } from '@/components/ui/button';
 import { ArrowDown, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ChatMessage, ToolCall, ThinkingBlockEntry } from '@/stores/ai/types/conversation';
+import type {
+  ChatMessage,
+  ToolCall,
+  ThinkingBlockEntry,
+  StreamingPhase,
+} from '@/stores/ai/types/conversation';
 import { MessageGroup } from './MessageGroup';
 import { StreamingContent } from './StreamingContent';
+import { InlineStreamingIndicator } from './InlineStreamingIndicator';
+
+const SUGGESTED_PROMPTS = [
+  'Extract issues from this note',
+  'Summarize my project',
+  'Improve the writing in this note',
+  'Decompose this into subtasks',
+] as const;
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -45,6 +58,14 @@ interface MessageListProps {
   isLoadingMoreMessages?: boolean;
   /** Callback to load more older messages when scrolling up */
   onLoadMore?: () => void;
+  /** Callback when user clicks a suggested prompt pill */
+  onSuggestedPrompt?: (prompt: string) => void;
+  /** Current streaming phase for inline indicator */
+  streamingPhase?: StreamingPhase;
+  /** Active tool name during tool_use phase */
+  activeToolName?: string | null;
+  /** Word count during content phase */
+  wordCount?: number;
 }
 
 /**
@@ -92,6 +113,10 @@ export const MessageList = observer<MessageListProps>(
     hasMoreMessages,
     isLoadingMoreMessages,
     onLoadMore,
+    onSuggestedPrompt,
+    streamingPhase,
+    activeToolName,
+    wordCount,
   }) => {
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
@@ -205,22 +230,25 @@ export const MessageList = observer<MessageListProps>(
       }
     }, [hasMoreMessages, isLoadingMoreMessages, onLoadMore]);
 
-    // Note: messages.length in deps ensures recompute on MobX in-place push.
-    // MobX observer tracks the array but useMemo's shallow ref check on
-    // [messages] alone won't detect in-place mutations.
-    const messageGroups = useMemo(
-      () => groupMessagesByRole(messages),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [messages, messages.length]
-    );
+    // Compute fresh groups on every render — no useMemo.
+    // MobX observer triggers re-render when any element is replaced
+    // (e.g. resolveQuestion updates questionData.answers). Using useMemo
+    // with [messages, messages.length] misses element replacements because
+    // the array reference and length don't change. Individual MessageGroup/
+    // AssistantMessage memo wrappers still prevent unnecessary DOM updates.
+    //
+    // Filter out answer protocol messages before grouping to avoid empty
+    // Virtuoso items (UserMessage returns null but the group wrapper remains).
+    const visibleMessages = messages.filter((m) => !m.metadata?.isAnswerMessage);
+    const messageGroups = groupMessagesByRole(visibleMessages);
 
     // Total items: message groups + optional streaming footer
-    const hasStreamingFooter =
-      isStreaming &&
-      (streamContent ||
-        thinkingContent ||
-        (thinkingBlocks && thinkingBlocks.length > 0) ||
-        (pendingToolCalls && pendingToolCalls.length > 0));
+    const hasStreamingContent =
+      streamContent ||
+      thinkingContent ||
+      (thinkingBlocks && thinkingBlocks.length > 0) ||
+      (pendingToolCalls && pendingToolCalls.length > 0);
+    const hasStreamingFooter = isStreaming && (hasStreamingContent || streamingPhase);
     const totalCount = messageGroups.length + (hasStreamingFooter ? 1 : 0);
 
     return (
@@ -232,17 +260,35 @@ export const MessageList = observer<MessageListProps>(
       >
         {totalCount === 0 && !isStreaming ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/80 to-ai/80 flex items-center justify-center mb-4">
               <Sparkles className="h-8 w-8 text-white" />
             </div>
             <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
-            <p className="text-sm text-muted-foreground max-w-sm">
+            <p className="text-sm text-muted-foreground max-w-sm mb-5">
               Ask me anything about your notes, issues, or code. Use{' '}
               <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">\skill</code> to
               invoke skills or{' '}
               <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">@agent</code> to
               call specialized agents.
             </p>
+            {onSuggestedPrompt && (
+              <div className="flex flex-wrap justify-center gap-2 max-w-md">
+                {SUGGESTED_PROMPTS.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => onSuggestedPrompt(prompt)}
+                    className={cn(
+                      'rounded-full border border-border px-3 py-1.5 text-xs',
+                      'text-muted-foreground hover:text-foreground hover:border-primary/40',
+                      'hover:bg-primary/5 transition-colors min-h-[36px]'
+                    )}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <Virtuoso
@@ -282,20 +328,34 @@ export const MessageList = observer<MessageListProps>(
               if (hasStreamingFooter && index === messageGroups.length) {
                 return (
                   <div className="px-4 py-3">
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <span className="text-sm font-semibold">PilotSpace Agent</span>
+                    <div className="flex items-baseline gap-2 mb-2.5">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+                        <span className="text-[15px] font-semibold text-primary">
+                          PilotSpace Agent
+                        </span>
+                      </span>
                     </div>
-                    <StreamingContent
-                      content={streamContent ?? ''}
-                      thinkingContent={thinkingContent}
-                      thinkingBlocks={thinkingBlocks}
-                      isThinking={isThinking}
-                      thinkingStartedAt={thinkingStartedAt}
-                      interrupted={interrupted}
-                      pendingToolCalls={pendingToolCalls}
-                      blockOrder={blockOrder}
-                      textSegments={textSegments}
-                    />
+                    {hasStreamingContent ? (
+                      <StreamingContent
+                        content={streamContent ?? ''}
+                        thinkingContent={thinkingContent}
+                        thinkingBlocks={thinkingBlocks}
+                        isThinking={isThinking}
+                        thinkingStartedAt={thinkingStartedAt}
+                        interrupted={interrupted}
+                        pendingToolCalls={pendingToolCalls}
+                        blockOrder={blockOrder}
+                        textSegments={textSegments}
+                      />
+                    ) : (
+                      <InlineStreamingIndicator
+                        phase={streamingPhase}
+                        activeToolName={activeToolName}
+                        wordCount={wordCount}
+                        thinkingStartedAt={thinkingStartedAt}
+                      />
+                    )}
                   </div>
                 );
               }

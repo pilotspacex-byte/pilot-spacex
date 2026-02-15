@@ -1,14 +1,14 @@
 """Helper functions for PilotSpace Agent.
 
-SSE event emission, message transformation utilities, and subagent definitions.
-Extracted from pilotspace_agent.py for modularity (file size quality gate).
+SSE event emission, message transformation, and subagent definitions.
 """
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from claude_agent_sdk import AgentDefinition
 
@@ -26,6 +26,13 @@ from pilot_space.ai.agents.pilotspace_note_helpers import (
     validate_structured_output,
 )
 from pilot_space.ai.agents.stream_event_transformer import transform_stream_event
+from pilot_space.ai.mcp.comment_server import TOOL_NAMES as COMMENT_TOOL_NAMES
+from pilot_space.ai.mcp.interaction_server import TOOL_NAMES as INTERACTION_TOOL_NAMES
+from pilot_space.ai.mcp.issue_relation_server import TOOL_NAMES as ISSUE_REL_TOOL_NAMES
+from pilot_space.ai.mcp.issue_server import TOOL_NAMES as ISSUE_TOOL_NAMES
+from pilot_space.ai.mcp.note_content_server import TOOL_NAMES as NOTE_CONTENT_TOOL_NAMES
+from pilot_space.ai.mcp.note_server import TOOL_NAMES as NOTE_TOOL_NAMES
+from pilot_space.ai.mcp.project_server import TOOL_NAMES as PROJECT_TOOL_NAMES
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -36,12 +43,28 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Aggregated tool names across all MCP servers (33 tools total: 27 spec + 6 retained)
+ALL_TOOL_NAMES: list[str] = [
+    *NOTE_TOOL_NAMES,
+    *NOTE_CONTENT_TOOL_NAMES,
+    *ISSUE_TOOL_NAMES,
+    *ISSUE_REL_TOOL_NAMES,
+    *PROJECT_TOOL_NAMES,
+    *COMMENT_TOOL_NAMES,
+    *INTERACTION_TOOL_NAMES,
+]
+
+
+def has_skill_files(skills_dir: Path) -> bool:
+    """Check if any SKILL.md files exist under skills_dir subdirectories."""
+    if not skills_dir.is_dir():
+        return False
+    return any((entry / "SKILL.md").is_file() for entry in skills_dir.iterdir() if entry.is_dir())
+
 
 def build_subagent_definitions() -> dict[str, AgentDefinition]:
     """Build subagent definitions for SDK agent spawning.
-
-    Each subagent has a dedicated model, tool set, and detailed prompt
-    aligned with provider routing per DD-011.
+    Each subagent has a dedicated model, tool set, and detailed prompt aligned with provider routing per DD-011.
     """
     return {
         "pr-review": AgentDefinition(
@@ -160,12 +183,20 @@ def transform_sdk_message(  # noqa: PLR0911
     current_message_id_holder: dict[str, Any],
     delta_buffer: DeltaBuffer | None = None,
     app_session_id: str | None = None,
+    user_id: UUID | None = None,
 ) -> str | None:
     """Transform Claude SDK message to frontend SSE event.
 
     Converts SDK message types (SystemMessage, AssistantMessage, ResultMessage,
     ToolResultMessage) to ``event: <type>\\ndata: <json>\\n\\n`` SSE format
     with camelCase field names. Note tool results emit content_update events.
+
+    Args:
+        message: SDK message object.
+        current_message_id_holder: Dict to track current message ID across calls.
+        delta_buffer: Optional buffer for water pumping (SSE event reduction).
+        app_session_id: Application session ID (UUID) for session tracking.
+        user_id: User ID for question registration (enables [ANSWER:] resolution).
     """
     msg_type = type(message).__name__
 
@@ -307,7 +338,7 @@ def transform_sdk_message(  # noqa: PLR0911
                         }
                     )
                 elif block_type == "tool_use":
-                    tool_event = _handle_tool_use_block(block, message_id)
+                    tool_event = _handle_tool_use_block(block, message_id, user_id)
                     if tool_event:
                         events.append(tool_event)
                 elif block_type == "server_tool_use":
@@ -448,8 +479,17 @@ def transform_sdk_message(  # noqa: PLR0911
     return None
 
 
-def _handle_tool_use_block(block: Any, message_id: str) -> str | None:
-    """Handle tool_use block: AskUserQuestion → ask_user_question event, others → tool_use event."""
+def _handle_tool_use_block(block: Any, message_id: str, user_id: UUID | None = None) -> str | None:
+    """Handle tool_use block: emit tool_use SSE event.
+
+    Args:
+        block: Tool use block from SDK.
+        message_id: Current message ID.
+        user_id: User ID (reserved for future use).
+
+    Returns:
+        SSE event string or None.
+    """
     if isinstance(block, dict):
         tool_name = block.get("name", "")
         tool_input = block.get("input", {})
@@ -461,9 +501,6 @@ def _handle_tool_use_block(block: Any, message_id: str) -> str | None:
 
     if not tool_name:
         return None
-
-    if tool_name == "AskUserQuestion":
-        return _emit_ask_user_question_event(tool_id, tool_input, message_id)
 
     # Standard tool_use event
     tool_data: dict[str, Any] = {
@@ -533,35 +570,6 @@ def _handle_web_search_result_block(block: Any) -> str | None:
         "status": "completed",
     }
     return f"event: tool_result\ndata: {json.dumps(result_data)}\n\n"
-
-
-def _emit_ask_user_question_event(
-    tool_id: str,
-    tool_input: Any,
-    message_id: str,
-) -> str:
-    """Emit ask_user_question SSE event from AskUserQuestion tool call."""
-    questions = []
-    if isinstance(tool_input, dict):
-        raw_questions = tool_input.get("questions", [])
-        if isinstance(raw_questions, list):
-            for q in raw_questions:
-                if isinstance(q, dict):
-                    questions.append(
-                        {
-                            "question": q.get("question", ""),
-                            "options": q.get("options", []),
-                            "multiSelect": q.get("multiSelect", False),
-                            "header": q.get("header", ""),
-                        }
-                    )
-
-    event_data: dict[str, Any] = {
-        "messageId": message_id,
-        "questionId": str(tool_id),
-        "questions": questions,
-    }
-    return f"event: ask_user_question\ndata: {json.dumps(event_data)}\n\n"
 
 
 def _get_block_type(block: Any) -> str:

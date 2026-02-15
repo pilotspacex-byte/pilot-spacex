@@ -42,8 +42,8 @@ vi.mock('../TaskPanel/TaskPanel', () => ({
   TaskPanel: () => <div data-testid="task-panel" />,
 }));
 
-vi.mock('../ApprovalOverlay/ApprovalOverlay', () => ({
-  ApprovalOverlay: () => null,
+vi.mock('../ApprovalOverlay/DestructiveApprovalModal', () => ({
+  DestructiveApprovalModal: () => null,
 }));
 
 vi.mock('../ChatInput/ChatInput', () => ({
@@ -65,12 +65,16 @@ vi.mock('../ChatInput/ChatInput', () => ({
   ),
 }));
 
-vi.mock('../MessageList/SuggestionCard', () => ({
-  SuggestionCard: () => null,
+vi.mock('../MessageList/InlineApprovalCard', () => ({
+  InlineApprovalCard: () => null,
 }));
 
-vi.mock('../MessageList/QuestionCard', () => ({
-  QuestionCard: () => null,
+vi.mock('../MessageList/QuestionBlock', () => ({
+  QuestionBlock: () => null,
+}));
+
+vi.mock('../WaitingIndicator', () => ({
+  WaitingIndicator: () => null,
 }));
 
 vi.mock('../ChatViewErrorBoundary', () => ({
@@ -109,6 +113,7 @@ function createMockStore(overrides: Partial<PilotSpaceStore> = {}): PilotSpaceSt
     sessionId: null,
     streamContent: '',
     hasUnresolvedApprovals: false,
+    isWaitingForUser: false,
     streamingState: {
       isStreaming: false,
       streamContent: '',

@@ -56,15 +56,15 @@ ChatView (observer, store integration)
 
 ## SSE Streaming Events (DD-066)
 
-| Event | Purpose | UI Effect |
-|-------|---------|-----------|
-| `message_start` | Begin assistant message | Show streaming indicator |
-| `text_delta` | Stream text chunk | Append text, animate cursor |
-| `tool_use` | Record tool invocation | Add tool card |
-| `tool_result` | Store tool output | Update tool card |
-| `task_progress` | Update task status | TaskPanel refresh |
-| `approval_request` | Queue approval (DD-003) | Show modal/card |
-| `message_stop` | Finalize message | Clear streaming state |
+| Event              | Purpose                 | UI Effect                   |
+| ------------------ | ----------------------- | --------------------------- |
+| `message_start`    | Begin assistant message | Show streaming indicator    |
+| `text_delta`       | Stream text chunk       | Append text, animate cursor |
+| `tool_use`         | Record tool invocation  | Add tool card               |
+| `tool_result`      | Store tool output       | Update tool card            |
+| `task_progress`    | Update task status      | TaskPanel refresh           |
+| `approval_request` | Queue approval (DD-003) | Show modal/card             |
+| `message_stop`     | Finalize message        | Clear streaming state       |
 
 SSE client: `frontend/src/lib/sse-client.ts` (POST support, JWT auth, 3-retry reconnect).
 
@@ -92,11 +92,11 @@ All AI state managed by **PilotSpaceStore** (`stores/ai/PilotSpaceStore.ts`).
 
 ## Approval Classification (DD-003)
 
-| Category | Examples | Approval Required | UI |
-|----------|----------|-------------------|----|
-| Non-destructive | Add label, assign | No (auto-execute) | SuggestionCard (inline) |
+| Category         | Examples                   | Approval Required  | UI                      |
+| ---------------- | -------------------------- | ------------------ | ----------------------- |
+| Non-destructive  | Add label, assign          | No (auto-execute)  | SuggestionCard (inline) |
 | Content creation | Create issue, post comment | Yes (configurable) | SuggestionCard (inline) |
-| Destructive | Delete issue, merge PR | Always | ApprovalOverlay (modal) |
+| Destructive      | Delete issue, merge PR     | Always             | ApprovalOverlay (modal) |
 
 ---
 
@@ -108,12 +108,12 @@ All AI state managed by **PilotSpaceStore** (`stores/ai/PilotSpaceStore.ts`).
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| Messages not appearing | Check `store.messages` in DevTools, verify `message_start` SSE event, ensure `observer()` wrapper |
-| Approval modal not showing | Check `store.pendingApprovals`, verify event type (destructive vs non-destructive) |
-| Context not retained on resume | Check `store.noteContext` after resume, verify `SessionListStore.resumeSessionForContext()` |
-| SSE connection dropping | Check network tab, monitor auto-reconnect (3 retries), verify auth token |
+| Problem                        | Solution                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Messages not appearing         | Check `store.messages` in DevTools, verify `message_start` SSE event, ensure `observer()` wrapper |
+| Approval modal not showing     | Check `store.pendingApprovals`, verify event type (destructive vs non-destructive)                |
+| Context not retained on resume | Check `store.noteContext` after resume, verify `SessionListStore.resumeSessionForContext()`       |
+| SSE connection dropping        | Check network tab, monitor auto-reconnect (3 retries), verify auth token                          |
 
 ---
 

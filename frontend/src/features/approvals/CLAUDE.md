@@ -10,11 +10,11 @@ Human-in-the-loop workflow for AI-generated actions requiring oversight (DD-003)
 
 ## Approval Classification (DD-003)
 
-| Category | Examples | Approval Required | Impact |
-|----------|----------|-------------------|--------|
-| Non-Destructive | Auto-label, transition | No (auto-execute) | Low-risk, reversible |
-| Content Creation | Extract issues, PR comments | Yes (configurable) | Medium-risk |
-| Destructive | Delete issue, merge PR | Always | High-risk, irreversible |
+| Category         | Examples                    | Approval Required  | Impact                  |
+| ---------------- | --------------------------- | ------------------ | ----------------------- |
+| Non-Destructive  | Auto-label, transition      | No (auto-execute)  | Low-risk, reversible    |
+| Content Creation | Extract issues, PR comments | Yes (configurable) | Medium-risk             |
+| Destructive      | Delete issue, merge PR      | Always             | High-risk, irreversible |
 
 ---
 

@@ -7,8 +7,8 @@
 
 ## Submodule Documentation
 
-| Module                | Doc                                    | Covers                                             |
-| --------------------- | -------------------------------------- | -------------------------------------------------- |
+| Module                | Doc                                    | Covers                                              |
+| --------------------- | -------------------------------------- | --------------------------------------------------- |
 | **Editor Components** | [`editor/CLAUDE.md`](editor/CLAUDE.md) | NoteCanvas, 13 TipTap extensions, auto-save, layout |
 
 ---
@@ -81,13 +81,13 @@ Extend via Tailwind classes, CSS variables, or composition (not direct modificat
 
 ## Anti-Patterns
 
-| Anti-Pattern               | Fix                                               |
-| -------------------------- | ------------------------------------------------- |
-| Storing API data in MobX   | Use `useQuery()` instead                          |
-| Inline styles              | Use Tailwind classes                              |
-| Hardcoded colors           | Use CSS variables (e.g., `bg-primary`)            |
-| Missing ARIA labels        | Add `aria-label` + `title` to icon buttons        |
-| No focus trap in modals    | Trap Tab key within modal, focus on open          |
+| Anti-Pattern             | Fix                                        |
+| ------------------------ | ------------------------------------------ |
+| Storing API data in MobX | Use `useQuery()` instead                   |
+| Inline styles            | Use Tailwind classes                       |
+| Hardcoded colors         | Use CSS variables (e.g., `bg-primary`)     |
+| Missing ARIA labels      | Add `aria-label` + `title` to icon buttons |
+| No focus trap in modals  | Trap Tab key within modal, focus on open   |
 
 ---
 

@@ -64,17 +64,24 @@ export class PilotSpaceActions {
       enrichedMetadata.agentMentioned = this.store.mentionedAgents[0];
     }
 
-    // Create user message
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user' as MessageRole,
-      content,
-      timestamp: new Date(),
-      metadata: enrichedMetadata,
-    };
+    // Skip user message for answer submissions — the inline ResolvedSummary
+    // already shows the Q&A in the assistant message (avoids redundant bubble).
+    const skipUserMessage = !!enrichedMetadata.isAnswerMessage;
+
+    const userMessage: ChatMessage | null = skipUserMessage
+      ? null
+      : {
+          id: crypto.randomUUID(),
+          role: 'user' as MessageRole,
+          content: content,
+          timestamp: new Date(),
+          metadata: enrichedMetadata,
+        };
 
     runInAction(() => {
-      this.store.messages.push(userMessage);
+      if (userMessage) {
+        this.store.messages.push(userMessage);
+      }
       this.store.streamingState = {
         isStreaming: true,
         streamContent: '',
@@ -146,6 +153,7 @@ export class PilotSpaceActions {
       const messageCountAfter = this.store.messages.length;
       const lastMessage = messageCountAfter > 0 ? this.store.messages[messageCountAfter - 1] : null;
       if (
+        !enrichedMetadata.isAnswerMessage &&
         !this.store.error &&
         lastMessage?.role !== 'assistant' &&
         !this.store.streamingState.isStreaming
@@ -267,36 +275,87 @@ export class PilotSpaceActions {
   // ========================================
 
   /**
-   * Submit an answer to a pending agent question.
+   * Submit an answer to a pending agent question (stateless two-turn model).
+   *
+   * 1. Updates the assistant message's questionData with answers (inline resolved state)
+   * 2. Sends a new chat turn with `[ANSWER:{questionId}]` prefix via sendMessage()
+   * 3. Backend formats the Q&A context and continues the agent conversation
    *
    * @param questionId - Question identifier (tool call ID)
-   * @param answer - User's answer text
+   * @param answer - User's answer text (JSON stringified answers)
+   * @param answersRecord - Structured answers keyed by question index (q0, q1, ...)
    */
-  async submitQuestionAnswer(questionId: string, answer: string): Promise<void> {
+  async submitQuestionAnswer(
+    questionId: string,
+    answer: string,
+    answersRecord?: Record<string, string>
+  ): Promise<void> {
     if (!this.store.sessionId) return;
+    if (this.store.isSubmittingAnswer) return;
+
+    // Snapshot for rollback on failure
+    const prevPendingQuestion = this.store.pendingQuestion
+      ? { ...this.store.pendingQuestion }
+      : null;
+    const targetIdx = answersRecord
+      ? this.store.messages.findLastIndex(
+          (m) =>
+            m.role === 'assistant' &&
+            (m.questionDataList?.some((qd) => qd.questionId === questionId) ||
+              m.questionData?.questionId === questionId)
+        )
+      : -1;
 
     try {
-      const headers = await this.streamHandler.getAuthHeaders();
-      await fetch(`${API_BASE}/ai/chat/answer`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          session_id: this.store.sessionId,
-          question_id: questionId,
-          answer,
-        }),
-      });
-
       runInAction(() => {
-        if (this.store.pendingQuestion?.questionId === questionId) {
-          this.store.pendingQuestion.resolvedAnswer = answer;
+        this.store.isSubmittingAnswer = true;
+        this.store.error = null;
+
+        // Optimistically resolve the question inline in the assistant message
+        if (answersRecord) {
+          this.store.resolveQuestion(questionId, answersRecord);
+        } else {
+          this.store.clearPendingQuestion();
         }
       });
+
+      // Send as new chat turn — backend recognizes [ANSWER:] prefix
+      const prefixedMessage = `[ANSWER:${questionId}] ${answer}`;
+      await this.sendMessage(prefixedMessage, { isAnswerMessage: true });
+
+      // sendMessage catches errors internally — check if it recorded a failure
+      if (this.store.error) {
+        throw new Error(this.store.error);
+      }
     } catch (err) {
-      console.error('Failed to submit question answer:', err);
+      // Rollback optimistic update so user can re-submit
+      runInAction(() => {
+        this.store.error = err instanceof Error ? err.message : 'Failed to submit answer';
+        this.store.pendingQuestion = prevPendingQuestion;
+        if (targetIdx >= 0) {
+          const msg = this.store.messages[targetIdx]!;
+          if (msg.questionDataList) {
+            this.store.messages[targetIdx] = {
+              ...msg,
+              questionDataList: msg.questionDataList.map((qd) =>
+                qd.questionId === questionId ? { ...qd, answers: undefined } : qd
+              ),
+              questionData: msg.questionData
+                ? { ...msg.questionData, answers: undefined }
+                : undefined,
+            };
+          } else if (msg.questionData) {
+            this.store.messages[targetIdx] = {
+              ...msg,
+              questionData: { ...msg.questionData, answers: undefined },
+            };
+          }
+        }
+      });
+    } finally {
+      runInAction(() => {
+        this.store.isSubmittingAnswer = false;
+      });
     }
   }
 
@@ -357,6 +416,7 @@ export class PilotSpaceActions {
     this.store.tasks.clear();
     this.store.pendingApprovals = [];
     this.store.pendingContentUpdates = [];
+    this.store.pendingQuestion = null;
     this.store.error = null;
     // Reset pagination state
     this.store.setMessagePaginationState(false, 0);

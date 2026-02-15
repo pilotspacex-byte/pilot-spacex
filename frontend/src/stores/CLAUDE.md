@@ -85,7 +85,7 @@ See `docs/dev-pattern/21c-frontend-mobx-state.md` for full patterns with example
 | --------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
 | Forgot `observer()`         | Component won't re-render on observable changes | Wrap with `observer(function Name() {...})`                        |
 | Missing `runInAction`       | Mutations after `await` trigger warnings        | Wrap post-async mutations: `runInAction(() => { this.data = x; })` |
-| Storing API data in MobX    | No caching, manual sync, no refetch            | Keep only IDs in MobX; use TanStack Query for data                 |
+| Storing API data in MobX    | No caching, manual sync, no refetch             | Keep only IDs in MobX; use TanStack Query for data                 |
 | Computed with unstable deps | Infinite loops or stale computed values         | Ensure computed depends only on stable observables                 |
 | Forgetting dispose          | Memory leaks from reaction subscriptions        | Store disposers, call in `dispose()` on logout                     |
 

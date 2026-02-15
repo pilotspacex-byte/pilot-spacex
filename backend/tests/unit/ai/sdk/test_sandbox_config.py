@@ -183,13 +183,15 @@ class TestConfigureSDKForSpace:
             "Edit",
             "Bash",
             "Task",
-            "AskUserQuestion",
             "WebFetch",
             "WebSearch",
         ]
 
         for tool in expected_tools:
             assert tool in config.allowed_tools
+
+        # AskUserQuestion removed — replaced by ask_user MCP tool
+        assert "AskUserQuestion" not in config.allowed_tools
 
         # Skill excluded by default (skills_available=False)
         assert "Skill" not in config.allowed_tools

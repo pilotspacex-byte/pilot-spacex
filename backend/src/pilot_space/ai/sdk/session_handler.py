@@ -205,18 +205,10 @@ class SessionHandler:
         content: str | list[dict[str, Any]],
         tokens: int = 0,
         metadata: dict[str, Any] | None = None,
+        question_data: list[dict[str, Any]] | dict[str, Any] | None = None,
+        tool_calls: list[dict[str, Any]] | None = None,
     ) -> AIMessage:
-        """Convert message parameters to AIMessage.
-
-        Args:
-            role: Message role (user, assistant, system)
-            content: Message content (str or structured blocks)
-            tokens: Token count
-            metadata: Additional metadata (e.g., cost_usd)
-
-        Returns:
-            AIMessage for SessionManager
-        """
+        """Convert message parameters to AIMessage."""
         # Convert content to string if it's structured (list of blocks)
         content_str = content if isinstance(content, str) else json.dumps(content)
 
@@ -228,6 +220,8 @@ class SessionHandler:
             content=content_str,
             tokens=tokens,
             cost_usd=cost_usd,
+            question_data=question_data,
+            tool_calls=tool_calls,
         )
 
     async def create_session(
@@ -403,22 +397,12 @@ class SessionHandler:
         content: str | list[dict[str, Any]],
         tokens: int = 0,
         metadata: dict[str, Any] | None = None,
+        question_data: list[dict[str, Any]] | dict[str, Any] | None = None,
+        tool_calls: list[dict[str, Any]] | None = None,
     ) -> None:
-        """Add message to session.
-
-        Args:
-            session_id: Session UUID
-            role: Message role (user, assistant, system)
-            content: Message content (str or structured blocks)
-            tokens: Token count for this message
-            metadata: Additional metadata (e.g., cost_usd)
-
-        Raises:
-            SessionNotFoundError: If session doesn't exist
-            SessionExpiredError: If session has expired
-        """
+        """Add message to session."""
         # Convert to AIMessage
-        ai_message = self._to_ai_message(role, content, tokens, metadata)
+        ai_message = self._to_ai_message(role, content, tokens, metadata, question_data, tool_calls)
 
         # Update session via SessionManager
         await self._session_manager.update_session(
@@ -455,21 +439,7 @@ class SessionHandler:
     ) -> ConversationSession:
         """Fork a session by copying its message history into a new session.
 
-        Creates a branch for "what-if" exploration. The new session gets a
-        copy of all messages from the source, enabling divergent conversations.
-        Limit: 3 forks per source session.
-
-        Args:
-            source_session_id: Session to fork from.
-            workspace_id: Workspace UUID for new session.
-            user_id: User UUID for new session.
-
-        Returns:
-            New ConversationSession with copied messages.
-
-        Raises:
-            SessionNotFoundError: If source session doesn't exist.
-            ValueError: If fork limit exceeded (max 3 per source).
+        Creates a branch for "what-if" exploration. Max 3 forks per source.
         """
         source = await self.get_session(source_session_id)
         if not source:

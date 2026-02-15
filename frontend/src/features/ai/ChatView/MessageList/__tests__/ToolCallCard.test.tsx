@@ -24,6 +24,7 @@ vi.mock('lucide-react', () => ({
   ChevronDown: (props: Record<string, unknown>) => (
     <span data-testid="chevron-down-icon" {...props} />
   ),
+  FileText: (props: Record<string, unknown>) => <span data-testid="file-text-icon" {...props} />,
 }));
 
 import { makeAutoObservable, runInAction } from 'mobx';
@@ -53,26 +54,26 @@ describe('ToolCallCard', () => {
   // Display name mapping with "Calling/Used" prefix
   // ========================================
 
-  it('renders "Calling X..." when status is pending', () => {
+  it('renders "X..." when status is pending', () => {
     render(<ToolCallCard toolCall={makeToolCall({ name: 'extract_issues', status: 'pending' })} />);
 
-    expect(screen.getByText('Calling Extracting Issues...')).toBeInTheDocument();
+    expect(screen.getByText('Extracting Issues...')).toBeInTheDocument();
   });
 
-  it('renders "Used X" when status is completed', () => {
+  it('renders display name when status is completed', () => {
     render(
       <ToolCallCard
         toolCall={makeToolCall({ name: 'extract_issues', status: 'completed', durationMs: 800 })}
       />
     );
 
-    expect(screen.getByText('Used Extracting Issues')).toBeInTheDocument();
+    expect(screen.getByText('Extracting Issues')).toBeInTheDocument();
   });
 
   it('falls back to title-cased raw name for unknown tools', () => {
     render(<ToolCallCard toolCall={makeToolCall({ name: 'some_tool', status: 'completed' })} />);
 
-    expect(screen.getByText('Used Some Tool')).toBeInTheDocument();
+    expect(screen.getByText('Some Tool')).toBeInTheDocument();
   });
 
   // ========================================
@@ -222,10 +223,7 @@ describe('ToolCallCard', () => {
       />
     );
 
-    // Click to expand
-    const button = screen.getByRole('button');
-    fireEvent.click(button);
-
+    // Card auto-expands via useEffect when partialInput is set
     expect(screen.getByText('{"text": "partial...')).toBeInTheDocument();
 
     // Pulsing dot indicator
@@ -280,7 +278,7 @@ describe('ToolCallCard', () => {
 
     // Initially pending
     expect(screen.getByTestId('loader2-icon')).toBeInTheDocument();
-    expect(screen.getByText('Calling Extracting Issues...')).toBeInTheDocument();
+    expect(screen.getByText('Extracting Issues...')).toBeInTheDocument();
 
     // Mutate the observable (simulating tool_result handler in store)
     act(() => {
@@ -295,6 +293,143 @@ describe('ToolCallCard', () => {
     rerender(<ToolCallCard toolCall={toolCall} />);
 
     expect(screen.getByTestId('settings-icon')).toBeInTheDocument();
-    expect(screen.getByText('Used Extracting Issues')).toBeInTheDocument();
+    expect(screen.getByText('Extracting Issues')).toBeInTheDocument();
+  });
+
+  // ========================================
+  // Auto-collapse on completion
+  // ========================================
+
+  it('auto-collapses after 300ms when tool completes if it was auto-expanded', async () => {
+    vi.useFakeTimers();
+
+    const toolCall = makeToolCall({
+      status: 'pending',
+      partialInput: '{"text":"streaming...',
+      input: {},
+    });
+    makeAutoObservable(toolCall);
+
+    const { rerender } = render(<ToolCallCard toolCall={toolCall} />);
+
+    // partialInput auto-expands the card — verify expanded
+    // The card auto-expands via useEffect on partialInput
+    rerender(<ToolCallCard toolCall={toolCall} />);
+
+    // Complete the tool call
+    act(() => {
+      runInAction(() => {
+        toolCall.status = 'completed';
+        toolCall.durationMs = 500;
+        toolCall.input = { text: 'done' };
+        toolCall.partialInput = undefined;
+      });
+    });
+    rerender(<ToolCallCard toolCall={toolCall} />);
+
+    // After 300ms, should auto-collapse
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    // Button should have aria-expanded=false after collapse
+    const button = screen.getByRole('button', { name: /tool call/ });
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+
+    vi.useRealTimers();
+  });
+
+  // ========================================
+  // "View in note" link for note-modifying tools
+  // ========================================
+
+  it('shows "View in note" link for completed note-modifying tools with block_id', () => {
+    render(
+      <ToolCallCard
+        toolCall={makeToolCall({
+          name: 'mcp__note_content__update_note_block',
+          status: 'completed',
+          durationMs: 300,
+          input: { block_id: 'block-abc-123', content: 'updated text' },
+        })}
+      />
+    );
+
+    const viewLink = screen.getByRole('button', { name: 'Scroll to updated block in note' });
+    expect(viewLink).toBeInTheDocument();
+    expect(screen.getByText('View in note')).toBeInTheDocument();
+  });
+
+  it('does not show "View in note" for non-note tools', () => {
+    render(
+      <ToolCallCard
+        toolCall={makeToolCall({
+          name: 'mcp__issue__create_issue',
+          status: 'completed',
+          durationMs: 300,
+          input: { title: 'New issue' },
+        })}
+      />
+    );
+
+    expect(screen.queryByText('View in note')).not.toBeInTheDocument();
+  });
+
+  it('does not show "View in note" while tool is still pending', () => {
+    render(
+      <ToolCallCard
+        toolCall={makeToolCall({
+          name: 'mcp__note_content__write_to_note',
+          status: 'pending',
+          input: { block_id: 'block-xyz' },
+        })}
+      />
+    );
+
+    expect(screen.queryByText('View in note')).not.toBeInTheDocument();
+  });
+
+  it('does not show "View in note" when block_id is missing from input', () => {
+    render(
+      <ToolCallCard
+        toolCall={makeToolCall({
+          name: 'mcp__note_content__update_note_block',
+          status: 'completed',
+          durationMs: 300,
+          input: { content: 'no block id here' },
+        })}
+      />
+    );
+
+    expect(screen.queryByText('View in note')).not.toBeInTheDocument();
+  });
+
+  it('scrolls to block and applies highlight when "View in note" is clicked', () => {
+    const mockElement = document.createElement('div');
+    mockElement.setAttribute('data-block-id', 'block-scroll-test');
+    document.body.appendChild(mockElement);
+    mockElement.scrollIntoView = vi.fn();
+
+    render(
+      <ToolCallCard
+        toolCall={makeToolCall({
+          name: 'mcp__note_content__replace_content',
+          status: 'completed',
+          durationMs: 200,
+          input: { block_id: 'block-scroll-test' },
+        })}
+      />
+    );
+
+    const viewLink = screen.getByRole('button', { name: 'Scroll to updated block in note' });
+    fireEvent.click(viewLink);
+
+    expect(mockElement.scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+    });
+    expect(mockElement.classList.contains('ai-block-edited')).toBe(true);
+
+    document.body.removeChild(mockElement);
   });
 });

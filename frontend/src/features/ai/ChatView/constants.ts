@@ -171,6 +171,53 @@ export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   create_pm_block: 'Creating PM Block',
 };
 
+/** Tool names that are interaction tools (ask_user) — hidden from ToolCallCard */
+const INTERACTION_TOOL_PATTERNS = ['ask_user', 'pilot-interaction__ask_user'];
+
+/** Check if a tool call is an interaction tool (ask_user) that should be hidden. */
+export function isInteractionTool(toolName: string): boolean {
+  const stripped = toolName.replace(/^(?:functions\.)?mcp__[a-z_-]+__/, '');
+  return INTERACTION_TOOL_PATTERNS.some(
+    (pattern) => stripped === pattern || toolName.includes(pattern)
+  );
+}
+
+/**
+ * Get a human-readable one-line summary for a tool call.
+ * Returns null to fall back to default JSON display.
+ */
+export function getToolSummary(
+  name: string,
+  input: Record<string, unknown>,
+  output?: unknown
+): string | null {
+  const stripped = name.replace(/^(?:functions\.)?mcp__[a-z_-]+__/, '');
+
+  switch (stripped) {
+    case 'update_note_block':
+      return input.block_id
+        ? `Updated block ${String(input.block_id).slice(0, 8)}…`
+        : 'Updated note block';
+    case 'create_issue_from_note':
+      return input.title ? `Created issue: ${String(input.title)}` : 'Created issue from note';
+    case 'enhance_text':
+      return 'Enhanced text content';
+    case 'summarize_note':
+      return 'Summarized note';
+    case 'extract_issues':
+      if (output && typeof output === 'object' && 'count' in (output as Record<string, unknown>)) {
+        return `Extracted ${(output as Record<string, unknown>).count} issues`;
+      }
+      return 'Extracted issues';
+    case 'link_existing_issues':
+      return 'Linked issues';
+    case 'create_pm_block':
+      return input.block_type ? `Created ${String(input.block_type)} block` : 'Created PM block';
+    default:
+      return null;
+  }
+}
+
 /**
  * Get a display-friendly name for a tool.
  * Falls back to title-casing the raw snake_case name.

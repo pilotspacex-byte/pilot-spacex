@@ -136,6 +136,74 @@ class TestAIMessage:
         assert msg.tokens is None
         assert msg.cost_usd is None
 
+    def test_message_with_question_data(self) -> None:
+        """Verify message creation with question_data."""
+        qd = {
+            "questionId": "abc-123",
+            "questions": [{"question": "Pick a color", "options": [{"label": "Red"}]}],
+            "answers": {"q0": "Red"},
+        }
+        msg = AIMessage(role="assistant", content="Here's a question", question_data=qd)
+
+        assert msg.question_data is not None
+        assert msg.question_data["questionId"] == "abc-123"
+        assert len(msg.question_data["questions"]) == 1
+        assert msg.question_data["answers"] == {"q0": "Red"}
+
+    def test_question_data_to_dict(self) -> None:
+        """Verify question_data included in serialization."""
+        qd = {"questionId": "q1", "questions": [], "answers": {"q0": "yes"}}
+        msg = AIMessage(
+            role="assistant",
+            content="Q",
+            timestamp=datetime.now(UTC),
+            question_data=qd,
+        )
+
+        result = msg.to_dict()
+        assert result["question_data"] == qd
+
+    def test_question_data_omitted_when_none(self) -> None:
+        """Verify question_data NOT in dict when None."""
+        msg = AIMessage(role="user", content="Hi", timestamp=datetime.now(UTC))
+
+        result = msg.to_dict()
+        assert "question_data" not in result
+
+    def test_question_data_from_dict(self) -> None:
+        """Verify question_data round-trip through serialization."""
+        qd = {
+            "questionId": "xyz",
+            "questions": [
+                {
+                    "question": "Which option?",
+                    "options": [{"label": "A"}, {"label": "B"}],
+                    "multiSelect": False,
+                }
+            ],
+            "answers": {"q0": "A"},
+        }
+        data = {
+            "role": "assistant",
+            "content": "Pick one",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "question_data": qd,
+        }
+
+        msg = AIMessage.from_dict(data)
+        assert msg.question_data == qd
+
+    def test_question_data_from_dict_absent(self) -> None:
+        """Verify missing question_data deserializes as None."""
+        data = {
+            "role": "user",
+            "content": "Hello",
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+
+        msg = AIMessage.from_dict(data)
+        assert msg.question_data is None
+
 
 class TestAISession:
     """Test AISession dataclass."""

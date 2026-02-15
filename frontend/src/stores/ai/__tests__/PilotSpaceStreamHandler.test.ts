@@ -106,6 +106,20 @@ describe('PilotSpaceStreamHandler', () => {
       expect(store.streamingState.isStreaming).toBe(true);
     });
 
+    it('should clear pendingQuestion on message_start (defensive reset)', () => {
+      store.pendingQuestion = {
+        questionId: 'q-stale',
+        questions: [{ question: 'Old?', options: [], multiSelect: false }],
+      };
+
+      handler.handleSSEEvent({
+        type: 'message_start',
+        data: { messageId: 'msg-2', sessionId: 'sess-2' },
+      });
+
+      expect(store.pendingQuestion).toBeNull();
+    });
+
     it('should route text_delta and accumulate content', () => {
       handler.handleSSEEvent({
         type: 'text_delta',
@@ -394,12 +408,13 @@ describe('PilotSpaceStreamHandler', () => {
       expect(store.pendingApprovals[0]?.actionType).toBe('create_issue');
     });
 
-    it('should route ask_user_question and set pendingQuestion', () => {
+    it('should route question_request and set pendingQuestion', () => {
       handler.handleSSEEvent({
-        type: 'ask_user_question',
+        type: 'question_request',
         data: {
           messageId: 'msg-1',
           questionId: 'q-1',
+          toolCallId: 'tc-1',
           questions: [
             { question: 'Which priority?', options: [{ label: 'High' }], multiSelect: false },
           ],
@@ -529,7 +544,7 @@ describe('PilotSpaceStreamHandler', () => {
         },
       });
 
-      expect(store.error).toBe('[internal_error] Something went wrong');
+      expect(store.error).toBe('Something went wrong');
       expect(store.streamingState.isStreaming).toBe(false);
     });
   });
@@ -1568,7 +1583,7 @@ describe('PilotSpaceStreamHandler', () => {
       });
 
       expect(store.streamingState.isStreaming).toBe(false);
-      expect(store.error).toBe('[rate_limited] Rate limited');
+      expect(store.error).toBe('Rate limited');
 
       vi.useRealTimers();
     });
@@ -1589,7 +1604,7 @@ describe('PilotSpaceStreamHandler', () => {
       });
 
       expect(store.streamingState.isStreaming).toBe(false);
-      expect(store.error).toBe('[internal_error] Something broke');
+      expect(store.error).toBe('Something broke');
     });
   });
 
@@ -2337,6 +2352,286 @@ describe('PilotSpaceStreamHandler', () => {
       // content_update should be queued
       expect(store.pendingContentUpdates).toHaveLength(1);
       expect(store.pendingContentUpdates[0]!.blockId).toBe('blk-seq');
+    });
+  });
+
+  describe('question_request safety timeout (CRITICAL-2)', () => {
+    it('should synthesize message_stop if it never arrives after question_request', () => {
+      vi.useFakeTimers();
+
+      // Start a message
+      handler.handleSSEEvent({
+        type: 'message_start',
+        data: { messageId: 'msg-q1', sessionId: 'sess-q1' },
+      });
+
+      // Some streaming text
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'text' },
+      });
+      handler.handleSSEEvent({
+        type: 'text_delta',
+        data: { delta: 'Let me ask you something.' },
+      });
+
+      // question_request arrives
+      handler.handleSSEEvent({
+        type: 'question_request',
+        data: {
+          messageId: 'msg-q1',
+          questionId: 'q-safety',
+          toolCallId: 'tc-safety',
+          questions: [
+            {
+              question: 'Continue?',
+              options: [{ label: 'Yes' }, { label: 'No' }],
+              multiSelect: false,
+            },
+          ],
+        },
+      });
+
+      // No message_stop arrives — stream ends silently (PermissionResultDeny path)
+      expect(store.streamingState.isStreaming).toBe(true);
+      expect(store.messages).toHaveLength(0);
+
+      // Advance past the 5s safety timeout
+      vi.advanceTimersByTime(5000);
+
+      // Safety timeout should have synthesized message_stop
+      expect(store.streamingState.isStreaming).toBe(false);
+      const msg = store.messages.find((m) => m.id === 'msg-q1');
+      expect(msg).toBeDefined();
+      expect(msg?.content).toBe('Let me ask you something.');
+      expect(msg?.questionData).toBeDefined();
+      expect(msg?.questionData?.questionId).toBe('q-safety');
+
+      vi.useRealTimers();
+    });
+
+    it('should cancel safety timeout when message_stop arrives normally', () => {
+      vi.useFakeTimers();
+
+      handler.handleSSEEvent({
+        type: 'message_start',
+        data: { messageId: 'msg-q2', sessionId: 'sess-q2' },
+      });
+
+      handler.handleSSEEvent({
+        type: 'question_request',
+        data: {
+          messageId: 'msg-q2',
+          questionId: 'q-normal',
+          toolCallId: 'tc-normal',
+          questions: [{ question: 'Pick one', options: [{ label: 'A' }], multiSelect: false }],
+        },
+      });
+
+      // Normal message_stop arrives before timeout
+      handler.handleSSEEvent({
+        type: 'message_stop',
+        data: {
+          messageId: 'msg-q2',
+          stopReason: 'end_turn',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        },
+      });
+
+      expect(store.messages).toHaveLength(1);
+
+      // Advance past timeout — should NOT create a second message
+      vi.advanceTimersByTime(5000);
+      expect(store.messages).toHaveLength(1);
+
+      vi.useRealTimers();
+    });
+
+    it('should cancel safety timeout when new message_start arrives', () => {
+      vi.useFakeTimers();
+
+      handler.handleSSEEvent({
+        type: 'message_start',
+        data: { messageId: 'msg-q3', sessionId: 'sess-q3' },
+      });
+
+      handler.handleSSEEvent({
+        type: 'question_request',
+        data: {
+          messageId: 'msg-q3',
+          questionId: 'q-reset',
+          toolCallId: 'tc-reset',
+          questions: [{ question: 'Choose', options: [{ label: 'X' }], multiSelect: false }],
+        },
+      });
+
+      // New message_start resets everything
+      handler.handleSSEEvent({
+        type: 'message_start',
+        data: { messageId: 'msg-q4', sessionId: 'sess-q3' },
+      });
+
+      // Advance past timeout — should NOT synthesize for msg-q3
+      vi.advanceTimersByTime(5000);
+
+      // Only the streaming state for msg-q4 should be active, no finalized messages
+      expect(store.streamingState.currentMessageId).toBe('msg-q4');
+      expect(store.messages).toHaveLength(0);
+
+      vi.useRealTimers();
+    });
+
+    it('should cancel safety timeout when content_block_start arrives after question_request', () => {
+      vi.useFakeTimers();
+
+      handler.handleSSEEvent({
+        type: 'message_start',
+        data: { messageId: 'msg-cbs', sessionId: 'sess-cbs' },
+      });
+
+      handler.handleSSEEvent({
+        type: 'question_request',
+        data: {
+          messageId: 'msg-cbs',
+          questionId: 'q-cbs',
+          toolCallId: 'tc-cbs',
+          questions: [{ question: 'Pick', options: [{ label: 'A' }], multiSelect: false }],
+        },
+      });
+
+      // AI continues thinking — content_block_start should cancel safety timeout
+      handler.handleSSEEvent({
+        type: 'content_block_start',
+        data: { index: 0, contentType: 'thinking' },
+      });
+
+      // Advance past timeout — should NOT synthesize
+      vi.advanceTimersByTime(5000);
+      expect(store.messages).toHaveLength(0);
+
+      vi.useRealTimers();
+    });
+
+    it('should merge into existing message instead of duplicating on double message_stop', () => {
+      // Simulate: safety timeout fires, then real message_stop arrives
+      store.streamingState = {
+        isStreaming: true,
+        streamContent: 'First content',
+        currentMessageId: 'msg-dup',
+        isThinking: false,
+        thinkingStartedAt: null,
+      };
+
+      // First message_stop (e.g., from safety timeout)
+      handler.handleSSEEvent({
+        type: 'message_stop',
+        data: { messageId: 'msg-dup', stopReason: 'question_pending' },
+      });
+      expect(store.messages).toHaveLength(1);
+      expect(store.messages[0]!.content).toBe('First content');
+
+      // Set up streaming state again as if AI continued
+      store.streamingState = {
+        isStreaming: true,
+        streamContent: 'Updated content',
+        currentMessageId: 'msg-dup',
+        isThinking: false,
+        thinkingStartedAt: null,
+      };
+
+      // Second message_stop (real one) — should merge, not duplicate
+      handler.handleSSEEvent({
+        type: 'message_stop',
+        data: { messageId: 'msg-dup', stopReason: 'end_turn' },
+      });
+
+      // Only ONE message, not two
+      expect(store.messages).toHaveLength(1);
+      expect(store.messages[0]!.id).toBe('msg-dup');
+      expect(store.messages[0]!.content).toBe('Updated content');
+    });
+  });
+
+  describe('handleError — parseErrorMessage', () => {
+    it('should extract nested JSON error message from API Error wrapper', () => {
+      handler.handleSSEEvent({
+        type: 'error',
+        data: {
+          errorCode: 'api_error',
+          message:
+            'API Error: 429 {"type":"error","error":{"type":"rate_limit_error","message":"you have reached your session usage limit"}}',
+          retryable: false,
+        },
+      });
+
+      expect(store.error).toBe('you have reached your session usage limit');
+      expect(store.streamingState.isStreaming).toBe(false);
+    });
+
+    it('should extract top-level message from JSON when error.message is absent', () => {
+      handler.handleSSEEvent({
+        type: 'error',
+        data: {
+          errorCode: 'api_error',
+          message: 'API Error: 500 {"message":"Internal server error"}',
+          retryable: false,
+        },
+      });
+
+      expect(store.error).toBe('Internal server error');
+    });
+
+    it('should strip "API Error: NNN" prefix when no JSON is present', () => {
+      handler.handleSSEEvent({
+        type: 'error',
+        data: {
+          errorCode: 'api_error',
+          message: 'API Error: 503 Service temporarily unavailable',
+          retryable: false,
+        },
+      });
+
+      expect(store.error).toBe('Service temporarily unavailable');
+    });
+
+    it('should fall back to errorCode: rawMessage when stripping yields empty', () => {
+      handler.handleSSEEvent({
+        type: 'error',
+        data: {
+          errorCode: 'unknown_error',
+          message: '',
+          retryable: false,
+        },
+      });
+
+      expect(store.error).toBe('unknown_error: ');
+    });
+
+    it('should pass through plain text error messages unchanged', () => {
+      handler.handleSSEEvent({
+        type: 'error',
+        data: {
+          errorCode: 'connection_error',
+          message: 'Connection refused',
+          retryable: false,
+        },
+      });
+
+      expect(store.error).toBe('Connection refused');
+    });
+
+    it('should handle malformed JSON gracefully — fall through to prefix stripping', () => {
+      handler.handleSSEEvent({
+        type: 'error',
+        data: {
+          errorCode: 'api_error',
+          message: 'API Error: 400 {not valid json at all}',
+          retryable: false,
+        },
+      });
+
+      // Falls through JSON parse, strips prefix
+      expect(store.error).toBe('{not valid json at all}');
     });
   });
 });

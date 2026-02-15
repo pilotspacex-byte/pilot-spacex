@@ -16,7 +16,8 @@ export { ToolCallList } from './MessageList/ToolCallList';
 export { StreamingContent } from './MessageList/StreamingContent';
 export { ThinkingBlock } from './MessageList/ThinkingBlock';
 export { StructuredResultCard } from './MessageList/StructuredResultCard';
-export { QuestionCard } from './MessageList/QuestionCard';
+export { QuestionBlock } from './MessageList/QuestionBlock';
+export { WaitingIndicator } from './WaitingIndicator';
 
 // TaskPanel components
 export { TaskPanel } from './TaskPanel/TaskPanel';
@@ -24,9 +25,9 @@ export { TaskList } from './TaskPanel/TaskList';
 export { TaskItem } from './TaskPanel/TaskItem';
 export { TaskSummary } from './TaskPanel/TaskSummary';
 
-// ApprovalOverlay components
-export { ApprovalOverlay } from './ApprovalOverlay/ApprovalOverlay';
-export { ApprovalDialog } from './ApprovalOverlay/ApprovalDialog';
+// Approval components
+export { DestructiveApprovalModal } from './ApprovalOverlay/DestructiveApprovalModal';
+export { InlineApprovalCard } from './MessageList/InlineApprovalCard';
 export { IssuePreview } from './ApprovalOverlay/IssuePreview';
 export { ContentDiff } from './ApprovalOverlay/ContentDiff';
 export { GenericJSON } from './ApprovalOverlay/GenericJSON';

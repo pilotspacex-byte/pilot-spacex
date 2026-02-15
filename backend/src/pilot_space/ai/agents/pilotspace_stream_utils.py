@@ -25,6 +25,10 @@ from pilot_space.ai.mcp.comment_server import (
     create_comment_tools_server,
 )
 from pilot_space.ai.mcp.event_publisher import EventPublisher
+from pilot_space.ai.mcp.interaction_server import (
+    SERVER_NAME as INTERACTION_SERVER_NAME,
+    create_interaction_server,
+)
 from pilot_space.ai.mcp.issue_relation_server import (
     SERVER_NAME as ISSUE_REL_SERVER_NAME,
     create_issue_relation_tools_server,
@@ -82,7 +86,7 @@ def build_mcp_servers(
     """Build the MCP server dict and block-reference map for an SDK session.
 
     Constructs a ¶N block reference map from the note context (if present)
-    and instantiates all 6 MCP tool servers.
+    and instantiates all 7 MCP tool servers (6 domain + 1 interaction).
 
     Returns:
         Tuple of (mcp_servers dict keyed by server name, block_ref_map or None).
@@ -126,6 +130,10 @@ def build_mcp_servers(
         COMMENT_SERVER_NAME: create_comment_tools_server(
             publisher,
             tool_context=tool_context,
+        ),
+        INTERACTION_SERVER_NAME: create_interaction_server(
+            publisher,
+            user_id=input_data.user_id,
         ),
     }
 
@@ -305,6 +313,122 @@ def build_structured_content(
         result.append(clean_block)
 
     return result
+
+
+def extract_question_data_from_blocks(
+    content_blocks: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    """Extract question_data from content_blocks if ask_user questions are pending.
+
+    Scans tool_result blocks for ask_user pending_answer results, extracts
+    the questionIds, and looks up the full question data from QuestionAdapter.
+    Supports multiple ask_user calls in a single turn.
+
+    Args:
+        content_blocks: Dict of captured content blocks from the stream.
+
+    Returns:
+        List of question_data dicts [{questionId, questions}, ...] if found, None otherwise.
+    """
+    from uuid import UUID
+
+    from pilot_space.ai.sdk.question_adapter import get_question_adapter
+
+    results: list[dict[str, Any]] = []
+
+    for block in content_blocks.values():
+        if block.get("type") != "tool_result":
+            continue
+
+        content = block.get("content", "")
+
+        # Content may be a dict (from SSE capture) or a JSON string
+        parsed: dict[str, Any] | None = None
+        if isinstance(content, dict):
+            parsed = content
+        elif isinstance(content, str) and "pending_answer" in content:
+            try:
+                parsed = json.loads(content)
+            except (json.JSONDecodeError, TypeError):
+                continue
+        else:
+            continue
+
+        if not parsed or parsed.get("status") != "pending_answer":
+            continue
+        question_id_str = parsed.get("questionId")
+        if not question_id_str:
+            continue
+
+        try:
+            question_id = UUID(question_id_str)
+        except ValueError:
+            continue
+
+        adapter = get_question_adapter()
+        pending = adapter.get_question(question_id)
+        if pending is None:
+            continue
+
+        results.append(
+            {
+                "questionId": str(question_id),
+                "questions": [q.model_dump() for q in pending.questions],
+            }
+        )
+
+    return results if results else None
+
+
+def extract_tool_calls_from_blocks(
+    content_blocks: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    """Extract structured tool call records from content_blocks for session persistence.
+
+    Pairs tool_use and tool_result blocks by tool call ID to build
+    a complete list of tool call records with name, input, output, and status.
+
+    Args:
+        content_blocks: Dict of captured content blocks from the stream.
+
+    Returns:
+        List of tool call dicts [{id, name, input, output, status}, ...] or None.
+    """
+    # Collect tool_use entries keyed by tool call ID
+    tool_uses: dict[str, dict[str, Any]] = {}
+    for block in content_blocks.values():
+        if block.get("type") == "tool_use":
+            tid = block.get("id", "")
+            if tid:
+                tool_uses[tid] = block
+
+    if not tool_uses:
+        return None
+
+    # Build tool call records by pairing with tool_result blocks
+    results: list[dict[str, Any]] = []
+    for tid, use_block in tool_uses.items():
+        result_key = f"tool_result_{tid}"
+        result_block = content_blocks.get(result_key)
+
+        record: dict[str, Any] = {
+            "id": tid,
+            "name": use_block.get("name", ""),
+            "input": use_block.get("input", {}),
+        }
+
+        if result_block:
+            is_error = result_block.get("is_error", False)
+            record["status"] = "failed" if is_error else "completed"
+            record["output"] = result_block.get("content", "")
+            if is_error:
+                record["error_message"] = result_block.get("content", "")
+        else:
+            record["status"] = "pending"
+
+        results.append(record)
+
+    return results if results else None
 
 
 # ---------------------------------------------------------------------------

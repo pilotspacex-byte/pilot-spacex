@@ -15,12 +15,13 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
-import { Loader2, Settings, XCircle, ChevronDown } from 'lucide-react';
+import { Loader2, Settings, XCircle, ChevronDown, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useElapsedTime } from '@/hooks/useElapsedTime';
-import { getToolDisplayName } from '../constants';
+import { getToolDisplayName, getToolSummary, isInteractionTool } from '../constants';
+import { NOTE_TOOLS } from '@/stores/ai/PilotSpaceToolCallHandler';
 import type { ToolCall } from '@/stores/ai/types/conversation';
 
 interface ToolCallCardProps {
@@ -37,8 +38,19 @@ function formatDuration(ms: number): string {
   return `${Math.floor(seconds)}s`;
 }
 
-/** Max characters for input preview in the toggle row */
 const INPUT_PREVIEW_MAX = 60;
+
+/** Check if a tool name is a note-modifying tool. */
+function isNoteTool(name: string): boolean {
+  const stripped = name.replace(/^(?:functions\.)?mcp__[a-z_-]+__/, '');
+  return (NOTE_TOOLS as readonly string[]).includes(stripped);
+}
+
+/** Extract block_id from tool input. */
+function getBlockId(input: Record<string, unknown>): string | null {
+  const id = input?.block_id ?? input?.blockId;
+  return typeof id === 'string' ? id : null;
+}
 
 /** Try to pretty-format partial JSON input. Falls back to raw string. */
 function formatPartialInput(partial: string): string {
@@ -85,8 +97,13 @@ function getInputPreview(input: Record<string, unknown>, partialInput?: string):
 
 export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }) => {
   const status = toolCall.status || 'pending';
+
+  // Hide interaction tools (ask_user) — QuestionBlock renders the UI instead
+  if (isInteractionTool(toolCall.name)) return null;
+
   const displayName = getToolDisplayName(toolCall.name);
-  const inputPreview = getInputPreview(toolCall.input, toolCall.partialInput);
+  const toolSummary = getToolSummary(toolCall.name, toolCall.input, toolCall.output);
+  const inputPreview = toolSummary ?? getInputPreview(toolCall.input, toolCall.partialInput);
 
   // Elapsed time: capture start time on mount via lazy state initializer (pure)
   const [startTime] = useState(() => Date.now());
@@ -96,6 +113,8 @@ export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }
   const [isOpen, setIsOpen] = useState(false);
   const autoExpandedRef = useRef(false);
 
+  const autoCollapsedRef = useRef(false);
+
   // Auto-expand when partialInput starts streaming (so user sees tool input in real-time)
   useEffect(() => {
     if (toolCall.partialInput && !autoExpandedRef.current && isRunning) {
@@ -103,6 +122,30 @@ export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }
       autoExpandedRef.current = true;
     }
   }, [toolCall.partialInput, isRunning]);
+
+  // Auto-collapse when tool completes (only if we auto-expanded it)
+  useEffect(() => {
+    if (!isRunning && autoExpandedRef.current && !autoCollapsedRef.current && isOpen) {
+      autoCollapsedRef.current = true;
+      const timer = setTimeout(() => setIsOpen(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isRunning, isOpen]);
+
+  // "View in note" handler for note-modifying tools
+  const blockId = isNoteTool(toolCall.name) ? getBlockId(toolCall.input) : null;
+  const handleViewInNote = useCallback(() => {
+    if (!blockId) return;
+    const el = document.querySelector(`[data-block-id="${blockId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ai-block-edited');
+      setTimeout(() => el.classList.add('ai-block-fade-out'), 100);
+      setTimeout(() => {
+        el.classList.remove('ai-block-edited', 'ai-block-fade-out');
+      }, 1500);
+    }
+  }, [blockId]);
 
   // Duration display
   const durationText = isRunning
@@ -151,7 +194,7 @@ export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }
           )}
         </span>
 
-        {/* Duration + chevron */}
+        {/* Duration + view link + chevron */}
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
           {durationText && <span className="font-mono text-xs tabular-nums">{durationText}</span>}
           {hasDetail && (
@@ -159,6 +202,19 @@ export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }
           )}
         </span>
       </button>
+
+      {/* View in note link for completed note-modifying tools */}
+      {!isRunning && blockId && status === 'completed' && (
+        <button
+          type="button"
+          onClick={handleViewInNote}
+          className="flex items-center gap-1 pl-5 py-0.5 text-xs text-ai hover:text-ai-hover transition-colors"
+          aria-label="Scroll to updated block in note"
+        >
+          <FileText className="h-3 w-3" />
+          <span>View in note</span>
+        </button>
+      )}
 
       {/* Error inline */}
       {toolCall.errorMessage && (
@@ -175,14 +231,14 @@ export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }
                 Input
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ai motion-reduce:animate-none" />
               </span>
-              <pre className="text-xs bg-muted/30 p-1.5 rounded mt-0.5 overflow-x-auto max-h-[200px] overflow-y-auto opacity-60 font-mono whitespace-pre-wrap break-words">
+              <pre className="text-xs bg-muted/40 dark:bg-muted/20 p-1.5 rounded mt-0.5 overflow-x-auto max-h-[200px] overflow-y-auto opacity-60 font-mono whitespace-pre-wrap break-words text-foreground/70">
                 {formatPartialInput(toolCall.partialInput)}
               </pre>
             </div>
           ) : Object.keys(toolCall.input).length > 0 ? (
             <div>
               <span className="text-xs text-muted-foreground">Input:</span>
-              <pre className="text-xs bg-muted/30 p-1.5 rounded mt-0.5 overflow-x-auto font-mono">
+              <pre className="text-xs bg-muted/40 dark:bg-muted/20 p-1.5 rounded mt-0.5 overflow-x-auto font-mono text-foreground/80">
                 {JSON.stringify(toolCall.input, null, 2)}
               </pre>
             </div>
@@ -192,7 +248,7 @@ export const ToolCallCard = observer<ToolCallCardProps>(({ toolCall, className }
           {hasOutput && (
             <div>
               <span className="text-xs text-muted-foreground">Output:</span>
-              <pre className="text-xs bg-muted/30 p-1.5 rounded mt-0.5 overflow-x-auto font-mono">
+              <pre className="text-xs bg-muted/40 dark:bg-muted/20 p-1.5 rounded mt-0.5 overflow-x-auto font-mono text-foreground/80">
                 {typeof toolCall.output === 'string'
                   ? toolCall.output
                   : JSON.stringify(toolCall.output, null, 2)}

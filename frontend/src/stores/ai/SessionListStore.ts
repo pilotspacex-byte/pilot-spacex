@@ -7,62 +7,17 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import { supabase } from '@/lib/supabase';
 import type { PilotSpaceStore } from './PilotSpaceStore';
+import { mapMessageResponse, mapSessionSummary } from './SessionListMappers';
+import type { ResumeSessionResponse, SessionSummary } from './types/session';
+
+// Re-export public types for backward compatibility
+export type { ContextEntry, SessionSummary } from './types/session';
 
 /**
  * API base URL for backend requests.
  * Falls back to localhost if not configured.
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
-
-/**
- * Context history entry for multi-context sessions.
- */
-export interface ContextEntry {
-  /** Turn number when context was used */
-  turn: number;
-  /** Note ID if context was a note */
-  noteId?: string;
-  /** Note title if available */
-  noteTitle?: string;
-  /** Issue ID if context was an issue */
-  issueId?: string;
-  /** Block IDs if specific blocks were selected */
-  blockIds?: string[];
-  /** Selected text if available */
-  selectedText?: string;
-  /** When the context was used */
-  timestamp: string;
-}
-
-/**
- * Session summary for list display.
- */
-export interface SessionSummary {
-  /** Session identifier */
-  sessionId: string;
-  /** Agent name (conversation, ai_context, etc.) */
-  agentName: string;
-  /** Context ID (note, issue, etc.) - initial context */
-  contextId?: string;
-  /** Context type for display */
-  contextType?: 'note' | 'issue' | 'project';
-  /** History of contexts used in this session */
-  contextHistory?: ContextEntry[];
-  /** Session creation timestamp */
-  createdAt: Date;
-  /** Last activity timestamp */
-  updatedAt: Date;
-  /** Number of conversation turns */
-  turnCount: number;
-  /** Session expiration timestamp */
-  expiresAt: Date;
-  /** Auto-generated session title from first user message */
-  title?: string;
-  /** Session ID this was forked from (if fork) */
-  forkedFrom?: string;
-  /** Number of forks created from this session */
-  forkCount?: number;
-}
 
 /**
  * SessionListStore - Manages conversation session list.
@@ -240,7 +195,6 @@ export class SessionListStore {
     });
 
     try {
-      // Get sessions list from backend (optionally filtered by context)
       const authHeaders = await this.getAuthHeaders();
       let url = `${API_BASE}/ai/sessions?limit=${limit}`;
       if (contextId) {
@@ -258,31 +212,9 @@ export class SessionListStore {
       const data = await response.json();
 
       runInAction(() => {
-        const fetched: SessionSummary[] = data.sessions.map((s: SessionSummaryResponse) => ({
-          sessionId: s.id,
-          agentName: s.agent_name,
-          contextId: s.context_id,
-          contextType: s.context_type,
-          contextHistory: s.context_history?.map((ctx: ContextHistoryResponse) => ({
-            turn: ctx.turn,
-            noteId: ctx.note_id,
-            noteTitle: ctx.note_title,
-            issueId: ctx.issue_id,
-            blockIds: ctx.block_ids,
-            selectedText: ctx.selected_text,
-            timestamp: ctx.timestamp,
-          })),
-          createdAt: new Date(s.created_at),
-          updatedAt: new Date(s.updated_at),
-          turnCount: s.turn_count,
-          expiresAt: new Date(s.expires_at),
-          title: s.title,
-          forkedFrom: s.forked_from,
-          forkCount: s.fork_count,
-        }));
+        const fetched = data.sessions.map(mapSessionSummary);
 
         if (contextId) {
-          // Merge context-filtered results into existing sessions (don't overwrite)
           const existingIds = new Set(this.sessions.map((s) => s.sessionId));
           for (const s of fetched) {
             if (!existingIds.has(s.sessionId)) {
@@ -312,7 +244,6 @@ export class SessionListStore {
    */
   async resumeSession(sessionId: string, limit: number = 3): Promise<void> {
     try {
-      // Resume session with pagination (offset=0 = latest messages)
       const authHeaders = await this.getAuthHeaders();
       const response = await fetch(
         `${API_BASE}/ai/sessions/${sessionId}/resume?limit=${limit}&offset=0`,
@@ -329,60 +260,48 @@ export class SessionListStore {
 
       const data: ResumeSessionResponse = await response.json();
 
-      // Load messages into PilotSpaceStore
       runInAction(() => {
         const pilotSpaceStore = this.rootStore;
         if (pilotSpaceStore) {
-          // Clear messages only (caller already handled full clear if needed)
           pilotSpaceStore.messages = [];
-
-          // Set session ID
           pilotSpaceStore.setSessionId(sessionId);
 
-          // Load initial messages (in chronological order from backend)
-          data.messages.forEach((msg: MessageResponse, index: number) => {
-            pilotSpaceStore.addMessage({
-              id: msg.id ?? `restored-${index}`,
-              role: msg.role as 'user' | 'assistant' | 'system',
-              content: msg.content,
-              timestamp: new Date(msg.timestamp),
-              metadata: msg.metadata,
-              // Map content_blocks from backend (snake_case) to frontend (camelCase)
-              contentBlocks: msg.content_blocks?.map((block) => {
-                if (block.type === 'thinking') {
-                  return {
-                    type: 'thinking' as const,
-                    blockIndex: block.blockIndex,
-                    content: block.content,
-                  };
-                }
-                if (block.type === 'text') {
-                  return { type: 'text' as const, content: block.content };
-                }
-                // tool_call
-                return { type: 'tool_call' as const, toolCallId: block.toolCallId };
-              }),
-              // Map thinking_blocks from backend (snake_case) to frontend (camelCase)
-              thinkingBlocks: msg.thinking_blocks?.map((block) => ({
-                content: block.content,
-                blockIndex: block.blockIndex,
-                redacted: block.redacted,
-              })),
-            });
+          data.messages.forEach((msg, index) => {
+            pilotSpaceStore.addMessage(mapMessageResponse(msg, `restored-${index}`));
           });
 
-          // Set pagination state
           pilotSpaceStore.setMessagePaginationState(data.has_more, data.total_messages);
-
-          // Update selected session
           this.selectedSessionId = sessionId;
+
+          // Restore pendingQuestion if the last assistant message has unanswered questions
+          const lastAssistant = [...pilotSpaceStore.messages]
+            .reverse()
+            .find((m) => m.role === 'assistant');
+          if (lastAssistant) {
+            const pendingList = lastAssistant.questionDataList?.filter((qd) => !qd.answers);
+            const pendingSingle =
+              lastAssistant.questionData && !lastAssistant.questionData.answers
+                ? lastAssistant.questionData
+                : null;
+
+            if (pendingList && pendingList.length > 0) {
+              pilotSpaceStore.pendingQuestion = {
+                questionId: pendingList[0]!.questionId,
+                questions: pendingList.flatMap((qd) => qd.questions),
+              };
+            } else if (pendingSingle) {
+              pilotSpaceStore.pendingQuestion = {
+                questionId: pendingSingle.questionId,
+                questions: pendingSingle.questions,
+              };
+            }
+          }
         }
       });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to resume session';
       runInAction(() => {
         this.error = errorMsg;
-        // Propagate to store for UI visibility
         if (this.rootStore) {
           this.rootStore.error = errorMsg;
         }
@@ -404,9 +323,7 @@ export class SessionListStore {
       return false;
     }
 
-    // Calculate offset: skip the messages we already have
-    const currentMessageCount = pilotSpaceStore.messages.length;
-    const offset = currentMessageCount;
+    const offset = pilotSpaceStore.messages.length;
 
     runInAction(() => {
       pilotSpaceStore.setIsLoadingMoreMessages(true);
@@ -431,40 +348,12 @@ export class SessionListStore {
 
       runInAction(() => {
         if (data.messages.length > 0) {
-          // Convert and prepend older messages with content blocks
-          const olderMessages = data.messages.map((msg: MessageResponse, index: number) => ({
-            id: msg.id ?? `restored-older-${offset + index}`,
-            role: msg.role as 'user' | 'assistant' | 'system',
-            content: msg.content,
-            timestamp: new Date(msg.timestamp),
-            metadata: msg.metadata,
-            // Map content_blocks from backend (snake_case) to frontend (camelCase)
-            contentBlocks: msg.content_blocks?.map((block) => {
-              if (block.type === 'thinking') {
-                return {
-                  type: 'thinking' as const,
-                  blockIndex: block.blockIndex,
-                  content: block.content,
-                };
-              }
-              if (block.type === 'text') {
-                return { type: 'text' as const, content: block.content };
-              }
-              // tool_call
-              return { type: 'tool_call' as const, toolCallId: block.toolCallId };
-            }),
-            // Map thinking_blocks from backend (snake_case) to frontend (camelCase)
-            thinkingBlocks: msg.thinking_blocks?.map((block) => ({
-              content: block.content,
-              blockIndex: block.blockIndex,
-              redacted: block.redacted,
-            })),
-          }));
-
+          const olderMessages = data.messages.map((msg, index) =>
+            mapMessageResponse(msg, `restored-older-${offset + index}`)
+          );
           pilotSpaceStore.prependMessages(olderMessages);
         }
 
-        // Update pagination state
         pilotSpaceStore.setMessagePaginationState(data.has_more, data.total_messages);
         pilotSpaceStore.setIsLoadingMoreMessages(false);
       });
@@ -491,13 +380,8 @@ export class SessionListStore {
     contextId: string,
     _contextType: 'note' | 'issue' | 'project'
   ): Promise<boolean> {
-    // Always do a targeted fetch filtered by context_id.
-    // The mount-time fetchSessions() may still be in-flight (isLoading=true)
-    // or may have returned all sessions without this context match, so we
-    // need a dedicated fetch to find sessions for this specific context.
     await this.fetchSessions(5, contextId);
 
-    // Find the most recent session matching this context
     const matchingSession = this.recentSessions.find((s) => s.contextId === contextId);
 
     if (matchingSession) {
@@ -527,7 +411,6 @@ export class SessionListStore {
       runInAction(() => {
         this.sessions = this.sessions.filter((s) => s.sessionId !== sessionId);
 
-        // Clear selected session if it was deleted
         if (this.selectedSessionId === sessionId) {
           this.selectedSessionId = null;
         }
@@ -545,7 +428,6 @@ export class SessionListStore {
    */
   async searchSessions(query: string): Promise<void> {
     if (!query.trim()) {
-      // Empty query - fetch all sessions
       await this.fetchSessions();
       return;
     }
@@ -570,28 +452,7 @@ export class SessionListStore {
       const data = await response.json();
 
       runInAction(() => {
-        this.sessions = data.sessions.map((s: SessionSummaryResponse) => ({
-          sessionId: s.id,
-          agentName: s.agent_name,
-          contextId: s.context_id,
-          contextType: s.context_type,
-          contextHistory: s.context_history?.map((ctx: ContextHistoryResponse) => ({
-            turn: ctx.turn,
-            noteId: ctx.note_id,
-            noteTitle: ctx.note_title,
-            issueId: ctx.issue_id,
-            blockIds: ctx.block_ids,
-            selectedText: ctx.selected_text,
-            timestamp: ctx.timestamp,
-          })),
-          createdAt: new Date(s.created_at),
-          updatedAt: new Date(s.updated_at),
-          turnCount: s.turn_count,
-          expiresAt: new Date(s.expires_at),
-          title: s.title,
-          forkedFrom: s.forked_from,
-          forkCount: s.fork_count,
-        }));
+        this.sessions = data.sessions.map(mapSessionSummary);
         this.isLoading = false;
       });
     } catch (err) {
@@ -612,7 +473,6 @@ export class SessionListStore {
     const pilotSpaceStore = this.rootStore;
     if (!pilotSpaceStore) return;
 
-    // Clear current session so the backend creates a fork (not resumes)
     pilotSpaceStore.clear();
     pilotSpaceStore.setForkSessionId(sourceSessionId);
   }
@@ -633,65 +493,4 @@ export class SessionListStore {
     this.error = null;
     this.selectedSessionId = null;
   }
-}
-
-// ========================================
-// API Response Types
-// ========================================
-
-interface ContextHistoryResponse {
-  turn: number;
-  note_id?: string;
-  note_title?: string;
-  issue_id?: string;
-  block_ids?: string[];
-  selected_text?: string;
-  timestamp: string;
-}
-
-interface SessionSummaryResponse {
-  id: string;
-  workspace_id: string;
-  agent_name: string;
-  context_id?: string;
-  context_type?: 'note' | 'issue' | 'project';
-  context_history?: ContextHistoryResponse[];
-  created_at: string;
-  updated_at: string;
-  turn_count: number;
-  total_cost_usd: number;
-  expires_at: string;
-  title?: string;
-  forked_from?: string;
-  fork_count?: number;
-}
-
-interface MessageResponse {
-  id?: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: string;
-  tokens?: number;
-  cost_usd?: number;
-  metadata?: Record<string, unknown>;
-  /** Ordered content blocks for interleaved rendering (thinking/text/tool_call) */
-  content_blocks?: Array<
-    | { type: 'thinking'; blockIndex: number; content: string }
-    | { type: 'text'; content: string }
-    | { type: 'tool_call'; toolCallId: string }
-  >;
-  /** Thinking block entries for extended thinking display */
-  thinking_blocks?: Array<{ content: string; blockIndex: number; redacted?: boolean }>;
-}
-
-/**
- * Response from resume session endpoint with pagination support.
- */
-interface ResumeSessionResponse {
-  session_id: string;
-  messages: MessageResponse[];
-  context: Record<string, unknown>;
-  turn_count: number;
-  total_messages: number;
-  has_more: boolean;
 }

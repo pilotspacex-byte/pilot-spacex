@@ -228,10 +228,10 @@ const TaskPanel = observer(() => {
 });
 ```
 
-### ApprovalOverlay Integration
+### DestructiveApprovalModal Integration
 
 ```typescript
-const ApprovalOverlay = observer(() => {
+const DestructiveApproval = observer(() => {
   const { pilotSpace } = useAIStore();
 
   if (pilotSpace.pendingApprovals.length === 0) return null;
@@ -239,9 +239,12 @@ const ApprovalOverlay = observer(() => {
   const request = pilotSpace.pendingApprovals[0];
 
   return (
-    <Dialog>
-      <DialogTitle>{request.description}</DialogTitle>
-      <DialogActions>
+    <DestructiveApprovalModal
+      approval={request}
+      isOpen={true}
+      onApprove={handleApprove}
+      onReject={handleReject}
+      onClose={handleClose}
         <Button onClick={() => pilotSpace.approveRequest(request.requestId)}>
           Approve
         </Button>

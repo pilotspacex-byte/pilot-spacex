@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Square } from 'lucide-react';
+import { Square, AlertCircle, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
 import { SessionListStore } from '@/stores/ai/SessionListStore';
@@ -34,16 +34,15 @@ import type { AgentTask } from './types';
 import { ChatHeader } from './ChatHeader';
 import { MessageList } from './MessageList/MessageList';
 import { TaskPanel } from './TaskPanel/TaskPanel';
-import { ApprovalOverlay } from './ApprovalOverlay/ApprovalOverlay';
+import { DestructiveApprovalModal } from './ApprovalOverlay/DestructiveApprovalModal';
 import { ChatInput } from './ChatInput/ChatInput';
-import { SuggestionCard } from './MessageList/SuggestionCard';
-import { QuestionCard } from './MessageList/QuestionCard';
-import { StreamingBanner } from './StreamingBanner';
+import { InlineApprovalCard } from './MessageList/InlineApprovalCard';
+import { WaitingIndicator } from './WaitingIndicator';
 import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
 
 /**
  * Destructive actions that require modal overlay approval (DD-003).
- * Non-destructive actions render as inline SuggestionCard instead.
+ * Non-destructive actions render as inline InlineApprovalCard instead.
  */
 const DESTRUCTIVE_ACTIONS = new Set([
   'delete_issue',
@@ -179,6 +178,7 @@ const ChatViewInternal = observer<ChatViewProps>(
     const [taskPanelOpen, setTaskPanelOpen] = useState(true);
     const [showClearDialog, setShowClearDialog] = useState(false);
     const [isResumingSession, setIsResumingSession] = useState(false);
+    const [destructiveModalOpen, setDestructiveModalOpen] = useState(false);
     // Trigger to scroll MessageList to bottom after session resume
     const [scrollToBottomTrigger, setScrollToBottomTrigger] = useState(0);
     const prefersReducedMotion = useReducedMotion();
@@ -284,7 +284,7 @@ const ChatViewInternal = observer<ChatViewProps>(
     const chatViewApprovals = useMemo(() => {
       return store.pendingApprovals.map((req) => ({
         id: req.requestId,
-        agentName: '', // TODO: Extract from context when available
+        agentName: 'PilotSpace Agent',
         actionType: req.actionType,
         status: 'pending' as const,
         contextPreview: req.description,
@@ -318,6 +318,13 @@ const ChatViewInternal = observer<ChatViewProps>(
       }
     }, [store.tasks.size, taskPanelOpen]);
 
+    // Auto-open destructive approval modal when new destructive approvals arrive
+    useEffect(() => {
+      if (modalApprovals.length > 0) {
+        setDestructiveModalOpen(true);
+      }
+    }, [modalApprovals.length]);
+
     const handleSubmit = useCallback(async () => {
       if (!inputValue.trim() || store.isStreaming) return;
 
@@ -340,17 +347,6 @@ const ChatViewInternal = observer<ChatViewProps>(
     const handleAbort = useCallback(() => {
       store.abort();
     }, [store]);
-
-    const handleQuestionSubmit = useCallback(
-      async (questionId: string, answer: string) => {
-        try {
-          await store.submitQuestionAnswer(questionId, answer);
-        } catch (error) {
-          store.error = error instanceof Error ? error.message : 'Failed to submit answer';
-        }
-      },
-      [store]
-    );
 
     const handleClearNoteContext = useCallback(() => {
       store.setNoteContext(null);
@@ -377,6 +373,10 @@ const ChatViewInternal = observer<ChatViewProps>(
       },
       [store]
     );
+
+    const handleSuggestedPrompt = useCallback((prompt: string) => {
+      setInputValue(prompt);
+    }, []);
 
     const handleNewSession = useCallback(() => {
       store.clear();
@@ -459,20 +459,11 @@ const ChatViewInternal = observer<ChatViewProps>(
               hasMoreMessages={store.hasMoreMessages}
               isLoadingMoreMessages={store.isLoadingMoreMessages}
               onLoadMore={handleLoadMoreMessages}
+              onSuggestedPrompt={handleSuggestedPrompt}
+              streamingPhase={store.streamingState.phase}
+              activeToolName={store.streamingState.activeToolName}
+              wordCount={store.streamingState.wordCount ?? 0}
             />
-          )}
-
-          {/* Inline question card for AskUserQuestion events */}
-          {store.pendingQuestion && (
-            <div className="px-4 pb-3">
-              <QuestionCard
-                questionId={store.pendingQuestion.questionId}
-                questions={store.pendingQuestion.questions}
-                onSubmit={handleQuestionSubmit}
-                isResolved={!!store.pendingQuestion.resolvedAnswer}
-                resolvedAnswer={store.pendingQuestion.resolvedAnswer}
-              />
-            </div>
           )}
 
           {/* Floating abort button - overlays bottom of message area */}
@@ -522,18 +513,29 @@ const ChatViewInternal = observer<ChatViewProps>(
             <div className="px-3 pb-3">
               <div
                 role="alert"
-                className="rounded-lg border border-destructive/50 bg-destructive/10 p-2.5"
+                className="rounded-lg border border-destructive/50 bg-destructive/10 p-2.5 flex items-start gap-2"
                 data-testid="error-message"
               >
-                <p className="text-xs text-destructive">{store.error}</p>
+                <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                <p className="text-xs text-destructive flex-1">{store.error}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    store.error = null;
+                  }}
+                  className="text-destructive/60 hover:text-destructive shrink-0"
+                  aria-label="Dismiss error"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Inline suggestion cards for non-destructive approvals */}
+        {/* Inline approval cards for non-destructive approvals */}
         {inlineApprovals.map((approval) => (
-          <SuggestionCard
+          <InlineApprovalCard
             key={approval.id}
             approval={approval}
             onApprove={handleApproveAction}
@@ -541,15 +543,12 @@ const ChatViewInternal = observer<ChatViewProps>(
           />
         ))}
 
-        {/* Streaming state banner */}
-        <StreamingBanner
-          isStreaming={store.isStreaming}
-          phase={store.streamingState.phase}
-          activeToolName={store.streamingState.activeToolName}
-          wordCount={store.streamingState.wordCount ?? 0}
-          interrupted={store.streamingState.interrupted ?? false}
-          thinkingStartedAt={store.streamingState.thinkingStartedAt}
-        />
+        {/* Waiting indicator — shown when agent is blocked on user input */}
+        {store.isWaitingForUser && (
+          <WaitingIndicator waitingType={store.pendingQuestion ? 'question' : 'approval'} />
+        )}
+
+        {/* Streaming phase is now shown inline in MessageList */}
 
         {/* Input */}
         <ChatInput
@@ -593,11 +592,13 @@ const ChatViewInternal = observer<ChatViewProps>(
           onClearProjectContext={handleClearProjectContext}
         />
 
-        {/* Modal overlay only for destructive actions (DD-003) */}
-        <ApprovalOverlay
-          approvals={modalApprovals}
+        {/* Modal for destructive actions — non-dismissable (DD-003) */}
+        <DestructiveApprovalModal
+          approval={modalApprovals[0] ?? null}
+          isOpen={destructiveModalOpen && modalApprovals.length > 0}
           onApprove={handleApproveAction}
           onReject={handleRejectAction}
+          onClose={() => setDestructiveModalOpen(false)}
         />
 
         {/* Clear conversation confirmation dialog */}

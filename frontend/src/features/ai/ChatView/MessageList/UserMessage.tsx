@@ -15,14 +15,19 @@ interface UserMessageProps {
 }
 
 export const UserMessage = memo<UserMessageProps>(({ message, userName = 'You', className }) => {
+  // Hide answer protocol messages — Q&A is shown inline in the assistant message
+  if (message.metadata?.isAnswerMessage) {
+    return null;
+  }
+
   return (
     <div
       className={cn('px-4 py-3 bg-muted/100 text-primary', className)}
       data-testid="message-user"
     >
       <div className="flex items-baseline gap-2 mb-1.5">
-        <span className="text-sm font-semibold text-primary">{userName}</span>
-        <time className="text-xs text-muted-foreground">
+        <span className="text-[15px] font-semibold text-foreground">{userName}</span>
+        <time className="text-[11px] text-muted-foreground/70">
           {message.timestamp.toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',

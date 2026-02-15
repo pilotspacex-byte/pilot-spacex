@@ -63,6 +63,16 @@ export type {
   ErrorCode,
 } from './events';
 
+// Session types
+export type {
+  ContextEntry,
+  SessionSummary,
+  ContextHistoryResponse,
+  SessionSummaryResponse,
+  MessageResponse,
+  ResumeSessionResponse,
+} from './session';
+
 // Type guards (re-export for convenience)
 export {
   isMessageStartEvent,

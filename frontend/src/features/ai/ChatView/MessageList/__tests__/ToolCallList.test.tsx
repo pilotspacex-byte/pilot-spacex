@@ -23,6 +23,7 @@ vi.mock('lucide-react', () => ({
   ChevronDown: (props: Record<string, unknown>) => (
     <span data-testid="chevron-down-icon" {...props} />
   ),
+  FileText: (props: Record<string, unknown>) => <span data-testid="file-text-icon" {...props} />,
 }));
 
 import { ToolCallList } from '../ToolCallList';
@@ -60,8 +61,7 @@ describe('ToolCallList', () => {
   it('renders ToolCallCard for a single tool call', () => {
     render(<ToolCallList toolCalls={[makeToolCall()]} />);
 
-    // Should render the tool card with "Calling" prefix
-    expect(screen.getByText('Calling Extracting Issues...')).toBeInTheDocument();
+    expect(screen.getByText('Extracting Issues...')).toBeInTheDocument();
   });
 
   it('does not show parallel header for single tool call (removed in minimal design)', () => {
@@ -83,9 +83,9 @@ describe('ToolCallList', () => {
 
     render(<ToolCallList toolCalls={toolCalls} />);
 
-    expect(screen.getByText('Calling Extracting Issues...')).toBeInTheDocument();
-    expect(screen.getByText('Calling Enhancing Text...')).toBeInTheDocument();
-    expect(screen.getByText('Calling Summarizing Note...')).toBeInTheDocument();
+    expect(screen.getByText('Extracting Issues...')).toBeInTheDocument();
+    expect(screen.getByText('Enhancing Text...')).toBeInTheDocument();
+    expect(screen.getByText('Summarizing Note...')).toBeInTheDocument();
   });
 
   it('does NOT show "Parallel (N tools)" header (removed in minimal design)', () => {

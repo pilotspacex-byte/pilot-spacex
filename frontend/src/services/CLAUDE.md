@@ -15,15 +15,16 @@ Typed HTTP clients for all backend REST endpoints. All clients use Axios interce
 
 **Implementation**: `client.ts`
 
-| Component           | Purpose                                                                  |
-| ------------------- | ------------------------------------------------------------------------ |
+| Component           | Purpose                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------ |
 | `ApiError`          | Custom error class -- RFC 7807 compliant (`status`, `type`, `detail`, `isRetryable`) |
-| `ApiProblemDetails` | Error interface matching FastAPI exception format                        |
-| `apiClient`         | HTTP methods (GET, POST, PUT, PATCH, DELETE) with `<T>` generic returns |
+| `ApiProblemDetails` | Error interface matching FastAPI exception format                                    |
+| `apiClient`         | HTTP methods (GET, POST, PUT, PATCH, DELETE) with `<T>` generic returns              |
 
 **Request Flow**: Request -> Interceptor (add Bearer token) -> Axios -> Response -> Interceptor (error handling)
 
 **Interceptor Auto-Handling**:
+
 - 401: Sign out + redirect to `/login`
 - 429: Toast rate limit warning with retry-after duration
 - 403: "Access Denied" toast
@@ -37,18 +38,18 @@ Typed HTTP clients for all backend REST endpoints. All clients use Axios interce
 
 ## API Clients (9 Total)
 
-| Client           | File               | Scope                                           | Key Methods                                                                         |
-| ---------------- | ------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------- |
-| **Issues**       | `issues.ts`        | CRUD + state machine + AI                       | `list`, `get`, `create`, `update`, `updateState`, `enhance`, `checkDuplicates`      |
-| **Notes**        | `notes.ts`         | TipTap docs + metadata + annotations            | `list`, `get`, `create`, `updateContent` (auto-save), `pin`, `linkIssue`            |
-| **AI**           | `ai.ts`            | SSE streaming, settings, approvals, costs, chat | `getGhostTextUrl()`, `getWorkspaceSettings()`, `createConversationSession()`        |
-| **Workspaces**   | `workspaces.ts`    | CRUD, member mgmt                               | `list`, `get`, `create`, `getMembers()`, `inviteMember()`, `updateMemberRole()`     |
-| **Projects**     | `projects.ts`      | Lightweight CRUD                                | `list`, `get`, `create`, `update`, `delete`                                         |
-| **Cycles**       | `cycles.ts`        | Sprint planning, metrics                        | `list`, `get`, `create`, `addIssue()`, `rollover()`, `getBurndownData()`            |
-| **Approvals**    | `approvals.ts`     | Human-in-the-loop (DD-003)                      | `listPending()`, `approve()`, `reject()`, `getPendingCount()`                       |
-| **Integrations** | `integrations.ts`  | GitHub OAuth, PR webhooks                       | `getGitHubAuthUrl()`, `completeGitHubAuth()`, `listRepositories()`                 |
-| **Onboarding**   | `onboarding.ts`    | First-time setup                                | `getOnboardingState()`, `updateOnboardingStep()`, `validateProviderKey()`           |
-| **Role Skills**  | `role-skills.ts`   | SDLC roles, AI generation                       | `getTemplates()`, `getRoleSkills()`, `createRoleSkill()`, `generateSkill()`         |
+| Client           | File              | Scope                                           | Key Methods                                                                     |
+| ---------------- | ----------------- | ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Issues**       | `issues.ts`       | CRUD + state machine + AI                       | `list`, `get`, `create`, `update`, `updateState`, `enhance`, `checkDuplicates`  |
+| **Notes**        | `notes.ts`        | TipTap docs + metadata + annotations            | `list`, `get`, `create`, `updateContent` (auto-save), `pin`, `linkIssue`        |
+| **AI**           | `ai.ts`           | SSE streaming, settings, approvals, costs, chat | `getGhostTextUrl()`, `getWorkspaceSettings()`, `createConversationSession()`    |
+| **Workspaces**   | `workspaces.ts`   | CRUD, member mgmt                               | `list`, `get`, `create`, `getMembers()`, `inviteMember()`, `updateMemberRole()` |
+| **Projects**     | `projects.ts`     | Lightweight CRUD                                | `list`, `get`, `create`, `update`, `delete`                                     |
+| **Cycles**       | `cycles.ts`       | Sprint planning, metrics                        | `list`, `get`, `create`, `addIssue()`, `rollover()`, `getBurndownData()`        |
+| **Approvals**    | `approvals.ts`    | Human-in-the-loop (DD-003)                      | `listPending()`, `approve()`, `reject()`, `getPendingCount()`                   |
+| **Integrations** | `integrations.ts` | GitHub OAuth, PR webhooks                       | `getGitHubAuthUrl()`, `completeGitHubAuth()`, `listRepositories()`              |
+| **Onboarding**   | `onboarding.ts`   | First-time setup                                | `getOnboardingState()`, `updateOnboardingStep()`, `validateProviderKey()`       |
+| **Role Skills**  | `role-skills.ts`  | SDLC roles, AI generation                       | `getTemplates()`, `getRoleSkills()`, `createRoleSkill()`, `generateSkill()`     |
 
 SSE endpoints return URLs only (no HTTP call). Import all clients via barrel export: `import { issuesApi } from '@/services/api'`.
 
@@ -70,14 +71,14 @@ All errors conform to RFC 7807 Problem Details. See `client.ts:ApiError` for the
 
 Custom streaming client for POST-based SSE (EventSource only supports GET).
 
-| Feature            | Detail                                                          |
-| ------------------ | --------------------------------------------------------------- |
-| POST with body     | Uses fetch ReadableStream instead of EventSource                |
-| Auth headers       | Automatically adds Bearer token from Supabase session           |
-| Event parsing      | Handles chunked `event:` + `data:` lines                       |
-| Reconnection       | Exponential backoff (1s -> 2s -> 4s -> 8s) up to 3 retries     |
-| Abort control      | AbortController for cancellation                                |
-| Type safety        | `SSEEvent { type, data }` with parsed JSON                     |
+| Feature        | Detail                                                     |
+| -------------- | ---------------------------------------------------------- |
+| POST with body | Uses fetch ReadableStream instead of EventSource           |
+| Auth headers   | Automatically adds Bearer token from Supabase session      |
+| Event parsing  | Handles chunked `event:` + `data:` lines                   |
+| Reconnection   | Exponential backoff (1s -> 2s -> 4s -> 8s) up to 3 retries |
+| Abort control  | AbortController for cancellation                           |
+| Type safety    | `SSEEvent { type, data }` with parsed JSON                 |
 
 **Setup**: `new SSEClient({ url, method: 'POST', body, onMessage, onError, onComplete })`. Methods: `connect()`, `abort()`.
 

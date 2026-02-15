@@ -23,6 +23,8 @@ interface StreamingBannerProps {
   wordCount?: number;
   interrupted?: boolean;
   thinkingStartedAt?: number | null;
+  /** When true, agent is waiting for user input — StreamingBanner yields to WaitingIndicator */
+  isWaitingForUser?: boolean;
   className?: string;
 }
 
@@ -70,6 +72,7 @@ export function StreamingBanner({
   wordCount,
   interrupted,
   thinkingStartedAt,
+  isWaitingForUser,
   className,
 }: StreamingBannerProps) {
   const [showInterrupted, setShowInterrupted] = useState(false);
@@ -95,6 +98,9 @@ export function StreamingBanner({
     const timer = setTimeout(hideBanner, INTERRUPTED_HIDE_DELAY);
     return () => clearTimeout(timer);
   }, [interrupted, showBanner, hideBanner]);
+
+  // Yield to WaitingIndicator when agent is waiting for user input (T10)
+  if (isWaitingForUser) return null;
 
   // Determine visibility
   const isVisible = isStreaming || showInterrupted;

@@ -7,19 +7,19 @@
 
 ## Store Overview
 
-| Store                    | File                       | Purpose                                      |
-| ------------------------ | -------------------------- | -------------------------------------------- |
-| **AIStore** (root)       | `AIStore.ts`               | Container + lifecycle for all AI stores      |
-| **PilotSpaceStore**      | `PilotSpaceStore.ts`       | Unified agent orchestration (DD-086)         |
-| **GhostTextStore**       | `GhostTextStore.ts`        | Inline text suggestions (Gemini Flash, <2s)  |
-| **ApprovalStore**        | `ApprovalStore.ts`         | Human-in-the-loop approval workflow (DD-003) |
-| **AIContextStore**       | `AIContextStore.ts`        | Issue context aggregation via SSE            |
-| **MarginAnnotationStore**| `MarginAnnotationStore.ts` | Per-block margin AI suggestions              |
-| **CostStore**            | `CostStore.ts`             | Token usage and cost tracking                |
-| **AISettingsStore**      | `AISettingsStore.ts`       | Workspace AI feature flags                   |
-| **PRReviewStore**        | `PRReviewStore.ts`         | PR review state (legacy)                     |
-| **ConversationStore**    | `ConversationStore.ts`     | Deprecated -- replaced by PilotSpaceStore    |
-| **SessionListStore**     | `SessionListStore.ts`      | Chat session listing                         |
+| Store                     | File                       | Purpose                                      |
+| ------------------------- | -------------------------- | -------------------------------------------- |
+| **AIStore** (root)        | `AIStore.ts`               | Container + lifecycle for all AI stores      |
+| **PilotSpaceStore**       | `PilotSpaceStore.ts`       | Unified agent orchestration (DD-086)         |
+| **GhostTextStore**        | `GhostTextStore.ts`        | Inline text suggestions (Gemini Flash, <2s)  |
+| **ApprovalStore**         | `ApprovalStore.ts`         | Human-in-the-loop approval workflow (DD-003) |
+| **AIContextStore**        | `AIContextStore.ts`        | Issue context aggregation via SSE            |
+| **MarginAnnotationStore** | `MarginAnnotationStore.ts` | Per-block margin AI suggestions              |
+| **CostStore**             | `CostStore.ts`             | Token usage and cost tracking                |
+| **AISettingsStore**       | `AISettingsStore.ts`       | Workspace AI feature flags                   |
+| **PRReviewStore**         | `PRReviewStore.ts`         | PR review state (legacy)                     |
+| **ConversationStore**     | `ConversationStore.ts`     | Deprecated -- replaced by PilotSpaceStore    |
+| **SessionListStore**      | `SessionListStore.ts`      | Chat session listing                         |
 
 ---
 
@@ -38,6 +38,7 @@ Container and lifecycle manager. Provides `isGloballyEnabled` master switch, `lo
 Central orchestration for all user-facing AI conversations per DD-086.
 
 **Key Observables**:
+
 - `messages: ChatMessage[]` -- full conversation history
 - `streamingState` -- isStreaming, streamContent, thinkingContent, activeToolName, interrupted, wordCount
 - `sessionId`, `sessionState` -- session lifecycle (isActive, createdAt, lastActivityAt)
@@ -51,10 +52,12 @@ Central orchestration for all user-facing AI conversations per DD-086.
 - `error: string | null`
 
 **Key Computed**:
+
 - `isStreaming`, `streamContent`, `pendingToolCalls`, `hasUnresolvedApprovals`
 - `activeTasks`, `completedTasks`, `conversationContext`, `tokenBudgetPercent`
 
 **Key Actions**:
+
 - `sendMessage(content, metadata?)` -- handles session resumption, skill activation, context injection, token budget (8K limit). Delegated to `PilotSpaceActions.ts`.
 - `addMessage()`, `prependMessages()` -- message management
 - `addTask()`, `updateTaskStatus()`, `removeTask()` -- task lifecycle
@@ -80,6 +83,7 @@ Inline text suggestions with debouncing and LRU caching (DD-067: Gemini Flash, <
 **Key Observables**: `suggestion`, `isLoading`, `isEnabled`, `error`
 
 **Key Actions**:
+
 - `requestSuggestion(noteId, context, prefix, workspaceId)` -- 500ms debounce, LRU cache (max 10), cache key = noteId + context suffix + prefix suffix
 - `clearSuggestion()`, `abort()`, `setEnabled()`
 
@@ -98,6 +102,7 @@ Human-in-the-loop approval workflow (DD-003).
 **Key Computed**: `groupedByAgent` -- groups requests by agent name
 
 **Key Actions**:
+
 - `loadPending()`, `loadAll(status?)`
 - `approveRequest(requestId)`, `rejectRequest(requestId, reason?)`
 - `selectRequest()`, `setFilter()`
@@ -115,6 +120,7 @@ Issue context aggregation with SSE streaming and structured sections.
 **Result Structure**: `AIContextResult` contains `summary`, `relatedIssues`, `relatedDocs`, `tasks`, `prompts`. See `types/` for full interfaces.
 
 **Key Actions**:
+
 - `generateContext(issueId)` -- streams SSE from `/api/v1/ai/context/{issueId}`, populates sections incrementally
 - `abort()`, `setEnabled()`, `getContextForIssue(issueId)` (cached, max 20 items)
 

@@ -16,6 +16,8 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
     capture_content_from_sse,
     classify_effort,
     detect_skill_from_message,
+    extract_question_data_from_blocks,
+    extract_tool_calls_from_blocks,
     merge_sdk_and_queue,
 )
 
@@ -166,6 +168,265 @@ class TestCaptureContentFromSSE:
         assert blocks["tool_result_t1"]["is_error"] is True
 
 
+class TestExtractQuestionDataFromBlocks:
+    """Test extraction of question_data from content_blocks for session persistence."""
+
+    def test_returns_none_when_no_ask_user_blocks(self) -> None:
+        """Normal content blocks without ask_user return None."""
+        blocks: dict[str, dict[str, Any]] = {
+            "text_0": {"type": "text", "text": "Hello", "index": 0},
+            "tool_use_t1": {
+                "type": "tool_use",
+                "id": "t1",
+                "name": "extract_issues",
+                "input": {},
+                "index": 1,
+            },
+        }
+        assert extract_question_data_from_blocks(blocks) is None
+
+    def test_returns_none_for_empty_blocks(self) -> None:
+        """Empty content blocks return None."""
+        assert extract_question_data_from_blocks({}) is None
+
+    def test_returns_none_for_non_pending_answer_tool_result(self) -> None:
+        """Tool results without pending_answer status return None."""
+        blocks: dict[str, dict[str, Any]] = {
+            "tool_result_t1": {
+                "type": "tool_result",
+                "tool_use_id": "t1",
+                "content": '{"status": "success", "data": "ok"}',
+                "is_error": False,
+                "index": 0,
+            },
+        }
+        assert extract_question_data_from_blocks(blocks) is None
+
+    def test_extracts_question_data_from_pending_answer(self) -> None:
+        """Extracts question_data when ask_user tool_result has pending_answer."""
+        from uuid import uuid4
+
+        from pilot_space.ai.sdk.question_adapter import QuestionAdapter
+
+        # Register a question in the adapter
+        adapter = QuestionAdapter()
+        test_user_id = uuid4()
+        question_id, _ = adapter.register_question(
+            message_id="msg_1",
+            tool_call_id="tool_1",
+            questions=[
+                {
+                    "question": "Pick approach?",
+                    "options": [
+                        {"label": "A", "description": "First"},
+                        {"label": "B", "description": "Second"},
+                    ],
+                    "header": "Approach",
+                }
+            ],
+            user_id=test_user_id,
+        )
+
+        # Build content_blocks with a matching tool_result
+        import json
+
+        blocks: dict[str, dict[str, Any]] = {
+            "text_0": {"type": "text", "text": "Let me ask...", "index": 0},
+            "tool_result_ask": {
+                "type": "tool_result",
+                "tool_use_id": "ask_user_call",
+                "content": json.dumps(
+                    {
+                        "status": "pending_answer",
+                        "questionId": str(question_id),
+                        "message": "Questions displayed.",
+                    }
+                ),
+                "is_error": False,
+                "index": 1,
+            },
+        }
+
+        # Patch the module-level adapter
+        import pilot_space.ai.sdk.question_adapter as qa_module
+
+        original = qa_module._default_adapter
+        qa_module._default_adapter = adapter
+        try:
+            result = extract_question_data_from_blocks(blocks)
+        finally:
+            qa_module._default_adapter = original
+
+        assert result is not None
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["questionId"] == str(question_id)
+        assert len(result[0]["questions"]) == 1
+        assert result[0]["questions"][0]["question"] == "Pick approach?"
+        assert "answers" not in result[0]  # No answers at ask-time
+
+    def test_returns_none_when_question_not_in_adapter(self) -> None:
+        """Returns None if questionId not found in QuestionAdapter."""
+        import json
+        from uuid import uuid4
+
+        blocks: dict[str, dict[str, Any]] = {
+            "tool_result_ask": {
+                "type": "tool_result",
+                "tool_use_id": "ask_user_call",
+                "content": json.dumps(
+                    {
+                        "status": "pending_answer",
+                        "questionId": str(uuid4()),
+                        "message": "Questions displayed.",
+                    }
+                ),
+                "is_error": False,
+                "index": 0,
+            },
+        }
+
+        result = extract_question_data_from_blocks(blocks)
+        assert result is None
+
+    def test_extracts_question_data_from_dict_content(self) -> None:
+        """Extracts question_data when tool_result content is a dict (SSE capture format)."""
+        from uuid import uuid4
+
+        from pilot_space.ai.sdk.question_adapter import QuestionAdapter
+
+        adapter = QuestionAdapter()
+        test_user_id = uuid4()
+        question_id, _ = adapter.register_question(
+            message_id="msg_2",
+            tool_call_id="tool_2",
+            questions=[
+                {
+                    "question": "Which DB?",
+                    "options": [
+                        {"label": "Postgres", "description": "Relational"},
+                        {"label": "Mongo", "description": "Document"},
+                    ],
+                    "header": "Database",
+                }
+            ],
+            user_id=test_user_id,
+        )
+
+        # Content as dict (how SSE capture actually stores it)
+        blocks: dict[str, dict[str, Any]] = {
+            "tool_result_ask": {
+                "type": "tool_result",
+                "tool_use_id": "ask_user_call",
+                "content": {
+                    "status": "pending_answer",
+                    "questionId": str(question_id),
+                    "message": "Questions displayed.",
+                },
+                "is_error": False,
+                "index": 0,
+            },
+        }
+
+        import pilot_space.ai.sdk.question_adapter as qa_module
+
+        original = qa_module._default_adapter
+        qa_module._default_adapter = adapter
+        try:
+            result = extract_question_data_from_blocks(blocks)
+        finally:
+            qa_module._default_adapter = original
+
+        assert result is not None
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["questionId"] == str(question_id)
+        assert len(result[0]["questions"]) == 1
+        assert result[0]["questions"][0]["question"] == "Which DB?"
+
+    def test_extracts_multiple_question_data_as_list(self) -> None:
+        """Extracts multiple pending_answer blocks into a list."""
+        import json
+        from uuid import uuid4
+
+        from pilot_space.ai.sdk.question_adapter import QuestionAdapter
+
+        adapter = QuestionAdapter()
+        test_user_id = uuid4()
+
+        q1_id, _ = adapter.register_question(
+            message_id="msg_1",
+            tool_call_id="tool_1",
+            questions=[{"question": "Q1?", "options": [{"label": "A"}], "header": "H1"}],
+            user_id=test_user_id,
+        )
+        q2_id, _ = adapter.register_question(
+            message_id="msg_2",
+            tool_call_id="tool_2",
+            questions=[{"question": "Q2?", "options": [{"label": "B"}], "header": "H2"}],
+            user_id=test_user_id,
+        )
+
+        blocks: dict[str, dict[str, Any]] = {
+            "text_0": {"type": "text", "text": "Let me ask...", "index": 0},
+            "tool_result_ask1": {
+                "type": "tool_result",
+                "tool_use_id": "ask1",
+                "content": json.dumps(
+                    {
+                        "status": "pending_answer",
+                        "questionId": str(q1_id),
+                        "message": "Q1 displayed.",
+                    }
+                ),
+                "is_error": False,
+                "index": 1,
+            },
+            "tool_result_ask2": {
+                "type": "tool_result",
+                "tool_use_id": "ask2",
+                "content": json.dumps(
+                    {
+                        "status": "pending_answer",
+                        "questionId": str(q2_id),
+                        "message": "Q2 displayed.",
+                    }
+                ),
+                "is_error": False,
+                "index": 2,
+            },
+        }
+
+        import pilot_space.ai.sdk.question_adapter as qa_module
+
+        original = qa_module._default_adapter
+        qa_module._default_adapter = adapter
+        try:
+            result = extract_question_data_from_blocks(blocks)
+        finally:
+            qa_module._default_adapter = original
+
+        assert result is not None
+        assert isinstance(result, list)
+        assert len(result) == 2
+        question_ids = {r["questionId"] for r in result}
+        assert str(q1_id) in question_ids
+        assert str(q2_id) in question_ids
+
+    def test_handles_malformed_json_gracefully(self) -> None:
+        """Malformed JSON in tool_result content is handled gracefully."""
+        blocks: dict[str, dict[str, Any]] = {
+            "tool_result_ask": {
+                "type": "tool_result",
+                "tool_use_id": "ask_user_call",
+                "content": "not valid json pending_answer",
+                "is_error": False,
+                "index": 0,
+            },
+        }
+        assert extract_question_data_from_blocks(blocks) is None
+
+
 class TestClassifyEffort:
     """Test effort classification for SDK configuration."""
 
@@ -276,3 +537,116 @@ class TestMergeSdkAndQueue:
         sources = [s for s, _ in results]
         assert "sdk" in sources
         assert "queue" in sources
+
+
+class TestExtractToolCallsFromBlocks:
+    """Test tool call extraction from content blocks."""
+
+    def test_returns_none_for_empty_blocks(self) -> None:
+        assert extract_tool_calls_from_blocks({}) is None
+
+    def test_returns_none_when_no_tool_use(self) -> None:
+        blocks: dict[str, dict[str, Any]] = {
+            "text_0": {"type": "text", "text": "Hello", "index": 0},
+        }
+        assert extract_tool_calls_from_blocks(blocks) is None
+
+    def test_extracts_single_tool_call_with_result(self) -> None:
+        blocks: dict[str, dict[str, Any]] = {
+            "tool_use_abc": {
+                "type": "tool_use",
+                "id": "abc",
+                "name": "get_issue",
+                "input": {"issue_id": "123"},
+                "index": 0,
+            },
+            "tool_result_abc": {
+                "type": "tool_result",
+                "tool_use_id": "abc",
+                "content": {"title": "Fix bug"},
+                "is_error": False,
+                "index": 1,
+            },
+        }
+        result = extract_tool_calls_from_blocks(blocks)
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["id"] == "abc"
+        assert result[0]["name"] == "get_issue"
+        assert result[0]["input"] == {"issue_id": "123"}
+        assert result[0]["status"] == "completed"
+        assert result[0]["output"] == {"title": "Fix bug"}
+
+    def test_extracts_failed_tool_call(self) -> None:
+        blocks: dict[str, dict[str, Any]] = {
+            "tool_use_xyz": {
+                "type": "tool_use",
+                "id": "xyz",
+                "name": "delete_issue",
+                "input": {},
+                "index": 0,
+            },
+            "tool_result_xyz": {
+                "type": "tool_result",
+                "tool_use_id": "xyz",
+                "content": "Permission denied",
+                "is_error": True,
+                "index": 1,
+            },
+        }
+        result = extract_tool_calls_from_blocks(blocks)
+        assert result is not None
+        assert result[0]["status"] == "failed"
+        assert result[0]["error_message"] == "Permission denied"
+
+    def test_tool_use_without_result_is_pending(self) -> None:
+        blocks: dict[str, dict[str, Any]] = {
+            "tool_use_noresult": {
+                "type": "tool_use",
+                "id": "noresult",
+                "name": "search",
+                "input": {"q": "test"},
+                "index": 0,
+            },
+        }
+        result = extract_tool_calls_from_blocks(blocks)
+        assert result is not None
+        assert result[0]["status"] == "pending"
+        assert "output" not in result[0]
+
+    def test_extracts_multiple_tool_calls(self) -> None:
+        blocks: dict[str, dict[str, Any]] = {
+            "tool_use_a": {
+                "type": "tool_use",
+                "id": "a",
+                "name": "get_issue",
+                "input": {},
+                "index": 0,
+            },
+            "tool_result_a": {
+                "type": "tool_result",
+                "tool_use_id": "a",
+                "content": "ok",
+                "is_error": False,
+                "index": 1,
+            },
+            "tool_use_b": {
+                "type": "tool_use",
+                "id": "b",
+                "name": "update_issue",
+                "input": {"title": "new"},
+                "index": 2,
+            },
+            "tool_result_b": {
+                "type": "tool_result",
+                "tool_use_id": "b",
+                "content": "done",
+                "is_error": False,
+                "index": 3,
+            },
+        }
+        result = extract_tool_calls_from_blocks(blocks)
+        assert result is not None
+        assert len(result) == 2
+        names = {r["name"] for r in result}
+        assert names == {"get_issue", "update_issue"}

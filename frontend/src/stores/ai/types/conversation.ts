@@ -110,6 +110,23 @@ export interface ChatMessage {
     startIndex?: number;
     endIndex?: number;
   }>;
+  /** Question data embedded in assistant message (stateless two-turn model).
+   *  - answers undefined = pending (QuestionBlock renders inline)
+   *  - answers present = resolved (ResolvedSummary renders inline)
+   *  Legacy single-question format kept for backward compatibility. */
+  questionData?: {
+    questionId: string;
+    questions: import('./events').AgentQuestion[];
+    answers?: Record<string, string>;
+  };
+  /** Multiple question sets from multiple ask_user calls in one turn.
+   *  Each entry corresponds to one ask_user tool invocation.
+   *  Questions are merged into a single wizard UI. */
+  questionDataList?: Array<{
+    questionId: string;
+    questions: import('./events').AgentQuestion[];
+    answers?: Record<string, string>;
+  }>;
   /** Additional message metadata */
   metadata?: MessageMetadata;
 }
@@ -130,6 +147,8 @@ export interface MessageMetadata {
   model?: string;
   /** Cost in USD for this message */
   costUsd?: number;
+  /** Whether this message is an answer to an agent question (hides protocol text) */
+  isAnswerMessage?: boolean;
 }
 
 /**
@@ -231,4 +250,5 @@ export type StreamingPhase =
   | 'thinking'
   | 'content'
   | 'tool_use'
-  | 'completing';
+  | 'completing'
+  | 'waiting_for_user';

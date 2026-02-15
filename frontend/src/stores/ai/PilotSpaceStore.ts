@@ -25,7 +25,12 @@ import type {
   MessageMetadata,
 } from './types/conversation';
 import type { MemoryUpdateEvent } from './types/events';
-import type { ContentUpdateEvent, AgentQuestion, TaskStatus } from './types/events';
+import type {
+  ContentUpdateEvent,
+  AgentQuestion,
+  QuestionRequestEvent,
+  TaskStatus,
+} from './types/events';
 import type { SkillDefinition, ConfidenceTag } from './types/skills';
 import { PilotSpaceStreamHandler } from './PilotSpaceStreamHandler';
 import { PilotSpaceActions } from './PilotSpaceActions';
@@ -161,8 +166,10 @@ export class PilotSpaceStore {
   pendingQuestion: {
     questionId: string;
     questions: AgentQuestion[];
-    resolvedAnswer?: string;
   } | null = null;
+
+  /** Guard: prevents duplicate answer submissions while one is in flight */
+  isSubmittingAnswer = false;
 
   /** Available skills registry */
   skills: SkillDefinition[] = [];
@@ -196,6 +203,7 @@ export class PilotSpaceStore {
       completedTasks: computed,
       conversationContext: computed,
       tokenBudgetPercent: computed,
+      isWaitingForUser: computed,
     });
   }
 
@@ -247,6 +255,11 @@ export class PilotSpaceStore {
   /** Token budget usage as percentage (0-100) based on 8K token limit (008). */
   get tokenBudgetPercent(): number {
     return ((this.sessionState.totalTokens ?? 0) / 8000) * 100;
+  }
+
+  /** True when the agent is waiting for user input (pending question or unresolved approval). */
+  get isWaitingForUser(): boolean {
+    return this.pendingQuestion !== null || this.hasUnresolvedApprovals;
   }
 
   // ========================================
@@ -499,6 +512,67 @@ export class PilotSpaceStore {
   }
 
   // ========================================
+  // Actions - Question Management
+  // ========================================
+
+  /**
+   * Handle incoming question_request SSE event.
+   * Sets pending question and pauses streaming state to indicate waiting for user.
+   */
+  handleQuestionRequest(event: QuestionRequestEvent): void {
+    this.pendingQuestion = {
+      questionId: event.data.questionId,
+      questions: event.data.questions,
+    };
+    this.updateStreamingState({ phase: 'waiting_for_user' });
+  }
+
+  /**
+   * Resolve a pending question: update the assistant message's questionData with answers
+   * and clear the pending question state.
+   */
+  resolveQuestion(questionId: string, answers: Record<string, string>): void {
+    // Update the assistant message that contains this question.
+    // Search questionDataList first (new multi-question format), then questionData (legacy).
+    const idx = this.messages.findLastIndex(
+      (m) =>
+        m.role === 'assistant' &&
+        (m.questionDataList?.some((qd) => qd.questionId === questionId) ||
+          m.questionData?.questionId === questionId)
+    );
+    if (idx >= 0) {
+      const msg = this.messages[idx]!;
+      if (msg.questionDataList) {
+        // Resolve all entries in questionDataList with the merged answers
+        this.messages[idx] = {
+          ...msg,
+          questionDataList: msg.questionDataList.map((qd) => ({
+            ...qd,
+            answers: qd.questionId === questionId ? answers : qd.answers,
+          })),
+          questionData: msg.questionData ? { ...msg.questionData, answers } : undefined,
+        };
+      } else if (msg.questionData) {
+        this.messages[idx] = {
+          ...msg,
+          questionData: { ...msg.questionData, answers },
+        };
+      }
+    } else {
+      console.warn(`resolveQuestion: no assistant message found with questionId=${questionId}`);
+    }
+    // Clear pending question state
+    this.pendingQuestion = null;
+  }
+
+  /**
+   * Clear pending question after user submits an answer or dismisses.
+   */
+  clearPendingQuestion(): void {
+    this.pendingQuestion = null;
+  }
+
+  // ========================================
   // Actions - Context Management
   // ========================================
 
@@ -560,8 +634,12 @@ export class PilotSpaceStore {
    * @param questionId - Question identifier (tool call ID)
    * @param answer - User's answer text
    */
-  async submitQuestionAnswer(questionId: string, answer: string): Promise<void> {
-    return this.actions.submitQuestionAnswer(questionId, answer);
+  async submitQuestionAnswer(
+    questionId: string,
+    answer: string,
+    answersRecord?: Record<string, string>
+  ): Promise<void> {
+    return this.actions.submitQuestionAnswer(questionId, answer, answersRecord);
   }
 
   /**

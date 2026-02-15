@@ -25,6 +25,9 @@ const REDACTED_SENTINEL = '[Thinking redacted by safety system]';
 /** Auto-collapse delay after streaming ends (ms) */
 const AUTO_COLLAPSE_DELAY_MS = 300;
 
+/** Threshold below which thinking blocks start collapsed and hide duration */
+const TRIVIAL_DURATION_MS = 500;
+
 /** Collapse state for streaming panels */
 type CollapseState = {
   isOpen: boolean;
@@ -172,7 +175,7 @@ export const ThinkingBlock = memo<ThinkingBlockProps>(
                 ? 'Thinking interrupted'
                 : isStreaming
                   ? 'Thinking...'
-                  : effectiveDurationMs != null
+                  : effectiveDurationMs != null && effectiveDurationMs >= TRIVIAL_DURATION_MS
                     ? `Thought for ${formatDuration(effectiveDurationMs)}`
                     : 'Thought'}
           </span>

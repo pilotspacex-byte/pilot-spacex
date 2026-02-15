@@ -11,6 +11,7 @@ Design Decisions: DD-066 (SSE streaming), DD-003 (Approval flow)
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -20,6 +21,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import Field
 
+from pilot_space.ai.sdk.question_adapter import Question, get_question_adapter
+from pilot_space.ai.session.session_manager import AIMessage
 from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.dependencies import (
     CurrentUserId,
@@ -62,6 +65,93 @@ class ChatRequest(BaseSchema):
         description="Session ID to fork from (creates a branch for what-if exploration)",
     )
     context: ChatContext | None = Field(None, description="Context for AI response")
+
+
+async def _recover_question_from_session(
+    chat_request: ChatRequest,
+    session_handler: Any,
+    question_id: UUID,
+    question_id_str: str,
+    answer_text: str,
+) -> ChatRequest | None:
+    """Recover question data from persisted session when in-memory registry is empty.
+
+    When a question expires from QuestionAdapter (server restart, 1h cleanup),
+    the question_data persisted on the assistant message can be used as fallback.
+
+    Returns:
+        Updated ChatRequest with formatted Q&A, or None if recovery failed.
+    """
+    if not chat_request.session_id or session_handler is None:
+        return None
+
+    try:
+        sid = UUID(chat_request.session_id)
+        mgr = session_handler.session_manager
+        ai_session = await mgr.get_session(sid)
+
+        for i in range(len(ai_session.messages) - 1, -1, -1):
+            msg = ai_session.messages[i]
+            if msg.role != "assistant":
+                continue
+            qd = msg.question_data
+            if qd is None or qd.get("questionId") != question_id_str:
+                continue
+
+            # Rebuild Question models from persisted data
+            questions_raw = qd.get("questions", [])
+            recovered_questions = [Question.model_validate(q) for q in questions_raw]
+
+            # Parse structured JSON answers
+            answers_dict: dict[str, str] = {}
+            try:
+                parsed = orjson.loads(answer_text)
+                if isinstance(parsed, dict):
+                    answers_dict = {str(k): str(v) for k, v in parsed.items()}
+            except (orjson.JSONDecodeError, TypeError):
+                answers_dict = {"q0": answer_text}
+
+            # Format Q&A pairs
+            qa_lines: list[str] = []
+            for qi, q in enumerate(recovered_questions):
+                answer_key = f"q{qi}"
+                answer_val = answers_dict.get(answer_key, "")
+                qa_lines.append(f"Q: {q.question}\nA: {answer_val}")
+
+            formatted_qa = "\n\n".join(qa_lines)
+            if len(formatted_qa) > 8000:
+                formatted_qa = formatted_qa[:8000] + "\n[Answer truncated]"
+
+            # Update the message with answers
+            old = ai_session.messages[i]
+            ai_session.messages[i] = AIMessage(
+                role=old.role,
+                content=old.content,
+                timestamp=old.timestamp,
+                tokens=old.tokens,
+                cost_usd=old.cost_usd,
+                question_data={
+                    "questionId": question_id_str,
+                    "questions": [q.model_dump() for q in recovered_questions],
+                    "answers": answers_dict,
+                },
+            )
+            await mgr.persist_session(ai_session)
+
+            return ChatRequest(
+                message=f"[User answered AI question {question_id_str}]\n\n{formatted_qa}",
+                session_id=chat_request.session_id,
+                fork_session_id=chat_request.fork_session_id,
+                context=chat_request.context,
+            )
+
+    except Exception:
+        logger.exception(
+            "Failed to recover question_data for expired questionId=%s",
+            question_id,
+        )
+
+    return None
 
 
 @router.post("/chat", response_model=None)
@@ -107,6 +197,111 @@ async def chat(
         ctx_workspace_id,
         ctx_note_id,
     )
+
+    # Check for [ANSWER:{questionId}] prefix — stateless two-turn model
+    # The answer arrives as a new chat turn. We format a contextual message
+    # with the Q&A pairs and fall through to normal agent stream processing.
+    answer_match = re.match(r"^\[ANSWER:([a-fA-F0-9-]+)\]\s*(.*)", chat_request.message, re.DOTALL)
+    if answer_match:
+        question_id_str = answer_match.group(1)
+        answer_text = answer_match.group(2).strip()
+
+        try:
+            question_id = UUID(question_id_str)
+            adapter = get_question_adapter()
+
+            # Mark question as resolved in registry (cleanup)
+            resolved = await adapter.mark_resolved(
+                question_id=question_id,
+                user_id=user_id,
+            )
+
+            # Build human-readable Q&A context for the agent
+            if resolved is not None:
+                qa_lines: list[str] = []
+                # Parse structured JSON answers
+                answers_dict: dict[str, str] = {}
+                try:
+                    parsed = orjson.loads(answer_text)
+                    if isinstance(parsed, dict):
+                        answers_dict = {str(k): str(v) for k, v in parsed.items()}
+                except (orjson.JSONDecodeError, TypeError):
+                    answers_dict = {"q0": answer_text}
+
+                for i, q in enumerate(resolved.questions):
+                    answer_key = f"q{i}"
+                    answer_val = answers_dict.get(answer_key, "")
+                    qa_lines.append(f"Q: {q.question}\nA: {answer_val}")
+
+                formatted_qa = "\n\n".join(qa_lines)
+                # Truncate to prevent excessive token consumption
+                if len(formatted_qa) > 8000:
+                    formatted_qa = formatted_qa[:8000] + "\n[Answer truncated]"
+                # Replace the raw message with formatted Q&A context
+                chat_request = ChatRequest(
+                    message=f"[User answered AI question {question_id_str}]\n\n{formatted_qa}",
+                    session_id=chat_request.session_id,
+                    fork_session_id=chat_request.fork_session_id,
+                    context=chat_request.context,
+                )
+
+                # Persist question_data on last assistant message for session resume
+                if chat_request.session_id and session_handler is not None:
+                    try:
+                        sid = UUID(chat_request.session_id)
+                        mgr = session_handler.session_manager
+                        ai_session = await mgr.get_session(sid)
+                        for i in range(len(ai_session.messages) - 1, -1, -1):
+                            if ai_session.messages[i].role == "assistant":
+                                old = ai_session.messages[i]
+                                ai_session.messages[i] = AIMessage(
+                                    role=old.role,
+                                    content=old.content,
+                                    timestamp=old.timestamp,
+                                    tokens=old.tokens,
+                                    cost_usd=old.cost_usd,
+                                    question_data={
+                                        "questionId": str(question_id),
+                                        "questions": [q.model_dump() for q in resolved.questions],
+                                        "answers": answers_dict,
+                                    },
+                                )
+                                await mgr.persist_session(ai_session)
+                                break
+                    except Exception:
+                        logger.exception(
+                            "Failed to persist question_data for questionId=%s",
+                            question_id,
+                        )
+
+                logger.info(
+                    "Formatted answer for questionId=%s as new chat turn",
+                    question_id,
+                )
+            else:
+                # Fallback: question expired from in-memory registry (server restart,
+                # cleanup, etc.) but question_data was persisted on the assistant message.
+                recovered = await _recover_question_from_session(
+                    chat_request, session_handler, question_id, question_id_str, answer_text
+                )
+                if recovered is not None:
+                    chat_request = recovered
+                    logger.info(
+                        "Recovered expired question from session: questionId=%s",
+                        question_id,
+                    )
+                else:
+                    logger.warning(
+                        "Question %s not found in registry or session, processing as normal message",
+                        question_id,
+                    )
+            # Fall through to normal chat processing (agent receives answer as new turn)
+        except ValueError:
+            logger.warning(
+                "Invalid UUID in [ANSWER:] prefix: %s",
+                question_id_str,
+            )
+            # Fall through to normal chat processing
 
     # Set RLS context BEFORE any DB queries (note/issue loading, session lookup)
     # This ensures extract_ai_context and session operations respect RLS policies
@@ -227,6 +422,12 @@ async def chat(
         After streaming completes, persists the session to PostgreSQL.
         """
         import asyncio
+
+        # Session recovery: re-emit pending questions/approvals for resumed sessions
+        if is_existing_session and get_question_adapter().get_pending_count() > 0:
+            pending_events = await get_question_adapter().get_pending_sse_events()
+            for event_str in pending_events:
+                yield event_str
 
         try:
             async with asyncio.timeout(600):
@@ -351,57 +552,6 @@ async def abort_chat(
         status="interrupted" if interrupted else "not_found",
         session_id=abort_request.session_id,
     )
-
-
-class AnswerRequest(BaseSchema):
-    """Request to submit an answer to an agent question."""
-
-    session_id: str = Field(..., description="Active chat session ID")
-    question_id: str = Field(..., description="Question ID (tool call ID) to answer")
-    answer: str = Field(..., min_length=1, max_length=5000, description="User's answer")
-
-
-class AnswerResponse(BaseSchema):
-    """Response from answer submission."""
-
-    status: str = Field(..., description="'submitted' or 'error'")
-    question_id: str = Field(..., description="Question ID that was answered")
-
-
-@router.post("/chat/answer", response_model=AnswerResponse)
-async def answer_question(
-    answer_request: AnswerRequest,
-    agent: PilotSpaceAgentDep,
-    _current_user: CurrentUserId,
-) -> AnswerResponse:
-    """Submit a user answer to an agent's AskUserQuestion.
-
-    The agent pauses execution when it calls AskUserQuestion.
-    This endpoint delivers the user's response so the agent can continue.
-
-    Args:
-        answer_request: Contains session_id, question_id, and answer.
-        agent: PilotSpaceAgent instance.
-
-    Returns:
-        AnswerResponse with submission status.
-    """
-    try:
-        await agent.submit_tool_result(
-            session_id=answer_request.session_id,
-            tool_call_id=answer_request.question_id,
-            result=answer_request.answer,
-        )
-        return AnswerResponse(
-            status="submitted",
-            question_id=answer_request.question_id,
-        )
-    except Exception as e:
-        logger.exception("Failed to submit answer: %s", e)
-        return AnswerResponse(
-            status="error",
-            question_id=answer_request.question_id,
-        )
 
 
 # ============================================================================

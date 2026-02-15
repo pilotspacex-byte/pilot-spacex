@@ -31,14 +31,14 @@ frontend/src/features/cycles/
 
 ## State-Cycle Constraints
 
-| State | Cycle Requirement | Notes |
-|-------|------------------|-------|
-| Backlog | No cycle | Unscheduled |
-| Todo | Optional | Any cycle |
-| In Progress | Required (active) | CycleSelector disables non-active |
-| In Review | Required (active) | Must remain in active cycle |
-| Done | Leaves cycle | Archived with metrics |
-| Cancelled | Leaves immediately | No archival |
+| State       | Cycle Requirement  | Notes                             |
+| ----------- | ------------------ | --------------------------------- |
+| Backlog     | No cycle           | Unscheduled                       |
+| Todo        | Optional           | Any cycle                         |
+| In Progress | Required (active)  | CycleSelector disables non-active |
+| In Review   | Required (active)  | Must remain in active cycle       |
+| Done        | Leaves cycle       | Archived with metrics             |
+| Cancelled   | Leaves immediately | No archival                       |
 
 Enforced at backend (RLS) + frontend (CycleSelector disables invalid options). See `components/cycle-selector.tsx`.
 
@@ -56,14 +56,14 @@ Enforced at backend (RLS) + frontend (CycleSelector disables invalid options). S
 
 ## Hooks
 
-| Hook | Purpose | Stale Time |
-|------|---------|-----------|
-| `useCycle(cycleId)` | Single cycle + relations | 30s |
-| `useCycles()` | List cycles | 60s |
-| `useCreateCycle()` | Create mutation | -- |
-| `useUpdateCycle()` | Update mutation | -- |
-| `useCycleBurndown(cycleId)` | Burndown metrics | 5m |
-| `useVelocity(workspaceId)` | Last 5 cycles velocity | 5m |
+| Hook                        | Purpose                  | Stale Time |
+| --------------------------- | ------------------------ | ---------- |
+| `useCycle(cycleId)`         | Single cycle + relations | 30s        |
+| `useCycles()`               | List cycles              | 60s        |
+| `useCreateCycle()`          | Create mutation          | --         |
+| `useUpdateCycle()`          | Update mutation          | --         |
+| `useCycleBurndown(cycleId)` | Burndown metrics         | 5m         |
+| `useVelocity(workspaceId)`  | Last 5 cycles velocity   | 5m         |
 
 ---
 

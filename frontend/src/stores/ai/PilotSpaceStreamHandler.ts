@@ -1,14 +1,4 @@
-/**
- * PilotSpace Stream Handler - SSE event routing and message lifecycle management.
- *
- * Routes SSE events to specialized handlers:
- * - Tool call lifecycle → PilotSpaceToolCallHandler
- * - SSE connection/parsing → PilotSpaceSSEParser
- * - Message, thinking, text, and other events → handled inline
- *
- * @module stores/ai/PilotSpaceStreamHandler
- * @see specs/005-conversational-agent-arch/plan.md (T048)
- */
+/** PilotSpace Stream Handler - SSE event routing and message lifecycle management. */
 import { runInAction } from 'mobx';
 import type { SSEEvent } from '@/lib/sse-client';
 import type { ChatMessage, ContentBlock, MessageRole, ToolCall } from './types/conversation';
@@ -21,7 +11,7 @@ import type {
   ToolResultEvent,
   TaskProgressEvent,
   ApprovalRequestEvent,
-  AskUserQuestionEvent,
+  QuestionRequestEvent,
   ContentUpdateEvent,
   StructuredResultEvent,
   MessageStopEvent,
@@ -42,7 +32,7 @@ import {
   isToolResultEvent,
   isTaskProgressEvent,
   isApprovalRequestEvent,
-  isAskUserQuestionEvent,
+  isQuestionRequestEvent,
   isStructuredResultEvent,
   isMessageStopEvent,
   isBudgetWarningEvent,
@@ -58,35 +48,37 @@ import type { PilotSpaceStore } from './PilotSpaceStore';
 import { PilotSpaceToolCallHandler } from './PilotSpaceToolCallHandler';
 import { PilotSpaceSSEParser } from './PilotSpaceSSEParser';
 
+/** Safety timeout (ms): synthesizes message_stop if it never arrives after question_request.
+ *  PermissionResultDeny causes the SDK to end the stream quickly, so 5s is generous. */
+const QUESTION_SAFETY_TIMEOUT_MS = 5000;
+
 /** Handles SSE event dispatch, stream parsing, and connection management. */
 export class PilotSpaceStreamHandler {
   private toolCallHandler: PilotSpaceToolCallHandler;
   private sseParser: PilotSpaceSSEParser;
 
-  /** Monotonic counter for thinking turns (incremented on each thinking content_block_start).
-   *  Models like kimi-k2.5 reset blockIndex to 0 on each agentic turn, so we use our own
-   *  counter to distinguish separate thinking blocks. */
+  /** Monotonic thinking turn counter (some models reset blockIndex per turn). */
   private _thinkingTurnIndex = -1;
-  /** Flag to skip duplicate "summary" text blocks.
-   *  Some models emit a content_block_start index:0 text after individual word deltas,
-   *  containing the full text again. We detect and skip these duplicates. */
+  /** Skip duplicate "summary" text blocks from models that re-emit full text. */
   private _skipDuplicateTextBlock = false;
-  /** Flag-based block separator: set once in handleContentBlockStart when a new text
-   *  block starts after existing content, consumed once in handleTextDelta. */
+  /** Flag: insert block separator at next text delta start. */
   private _needsBlockSeparator = false;
-  /** Tracks text segments per content block for ordered rendering */
   private _textSegments: string[] = [];
-  /** Tracks the sequence of content block types for ordered rendering */
   private _blockOrder: Array<'thinking' | 'text' | 'tool_use'> = [];
+  /** Pending question data for merged wizard UI (supports multiple ask_user calls). */
+  private _pendingQuestionDataList: Array<{
+    questionId: string;
+    questions: import('./types/events').AgentQuestion[];
+  }> = [];
+  /** Safety timeout handle: synthesizes message_stop if it never arrives after question_request */
+  private _questionSafetyTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private store: PilotSpaceStore) {
     this.toolCallHandler = new PilotSpaceToolCallHandler(store);
     this.sseParser = new PilotSpaceSSEParser(store, (event) => this.handleSSEEvent(event));
   }
 
-  // ========================================
-  // Stream Connection (delegates to PilotSpaceSSEParser)
-  // ========================================
+  // --- Stream Connection (delegates to PilotSpaceSSEParser) ---
 
   /** Connect to a specific SSE stream URL (queue mode). */
   async connectToStream(streamUrl: string, _jobId?: string): Promise<void> {
@@ -118,9 +110,7 @@ export class PilotSpaceStreamHandler {
     this.sseParser.resetRetryState();
   }
 
-  // ========================================
-  // SSE Event Handlers (T048)
-  // ========================================
+  // --- SSE Event Handlers (T048) ---
 
   /**
    * Handle SSE event from backend.
@@ -138,7 +128,7 @@ export class PilotSpaceStreamHandler {
         | ToolResultEvent
         | TaskProgressEvent
         | ApprovalRequestEvent
-        | AskUserQuestionEvent
+        | QuestionRequestEvent
         | ContentUpdateEvent
         | StructuredResultEvent
         | MessageStopEvent
@@ -167,8 +157,8 @@ export class PilotSpaceStreamHandler {
         this.handleTaskUpdate(event);
       } else if (isApprovalRequestEvent(event)) {
         this.handleApprovalRequired(event);
-      } else if (isAskUserQuestionEvent(event)) {
-        this.handleAskUserQuestion(event);
+      } else if (isQuestionRequestEvent(event)) {
+        this.handleQuestionRequest(event);
       } else if (isFocusBlockEvent(event)) {
         this.toolCallHandler.handleFocusBlock(event);
       } else if (isContentUpdateEvent(event)) {
@@ -209,6 +199,14 @@ export class PilotSpaceStreamHandler {
     this._needsBlockSeparator = false;
     this._textSegments = [];
     this._blockOrder = [];
+    this._pendingQuestionDataList = [];
+    this.clearQuestionSafetyTimeout();
+
+    // Defensive: clear any leftover pendingQuestion from previous turn.
+    // Ensures WaitingIndicator hides when new message stream begins.
+    if (this.store.pendingQuestion !== null) {
+      this.store.pendingQuestion = null;
+    }
 
     // Initialize streaming state
     this.store.streamingState = {
@@ -238,6 +236,9 @@ export class PilotSpaceStreamHandler {
   /** Handle content_block_start — tracks block type for progressive rendering. */
   handleContentBlockStart(event: ContentBlockStartEvent): void {
     const { contentType, index, parentToolUseId } = event.data;
+
+    // Cancel question safety timeout — stream is still alive, wait for real message_stop
+    this.clearQuestionSafetyTimeout();
 
     // Track current block type and index for progressive rendering (G13)
     this.store.streamingState.currentBlockType = contentType;
@@ -442,10 +443,30 @@ export class PilotSpaceStreamHandler {
     });
   }
 
-  /** Handle ask_user_question — sets pending question requiring user response. */
-  handleAskUserQuestion(event: AskUserQuestionEvent): void {
-    const { questionId, questions } = event.data;
-    this.store.pendingQuestion = { questionId, questions };
+  /** Handle question_request — accumulates question data for merged wizard UI. */
+  handleQuestionRequest(event: QuestionRequestEvent): void {
+    // Accumulate (not overwrite) for multiple ask_user calls in one turn
+    this._pendingQuestionDataList.push({
+      questionId: event.data.questionId,
+      questions: event.data.questions,
+    });
+    // Also set store-level pending question (for UI state: isWaitingForUser, input disabling)
+    this.store.handleQuestionRequest(event);
+
+    // Safety: synthesize message_stop if it never arrives (PermissionResultDeny path)
+    this.clearQuestionSafetyTimeout();
+    this._questionSafetyTimeout = setTimeout(() => {
+      this._questionSafetyTimeout = null;
+      if (this._pendingQuestionDataList.length > 0 && this.store.streamingState.currentMessageId) {
+        this.handleTextComplete({
+          event: 'message_stop',
+          data: {
+            messageId: this.store.streamingState.currentMessageId,
+            stopReason: 'question_pending',
+          },
+        } as unknown as MessageStopEvent);
+      }
+    }, QUESTION_SAFETY_TIMEOUT_MS);
   }
 
   /** Handle structured_result — stores pending for attachment on message_stop. */
@@ -457,6 +478,9 @@ export class PilotSpaceStreamHandler {
   /** Handle message_stop — finalizes message and adds to history. */
   handleTextComplete(event: MessageStopEvent): void {
     const { messageId, usage, costUsd } = event.data;
+
+    // Cancel safety timeout — message_stop arrived normally
+    this.clearQuestionSafetyTimeout();
 
     // Finalize any in-progress thinking block duration
     this.finalizeLastThinkingBlockDuration();
@@ -502,13 +526,23 @@ export class PilotSpaceStreamHandler {
       toolCalls,
       citations,
       structuredResult: this.store.consumePendingStructuredResult(),
+      questionData: this._pendingQuestionDataList[0],
+      questionDataList:
+        this._pendingQuestionDataList.length > 0 ? [...this._pendingQuestionDataList] : undefined,
       metadata: {
         tokenCount: usage?.totalTokens,
         costUsd,
       },
     };
 
-    this.store.messages.push(assistantMessage);
+    // Guard: if a message with the same ID already exists (e.g., safety timeout fired
+    // before real message_stop), merge into existing instead of creating a duplicate.
+    const existingIdx = this.store.messages.findIndex((m) => m.id === messageId);
+    if (existingIdx >= 0) {
+      this.store.messages[existingIdx] = assistantMessage;
+    } else {
+      this.store.messages.push(assistantMessage);
+    }
 
     if (usage?.totalTokens) {
       this.store.sessionState.totalTokens =
@@ -550,10 +584,8 @@ export class PilotSpaceStreamHandler {
       if (willRetry) return;
     }
 
-    // Non-retryable or max retries exceeded
-    this.store.error = `[${errorCode}] ${message}`;
-
-    // Reset streaming state
+    // Non-retryable or max retries exceeded — extract human-friendly message
+    this.store.error = this.parseErrorMessage(errorCode, message);
     this.store.streamingState = {
       isStreaming: false,
       streamContent: '',
@@ -575,6 +607,14 @@ export class PilotSpaceStreamHandler {
   // ========================================
   // Private Helpers
   // ========================================
+
+  /** Clear the question safety timeout if active. */
+  private clearQuestionSafetyTimeout(): void {
+    if (this._questionSafetyTimeout !== null) {
+      clearTimeout(this._questionSafetyTimeout);
+      this._questionSafetyTimeout = null;
+    }
+  }
 
   /**
    * Sync internal block order + text segments to observable streaming state.
@@ -631,12 +671,25 @@ export class PilotSpaceStreamHandler {
     return blocks;
   }
 
-  /**
-   * Check if a delta is noise content produced by some models
-   * between thinking/tool blocks (e.g., literal "(no content)").
-   * Newline-only deltas (\n, \n\n) are NOT noise — they are critical
-   * for markdown list formatting and paragraph breaks.
-   */
+  /** Extract a human-friendly error message from potentially nested API error JSON. */
+  private parseErrorMessage(errorCode: string, rawMessage: string): string {
+    // Try to extract nested JSON error (e.g. "API Error: 429 {\"type\":\"error\",...}")
+    const jsonMatch = rawMessage.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        const nested = parsed?.error?.message ?? parsed?.message;
+        if (typeof nested === 'string') return nested;
+      } catch {
+        /* not JSON — fall through */
+      }
+    }
+    // Strip "API Error: NNN " prefix for cleaner display
+    const stripped = rawMessage.replace(/^API Error:\s*\d+\s*/i, '').trim();
+    return stripped || `${errorCode}: ${rawMessage}`;
+  }
+
+  /** Check if a delta is noise content (e.g., literal "(no content)"). */
   private isNoiseDelta(delta: string): boolean {
     if (delta.length === 0) return true;
     if (delta.trim() === '(no content)') return true;

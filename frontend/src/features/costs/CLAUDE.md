@@ -29,26 +29,26 @@ frontend/src/features/costs/
 
 ## Components
 
-| Component | Purpose | Key Features |
-|-----------|---------|-------------|
-| CostDashboardPage | Orchestrator | Loads summary, date range control, 4 cards + 2 charts + table |
-| CostSummaryCard | Single metric | Trend % change, arrow indicator (red/green) |
-| CostTrendsChart | Daily costs | Recharts AreaChart, gradient fill, custom tooltip |
-| CostByAgentChart | Agent distribution | Interactive donut, click-to-filter, custom legend |
-| CostTableView | User breakdown | Sortable by name/cost/requests, avatar + initials |
-| DateRangeSelector | Date presets | Today, 7/30/90 days (default: 30), this month |
+| Component         | Purpose            | Key Features                                                  |
+| ----------------- | ------------------ | ------------------------------------------------------------- |
+| CostDashboardPage | Orchestrator       | Loads summary, date range control, 4 cards + 2 charts + table |
+| CostSummaryCard   | Single metric      | Trend % change, arrow indicator (red/green)                   |
+| CostTrendsChart   | Daily costs        | Recharts AreaChart, gradient fill, custom tooltip             |
+| CostByAgentChart  | Agent distribution | Interactive donut, click-to-filter, custom legend             |
+| CostTableView     | User breakdown     | Sortable by name/cost/requests, avatar + initials             |
+| DateRangeSelector | Date presets       | Today, 7/30/90 days (default: 30), this month                 |
 
 ---
 
 ## Provider Routing (DD-011)
 
-| Agent | Provider | Model | Cost Tier |
-|-------|----------|-------|-----------|
-| `pilot_space_agent` | Anthropic | Claude Opus | Highest |
-| `ghost_text_agent` | Google | Gemini Flash | Low |
-| `pr_review_agent` | Anthropic | Claude Opus | Highest |
-| `ai_context_agent` | Anthropic | Claude Sonnet | Medium |
-| `doc_generator_agent` | Anthropic | Claude Sonnet | Medium |
+| Agent                 | Provider  | Model         | Cost Tier |
+| --------------------- | --------- | ------------- | --------- |
+| `pilot_space_agent`   | Anthropic | Claude Opus   | Highest   |
+| `ghost_text_agent`    | Google    | Gemini Flash  | Low       |
+| `pr_review_agent`     | Anthropic | Claude Opus   | Highest   |
+| `ai_context_agent`    | Anthropic | Claude Sonnet | Medium    |
+| `doc_generator_agent` | Anthropic | Claude Sonnet | Medium    |
 
 ---
 

@@ -108,6 +108,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         digest_worker = DigestWorker(queue_client, session_factory)
         digest_worker_task = asyncio.create_task(digest_worker.start())
 
+    # Start question adapter cleanup task (FR-015: 5-min timeout enforcement)
+    from pilot_space.ai.sdk.question_adapter import get_question_adapter
+
+    question_adapter = get_question_adapter()
+    await question_adapter.start_cleanup_task(interval_seconds=60.0)
+
     # Log startup completion
     logger.info(
         "application_ready",
@@ -118,6 +124,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Shutdown: Clean up workers and connections
     logger.info("application_shutdown_start")
+    await question_adapter.stop_cleanup_task()
     if digest_worker:
         await digest_worker.stop()
         logger.info("digest_worker_stopped")
