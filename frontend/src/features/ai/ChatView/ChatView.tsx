@@ -39,6 +39,10 @@ import { ChatInput } from './ChatInput/ChatInput';
 import { InlineApprovalCard } from './MessageList/InlineApprovalCard';
 import { WaitingIndicator } from './WaitingIndicator';
 import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
+import { IntentMessageRenderer } from './MessageList/IntentMessageRenderer';
+import { ConfirmAllButton } from './ConfirmAllButton';
+import { QueueDepthIndicator } from './QueueDepthIndicator';
+import { useIntentRehydration } from './hooks/useIntentRehydration';
 
 /**
  * Destructive actions that require modal overlay approval (DD-003).
@@ -185,6 +189,9 @@ const ChatViewInternal = observer<ChatViewProps>(
 
     // Initialize SessionListStore (T075-T079)
     const [sessionListStore] = useState(() => new SessionListStore(store));
+
+    // T-062: Rehydrate active intents + pending approvals on mount/workspace change
+    useIntentRehydration(store);
 
     // Track which note context has been loaded to avoid redundant fetches
     const loadedContextRef = useRef<string | null>(null);
@@ -436,6 +443,9 @@ const ChatViewInternal = observer<ChatViewProps>(
 
         {/* Main content area - relative for floating abort button */}
         <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
+          {/* T-060: Queue depth indicator — sticky top of message area */}
+          <QueueDepthIndicator store={store} />
+
           {/* Messages or loading skeleton */}
           {isResumingSession ? (
             <ConversationLoadingSkeleton />
@@ -495,6 +505,9 @@ const ChatViewInternal = observer<ChatViewProps>(
             )}
           </AnimatePresence>
 
+          {/* T-056/T-057: Intent lifecycle message renderer */}
+          {store.intents.size > 0 && <IntentMessageRenderer store={store} />}
+
           {/* Task panel */}
           {store.tasks.size > 0 && (
             <div className="px-4 pb-3">
@@ -549,6 +562,9 @@ const ChatViewInternal = observer<ChatViewProps>(
         )}
 
         {/* Streaming phase is now shown inline in MessageList */}
+
+        {/* T-059: ConfirmAll button — above ChatInput when >= 2 pending intents */}
+        <ConfirmAllButton store={store} />
 
         {/* Input */}
         <ChatInput

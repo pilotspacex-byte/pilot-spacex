@@ -23,6 +23,8 @@ import type {
   SessionState,
   ConversationContext,
   MessageMetadata,
+  WorkIntentState,
+  SkillQueueState,
 } from './types/conversation';
 import type { MemoryUpdateEvent } from './types/events';
 import type {
@@ -31,68 +33,20 @@ import type {
   QuestionRequestEvent,
   TaskStatus,
 } from './types/events';
-import type { SkillDefinition, ConfidenceTag } from './types/skills';
+import type { SkillDefinition } from './types/skills';
 import { PilotSpaceStreamHandler } from './PilotSpaceStreamHandler';
 import { PilotSpaceActions } from './PilotSpaceActions';
 
-/**
- * Task state for long-running operations.
- */
-export interface TaskState {
-  id: string;
-  subject: string;
-  status: TaskStatus;
-  progress: number;
-  description?: string;
-  currentStep?: string;
-  totalSteps?: number;
-  estimatedSecondsRemaining?: number;
-  /** Subagent name executing this task */
-  agentName?: string;
-  /** AI model used by this subagent */
-  model?: string;
-  /** Creation timestamp */
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-/**
- * Approval request state per DD-003.
- */
-export interface ApprovalRequest {
-  requestId: string;
-  actionType: string;
-  description: string;
-  consequences?: string;
-  affectedEntities: Array<{
-    type: string;
-    id: string;
-    name: string;
-    preview?: unknown;
-  }>;
-  urgency: 'low' | 'medium' | 'high';
-  proposedContent?: unknown;
-  expiresAt: Date;
-  confidenceTag?: ConfidenceTag;
-  createdAt: Date;
-}
-
-export interface NoteContext {
-  noteId: string;
-  selectedText?: string;
-  selectedBlockIds?: string[];
-  noteTitle?: string;
-}
-
-export interface IssueContext {
-  issueId: string;
-  issueTitle?: string;
-  issueStatus?: string;
-}
+// Interfaces extracted to types/store-types.ts to keep this file under 700 lines.
+import type { TaskState, ApprovalRequest, NoteContext, IssueContext } from './types/store-types';
+export type { TaskState, ApprovalRequest, NoteContext, IssueContext } from './types/store-types';
 
 /**
  * PilotSpace Store - Unified conversational agent state.
  */
+// Re-export for component consumption
+export type { WorkIntentState, SkillQueueState } from './types/conversation';
+
 export class PilotSpaceStore {
   // ========================================
   // Observable State
@@ -162,6 +116,16 @@ export class PilotSpaceStore {
   /** Last memory update from cross-session memory tool (T73) */
   lastMemoryUpdate: MemoryUpdateEvent['data'] | null = null;
 
+  // ========================================
+  // Feature 015: Intent lifecycle state
+  // ========================================
+
+  /** Live work intent states keyed by intentId */
+  intents = new Map<string, WorkIntentState>();
+
+  /** Skill execution queue status */
+  skillQueue: SkillQueueState = { runningCount: 0, queuedCount: 0, maxConcurrent: 5 };
+
   /** Pending question from agent (requires user response before agent can continue) */
   pendingQuestion: {
     questionId: string;
@@ -204,6 +168,10 @@ export class PilotSpaceStore {
       conversationContext: computed,
       tokenBudgetPercent: computed,
       isWaitingForUser: computed,
+      pendingIntents: computed,
+      eligibleIntentCount: computed,
+      runningSkillCount: computed,
+      queuedSkillCount: computed,
     });
   }
 
@@ -260,6 +228,28 @@ export class PilotSpaceStore {
   /** True when the agent is waiting for user input (pending question or unresolved approval). */
   get isWaitingForUser(): boolean {
     return this.pendingQuestion !== null || this.hasUnresolvedApprovals;
+  }
+
+  // Feature 015: Intent computed properties
+
+  /** All intents in 'detected' status waiting for user action. */
+  get pendingIntents(): WorkIntentState[] {
+    return Array.from(this.intents.values()).filter((i) => i.status === 'detected');
+  }
+
+  /** Count of intents eligible for ConfirmAll (detected, confidence >= 70%). */
+  get eligibleIntentCount(): number {
+    return this.pendingIntents.filter((i) => i.confidence >= 0.7).length;
+  }
+
+  /** Count of skills currently executing. */
+  get runningSkillCount(): number {
+    return this.skillQueue.runningCount;
+  }
+
+  /** Count of skills waiting in queue. */
+  get queuedSkillCount(): number {
+    return this.skillQueue.queuedCount;
   }
 
   // ========================================
@@ -612,6 +602,49 @@ export class PilotSpaceStore {
     if (!this.mentionedAgents.includes(agent)) {
       this.mentionedAgents.push(agent);
     }
+  }
+
+  // ========================================
+  // Feature 015: Intent Management Actions
+  // ========================================
+
+  upsertIntent(intent: WorkIntentState): void {
+    this.intents.set(intent.intentId, intent);
+  }
+
+  updateIntentStatus(
+    intentId: string,
+    status: WorkIntentState['status'],
+    patch?: Partial<WorkIntentState>
+  ): void {
+    const existing = this.intents.get(intentId);
+    if (existing) {
+      this.intents.set(intentId, { ...existing, ...patch, status });
+    }
+  }
+
+  updateSkillQueue(queue: SkillQueueState): void {
+    this.skillQueue = queue;
+  }
+
+  /** Optimistically confirm intent, revert on API failure. */
+  optimisticConfirmIntent(intentId: string): WorkIntentState | undefined {
+    const intent = this.intents.get(intentId);
+    if (!intent) return undefined;
+    this.updateIntentStatus(intentId, 'confirmed');
+    return intent; // return snapshot for rollback
+  }
+
+  revertIntentStatus(snapshot: WorkIntentState): void {
+    this.intents.set(snapshot.intentId, snapshot);
+  }
+
+  /** Optimistically dismiss intent, revert on API failure. */
+  optimisticDismissIntent(intentId: string): WorkIntentState | undefined {
+    const intent = this.intents.get(intentId);
+    if (!intent) return undefined;
+    this.updateIntentStatus(intentId, 'rejected');
+    return intent;
   }
 
   // ========================================

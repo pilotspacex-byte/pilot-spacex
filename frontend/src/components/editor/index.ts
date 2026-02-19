@@ -37,3 +37,22 @@ export type { AIThreadIndicatorProps, AIThreadArtifact } from './AIThreadIndicat
 
 export { AskPilotInput } from './AskPilotInput';
 export type { AskPilotInputProps } from './AskPilotInput';
+
+export { LargeNoteWarning } from './LargeNoteWarning';
+export type { LargeNoteWarningProps } from './LargeNoteWarning';
+
+export {
+  SidebarPanel,
+  SidebarPanelHeader,
+  SidebarPanelContent,
+  useSidebarPanel,
+  SIDEBAR_DEFAULTS,
+} from './sidebar';
+export type {
+  SidebarPanelProps,
+  SidebarPanelHeaderProps,
+  SidebarTab,
+  SidebarPanelContentProps,
+  SidebarPanelId,
+  SidebarPanelControls,
+} from './sidebar';

@@ -74,5 +74,14 @@ export {
   type OwnershipStorage,
 } from './OwnershipExtension';
 
+// Density extension (M8 — Feature 016 Sprint 3)
+export {
+  DensityExtension,
+  buildCollapseSummary,
+  type DensityOptions,
+  type DensityStorage,
+} from './DensityExtension';
+export { DENSITY_STYLES } from './density-styles';
+
 // Factory function
 export { createEditorExtensions, type EditorExtensionsOptions } from './createEditorExtensions';

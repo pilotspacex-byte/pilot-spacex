@@ -36,7 +36,9 @@ from pilot_space.api.v1.routers import (
     issues_ai_router,
     issues_router,
     mcp_tools_router,
+    note_templates_router,
     note_versions_router,
+    note_yjs_state_router,
     notes_ai_router,
     onboarding_router,
     projects_router,
@@ -251,7 +253,9 @@ app.include_router(workspace_note_issue_links_router, prefix=f"{API_V1_PREFIX}/w
 app.include_router(workspace_notes_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_ai_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(block_ownership_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(note_templates_router, prefix=f"{API_V1_PREFIX}")
 app.include_router(note_versions_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(note_yjs_state_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_tasks_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(intents_router, prefix=API_V1_PREFIX)
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)

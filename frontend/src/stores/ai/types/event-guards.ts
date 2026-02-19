@@ -26,6 +26,12 @@ import type {
   MemoryUpdateEvent,
   ToolInputDeltaEvent,
   FocusBlockEvent,
+  IntentDetectedEvent,
+  IntentConfirmedEvent,
+  IntentExecutingEvent,
+  IntentCompletedEvent,
+  SkillCompletedEvent,
+  QueueUpdateEvent,
 } from './events';
 
 /**
@@ -151,4 +157,30 @@ export function isToolInputDeltaEvent(event: SSEEvent): event is ToolInputDeltaE
 
 export function isFocusBlockEvent(event: SSEEvent): event is FocusBlockEvent {
   return event.type === 'focus_block';
+}
+
+// Feature 015: Intent lifecycle event guards
+
+export function isIntentDetectedEvent(event: SSEEvent): event is IntentDetectedEvent {
+  return event.type === 'intent_detected';
+}
+
+export function isIntentConfirmedEvent(event: SSEEvent): event is IntentConfirmedEvent {
+  return event.type === 'intent_confirmed';
+}
+
+export function isIntentExecutingEvent(event: SSEEvent): event is IntentExecutingEvent {
+  return event.type === 'intent_executing';
+}
+
+export function isIntentCompletedEvent(event: SSEEvent): event is IntentCompletedEvent {
+  return event.type === 'intent_completed';
+}
+
+export function isSkillCompletedEvent(event: SSEEvent): event is SkillCompletedEvent {
+  return event.type === 'skill_completed';
+}
+
+export function isQueueUpdateEvent(event: SSEEvent): event is QueueUpdateEvent {
+  return event.type === 'queue_update';
 }

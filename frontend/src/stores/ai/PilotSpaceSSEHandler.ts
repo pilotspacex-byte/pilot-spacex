@@ -23,6 +23,12 @@ import type {
   ContentUpdateEvent,
   MessageStopEvent,
   ErrorEvent,
+  IntentDetectedEvent,
+  IntentConfirmedEvent,
+  IntentExecutingEvent,
+  IntentCompletedEvent,
+  SkillCompletedEvent,
+  QueueUpdateEvent,
 } from './types/events';
 import {
   isMessageStartEvent,
@@ -33,6 +39,12 @@ import {
   isApprovalRequestEvent,
   isMessageStopEvent,
   isErrorEvent,
+  isIntentDetectedEvent,
+  isIntentConfirmedEvent,
+  isIntentExecutingEvent,
+  isIntentCompletedEvent,
+  isSkillCompletedEvent,
+  isQueueUpdateEvent,
 } from './types/events';
 import type { PilotSpaceStore } from './PilotSpaceStore';
 import type { ApprovalRequest } from './PilotSpaceStore';
@@ -225,7 +237,13 @@ export class PilotSpaceSSEHandler {
         | ApprovalRequestEvent
         | ContentUpdateEvent
         | MessageStopEvent
-        | ErrorEvent;
+        | ErrorEvent
+        | IntentDetectedEvent
+        | IntentConfirmedEvent
+        | IntentExecutingEvent
+        | IntentCompletedEvent
+        | SkillCompletedEvent
+        | QueueUpdateEvent;
 
       if (isMessageStartEvent(event)) {
         this.handleMessageStart(event);
@@ -245,6 +263,18 @@ export class PilotSpaceSSEHandler {
         this.handleTextComplete(event);
       } else if (isErrorEvent(event)) {
         this.handleError(event);
+      } else if (isIntentDetectedEvent(event)) {
+        this.handleIntentDetected(event);
+      } else if (isIntentConfirmedEvent(event)) {
+        this.handleIntentConfirmed(event);
+      } else if (isIntentExecutingEvent(event)) {
+        this.handleIntentExecuting(event);
+      } else if (isIntentCompletedEvent(event)) {
+        this.handleIntentCompleted(event);
+      } else if (isSkillCompletedEvent(event)) {
+        this.handleSkillCompleted(event);
+      } else if (isQueueUpdateEvent(event)) {
+        this.handleQueueUpdate(event);
       }
     });
   }
@@ -386,7 +416,23 @@ export class PilotSpaceSSEHandler {
 
   private handleError(event: ErrorEvent): void {
     const { errorCode, message, retryable, retryAfter } = event.data;
-    this.store.error = `[${errorCode}] ${message}`;
+
+    // C-NEW-3: ConfirmationBus limitation — with uvicorn --workers N,
+    // signal() fires in Worker A but wait_for_confirmation() blocks in Worker B
+    // and always times out (5s, FR-084). Backend fix: replace ConfirmationBus
+    // with Redis pub/sub. Until then, revert confirmed intents to detected so
+    // the user can retry.
+    if (errorCode === 'CONFIRMATION_TIMEOUT') {
+      for (const intent of this.store.intents.values()) {
+        if (intent.status === 'confirmed') {
+          // Revert to detected so the user can retry (revertIntentStatus takes a full snapshot)
+          this.store.revertIntentStatus({ ...intent, status: 'detected' });
+        }
+      }
+      this.store.error = 'Confirmation timed out — please confirm the intent again.';
+    } else {
+      this.store.error = `[${errorCode}] ${message}`;
+    }
 
     this.store.updateStreamingState({
       isStreaming: false,
@@ -398,4 +444,66 @@ export class PilotSpaceSSEHandler {
       console.log(`Error is retryable. Retry after ${retryAfter}s`);
     }
   }
+
+  // ========================================
+  // Feature 015: Intent lifecycle handlers
+  // ========================================
+
+  private handleIntentDetected(event: IntentDetectedEvent): void {
+    const { intentId, what, why, constraints, confidence } = event.data;
+    this.store.upsertIntent({
+      intentId,
+      what,
+      why,
+      constraints,
+      confidence,
+      status: 'detected',
+    });
+  }
+
+  private handleIntentConfirmed(event: IntentConfirmedEvent): void {
+    const { intentId } = event.data;
+    this.store.updateIntentStatus(intentId, 'confirmed');
+  }
+
+  private handleIntentExecuting(event: IntentExecutingEvent): void {
+    const { intentId, skillName, intentSummary, totalSteps } = event.data;
+    this.store.updateIntentStatus(intentId, 'executing', {
+      skillName,
+      intentSummary,
+      skillTotalSteps: totalSteps,
+      skillStep: 0,
+      skillProgress: 0,
+    });
+  }
+
+  private handleIntentCompleted(event: IntentCompletedEvent): void {
+    const { intentId, success, summary, artifacts, errorMessage, partialOutput } = event.data;
+    this.store.updateIntentStatus(intentId, success ? 'completed' : 'failed', {
+      artifacts: artifacts as WorkIntentState['artifacts'],
+      errorMessage,
+      partialOutput,
+      intentSummary: summary,
+    });
+  }
+
+  private handleSkillCompleted(event: SkillCompletedEvent): void {
+    const { intentId, artifacts, requiresApproval, approvalId } = event.data;
+    const existing = this.store.intents.get(intentId);
+    if (existing) {
+      this.store.updateIntentStatus(intentId, 'completed', {
+        artifacts: artifacts as WorkIntentState['artifacts'],
+        requiresApproval,
+        approvalId,
+      });
+    }
+  }
+
+  private handleQueueUpdate(event: QueueUpdateEvent): void {
+    const { runningCount, queuedCount, maxConcurrent } = event.data;
+    this.store.updateSkillQueue({ runningCount, queuedCount, maxConcurrent });
+  }
 }
+
+// Local type alias for use in handler methods
+type WorkIntentState = import('./types/conversation').WorkIntentState;

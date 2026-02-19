@@ -5,6 +5,7 @@ Available routers:
 - workspaces: Workspace management
 - workspace_notes: Workspace-scoped note routes
 - workspace_notes_ai: AI-specific note operations (content updates)
+- note_templates: Reusable note templates (system + workspace-scoped)
 - projects: Project management
 - issues: Issue tracking with AI enhancement
 - cycles: Sprint/cycle management
@@ -40,7 +41,9 @@ from pilot_space.api.v1.routers.issues_ai_context_streaming import (
     router as issues_ai_context_streaming_router,
 )
 from pilot_space.api.v1.routers.mcp_tools import router as mcp_tools_router
+from pilot_space.api.v1.routers.note_templates import router as note_templates_router
 from pilot_space.api.v1.routers.note_versions import router as note_versions_router
+from pilot_space.api.v1.routers.note_yjs_state import router as note_yjs_state_router
 from pilot_space.api.v1.routers.onboarding import router as onboarding_router
 from pilot_space.api.v1.routers.projects import router as projects_router
 from pilot_space.api.v1.routers.role_skills import (
@@ -128,7 +131,9 @@ __all__ = [
     "issues_ai_router",
     "issues_router",
     "mcp_tools_router",
+    "note_templates_router",
     "note_versions_router",
+    "note_yjs_state_router",
     "notes_ai_router",
     "onboarding_router",
     "projects_router",

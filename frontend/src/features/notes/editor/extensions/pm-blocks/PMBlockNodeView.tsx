@@ -39,6 +39,19 @@ const RENDERER_MAP: Record<PMBlockType, ComponentType<PMRendererProps>> = {
   dashboard: lazy(() =>
     import('./renderers/DashboardRenderer').then((m) => ({ default: m.DashboardRenderer }))
   ),
+  // Feature 017 — PM Block Engine (T-228): renderers TBD
+  'sprint-board': lazy(() =>
+    import('./renderers/SprintBoardRenderer').then((m) => ({ default: m.SprintBoardRenderer }))
+  ),
+  'dependency-map': lazy(() =>
+    import('./renderers/DependencyMapRenderer').then((m) => ({ default: m.DependencyMapRenderer }))
+  ),
+  'capacity-plan': lazy(() =>
+    import('./renderers/CapacityPlanRenderer').then((m) => ({ default: m.CapacityPlanRenderer }))
+  ),
+  'release-notes': lazy(() =>
+    import('./renderers/ReleaseNotesRenderer').then((m) => ({ default: m.ReleaseNotesRenderer }))
+  ),
 };
 
 /** Props passed to every type-specific renderer. */
@@ -63,6 +76,11 @@ const BLOCK_TYPE_LABELS: Record<PMBlockType, string> = {
   risk: 'Risk Register',
   timeline: 'Timeline',
   dashboard: 'KPI Dashboard',
+  // Feature 017 — PM Block Engine (T-228)
+  'sprint-board': 'Sprint Board',
+  'dependency-map': 'Dependency Map',
+  'capacity-plan': 'Capacity Plan',
+  'release-notes': 'Release Notes',
 };
 
 /** Loading skeleton shown while renderer chunk loads. */

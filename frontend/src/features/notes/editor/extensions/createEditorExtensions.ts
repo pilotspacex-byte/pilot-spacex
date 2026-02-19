@@ -96,6 +96,7 @@ import {
 import { ParagraphSplitExtension, type ParagraphSplitOptions } from './ParagraphSplitExtension';
 import { AIBlockProcessingExtension } from './AIBlockProcessingExtension';
 import { OwnershipExtension, type OwnershipOptions, type BlockOwner } from './OwnershipExtension';
+import { DensityExtension, type DensityOptions } from './DensityExtension';
 
 export interface EditorExtensionsOptions {
   /** Placeholder text for empty editor */
@@ -162,6 +163,8 @@ export interface EditorExtensionsOptions {
     /** Called when human tries to edit an AI block (show edit guard toast) */
     onGuardBlock?: (blockId: string, owner: BlockOwner) => void;
   };
+  /** Density extension configuration (M8 — Feature 016 Sprint 3) */
+  density?: Partial<DensityOptions>;
 }
 
 /**
@@ -226,6 +229,7 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
     enableParagraphSplit = true,
     paragraphSplit,
     ownership,
+    density,
   } = options;
 
   const extensions: AnyExtension[] = [];
@@ -462,6 +466,15 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
   extensions.push(
     AIBlockProcessingExtension.configure({
       attributeName: 'blockId',
+    })
+  );
+
+  // Density extension — collapse/focus mode for AI blocks (M8, Feature 016 Sprint 3)
+  extensions.push(
+    DensityExtension.configure({
+      noteId: '',
+      focusModeDefault: false,
+      ...density,
     })
   );
 

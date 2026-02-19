@@ -43,3 +43,18 @@ export {
   type ValidateKeyResponse,
   type GuidedNoteResponse,
 } from './onboarding';
+export {
+  pmBlocksApi,
+  type SprintBoardData,
+  type SprintBoardLane,
+  type SprintBoardIssueCard,
+  type DependencyMapData,
+  type DepMapNode,
+  type DepMapEdge,
+  type CapacityPlanData,
+  type CapacityMember,
+  type ReleaseNotesData,
+  type ReleaseEntry,
+  type PMBlockInsight,
+  type InsightSeverity,
+} from './pm-blocks';
