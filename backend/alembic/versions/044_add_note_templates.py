@@ -316,7 +316,7 @@ def upgrade() -> None:
         conn.execute(
             sa.text("""
                 INSERT INTO note_templates (id, workspace_id, name, description, content, is_system, created_by)
-                VALUES (:id, NULL, :name, :description, :content::jsonb, true, NULL)
+                VALUES (:id, NULL, :name, :description, CAST(:content AS jsonb), true, NULL)
                 ON CONFLICT (id) DO NOTHING
             """),
             {
@@ -333,12 +333,12 @@ def upgrade() -> None:
     # with standard CREATE INDEX (acceptable for initial migration; prod can re-create CONCURRENTLY).
     op.create_index(
         "idx_annotations_note_block",
-        "annotations",
+        "note_annotations",
         ["note_id", "block_id"],
         if_not_exists=True,
     )
 
 
 def downgrade() -> None:
-    op.drop_index("idx_annotations_note_block", table_name="annotations", if_exists=True)
+    op.drop_index("idx_annotations_note_block", table_name="note_annotations", if_exists=True)
     op.execute("DROP TABLE IF EXISTS note_templates CASCADE")

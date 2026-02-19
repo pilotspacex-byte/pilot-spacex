@@ -41,7 +41,7 @@ export interface NoteVersion {
   content: NoteContent;
   wordCount: number;
   createdAt: string;
-  createdBy: User;
+  createdBy?: User | string | null;
   changeDescription?: string;
   /** Whether this version includes AI-assisted edits */
   isAIAssisted?: boolean;
@@ -65,13 +65,25 @@ export interface VersionHistoryPanelProps {
 /**
  * Get user initials for avatar fallback
  */
-function getInitials(name: string): string {
+function getInitials(name?: string | null): string {
+  if (!name) return '?';
   return name
     .split(' ')
     .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2);
+}
+
+function getCreatedByName(createdBy?: User | string | null): string | undefined {
+  if (!createdBy) return undefined;
+  if (typeof createdBy === 'string') return undefined;
+  return createdBy.name;
+}
+
+function getCreatedByAvatar(createdBy?: User | string | null): string | undefined {
+  if (!createdBy || typeof createdBy === 'string') return undefined;
+  return createdBy.avatarUrl;
 }
 
 /**
@@ -113,9 +125,9 @@ function VersionItem({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <Avatar className="h-6 w-6">
-            <AvatarImage src={version.createdBy.avatarUrl} alt={version.createdBy.name} />
+            <AvatarImage src={getCreatedByAvatar(version.createdBy)} alt={getCreatedByName(version.createdBy) ?? 'User'} />
             <AvatarFallback className="text-[10px]">
-              {getInitials(version.createdBy.name)}
+              {getInitials(getCreatedByName(version.createdBy))}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
@@ -171,7 +183,7 @@ function VersionItem({
             <div className="mt-3 pt-3 border-t border-border space-y-2">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <UserIcon className="h-3 w-3" />
-                {version.createdBy.name}
+                {getCreatedByName(version.createdBy) ?? 'Unknown'}
                 {version.isAIAssisted && <span className="text-ai">+ Pilot AI</span>}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -329,10 +341,10 @@ export const VersionHistoryPanel = observer(function VersionHistoryPanel({
             <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
               <Avatar className="h-8 w-8">
                 <AvatarImage
-                  src={restoreVersion.createdBy.avatarUrl}
-                  alt={restoreVersion.createdBy.name}
+                  src={getCreatedByAvatar(restoreVersion.createdBy)}
+                  alt={getCreatedByName(restoreVersion.createdBy) ?? 'User'}
                 />
-                <AvatarFallback>{getInitials(restoreVersion.createdBy.name)}</AvatarFallback>
+                <AvatarFallback>{getInitials(getCreatedByName(restoreVersion.createdBy))}</AvatarFallback>
               </Avatar>
               <div>
                 <p className="text-sm font-medium">Version {restoreVersion.versionNumber}</p>

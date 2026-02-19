@@ -11,6 +11,21 @@ export interface AuthUser {
   avatarUrl: string | null;
 }
 
+const MAX_REFRESH_FAILURES = 3;
+const SUPABASE_STORAGE_KEY_PREFIX = 'sb-';
+
+function clearSupabaseAuthKeys(): void {
+  if (typeof window === 'undefined') return;
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(SUPABASE_STORAGE_KEY_PREFIX)) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
+}
+
 export class AuthStore {
   user: AuthUser | null = null;
   session: Session | null = null;
@@ -18,6 +33,7 @@ export class AuthStore {
   error: string | null = null;
 
   private authSubscription: { unsubscribe: () => void } | null = null;
+  private refreshFailureCount = 0;
 
   constructor() {
     makeAutoObservable(this, {
@@ -54,12 +70,31 @@ export class AuthStore {
     return name.slice(0, 2).toUpperCase();
   }
 
+  private handleRefreshFailure(): void {
+    this.refreshFailureCount++;
+    if (this.refreshFailureCount >= MAX_REFRESH_FAILURES) {
+      this.refreshFailureCount = 0;
+      clearSupabaseAuthKeys();
+      this.user = null;
+      this.session = null;
+      this.error = null;
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login?error=Session+expired';
+      }
+    }
+  }
+
+  private resetRefreshFailures(): void {
+    this.refreshFailureCount = 0;
+  }
+
   private async initializeAuth(): Promise<void> {
     try {
       const { data, error } = await supabase.auth.getSession();
 
       if (error) {
         runInAction(() => {
+          this.handleRefreshFailure();
           this.error = error.message;
           this.isLoading = false;
         });
@@ -92,18 +127,20 @@ export class AuthStore {
 
           if (event === 'SIGNED_OUT') {
             this.error = null;
-            // Redirect to login on explicit sign-out (FR-004)
             if (typeof window !== 'undefined') {
               window.location.href = '/login';
             }
           }
 
-          // Handle expired refresh token — session becomes null (FR-004)
+          // Handle expired/invalid refresh token (FR-004)
           if (event === 'TOKEN_REFRESHED' && !session) {
-            this.error = null;
-            if (typeof window !== 'undefined') {
-              window.location.href = '/login?error=Session+expired';
-            }
+            this.handleRefreshFailure();
+            return;
+          }
+
+          // Successful token refresh — reset failure counter
+          if (event === 'TOKEN_REFRESHED' && session) {
+            this.resetRefreshFailures();
           }
         });
       }
@@ -143,6 +180,7 @@ export class AuthStore {
         this.session = data.session;
         this.user = data.user ? this.mapSupabaseUser(data.user) : null;
         this.isLoading = false;
+        this.resetRefreshFailures();
       });
 
       return true;
@@ -258,6 +296,7 @@ export class AuthStore {
       if (error) {
         runInAction(() => {
           this.error = error.message;
+          this.handleRefreshFailure();
         });
         return false;
       }
@@ -265,12 +304,14 @@ export class AuthStore {
       runInAction(() => {
         this.session = data.session;
         this.user = data.user ? this.mapSupabaseUser(data.user) : null;
+        this.resetRefreshFailures();
       });
 
       return true;
     } catch (err) {
       runInAction(() => {
         this.error = err instanceof Error ? err.message : 'Session refresh failed';
+        this.handleRefreshFailure();
       });
       return false;
     }

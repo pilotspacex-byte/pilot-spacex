@@ -590,37 +590,6 @@ async def update_annotation_status(
         ) from e
 
 
-@router.get(
-    "/{workspace_id}/notes/{note_id}/versions",
-    response_model=list[Any],
-    tags=["workspace-notes"],
-    summary="Get note version history",
-)
-async def get_note_versions(
-    _: SessionDep,
-    workspace_id: WorkspaceIdOrSlug,
-    note_id: NoteIdPath,
-    current_user_id: CurrentUserId,
-    get_note_service: GetNoteServiceDep,
-    workspace_repo: WorkspaceRepositoryDep,
-) -> list[Any]:
-    """Get version history for a note.
-
-    Note: Version history feature is not yet fully implemented.
-    Returns an empty list for now.
-    """
-    workspace = await _resolve_workspace(workspace_id, workspace_repo)
-
-    # Verify note exists and belongs to workspace
-    note = await get_note_service.get_by_id(note_id)
-    if not note or note.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found",
-        )
-
-    # TODO: Implement version history with NoteVersion model
-    return []
 
 
 __all__ = ["router"]

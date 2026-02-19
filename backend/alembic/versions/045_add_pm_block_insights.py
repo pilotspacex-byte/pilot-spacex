@@ -21,7 +21,7 @@ Create Date: 2026-02-19
 from __future__ import annotations
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
 
 from alembic import op
 
@@ -82,7 +82,7 @@ def upgrade() -> None:
         sa.Column("block_id", sa.String(), nullable=False),
         sa.Column(
             "block_type",
-            sa.Enum(
+            ENUM(
                 "sprint_board",
                 "dependency_map",
                 "capacity_plan",
@@ -95,7 +95,7 @@ def upgrade() -> None:
         sa.Column("insight_type", sa.String(), nullable=False),
         sa.Column(
             "severity",
-            sa.Enum(
+            ENUM(
                 "green",
                 "yellow",
                 "red",

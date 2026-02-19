@@ -5,6 +5,8 @@
  * Feature 017: Note Versioning — Sprint 1 (T-216)
  */
 
+import { apiClient } from '@/services/api/client';
+
 export type VersionTrigger = 'manual' | 'auto' | 'ai_before' | 'ai_after';
 
 export interface NoteVersionResponse {
@@ -63,22 +65,7 @@ export interface UndoAiResponse {
 }
 
 const base = (workspaceId: string, noteId: string) =>
-  `/api/v1/workspaces/${workspaceId}/notes/${noteId}/versions`;
-
-async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    ...init,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    const message =
-      typeof err.detail === 'string' ? err.detail : (err.detail?.message ?? res.statusText);
-    const e = Object.assign(new Error(message), { status: res.status, body: err });
-    throw e;
-  }
-  return res.json() as Promise<T>;
-}
+  `/workspaces/${workspaceId}/notes/${noteId}/versions`;
 
 export const versionApi = {
   list(
@@ -90,22 +77,21 @@ export const versionApi = {
     if (params.limit != null) qs.set('limit', String(params.limit));
     if (params.offset != null) qs.set('offset', String(params.offset));
     const q = qs.toString();
-    return apiFetch<NoteVersionListResponse>(`${base(workspaceId, noteId)}${q ? `?${q}` : ''}`);
+    return apiClient.get<NoteVersionListResponse>(`${base(workspaceId, noteId)}${q ? `?${q}` : ''}`);
   },
 
   get(workspaceId: string, noteId: string, versionId: string): Promise<NoteVersionResponse> {
-    return apiFetch<NoteVersionResponse>(`${base(workspaceId, noteId)}/${versionId}`);
+    return apiClient.get<NoteVersionResponse>(`${base(workspaceId, noteId)}/${versionId}`);
   },
 
   create(workspaceId: string, noteId: string, label?: string): Promise<NoteVersionResponse> {
-    return apiFetch<NoteVersionResponse>(base(workspaceId, noteId), {
-      method: 'POST',
-      body: JSON.stringify({ label: label ?? null }),
+    return apiClient.post<NoteVersionResponse>(base(workspaceId, noteId), {
+      label: label ?? null,
     });
   },
 
   diff(workspaceId: string, noteId: string, v1Id: string, v2Id: string): Promise<DiffResponse> {
-    return apiFetch<DiffResponse>(`${base(workspaceId, noteId)}/${v1Id}/diff/${v2Id}`);
+    return apiClient.get<DiffResponse>(`${base(workspaceId, noteId)}/${v1Id}/diff/${v2Id}`);
   },
 
   restore(
@@ -114,14 +100,13 @@ export const versionApi = {
     versionId: string,
     versionNumber: number
   ): Promise<RestoreResponse> {
-    return apiFetch<RestoreResponse>(`${base(workspaceId, noteId)}/${versionId}/restore`, {
-      method: 'POST',
-      body: JSON.stringify({ versionNumber }),
+    return apiClient.post<RestoreResponse>(`${base(workspaceId, noteId)}/${versionId}/restore`, {
+      versionNumber,
     });
   },
 
   digest(workspaceId: string, noteId: string, versionId: string): Promise<DigestResponse> {
-    return apiFetch<DigestResponse>(`${base(workspaceId, noteId)}/${versionId}/digest`);
+    return apiClient.get<DigestResponse>(`${base(workspaceId, noteId)}/${versionId}/digest`);
   },
 
   pin(
@@ -130,16 +115,14 @@ export const versionApi = {
     versionId: string,
     pinned: boolean
   ): Promise<NoteVersionResponse> {
-    return apiFetch<NoteVersionResponse>(`${base(workspaceId, noteId)}/${versionId}/pin`, {
-      method: 'PUT',
-      body: JSON.stringify({ pinned }),
+    return apiClient.put<NoteVersionResponse>(`${base(workspaceId, noteId)}/${versionId}/pin`, {
+      pinned,
     });
   },
 
   undoAI(workspaceId: string, noteId: string, versionNumber: number): Promise<UndoAiResponse> {
-    return apiFetch<UndoAiResponse>(`${base(workspaceId, noteId)}/undo-ai`, {
-      method: 'POST',
-      body: JSON.stringify({ versionNumber }),
+    return apiClient.post<UndoAiResponse>(`${base(workspaceId, noteId)}/undo-ai`, {
+      versionNumber,
     });
   },
 };
