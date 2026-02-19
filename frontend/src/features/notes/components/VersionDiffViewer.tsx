@@ -202,15 +202,24 @@ const DiffContent = observer(function DiffContent({
 
         {!isDiffLoading && blocks.length > 0 && (
           <div className={cn('grid', isModal ? 'grid-cols-2' : 'grid-cols-1')}>
-            {/* Left column (v1) */}
+            {/* Left column (v1) — in modal: show old content; in panel: unified view, skip modified (shown below as new) */}
             <div className={cn(isModal && 'border-r border-border')}>
-              {blocks.map((block) =>
-                block.diffType !== 'added' ? (
-                  <DiffRow key={block.blockId} block={block} side="old" />
-                ) : (
-                  <div key={block.blockId} className="min-h-[28px] bg-background/50" aria-hidden />
-                )
-              )}
+              {blocks.map((block) => {
+                if (block.diffType === 'added') {
+                  return (
+                    <div
+                      key={block.blockId}
+                      className="min-h-[28px] bg-background/50"
+                      aria-hidden
+                    />
+                  );
+                }
+                // In panel (unified) mode, skip modified blocks here — they are shown as new content below
+                if (!isModal && block.diffType === 'modified') {
+                  return null;
+                }
+                return <DiffRow key={block.blockId} block={block} side="old" />;
+              })}
             </div>
 
             {/* Right column (v2) — always shown in side-by-side modal, stacked in panel */}

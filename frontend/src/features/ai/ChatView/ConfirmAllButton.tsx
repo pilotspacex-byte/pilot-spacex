@@ -114,13 +114,9 @@ export const ConfirmAllButton = observer<ConfirmAllButtonProps>(function Confirm
   return (
     <div className={cn('mx-4 mb-2', className)}>
       <Button
-        variant="outline"
+        variant="default"
         size="sm"
-        className={cn(
-          'w-full gap-2 border-[#6B8FAD]/30 text-[#6B8FAD]',
-          'hover:bg-[#6B8FAD]/10 hover:border-[#6B8FAD]/50',
-          'justify-center text-sm'
-        )}
+        className={cn('w-full gap-2', 'justify-center text-sm')}
         onClick={handleConfirmAll}
         disabled={isLoading}
         aria-label={`Confirm all ${eligibleCount} eligible intents`}

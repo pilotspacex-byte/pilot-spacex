@@ -78,7 +78,9 @@ class VersionSnapshotService:
             raise ValueError(msg)
 
         # Compute next version_number (optimistic lock token, C-9)
-        max_version = await self._version_repo.get_max_version_number(payload.note_id)
+        max_version = await self._version_repo.get_max_version_number(
+            payload.note_id, payload.workspace_id
+        )
         next_version_number = max_version + 1
 
         # Build label if not provided

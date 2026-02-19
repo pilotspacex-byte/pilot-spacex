@@ -36,7 +36,7 @@ _CHAT_LOCK_KEY_PREFIX = "intent_lock:"
 _CHAT_LOCK_TTL_SECONDS = 3
 
 # Minimum confidence threshold for detected intents
-_MIN_CONFIDENCE = 0.0
+_MIN_CONFIDENCE = 0.3
 _CLARIFICATION_THRESHOLD = 0.7
 
 

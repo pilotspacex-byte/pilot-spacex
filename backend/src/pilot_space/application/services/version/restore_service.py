@@ -110,7 +110,9 @@ class VersionRestoreService:
         )
 
         # C-9: Optimistic locking — verify version_number hasn't advanced.
-        current_max = await self._version_repo.get_max_version_number(payload.note_id)
+        current_max = await self._version_repo.get_max_version_number(
+            payload.note_id, payload.workspace_id
+        )
         if current_max != payload.expected_version_number:
             raise ConcurrentRestoreError(competing_version_number=current_max)
 

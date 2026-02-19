@@ -21,6 +21,7 @@ Feature 017: Note Versioning — Sprint 1 (T-214)
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -215,11 +216,19 @@ async def list_versions(
     versions = await version_repo.list_by_note(note_id, ws_uuid, limit=limit, offset=offset)
     total = await version_repo.count_by_note(note_id, ws_uuid)
 
-    # GAP-02: resolve ai_before pairing for any ai_after versions in the list
-    responses = []
-    for v in versions:
-        ai_before_id = await _resolve_ai_before_id(v, version_repo)
-        responses.append(_version_to_response(v, ai_before_version_id=ai_before_id))
+    # GAP-02: batch-resolve ai_before pairings in a single query (avoids N+1)
+    ai_after_versions = [v for v in versions if v.trigger == ModelTrigger.AI_AFTER]
+    ai_before_map: dict[datetime, UUID] = {}
+    if ai_after_versions:
+        ai_before_map = await version_repo.get_ai_before_map_for_versions(
+            note_id=note_id,
+            workspace_id=ws_uuid,
+            ai_after_timestamps=[v.created_at for v in ai_after_versions],
+        )
+    responses = [
+        _version_to_response(v, ai_before_version_id=ai_before_map.get(v.created_at))
+        for v in versions
+    ]
 
     return NoteVersionListResponse(
         versions=responses,

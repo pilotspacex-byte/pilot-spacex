@@ -153,8 +153,8 @@ export const ConversationBlock = memo<ConversationBlockProps>(function Conversat
           aria-label={`Thread (${thread.length} ${thread.length === 1 ? 'reply' : 'replies'})`}
           className="border-l-2 border-border pl-3 space-y-2 mt-1"
         >
-          {thread.map((entry, i) => (
-            <div key={i} role="listitem" className="text-sm">
+          {thread.map((entry) => (
+            <div key={entry.timestamp.toISOString()} role="listitem" className="text-sm">
               <span className="text-xs font-bold text-foreground">
                 {entry.role === 'user' ? 'You' : 'AI'}:
               </span>{' '}

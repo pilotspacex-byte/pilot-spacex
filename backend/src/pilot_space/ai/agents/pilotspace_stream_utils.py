@@ -522,7 +522,7 @@ _INJECTED_RULES = ("issues.md", "notes.md", "pm_blocks.md")
 _MAX_RULE_CHARS = 4000
 
 
-def _load_role_template(role_type: str) -> str | None:
+async def _load_role_template(role_type: str) -> str | None:
     """Load a role template markdown file by role type.
 
     Args:
@@ -536,7 +536,7 @@ def _load_role_template(role_type: str) -> str | None:
         logger.debug("Role template not found: %s", template_path)
         return None
 
-    content = template_path.read_text(encoding="utf-8")
+    content = await asyncio.to_thread(template_path.read_text, encoding="utf-8")
 
     # Strip YAML frontmatter (--- ... ---)
     if content.startswith("---"):
@@ -547,7 +547,7 @@ def _load_role_template(role_type: str) -> str | None:
     return content
 
 
-def _load_rules() -> str:
+async def _load_rules() -> str:
     """Load compact rule files for system prompt injection.
 
     Returns:
@@ -560,7 +560,7 @@ def _load_rules() -> str:
             logger.debug("Rule file not found: %s", rule_path)
             continue
 
-        content = rule_path.read_text(encoding="utf-8")
+        content = await asyncio.to_thread(rule_path.read_text, encoding="utf-8")
         if len(content) > _MAX_RULE_CHARS:
             content = content[:_MAX_RULE_CHARS] + "\n... (truncated)"
         parts.append(content)
@@ -568,7 +568,7 @@ def _load_rules() -> str:
     return "\n\n".join(parts)
 
 
-def build_dynamic_system_prompt(
+async def build_dynamic_system_prompt(
     base_prompt: str,
     role_type: str | None = None,
     workspace_name: str | None = None,
@@ -594,7 +594,7 @@ def build_dynamic_system_prompt(
 
     # 1. Role-specific section
     if role_type:
-        role_content = _load_role_template(role_type)
+        role_content = await _load_role_template(role_type)
         if role_content:
             sections.append(f"\n\n## Your User's Role\n{role_content}")
 
@@ -608,7 +608,7 @@ def build_dynamic_system_prompt(
         sections.append("\n\n" + "\n".join(ctx_parts))
 
     # 3. Operational rules
-    rules = _load_rules()
+    rules = await _load_rules()
     if rules:
         sections.append(f"\n\n## Operational Rules\n{rules}")
 

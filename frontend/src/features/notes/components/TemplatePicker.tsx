@@ -334,7 +334,7 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
               <div
                 role="radiogroup"
                 aria-label="SDLC template selection"
-                className="grid grid-cols-4 gap-3 sm:grid-cols-2"
+                className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
               >
                 {systemTemplates.map((template) => (
                   <TemplateCard
@@ -363,7 +363,7 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
               <div
                 role="radiogroup"
                 aria-label="Custom template selection"
-                className="grid grid-cols-4 gap-3 sm:grid-cols-2"
+                className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
               >
                 {customTemplates.map((template) => (
                   <TemplateCard
@@ -411,7 +411,7 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleConfirm}>
+          <Button size="sm" onClick={handleConfirm} disabled={!selected}>
             {createLabel} →
           </Button>
         </div>

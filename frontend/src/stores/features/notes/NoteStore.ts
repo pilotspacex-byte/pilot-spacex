@@ -7,6 +7,7 @@ import type {
   AnnotationStatus,
 } from '@/types';
 import { notesApi } from '@/services/api';
+import { VersionStore } from '@/features/notes/stores/VersionStore';
 
 /**
  * Auto-save configuration
@@ -42,6 +43,9 @@ export class NoteStore {
   // Annotations - Map of noteId -> annotations[]
   annotationsMap: Map<string, NoteAnnotation[]> = new Map();
   selectedAnnotationId: string | null = null;
+
+  // Version history panel UI state (Feature 017)
+  versions: VersionStore = new VersionStore();
 
   // Filters
   pinnedOnly = false;
@@ -557,6 +561,7 @@ export class NoteStore {
     this.selectedAnnotationId = null;
     this.pinnedOnly = false;
     this.searchQuery = '';
+    this.versions.reset();
   }
 
   dispose() {

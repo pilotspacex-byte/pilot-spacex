@@ -17,7 +17,7 @@
  *
  * FR-003: AI blocks non-editable by humans (approve/reject only)
  */
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Bot, Users, Check, X, Share2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -70,6 +70,40 @@ export function OwnershipPopover({
   className,
 }: OwnershipPopoverProps) {
   const [loading, setLoading] = useState<'approve' | 'reject' | 'convert' | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap: keep focus within popover while open
+  useEffect(() => {
+    const el = popoverRef.current;
+    if (!el) return;
+    const focusable = el.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    first?.focus();
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Tab') return;
+      if (focusable.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    }
+    el.addEventListener('keydown', handleKeyDown);
+    return () => el.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const isAIBlock = owner.startsWith('ai:');
   const isShared = owner === 'shared';
@@ -129,12 +163,14 @@ export function OwnershipPopover({
 
   return (
     <div
+      ref={popoverRef}
       className={cn(
         'w-60 rounded-[14px] border border-border bg-background p-3 shadow-lg',
         'backdrop-blur-sm',
         className
       )}
       role="dialog"
+      aria-modal="true"
       aria-label="Block Ownership"
     >
       {/* Header */}

@@ -121,6 +121,12 @@ def upgrade() -> None:
         "note_versions",
         ["created_by"],
     )
+    # C-9: Prevent duplicate version_number for the same note (race condition guard)
+    op.create_unique_constraint(
+        "uq_note_versions_note_version_number",
+        "note_versions",
+        ["note_id", "version_number"],
+    )
 
     # 3. RLS for note_versions (workspace-scoped via workspace_id column)
     op.execute("ALTER TABLE note_versions ENABLE ROW LEVEL SECURITY")
@@ -237,6 +243,7 @@ def downgrade() -> None:
     # Drop note_versions
     op.execute('DROP POLICY IF EXISTS "note_versions_workspace_isolation" ON note_versions')
     op.execute("ALTER TABLE note_versions DISABLE ROW LEVEL SECURITY")
+    op.drop_constraint("uq_note_versions_note_version_number", "note_versions", type_="unique")
     op.drop_index("ix_note_versions_created_by", table_name="note_versions")
     op.drop_index("ix_note_versions_pinned", table_name="note_versions")
     op.drop_index("ix_note_versions_trigger", table_name="note_versions")

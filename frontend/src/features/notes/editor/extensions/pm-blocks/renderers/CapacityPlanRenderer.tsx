@@ -59,6 +59,7 @@ function UtilizationBar({ pct, isOverAllocated }: { pct: number; isOverAllocated
 function MemberRow({ member }: { member: CapacityMember }) {
   return (
     <div
+      role="row"
       className={cn(
         'flex items-center gap-3 rounded-lg border px-3 py-2',
         member.isOverAllocated
@@ -68,7 +69,10 @@ function MemberRow({ member }: { member: CapacityMember }) {
       data-testid={`member-row-${member.userId}`}
     >
       {/* Avatar */}
-      <div className="size-7 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground overflow-hidden">
+      <div
+        role="cell"
+        className="size-7 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground overflow-hidden"
+      >
         {member.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={member.avatarUrl} alt={member.displayName} className="size-full object-cover" />
@@ -78,7 +82,7 @@ function MemberRow({ member }: { member: CapacityMember }) {
       </div>
 
       {/* Name + bar */}
-      <div className="min-w-0 flex-1 flex flex-col gap-1">
+      <div role="cell" className="min-w-0 flex-1 flex flex-col gap-1">
         <div className="flex items-center justify-between gap-1">
           <span className="text-xs font-medium text-foreground truncate">{member.displayName}</span>
           <span
@@ -94,7 +98,7 @@ function MemberRow({ member }: { member: CapacityMember }) {
       </div>
 
       {/* Utilization % */}
-      <div className="shrink-0 flex items-center gap-1">
+      <div role="cell" className="shrink-0 flex items-center gap-1">
         {member.isOverAllocated && (
           <AlertTriangle className="size-3 text-destructive" aria-label="Over-allocated" />
         )}
@@ -302,7 +306,7 @@ export function CapacityPlanRenderer({ data: rawData }: PMRendererProps) {
             utilization={planData.teamUtilizationPct}
           />
 
-          <div className="flex flex-col gap-2" role="list" aria-label="Team member capacity">
+          <div className="flex flex-col gap-2" role="table" aria-label="Team member capacity">
             {planData.members
               .slice()
               .sort((a, b) => b.utilizationPct - a.utilizationPct)

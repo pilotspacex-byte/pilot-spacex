@@ -153,9 +153,8 @@ export const CostDashboardPage = observer(function CostDashboardPage({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <CostByAgentChart
           data={cost.costByAgent}
-          onAgentClick={(agentName) => {
-            // TODO: Implement filter by agent in future enhancement
-            console.log('Filter by agent:', agentName);
+          onAgentClick={(_agentName) => {
+            // Filter by agent is not yet implemented
           }}
         />
         <CostTrendsChart data={cost.costTrends} />

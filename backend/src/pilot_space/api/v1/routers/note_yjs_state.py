@@ -136,6 +136,13 @@ async def put_yjs_state(
             detail="Request body must be non-empty Yjs state bytes",
         )
 
+    _MAX_YJS_BODY_BYTES = 4 * 1024 * 1024  # 4 MB
+    if len(body) > _MAX_YJS_BODY_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Yjs state exceeds 4 MB limit ({len(body)} bytes)",
+        )
+
     # Upsert: insert or replace on conflict
     await session.execute(
         text("""

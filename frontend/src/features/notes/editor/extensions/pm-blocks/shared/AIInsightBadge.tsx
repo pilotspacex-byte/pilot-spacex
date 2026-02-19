@@ -77,11 +77,22 @@ function InsightTooltip({ insight, onDismiss, onClose }: InsightTooltipProps) {
     onClose();
   }, [insight.id, onDismiss, onClose]);
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
   return (
     <div
       role="tooltip"
       className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border bg-background shadow-md"
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={handleKeyDown}
     >
       <div className="p-3">
         <div className="mb-2 flex items-start justify-between gap-2">

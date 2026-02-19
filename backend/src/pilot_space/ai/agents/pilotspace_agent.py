@@ -392,7 +392,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     include_partial_messages=True,
                     memory_enabled=True,
                     citations_enabled=True,
-                    system_prompt_base=build_dynamic_system_prompt(
+                    system_prompt_base=await build_dynamic_system_prompt(
                         self.SYSTEM_PROMPT_BASE,
                         role_type=_role_type,
                         workspace_name=input_data.context.get("workspace_name"),

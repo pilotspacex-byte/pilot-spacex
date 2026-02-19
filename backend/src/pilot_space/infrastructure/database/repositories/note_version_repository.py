@@ -173,6 +173,59 @@ class NoteVersionRepository(BaseRepository[NoteVersion]):
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_ai_before_map_for_versions(
+        self,
+        note_id: UUID,
+        workspace_id: UUID,
+        ai_after_timestamps: list[datetime],
+    ) -> dict[datetime, UUID]:
+        """Batch fetch ai_before version IDs for a list of ai_after timestamps.
+
+        Replaces N individual get_ai_before_for_after calls with one query.
+        For each ai_after timestamp, finds the most recent ai_before snapshot
+        created before that timestamp (same approach as get_ai_before_for_after
+        but for multiple timestamps at once).
+
+        Args:
+            note_id: Note UUID.
+            workspace_id: Workspace UUID.
+            ai_after_timestamps: List of ai_after version created_at values.
+
+        Returns:
+            Dict mapping ai_after created_at -> ai_before version UUID.
+        """
+        if not ai_after_timestamps:
+            return {}
+
+        max_ts = max(ai_after_timestamps)
+        # Single query: fetch all ai_before rows created before the latest ai_after ts.
+        all_ai_before_result = await self.session.execute(
+            select(NoteVersion)
+            .where(
+                NoteVersion.note_id == note_id,
+                NoteVersion.workspace_id == workspace_id,
+                NoteVersion.trigger == VersionTrigger.AI_BEFORE,
+                NoteVersion.created_at < max_ts,
+            )
+            .order_by(desc(NoteVersion.created_at))
+        )
+        # Sort descending by created_at for efficient greedy pairing
+        ai_befores = sorted(
+            all_ai_before_result.scalars().all(),
+            key=lambda v: v.created_at,
+            reverse=True,
+        )
+
+        # For each ai_after timestamp, pick the most recent ai_before before it
+        result_map: dict[datetime, UUID] = {}
+        for ts in ai_after_timestamps:
+            for ab in ai_befores:
+                if ab.created_at < ts:
+                    result_map[ts] = ab.id
+                    break
+
+        return result_map
+
     async def get_latest_ai_before(
         self,
         note_id: UUID,
@@ -232,13 +285,16 @@ class NoteVersionRepository(BaseRepository[NoteVersion]):
     async def get_max_version_number(
         self,
         note_id: UUID,
+        workspace_id: UUID,
     ) -> int:
-        """Get the highest version_number for a note.
+        """Get the highest version_number for a note within a workspace.
 
         Used to calculate the next version_number for a new snapshot.
+        workspace_id is required for RLS enforcement and cross-tenant safety.
 
         Args:
             note_id: Note UUID.
+            workspace_id: Workspace UUID (scopes query to prevent cross-tenant leaks).
 
         Returns:
             Max version_number, or 0 if no versions exist.
@@ -247,6 +303,7 @@ class NoteVersionRepository(BaseRepository[NoteVersion]):
 
         query = select(func.max(NoteVersion.version_number)).where(
             NoteVersion.note_id == note_id,
+            NoteVersion.workspace_id == workspace_id,
         )
         result = await self.session.execute(query)
         max_num = result.scalar_one_or_none()

@@ -76,7 +76,7 @@ function ProgressBar({
 }) {
   const hasCounts = step !== undefined && totalSteps !== undefined && totalSteps > 0;
   return (
-    <div className="space-y-1" aria-live="polite">
+    <div className="space-y-1">
       <div
         className="h-1 rounded-full bg-border overflow-hidden"
         role="progressbar"

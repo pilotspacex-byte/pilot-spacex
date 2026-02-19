@@ -15,7 +15,7 @@
  *
  * @module pm-blocks/renderers/SprintBoardRenderer
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, RefreshCw, Lock, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -65,19 +65,51 @@ interface IssueCardProps {
   readOnly: boolean;
   onDragStart?: (issueId: string, fromStateGroup: string) => void;
   onProposeTransition?: (issueId: string, newState: string) => void;
+  onKeyboardMove?: (issueId: string, fromStateGroup: string, direction: 'left' | 'right') => void;
+  isGrabbed?: boolean;
 }
 
-function IssueCard({ issue, readOnly, onDragStart, onProposeTransition }: IssueCardProps) {
+function IssueCard({
+  issue,
+  readOnly,
+  onDragStart,
+  onProposeTransition,
+  onKeyboardMove,
+  isGrabbed = false,
+}: IssueCardProps) {
   const priorityColor = PRIORITY_COLORS[issue.priority?.toLowerCase()] ?? PRIORITY_COLORS.none;
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (readOnly || !onKeyboardMove) return;
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        // Toggle grab state is handled by parent via onKeyboardMove signal
+        onKeyboardMove(issue.id, issue.stateName, 'left'); // noop — signals grab intent
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        onKeyboardMove(issue.id, issue.stateName, 'left');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        onKeyboardMove(issue.id, issue.stateName, 'right');
+      }
+    },
+    [readOnly, onKeyboardMove, issue.id, issue.stateName]
+  );
 
   return (
     <div
       className={cn(
         'group/card rounded-lg border border-border bg-background p-2.5 shadow-sm dark:bg-card',
-        !readOnly && 'cursor-grab active:cursor-grabbing'
+        !readOnly && 'cursor-grab active:cursor-grabbing',
+        isGrabbed && 'ring-2 ring-primary/60 cursor-grabbing'
       )}
       data-testid={`issue-card-${issue.id}`}
       role="listitem"
+      aria-roledescription={!readOnly ? 'draggable' : undefined}
+      aria-grabbed={!readOnly ? isGrabbed : undefined}
+      tabIndex={!readOnly ? 0 : undefined}
+      onKeyDown={!readOnly ? handleKeyDown : undefined}
       draggable={!readOnly}
       onDragStart={
         !readOnly && onDragStart
@@ -146,9 +178,18 @@ interface LaneColumnProps {
   readOnly: boolean;
   onDropIssue?: (issueId: string, fromStateGroup: string, toStateGroup: string) => void;
   onProposeTransition?: (issueId: string, newState: string) => void;
+  onKeyboardMove?: (issueId: string, fromStateGroup: string, direction: 'left' | 'right') => void;
+  grabbedIssueId?: string | null;
 }
 
-function LaneColumn({ lane, readOnly, onDropIssue, onProposeTransition }: LaneColumnProps) {
+function LaneColumn({
+  lane,
+  readOnly,
+  onDropIssue,
+  onProposeTransition,
+  onKeyboardMove,
+  grabbedIssueId,
+}: LaneColumnProps) {
   const stateKey = lane.stateGroup?.toLowerCase().replace(/\s+/g, '_') ?? 'backlog';
   const bgColor = LANE_COLORS[stateKey] ?? 'bg-muted/30';
   const labelColor = LANE_LABEL_COLORS[stateKey] ?? 'text-muted-foreground';
@@ -213,6 +254,8 @@ function LaneColumn({ lane, readOnly, onDropIssue, onProposeTransition }: LaneCo
             issue={issue}
             readOnly={readOnly}
             onProposeTransition={onProposeTransition}
+            onKeyboardMove={onKeyboardMove}
+            isGrabbed={grabbedIssueId === issue.id}
           />
         ))}
         {lane.issues.length === 0 && (
@@ -292,6 +335,8 @@ export function SprintBoardRenderer({ data: rawData, readOnly }: PMRendererProps
 
   const queryClient = useQueryClient();
   const boardQueryKey = QUERY_KEYS.board(workspaceId, cycleId);
+  const [grabbedIssueId, setGrabbedIssueId] = useState<string | null>(null);
+  const grabbedFromRef = useRef<string | null>(null);
 
   const {
     data: boardData,
@@ -371,6 +416,35 @@ export function SprintBoardRenderer({ data: rawData, readOnly }: PMRendererProps
       moveIssueMutation.mutate({ issueId, fromStateGroup, newStateGroup: toStateGroup });
     },
     [moveIssueMutation]
+  );
+
+  // Keyboard drag-drop: Space/Enter to grab, Arrow keys to move between columns, Enter/Space to drop
+  const handleKeyboardMove = useCallback(
+    (issueId: string, fromStateGroup: string, direction: 'left' | 'right') => {
+      if (!boardData) return;
+      const lanes = boardData.lanes;
+      const currentLaneIndex = lanes.findIndex((l) => l.stateGroup === fromStateGroup);
+
+      if (grabbedIssueId === issueId) {
+        // Already grabbed — arrow key moves to adjacent lane
+        const targetIndex = direction === 'right' ? currentLaneIndex + 1 : currentLaneIndex - 1;
+        const targetLane = lanes[targetIndex];
+        if (!targetLane) return;
+        setGrabbedIssueId(null);
+        const origin = grabbedFromRef.current ?? fromStateGroup;
+        grabbedFromRef.current = null;
+        moveIssueMutation.mutate({
+          issueId,
+          fromStateGroup: origin,
+          newStateGroup: targetLane.stateGroup,
+        });
+      } else {
+        // Pick up — record grab
+        setGrabbedIssueId(issueId);
+        grabbedFromRef.current = fromStateGroup;
+      }
+    },
+    [boardData, grabbedIssueId, moveIssueMutation]
   );
 
   const handleDismissInsight = useCallback(
@@ -477,6 +551,8 @@ export function SprintBoardRenderer({ data: rawData, readOnly }: PMRendererProps
                 lane={lane}
                 readOnly={readOnly || Boolean(boardData.isReadOnly)}
                 onDropIssue={readOnly || boardData.isReadOnly ? undefined : handleDropIssue}
+                onKeyboardMove={readOnly || boardData.isReadOnly ? undefined : handleKeyboardMove}
+                grabbedIssueId={grabbedIssueId}
                 onProposeTransition={
                   readOnly || boardData.isReadOnly
                     ? undefined

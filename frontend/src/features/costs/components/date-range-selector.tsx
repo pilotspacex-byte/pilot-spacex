@@ -165,17 +165,6 @@ export function DateRangeSelector({ onSelect, currentRange, className }: DateRan
                 );
               })}
             </div>
-            {/* TODO: Add custom date picker in future enhancement */}
-            {/* <div className="p-2 border-t">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-              >
-                <Calendar className="mr-2 size-4" />
-                Custom range...
-              </Button>
-            </div> */}
           </div>
         </PopoverContent>
       </Popover>

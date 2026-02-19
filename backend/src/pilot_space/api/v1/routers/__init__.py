@@ -42,6 +42,7 @@ from pilot_space.api.v1.routers.issues_ai_context_streaming import (
     router as issues_ai_context_streaming_router,
 )
 from pilot_space.api.v1.routers.mcp_tools import router as mcp_tools_router
+from pilot_space.api.v1.routers.memory import router as memory_router
 from pilot_space.api.v1.routers.note_templates import router as note_templates_router
 from pilot_space.api.v1.routers.note_versions import router as note_versions_router
 from pilot_space.api.v1.routers.note_yjs_state import router as note_yjs_state_router
@@ -138,6 +139,7 @@ __all__ = [
     "issues_ai_router",
     "issues_router",
     "mcp_tools_router",
+    "memory_router",
     "note_templates_router",
     "note_versions_router",
     "note_yjs_state_router",

@@ -56,7 +56,11 @@ function ConfidenceBar({ confidence }: { confidence: number }) {
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <span className="text-xs tabular-nums font-medium" style={{ color }} aria-hidden="true">
+        <span
+          className="text-xs tabular-nums font-medium"
+          style={{ color: color }}
+          aria-hidden="true"
+        >
           {pct}%
         </span>
       </div>
@@ -78,7 +82,7 @@ function ConfidenceBar({ confidence }: { confidence: number }) {
         />
       </div>
       {confidence < 0.7 && (
-        <p className="text-xs italic text-[#6B8FAD]">
+        <p className="text-xs italic text-[var(--ai,#6B8FAD)]">
           AI needs clarification before proceeding with this intent.
         </p>
       )}
@@ -221,8 +225,8 @@ export const IntentCard = memo<IntentCardProps>(function IntentCard({
     >
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
-        <Lightbulb className="h-4 w-4 text-[#6B8FAD] shrink-0" aria-hidden="true" />
-        <span className="text-sm font-medium text-[#6B8FAD]">Intent Detected</span>
+        <Lightbulb className="h-4 w-4 text-[var(--ai,#6B8FAD)] shrink-0" aria-hidden="true" />
+        <span className="text-sm font-medium text-[var(--ai,#6B8FAD)]">Intent Detected</span>
       </div>
 
       {isEditing ? (

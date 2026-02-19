@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from pgvector.sqlalchemy import Vector  # type: ignore[import-untyped]
 from sqlalchemy import (
     Enum as SQLEnum,
     Float,
@@ -85,6 +86,13 @@ class WorkIntent(WorkspaceScopedModel):
     source_block_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         nullable=True,
+    )
+
+    # Embedding for pgvector dedup (768-dim Gemini, nullable until computed)
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(768),
+        nullable=True,
+        comment="768-dim Gemini embedding for HNSW dedup query",
     )
 
     # Deduplication

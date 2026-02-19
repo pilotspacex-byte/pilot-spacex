@@ -314,6 +314,7 @@ export const VersionTimeline = observer(function VersionTimeline({
 
       {/* Timeline list */}
       <div
+        role="region"
         className="flex-1 overflow-y-auto px-2 py-2"
         onScroll={handleScroll}
         aria-label="Version history"

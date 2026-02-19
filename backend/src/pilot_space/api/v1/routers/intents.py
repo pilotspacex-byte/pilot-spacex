@@ -16,9 +16,8 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
-from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
 from pilot_space.api.v1.intent_deps import IntentDetectionServiceDep, IntentServiceDep
 from pilot_space.api.v1.schemas.intent import (
     ConfirmAllRequest,
@@ -38,8 +37,7 @@ from pilot_space.application.services.intent.intent_service import (
     EditIntentPayload,
     RejectIntentPayload,
 )
-from pilot_space.dependencies import SyncedUserId
-from pilot_space.dependencies.auth import SessionDep
+from pilot_space.dependencies.auth import CurrentUserId, SessionDep, require_workspace_member
 from pilot_space.domain.work_intent import IntentStatus
 from pilot_space.infrastructure.logging import get_logger
 
@@ -49,19 +47,7 @@ router = APIRouter()
 
 WorkspaceIdPath = Annotated[UUID, Path(description="Workspace UUID")]
 IntentIdPath = Annotated[UUID, Path(description="Intent UUID")]
-
-
-async def _validate_workspace(
-    workspace_id: UUID,
-    workspace_repo: WorkspaceRepositoryDep,
-) -> None:
-    """Verify workspace exists. Raises 404 if not found."""
-    ws = await workspace_repo.get_by_id_scalar(workspace_id)
-    if ws is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workspace {workspace_id} not found",
-        )
+WorkspaceMemberId = Annotated[UUID, Depends(require_workspace_member)]
 
 
 @router.post(
@@ -75,8 +61,8 @@ async def detect_intents(
     request: IntentDetectRequest,
     session: SessionDep,
     detection_service: IntentDetectionServiceDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    current_user: SyncedUserId,
+    _member: WorkspaceMemberId,
+    current_user_id: CurrentUserId,
 ) -> DetectIntentResponse:
     """Detect work intents from chat or note text.
 
@@ -86,7 +72,6 @@ async def detect_intents(
 
     Returns detected intents (persisted as DETECTED status).
     """
-    await _validate_workspace(workspace_id, workspace_repo)
 
     try:
         source = IntentSource(request.source)
@@ -101,7 +86,7 @@ async def detect_intents(
         text=request.text,
         source=source,
         source_block_id=request.source_block_id,
-        owner=str(current_user),
+        owner=str(current_user_id),
     )
 
     result = await detection_service.detect(payload)
@@ -125,11 +110,9 @@ async def confirm_intent(
     intent_id: IntentIdPath,
     session: SessionDep,
     intent_service: IntentServiceDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    current_user: SyncedUserId,
+    _member: WorkspaceMemberId,
 ) -> IntentResponse:
     """Confirm a detected intent, locking its what/why fields."""
-    await _validate_workspace(workspace_id, workspace_repo)
 
     try:
         updated = await intent_service.confirm(
@@ -155,11 +138,9 @@ async def reject_intent(
     intent_id: IntentIdPath,
     session: SessionDep,
     intent_service: IntentServiceDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    current_user: SyncedUserId,
+    _member: WorkspaceMemberId,
 ) -> IntentResponse:
     """Reject an intent from any non-terminal state."""
-    await _validate_workspace(workspace_id, workspace_repo)
 
     try:
         updated = await intent_service.reject(
@@ -186,14 +167,12 @@ async def edit_intent(
     request: IntentEditRequest,
     session: SessionDep,
     intent_service: IntentServiceDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    current_user: SyncedUserId,
+    _member: WorkspaceMemberId,
 ) -> IntentResponse:
     """Edit intent fields while still in DETECTED status.
 
     Updating 'what' resets dedup_status to pending so J-1 re-processes.
     """
-    await _validate_workspace(workspace_id, workspace_repo)
 
     try:
         updated = await intent_service.edit(
@@ -226,15 +205,13 @@ async def confirm_all_intents(
     request: ConfirmAllRequest,
     session: SessionDep,
     intent_service: IntentServiceDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    current_user: SyncedUserId,
+    _member: WorkspaceMemberId,
 ) -> ConfirmAllResponse:
     """Confirm top-N detected intents by confidence.
 
     C-8: Only intents with dedup_status='complete' are eligible.
     Intents still being deduplicated are reported in deduplicating_count.
     """
-    await _validate_workspace(workspace_id, workspace_repo)
 
     result = await intent_service.confirm_all(
         ConfirmAllPayload(
@@ -262,12 +239,10 @@ async def list_intents(
     workspace_id: WorkspaceIdPath,
     session: SessionDep,
     intent_service: IntentServiceDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    current_user: SyncedUserId,
+    _member: WorkspaceMemberId,
     intent_status: str = Query(default="detected", description="Filter by status"),
 ) -> list[IntentResponse]:
     """List intents for a workspace filtered by status."""
-    await _validate_workspace(workspace_id, workspace_repo)
 
     try:
         status_filter = IntentStatus(intent_status)
@@ -293,11 +268,9 @@ async def get_intent(
     intent_id: IntentIdPath,
     session: SessionDep,
     intent_service: IntentServiceDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    current_user: SyncedUserId,
+    _member: WorkspaceMemberId,
 ) -> IntentResponse:
     """Get a single intent by ID."""
-    await _validate_workspace(workspace_id, workspace_repo)
 
     try:
         intent = await intent_service.get_intent(intent_id, workspace_id)

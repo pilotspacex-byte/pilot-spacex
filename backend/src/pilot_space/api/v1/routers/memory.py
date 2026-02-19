@@ -14,9 +14,8 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, Depends, Path, status
 
-from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
 from pilot_space.api.v1.schemas.memory import (
     ConstitutionIngestRequest,
     ConstitutionIngestResponse,
@@ -35,8 +34,7 @@ from pilot_space.application.services.memory.memory_search_service import (
     MemorySearchService,
 )
 from pilot_space.config import get_settings
-from pilot_space.dependencies import SyncedUserId
-from pilot_space.dependencies.auth import SessionDep
+from pilot_space.dependencies.auth import SessionDep, require_workspace_member
 from pilot_space.infrastructure.database.repositories.constitution_repository import (
     ConstitutionRuleRepository,
 )
@@ -53,16 +51,6 @@ router = APIRouter()
 WorkspaceIdPath = Annotated[UUID, Path(description="Workspace UUID")]
 
 
-async def _require_workspace(workspace_id: UUID, workspace_repo: WorkspaceRepositoryDep) -> None:
-    """Verify workspace exists. Raises 404 if not found."""
-    ws = await workspace_repo.get_by_id_scalar(workspace_id)
-    if ws is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workspace {workspace_id} not found",
-        )
-
-
 @router.post(
     "/workspaces/{workspace_id}/ai/memory/search",
     response_model=MemorySearchResponse,
@@ -77,11 +65,9 @@ async def search_memory(
     workspace_id: WorkspaceIdPath,
     request: MemorySearchRequest,
     session: SessionDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    _user_id: SyncedUserId,
+    _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> MemorySearchResponse:
     """Search workspace memory entries with hybrid scoring."""
-    await _require_workspace(workspace_id, workspace_repo)
 
     settings = get_settings()
     google_api_key = settings.google_api_key.get_secret_value() if settings.google_api_key else None
@@ -129,11 +115,9 @@ async def search_memory(
 async def get_constitution_version(
     workspace_id: WorkspaceIdPath,
     session: SessionDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    _user_id: SyncedUserId,
+    _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> ConstitutionVersionResponse:
     """Get the current constitution version for the workspace."""
-    await _require_workspace(workspace_id, workspace_repo)
 
     const_repo = ConstitutionRuleRepository(session)
     version = await const_repo.get_latest_version(workspace_id)
@@ -158,11 +142,9 @@ async def ingest_constitution(
     workspace_id: WorkspaceIdPath,
     request: ConstitutionIngestRequest,
     session: SessionDep,
-    workspace_repo: WorkspaceRepositoryDep,
-    _user_id: SyncedUserId,
+    _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> ConstitutionIngestResponse:
     """Ingest workspace constitution rules as a new version."""
-    await _require_workspace(workspace_id, workspace_repo)
 
     const_repo = ConstitutionRuleRepository(session)
 
