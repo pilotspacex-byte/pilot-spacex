@@ -190,7 +190,8 @@ export const SkillApprovalCard = memo<SkillApprovalCardProps>(function SkillAppr
 
   return (
     <div
-      role="alertdialog"
+      role="region"
+      aria-labelledby="skill-approval-heading"
       aria-label={`Approval required: ${actionLabel}`}
       className={cn(
         'mx-4 my-3 rounded-[18px] border-2 bg-background p-4 shadow',
@@ -205,7 +206,9 @@ export const SkillApprovalCard = memo<SkillApprovalCardProps>(function SkillAppr
             className="h-[18px] w-[18px] text-[var(--warning)] shrink-0"
             aria-hidden="true"
           />
-          <span className="text-sm font-semibold text-foreground">Approval Required</span>
+          <span id="skill-approval-heading" className="text-sm font-semibold text-foreground">
+            Approval Required
+          </span>
         </div>
         <span
           className={cn('text-xs tabular-nums font-medium', countdownColor)}

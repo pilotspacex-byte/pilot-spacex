@@ -137,7 +137,21 @@ export function SidebarPanel({
               role="separator"
               aria-orientation="vertical"
               aria-label="Resize sidebar panel"
+              aria-valuenow={width}
+              aria-valuemin={240}
+              aria-valuemax={480}
+              tabIndex={0}
               onMouseDown={onMouseDown}
+              onKeyDown={(e) => {
+                const step = 16;
+                if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  onWidthChange?.(Math.min(480, width + step));
+                } else if (e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  onWidthChange?.(Math.max(240, width - step));
+                }
+              }}
               className={cn(
                 'flex h-12 w-3 cursor-col-resize items-center justify-center',
                 'rounded-l-md bg-border/60 hover:bg-border transition-colors',

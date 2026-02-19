@@ -309,6 +309,11 @@ export function CapacityPlanRenderer({ data: rawData }: PMRendererProps) {
           />
 
           <div className="flex flex-col gap-2" role="table" aria-label="Team member capacity">
+            <div role="row" className="sr-only">
+              <span role="columnheader">Member</span>
+              <span role="columnheader">Hours</span>
+              <span role="columnheader">Utilization</span>
+            </div>
             {planData.members
               .slice()
               .sort((a, b) => b.utilizationPct - a.utilizationPct)

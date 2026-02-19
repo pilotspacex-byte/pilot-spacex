@@ -47,6 +47,13 @@ export const ConversationBlock = memo<ConversationBlockProps>(function Conversat
   const inputRef = useRef<HTMLInputElement>(null);
   const [processingSeconds, setProcessingSeconds] = useState(0);
 
+  // Auto-focus input when block mounts or becomes unanswered (AI-C4)
+  useEffect(() => {
+    if (!isAnswered) {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [isAnswered]);
+
   // 5s SLA counter when processing
   useEffect(() => {
     if (!isProcessing) {

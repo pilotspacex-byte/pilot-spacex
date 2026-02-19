@@ -159,7 +159,7 @@ function IssueCard({
       )}
 
       {!readOnly && onProposeTransition && (
-        <div className="mt-1.5 flex justify-end opacity-0 group-hover/card:opacity-100 transition-opacity motion-reduce:transition-none">
+        <div className="mt-1.5 flex justify-end opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition-opacity motion-reduce:transition-none">
           <button
             type="button"
             className="text-[10px] text-primary hover:underline"
