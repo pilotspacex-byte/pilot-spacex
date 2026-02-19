@@ -22,6 +22,7 @@ import {
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { AlertTriangle, RotateCcw, Code } from 'lucide-react';
 import { toast } from 'sonner';
+import { useWorkspaceStore } from '@/stores';
 import { pmBlockStyles } from './pm-block-styles';
 import type { PMBlockType } from './PMBlockExtension';
 import { useBlockEditGuard } from './shared/useBlockEditGuard';
@@ -207,11 +208,32 @@ export function PMBlockNodeView({ node, updateAttributes, editor }: NodeViewProp
     [updateAttributes, blockId, markEdited]
   );
 
+  const workspaceStore = useWorkspaceStore();
+
   const onCreateIssue = useCallback(
-    (_context: { blockType: PMBlockType; data: Record<string, unknown> }) => {
-      toast.info('Issue creation from PM blocks coming soon');
+    async (context: { blockType: PMBlockType; data: Record<string, unknown> }) => {
+      const workspaceId = workspaceStore.currentWorkspaceId;
+      if (!workspaceId) {
+        toast.error('No workspace selected');
+        return;
+      }
+      const title = (context.data.title as string) || `${context.blockType} issue`;
+      const description = context.data.description as string | undefined;
+      try {
+        const { issuesApi } = await import('@/services/api/issues');
+        const issue = await issuesApi.create(workspaceId, {
+          name: title,
+          description: description || '',
+          type: 'task',
+        });
+        const linkedIds = (context.data.linkedIssueIds as string[]) || [];
+        onDataChange({ ...context.data, linkedIssueIds: [...linkedIds, issue.id] });
+        toast.success(`Issue ${issue.identifier} created`);
+      } catch {
+        toast.error('Failed to create issue');
+      }
     },
-    []
+    [workspaceStore, onDataChange]
   );
 
   const Renderer = RENDERER_MAP[blockType];
