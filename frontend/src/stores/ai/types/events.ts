@@ -596,64 +596,16 @@ export interface FocusBlockEvent extends SSEEvent {
   };
 }
 
-// ── Feature 015: Intent lifecycle events ─────────────────────────────────────
-
-export interface IntentDetectedEvent extends SSEEvent {
-  type: 'intent_detected';
-  data: {
-    intentId: string;
-    what: string;
-    why: string;
-    constraints: string[];
-    confidence: number;
-  };
-}
-
-export interface IntentConfirmedEvent extends SSEEvent {
-  type: 'intent_confirmed';
-  data: { intentId: string };
-}
-
-export interface IntentExecutingEvent extends SSEEvent {
-  type: 'intent_executing';
-  data: {
-    intentId: string;
-    skillName: string;
-    intentSummary: string;
-    totalSteps: number;
-  };
-}
-
-export interface IntentCompletedEvent extends SSEEvent {
-  type: 'intent_completed';
-  data: {
-    intentId: string;
-    success: boolean;
-    summary: string;
-    artifacts: Record<string, unknown>[];
-    errorMessage?: string;
-    partialOutput?: boolean;
-  };
-}
-
-export interface SkillCompletedEvent extends SSEEvent {
-  type: 'skill_completed';
-  data: {
-    intentId: string;
-    artifacts: Record<string, unknown>[];
-    requiresApproval: boolean;
-    approvalId?: string;
-  };
-}
-
-export interface QueueUpdateEvent extends SSEEvent {
-  type: 'queue_update';
-  data: {
-    runningCount: number;
-    queuedCount: number;
-    maxConcurrent: number;
-  };
-}
+// Feature 015: Intent/skill lifecycle events extracted to events-workforce.ts.
+// Re-exported here for backward compatibility.
+export type {
+  IntentDetectedEvent,
+  IntentConfirmedEvent,
+  IntentExecutingEvent,
+  IntentCompletedEvent,
+  SkillCompletedEvent,
+  QueueUpdateEvent,
+} from './events-workforce';
 
 // Type guards extracted to ./event-guards.ts to keep this file under 700 lines.
 // Re-export for backward compatibility.
