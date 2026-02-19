@@ -29,6 +29,7 @@ from pilot_space.api.v1.routers import (
     homepage_notes_from_chat_router,
     homepage_router,
     integrations_router,
+    intents_router,
     issues_ai_context_router,
     issues_ai_context_streaming_router,
     issues_ai_router,
@@ -225,6 +226,7 @@ app.include_router(workspace_note_issue_links_router, prefix=f"{API_V1_PREFIX}/w
 app.include_router(workspace_notes_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_ai_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_tasks_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(intents_router, prefix=API_V1_PREFIX)
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_notes_from_chat_router, prefix=API_V1_PREFIX)

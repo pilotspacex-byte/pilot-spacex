@@ -54,6 +54,12 @@ from pilot_space.infrastructure.database.repositories.integration_link_repositor
 from pilot_space.infrastructure.database.repositories.integration_repository import (
     IntegrationRepository,
 )
+from pilot_space.infrastructure.database.repositories.intent_artifact_repository import (
+    IntentArtifactRepository,
+)
+from pilot_space.infrastructure.database.repositories.intent_repository import (
+    WorkIntentRepository,
+)
 from pilot_space.infrastructure.database.repositories.invitation_repository import (
     InvitationRepository,
 )
@@ -83,6 +89,9 @@ from pilot_space.infrastructure.database.repositories.project_repository import 
 )
 from pilot_space.infrastructure.database.repositories.role_skill_repository import (
     RoleSkillRepository,
+)
+from pilot_space.infrastructure.database.repositories.skill_execution_repository import (
+    SkillExecutionRepository,
 )
 from pilot_space.infrastructure.database.repositories.task_repository import (
     TaskRepository,
@@ -241,6 +250,21 @@ class InfraContainer(containers.DeclarativeContainer):
 
     task_repository = providers.Factory(
         TaskRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    work_intent_repository = providers.Factory(
+        WorkIntentRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    intent_artifact_repository = providers.Factory(
+        IntentArtifactRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    skill_execution_repository = providers.Factory(
+        SkillExecutionRepository,
         session=providers.Callable(get_current_session),
     )
 

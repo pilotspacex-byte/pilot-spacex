@@ -38,6 +38,7 @@ from pilot_space.application.services.integration import (
     LinkCommitService,
     ProcessGitHubWebhookService,
 )
+from pilot_space.application.services.intent import IntentDetectionService, IntentService
 from pilot_space.application.services.issue import (
     ActivityService,
     CreateIssueService,
@@ -516,6 +517,20 @@ class Container(InfraContainer):
         session=providers.Callable(get_current_session),
         task_repository=InfraContainer.task_repository,
         issue_repository=InfraContainer.issue_repository,
+    )
+
+    # Intent Services (Feature 015)
+    intent_detection_service = providers.Factory(
+        IntentDetectionService,
+        session=providers.Callable(get_current_session),
+        intent_repository=InfraContainer.work_intent_repository,
+        redis_client=InfraContainer.redis_client,
+    )
+
+    intent_service = providers.Factory(
+        IntentService,
+        session=providers.Callable(get_current_session),
+        intent_repository=InfraContainer.work_intent_repository,
     )
 
 

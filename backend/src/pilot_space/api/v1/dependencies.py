@@ -632,6 +632,7 @@ def _get_task_service(
 
 TaskServiceDep = Annotated[TaskService, Depends(_get_task_service)]
 
+
 __all__ = [  # noqa: RUF022
     # Repository Dependencies
     "ActivityRepositoryDep",
