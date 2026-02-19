@@ -24,7 +24,6 @@ import { useContentUpdates } from '@/features/notes/editor/hooks/useContentUpdat
 import { cn } from '@/lib/utils';
 import { createEditorExtensions } from '@/features/notes/editor/extensions';
 import { useResponsive } from '@/hooks/useMediaQuery';
-import { useWorkspaceStore } from '@/stores/RootStore';
 import type { JSONContent, User, LinkedIssueBrief } from '@/types';
 import { useAIAutoScroll } from '@/hooks/useAIAutoScroll';
 import { useEditorSync } from './hooks/useEditorSync';
@@ -143,7 +142,6 @@ export interface NoteCanvasEditorState {
   chatPanelState: 'min' | 'max' | 'mid';
   isSmallScreen: boolean;
   aiStore: ReturnType<typeof getAIStore>;
-  resolvedWorkspaceId: string | undefined;
   processingBlockIds: string[];
   hasOffScreenUpdate: boolean;
   offScreenDirection: 'above' | 'below';
@@ -194,14 +192,14 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
   }, [noteId, title, onTitleChange]);
 
   const aiStore = getAIStore();
-  const workspaceStore = useWorkspaceStore();
 
-  // Resolve workspace UUID with cascading fallback
-  const isUUID = workspaceId && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(workspaceId);
-  const resolvedWorkspaceId = isUUID
-    ? workspaceId
-    : (workspaceId && workspaceStore.getWorkspaceBySlug(workspaceId)?.id) ||
-      workspaceStore.currentWorkspace?.id;
+  // workspaceId from the parent (NoteDetailPage) may be a slug as the last fallback when
+  // WorkspaceGuard hasn't resolved yet (workspace?.id ?? workspaceStore.currentWorkspace?.id ?? workspaceSlug).
+  // Only propagate to API calls if it looks like a UUID — prevents sending slugs to backend endpoints
+  // that expect UUIDs (ghost text SSE, issue creation, margin annotation headers, AI session context).
+  // @see NoteDetailPage — expected sole consumer; must pre-resolve workspaceId before passing as prop.
+  const isWorkspaceUUID = workspaceId ? /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(workspaceId) : false;
+  const resolvedWorkspaceId = isWorkspaceUUID ? workspaceId : undefined;
 
   // Set workspace context on PilotSpaceStore
   useEffect(() => {
@@ -257,10 +255,10 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
       });
 
       if (blockIds.length > 0) {
-        aiStore.marginAnnotation.autoTriggerAnnotations(noteId, blockIds, workspaceId);
+        aiStore.marginAnnotation.autoTriggerAnnotations(noteId, blockIds, resolvedWorkspaceId);
       }
     },
-    [noteId, workspaceId, aiStore.marginAnnotation]
+    [noteId, resolvedWorkspaceId, aiStore.marginAnnotation]
   );
 
   const [isEditorReady, setIsEditorReady] = useState(false);
@@ -402,7 +400,7 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
     editor,
     aiStore.pilotSpace,
     noteId,
-    resolvedWorkspaceId ?? undefined
+    resolvedWorkspaceId
   );
 
   // Auto-scroll to AI-focused blocks
@@ -492,7 +490,6 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
     chatPanelState,
     isSmallScreen,
     aiStore,
-    resolvedWorkspaceId,
     processingBlockIds,
     hasOffScreenUpdate,
     offScreenDirection,

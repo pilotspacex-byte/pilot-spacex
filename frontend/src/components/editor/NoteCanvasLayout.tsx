@@ -19,7 +19,6 @@
  */
 import { lazy, Suspense } from 'react';
 import { EditorContent } from '@tiptap/react';
-import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 
 const ChatView = lazy(() =>
@@ -41,8 +40,21 @@ import { useNoteCanvasEditor, EditorErrorFallback, EditorSkeleton } from './Note
 /**
  * NoteCanvas component with responsive layout per Prototype v4
  * Layout: [Document Canvas | AI ChatView]
+ *
+ * NOTE: This component intentionally does NOT use observer() from MobX-React-Lite.
+ * React 19's useSyncExternalStore (used internally by observer()) calls flushSync when
+ * a tracked MobX observable changes during render. TipTap's ReactNodeViewRenderer
+ * (used by PMBlockExtension) creates React NodeViews inside ProseMirror transactions
+ * during React's rendering lifecycle, causing a nested flushSync error:
+ *   "flushSync was called from inside a lifecycle method"
+ * All MobX reactivity is handled by child components (ChatView has its own observer)
+ * or by explicit reactions (useEditorSync, useContentUpdates use queueMicrotask).
+ * aiStore.pilotSpace is a stable singleton set in AIStore's constructor — it never
+ * changes after initialization so observer() tracking provides no benefit here.
+ * Workspace reactivity is propagated via props from NoteDetailPage (which IS observer()).
+ * @see NoteDetailPage — sole intended consumer; responsible for pre-resolving workspaceId to a UUID.
  */
-export const NoteCanvasLayout = observer(function NoteCanvasLayout(props: NoteCanvasProps) {
+export function NoteCanvasLayout(props: NoteCanvasProps) {
   const {
     noteId,
     readOnly = false,
@@ -259,6 +271,6 @@ export const NoteCanvasLayout = observer(function NoteCanvasLayout(props: NoteCa
       )}
     </div>
   );
-});
+}
 
 export default NoteCanvasLayout;
