@@ -99,7 +99,7 @@ export const ConfirmAllButton = observer<ConfirmAllButtonProps>(function Confirm
         <button
           type="button"
           onClick={handleDismissResult}
-          className="text-muted-foreground hover:text-foreground shrink-0"
+          className="p-2 -m-2 text-muted-foreground hover:text-foreground shrink-0"
           aria-label="Dismiss confirmation result"
         >
           <X className="h-3.5 w-3.5" aria-hidden="true" />

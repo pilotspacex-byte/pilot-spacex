@@ -168,7 +168,22 @@ function DAGSVG({ data, width, height, criticalSet }: DAGSVGProps) {
         const colors = STATE_GROUP_COLORS[node.stateGroup] ?? STATE_GROUP_COLORS['unstarted']!;
 
         return (
-          <g key={node.id} transform={`translate(${pos.x},${pos.y})`} aria-label={node.name}>
+          <g
+            key={node.id}
+            transform={`translate(${pos.x},${pos.y})`}
+            aria-label={node.name}
+            tabIndex={0}
+            role="button"
+            className="focus-visible:outline-none"
+            onFocus={(e) => {
+              const rect = e.currentTarget.querySelector('rect');
+              if (rect) rect.setAttribute('stroke-width', '2.5');
+            }}
+            onBlur={(e) => {
+              const rect = e.currentTarget.querySelector('rect');
+              if (rect) rect.setAttribute('stroke-width', criticalSet.has(node.id) ? '2' : '1');
+            }}
+          >
             <rect
               x={0}
               y={0}
@@ -352,7 +367,7 @@ export function DependencyMapRenderer({ data: rawData, readOnly: _readOnly }: PM
           <div className="flex items-center gap-0.5 rounded-md border border-border bg-muted/50">
             <button
               type="button"
-              className="rounded-l-md p-1 hover:bg-accent transition-colors"
+              className="rounded-l-md min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-accent transition-colors"
               onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z - ZOOM_STEP))}
               aria-label="Zoom out"
             >
@@ -363,7 +378,7 @@ export function DependencyMapRenderer({ data: rawData, readOnly: _readOnly }: PM
             </span>
             <button
               type="button"
-              className="p-1 hover:bg-accent transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-accent transition-colors"
               onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z + ZOOM_STEP))}
               aria-label="Zoom in"
             >
@@ -371,7 +386,7 @@ export function DependencyMapRenderer({ data: rawData, readOnly: _readOnly }: PM
             </button>
             <button
               type="button"
-              className="rounded-r-md p-1 hover:bg-accent transition-colors"
+              className="rounded-r-md min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-accent transition-colors"
               onClick={resetView}
               aria-label="Reset view"
             >

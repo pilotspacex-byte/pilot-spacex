@@ -534,7 +534,7 @@ const ChatViewInternal = observer<ChatViewProps>(
                   onClick={() => {
                     store.error = null;
                   }}
-                  className="text-destructive/60 hover:text-destructive shrink-0"
+                  className="p-1.5 -m-1.5 text-destructive/60 hover:text-destructive shrink-0"
                   aria-label="Dismiss error"
                 >
                   <X className="h-3.5 w-3.5" />
