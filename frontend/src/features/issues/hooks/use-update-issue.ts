@@ -24,6 +24,7 @@ function buildOptimisticPatch(data: UpdateIssueData): Partial<Issue> {
   if (data.descriptionHtml !== undefined) patch.descriptionHtml = data.descriptionHtml;
   if (data.priority !== undefined) patch.priority = data.priority;
   if (data.estimatePoints !== undefined) patch.estimatePoints = data.estimatePoints;
+  if (data.estimateHours !== undefined) patch.estimateHours = data.estimateHours;
   if (data.startDate !== undefined) patch.startDate = data.startDate;
   if (data.targetDate !== undefined) patch.targetDate = data.targetDate;
   if (data.sortOrder !== undefined) patch.sortOrder = data.sortOrder;
@@ -39,7 +40,10 @@ function buildOptimisticPatch(data: UpdateIssueData): Partial<Issue> {
     patch.assignee = null;
   }
   if (data.clearCycle) patch.cycleId = undefined;
-  if (data.clearEstimate) patch.estimatePoints = undefined;
+  if (data.clearEstimate) {
+    patch.estimatePoints = undefined;
+    patch.estimateHours = undefined;
+  }
   if (data.clearStartDate) patch.startDate = undefined;
   if (data.clearTargetDate) patch.targetDate = undefined;
 

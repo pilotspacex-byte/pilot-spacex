@@ -26,6 +26,8 @@ export interface Issue {
   reporter: UserBrief;
   labels: LabelBrief[];
   estimatePoints?: number;
+  /** Time estimate in hours (0.5 increments, T-245) */
+  estimateHours?: number;
   startDate?: string;
   targetDate?: string;
   cycleId?: string;
@@ -70,6 +72,8 @@ export interface UpdateIssueData {
   moduleId?: string;
   parentId?: string;
   estimatePoints?: number;
+  /** Time estimate in hours (0.5 increments, 0-9999.9, T-245) */
+  estimateHours?: number;
   startDate?: string;
   targetDate?: string;
   sortOrder?: number;
@@ -241,6 +245,7 @@ export interface WorkspaceMember {
   workspaceId: string;
   role: WorkspaceRole;
   joinedAt: string;
+  weeklyAvailableHours: number;
 }
 
 export interface CreateWorkspaceData {

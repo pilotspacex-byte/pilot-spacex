@@ -14,6 +14,8 @@ export interface WorkspaceMember {
   avatarUrl: string | null;
   role: 'owner' | 'admin' | 'member' | 'guest';
   joinedAt: string;
+  /** Hours available per week for capacity planning (0-168, T-246) */
+  weeklyAvailableHours: number;
 }
 
 export const workspaceMembersKeys = {
