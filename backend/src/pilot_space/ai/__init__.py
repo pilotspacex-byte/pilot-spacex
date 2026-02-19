@@ -9,7 +9,7 @@ This package contains AI-related components:
 
 Provider Routing (DD-011):
 - Claude → Code analysis, PR review, complex reasoning
-- Gemini Flash → Low-latency tasks (ghost text)
+- Claude Haiku → Low-latency tasks (ghost text)
 - OpenAI → Embeddings (text-embedding-3-large)
 """
 

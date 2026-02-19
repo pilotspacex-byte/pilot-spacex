@@ -9,12 +9,6 @@ import { apiClient } from './client';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 
 // Types
-export interface GhostTextRequest {
-  context: string;
-  prefix: string;
-  workspace_id: string;
-}
-
 export interface AIContextRequest {
   issue_id: string;
 }

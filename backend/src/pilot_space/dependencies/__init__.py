@@ -17,6 +17,7 @@ from __future__ import annotations
 from pilot_space.dependencies.ai import (
     ApprovalServiceDep,
     CostTrackerDep,
+    GhostTextServiceDep,
     KeyStorageDep,
     PermissionHandlerDep,
     PilotSpaceAgentDep,
@@ -33,6 +34,7 @@ from pilot_space.dependencies.ai import (
     get_ai_context_service,
     get_approval_service_dep,
     get_cost_tracker_dep,
+    get_ghost_text_service,
     get_key_storage,
     get_permission_handler_dep,
     get_pilotspace_agent,
@@ -85,13 +87,12 @@ from pilot_space.dependencies.workspace import (
 get_db_session = get_db_session_dep
 
 __all__ = [
-    # AI
     "ApprovalServiceDep",
     "CostTrackerDep",
-    # Auth
     "CurrentUser",
     "CurrentUserId",
     "DbSession",
+    "GhostTextServiceDep",
     "KeyStorageDep",
     "PermissionHandlerDep",
     "PilotSpaceAgentDep",
@@ -107,7 +108,6 @@ __all__ = [
     "WorkspaceAdminId",
     "WorkspaceMemberId",
     "ensure_user_synced",
-    # Services
     "get_activity_service",
     "get_ai_config",
     "get_ai_config_or_demo",
@@ -122,6 +122,7 @@ __all__ = [
     "get_db_session",
     "get_db_session_dep",
     "get_get_issue_service",
+    "get_ghost_text_service",
     "get_key_storage",
     "get_list_issues_service",
     "get_permission_handler_dep",

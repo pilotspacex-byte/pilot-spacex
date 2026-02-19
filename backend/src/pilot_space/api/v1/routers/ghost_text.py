@@ -3,7 +3,7 @@
 Provides fast-path text completions for real-time writing assistance.
 
 Reference: T082-T083 (GhostText Endpoint + Rate Limiting)
-Design Decisions: DD-011 (Gemini for latency)
+Design Decisions: DD-011 (Haiku for latency)
 """
 
 from __future__ import annotations
@@ -12,10 +12,10 @@ import time
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from pilot_space.dependencies import CurrentUserId, DbSession, RedisDep
+from pilot_space.dependencies import CurrentUserId, DbSession, GhostTextServiceDep, RedisDep
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -105,7 +105,8 @@ async def generate_ghost_text(
     request: GhostTextRequest,
     user_id: CurrentUserId,
     redis: RedisDep,
-    fastapi_request: Request,
+    session: DbSession,
+    service: GhostTextServiceDep,
 ) -> GhostTextResponse:
     """Generate ghost text completion.
 
@@ -115,27 +116,40 @@ async def generate_ghost_text(
         request: GhostText request with context and prefix.
         user_id: Current user ID (from auth).
         redis: Redis client.
-        fastapi_request: FastAPI request object.
+        session: Database session for workspace membership check.
+        service: GhostTextService with BYOK, executor, and cost tracking.
 
     Returns:
         Completion suggestion with confidence score.
 
     Raises:
-        HTTPException: 429 if rate limit exceeded, 500 if generation fails.
+        HTTPException: 402 if no API key configured, 403 if not a workspace member,
+            429 if rate limited, 500 if generation fails.
     """
-    # Check rate limit
     await check_rate_limit(user_id, redis)
 
-    # Generate completion
+    from sqlalchemy import exists, select
+
+    from pilot_space.infrastructure.database.models.workspace_member import (
+        WorkspaceMember,
+    )
+
+    stmt = select(
+        exists().where(
+            WorkspaceMember.workspace_id == request.workspace_id,
+            WorkspaceMember.user_id == user_id,
+        )
+    )
+    result = await session.execute(stmt)
+    if not result.scalar():
+        raise HTTPException(status_code=403, detail="Not a member of this workspace")
+
     try:
-        from pilot_space.ai.services.ghost_text import GhostTextService
-
-        service = GhostTextService(redis)
-
         result = await service.generate_completion(
             context=request.context,
             prefix=request.prefix,
             workspace_id=request.workspace_id,
+            user_id=user_id,
         )
 
         return GhostTextResponse(
@@ -144,6 +158,8 @@ async def generate_ghost_text(
             cached=result["cached"],
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Ghost text generation failed: %s", e)
         raise HTTPException(
@@ -157,7 +173,7 @@ async def clear_workspace_cache(
     workspace_id: UUID,
     user_id: CurrentUserId,
     session: DbSession,
-    redis: RedisDep,
+    service: GhostTextServiceDep,
 ) -> dict[str, Any]:
     """Clear ghost text cache for workspace.
 
@@ -165,7 +181,7 @@ async def clear_workspace_cache(
         workspace_id: Workspace UUID.
         user_id: Current user ID (from auth).
         session: Database session.
-        redis: Redis client.
+        service: GhostTextService for cache operations.
 
     Returns:
         Cache clear result with count.
@@ -191,9 +207,7 @@ async def clear_workspace_cache(
 
     if not is_member:
         raise HTTPException(status_code=403, detail="Not a member of this workspace")
-    from pilot_space.ai.services.ghost_text import GhostTextService
 
-    service = GhostTextService(redis)
     keys_cleared = await service.clear_workspace_cache(workspace_id)
 
     return {

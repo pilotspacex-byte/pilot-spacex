@@ -5,6 +5,10 @@ Implements DD-011 routing rules:
 - Latency-sensitive tasks → Claude Haiku (cost-optimized, <2s target)
 - Embeddings → OpenAI (superior 3072-dim vectors)
 
+All providers are Anthropic-only; Google/Gemini removed in favour of
+Haiku for latency-sensitive paths (simpler dependency surface, single
+API key, consistent billing model).
+
 Integrates with CircuitBreaker for automatic failover on provider failures.
 
 T015: ProviderSelector class with DD-011 routing table.
@@ -97,7 +101,7 @@ class ProviderSelector:
     # Model identifiers per provider
     ANTHROPIC_OPUS: Final[str] = "claude-opus-4-5"
     ANTHROPIC_SONNET: Final[str] = "claude-sonnet-4"
-    ANTHROPIC_HAIKU: Final[str] = "claude-3-5-haiku"
+    ANTHROPIC_HAIKU: Final[str] = "claude-3-5-haiku-20241022"
     OPENAI_EMBEDDING: Final[str] = "text-embedding-3-large"
     GOOGLE_FLASH: Final[str] = "gemini-2.0-flash"
     GOOGLE_PRO: Final[str] = "gemini-2.0-pro"
@@ -166,8 +170,8 @@ class ProviderSelector:
             provider=Provider.ANTHROPIC.value,
             model=ANTHROPIC_SONNET,
             reason="Generating inline suggestions with context",
-            fallback_provider=Provider.GOOGLE.value,
-            fallback_model=GOOGLE_FLASH,
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_HAIKU,
         ),
         TaskType.CONVERSATION: ProviderConfig(
             provider=Provider.ANTHROPIC.value,
@@ -187,8 +191,8 @@ class ProviderSelector:
             provider=Provider.ANTHROPIC.value,
             model=ANTHROPIC_SONNET,
             reason="Generating Mermaid/PlantUML diagrams",
-            fallback_provider=Provider.GOOGLE.value,
-            fallback_model=GOOGLE_FLASH,
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_HAIKU,
         ),
         TaskType.TEMPLATE_FILLING: ProviderConfig(
             provider=Provider.ANTHROPIC.value,
@@ -197,34 +201,39 @@ class ProviderSelector:
             fallback_provider=Provider.ANTHROPIC.value,
             fallback_model=ANTHROPIC_HAIKU,
         ),
-        # Latency-sensitive → Gemini Flash (DD-011: <1.5s response)
+        # Latency-sensitive → Claude Haiku (cost-optimized, <2s target)
+        #
+        # NOTE — same-provider fallback: both primary (Haiku) and fallback (Sonnet)
+        # are on Anthropic. When the Anthropic circuit breaker opens, the fallback
+        # is also unreachable and the selector returns the primary config unchanged.
+        # The caller must handle APIError / connection failures directly.
         TaskType.GHOST_TEXT: ProviderConfig(
-            provider=Provider.GOOGLE.value,
-            model=GOOGLE_FLASH,
-            reason="Real-time completion requires <1.5s latency (DD-011)",
+            provider=Provider.ANTHROPIC.value,
+            model=ANTHROPIC_HAIKU,
+            reason="Real-time completion requires <1.5s latency — Haiku on Anthropic infra",
             fallback_provider=Provider.ANTHROPIC.value,
-            fallback_model=ANTHROPIC_HAIKU,
+            fallback_model=ANTHROPIC_SONNET,
         ),
         TaskType.NOTIFICATION_PRIORITY: ProviderConfig(
             provider=Provider.ANTHROPIC.value,
             model=ANTHROPIC_HAIKU,
             reason="Quick scoring for notification importance",
-            fallback_provider=Provider.GOOGLE.value,
-            fallback_model=GOOGLE_FLASH,
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_SONNET,
         ),
         TaskType.ASSIGNEE_RECOMMENDATION: ProviderConfig(
             provider=Provider.ANTHROPIC.value,
             model=ANTHROPIC_HAIKU,
             reason="Fast lookup for team member matching",
-            fallback_provider=Provider.GOOGLE.value,
-            fallback_model=GOOGLE_FLASH,
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_SONNET,
         ),
         TaskType.COMMIT_LINKING: ProviderConfig(
             provider=Provider.ANTHROPIC.value,
             model=ANTHROPIC_HAIKU,
             reason="Parse commit references quickly",
-            fallback_provider=Provider.GOOGLE.value,
-            fallback_model=GOOGLE_FLASH,
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_SONNET,
         ),
         # Embeddings → OpenAI (superior 3072-dim vectors)
         TaskType.EMBEDDINGS: ProviderConfig(
