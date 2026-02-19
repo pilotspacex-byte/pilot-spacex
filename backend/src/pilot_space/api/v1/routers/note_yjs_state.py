@@ -30,9 +30,9 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Request, Response, status
-from sqlalchemy import text
 
 from pilot_space.api.v1.dependencies import NoteRepositoryDep, WorkspaceRepositoryDep
+from pilot_space.api.v1.repository_deps import NoteYjsStateRepositoryDep
 from pilot_space.dependencies.auth import SessionDep, SyncedUserId
 from pilot_space.infrastructure.logging import get_logger
 
@@ -81,29 +81,22 @@ async def get_yjs_state(
     session: SessionDep,
     workspace_repo: WorkspaceRepositoryDep,
     note_repo: NoteRepositoryDep,
+    yjs_repo: NoteYjsStateRepositoryDep,
     _current_user: SyncedUserId,
 ) -> Response:
     await _validate_note_access(workspace_id, note_id, workspace_repo, note_repo)
 
-    result = await session.execute(
-        text("SELECT state FROM note_yjs_states WHERE note_id = :note_id"),
-        {"note_id": str(note_id)},
-    )
-    row = result.fetchone()
-    if not row:
+    state = await yjs_repo.get_state(note_id)
+    if not state:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No Yjs state persisted for this note",
         )
 
-    logger.debug(
-        "[YjsState] GET note_id=%s state_bytes=%d",
-        note_id,
-        len(row[0]),
-    )
+    logger.debug("[YjsState] GET note_id=%s state_bytes=%d", note_id, len(state))
 
     return Response(
-        content=bytes(row[0]),
+        content=state,
         media_type="application/octet-stream",
         headers={"Cache-Control": "no-store"},
     )
@@ -125,6 +118,7 @@ async def put_yjs_state(
     session: SessionDep,
     workspace_repo: WorkspaceRepositoryDep,
     note_repo: NoteRepositoryDep,
+    yjs_repo: NoteYjsStateRepositoryDep,
     _current_user: SyncedUserId,
 ) -> Response:
     await _validate_note_access(workspace_id, note_id, workspace_repo, note_repo)
@@ -143,22 +137,8 @@ async def put_yjs_state(
             detail=f"Yjs state exceeds 4 MB limit ({len(body)} bytes)",
         )
 
-    # Upsert: insert or replace on conflict
-    await session.execute(
-        text("""
-            INSERT INTO note_yjs_states (note_id, state, updated_at)
-            VALUES (:note_id, :state, now())
-            ON CONFLICT (note_id)
-            DO UPDATE SET state = EXCLUDED.state, updated_at = now()
-        """),
-        {"note_id": str(note_id), "state": body},
-    )
-    await session.commit()
+    await yjs_repo.upsert_state(note_id, body)
 
-    logger.debug(
-        "[YjsState] PUT note_id=%s state_bytes=%d",
-        note_id,
-        len(body),
-    )
+    logger.debug("[YjsState] PUT note_id=%s state_bytes=%d", note_id, len(body))
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

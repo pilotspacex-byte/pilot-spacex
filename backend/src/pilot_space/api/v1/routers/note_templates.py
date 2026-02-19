@@ -158,7 +158,7 @@ async def get_template(
     return NoteTemplateResponse.model_validate(row)
 
 
-@router.put(
+@router.patch(
     "/workspaces/{workspace_id}/templates/{template_id}",
     response_model=NoteTemplateResponse,
 )

@@ -90,6 +90,9 @@ from pilot_space.infrastructure.database.repositories.note_repository import (
 from pilot_space.infrastructure.database.repositories.note_version_repository import (
     NoteVersionRepository,
 )
+from pilot_space.infrastructure.database.repositories.note_yjs_state_repository import (
+    NoteYjsStateRepository,
+)
 from pilot_space.infrastructure.database.repositories.onboarding_repository import (
     OnboardingRepository,
 )
@@ -245,6 +248,11 @@ class InfraContainer(containers.DeclarativeContainer):
 
     note_version_repository = providers.Factory(
         NoteVersionRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    note_yjs_state_repository = providers.Factory(
+        NoteYjsStateRepository,
         session=providers.Callable(get_current_session),
     )
 
