@@ -104,21 +104,21 @@ function StatusBanner({
       {!readOnly && status === 'open' && (
         <button
           type="button"
-          className="ml-auto text-[10px] opacity-70 hover:opacity-100 transition-opacity"
+          className="ml-auto text-[10px] opacity-70 hover:opacity-100 transition-opacity inline-flex items-center gap-0.5 px-2 py-1"
           onClick={() => onStatusChange('decided')}
           aria-label="Mark as decided"
         >
-          Decide →
+          Decide <ArrowRight className="size-3" aria-hidden="true" />
         </button>
       )}
       {!readOnly && status === 'decided' && (
         <button
           type="button"
-          className="ml-auto text-[10px] opacity-70 hover:opacity-100 transition-opacity"
+          className="ml-auto text-[10px] opacity-70 hover:opacity-100 transition-opacity inline-flex items-center gap-0.5 px-2 py-1"
           onClick={() => onStatusChange('superseded')}
           aria-label="Mark as superseded"
         >
-          Supersede →
+          Supersede <ArrowRight className="size-3" aria-hidden="true" />
         </button>
       )}
     </div>
@@ -142,9 +142,16 @@ function OptionCard({
         pmBlockStyles.decision.optionCard,
         isSelected && pmBlockStyles.decision.optionCardSelected
       )}
-      role="option"
-      aria-selected={isSelected}
+      role="radio"
+      aria-checked={isSelected}
+      tabIndex={readOnly ? -1 : 0}
       data-testid={`option-card-${option.id}`}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !readOnly) {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
     >
       <div className="flex items-start justify-between gap-2">
         <h4 className={pmBlockStyles.decision.optionTitle}>
@@ -154,6 +161,7 @@ function OptionCard({
         {!readOnly && !isSelected && (
           <button
             type="button"
+            tabIndex={-1}
             className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
             onClick={onSelect}
             aria-label={`Select ${option.label}`}
@@ -244,23 +252,39 @@ export function DecisionRenderer({
   );
 
   return (
-    <div data-testid="decision-renderer">
+    <div data-testid="decision-renderer" className={pmBlockStyles.shared.container}>
       {/* Status banner */}
       <StatusBanner status={data.status} onStatusChange={handleStatusChange} readOnly={readOnly} />
 
-      {/* Title */}
-      <div className="px-4 pt-3">
+      {/* Header */}
+      <div className={cn('px-4 pt-3', pmBlockStyles.shared.header)}>
         <h3 className="text-base font-semibold leading-snug">{data.title}</h3>
         {data.description && (
           <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{data.description}</p>
         )}
       </div>
 
-      {/* Options grid */}
+      {/* Options grid — radiogroup semantics */}
       <div
         className={cn('px-4 pt-3', pmBlockStyles.decision.optionGrid)}
-        role="listbox"
+        role="radiogroup"
         aria-label="Decision options"
+        onKeyDown={(e) => {
+          if (readOnly) return;
+          const currentIdx = data.options.findIndex((o) => o.id === data.selectedOptionId);
+          let nextIdx: number | null = null;
+          if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            nextIdx = (currentIdx + 1) % data.options.length;
+          } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            nextIdx = currentIdx <= 0 ? data.options.length - 1 : currentIdx - 1;
+          }
+          if (nextIdx !== null) {
+            const nextOption = data.options[nextIdx];
+            if (nextOption) handleSelectOption(nextOption.id);
+          }
+        }}
       >
         {data.options.map((option, idx) => (
           <OptionCard

@@ -34,7 +34,14 @@ export type SSEEventType =
   | 'memory_update'
   | 'tool_input_delta'
   | 'focus_block'
-  | 'error';
+  | 'error'
+  // Feature 015: AI Workforce Platform intent lifecycle events
+  | 'intent_detected'
+  | 'intent_confirmed'
+  | 'intent_executing'
+  | 'intent_completed'
+  | 'queue_update'
+  | 'skill_completed';
 
 /**
  * Base SSE event structure.
@@ -516,7 +523,8 @@ export type ErrorCode =
   | 'invalid_input'
   | 'resource_not_found'
   | 'provider_error'
-  | 'timeout';
+  | 'timeout'
+  | 'CONFIRMATION_TIMEOUT';
 
 /** T58: Citation event for source attribution. */
 export interface CitationEvent extends SSEEvent {
@@ -588,6 +596,17 @@ export interface FocusBlockEvent extends SSEEvent {
   };
 }
 
+// Feature 015: Intent/skill lifecycle events extracted to events-workforce.ts.
+// Re-exported here for backward compatibility.
+export type {
+  IntentDetectedEvent,
+  IntentConfirmedEvent,
+  IntentExecutingEvent,
+  IntentCompletedEvent,
+  SkillCompletedEvent,
+  QueueUpdateEvent,
+} from './events-workforce';
+
 // Type guards extracted to ./event-guards.ts to keep this file under 700 lines.
 // Re-export for backward compatibility.
 export {
@@ -610,4 +629,10 @@ export {
   isMemoryUpdateEvent,
   isToolInputDeltaEvent,
   isFocusBlockEvent,
+  isIntentDetectedEvent,
+  isIntentConfirmedEvent,
+  isIntentExecutingEvent,
+  isIntentCompletedEvent,
+  isSkillCompletedEvent,
+  isQueueUpdateEvent,
 } from './event-guards';

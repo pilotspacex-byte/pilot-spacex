@@ -39,6 +39,10 @@ import { ChatInput } from './ChatInput/ChatInput';
 import { InlineApprovalCard } from './MessageList/InlineApprovalCard';
 import { WaitingIndicator } from './WaitingIndicator';
 import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
+import { IntentMessageRenderer } from './MessageList/IntentMessageRenderer';
+import { ConfirmAllButton } from './ConfirmAllButton';
+import { QueueDepthIndicator } from './QueueDepthIndicator';
+import { useIntentRehydration } from './hooks/useIntentRehydration';
 
 /**
  * Destructive actions that require modal overlay approval (DD-003).
@@ -186,6 +190,9 @@ const ChatViewInternal = observer<ChatViewProps>(
     // Initialize SessionListStore (T075-T079)
     const [sessionListStore] = useState(() => new SessionListStore(store));
 
+    // T-062: Rehydrate active intents + pending approvals on mount/workspace change
+    useIntentRehydration(store);
+
     // Track which note context has been loaded to avoid redundant fetches
     const loadedContextRef = useRef<string | null>(null);
     // Track if auto-resume is in progress to prevent race conditions
@@ -248,37 +255,33 @@ const ChatViewInternal = observer<ChatViewProps>(
       autoResumeSession();
     }, [store.noteContext?.noteId, sessionListStore, store]);
 
-    // Convert TaskState to AgentTask for TaskPanel with progress data
-    const agentTasks = useMemo((): AgentTask[] => {
-      return Array.from(store.tasks.values()).map((task) => ({
-        id: task.id,
-        subject: task.subject,
-        description: task.description || '',
-        activeForm: task.currentStep || task.subject,
-        // Map 'blocked' to 'pending' since AgentTask doesn't support blocked
-        status: task.status === 'blocked' ? 'pending' : task.status,
-        createdAt: task.createdAt,
-        completedAt: task.status === 'completed' ? task.updatedAt : undefined,
-        // Include progress data for T071-T074
-        progress: task.progress,
-        currentStep: task.currentStep,
-        totalSteps: task.totalSteps,
-        estimatedSecondsRemaining: task.estimatedSecondsRemaining,
-        // Subagent identity
-        subagent: task.agentName,
-        model: task.model,
-      }));
-    }, [store.tasks]);
+    // Convert TaskState to AgentTask for TaskPanel with progress data.
+    // Uses MobX computed agentTaskList to avoid useMemo([store.tasks]) re-creating
+    // on every observable Map mutation.
+    const agentTasks: AgentTask[] = store.agentTaskList.map((task) => ({
+      id: task.id,
+      subject: task.subject,
+      description: task.description || '',
+      activeForm: task.currentStep || task.subject,
+      // Map 'blocked' to 'pending' since AgentTask doesn't support blocked
+      status: task.status === 'blocked' ? 'pending' : task.status,
+      createdAt: task.createdAt,
+      completedAt: task.status === 'completed' ? task.updatedAt : undefined,
+      // Include progress data for T071-T074
+      progress: task.progress,
+      currentStep: task.currentStep,
+      totalSteps: task.totalSteps,
+      estimatedSecondsRemaining: task.estimatedSecondsRemaining,
+      // Subagent identity
+      subagent: task.agentName,
+      model: task.model,
+    }));
 
-    const activeAgentTasks = useMemo(
-      () => agentTasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
-      [agentTasks]
+    const activeAgentTasks = agentTasks.filter(
+      (t) => t.status === 'pending' || t.status === 'in_progress'
     );
 
-    const completedAgentTasks = useMemo(
-      () => agentTasks.filter((t) => t.status === 'completed'),
-      [agentTasks]
-    );
+    const completedAgentTasks = agentTasks.filter((t) => t.status === 'completed');
 
     // Convert ApprovalRequest to ChatView ApprovalRequest
     const chatViewApprovals = useMemo(() => {
@@ -436,6 +439,9 @@ const ChatViewInternal = observer<ChatViewProps>(
 
         {/* Main content area - relative for floating abort button */}
         <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
+          {/* T-060: Queue depth indicator — sticky top of message area */}
+          <QueueDepthIndicator store={store} />
+
           {/* Messages or loading skeleton */}
           {isResumingSession ? (
             <ConversationLoadingSkeleton />
@@ -495,6 +501,11 @@ const ChatViewInternal = observer<ChatViewProps>(
             )}
           </AnimatePresence>
 
+          {/* T-056/T-057: Intent lifecycle message renderer */}
+          {store.intents.size > 0 && (
+            <IntentMessageRenderer store={store} onPrefillInput={setInputValue} />
+          )}
+
           {/* Task panel */}
           {store.tasks.size > 0 && (
             <div className="px-4 pb-3">
@@ -523,7 +534,7 @@ const ChatViewInternal = observer<ChatViewProps>(
                   onClick={() => {
                     store.error = null;
                   }}
-                  className="text-destructive/60 hover:text-destructive shrink-0"
+                  className="p-1.5 -m-1.5 text-destructive/60 hover:text-destructive shrink-0"
                   aria-label="Dismiss error"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -550,6 +561,9 @@ const ChatViewInternal = observer<ChatViewProps>(
 
         {/* Streaming phase is now shown inline in MessageList */}
 
+        {/* T-059: ConfirmAll button — above ChatInput when >= 2 pending intents */}
+        <ConfirmAllButton store={store} />
+
         {/* Input */}
         <ChatInput
           value={inputValue}
@@ -572,13 +586,13 @@ const ChatViewInternal = observer<ChatViewProps>(
             store.issueContext
               ? {
                   issueId: store.issueContext.issueId,
-                  projectId: '', // TODO: Add projectId to store.issueContext
+                  projectId: store.issueContext.projectId ?? '',
                   title: store.issueContext.issueTitle || '',
                   description: '',
                 }
               : null
           }
-          projectContext={null} // TODO: Add projectContext to store
+          projectContext={null}
           tokenBudgetPercent={store.tokenBudgetPercent}
           tokensUsed={store.sessionState?.totalTokens}
           tokenBudget={8000}

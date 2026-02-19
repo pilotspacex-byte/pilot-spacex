@@ -146,7 +146,7 @@ export function RACIRenderer({ data: rawData, readOnly, onDataChange }: PMRender
       <h3 className="text-base font-semibold leading-snug mb-3">{data.title}</h3>
 
       <div className={pmBlockStyles.raci.grid}>
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full border-collapse text-sm" role="grid">
           <thead>
             <tr>
               <th className={cn(pmBlockStyles.raci.headerCell, 'text-left')}>Deliverable</th>
@@ -170,9 +170,10 @@ export function RACIRenderer({ data: rawData, readOnly, onDataChange }: PMRender
                         key={s}
                         className={cn(pmBlockStyles.raci.cell, role && ROLE_STYLES[role])}
                         onClick={() => handleCellClick(d, s)}
-                        role="button"
+                        role="gridcell"
                         tabIndex={readOnly ? -1 : 0}
                         aria-label={`${d} - ${s}: ${role || 'unassigned'}`}
+                        title="Click to cycle: R (Responsible) → A (Accountable) → C (Consulted) → I (Informed) → empty"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();

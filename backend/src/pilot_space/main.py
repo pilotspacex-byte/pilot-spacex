@@ -10,6 +10,7 @@ import dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from pilot_space.api.middleware.error_handler import register_exception_handlers
 from pilot_space.api.middleware.request_context import RequestContextMiddleware
 from pilot_space.api.v1.routers import (
     ai_annotations_router,
@@ -23,22 +24,31 @@ from pilot_space.api.v1.routers import (
     ai_sessions_router,
     ai_tasks_router,
     auth_router,
+    block_ownership_router,
     cycles_router,
     debug_router,
+    dependency_graph_router,
     ghost_text_router,
     homepage_notes_from_chat_router,
     homepage_router,
     integrations_router,
+    intents_router,
     issues_ai_context_router,
     issues_ai_context_streaming_router,
     issues_ai_router,
     issues_router,
     mcp_tools_router,
+    memory_router,
+    note_templates_router,
+    note_versions_router,
+    note_yjs_state_router,
     notes_ai_router,
     onboarding_router,
+    pm_blocks_router,
     projects_router,
     role_skills_router,
     role_templates_router,
+    skill_approvals_router,
     skills_router,
     webhooks_router,
     workspace_ai_settings_router,
@@ -96,17 +106,33 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start digest worker for homepage digest generation
     digest_worker_task: asyncio.Task[None] | None = None
     digest_worker = None
+    # T-069: Start memory worker for memory engine jobs (intent_dedup, embedding, DLQ)
+    memory_worker_task: asyncio.Task[None] | None = None
+    memory_worker = None
     queue_client = app.state.container.queue_client()
     if queue_client and redis_client:
         from pilot_space.infrastructure.queue.models import QueueName
 
         await queue_client.create_queue(QueueName.AI_LOW)
+        await queue_client.create_queue(QueueName.AI_NORMAL)
+
+        session_factory = app.state.container.session_factory()
 
         from pilot_space.ai.workers.digest_worker import DigestWorker
 
-        session_factory = app.state.container.session_factory()
         digest_worker = DigestWorker(queue_client, session_factory)
         digest_worker_task = asyncio.create_task(digest_worker.start())
+
+        from pilot_space.ai.workers.memory_worker import MemoryWorker
+
+        _google_secret = getattr(settings, "google_api_key", None)
+        _google_api_key: str | None = _google_secret.get_secret_value() if _google_secret else None
+        memory_worker = MemoryWorker(
+            queue=queue_client,
+            session_factory=session_factory,
+            google_api_key=_google_api_key,
+        )
+        memory_worker_task = asyncio.create_task(memory_worker.start())
 
     # Start question adapter cleanup task (FR-015: 5-min timeout enforcement)
     from pilot_space.ai.sdk.question_adapter import get_question_adapter
@@ -130,6 +156,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("digest_worker_stopped")
     if digest_worker_task:
         digest_worker_task.cancel()
+    # T-069: Graceful shutdown of memory worker
+    if memory_worker:
+        await memory_worker.stop()
+        logger.info("memory_worker_stopped")
+    if memory_worker_task:
+        memory_worker_task.cancel()
     if redis_client is not None:
         await redis_client.disconnect()
         logger.info("redis_disconnected")
@@ -149,6 +181,9 @@ app = FastAPI(
     openapi_url="/openapi.json",
     lifespan=lifespan,
 )
+
+# RFC 7807 exception handlers (must be registered before middleware)
+register_exception_handlers(app)
 
 # Request context middleware (must be first for header extraction)
 app.add_middleware(RequestContextMiddleware)
@@ -224,12 +259,21 @@ app.include_router(workspace_members_router, prefix=f"{API_V1_PREFIX}/workspaces
 app.include_router(workspace_note_issue_links_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_ai_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(block_ownership_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(note_templates_router, prefix=f"{API_V1_PREFIX}")
+app.include_router(note_versions_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(note_yjs_state_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_tasks_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(intents_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(memory_router, prefix=API_V1_PREFIX)
+app.include_router(pm_blocks_router, prefix=API_V1_PREFIX)
+app.include_router(dependency_graph_router, prefix=API_V1_PREFIX)
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_notes_from_chat_router, prefix=API_V1_PREFIX)
 app.include_router(role_templates_router, prefix=API_V1_PREFIX)
 app.include_router(role_skills_router, prefix=API_V1_PREFIX)
 app.include_router(skills_router, prefix=API_V1_PREFIX)
+app.include_router(skill_approvals_router, prefix=f"{API_V1_PREFIX}/workspaces")
 if debug_router:
     app.include_router(debug_router, prefix=API_V1_PREFIX)

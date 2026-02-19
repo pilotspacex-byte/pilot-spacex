@@ -521,9 +521,12 @@ _INJECTED_RULES = ("issues.md", "notes.md", "pm_blocks.md")
 # Max characters per rule file to prevent prompt bloat
 _MAX_RULE_CHARS = 4000
 
+# Module-level template cache; populated on first load per role_type
+_template_cache: dict[str, str] = {}
 
-def _load_role_template(role_type: str) -> str | None:
-    """Load a role template markdown file by role type.
+
+async def _load_role_template(role_type: str) -> str | None:
+    """Load a role template markdown file by role type (cached after first read).
 
     Args:
         role_type: Role type string (e.g., 'developer', 'architect').
@@ -531,12 +534,15 @@ def _load_role_template(role_type: str) -> str | None:
     Returns:
         Template content (body only, YAML frontmatter stripped) or None.
     """
+    if role_type in _template_cache:
+        return _template_cache[role_type]
+
     template_path = _ROLE_TEMPLATES_DIR / f"{role_type}.md"
     if not template_path.is_file():
         logger.debug("Role template not found: %s", template_path)
         return None
 
-    content = template_path.read_text(encoding="utf-8")
+    content = await asyncio.to_thread(template_path.read_text, encoding="utf-8")
 
     # Strip YAML frontmatter (--- ... ---)
     if content.startswith("---"):
@@ -544,10 +550,11 @@ def _load_role_template(role_type: str) -> str | None:
         if end_idx != -1:
             content = content[end_idx + 3 :].strip()
 
+    _template_cache[role_type] = content
     return content
 
 
-def _load_rules() -> str:
+async def _load_rules() -> str:
     """Load compact rule files for system prompt injection.
 
     Returns:
@@ -560,7 +567,7 @@ def _load_rules() -> str:
             logger.debug("Rule file not found: %s", rule_path)
             continue
 
-        content = rule_path.read_text(encoding="utf-8")
+        content = await asyncio.to_thread(rule_path.read_text, encoding="utf-8")
         if len(content) > _MAX_RULE_CHARS:
             content = content[:_MAX_RULE_CHARS] + "\n... (truncated)"
         parts.append(content)
@@ -568,7 +575,7 @@ def _load_rules() -> str:
     return "\n\n".join(parts)
 
 
-def build_dynamic_system_prompt(
+async def build_dynamic_system_prompt(
     base_prompt: str,
     role_type: str | None = None,
     workspace_name: str | None = None,
@@ -594,7 +601,7 @@ def build_dynamic_system_prompt(
 
     # 1. Role-specific section
     if role_type:
-        role_content = _load_role_template(role_type)
+        role_content = await _load_role_template(role_type)
         if role_content:
             sections.append(f"\n\n## Your User's Role\n{role_content}")
 
@@ -608,8 +615,57 @@ def build_dynamic_system_prompt(
         sections.append("\n\n" + "\n".join(ctx_parts))
 
     # 3. Operational rules
-    rules = _load_rules()
+    rules = await _load_rules()
     if rules:
         sections.append(f"\n\n## Operational Rules\n{rules}")
 
     return "".join(sections)
+
+
+async def save_session_messages(
+    *,
+    session_handler: Any,
+    session_id: Any,
+    message: str,
+    content_blocks: dict[str, dict[str, Any]],
+) -> None:
+    """Persist user + assistant messages to session store.
+
+    Extracted from PilotSpaceAgent._stream_with_space finally block (T-016).
+
+    Args:
+        session_handler: SessionHandler instance (or None).
+        session_id: Session UUID (or None — no-ops if falsy).
+        message: Original user message content.
+        content_blocks: Accumulated content blocks from the stream.
+    """
+    if not (session_handler and session_id):
+        return
+
+    try:
+        await session_handler.add_message(
+            session_id=session_id,
+            role="user",
+            content=message,
+        )
+        structured_content = build_structured_content(content_blocks)
+        if structured_content:
+            question_data = extract_question_data_from_blocks(content_blocks)
+            tool_calls = extract_tool_calls_from_blocks(content_blocks)
+            await session_handler.add_message(
+                session_id=session_id,
+                role="assistant",
+                content=structured_content,
+                question_data=question_data,
+                tool_calls=tool_calls,
+            )
+        logger.debug(
+            "[SDK/Space] Persisted messages to session %s (%d blocks)",
+            session_id,
+            len(content_blocks),
+        )
+    except Exception as exc:
+        logger.warning(
+            "[SDK/Space] Failed to persist session messages: %s",
+            exc,
+        )

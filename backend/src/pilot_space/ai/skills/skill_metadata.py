@@ -83,6 +83,42 @@ SKILL_UI_METADATA: dict[str, SkillUIMetadata] = {
             "Create a risk register and timeline for this project",
         ],
     ),
+    "generate-code": SkillUIMetadata(
+        category="engineering",
+        icon="Code2",
+        examples=[
+            "Generate a FastAPI endpoint for invitations",
+            "Create a React component for user cards",
+        ],
+    ),
+    "write-tests": SkillUIMetadata(
+        category="engineering",
+        icon="FlaskConical",
+        examples=["Write tests for this service", "Generate unit tests for this component"],
+    ),
+    "generate-migration": SkillUIMetadata(
+        category="engineering",
+        icon="Database",
+        examples=[
+            "Generate a migration to add priority column",
+            "Create migration for the events table",
+        ],
+    ),
+    "review-code": SkillUIMetadata(
+        category="review",
+        icon="GitPullRequest",
+        examples=["Review this endpoint for security issues", "Check this code for correctness"],
+    ),
+    "review-architecture": SkillUIMetadata(
+        category="review",
+        icon="Layers",
+        examples=["Review this architecture design", "What are the scalability risks here?"],
+    ),
+    "scan-security": SkillUIMetadata(
+        category="review",
+        icon="ShieldAlert",
+        examples=["Scan this code for vulnerabilities", "Check for OWASP Top 10 issues"],
+    ),
 }
 
 _DEFAULT_METADATA = SkillUIMetadata()

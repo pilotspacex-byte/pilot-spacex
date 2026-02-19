@@ -13,6 +13,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
     ForeignKey,
     Index,
+    Numeric,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -31,10 +32,10 @@ class WorkspaceRole(str, Enum):
     Hierarchy: owner > admin > member > guest
     """
 
-    OWNER = "owner"  # Full control, can delete workspace
-    ADMIN = "admin"  # Manage members, settings, integrations
-    MEMBER = "member"  # Create/edit content, standard access
-    GUEST = "guest"  # Read-only access to specific projects
+    OWNER = "OWNER"  # Full control, can delete workspace
+    ADMIN = "ADMIN"  # Manage members, settings, integrations
+    MEMBER = "MEMBER"  # Create/edit content, standard access
+    GUEST = "GUEST"  # Read-only access to specific projects
 
 
 class WorkspaceMember(BaseModel):
@@ -69,6 +70,14 @@ class WorkspaceMember(BaseModel):
         SQLEnum(WorkspaceRole, name="workspace_role", create_type=False),
         nullable=False,
         default=WorkspaceRole.MEMBER,
+    )
+
+    # T-246: Capacity planning — weekly hours available (from migration 045)
+    weekly_available_hours: Mapped[float] = mapped_column(
+        Numeric(5, 1),
+        nullable=False,
+        default=40.0,
+        server_default="40",
     )
 
     # Relationships — use lazy="select" to avoid implicit JOINs;

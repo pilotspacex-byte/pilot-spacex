@@ -62,6 +62,8 @@ class UpdateIssuePayload:
     module_id: UUID | None | _Unchanged = UNCHANGED
     parent_id: UUID | None | _Unchanged = UNCHANGED
     estimate_points: int | None | _Unchanged = UNCHANGED
+    # T-245: Time estimate in hours (0.5 increments)
+    estimate_hours: float | None | _Unchanged = UNCHANGED
     start_date: date | None | _Unchanged = UNCHANGED
     target_date: date | None | _Unchanged = UNCHANGED
     sort_order: int | _Unchanged = UNCHANGED
@@ -340,6 +342,26 @@ class UpdateIssueService:
                         field="estimate_points",
                         old_value=old_value,
                         new_value=str(payload.estimate_points) if payload.estimate_points else None,
+                    )
+                )
+
+        if not isinstance(payload.estimate_hours, _Unchanged):
+            current_eh = float(issue.estimate_hours) if issue.estimate_hours is not None else None
+            if payload.estimate_hours != current_eh:
+                old_value = str(current_eh) if current_eh is not None else None
+                issue.estimate_hours = payload.estimate_hours
+                changed_fields.append("estimate_hours")
+                activities.append(
+                    Activity(
+                        workspace_id=issue.workspace_id,
+                        issue_id=issue.id,
+                        actor_id=payload.actor_id,
+                        activity_type=ActivityType.ESTIMATE_SET,
+                        field="estimate_hours",
+                        old_value=old_value,
+                        new_value=str(payload.estimate_hours)
+                        if payload.estimate_hours is not None
+                        else None,
                     )
                 )
 

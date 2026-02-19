@@ -95,6 +95,8 @@ import {
 } from './InlineIssueExtension';
 import { ParagraphSplitExtension, type ParagraphSplitOptions } from './ParagraphSplitExtension';
 import { AIBlockProcessingExtension } from './AIBlockProcessingExtension';
+import { OwnershipExtension, type OwnershipOptions, type BlockOwner } from './OwnershipExtension';
+import { DensityExtension, type DensityOptions } from './DensityExtension';
 
 export interface EditorExtensionsOptions {
   /** Placeholder text for empty editor */
@@ -156,6 +158,13 @@ export interface EditorExtensionsOptions {
   enableParagraphSplit?: boolean;
   /** Paragraph split configuration */
   paragraphSplit?: Partial<ParagraphSplitOptions>;
+  /** Ownership extension configuration (M6b — Feature 016) */
+  ownership?: Partial<OwnershipOptions> & {
+    /** Called when human tries to edit an AI block (show edit guard toast) */
+    onGuardBlock?: (blockId: string, owner: BlockOwner) => void;
+  };
+  /** Density extension configuration (M8 — Feature 016 Sprint 3) */
+  density?: Partial<DensityOptions>;
 }
 
 /**
@@ -219,6 +228,8 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
     inlineIssue,
     enableParagraphSplit = true,
     paragraphSplit,
+    ownership,
+    density,
   } = options;
 
   const extensions: AnyExtension[] = [];
@@ -443,10 +454,27 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
   }
 
   // ── Group 6: Visual overlays (read-only, order-independent) ─────────
+  // Ownership extension — block-level human/AI boundary enforcement (M6b, Feature 016)
+  extensions.push(
+    OwnershipExtension.configure({
+      actor: 'human',
+      ...ownership,
+    })
+  );
+
   // AI block processing indicator (decoration-based, reads from editor.storage)
   extensions.push(
     AIBlockProcessingExtension.configure({
       attributeName: 'blockId',
+    })
+  );
+
+  // Density extension — collapse/focus mode for AI blocks (M8, Feature 016 Sprint 3)
+  extensions.push(
+    DensityExtension.configure({
+      noteId: '',
+      focusModeDefault: false,
+      ...density,
     })
   );
 

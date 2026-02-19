@@ -1,5 +1,8 @@
+import { supabase } from '@/lib/supabase';
 import { apiClient, type PaginatedResponse } from './client';
 import type { Note, CreateNoteData, JSONContent, NoteAnnotation, AnnotationStatus } from '@/types';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 
 interface NoteFilters {
   projectId?: string;
@@ -99,5 +102,41 @@ export const notesApi = {
       `/workspaces/${workspaceId}/notes/${noteId}/annotations/${annotationId}`,
       { status }
     );
+  },
+};
+
+/**
+ * Raw binary API for Yjs CRDT state persistence (T-117).
+ *
+ * Uses fetch directly (not axios) because axios cannot handle
+ * application/octet-stream request/response bodies cleanly.
+ * JWT is obtained from the current Supabase session.
+ */
+export const noteYjsStateApi = {
+  async get(workspaceId: string, noteId: string): Promise<Uint8Array | null> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/notes/${noteId}/yjs-state`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`YjsState GET failed: ${res.status}`);
+    return new Uint8Array(await res.arrayBuffer());
+  },
+
+  async put(workspaceId: string, noteId: string, state: Uint8Array): Promise<void> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/notes/${noteId}/yjs-state`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: state.buffer as ArrayBuffer,
+    });
+    if (!res.ok) throw new Error(`YjsState PUT failed: ${res.status}`);
   },
 };

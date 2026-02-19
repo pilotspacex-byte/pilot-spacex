@@ -71,6 +71,8 @@ class IssueCreateRequest(BaseSchema):
     module_id: UUID | None = None
     parent_id: UUID | None = None
     estimate_points: int | None = Field(None, ge=0, le=100)
+    # T-245: Time estimate in hours (0.5 increments)
+    estimate_hours: float | None = Field(None, ge=0, le=999.9, multiple_of=0.5)
     start_date: date | None = None
     target_date: date | None = None
     label_ids: list[UUID] = Field(default_factory=list)
@@ -92,6 +94,8 @@ class IssueUpdateRequest(BaseSchema):
     module_id: UUID | None = None
     parent_id: UUID | None = None
     estimate_points: int | None = Field(None, ge=0, le=100)
+    # T-245: Time estimate in hours (0.5 increments)
+    estimate_hours: float | None = Field(None, ge=0, le=999.9, multiple_of=0.5)
     start_date: date | None = None
     target_date: date | None = None
     sort_order: int | None = None
@@ -119,6 +123,8 @@ class IssueResponse(BaseSchema):
     description_html: str | None
     priority: IssuePriority
     estimate_points: int | None
+    # T-245: Time estimate in hours (0.5 increments)
+    estimate_hours: float | None
     start_date: date | None
     target_date: date | None
     sort_order: int
@@ -159,6 +165,9 @@ class IssueResponse(BaseSchema):
             description_html=issue.description_html,
             priority=issue.priority,
             estimate_points=issue.estimate_points,
+            estimate_hours=float(issue.estimate_hours)
+            if issue.estimate_hours is not None
+            else None,
             start_date=issue.start_date,
             target_date=issue.target_date,
             sort_order=issue.sort_order,

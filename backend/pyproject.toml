@@ -120,6 +120,8 @@ markers = [
     "api: marks tests as API endpoint tests",
     "e2e: marks tests as end-to-end tests",
     "performance: marks tests as performance benchmarks",
+    "benchmark: marks tests as latency/throughput benchmarks (excluded from PR gate)",
+    "contract: marks tests as contract tests (schema parity between backend and frontend)",
 ]
 
 [tool.coverage.run]

@@ -40,6 +40,12 @@ from pilot_space.infrastructure.database.repositories.integration_link_repositor
 from pilot_space.infrastructure.database.repositories.integration_repository import (
     IntegrationRepository,
 )
+from pilot_space.infrastructure.database.repositories.intent_artifact_repository import (
+    IntentArtifactRepository,
+)
+from pilot_space.infrastructure.database.repositories.intent_repository import (
+    WorkIntentRepository,
+)
 from pilot_space.infrastructure.database.repositories.invitation_repository import (
     InvitationRepository,
 )
@@ -68,6 +74,9 @@ from pilot_space.infrastructure.database.repositories.project_repository import 
 from pilot_space.infrastructure.database.repositories.role_skill_repository import (
     RoleSkillRepository,
     RoleTemplateRepository,
+)
+from pilot_space.infrastructure.database.repositories.skill_execution_repository import (
+    SkillExecutionRepository,
 )
 from pilot_space.infrastructure.database.repositories.task_repository import (
     TaskRepository,
@@ -98,6 +107,7 @@ __all__ = [
     "HomepageRepository",
     "IntegrationLinkRepository",
     "IntegrationRepository",
+    "IntentArtifactRepository",
     "InvitationRepository",
     "IssueActivityRow",
     "IssueFilters",
@@ -111,8 +121,10 @@ __all__ = [
     "ProjectRepository",
     "RoleSkillRepository",
     "RoleTemplateRepository",
+    "SkillExecutionRepository",
     "TaskRepository",
     "TemplateRepository",
     "UserRepository",
+    "WorkIntentRepository",
     "WorkspaceRepository",
 ]

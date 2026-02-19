@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, type ChangeEvent } from 'react';
 import { observer } from 'mobx-react-lite';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
@@ -286,6 +286,23 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
     [wrapEstimate, onUpdate]
   );
 
+  const { wrapMutation: wrapHours } = useSaveStatus('estimateHours');
+  const handleEstimateHoursBlur = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value;
+      if (raw === '') {
+        wrapHours(() => onUpdate({ estimateHours: undefined })).catch(() => {});
+        return;
+      }
+      const val = parseFloat(raw);
+      if (!isNaN(val) && val >= 0 && val <= 9999.9) {
+        const rounded = Math.round(val * 2) / 2;
+        wrapHours(() => onUpdate({ estimateHours: rounded })).catch(() => {});
+      }
+    },
+    [wrapHours, onUpdate]
+  );
+
   return (
     <aside
       aria-label="Issue properties"
@@ -364,6 +381,27 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
             disabled={disabled}
             className="h-8 flex-1"
           />
+        </PropertyRow>
+
+        <PropertyRow label="Hours">
+          <input
+            type="number"
+            min={0}
+            max={9999.9}
+            step={0.5}
+            defaultValue={issue.estimateHours ?? ''}
+            onBlur={handleEstimateHoursBlur}
+            disabled={disabled}
+            aria-label="Time estimate in hours"
+            placeholder="0.0"
+            className={cn(
+              'h-8 w-full flex-1 rounded-[10px] border border-input bg-background px-3 text-sm',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+              'text-foreground placeholder:text-muted-foreground'
+            )}
+          />
+          <span className="shrink-0 text-xs text-muted-foreground">h</span>
         </PropertyRow>
       </section>
 

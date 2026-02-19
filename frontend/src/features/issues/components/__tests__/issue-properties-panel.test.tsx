@@ -192,6 +192,7 @@ const mockMembers: WorkspaceMember[] = [
     avatarUrl: null,
     role: 'admin',
     joinedAt: '2025-01-01',
+    weeklyAvailableHours: 40,
   },
   {
     userId: 'user-2',
@@ -200,6 +201,7 @@ const mockMembers: WorkspaceMember[] = [
     avatarUrl: null,
     role: 'member',
     joinedAt: '2025-01-02',
+    weeklyAvailableHours: 40,
   },
 ];
 

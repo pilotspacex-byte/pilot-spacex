@@ -36,6 +36,9 @@ from pilot_space.infrastructure.database.repositories.ai_task_repository import 
 from pilot_space.infrastructure.database.repositories.approval_repository import (
     ApprovalRepository,
 )
+from pilot_space.infrastructure.database.repositories.constitution_repository import (
+    ConstitutionRuleRepository,
+)
 from pilot_space.infrastructure.database.repositories.cycle_repository import (
     CycleRepository,
 )
@@ -54,6 +57,12 @@ from pilot_space.infrastructure.database.repositories.integration_link_repositor
 from pilot_space.infrastructure.database.repositories.integration_repository import (
     IntegrationRepository,
 )
+from pilot_space.infrastructure.database.repositories.intent_artifact_repository import (
+    IntentArtifactRepository,
+)
+from pilot_space.infrastructure.database.repositories.intent_repository import (
+    WorkIntentRepository,
+)
 from pilot_space.infrastructure.database.repositories.invitation_repository import (
     InvitationRepository,
 )
@@ -66,6 +75,9 @@ from pilot_space.infrastructure.database.repositories.issue_repository import (
 from pilot_space.infrastructure.database.repositories.label_repository import (
     LabelRepository,
 )
+from pilot_space.infrastructure.database.repositories.memory_repository import (
+    MemoryEntryRepository,
+)
 from pilot_space.infrastructure.database.repositories.note_annotation_repository import (
     NoteAnnotationRepository,
 )
@@ -75,14 +87,29 @@ from pilot_space.infrastructure.database.repositories.note_issue_link_repository
 from pilot_space.infrastructure.database.repositories.note_repository import (
     NoteRepository,
 )
+from pilot_space.infrastructure.database.repositories.note_version_repository import (
+    NoteVersionRepository,
+)
+from pilot_space.infrastructure.database.repositories.note_yjs_state_repository import (
+    NoteYjsStateRepository,
+)
 from pilot_space.infrastructure.database.repositories.onboarding_repository import (
     OnboardingRepository,
+)
+from pilot_space.infrastructure.database.repositories.pm_block_insight_repository import (
+    PMBlockInsightRepository,
+)
+from pilot_space.infrastructure.database.repositories.pm_block_queries_repository import (
+    PMBlockQueriesRepository,
 )
 from pilot_space.infrastructure.database.repositories.project_repository import (
     ProjectRepository,
 )
 from pilot_space.infrastructure.database.repositories.role_skill_repository import (
     RoleSkillRepository,
+)
+from pilot_space.infrastructure.database.repositories.skill_execution_repository import (
+    SkillExecutionRepository,
 )
 from pilot_space.infrastructure.database.repositories.task_repository import (
     TaskRepository,
@@ -219,6 +246,26 @@ class InfraContainer(containers.DeclarativeContainer):
         session=providers.Callable(get_current_session),
     )
 
+    note_version_repository = providers.Factory(
+        NoteVersionRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    note_yjs_state_repository = providers.Factory(
+        NoteYjsStateRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    pm_block_insight_repository = providers.Factory(
+        PMBlockInsightRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    pm_block_queries_repository = providers.Factory(
+        PMBlockQueriesRepository,
+        session=providers.Callable(get_current_session),
+    )
+
     note_issue_link_repository = providers.Factory(
         NoteIssueLinkRepository,
         session=providers.Callable(get_current_session),
@@ -241,6 +288,31 @@ class InfraContainer(containers.DeclarativeContainer):
 
     task_repository = providers.Factory(
         TaskRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    work_intent_repository = providers.Factory(
+        WorkIntentRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    intent_artifact_repository = providers.Factory(
+        IntentArtifactRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    skill_execution_repository = providers.Factory(
+        SkillExecutionRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    memory_entry_repository = providers.Factory(
+        MemoryEntryRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    constitution_rule_repository = providers.Factory(
+        ConstitutionRuleRepository,
         session=providers.Callable(get_current_session),
     )
 

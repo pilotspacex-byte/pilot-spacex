@@ -42,3 +42,40 @@ export {
   type ValidateKeyResponse,
   type GuidedNoteResponse,
 } from './onboarding';
+export {
+  pmBlocksApi,
+  type SprintBoardData,
+  type SprintBoardLane,
+  type SprintBoardIssueCard,
+  type DependencyMapData,
+  type DepMapNode,
+  type DepMapEdge,
+  type CapacityPlanData,
+  type CapacityMember,
+  type ReleaseNotesData,
+  type ReleaseEntry,
+  type PMBlockInsight,
+  type InsightSeverity,
+} from './pm-blocks';
+export {
+  templatesApi,
+  type NoteTemplate,
+  type NoteTemplateListResponse,
+  type CreateTemplateData,
+  type UpdateTemplateData,
+} from './templates';
+export { noteYjsStateApi } from './note-yjs-state';
+export {
+  roleSkillsApi,
+  type SDLCRoleType,
+  type RoleTemplate,
+  type RoleTemplatesResponse,
+  type RoleSkill,
+  type RoleSkillsResponse,
+  type CreateRoleSkillPayload,
+  type UpdateRoleSkillPayload,
+  type GenerateSkillPayload,
+  type GenerateSkillResponse,
+  type RegenerateSkillResponse,
+  type RegenerateSkillPayload,
+} from './role-skills';

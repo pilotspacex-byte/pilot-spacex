@@ -23,12 +23,18 @@ import { PMBlockNodeView } from './PMBlockNodeView';
 
 /** All supported PM block types. */
 export const PM_BLOCK_TYPES = [
+  // Original 6
   'decision',
   'form',
   'raci',
   'risk',
   'timeline',
   'dashboard',
+  // Feature 017 — PM Block Engine (T-228)
+  'sprint-board',
+  'dependency-map',
+  'capacity-plan',
+  'release-notes',
 ] as const;
 
 export type PMBlockType = (typeof PM_BLOCK_TYPES)[number];

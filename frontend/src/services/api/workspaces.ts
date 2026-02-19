@@ -33,6 +33,8 @@ interface WorkspaceMemberResponse {
   workspace_id: string;
   role: WorkspaceRole;
   created_at: string;
+  /** T-246: Weekly capacity in hours (default 40) */
+  weeklyAvailableHours?: number;
   user?: {
     id: string;
     email: string;
@@ -76,6 +78,7 @@ function transformWorkspaceMember(response: WorkspaceMemberResponse): WorkspaceM
     workspaceId: response.workspace_id,
     role: response.role,
     joinedAt: response.created_at,
+    weeklyAvailableHours: response.weeklyAvailableHours ?? 40,
     user: {
       id: response.user?.id ?? response.user_id,
       email: response.user?.email ?? '',
@@ -171,5 +174,20 @@ export const workspacesApi = {
       { role }
     );
     return transformWorkspaceMember(response);
+  },
+
+  /**
+   * Update a member's weekly available hours (T-246).
+   * Any member can update their own; admins can update any.
+   */
+  async updateMemberAvailability(
+    workspaceId: string,
+    userId: string,
+    weeklyAvailableHours: number
+  ): Promise<void> {
+    await apiClient.patch<WorkspaceMemberResponse>(
+      `/workspaces/${workspaceId}/members/${userId}/availability`,
+      { weeklyAvailableHours }
+    );
   },
 };

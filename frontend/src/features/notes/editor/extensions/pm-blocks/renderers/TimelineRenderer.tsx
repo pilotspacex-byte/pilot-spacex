@@ -134,7 +134,7 @@ export function TimelineRenderer({ data, readOnly, onDataChange }: PMRendererPro
               <div key={ms.id} className="flex items-start">
                 {/* Milestone card */}
                 <div
-                  className={`${pmBlockStyles.timeline.milestone} min-w-[140px] p-2`}
+                  className={`${pmBlockStyles.timeline.milestone} min-w-[140px] min-h-[44px] p-2`}
                   role="button"
                   tabIndex={readOnly ? -1 : 0}
                   aria-label={`${ms.name || 'Unnamed'}: ${STATUS_LABELS[ms.status]}`}
@@ -192,6 +192,7 @@ export function TimelineRenderer({ data, readOnly, onDataChange }: PMRendererPro
                   {/* Remove button */}
                   {!readOnly && (
                     <button
+                      type="button"
                       className="text-[10px] text-muted-foreground hover:text-destructive mt-1"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -220,6 +221,7 @@ export function TimelineRenderer({ data, readOnly, onDataChange }: PMRendererPro
       {/* Add milestone */}
       {!readOnly && (
         <button
+          type="button"
           className={pmBlockStyles.shared.addButton}
           onClick={addMilestone}
           aria-label="Add milestone"

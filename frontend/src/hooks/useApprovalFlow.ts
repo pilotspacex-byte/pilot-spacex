@@ -28,6 +28,8 @@ export interface UseApprovalFlowOptions {
   showNotifications?: boolean;
   /** Callback when a new approval is received */
   onNewApproval?: (approval: PendingApproval) => void;
+  /** Callback to show/navigate to a specific approval. Called from toast action button. */
+  onShowApproval?: (approvalId: string) => void;
 }
 
 export interface UseApprovalFlowReturn {
@@ -88,6 +90,7 @@ export function useApprovalFlow({
   enableRealtime = true,
   showNotifications = true,
   onNewApproval,
+  onShowApproval,
 }: UseApprovalFlowOptions): UseApprovalFlowReturn {
   const queryClient = useQueryClient();
 
@@ -210,13 +213,7 @@ export function useApprovalFlow({
               action: {
                 label: 'View',
                 onClick: () => {
-                  // Trigger a focus on the approval - this would typically
-                  // open a modal or navigate to approvals list
-                  window.dispatchEvent(
-                    new CustomEvent('pilot:show-approval', {
-                      detail: { approvalId: newApproval.id },
-                    })
-                  );
+                  onShowApproval?.(newApproval.id);
                 },
               },
             });
@@ -256,7 +253,7 @@ export function useApprovalFlow({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [workspaceId, enableRealtime, showNotifications, queryClient, onNewApproval]);
+  }, [workspaceId, enableRealtime, showNotifications, queryClient, onNewApproval, onShowApproval]);
 
   // Wrapper functions for mutations
   const approve = React.useCallback(

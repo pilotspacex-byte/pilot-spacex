@@ -21,6 +21,8 @@ import {
 } from 'react';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { AlertTriangle, RotateCcw, Code } from 'lucide-react';
+import { toast } from 'sonner';
+import { useWorkspaceStore } from '@/stores';
 import { pmBlockStyles } from './pm-block-styles';
 import type { PMBlockType } from './PMBlockExtension';
 import { useBlockEditGuard } from './shared/useBlockEditGuard';
@@ -38,6 +40,19 @@ const RENDERER_MAP: Record<PMBlockType, ComponentType<PMRendererProps>> = {
   ),
   dashboard: lazy(() =>
     import('./renderers/DashboardRenderer').then((m) => ({ default: m.DashboardRenderer }))
+  ),
+  // Feature 017 — PM Block Engine (T-228): renderers TBD
+  'sprint-board': lazy(() =>
+    import('./renderers/SprintBoardRenderer').then((m) => ({ default: m.SprintBoardRenderer }))
+  ),
+  'dependency-map': lazy(() =>
+    import('./renderers/DependencyMapRenderer').then((m) => ({ default: m.DependencyMapRenderer }))
+  ),
+  'capacity-plan': lazy(() =>
+    import('./renderers/CapacityPlanRenderer').then((m) => ({ default: m.CapacityPlanRenderer }))
+  ),
+  'release-notes': lazy(() =>
+    import('./renderers/ReleaseNotesRenderer').then((m) => ({ default: m.ReleaseNotesRenderer }))
   ),
 };
 
@@ -63,13 +78,20 @@ const BLOCK_TYPE_LABELS: Record<PMBlockType, string> = {
   risk: 'Risk Register',
   timeline: 'Timeline',
   dashboard: 'KPI Dashboard',
+  // Feature 017 — PM Block Engine (T-228)
+  'sprint-board': 'Sprint Board',
+  'dependency-map': 'Dependency Map',
+  'capacity-plan': 'Capacity Plan',
+  'release-notes': 'Release Notes',
 };
 
 /** Loading skeleton shown while renderer chunk loads. */
 function RendererSkeleton() {
   return (
-    <div className="flex items-center justify-center p-8 text-xs text-muted-foreground">
-      Loading block...
+    <div className="p-4 space-y-2 animate-pulse" aria-busy="true" aria-label="Loading block">
+      <div className="h-3 w-2/5 rounded bg-muted" />
+      <div className="h-3 w-full rounded bg-muted" />
+      <div className="h-3 w-4/5 rounded bg-muted" />
     </div>
   );
 }
@@ -188,13 +210,32 @@ export function PMBlockNodeView({ node, updateAttributes, editor }: NodeViewProp
     [updateAttributes, blockId, markEdited]
   );
 
+  const workspaceStore = useWorkspaceStore();
+
   const onCreateIssue = useCallback(
-    (context: { blockType: PMBlockType; data: Record<string, unknown> }) => {
-      document.dispatchEvent(
-        new CustomEvent('pm-block:create-issue', { detail: { ...context, blockId } })
-      );
+    async (context: { blockType: PMBlockType; data: Record<string, unknown> }) => {
+      const workspaceId = workspaceStore.currentWorkspaceId;
+      if (!workspaceId) {
+        toast.error('No workspace selected');
+        return;
+      }
+      const title = (context.data.title as string) || `${context.blockType} issue`;
+      const description = context.data.description as string | undefined;
+      try {
+        const { issuesApi } = await import('@/services/api/issues');
+        const issue = await issuesApi.create(workspaceId, {
+          name: title,
+          description: description || '',
+          type: 'task',
+        });
+        const linkedIds = (context.data.linkedIssueIds as string[]) || [];
+        onDataChange({ ...context.data, linkedIssueIds: [...linkedIds, issue.id] });
+        toast.success(`Issue ${issue.identifier} created`);
+      } catch {
+        toast.error('Failed to create issue');
+      }
     },
-    [blockId]
+    [workspaceStore, onDataChange]
   );
 
   const Renderer = RENDERER_MAP[blockType];
