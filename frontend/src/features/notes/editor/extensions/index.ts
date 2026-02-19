@@ -61,5 +61,18 @@ export {
 export { InlineIssueComponent } from './InlineIssueComponent';
 export { ParagraphSplitExtension, type ParagraphSplitOptions } from './ParagraphSplitExtension';
 
+// Ownership extension (M6b — Feature 016)
+export {
+  OwnershipExtension,
+  getBlockOwner,
+  canEdit,
+  extractSkillName,
+  buildAriaLabel,
+  type BlockOwner,
+  type EditActor,
+  type OwnershipOptions,
+  type OwnershipStorage,
+} from './OwnershipExtension';
+
 // Factory function
 export { createEditorExtensions, type EditorExtensionsOptions } from './createEditorExtensions';
