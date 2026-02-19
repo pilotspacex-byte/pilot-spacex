@@ -1,0 +1,253 @@
+# Nightly extended test suite: E2E + performance + security
+# Runs at 02:00 UTC daily against main and develop branches.
+#
+# Coverage beyond PR gate:
+#   Backend:  security (RLS + auth bypass), performance benchmarks, load tests
+#   Frontend: Playwright E2E, Lighthouse accessibility audit
+#
+# Features covered: 015-ai-workforce-platform, 016-note-collaboration, 017-note-versioning-pm
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # 02:00 UTC daily
+  workflow_dispatch:      # manual trigger for ad-hoc runs
+    inputs:
+      branch:
+        description: "Branch to run against"
+        default: "main"
+        required: false
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false  # never cancel nightly runs mid-flight
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+  PNPM_VERSION: "9"
+
+# ---------------------------------------------------------------------------
+# Backend: security tests
+# ---------------------------------------------------------------------------
+jobs:
+  security:
+    name: Security Tests (RLS + Auth)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: supabase/postgres:15.1.0.147
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pilot_space_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pilot_space_test
+      SECRET_KEY: test-secret-key-nightly
+      ENVIRONMENT: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run security tests (Features 015 + 016 + 017 RLS)
+        run: |
+          uv run pytest tests/security/ \
+            -m "security or not benchmark" \
+            -v \
+            --tb=short \
+            --no-header
+
+      - name: Upload security test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-test-results
+          path: backend/security-results/
+          retention-days: 30
+
+# ---------------------------------------------------------------------------
+# Backend: performance benchmarks (015 + 017)
+# ---------------------------------------------------------------------------
+  performance:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run memory search benchmarks (PERF-015-001 to 003)
+        run: |
+          uv run pytest tests/performance/test_memory_search_perf.py \
+            -v --tb=short --no-header
+
+      - name: Run version/PM block benchmarks (PERF-017-001 to 004)
+        run: |
+          uv run pytest tests/performance/test_version_perf.py \
+            -v --tb=short --no-header
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: backend/benchmark-results/
+          retention-days: 14
+
+# ---------------------------------------------------------------------------
+# Frontend: Playwright E2E
+# ---------------------------------------------------------------------------
+  e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Run E2E test suite (Features 015 + 016 + 017)
+        run: |
+          pnpm test:e2e \
+            --project=chromium \
+            --reporter=html
+        env:
+          CI: true
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-nightly
+          path: frontend/playwright-report/
+          retention-days: 30
+
+      - name: Upload test results on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-test-results-nightly
+          path: frontend/test-results/
+          retention-days: 14
+
+# ---------------------------------------------------------------------------
+# Frontend: Lighthouse accessibility audit
+# ---------------------------------------------------------------------------
+  lighthouse:
+    name: Lighthouse Accessibility Audit
+    runs-on: ubuntu-latest
+    needs: [e2e]
+    if: always()
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: "Run Lighthouse CI (accessibility threshold: 95)"
+        run: |
+          pnpm exec lhci autorun \
+            --config=lighthouserc.js \
+            --collect.numberOfRuns=1 \
+            --assert.preset=lighthouse:no-pwa \
+            --assert.assertions.accessibility=0.95
+        # accessibility failures are advisory, not blocking
+        continue-on-error: true
+
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-results
+          path: frontend/.lighthouseci/
+          retention-days: 14
+
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+  nightly-summary:
+    name: Nightly Summary
+    needs: [security, performance, e2e, lighthouse]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Report nightly status
+        run: |
+          echo "=== Nightly Test Summary ==="
+          echo "Security:     ${{ needs.security.result }}"
+          echo "Performance:  ${{ needs.performance.result }}"
+          echo "E2E:          ${{ needs.e2e.result }}"
+          echo "Lighthouse:   ${{ needs.lighthouse.result }}"
+
+          if [[ "${{ needs.security.result }}" == "failure" ]]; then
+            echo "::error::Security tests failed — potential RLS violation"
+            exit 1
+          fi
+          if [[ "${{ needs.performance.result }}" == "failure" ]]; then
+            echo "::warning::Performance benchmarks failed — review SLO degradation"
+          fi
+          echo "Nightly complete"
