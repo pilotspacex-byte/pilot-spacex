@@ -6,6 +6,7 @@ Feature 015: AI Workforce Platform — Sprint 2
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -72,7 +73,7 @@ class SkillDefinitionParser:
     def __init__(self, skills_base_path: Path | None = None) -> None:
         self._base = skills_base_path or _SKILLS_BASE_PATH
 
-    def parse(self, skill_name: str) -> SkillDefinition:
+    async def parse(self, skill_name: str) -> SkillDefinition:
         """Parse SKILL.md frontmatter for the given skill name.
 
         Args:
@@ -89,7 +90,8 @@ class SkillDefinitionParser:
             msg = f"SKILL.md not found for skill: {skill_name!r}"
             raise SkillDefinitionError(msg)
 
-        raw = skill_file.read_text(encoding="utf-8")
+        loop = asyncio.get_running_loop()
+        raw = await loop.run_in_executor(None, lambda: skill_file.read_text(encoding="utf-8"))
         return self._parse_raw(raw, skill_name)
 
     def _parse_raw(self, raw: str, skill_name: str) -> SkillDefinition:

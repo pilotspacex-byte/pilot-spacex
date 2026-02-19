@@ -156,7 +156,7 @@ class SkillExecutionService:
             raise ValueError(msg)
 
         # 2. Load skill definition
-        skill_def = self._load_skill_definition(payload.skill_name)
+        skill_def = await self._load_skill_definition(payload.skill_name)
 
         # 3. Validate TipTap output
         self._validate_tiptap_output(payload.output, payload.skill_name)
@@ -227,7 +227,7 @@ class SkillExecutionService:
         await self._session.flush()
         return created
 
-    def _load_skill_definition(self, skill_name: str) -> SkillDefinition:
+    async def _load_skill_definition(self, skill_name: str) -> SkillDefinition:
         """Load and parse the SkillDefinition from the SKILL.md file.
 
         Args:
@@ -239,7 +239,7 @@ class SkillExecutionService:
         Raises:
             SkillDefinitionError: If file is missing or frontmatter is invalid.
         """
-        return self._parser.parse(skill_name)
+        return await self._parser.parse(skill_name)
 
     def _validate_tiptap_output(self, output: Any, skill_name: str) -> None:
         """Validate that output is a well-formed TipTap block structure (T-045).

@@ -27,6 +27,7 @@ from pilot_space.api.v1.routers.ai_tasks import router as ai_tasks_router
 from pilot_space.api.v1.routers.auth import router as auth_router
 from pilot_space.api.v1.routers.block_ownership import router as block_ownership_router
 from pilot_space.api.v1.routers.cycles import router as cycles_router
+from pilot_space.api.v1.routers.dependency_graph import router as dependency_graph_router
 from pilot_space.api.v1.routers.ghost_text import router as ghost_text_router
 from pilot_space.api.v1.routers.homepage import (
     notes_from_chat_router as homepage_notes_from_chat_router,
@@ -45,6 +46,11 @@ from pilot_space.api.v1.routers.note_templates import router as note_templates_r
 from pilot_space.api.v1.routers.note_versions import router as note_versions_router
 from pilot_space.api.v1.routers.note_yjs_state import router as note_yjs_state_router
 from pilot_space.api.v1.routers.onboarding import router as onboarding_router
+from pilot_space.api.v1.routers.pm_blocks import router as pm_blocks_router
+from pilot_space.api.v1.routers.pm_capacity import router as pm_capacity_router
+from pilot_space.api.v1.routers.pm_dependency_graph import router as pm_dependency_graph_router
+from pilot_space.api.v1.routers.pm_release_notes import router as pm_release_notes_router
+from pilot_space.api.v1.routers.pm_sprint_board import router as pm_sprint_board_router
 from pilot_space.api.v1.routers.projects import router as projects_router
 from pilot_space.api.v1.routers.role_skills import (
     role_templates_router,
@@ -121,6 +127,7 @@ __all__ = [
     "block_ownership_router",
     "cycles_router",
     "debug_router",
+    "dependency_graph_router",
     "ghost_text_router",
     "homepage_notes_from_chat_router",
     "homepage_router",
@@ -136,6 +143,11 @@ __all__ = [
     "note_yjs_state_router",
     "notes_ai_router",
     "onboarding_router",
+    "pm_blocks_router",
+    "pm_capacity_router",
+    "pm_dependency_graph_router",
+    "pm_release_notes_router",
+    "pm_sprint_board_router",
     "projects_router",
     "role_skills_router",
     "role_templates_router",

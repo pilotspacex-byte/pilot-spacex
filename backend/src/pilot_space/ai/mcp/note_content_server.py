@@ -46,7 +46,20 @@ TOOL_NAMES = [
     f"mcp__{SERVER_NAME}__update_pm_block",
 ]
 
-_VALID_PM_BLOCK_TYPES = frozenset({"decision", "form", "raci", "risk", "timeline", "dashboard"})
+_VALID_PM_BLOCK_TYPES = frozenset(
+    {
+        "decision",
+        "form",
+        "raci",
+        "risk",
+        "timeline",
+        "dashboard",
+        "sprint-board",
+        "dependency-map",
+        "capacity-plan",
+        "release-notes",
+    }
+)
 
 # Regex to detect a JSON code fence wrapping TipTap JSON (e.g. taskList)
 _JSON_FENCE_RE = re.compile(

@@ -176,4 +176,20 @@ export const pmBlocksApi = {
       { params: { block_id: blockId } }
     );
   },
+
+  /**
+   * Submit an AI-proposed state transition for human approval (T-233, FR-050, DD-003).
+   * Returns an approval_id that the standard approvals flow resolves.
+   */
+  proposeTransition(
+    workspaceId: string,
+    issueId: string,
+    proposedState: string,
+    reason?: string
+  ): Promise<{ approvalId: string; status: string }> {
+    return apiClient.post<{ approvalId: string; status: string }>(
+      `/pm-blocks/workspaces/${workspaceId}/sprint-board/propose-transition`,
+      { issue_id: issueId, proposed_state: proposedState, reason }
+    );
+  },
 };
