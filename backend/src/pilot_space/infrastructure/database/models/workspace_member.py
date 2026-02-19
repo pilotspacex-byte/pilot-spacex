@@ -32,10 +32,10 @@ class WorkspaceRole(str, Enum):
     Hierarchy: owner > admin > member > guest
     """
 
-    OWNER = "owner"  # Full control, can delete workspace
-    ADMIN = "admin"  # Manage members, settings, integrations
-    MEMBER = "member"  # Create/edit content, standard access
-    GUEST = "guest"  # Read-only access to specific projects
+    OWNER = "OWNER"  # Full control, can delete workspace
+    ADMIN = "ADMIN"  # Manage members, settings, integrations
+    MEMBER = "MEMBER"  # Create/edit content, standard access
+    GUEST = "GUEST"  # Read-only access to specific projects
 
 
 class WorkspaceMember(BaseModel):

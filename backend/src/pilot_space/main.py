@@ -10,6 +10,7 @@ import dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from pilot_space.api.middleware.error_handler import register_exception_handlers
 from pilot_space.api.middleware.request_context import RequestContextMiddleware
 from pilot_space.api.v1.routers import (
     ai_annotations_router,
@@ -179,6 +180,9 @@ app = FastAPI(
     openapi_url="/openapi.json",
     lifespan=lifespan,
 )
+
+# RFC 7807 exception handlers (must be registered before middleware)
+register_exception_handlers(app)
 
 # Request context middleware (must be first for header extraction)
 app.add_middleware(RequestContextMiddleware)
