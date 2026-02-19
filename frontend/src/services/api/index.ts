@@ -58,3 +58,10 @@ export {
   type PMBlockInsight,
   type InsightSeverity,
 } from './pm-blocks';
+export {
+  templatesApi,
+  type NoteTemplate,
+  type NoteTemplateListResponse,
+  type CreateTemplateData,
+  type UpdateTemplateData,
+} from './templates';

@@ -12,3 +12,6 @@ export { VersionTimeline } from './VersionTimeline';
 export { VersionDiffViewer } from './VersionDiffViewer';
 
 export { VersionRestoreConfirm } from './VersionRestoreConfirm';
+
+export { TemplatePicker } from './TemplatePicker';
+export type { TemplatePickerProps, TemplateId } from './TemplatePicker';
