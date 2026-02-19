@@ -26,6 +26,7 @@ from pilot_space.api.v1.routers import (
     block_ownership_router,
     cycles_router,
     debug_router,
+    dependency_graph_router,
     ghost_text_router,
     homepage_notes_from_chat_router,
     homepage_router,
@@ -41,6 +42,7 @@ from pilot_space.api.v1.routers import (
     note_yjs_state_router,
     notes_ai_router,
     onboarding_router,
+    pm_blocks_router,
     projects_router,
     role_skills_router,
     role_templates_router,
@@ -258,6 +260,8 @@ app.include_router(note_versions_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(note_yjs_state_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_tasks_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(intents_router, prefix=API_V1_PREFIX)
+app.include_router(pm_blocks_router, prefix=API_V1_PREFIX)
+app.include_router(dependency_graph_router, prefix=API_V1_PREFIX)
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_notes_from_chat_router, prefix=API_V1_PREFIX)

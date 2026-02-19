@@ -33,6 +33,7 @@ interface MemberRowProps {
   onRoleChange: (userId: string, role: WorkspaceRole) => void;
   onRemove: (userId: string) => void;
   onTransferOwnership?: (userId: string) => void;
+  onAvailabilityChange?: (userId: string, hours: number) => void;
   isUpdating?: boolean;
 }
 
@@ -80,6 +81,7 @@ export function MemberRow({
   onRoleChange,
   onRemove,
   onTransferOwnership,
+  onAvailabilityChange,
   isUpdating = false,
 }: MemberRowProps) {
   const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner';
@@ -88,6 +90,7 @@ export function MemberRow({
   const canEditRole = isAdmin && !isMemberOwner && !isCurrentUser;
   const canRemove = isAdmin && !isMemberOwner && !isCurrentUser;
   const canTransferOwnership = isOwner && !isCurrentUser && !isMemberOwner;
+  const canEditAvailability = isCurrentUser || isAdmin;
 
   const initials = getInitials(member.fullName, member.email);
   const displayName = member.fullName || member.email.split('@')[0] || member.email;
@@ -121,6 +124,28 @@ export function MemberRow({
       <p className="hidden text-sm text-muted-foreground sm:block">
         {formatJoinDate(member.joinedAt)}
       </p>
+
+      {/* Weekly Available Hours (T-246) */}
+      <div className="hidden items-center gap-1 sm:flex">
+        <input
+          type="number"
+          min={0}
+          max={168}
+          step={1}
+          defaultValue={member.weeklyAvailableHours ?? 40}
+          disabled={!canEditAvailability || isUpdating}
+          aria-label={`Weekly available hours for ${member.fullName ?? member.email}`}
+          onBlur={(e) => {
+            if (!onAvailabilityChange) return;
+            const val = parseFloat(e.target.value);
+            if (!isNaN(val) && val >= 0 && val <= 168) {
+              onAvailabilityChange(member.userId, val);
+            }
+          }}
+          className="h-7 w-16 rounded-md border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        <span className="text-xs text-muted-foreground">h/wk</span>
+      </div>
 
       {/* Role + Actions group */}
       <div className="flex items-center gap-2 sm:gap-4">

@@ -15,11 +15,12 @@
  *
  * @module pm-blocks/renderers/SprintBoardRenderer
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, RefreshCw, Lock, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { pmBlocksApi } from '@/services/api/pm-blocks';
+import { issuesApi } from '@/services/api/issues';
 import { pmBlockStyles } from '../pm-block-styles';
 import { AIInsightBadge } from '../shared/AIInsightBadge';
 import type { PMRendererProps } from '../PMBlockNodeView';
@@ -62,17 +63,34 @@ const PRIORITY_COLORS: Record<string, string> = {
 interface IssueCardProps {
   issue: SprintBoardIssueCard;
   readOnly: boolean;
+  onDragStart?: (issueId: string, fromStateGroup: string) => void;
   onProposeTransition?: (issueId: string, newState: string) => void;
 }
 
-function IssueCard({ issue, readOnly, onProposeTransition }: IssueCardProps) {
+function IssueCard({ issue, readOnly, onDragStart, onProposeTransition }: IssueCardProps) {
   const priorityColor = PRIORITY_COLORS[issue.priority?.toLowerCase()] ?? PRIORITY_COLORS.none;
 
   return (
     <div
-      className="group/card rounded-lg border border-border bg-background p-2.5 shadow-sm dark:bg-card"
+      className={cn(
+        'group/card rounded-lg border border-border bg-background p-2.5 shadow-sm dark:bg-card',
+        !readOnly && 'cursor-grab active:cursor-grabbing'
+      )}
       data-testid={`issue-card-${issue.id}`}
       role="listitem"
+      draggable={!readOnly}
+      onDragStart={
+        !readOnly && onDragStart
+          ? (e) => {
+              e.dataTransfer.setData(
+                'text/plain',
+                JSON.stringify({ issueId: issue.id, fromStateGroup: issue.stateName })
+              );
+              e.dataTransfer.effectAllowed = 'move';
+              onDragStart(issue.id, issue.stateName);
+            }
+          : undefined
+      }
     >
       <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0 flex-1">
@@ -126,16 +144,59 @@ function IssueCard({ issue, readOnly, onProposeTransition }: IssueCardProps) {
 interface LaneColumnProps {
   lane: SprintBoardLane;
   readOnly: boolean;
+  onDropIssue?: (issueId: string, fromStateGroup: string, toStateGroup: string) => void;
   onProposeTransition?: (issueId: string, newState: string) => void;
 }
 
-function LaneColumn({ lane, readOnly, onProposeTransition }: LaneColumnProps) {
+function LaneColumn({ lane, readOnly, onDropIssue, onProposeTransition }: LaneColumnProps) {
   const stateKey = lane.stateGroup?.toLowerCase().replace(/\s+/g, '_') ?? 'backlog';
   const bgColor = LANE_COLORS[stateKey] ?? 'bg-muted/30';
   const labelColor = LANE_LABEL_COLORS[stateKey] ?? 'text-muted-foreground';
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (readOnly) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setIsDragOver(true);
+    },
+    [readOnly]
+  );
+
+  const handleDragLeave = useCallback(() => setIsDragOver(false), []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (readOnly || !onDropIssue) return;
+      e.preventDefault();
+      setIsDragOver(false);
+      try {
+        const payload = JSON.parse(e.dataTransfer.getData('text/plain')) as {
+          issueId: string;
+          fromStateGroup: string;
+        };
+        if (payload.fromStateGroup !== lane.stateGroup) {
+          onDropIssue(payload.issueId, payload.fromStateGroup, lane.stateGroup);
+        }
+      } catch {
+        // Malformed drag payload — ignore
+      }
+    },
+    [readOnly, onDropIssue, lane.stateGroup]
+  );
 
   return (
-    <div className={cn('flex min-w-[180px] flex-col gap-2 rounded-lg p-2', bgColor)}>
+    <div
+      className={cn(
+        'flex min-w-[180px] flex-col gap-2 rounded-lg p-2 transition-colors motion-reduce:transition-none',
+        bgColor,
+        isDragOver && !readOnly && 'ring-2 ring-primary/40'
+      )}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* Lane header */}
       <div className="flex items-center justify-between px-0.5">
         <span className={cn('text-[11px] font-semibold uppercase tracking-wide', labelColor)}>
@@ -230,6 +291,7 @@ export function SprintBoardRenderer({ data: rawData, readOnly }: PMRendererProps
   const blockId = `sprint-board-${cycleId}`;
 
   const queryClient = useQueryClient();
+  const boardQueryKey = QUERY_KEYS.board(workspaceId, cycleId);
 
   const {
     data: boardData,
@@ -237,7 +299,7 @@ export function SprintBoardRenderer({ data: rawData, readOnly }: PMRendererProps
     isError,
     refetch,
   } = useQuery({
-    queryKey: QUERY_KEYS.board(workspaceId, cycleId),
+    queryKey: boardQueryKey,
     queryFn: () => pmBlocksApi.getSprintBoard(workspaceId, cycleId),
     enabled: Boolean(workspaceId && cycleId),
     staleTime: 30_000,
@@ -256,6 +318,60 @@ export function SprintBoardRenderer({ data: rawData, readOnly }: PMRendererProps
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.insights(workspaceId, blockId) });
     },
   });
+
+  // T-232: Drag-drop optimistic update — move issue between lanes
+  const moveIssueMutation = useMutation({
+    mutationFn: ({
+      issueId,
+      newStateGroup,
+    }: {
+      issueId: string;
+      fromStateGroup: string;
+      newStateGroup: string;
+    }) => issuesApi.updateState(workspaceId, issueId, newStateGroup),
+    onMutate: async ({ issueId, fromStateGroup, newStateGroup }) => {
+      await queryClient.cancelQueries({ queryKey: boardQueryKey });
+      const snapshot = queryClient.getQueryData(boardQueryKey);
+
+      queryClient.setQueryData(boardQueryKey, (prev: typeof boardData) => {
+        if (!prev) return prev;
+        let movedCard: SprintBoardIssueCard | undefined;
+        const lanes = prev.lanes.map((lane) => {
+          if (lane.stateGroup === fromStateGroup || lane.issues.some((i) => i.id === issueId)) {
+            const filtered = lane.issues.filter((i) => i.id !== issueId);
+            movedCard = lane.issues.find((i) => i.id === issueId);
+            return { ...lane, issues: filtered, count: filtered.length };
+          }
+          return lane;
+        });
+        const withTarget = lanes.map((lane) => {
+          if (lane.stateGroup === newStateGroup && movedCard) {
+            const updated = { ...movedCard, stateName: lane.stateName, stateId: lane.stateId };
+            return { ...lane, issues: [...lane.issues, updated], count: lane.count + 1 };
+          }
+          return lane;
+        });
+        return { ...prev, lanes: withTarget };
+      });
+
+      return { snapshot };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshot) {
+        queryClient.setQueryData(boardQueryKey, context.snapshot);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: boardQueryKey });
+    },
+  });
+
+  const handleDropIssue = useCallback(
+    (issueId: string, fromStateGroup: string, toStateGroup: string) => {
+      moveIssueMutation.mutate({ issueId, fromStateGroup, newStateGroup: toStateGroup });
+    },
+    [moveIssueMutation]
+  );
 
   const handleDismissInsight = useCallback(
     (insightId: string) => dismissMutation.mutate(insightId),
@@ -360,6 +476,7 @@ export function SprintBoardRenderer({ data: rawData, readOnly }: PMRendererProps
                 key={lane.stateId}
                 lane={lane}
                 readOnly={readOnly || Boolean(boardData.isReadOnly)}
+                onDropIssue={readOnly || boardData.isReadOnly ? undefined : handleDropIssue}
                 onProposeTransition={
                   readOnly || boardData.isReadOnly
                     ? undefined

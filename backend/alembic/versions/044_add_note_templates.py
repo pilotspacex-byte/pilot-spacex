@@ -240,10 +240,15 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             onupdate=sa.func.now(),
         ),
+        sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
     )
+
+    op.create_index("ix_note_templates_is_deleted", "note_templates", ["is_deleted"])
 
     # RLS: enable row-level security
     op.execute("ALTER TABLE note_templates ENABLE ROW LEVEL SECURITY")
+    op.execute("ALTER TABLE note_templates FORCE ROW LEVEL SECURITY")
 
     # RLS policy: members can read system templates and their workspace templates
     op.execute("""
@@ -253,7 +258,7 @@ def upgrade() -> None:
             is_system = true
             OR workspace_id IN (
                 SELECT workspace_id FROM workspace_members
-                WHERE user_id = auth.uid()
+                WHERE user_id = current_setting('app.current_user_id', true)::uuid
             )
         )
     """)
@@ -266,7 +271,7 @@ def upgrade() -> None:
             is_system = false
             AND workspace_id IN (
                 SELECT workspace_id FROM workspace_members
-                WHERE user_id = auth.uid()
+                WHERE user_id = current_setting('app.current_user_id', true)::uuid
                 AND role IN ('owner', 'admin')
             )
         )
@@ -280,7 +285,7 @@ def upgrade() -> None:
             is_system = false
             AND workspace_id IN (
                 SELECT workspace_id FROM workspace_members
-                WHERE user_id = auth.uid()
+                WHERE user_id = current_setting('app.current_user_id', true)::uuid
                 AND role IN ('owner', 'admin')
             )
         )
@@ -293,10 +298,10 @@ def upgrade() -> None:
         USING (
             is_system = false
             AND (
-                created_by = auth.uid()
+                created_by = current_setting('app.current_user_id', true)::uuid
                 OR workspace_id IN (
                     SELECT workspace_id FROM workspace_members
-                    WHERE user_id = auth.uid()
+                    WHERE user_id = current_setting('app.current_user_id', true)::uuid
                     AND role IN ('owner', 'admin')
                 )
             )

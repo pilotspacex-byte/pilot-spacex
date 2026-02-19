@@ -2,6 +2,7 @@
  * MembersSettingsPage - Workspace members management.
  *
  * T022: Member list, pending invitations, invite/remove/role-change actions.
+ * T-246: Weekly available hours input per member.
  * Admin-only editing, read-only for non-admins.
  */
 
@@ -20,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useStore } from '@/stores';
 import type { WorkspaceRole } from '@/stores/WorkspaceStore';
 import { useWorkspaceMembers } from '@/features/issues/hooks/use-workspace-members';
+import { workspacesApi } from '@/services/api/workspaces';
 import { useWorkspaceInvitations, useCancelInvitation } from '../hooks/use-workspace-invitations';
 import { ConfirmActionDialog } from '../components/confirm-action-dialog';
 import { MemberRow, ROLE_HIERARCHY } from '../components/member-row';
@@ -192,6 +194,17 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
     });
   };
 
+  const handleAvailabilityChange = async (userId: string, hours: number) => {
+    try {
+      await workspacesApi.updateMemberAvailability(workspaceId, userId, hours);
+      toast.success('Availability updated', {
+        description: `Weekly available hours set to ${hours}h.`,
+      });
+    } catch {
+      toast.error('Failed to update availability');
+    }
+  };
+
   if (membersLoading) {
     return (
       <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
@@ -258,6 +271,7 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
                   onRoleChange={handleRoleChange}
                   onRemove={handleRemoveMember}
                   onTransferOwnership={handleTransferOwnership}
+                  onAvailabilityChange={handleAvailabilityChange}
                   isUpdating={updatingMemberId === member.userId}
                 />
               ))}
