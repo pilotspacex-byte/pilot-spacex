@@ -24,7 +24,6 @@ export { approvalsApi } from './approvals';
 export { tasksApi } from './tasks';
 export {
   aiApi,
-  type GhostTextRequest,
   type AIContextRequest,
   type PRReviewRequest,
   type IssueExtractionRequest,

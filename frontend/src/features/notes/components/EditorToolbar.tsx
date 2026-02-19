@@ -4,6 +4,8 @@
  * EditorToolbar - Top toolbar for note editor with AI controls
  * Per T129: Ghost text toggle with Sparkles icon
  */
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { observer } from 'mobx-react-lite';
 
 import { Button } from '@/components/ui/button';
@@ -32,6 +34,9 @@ export const EditorToolbar = observer(function EditorToolbar({
   const aiStore = getAIStore();
   const isLoading = aiStore.ghostText.isLoading;
   const error = aiStore.ghostText.error;
+  const errorCode = aiStore.ghostText.errorCode;
+  const params = useParams();
+  const workspaceSlug = params.workspaceSlug as string | undefined;
 
   // Hide toolbar entirely when no AI activity
   if (!isLoading && !error) return null;
@@ -60,6 +65,15 @@ export const EditorToolbar = observer(function EditorToolbar({
       {error && (
         <div className="flex items-center gap-2 text-xs text-destructive">
           <span>{error}</span>
+          {errorCode === 402 && workspaceSlug && (
+            <Link
+              href={`/${workspaceSlug}/settings/ai-providers`}
+              className="underline hover:no-underline"
+              aria-label="Configure AI provider settings"
+            >
+              Settings
+            </Link>
+          )}
           <Button
             variant="ghost"
             size="sm"

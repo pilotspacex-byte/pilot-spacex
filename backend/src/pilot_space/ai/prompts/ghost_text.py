@@ -1,7 +1,7 @@
 """Ghost text prompt templates.
 
 Prompts for inline text completion suggestions.
-Optimized for low latency with Gemini Flash.
+Optimized for low latency with Claude Haiku.
 
 T087: Ghost text prompt template.
 """

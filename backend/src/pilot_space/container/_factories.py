@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from pilot_space.config import get_settings
 
 if TYPE_CHECKING:
+    from pilot_space.ai.infrastructure.anthropic_client_pool import AnthropicClientPool
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
     from pilot_space.ai.tools.mcp_server import ToolRegistry
@@ -94,6 +95,17 @@ def create_resilient_executor() -> ResilientExecutor:
     )
 
     return ResilientExecutor(circuit_config=circuit_config)
+
+
+def create_anthropic_client_pool() -> AnthropicClientPool:
+    """Create singleton Anthropic client pool for connection reuse.
+
+    Returns:
+        AnthropicClientPool instance.
+    """
+    from pilot_space.ai.infrastructure.anthropic_client_pool import AnthropicClientPool
+
+    return AnthropicClientPool()
 
 
 def create_tool_registry() -> ToolRegistry:

@@ -81,6 +81,7 @@ from pilot_space.application.services.workspace_member import WorkspaceMemberSer
 from pilot_space.config import Settings
 from pilot_space.container._base import InfraContainer
 from pilot_space.container._factories import (
+    create_anthropic_client_pool,
     create_pilotspace_agent,
     create_provider_selector,
     create_resilient_executor,
@@ -164,6 +165,8 @@ class Container(InfraContainer):
     provider_selector = providers.Singleton(create_provider_selector)
 
     resilient_executor = providers.Singleton(create_resilient_executor)
+
+    anthropic_client_pool = providers.Singleton(create_anthropic_client_pool)
 
     tool_registry = providers.Singleton(create_tool_registry)
 

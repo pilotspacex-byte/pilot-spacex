@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
     from pilot_space.ai.sdk import PermissionHandler, SessionHandler
+    from pilot_space.ai.services.ghost_text import GhostTextService
     from pilot_space.ai.session.session_manager import SessionManager
     from pilot_space.ai.tools.mcp_server import ToolRegistry
     from pilot_space.application.services.ai_context import (
@@ -507,6 +508,56 @@ async def get_queue_client(request: Request) -> SupabaseQueueClient | None:
     return request.app.state.container.queue_client()
 
 
+# ============================================================================
+# GhostTextService Dependencies
+# ============================================================================
+
+
+async def get_ghost_text_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    redis: Annotated[RedisClient, Depends(get_redis_client)],
+    request: Request,
+) -> GhostTextService:
+    """Get GhostTextService with AI infrastructure from container.
+
+    Follows the same pattern as get_ai_context_service:
+    - Singletons (executor, selector, client pool) from container
+    - Request-scoped deps (key_storage, cost_tracker) from session
+    - Redis from get_redis_client Depends (FastAPI deduplicates with RedisDep)
+
+    Args:
+        session: Database session (BYOK lookup + cost persistence).
+        redis: Redis client (shared with rate limiter via FastAPI Depends caching).
+        request: FastAPI request for container access.
+
+    Returns:
+        Configured GhostTextService.
+
+    Raises:
+        RuntimeError: If DI container not initialized.
+    """
+    from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+    from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+    from pilot_space.ai.services.ghost_text import GhostTextService
+
+    if not hasattr(request.app.state, "container"):
+        raise RuntimeError("DI container not initialized. Check app startup.")
+
+    container = request.app.state.container
+
+    return GhostTextService(
+        redis=redis,
+        resilient_executor=container.resilient_executor(),
+        provider_selector=container.provider_selector(),
+        client_pool=container.anthropic_client_pool(),
+        key_storage=SecureKeyStorage(
+            db=session,
+            master_secret=container.encryption_key(),
+        ),
+        cost_tracker=CostTracker(session=session),
+    )
+
+
 # Type aliases for AI dependencies (using string forward references)
 SessionManagerDep = Annotated["SessionManager | None", Depends(get_session_manager)]
 RedisDep = Annotated["RedisClient", Depends(get_redis_client)]
@@ -522,3 +573,4 @@ SessionHandlerDep = Annotated["SessionHandler | None", Depends(get_session_handl
 SkillRegistryDep = Annotated[Any, Depends(get_skill_registry_dep)]
 PilotSpaceAgentDep = Annotated["PilotSpaceAgent", Depends(get_pilotspace_agent)]
 QueueClientDep = Annotated["SupabaseQueueClient | None", Depends(get_queue_client)]
+GhostTextServiceDep = Annotated["GhostTextService", Depends(get_ghost_text_service)]

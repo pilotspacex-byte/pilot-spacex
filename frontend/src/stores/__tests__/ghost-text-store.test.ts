@@ -55,6 +55,7 @@ describe('GhostTextStore', () => {
       expect(ghostTextStore.isLoading).toBe(false);
       expect(ghostTextStore.isEnabled).toBe(true);
       expect(ghostTextStore.error).toBeNull();
+      expect(ghostTextStore.errorCode).toBeNull();
     });
 
     it('should respect AI store global enabled state', () => {
@@ -239,9 +240,141 @@ describe('GhostTextStore', () => {
       ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
 
       await vi.waitFor(() => {
-        expect(ghostTextStore.error).toBe('Ghost text request failed: 500');
+        expect(ghostTextStore.error).toBe('Ghost text failed (500)');
       });
       expect(ghostTextStore.isLoading).toBe(false);
+      expect(ghostTextStore.errorCode).toBe(500);
+    });
+
+    it('should set 402 errorCode and backend detail on missing API key', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: 'No Anthropic API key configured' }), {
+          status: 402,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      await vi.waitFor(() => {
+        expect(ghostTextStore.errorCode).toBe(402);
+      });
+      expect(ghostTextStore.error).toBe('No Anthropic API key configured');
+      expect(ghostTextStore.isLoading).toBe(false);
+    });
+
+    it('should set 403 errorCode and backend detail on unauthorized workspace', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: 'User is not a member of this workspace' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      await vi.waitFor(() => {
+        expect(ghostTextStore.errorCode).toBe(403);
+      });
+      expect(ghostTextStore.error).toBe('User is not a member of this workspace');
+      expect(ghostTextStore.isLoading).toBe(false);
+    });
+
+    it('should use fallback message for 402 with non-JSON body', async () => {
+      fetchSpy.mockResolvedValueOnce(new Response('Payment Required', { status: 402 }));
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      await vi.waitFor(() => {
+        expect(ghostTextStore.errorCode).toBe(402);
+      });
+      expect(ghostTextStore.error).toBe(
+        'No API key configured. Add one in Settings > AI Providers.'
+      );
+    });
+
+    it('should clear errorCode on abort', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: 'No Anthropic API key configured' }), {
+          status: 402,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+      await vi.waitFor(() => {
+        expect(ghostTextStore.errorCode).toBe(402);
+      });
+
+      ghostTextStore.abort();
+      expect(ghostTextStore.errorCode).toBeNull();
+      expect(ghostTextStore.error).toBeNull();
+    });
+
+    it('should clear stale error on cache hit', () => {
+      // Simulate prior error state
+      ghostTextStore.error = 'Ghost text failed (500)';
+      ghostTextStore.errorCode = 500;
+
+      // Populate cache
+      const cacheKey = 'note-123:Hello :Hello ';
+      // @ts-expect-error - accessing private cache for testing
+      ghostTextStore.cache.set(cacheKey, 'world');
+
+      // Cache hit should clear stale error
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      expect(ghostTextStore.suggestion).toBe('world');
+      expect(ghostTextStore.error).toBeNull();
+      expect(ghostTextStore.errorCode).toBeNull();
+    });
+  });
+
+  describe('confidence gating', () => {
+    it('should suppress suggestion when confidence < 0.5', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ suggestion: 'test', confidence: 0.3, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      await vi.waitFor(() => {
+        expect(ghostTextStore.isLoading).toBe(false);
+      });
+      expect(ghostTextStore.suggestion).toBe('');
+    });
+
+    it('should show suggestion when confidence >= 0.5', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ suggestion: 'test', confidence: 0.8, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      await vi.waitFor(() => {
+        expect(ghostTextStore.suggestion).toBe('test');
+      });
+    });
+
+    it('should show suggestion at exact confidence boundary (0.5)', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ suggestion: 'boundary', confidence: 0.5, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      await vi.waitFor(() => {
+        expect(ghostTextStore.suggestion).toBe('boundary');
+      });
     });
   });
 

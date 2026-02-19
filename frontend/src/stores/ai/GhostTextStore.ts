@@ -14,11 +14,28 @@ import { makeAutoObservable, runInAction } from 'mobx';
 import { aiApi } from '@/services/api/ai';
 import type { AIStore } from './AIStore';
 
+interface GhostTextResponse {
+  suggestion: string;
+  confidence: number;
+  cached: boolean;
+}
+
+class GhostTextError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number
+  ) {
+    super(message);
+    this.name = 'GhostTextError';
+  }
+}
+
 export class GhostTextStore {
   suggestion = '';
   isLoading = false;
   isEnabled = true;
   error: string | null = null;
+  errorCode: number | null = null;
 
   private abortController: AbortController | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -43,6 +60,8 @@ export class GhostTextStore {
     const cacheKey = `${noteId}:${context.slice(-100)}:${prefix.slice(-50)}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
+      this.error = null;
+      this.errorCode = null;
       this.suggestion = cached;
       return;
     }
@@ -69,6 +88,7 @@ export class GhostTextStore {
     runInAction(() => {
       this.isLoading = true;
       this.error = null;
+      this.errorCode = null;
       this.suggestion = '';
     });
 
@@ -107,13 +127,34 @@ export class GhostTextStore {
           });
           return;
         }
-        throw new Error(`Ghost text request failed: ${response.status}`);
+
+        let detail = '';
+        try {
+          const body = await response.json();
+          const raw = body.detail;
+          detail = typeof raw === 'string' ? raw : '';
+        } catch {
+          // Non-JSON body — use fallback message
+        }
+
+        const code = response.status;
+        if (code === 402) {
+          throw new GhostTextError(
+            detail || 'No API key configured. Add one in Settings > AI Providers.',
+            code
+          );
+        }
+        if (code === 403) {
+          throw new GhostTextError(detail || 'Not authorized for this workspace.', code);
+        }
+        throw new GhostTextError(detail || `Ghost text failed (${code})`, code);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as GhostTextResponse;
+      const confidence: number = data.confidence ?? 0;
 
       runInAction(() => {
-        this.suggestion = data.suggestion ?? '';
+        this.suggestion = confidence >= 0.5 ? (data.suggestion ?? '') : '';
         this.isLoading = false;
 
         // Cache the result
@@ -135,6 +176,7 @@ export class GhostTextStore {
       runInAction(() => {
         this.isLoading = false;
         this.error = err instanceof Error ? err.message : 'Ghost text failed';
+        this.errorCode = err instanceof GhostTextError ? err.statusCode : null;
       });
     }
   }
@@ -151,5 +193,7 @@ export class GhostTextStore {
       this.debounceTimer = null;
     }
     this.isLoading = false;
+    this.error = null;
+    this.errorCode = null;
   }
 }
