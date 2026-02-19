@@ -24,6 +24,7 @@ from pilot_space.api.v1.routers.ai_extraction import router as ai_extraction_rou
 from pilot_space.api.v1.routers.ai_sessions import router as ai_sessions_router
 from pilot_space.api.v1.routers.ai_tasks import router as ai_tasks_router
 from pilot_space.api.v1.routers.auth import router as auth_router
+from pilot_space.api.v1.routers.block_ownership import router as block_ownership_router
 from pilot_space.api.v1.routers.cycles import router as cycles_router
 from pilot_space.api.v1.routers.ghost_text import router as ghost_text_router
 from pilot_space.api.v1.routers.homepage import (
@@ -39,6 +40,7 @@ from pilot_space.api.v1.routers.issues_ai_context_streaming import (
     router as issues_ai_context_streaming_router,
 )
 from pilot_space.api.v1.routers.mcp_tools import router as mcp_tools_router
+from pilot_space.api.v1.routers.note_versions import router as note_versions_router
 from pilot_space.api.v1.routers.onboarding import router as onboarding_router
 from pilot_space.api.v1.routers.projects import router as projects_router
 from pilot_space.api.v1.routers.role_skills import (
@@ -113,6 +115,7 @@ __all__ = [
     "ai_sessions_router",
     "ai_tasks_router",
     "auth_router",
+    "block_ownership_router",
     "cycles_router",
     "debug_router",
     "ghost_text_router",
@@ -125,6 +128,7 @@ __all__ = [
     "issues_ai_router",
     "issues_router",
     "mcp_tools_router",
+    "note_versions_router",
     "notes_ai_router",
     "onboarding_router",
     "projects_router",
