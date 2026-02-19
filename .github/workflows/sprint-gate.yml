@@ -1,0 +1,189 @@
+# Sprint Gate: Feature-specific load tests before sprint promotion.
+#
+# Run manually before promoting a feature branch:
+#   gh workflow run sprint-gate.yml -f feature=016 -f branch=feat/collab
+#
+# Gate outcomes:
+#   016 Sprint 1a (CRDT):      p95 <500ms -> proceed; >=500ms -> evaluate fallback
+#   015 Memory Search:         p95 <200ms at 1000 entries
+#   017 DAG Render:            p95 <1s at 50 nodes
+#
+# These tests are NOT run automatically — they require a live DB with
+# seeded data for the full integration version. The CI version uses
+# in-process stubs for speed.
+
+name: Sprint Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      feature:
+        description: "Feature to gate (015 | 016 | 017 | all)"
+        required: true
+        default: "all"
+      branch:
+        description: "Branch to test"
+        required: false
+        default: "main"
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+# ---------------------------------------------------------------------------
+# Feature 016 Sprint 1a Gate: CRDT load test
+# PASS: p95 <500ms -> proceed with Supabase Realtime
+# FAIL: p95 >=500ms -> evaluate y-websocket or drop M6a
+# ---------------------------------------------------------------------------
+  crdt-gate:
+    name: "016 Sprint 1a Gate: CRDT Load Test"
+    runs-on: ubuntu-latest
+    if: >
+      inputs.feature == '016' ||
+      inputs.feature == 'all'
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run CRDT gate (10 editors, p95 <500ms)
+        id: crdt_gate
+        run: |
+          uv run pytest tests/load/test_crdt_gate.py::TestCRDTGate::test_concurrent_editors_p95_gate \
+            -v --tb=short --no-header
+        continue-on-error: true
+
+      - name: Evaluate gate outcome
+        run: |
+          if [[ "${{ steps.crdt_gate.outcome }}" == "success" ]]; then
+            echo "::notice::016 Sprint 1a GATE PASSED — proceed with Supabase Realtime"
+          else
+            echo "::warning::016 Sprint 1a GATE FAILED — evaluate y-websocket or drop M6a"
+            echo "Review: tests/load/test_crdt_gate.py PERF-016-001"
+          fi
+
+      - name: Run full CRDT benchmark suite
+        run: |
+          uv run pytest tests/load/test_crdt_gate.py \
+            -v --tb=short --no-header
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: crdt-gate-results
+          path: backend/load-results/
+          retention-days: 30
+
+# ---------------------------------------------------------------------------
+# Feature 015 Memory Search Gate
+# ---------------------------------------------------------------------------
+  memory-search-gate:
+    name: "015 Memory Search Gate: p95 <200ms at 1000 entries"
+    runs-on: ubuntu-latest
+    if: >
+      inputs.feature == '015' ||
+      inputs.feature == 'all'
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run memory search benchmarks (PERF-015-001, PERF-015-002)
+        run: |
+          uv run pytest tests/performance/test_memory_search_perf.py \
+            -v --tb=short --no-header
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: memory-search-gate-results
+          path: backend/perf-results/
+          retention-days: 30
+
+# ---------------------------------------------------------------------------
+# Feature 017 Version/PM Block Gate
+# ---------------------------------------------------------------------------
+  version-pm-gate:
+    name: "017 Version & PM Block Gate"
+    runs-on: ubuntu-latest
+    if: >
+      inputs.feature == '017' ||
+      inputs.feature == 'all'
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run version/PM block benchmarks (PERF-017-001 to 004)
+        run: |
+          uv run pytest tests/performance/test_version_perf.py \
+            -v --tb=short --no-header
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: version-pm-gate-results
+          path: backend/perf-results/
+          retention-days: 30
+
+# ---------------------------------------------------------------------------
+# Gate summary
+# ---------------------------------------------------------------------------
+  gate-summary:
+    name: Sprint Gate Summary
+    needs: [crdt-gate, memory-search-gate, version-pm-gate]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Summarize gate results
+        run: |
+          echo "=== Sprint Gate Results ==="
+          echo "Feature 016 CRDT gate:        ${{ needs.crdt-gate.result }}"
+          echo "Feature 015 Memory Search:    ${{ needs.memory-search-gate.result }}"
+          echo "Feature 017 Version/PM gate:  ${{ needs.version-pm-gate.result }}"
+
+          # Hard fail only on CRDT gate (it's a go/no-go decision)
+          if [[ "${{ needs.crdt-gate.result }}" == "failure" ]]; then
+            echo "::error::CRDT gate FAILED — 016 M6a deployment blocked"
+            exit 1
+          fi
+          echo "Sprint gate complete"

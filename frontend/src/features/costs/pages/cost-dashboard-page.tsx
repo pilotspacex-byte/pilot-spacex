@@ -14,8 +14,9 @@
 
 import { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { useStore } from '@/stores';
+import { Button } from '@/components/ui/button';
 import { CostSummaryCard } from '../components/cost-summary-card';
 import { DateRangeSelector } from '../components/date-range-selector';
 import { CostByAgentChart } from '../components/cost-by-agent-chart';
@@ -108,6 +109,17 @@ export const CostDashboardPage = observer(function CostDashboardPage({
           <AlertTitle>Failed to load cost data</AlertTitle>
           <AlertDescription>{cost.error}</AlertDescription>
         </Alert>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => cost.loadSummary(workspaceId)}
+          className="flex items-center gap-2"
+          aria-label="Retry loading cost data"
+        >
+          <RefreshCw className="size-4" aria-hidden="true" />
+          Retry
+        </Button>
       </div>
     );
   }
@@ -153,9 +165,8 @@ export const CostDashboardPage = observer(function CostDashboardPage({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <CostByAgentChart
           data={cost.costByAgent}
-          onAgentClick={(agentName) => {
-            // TODO: Implement filter by agent in future enhancement
-            console.log('Filter by agent:', agentName);
+          onAgentClick={(_agentName) => {
+            // Filter by agent is not yet implemented
           }}
         />
         <CostTrendsChart data={cost.costTrends} />

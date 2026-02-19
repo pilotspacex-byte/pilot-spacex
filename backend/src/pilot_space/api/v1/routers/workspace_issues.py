@@ -61,7 +61,7 @@ class WorkspaceIssueResponse(BaseSchema):
     reporter_id: UUID
     labels: list[dict[str, Any]] = Field(default_factory=list)
     due_date: str | None = None
-    estimated_hours: int | None = None
+    estimated_hours: float | None = None
     ai_generated: bool = False
     source_note_id: UUID | None = None
     created_at: datetime
@@ -80,7 +80,7 @@ class WorkspaceIssueCreateRequest(BaseSchema):
     assignee_id: UUID | None = None
     labels: list[str] = Field(default_factory=list)
     due_date: str | None = None
-    estimated_hours: int | None = None
+    estimated_hours: float | None = None
     source_note_id: UUID | None = None
 
     @field_validator("project_id", "assignee_id", "source_note_id", mode="before")
@@ -103,6 +103,8 @@ class WorkspaceIssueUpdateRequest(BaseSchema):
     assignee_id: UUID | None = None
     cycle_id: UUID | None = None
     estimate_points: int | None = None
+    # T-245: Time estimate in hours (0.5 increments)
+    estimate_hours: float | None = None
     start_date: str | None = None
     target_date: str | None = None
     sort_order: int | None = None
@@ -186,7 +188,7 @@ def _issue_to_response(issue: Issue) -> WorkspaceIssueResponse:
         reporter_id=issue.reporter_id,
         labels=[],  # TODO: Add label relations
         due_date=issue.target_date.isoformat() if issue.target_date else None,
-        estimated_hours=issue.estimate_points,
+        estimated_hours=float(issue.estimate_hours) if issue.estimate_hours is not None else None,
         ai_generated=issue.has_ai_enhancements,
         source_note_id=None,
         created_at=issue.created_at,
@@ -350,7 +352,8 @@ async def create_workspace_issue(
         cycle_id=None,
         module_id=None,
         parent_id=None,
-        estimate_points=issue_data.estimated_hours,
+        estimate_points=None,
+        estimate_hours=issue_data.estimated_hours,
         start_date=None,
         target_date=None,
         label_ids=label_uuids,
@@ -452,6 +455,9 @@ async def update_workspace_issue(
         estimate_points=None
         if issue_data.clear_estimate
         else (issue_data.estimate_points if issue_data.estimate_points is not None else UNCHANGED),
+        estimate_hours=None
+        if issue_data.clear_estimate
+        else (issue_data.estimate_hours if issue_data.estimate_hours is not None else UNCHANGED),
         start_date=start_date_value,
         target_date=target_date_value,
         sort_order=issue_data.sort_order if issue_data.sort_order is not None else UNCHANGED,

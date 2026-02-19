@@ -26,6 +26,12 @@ import type {
   MemoryUpdateEvent,
   ToolInputDeltaEvent,
   FocusBlockEvent,
+  IntentDetectedEvent,
+  IntentConfirmedEvent,
+  IntentExecutingEvent,
+  IntentCompletedEvent,
+  SkillCompletedEvent,
+  QueueUpdateEvent,
 } from './events';
 
 /**
@@ -55,11 +61,38 @@ export function isThinkingDeltaEvent(event: SSEEvent): event is ThinkingDeltaEve
 }
 
 export function isToolUseEvent(event: SSEEvent): event is ToolUseEvent {
-  return event.type === 'tool_use';
+  if (event.type !== 'tool_use') return false;
+  const data = (event as { type: string; data?: unknown }).data;
+  if (!data || typeof data !== 'object') {
+    console.warn('[event-guards] tool_use event missing data:', event);
+    return false;
+  }
+  const d = data as Record<string, unknown>;
+  if (typeof d.toolCallId !== 'string' || typeof d.toolName !== 'string') {
+    console.warn('[event-guards] tool_use event has invalid data shape:', event);
+    return false;
+  }
+  return true;
 }
 
 export function isToolResultEvent(event: SSEEvent): event is ToolResultEvent {
-  return event.type === 'tool_result';
+  if (event.type !== 'tool_result') return false;
+  const data = (event as { type: string; data?: unknown }).data;
+  if (!data || typeof data !== 'object') {
+    console.warn('[event-guards] tool_result event missing data:', event);
+    return false;
+  }
+  const d = data as Record<string, unknown>;
+  if (typeof d.toolCallId !== 'string' && typeof d.toolUseId !== 'string') {
+    console.warn('[event-guards] tool_result event missing toolCallId or toolUseId:', event);
+    return false;
+  }
+  const VALID_STATUSES = ['completed', 'failed', 'cancelled'];
+  if (typeof d.status !== 'string' || !VALID_STATUSES.includes(d.status)) {
+    console.warn('[event-guards] tool_result event has invalid status:', event);
+    return false;
+  }
+  return true;
 }
 
 export function isTaskProgressEvent(event: SSEEvent): event is TaskProgressEvent {
@@ -122,7 +155,18 @@ export function isStructuredResultEvent(event: SSEEvent): event is StructuredRes
 }
 
 export function isMessageStopEvent(event: SSEEvent): event is MessageStopEvent {
-  return event.type === 'message_stop';
+  if (event.type !== 'message_stop') return false;
+  const data = (event as { type: string; data?: unknown }).data;
+  if (!data || typeof data !== 'object') {
+    console.warn('[event-guards] message_stop event missing data:', event);
+    return false;
+  }
+  const d = data as Record<string, unknown>;
+  if (typeof d.messageId !== 'string' || typeof d.stopReason !== 'string') {
+    console.warn('[event-guards] message_stop event has invalid data shape:', event);
+    return false;
+  }
+  return true;
 }
 
 export function isBudgetWarningEvent(event: SSEEvent): event is BudgetWarningEvent {
@@ -151,4 +195,68 @@ export function isToolInputDeltaEvent(event: SSEEvent): event is ToolInputDeltaE
 
 export function isFocusBlockEvent(event: SSEEvent): event is FocusBlockEvent {
   return event.type === 'focus_block';
+}
+
+// Feature 015: Intent lifecycle event guards
+
+export function isIntentDetectedEvent(event: SSEEvent): event is IntentDetectedEvent {
+  return event.type === 'intent_detected';
+}
+
+export function isIntentConfirmedEvent(event: SSEEvent): event is IntentConfirmedEvent {
+  return event.type === 'intent_confirmed';
+}
+
+export function isIntentExecutingEvent(event: SSEEvent): event is IntentExecutingEvent {
+  return event.type === 'intent_executing';
+}
+
+export function isIntentCompletedEvent(event: SSEEvent): event is IntentCompletedEvent {
+  return event.type === 'intent_completed';
+}
+
+export function isSkillCompletedEvent(event: SSEEvent): event is SkillCompletedEvent {
+  return event.type === 'skill_completed';
+}
+
+export function isQueueUpdateEvent(event: SSEEvent): event is QueueUpdateEvent {
+  return event.type === 'queue_update';
+}
+
+const KNOWN_EVENT_TYPES = new Set([
+  'message_start',
+  'content_block_start',
+  'text_delta',
+  'thinking_delta',
+  'tool_use',
+  'tool_result',
+  'tool_input_delta',
+  'task_progress',
+  'approval_request',
+  'content_update',
+  'question_request',
+  'structured_result',
+  'message_stop',
+  'budget_warning',
+  'tool_audit',
+  'error',
+  'citation',
+  'memory_update',
+  'focus_block',
+  'intent_detected',
+  'intent_confirmed',
+  'intent_executing',
+  'intent_completed',
+  'skill_completed',
+  'queue_update',
+]);
+
+/**
+ * Log a warning for any SSE event type that is not recognized.
+ * Call this in the event dispatch loop as a fallback after all guards.
+ */
+export function logUnrecognizedEvent(event: SSEEvent): void {
+  if (!KNOWN_EVENT_TYPES.has(event.type)) {
+    console.warn('[event-guards] Unrecognized SSE event type:', event.type, event);
+  }
 }

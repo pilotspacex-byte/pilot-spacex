@@ -91,8 +91,12 @@ export function RiskRenderer({ data: rawData, readOnly }: PMRendererProps) {
           <thead>
             <tr className={pmBlockStyles.risk.headerRow}>
               <th className="p-2 text-left">Risk</th>
-              <th className="p-2 text-center w-16">P</th>
-              <th className="p-2 text-center w-16">I</th>
+              <th className="p-2 text-center w-16">
+                <abbr title="Probability">P</abbr>
+              </th>
+              <th className="p-2 text-center w-16">
+                <abbr title="Impact">I</abbr>
+              </th>
               <th className="p-2 text-center w-20">Score</th>
               <th className="p-2 text-left">Strategy</th>
               {!readOnly && <th className="p-2 text-left">Owner</th>}

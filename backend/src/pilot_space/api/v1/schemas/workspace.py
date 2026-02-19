@@ -129,6 +129,20 @@ class WorkspaceMemberUpdate(BaseSchema):
     )
 
 
+class WorkspaceMemberAvailabilityUpdate(BaseSchema):
+    """Update workspace member weekly availability (T-246).
+
+    Attributes:
+        weekly_available_hours: Hours available per week (0-168).
+    """
+
+    weekly_available_hours: float = Field(
+        ge=0,
+        le=168,
+        description="Hours available per week for capacity planning (0-168)",
+    )
+
+
 class InvitationResponse(BaseSchema):
     """Workspace invitation response.
 
@@ -196,6 +210,10 @@ class WorkspaceMemberResponse(BaseSchema):
     avatar_url: str | None = Field(default=None, description="Profile image URL")
     role: str = Field(description="Member role")
     joined_at: datetime = Field(description="When member joined")
+    weekly_available_hours: float = Field(
+        default=40.0,
+        description="Hours available per week for capacity planning",
+    )
 
 
 # AI Settings schemas (T062-T064)
@@ -334,6 +352,7 @@ __all__ = [
     "WorkspaceAISettingsUpdateResponse",
     "WorkspaceCreate",
     "WorkspaceDetailResponse",
+    "WorkspaceMemberAvailabilityUpdate",
     "WorkspaceMemberCreate",
     "WorkspaceMemberResponse",
     "WorkspaceMemberUpdate",

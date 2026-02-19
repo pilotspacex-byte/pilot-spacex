@@ -59,8 +59,19 @@ describe('PMBlockExtension basics', () => {
 
 // ── Block type constants ────────────────────────────────────────────────
 describe('PM_BLOCK_TYPES', () => {
-  it('exports all 6 block types', () => {
-    expect(PM_BLOCK_TYPES).toEqual(['decision', 'form', 'raci', 'risk', 'timeline', 'dashboard']);
+  it('exports all 10 block types', () => {
+    expect(PM_BLOCK_TYPES).toEqual([
+      'capacity-plan',
+      'dashboard',
+      'decision',
+      'dependency-map',
+      'form',
+      'raci',
+      'release-notes',
+      'risk',
+      'sprint-board',
+      'timeline',
+    ]);
   });
 });
 

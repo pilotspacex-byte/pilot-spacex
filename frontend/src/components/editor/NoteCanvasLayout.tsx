@@ -17,9 +17,10 @@
  * - Tablet (md-lg): Collapsible ChatView, full-width editor
  * - Mobile (<md): Overlay ChatView panel, compact header
  */
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import { motion } from 'motion/react';
+import { History, Users, MessageSquare } from 'lucide-react';
 
 const ChatView = lazy(() =>
   import('@/features/ai/ChatView/ChatView').then((m) => ({ default: m.ChatView }))
@@ -33,13 +34,32 @@ import { InlineNoteHeader } from './InlineNoteHeader';
 import { CollapsedChatStrip } from './CollapsedChatStrip';
 import { OffScreenAIIndicator } from './OffScreenAIIndicator';
 import { NoteCanvasMobileLayout } from './NoteCanvasMobileLayout';
+import { LargeNoteWarning } from './LargeNoteWarning';
+import { SidebarPanel, useSidebarPanel } from './sidebar';
+import type { SidebarTab } from './sidebar';
+import { PresenceSidebarPanel, ConversationSidebarPanel } from '@/features/notes/components/panels';
+import { VersionPanel } from '@/features/notes/components/VersionPanel';
+import { VersionStore } from '@/features/notes/stores/VersionStore';
 
 import type { NoteCanvasProps } from './NoteCanvasEditor';
 import { useNoteCanvasEditor, EditorErrorFallback, EditorSkeleton } from './NoteCanvasEditor';
 
+/** Sidebar tabs definition (T-136 framework, T-137/T-138/T-139 panels) */
+const SIDEBAR_TABS: SidebarTab[] = [
+  { id: 'versions', label: 'Versions', icon: <History className="h-3.5 w-3.5" /> },
+  // COL-M8: Presence and Conversation panels not yet wired — mark as comingSoon
+  { id: 'presence', label: 'Presence', icon: <Users className="h-3.5 w-3.5" />, comingSoon: true },
+  {
+    id: 'conversation',
+    label: 'Threads',
+    icon: <MessageSquare className="h-3.5 w-3.5" />,
+    comingSoon: true,
+  },
+];
+
 /**
  * NoteCanvas component with responsive layout per Prototype v4
- * Layout: [Document Canvas | AI ChatView]
+ * Layout: [Document Canvas | AI ChatView] [Sidebar Panel (right)]
  *
  * NOTE: This component intentionally does NOT use observer() from MobX-React-Lite.
  * React 19's useSyncExternalStore (used internally by observer()) calls flushSync when
@@ -100,6 +120,18 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
     editorError,
   } = useNoteCanvasEditor(props);
 
+  // T-136/T-137/T-138/T-139: Sidebar panel framework
+  const sidebar = useSidebarPanel();
+
+  // T-216: Version history — VersionStore instance (stable, per-editor-mount)
+  const [versionStore] = useState(() => new VersionStore());
+
+  // Count top-level doc nodes for large-note warning
+  const blockCount = useMemo(() => {
+    if (!editor) return 0;
+    return editor.state.doc.childCount;
+  }, [editor]);
+
   // Show error state
   if (error || editorError) {
     return (
@@ -131,7 +163,10 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
           onExport={onExport}
           onDelete={onDelete}
           onTogglePin={onTogglePin}
-          onVersionHistory={onVersionHistory}
+          onVersionHistory={() => {
+            sidebar.openSidebar('versions');
+            onVersionHistory?.();
+          }}
           disabled={readOnly}
         />
       )}
@@ -142,6 +177,9 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
         linkedIssues={linkedIssues}
         workspaceSlug={workspaceSlug}
       />
+
+      {/* Large note warning banner (>= 1000 blocks) */}
+      <LargeNoteWarning noteId={noteId} blockCount={blockCount} />
 
       {/* Scrollable Editor Area */}
       <div
@@ -202,6 +240,21 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
       <ChatView store={aiStore.pilotSpace} autoFocus onClose={() => setIsChatViewOpen(false)} />
     </Suspense>
   );
+
+  /** Render sidebar panel content based on active tab */
+  const sidebarContent =
+    sidebar.activePanel === 'versions' ? (
+      <VersionPanel workspaceId={workspaceId ?? ''} noteId={noteId} store={versionStore} />
+    ) : sidebar.activePanel === 'presence' ? (
+      <PresenceSidebarPanel entries={[]} crdtActive={false} />
+    ) : sidebar.activePanel === 'conversation' ? (
+      <ConversationSidebarPanel
+        threads={[]}
+        onNewThread={() => {
+          /* link to annotation system */
+        }}
+      />
+    ) : null;
 
   return (
     <div className="flex h-full bg-background overflow-hidden" data-testid="note-editor">
@@ -269,6 +322,20 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
           onOpen={handleChatViewOpen}
         />
       )}
+
+      {/* T-136/T-137/T-138/T-139: Sidebar panel (Versions | Presence | Threads) */}
+      <SidebarPanel
+        isOpen={sidebar.isOpen}
+        activePanel={sidebar.activePanel}
+        tabs={SIDEBAR_TABS}
+        title="Note Panels"
+        width={sidebar.width}
+        onTabChange={sidebar.openSidebar}
+        onClose={sidebar.closeSidebar}
+        onWidthChange={sidebar.setWidth}
+      >
+        {sidebarContent}
+      </SidebarPanel>
     </div>
   );
 }

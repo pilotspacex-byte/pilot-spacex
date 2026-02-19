@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Date Range Selector - Preset and custom date range selection.
+ * Date Range Selector - Preset date range selection.
  *
  * T206: Provides preset ranges (Today, 7d, 30d, 90d, This Month)
- * and custom date picker for flexible cost analytics filtering.
+ * for cost analytics filtering.
  *
  * @example
  * ```tsx
@@ -165,17 +165,6 @@ export function DateRangeSelector({ onSelect, currentRange, className }: DateRan
                 );
               })}
             </div>
-            {/* TODO: Add custom date picker in future enhancement */}
-            {/* <div className="p-2 border-t">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-              >
-                <Calendar className="mr-2 size-4" />
-                Custom range...
-              </Button>
-            </div> */}
           </div>
         </PopoverContent>
       </Popover>

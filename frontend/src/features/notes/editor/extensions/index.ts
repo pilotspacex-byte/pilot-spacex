@@ -61,5 +61,27 @@ export {
 export { InlineIssueComponent } from './InlineIssueComponent';
 export { ParagraphSplitExtension, type ParagraphSplitOptions } from './ParagraphSplitExtension';
 
+// Ownership extension (M6b — Feature 016)
+export {
+  OwnershipExtension,
+  getBlockOwner,
+  canEdit,
+  extractSkillName,
+  buildAriaLabel,
+  type BlockOwner,
+  type EditActor,
+  type OwnershipOptions,
+  type OwnershipStorage,
+} from './OwnershipExtension';
+
+// Density extension (M8 — Feature 016 Sprint 3)
+export {
+  DensityExtension,
+  buildCollapseSummary,
+  type DensityOptions,
+  type DensityStorage,
+} from './DensityExtension';
+export { DENSITY_STYLES } from './density-styles';
+
 // Factory function
 export { createEditorExtensions, type EditorExtensionsOptions } from './createEditorExtensions';

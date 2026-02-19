@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiClient } from '@/services/api/client';
 import { notesKeys } from '@/features/notes/hooks/useNotes';
-import type { Note, NoteContent, User } from '@/types';
+import type { Note, NoteContent } from '@/types';
 
 export interface NoteVersion {
   id: string;
@@ -16,7 +16,7 @@ export interface NoteVersion {
   content: NoteContent;
   wordCount: number;
   createdAt: string;
-  createdBy: User;
+  createdBy: string | null;
   changeDescription?: string;
 }
 
@@ -32,8 +32,17 @@ export interface UseNoteVersionsOptions {
 /**
  * Fetch note versions from API
  */
+interface NoteVersionListResponse {
+  versions: NoteVersion[];
+  total: number;
+  noteId: string;
+}
+
 async function fetchNoteVersions(workspaceId: string, noteId: string): Promise<NoteVersion[]> {
-  return apiClient.get<NoteVersion[]>(`/workspaces/${workspaceId}/notes/${noteId}/versions`);
+  const response = await apiClient.get<NoteVersionListResponse>(
+    `/workspaces/${workspaceId}/notes/${noteId}/versions`
+  );
+  return response.versions;
 }
 
 /**

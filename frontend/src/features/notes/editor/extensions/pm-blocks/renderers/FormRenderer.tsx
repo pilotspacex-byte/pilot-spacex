@@ -12,6 +12,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { pmBlockStyles } from '../pm-block-styles';
 import type { PMRendererProps } from '../PMBlockNodeView';
 
@@ -312,6 +313,20 @@ export function FormRenderer({ data: rawData, readOnly, onDataChange }: PMRender
     [data, onDataChange, errors]
   );
 
+  const handleSubmit = useCallback(() => {
+    const newErrors: Record<string, string> = {};
+    for (const field of data.fields) {
+      const error = validateField(field, data.responses[field.id]);
+      if (error) newErrors[field.id] = error;
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    onDataChange({ ...data, responseCount: data.responseCount + 1, responses: {} });
+    toast.success('Response recorded');
+  }, [data, validateField, onDataChange]);
+
   return (
     <div data-testid="form-renderer">
       {/* Title */}
@@ -345,6 +360,15 @@ export function FormRenderer({ data: rawData, readOnly, onDataChange }: PMRender
         <span className="text-xs text-muted-foreground">
           {data.responseCount} response{data.responseCount !== 1 ? 's' : ''}
         </span>
+        {!readOnly && (
+          <button
+            type="button"
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            onClick={handleSubmit}
+          >
+            Record Response
+          </button>
+        )}
       </div>
     </div>
   );

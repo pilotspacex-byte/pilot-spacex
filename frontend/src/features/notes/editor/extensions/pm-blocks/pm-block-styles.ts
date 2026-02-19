@@ -146,7 +146,7 @@ const decision = {
   /** Status color variants. */
   statusOpen: 'bg-[#5B8FC9]/10 text-[#5B8FC9] dark:text-[#7DA4C4]',
   statusDecided: 'bg-primary/10 text-primary',
-  statusSuperseded: 'bg-[#D9853F]/10 text-[#D9853F] dark:text-[#D9A06F]',
+  statusSuperseded: 'bg-[var(--warning)]/10 text-[var(--warning)]',
 
   /** Option cards grid — 1 column mobile, 2 columns desktop. */
   optionGrid: 'grid gap-3 sm:grid-cols-2',
@@ -251,7 +251,7 @@ const raci = {
   /** RACI role color variants. */
   cellR: 'bg-[#5B8FC9]/10 text-[#5B8FC9] dark:text-[#7DA4C4] font-semibold',
   cellA: 'bg-primary/10 text-primary font-bold',
-  cellC: 'bg-[#D9853F]/10 text-[#D9853F] dark:text-[#D9A06F]',
+  cellC: 'bg-[var(--warning)]/10 text-[var(--warning)]',
   cellI: 'bg-muted/30 text-muted-foreground',
 
   /** Row with missing exactly-one-A constraint. */
@@ -277,7 +277,7 @@ const risk = {
 
   /** Score severity colors (probability x impact). */
   scoreGreen: 'bg-primary/15 text-primary dark:text-primary',
-  scoreYellow: 'bg-[#D9853F]/15 text-[#D9853F] dark:text-[#D9A06F]',
+  scoreYellow: 'bg-[var(--warning)]/15 text-[var(--warning)]',
   scoreRed: 'bg-destructive/15 text-destructive dark:text-destructive',
 
   /** Mitigation strategy pill badge. */
@@ -328,7 +328,7 @@ const timeline = {
 
   /** Status color fills for milestone markers. */
   milestoneOnTrack: 'fill-primary text-primary dark:text-primary',
-  milestoneAtRisk: 'fill-[#D9853F] text-[#D9853F] dark:text-[#D9A06F]',
+  milestoneAtRisk: 'fill-[var(--warning)] text-[var(--warning)]',
   milestoneBlocked: 'fill-destructive text-destructive',
 
   /** Dashed dependency arrow between milestones. */

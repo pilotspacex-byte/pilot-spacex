@@ -12,7 +12,7 @@ const AUTH_STATE_PATH = path.join(__dirname, '.auth/user.json');
 
 const TEST_USER = {
   email: 'e2e-test@pilotspace.dev',
-  password: 'TestPassword123!',
+  password: 'DemoPassword123!',
   name: 'E2E Test User',
 };
 

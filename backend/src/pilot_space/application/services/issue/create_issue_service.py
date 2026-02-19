@@ -55,6 +55,8 @@ class CreateIssuePayload:
     module_id: UUID | None = None
     parent_id: UUID | None = None
     estimate_points: int | None = None
+    # T-245: Time estimate in hours (0.5 increments)
+    estimate_hours: float | None = None
     start_date: date | None = None
     target_date: date | None = None
     label_ids: list[UUID] = field(default_factory=list)
@@ -156,6 +158,7 @@ class CreateIssueService:
             module_id=payload.module_id,
             parent_id=payload.parent_id,
             estimate_points=payload.estimate_points,
+            estimate_hours=payload.estimate_hours,
             start_date=payload.start_date,
             target_date=payload.target_date,
             ai_metadata=payload.ai_metadata,

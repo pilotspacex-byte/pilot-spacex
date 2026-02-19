@@ -161,13 +161,14 @@ export function DashboardRenderer({ data, readOnly, onDataChange }: PMRendererPr
 
                 {/* Trend indicator */}
                 <button
+                  type="button"
                   className={TREND_STYLES[widget.trend]}
                   onClick={() => cycleTrend(widget.id)}
                   disabled={readOnly}
                   aria-label={`Trend: ${widget.trend}. Click to cycle.`}
                   tabIndex={readOnly ? -1 : 0}
                 >
-                  {TREND_ICONS[widget.trend]} {widget.trend}
+                  <span aria-hidden="true">{TREND_ICONS[widget.trend]}</span> {widget.trend}
                 </button>
               </div>
 
@@ -198,6 +199,7 @@ export function DashboardRenderer({ data, readOnly, onDataChange }: PMRendererPr
               {/* Remove */}
               {!readOnly && (
                 <button
+                  type="button"
                   className="text-[10px] text-muted-foreground hover:text-destructive mt-2"
                   onClick={() => removeWidget(widget.id)}
                   aria-label={`Remove ${widget.metric || 'widget'}`}
@@ -213,6 +215,7 @@ export function DashboardRenderer({ data, readOnly, onDataChange }: PMRendererPr
       {/* Add widget */}
       {!readOnly && (
         <button
+          type="button"
           className={pmBlockStyles.shared.addButton}
           onClick={addWidget}
           aria-label="Add widget"

@@ -19,6 +19,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -171,6 +172,11 @@ class Issue(WorkspaceScopedModel):
     # Estimation and dates
     estimate_points: Mapped[int | None] = mapped_column(
         Integer,
+        nullable=True,
+    )
+    # T-245: Time estimate in hours (0.5 increments, from migration 045)
+    estimate_hours: Mapped[float | None] = mapped_column(
+        Numeric(6, 1),
         nullable=True,
     )
     start_date: Mapped[date | None] = mapped_column(
