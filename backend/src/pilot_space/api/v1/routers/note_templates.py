@@ -47,6 +47,10 @@ router = APIRouter(tags=["Note Templates"])
 WorkspaceIdPath = Annotated[UUID, Path(description="Workspace UUID")]
 TemplateIdPath = Annotated[UUID, Path(description="Template UUID")]
 
+# Allowlist of columns permitted in UPDATE SET clause.
+# Any key not in this set is rejected to prevent SQL injection via dynamic column names.
+_ALLOWED_UPDATE_COLUMNS: frozenset[str] = frozenset({"name", "description", "content"})
+
 # ── Repository helpers ─────────────────────────────────────────────────────────
 
 _SELECT_COLS = (
@@ -200,6 +204,9 @@ async def update_template(
         updates["content"] = json.dumps(payload.content)
 
     if updates:
+        for key in updates:
+            if key not in _ALLOWED_UPDATE_COLUMNS:
+                raise ValueError(f"Invalid update column: {key}")
         set_clause = ", ".join(f"{k} = :{k}" for k in updates)
         updates["id"] = str(template_id)
         await db.execute(

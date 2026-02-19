@@ -161,7 +161,7 @@ export function ReleaseNotesRenderer({ data: rawData, readOnly }: PMRendererProp
     staleTime: 120_000,
   });
 
-  const { data: insights } = useQuery({
+  const { data: insights, isLoading: isInsightsLoading } = useQuery({
     queryKey: QUERY_KEYS.insights(workspaceId, blockId),
     queryFn: () => pmBlocksApi.listInsights(workspaceId, blockId),
     enabled: Boolean(workspaceId),
@@ -253,7 +253,7 @@ export function ReleaseNotesRenderer({ data: rawData, readOnly }: PMRendererProp
         <div className="flex items-center gap-2">
           <AIInsightBadge
             insight={topInsight}
-            insufficientData={!insights?.length}
+            insufficientData={!isInsightsLoading && !insights?.length}
             onDismiss={handleDismissInsight}
           />
           <button

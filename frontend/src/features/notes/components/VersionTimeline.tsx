@@ -101,6 +101,7 @@ const VersionEntry = observer(function VersionEntry({
 
   return (
     <li
+      role="button"
       data-selected={isSelected}
       className={cn(
         'group relative flex gap-3 rounded-lg px-3 py-2 cursor-pointer motion-safe:transition-colors',

@@ -151,7 +151,6 @@ export function AIInsightBadge({
     <div className={cn('relative inline-flex', className)}>
       <button
         type="button"
-        role="status"
         aria-label={`AI insight: ${severityKey} - ${label}`}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}

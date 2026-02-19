@@ -263,7 +263,7 @@ export function DependencyMapRenderer({ data: rawData, readOnly: _readOnly }: PM
     staleTime: 60_000,
   });
 
-  const { data: insights } = useQuery({
+  const { data: insights, isLoading: isInsightsLoading } = useQuery({
     queryKey: QUERY_KEYS.insights(workspaceId, blockId),
     queryFn: () => pmBlocksApi.listInsights(workspaceId, blockId),
     enabled: Boolean(workspaceId),
@@ -344,7 +344,7 @@ export function DependencyMapRenderer({ data: rawData, readOnly: _readOnly }: PM
         <div className="flex items-center gap-1.5">
           <AIInsightBadge
             insight={topInsight}
-            insufficientData={!insights?.length}
+            insufficientData={!isInsightsLoading && !insights?.length}
             onDismiss={handleDismissInsight}
           />
           {/* Zoom controls — FR-052 */}

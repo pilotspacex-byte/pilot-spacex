@@ -35,6 +35,7 @@ function UtilizationBar({ pct, isOverAllocated }: { pct: number; isOverAllocated
       aria-valuenow={pct}
       aria-valuemin={0}
       aria-valuemax={100}
+      aria-valuetext={`${Math.round(pct)}% utilized`}
     >
       <div
         className={cn(
@@ -186,7 +187,7 @@ export function CapacityPlanRenderer({ data: rawData }: PMRendererProps) {
     staleTime: 60_000,
   });
 
-  const { data: insights } = useQuery({
+  const { data: insights, isLoading: isInsightsLoading } = useQuery({
     queryKey: QUERY_KEYS.insights(workspaceId, blockId),
     queryFn: () => pmBlocksApi.listInsights(workspaceId, blockId),
     enabled: Boolean(workspaceId),
@@ -253,7 +254,7 @@ export function CapacityPlanRenderer({ data: rawData }: PMRendererProps) {
         <div className="flex items-center gap-2">
           <AIInsightBadge
             insight={topInsight}
-            insufficientData={!insights?.length}
+            insufficientData={!isInsightsLoading && !insights?.length}
             onDismiss={handleDismissInsight}
           />
           <button

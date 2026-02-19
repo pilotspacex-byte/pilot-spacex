@@ -20,7 +20,7 @@ from pilot_space.infrastructure.database.repositories.pm_block_queries_repositor
     PMBlockQueriesRepository,
 )
 
-router = APIRouter(prefix="/pm-blocks", tags=["pm-blocks"])
+router = APIRouter(prefix="", tags=["pm-blocks"])
 
 
 # ── Response Schemas ──────────────────────────────────────────────────────────

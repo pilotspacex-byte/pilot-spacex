@@ -155,13 +155,19 @@ class MemorySearchService:
         if not api_key:
             return None
         try:
+            import asyncio
+
             import google.generativeai as genai  # type: ignore[import-untyped]
 
             genai.configure(api_key=api_key)  # type: ignore[attr-defined]
-            result = genai.embed_content(  # type: ignore[attr-defined]
-                model=_GEMINI_EMBEDDING_MODEL,
-                content=text,
-                task_type="SEMANTIC_SIMILARITY",
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: genai.embed_content(  # type: ignore[attr-defined]
+                    model=_GEMINI_EMBEDDING_MODEL,
+                    content=text,
+                    task_type="SEMANTIC_SIMILARITY",
+                ),
             )
             return list(result["embedding"])
         except Exception:
