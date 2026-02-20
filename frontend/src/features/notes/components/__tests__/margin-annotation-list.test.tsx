@@ -100,7 +100,7 @@ describe('MarginAnnotationList', () => {
 
     renderWithStore(<MarginAnnotationList noteId="note-1" blockPositions={mockBlockPositions} />);
 
-    const card = screen.getByText('Consider refactoring').closest('button');
+    const card = screen.getByText('Consider refactoring').closest('[role="button"]');
     fireEvent.click(card!);
 
     // Check that annotation was selected
@@ -113,7 +113,7 @@ describe('MarginAnnotationList', () => {
 
     renderWithStore(<MarginAnnotationList noteId="note-1" blockPositions={mockBlockPositions} />);
 
-    const selectedCard = screen.getByText('Consider refactoring').closest('button');
+    const selectedCard = screen.getByText('Consider refactoring').closest('[role="button"]');
     expect(selectedCard).toHaveClass('ring-2');
   });
 

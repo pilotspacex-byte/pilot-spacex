@@ -22,6 +22,7 @@ import {
   Sparkles,
   FolderKanban,
   CircleDot,
+  CalendarCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { abbreviatedTimeAgo } from '@/lib/format-utils';
@@ -29,12 +30,16 @@ import { getIssueStateKey } from '@/lib/issue-helpers';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuthStore, useWorkspaceStore, useOnboardingStore } from '@/stores/RootStore';
+import { getAIStore } from '@/stores/ai/AIStore';
 import {
   useOnboardingState,
   selectCompletionPercentage,
 } from '@/features/onboarding/hooks/useOnboardingState';
 import { useHomepageActivity } from '../hooks/useHomepageActivity';
+import { useWorkspaceDigest } from '../hooks/useWorkspaceDigest';
+import { DigestInsights } from './DigestInsights';
 import { useQuery } from '@tanstack/react-query';
 import { issuesApi } from '@/services/api/issues';
 import { projectsApi } from '@/services/api/projects';
@@ -283,6 +288,8 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
     staleTime: 30_000,
   });
 
+  const digest = useWorkspaceDigest({ workspaceId });
+
   const { data: projectData, isLoading: projectsLoading } = useQuery({
     queryKey: ['homepage', 'projects', workspaceId],
     queryFn: () => projectsApi.list(workspaceId),
@@ -352,11 +359,37 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
       {/* Heading */}
       {/* ---------------------------------------------------------------- */}
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          {getGreeting()}
-          {firstName ? `, ${firstName}` : ''}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">{todayFormatted}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              {getGreeting()}
+              {firstName ? `, ${firstName}` : ''}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">{todayFormatted}</p>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Generate a daily standup summary"
+                className="shrink-0 gap-1.5 text-xs text-muted-foreground"
+                onClick={() => {
+                  const store = getAIStore().pilotSpace;
+                  if (store) {
+                    store.sendMessage('\\daily-standup');
+                  }
+                }}
+              >
+                <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="hidden sm:inline">Standup</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Generate a daily standup summary</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </header>
 
       {/* Onboarding progress — contextual within the daily brief */}
@@ -468,11 +501,23 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             AI Insights
           </h2>
+          {digest.suggestionCount > 0 && (
+            <Badge variant="secondary" className="px-1.5 py-0 text-xs">
+              {digest.suggestionCount}
+            </Badge>
+          )}
         </div>
 
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          No suggestions yet. Ask AI for insights.
-        </p>
+        <DigestInsights
+          groups={digest.groups}
+          generatedAt={digest.generatedAt}
+          isLoading={digest.isLoading}
+          isError={digest.isError}
+          isRefreshing={digest.isRefreshing}
+          onDismiss={digest.dismiss}
+          onRefresh={() => digest.refresh()}
+          onRetry={() => digest.refetch()}
+        />
       </section>
 
       <SectionDivider />

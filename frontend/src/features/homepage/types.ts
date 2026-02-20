@@ -89,3 +89,62 @@ export interface HomepageActivityResponse {
   data: Record<string, ActivityCard[]>;
   meta: ActivityMeta;
 }
+
+// ---------------------------------------------------------------------------
+// AI Digest
+// ---------------------------------------------------------------------------
+
+/** Digest suggestion category values */
+export type DigestCategory =
+  | 'stale_issues'
+  | 'unlinked_notes'
+  | 'cycle_risk'
+  | 'blocked_dependencies'
+  | 'overdue_items'
+  | 'unassigned_priority';
+
+/** Single AI digest suggestion (camelCase from BaseSchema serialization) */
+export interface DigestSuggestion {
+  id: string;
+  category: DigestCategory;
+  title: string;
+  description: string;
+  entityId: string | null;
+  entityType: string | null;
+  entityIdentifier: string | null;
+  projectId: string | null;
+  projectName: string | null;
+  actionType: string | null;
+  actionLabel: string | null;
+  actionUrl: string | null;
+  relevanceScore: number;
+}
+
+/** Digest data payload (camelCase from BaseSchema serialization) */
+export interface DigestData {
+  generatedAt: string;
+  generatedBy: string;
+  suggestions: DigestSuggestion[];
+  suggestionCount: number;
+}
+
+/** GET /homepage/digest response */
+export interface DigestResponse {
+  data: DigestData;
+}
+
+/** POST /homepage/digest/refresh response */
+export interface DigestRefreshResponse {
+  data: {
+    status: string;
+    estimatedSeconds: number;
+  };
+}
+
+/** POST /homepage/digest/dismiss request body */
+export interface DigestDismissPayload {
+  suggestionId: string;
+  entityId: string | null;
+  entityType: string | null;
+  category: string;
+}

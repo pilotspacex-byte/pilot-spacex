@@ -161,12 +161,167 @@ def build_code_ghost_text_prompt(
     )
 
 
+# Heading-aware ghost text prompts
+GHOST_TEXT_HEADING_SYSTEM_PROMPT = """You are an AI writing assistant for a project management platform.
+Your task is to provide SHORT inline completions for headings and section titles.
+
+CRITICAL RULES:
+1. Output ONLY the completion text - no explanations, no quotes, no formatting
+2. Maximum 30 tokens - headings are short
+3. Suggest structural/outline completions (section names, topic phrases)
+4. Match the document's existing heading hierarchy and naming style
+5. If the context is unclear or completion isn't helpful, output NOTHING
+
+You are completing headings for notes, issue descriptions, and project documentation.
+Focus on clear, descriptive section titles."""
+
+GHOST_TEXT_HEADING_USER_PROMPT = """Complete this heading naturally:
+
+Document context:
+{context}
+
+Current heading text to complete:
+{current_text}
+
+Output ONLY the completion (max 30 tokens)."""
+
+
+def build_heading_ghost_text_prompt(
+    current_text: str,
+    cursor_position: int,
+    context: str | None = None,
+    config: GhostTextPromptConfig | None = None,
+) -> str:
+    """Build prompt for heading-aware ghost text.
+
+    Args:
+        current_text: The heading text being typed.
+        cursor_position: Position of cursor.
+        context: Surrounding document context.
+        config: Prompt configuration.
+
+    Returns:
+        Formatted user prompt.
+    """
+    config = config or GhostTextPromptConfig()
+
+    truncated_context = ""
+    if context:
+        if len(context) > config.max_context_chars:
+            truncated_context = "..." + context[-config.max_context_chars :]
+        else:
+            truncated_context = context
+
+    text_before_cursor = current_text[:cursor_position]
+    if len(text_before_cursor) > config.max_current_text_chars:
+        text_before_cursor = "..." + text_before_cursor[-config.max_current_text_chars :]
+
+    return GHOST_TEXT_HEADING_USER_PROMPT.format(
+        context=truncated_context or "(No previous context)",
+        current_text=text_before_cursor,
+    )
+
+
+# List-aware ghost text prompts
+GHOST_TEXT_LIST_SYSTEM_PROMPT = """You are an AI writing assistant for a project management platform.
+Your task is to provide SHORT inline completions for list items.
+
+CRITICAL RULES:
+1. Output ONLY the completion text - no explanations, no quotes, no bullet markers
+2. Maximum 50 tokens
+3. Continue the pattern of existing list items (parallel structure, similar phrasing)
+4. If completing a new bullet, suggest the next logical item in the sequence
+5. Match the user's writing style and tone
+6. If the context is unclear or completion isn't helpful, output NOTHING
+
+You are completing list items for notes, issue descriptions, and project documentation.
+Focus on pattern continuation and logical next items."""
+
+GHOST_TEXT_LIST_USER_PROMPT = """Complete this list item naturally:
+
+Previous list items and context:
+{context}
+
+Current list item to complete:
+{current_text}
+
+Output ONLY the completion (max 50 tokens). Do not include bullet markers."""
+
+
+def build_list_ghost_text_prompt(
+    current_text: str,
+    cursor_position: int,
+    context: str | None = None,
+    config: GhostTextPromptConfig | None = None,
+) -> str:
+    """Build prompt for list-aware ghost text.
+
+    Args:
+        current_text: The list item text being typed.
+        cursor_position: Position of cursor.
+        context: Surrounding list and document context.
+        config: Prompt configuration.
+
+    Returns:
+        Formatted user prompt.
+    """
+    config = config or GhostTextPromptConfig()
+
+    truncated_context = ""
+    if context:
+        if len(context) > config.max_context_chars:
+            truncated_context = "..." + context[-config.max_context_chars :]
+        else:
+            truncated_context = context
+
+    text_before_cursor = current_text[:cursor_position]
+    if len(text_before_cursor) > config.max_current_text_chars:
+        text_before_cursor = "..." + text_before_cursor[-config.max_current_text_chars :]
+
+    return GHOST_TEXT_LIST_USER_PROMPT.format(
+        context=truncated_context or "(No previous context)",
+        current_text=text_before_cursor,
+    )
+
+
+def build_context_note_section(
+    note_title: str | None = None,
+    linked_issues: list[str] | None = None,
+) -> str:
+    """Build an optional context section for note title and linked issues.
+
+    Appended to system prompts when note metadata is available.
+
+    Args:
+        note_title: Title of the note being edited.
+        linked_issues: List of linked issue identifiers (e.g., ["PS-42", "PS-51"]).
+
+    Returns:
+        Context string to append to system prompt, or empty string if no metadata.
+    """
+    parts: list[str] = []
+    if note_title:
+        parts.append(f"Note title: {note_title}")
+    if linked_issues:
+        parts.append(f"Linked issues: {', '.join(linked_issues)}")
+    if not parts:
+        return ""
+    return "\n\nAdditional context:\n" + "\n".join(parts)
+
+
 __all__ = [
     "GHOST_TEXT_CODE_SYSTEM_PROMPT",
     "GHOST_TEXT_CODE_USER_PROMPT",
+    "GHOST_TEXT_HEADING_SYSTEM_PROMPT",
+    "GHOST_TEXT_HEADING_USER_PROMPT",
+    "GHOST_TEXT_LIST_SYSTEM_PROMPT",
+    "GHOST_TEXT_LIST_USER_PROMPT",
     "GHOST_TEXT_SYSTEM_PROMPT",
     "GHOST_TEXT_USER_PROMPT",
     "GhostTextPromptConfig",
     "build_code_ghost_text_prompt",
+    "build_context_note_section",
     "build_ghost_text_prompt",
+    "build_heading_ghost_text_prompt",
+    "build_list_ghost_text_prompt",
 ]
