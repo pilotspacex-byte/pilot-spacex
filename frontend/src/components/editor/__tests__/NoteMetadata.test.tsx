@@ -127,11 +127,10 @@ describe('NoteMetadata', () => {
       data: {
         id: 'proj-1',
         name: 'Alpha Project',
-        slug: 'alpha-project',
+        identifier: 'alpha-project',
         workspaceId: 'w1',
         issueCount: 10,
-        completedIssueCount: 8,
-        memberIds: [],
+        openIssueCount: 2,
         createdAt: '2025-01-01T00:00:00Z',
         updatedAt: '2025-01-01T00:00:00Z',
       },
@@ -152,11 +151,10 @@ describe('NoteMetadata', () => {
       data: {
         id: 'proj-2',
         name: 'Beta',
-        slug: 'beta',
+        identifier: 'beta',
         workspaceId: 'w1',
         issueCount: 4,
-        completedIssueCount: 3,
-        memberIds: [],
+        openIssueCount: 1,
         createdAt: '2025-01-01T00:00:00Z',
         updatedAt: '2025-01-01T00:00:00Z',
       },
@@ -168,7 +166,7 @@ describe('NoteMetadata', () => {
     const progressBar = screen.getByRole('progressbar');
     expect(progressBar).toHaveAttribute('aria-valuenow', '3');
     expect(progressBar).toHaveAttribute('aria-valuemax', '4');
-    // Inner bar should be 75% wide
+    // Inner bar should be 75% wide (3 completed out of 4)
     const innerBar = progressBar.querySelector('div');
     expect(innerBar).toHaveStyle({ width: '75%' });
   });
@@ -178,11 +176,10 @@ describe('NoteMetadata', () => {
       data: {
         id: 'proj-1',
         name: 'Proj',
-        slug: 'proj',
+        identifier: 'proj',
         workspaceId: 'w1',
         issueCount: 5,
-        completedIssueCount: 2,
-        memberIds: [],
+        openIssueCount: 3,
         createdAt: '2025-01-01T00:00:00Z',
         updatedAt: '2025-01-01T00:00:00Z',
       },

@@ -113,7 +113,7 @@ function NoteGridCard({
                 <div
                   className="h-full rounded-full bg-primary"
                   style={{
-                    width: `${(project.completedIssueCount / Math.max(project.issueCount, 1)) * 100}%`,
+                    width: `${((project.issueCount - project.openIssueCount) / Math.max(project.issueCount, 1)) * 100}%`,
                   }}
                 />
               </div>
