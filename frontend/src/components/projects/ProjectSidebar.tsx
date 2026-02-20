@@ -18,13 +18,13 @@ interface ProjectSidebarProps {
   workspaceSlug: string;
 }
 
-const NAV_ITEMS = [
+const NAV_ITEMS: readonly { label: string; icon: typeof LayoutDashboard; segment: string; badge?: string }[] = [
   { label: 'Overview', icon: LayoutDashboard, segment: 'overview' },
   { label: 'Issues', icon: ListTodo, segment: 'issues' },
   { label: 'Cycles', icon: RefreshCw, segment: 'cycles' },
-  { label: 'Chat', icon: MessageSquare, segment: 'chat' },
+  { label: 'Chat', icon: MessageSquare, segment: 'chat', badge: 'Soon' },
   { label: 'Settings', icon: Settings, segment: 'settings' },
-] as const;
+];
 
 export function ProjectSidebar({ project, workspaceSlug }: ProjectSidebarProps) {
   const pathname = usePathname();
@@ -75,6 +75,11 @@ export function ProjectSidebar({ project, workspaceSlug }: ProjectSidebarProps) 
                   >
                     <Icon className="h-4 w-4 flex-shrink-0" />
                     {item.label}
+                    {item.badge && (
+                      <span className="ml-auto text-[10px] font-medium text-muted-foreground bg-muted rounded px-1.5 py-0.5">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );

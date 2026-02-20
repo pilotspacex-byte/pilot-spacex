@@ -1,13 +1,12 @@
 'use client';
 
-import { CheckCircle2, Circle, Loader2, Users } from 'lucide-react';
+import { CheckCircle2, Circle, CircleDot } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface ProjectStatsProps {
   totalIssues: number;
   completedIssues: number;
-  inProgressIssues: number;
-  memberCount: number;
+  openIssues: number;
 }
 
 const STATS_CONFIG = [
@@ -28,26 +27,18 @@ const STATS_CONFIG = [
     bg: 'bg-green-50 dark:bg-green-950/30',
   },
   {
-    key: 'inProgress',
-    label: 'In Progress',
-    icon: Loader2,
-    getValue: (s: ProjectStatsProps) => s.inProgressIssues,
+    key: 'open',
+    label: 'Open',
+    icon: CircleDot,
+    getValue: (s: ProjectStatsProps) => s.openIssues,
     color: 'text-amber-600',
     bg: 'bg-amber-50 dark:bg-amber-950/30',
-  },
-  {
-    key: 'members',
-    label: 'Members',
-    icon: Users,
-    getValue: (s: ProjectStatsProps) => s.memberCount,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50 dark:bg-blue-950/30',
   },
 ] as const;
 
 export function ProjectStats(props: ProjectStatsProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-3">
       {STATS_CONFIG.map((stat) => {
         const Icon = stat.icon;
         const value = stat.getValue(props);

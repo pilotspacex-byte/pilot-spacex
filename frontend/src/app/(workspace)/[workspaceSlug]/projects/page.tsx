@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Plus, LayoutGrid, List, Search, AlertCircle, FolderKanban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,9 +22,22 @@ import type { Project } from '@/types';
 type SortOption = 'recent' | 'name' | 'issues' | 'progress';
 type ViewMode = 'grid' | 'list';
 
-function getStoredViewMode(): ViewMode {
-  if (typeof window === 'undefined') return 'grid';
-  return (localStorage.getItem('projects-view-mode') as ViewMode) || 'grid';
+const VIEW_MODE_KEY = 'projects-view-mode';
+
+function subscribeToViewMode(callback: () => void) {
+  const handler = (e: StorageEvent) => {
+    if (e.key === VIEW_MODE_KEY) callback();
+  };
+  window.addEventListener('storage', handler);
+  return () => window.removeEventListener('storage', handler);
+}
+
+function getViewModeSnapshot(): ViewMode {
+  return (localStorage.getItem(VIEW_MODE_KEY) as ViewMode) || 'grid';
+}
+
+function getViewModeServerSnapshot(): ViewMode {
+  return 'grid';
 }
 
 function sortProjects(projects: Project[], sortBy: SortOption): Project[] {
@@ -55,7 +68,12 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [leadFilter, setLeadFilter] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode);
+  const viewMode = useSyncExternalStore(subscribeToViewMode, getViewModeSnapshot, getViewModeServerSnapshot);
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+    // Force re-render since useSyncExternalStore only triggers on storage events from other tabs
+    window.dispatchEvent(new StorageEvent('storage', { key: VIEW_MODE_KEY }));
+  }, []);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const { data, isLoading, isError, refetch } = useProjects({
@@ -94,11 +112,6 @@ export default function ProjectsPage() {
     }
     return Array.from(uniqueLeads.entries());
   }, [allProjects]);
-
-  const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem('projects-view-mode', mode);
-  }, []);
 
   const handleCardClick = useCallback(
     (project: Project) => {

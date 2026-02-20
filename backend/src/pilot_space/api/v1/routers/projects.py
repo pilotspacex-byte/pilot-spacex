@@ -151,6 +151,9 @@ async def list_projects(
     project_ids = [proj.id for proj in page.items]
     batch_counts = await project_repo.get_batch_issue_counts(project_ids)
 
+    # NOTE: proj.lead access below relies on Project.lead having lazy="joined"
+    # in the SQLAlchemy model. If changed to lazy="select", this becomes N+1.
+
     items = [
         ProjectResponse(
             id=proj.id,
