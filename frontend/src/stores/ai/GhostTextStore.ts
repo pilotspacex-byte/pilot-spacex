@@ -53,7 +53,14 @@ export class GhostTextStore {
     }
   }
 
-  requestSuggestion(noteId: string, context: string, prefix: string, workspaceId: string): void {
+  requestSuggestion(
+    noteId: string,
+    context: string,
+    prefix: string,
+    workspaceId: string,
+    blockType?: string,
+    noteTitle?: string
+  ): void {
     if (!this.isEnabled || !this.rootStore.isGloballyEnabled) return;
 
     // Check cache
@@ -73,7 +80,7 @@ export class GhostTextStore {
     }
 
     this.debounceTimer = setTimeout(() => {
-      this.fetchSuggestion(context, prefix, workspaceId, cacheKey);
+      this.fetchSuggestion(context, prefix, workspaceId, cacheKey, blockType, noteTitle);
     }, 0);
   }
 
@@ -81,7 +88,9 @@ export class GhostTextStore {
     context: string,
     prefix: string,
     workspaceId: string,
-    cacheKey: string
+    cacheKey: string,
+    blockType?: string,
+    noteTitle?: string
   ): Promise<void> {
     this.abort();
 
@@ -108,14 +117,22 @@ export class GhostTextStore {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
+      const body: Record<string, string> = {
+        context: context.slice(-500),
+        prefix: prefix.slice(-200),
+        workspace_id: workspaceId,
+      };
+      if (blockType) {
+        body.block_type = blockType;
+      }
+      if (noteTitle) {
+        body.note_title = noteTitle;
+      }
+
       const response = await fetch(aiApi.getGhostTextUrl(''), {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          context: context.slice(-500),
-          prefix: prefix.slice(-200),
-          workspace_id: workspaceId,
-        }),
+        body: JSON.stringify(body),
         signal: this.abortController.signal,
       });
 

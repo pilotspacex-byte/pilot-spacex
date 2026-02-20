@@ -405,6 +405,74 @@ describe('GhostTextStore', () => {
     });
   });
 
+  describe('blockType and noteTitle (T003)', () => {
+    it('should include block_type in request body when provided', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ suggestion: 'ok', confidence: 0.8, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1', 'heading');
+
+      await vi.waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+      });
+
+      const call = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse((call[1] as RequestInit & { body?: string })?.body as string);
+      expect(body.block_type).toBe('heading');
+    });
+
+    it('should include note_title in request body when provided', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ suggestion: 'ok', confidence: 0.8, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion(
+        'note-123',
+        'Hello ',
+        'Hello ',
+        'ws-1',
+        'paragraph',
+        'My Note Title'
+      );
+
+      await vi.waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+      });
+
+      const call = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse((call[1] as RequestInit & { body?: string })?.body as string);
+      expect(body.note_title).toBe('My Note Title');
+      expect(body.block_type).toBe('paragraph');
+    });
+
+    it('should omit block_type and note_title when not provided', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ suggestion: 'ok', confidence: 0.8, cached: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      ghostTextStore.requestSuggestion('note-123', 'Hello ', 'Hello ', 'ws-1');
+
+      await vi.waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+      });
+
+      const call = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse((call[1] as RequestInit & { body?: string })?.body as string);
+      expect(body.block_type).toBeUndefined();
+      expect(body.note_title).toBeUndefined();
+    });
+  });
+
   describe('MobX reactivity', () => {
     it('should trigger reactions on suggestion change', () => {
       const reactions: string[] = [];

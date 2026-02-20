@@ -249,7 +249,9 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
         noteId,
         context.textBeforeCursor,
         prefix,
-        resolvedWorkspaceId
+        resolvedWorkspaceId,
+        context.blockType,
+        titleRef.current || undefined
       );
     },
     [noteId, resolvedWorkspaceId, aiStore.ghostText]
@@ -306,6 +308,9 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
           onClick: (_blockId: string) => {
             // Annotations handled via ChatView now
           },
+        },
+        marginAnnotationAutoTrigger: {
+          noteId,
         },
         enableNoteLinks: !readOnly && !!resolvedWorkspaceId,
         noteLink: {
