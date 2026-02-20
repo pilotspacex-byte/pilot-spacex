@@ -79,7 +79,7 @@ export interface IssueContext {
 export interface ProjectContext {
   projectId: string;
   name: string;
-  slug: string;
+  identifier: string;
 }
 
 /**

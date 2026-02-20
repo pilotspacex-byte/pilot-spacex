@@ -10,8 +10,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import joinedload
 
+from pilot_space.infrastructure.database.models.issue import Issue
 from pilot_space.infrastructure.database.models.project import Project
-from pilot_space.infrastructure.database.models.state import DEFAULT_STATES, State
+from pilot_space.infrastructure.database.models.state import DEFAULT_STATES, State, StateGroup
 from pilot_space.infrastructure.database.repositories.base import BaseRepository
 
 if TYPE_CHECKING:
@@ -240,6 +241,82 @@ class ProjectRepository(BaseRepository[Project]):
         await self.session.flush()
         await self.session.refresh(project)
         return project
+
+    async def get_issue_counts(
+        self,
+        project_id: UUID,
+    ) -> tuple[int, int]:
+        """Get total and open issue counts for a project.
+
+        Args:
+            project_id: The project ID.
+
+        Returns:
+            Tuple of (total_count, open_count).
+        """
+        total_query = (
+            select(func.count())
+            .select_from(Issue)
+            .where(
+                Issue.project_id == project_id,
+                Issue.is_deleted == False,  # noqa: E712
+            )
+        )
+        open_query = (
+            select(func.count())
+            .select_from(Issue)
+            .join(State, Issue.state_id == State.id)
+            .where(
+                Issue.project_id == project_id,
+                Issue.is_deleted == False,  # noqa: E712
+                State.group.notin_([StateGroup.COMPLETED, StateGroup.CANCELLED]),
+            )
+        )
+        total_result = await self.session.execute(total_query)
+        open_result = await self.session.execute(open_query)
+        return (total_result.scalar() or 0, open_result.scalar() or 0)
+
+    async def get_batch_issue_counts(
+        self,
+        project_ids: Sequence[UUID],
+    ) -> dict[UUID, tuple[int, int]]:
+        """Get total and open issue counts for multiple projects in two queries.
+
+        Args:
+            project_ids: List of project IDs.
+
+        Returns:
+            Mapping of project_id -> (total_count, open_count).
+        """
+        if not project_ids:
+            return {}
+
+        total_query = (
+            select(Issue.project_id, func.count().label("cnt"))
+            .where(
+                Issue.project_id.in_(project_ids),
+                Issue.is_deleted == False,  # noqa: E712
+            )
+            .group_by(Issue.project_id)
+        )
+        open_query = (
+            select(Issue.project_id, func.count().label("cnt"))
+            .join(State, Issue.state_id == State.id)
+            .where(
+                Issue.project_id.in_(project_ids),
+                Issue.is_deleted == False,  # noqa: E712
+                State.group.notin_([StateGroup.COMPLETED, StateGroup.CANCELLED]),
+            )
+            .group_by(Issue.project_id)
+        )
+
+        total_result = await self.session.execute(total_query)
+        open_result = await self.session.execute(open_query)
+
+        totals: dict[UUID, int] = {row.project_id: row.cnt for row in total_result}
+        opens: dict[UUID, int] = {row.project_id: row.cnt for row in open_result}
+
+        return {pid: (totals.get(pid, 0), opens.get(pid, 0)) for pid in project_ids}
 
     async def get_by_lead(
         self,

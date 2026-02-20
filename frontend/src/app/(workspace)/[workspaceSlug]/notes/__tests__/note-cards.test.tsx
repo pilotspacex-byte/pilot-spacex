@@ -142,11 +142,10 @@ function makeProject(overrides: Partial<Project> = {}): Project {
   return {
     id: 'proj-1',
     name: 'Alpha Project',
-    slug: 'alpha-project',
+    identifier: 'ALPHA',
     workspaceId: 'ws-1',
-    memberIds: [],
     issueCount: 10,
-    completedIssueCount: 7,
+    openIssueCount: 3,
     createdAt: '2025-01-01T00:00:00Z',
     updatedAt: '2025-01-01T00:00:00Z',
     ...overrides,
@@ -280,7 +279,7 @@ describe('NotesPage - NoteGridCard', () => {
     const project = makeProject({
       id: 'proj-1',
       issueCount: 10,
-      completedIssueCount: 5,
+      openIssueCount: 5,
     });
     const note = makeNote({ projectId: 'proj-1' });
 

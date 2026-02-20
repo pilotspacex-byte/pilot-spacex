@@ -211,14 +211,13 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
-  slug: string;
+  identifier: string;
   workspaceId: string;
   leadId?: string;
   lead?: User;
-  memberIds: string[];
-  members?: User[];
+  icon?: string;
   issueCount: number;
-  completedIssueCount: number;
+  openIssueCount: number;
   createdAt: string;
   updatedAt: string;
 }

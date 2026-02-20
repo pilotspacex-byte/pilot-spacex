@@ -31,8 +31,11 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _project_to_response(project: Project) -> ProjectDetailResponse:
-    """Convert project model to response."""
+async def _project_to_response(
+    project: Project,
+    project_repo: ProjectRepositoryDep,
+) -> ProjectDetailResponse:
+    """Convert project model to response with real issue counts."""
     states = [
         StateResponse(
             id=state.id,
@@ -44,6 +47,8 @@ def _project_to_response(project: Project) -> ProjectDetailResponse:
         for state in sorted(project.states or [], key=lambda s: s.sequence)
     ]
 
+    total_count, open_count = await project_repo.get_issue_counts(project.id)
+
     return ProjectDetailResponse(
         id=project.id,
         created_at=project.created_at,
@@ -52,8 +57,10 @@ def _project_to_response(project: Project) -> ProjectDetailResponse:
         identifier=project.identifier,
         description=project.description,
         workspace_id=project.workspace_id,
-        issue_count=0,  # TODO: Implement issue count
-        open_issue_count=0,  # TODO: Implement open issue count
+        lead_id=project.lead_id,
+        icon=project.icon,
+        issue_count=total_count,
+        open_issue_count=open_count,
         settings=project.settings,
         states=states,
     )
@@ -131,6 +138,9 @@ async def list_projects(
         filters={"workspace_id": workspace_id},
     )
 
+    project_ids = [proj.id for proj in page.items]
+    batch_counts = await project_repo.get_batch_issue_counts(project_ids)
+
     items = [
         ProjectResponse(
             id=proj.id,
@@ -140,8 +150,10 @@ async def list_projects(
             identifier=proj.identifier,
             description=proj.description,
             workspace_id=proj.workspace_id,
-            issue_count=0,
-            open_issue_count=0,
+            lead_id=proj.lead_id,
+            icon=proj.icon,
+            issue_count=batch_counts.get(proj.id, (0, 0))[0],
+            open_issue_count=batch_counts.get(proj.id, (0, 0))[1],
         )
         for proj in page.items
     ]
@@ -219,7 +231,7 @@ async def create_project(
         },
     )
 
-    return _project_to_response(project)
+    return await _project_to_response(project, project_repo)
 
 
 @router.get("/{project_id}", response_model=ProjectDetailResponse, tags=["projects"])
@@ -253,7 +265,7 @@ async def get_project(
 
     await _check_workspace_access(workspace_repo, project.workspace_id, current_user.user_id)
 
-    return _project_to_response(project)
+    return await _project_to_response(project, project_repo)
 
 
 @router.patch("/{project_id}", response_model=ProjectDetailResponse, tags=["projects"])
@@ -302,7 +314,7 @@ async def update_project(
 
     logger.info("Project updated", extra={"project_id": str(project_id)})
 
-    return _project_to_response(project)
+    return await _project_to_response(project, project_repo)
 
 
 @router.delete("/{project_id}", response_model=DeleteResponse, tags=["projects"])
