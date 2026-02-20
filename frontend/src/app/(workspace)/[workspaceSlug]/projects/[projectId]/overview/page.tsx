@@ -12,8 +12,43 @@ import { useWorkspaceStore } from '@/stores/RootStore';
 import { ProjectStats } from '@/components/projects/ProjectStats';
 import { issuesApi } from '@/services/api';
 import { useQuery } from '@tanstack/react-query';
-import type { Issue } from '@/types';
+import type { Cycle, Issue } from '@/types';
 import { formatDistanceToNow, differenceInDays } from 'date-fns';
+
+function ActiveCycleSummary({ cycle }: { cycle: Cycle }) {
+  const daysLeft = cycle.endDate
+    ? differenceInDays(new Date(cycle.endDate), new Date())
+    : null;
+  const pct = cycle.metrics?.completionPercentage ?? 0;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-sm">{cycle.name}</span>
+        {daysLeft !== null && (
+          <span className={`text-xs ${daysLeft < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+            {daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}
+          </span>
+        )}
+      </div>
+      <div className="h-2 rounded-full bg-muted overflow-hidden">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{Math.round(pct)}% complete</span>
+        {cycle.startDate && cycle.endDate && (
+          <span>
+            {new Date(cycle.startDate).toLocaleDateString()} —{' '}
+            {new Date(cycle.endDate).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const STATE_COLORS: Record<string, string> = {
   backlog: 'bg-muted text-muted-foreground',
@@ -46,12 +81,20 @@ export default function ProjectOverviewPage() {
 
   const recentIssues: Issue[] = recentIssuesData?.items ?? [];
 
-  if (!project) return null;
+  if (!project) {
+    return (
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-7 w-32" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[76px] rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const completedIssues = project.issueCount - project.openIssueCount;
-  // Estimate in-progress as: open - (total - completed - open) — simplified to open count
-  // For a proper breakdown we'd need backend support; using openIssueCount as approximation
-  const inProgressIssues = project.openIssueCount;
 
   return (
     <div className="p-6 space-y-6">
@@ -61,8 +104,7 @@ export default function ProjectOverviewPage() {
       <ProjectStats
         totalIssues={project.issueCount}
         completedIssues={completedIssues}
-        inProgressIssues={inProgressIssues}
-        memberCount={0}
+        openIssues={project.openIssueCount}
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -90,38 +132,7 @@ export default function ProjectOverviewPage() {
                 <Skeleton className="h-3 w-24" />
               </div>
             ) : activeCycle ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm">{activeCycle.name}</span>
-                  {activeCycle.endDate && (() => {
-                    const daysLeft = differenceInDays(new Date(activeCycle.endDate), new Date());
-                    return (
-                      <span className={`text-xs ${daysLeft < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                        {daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}
-                      </span>
-                    );
-                  })()}
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{
-                      width: `${activeCycle.metrics?.completionPercentage ?? 0}%`,
-                    }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>
-                    {Math.round(activeCycle.metrics?.completionPercentage ?? 0)}% complete
-                  </span>
-                  {activeCycle.startDate && activeCycle.endDate && (
-                    <span>
-                      {new Date(activeCycle.startDate).toLocaleDateString()} —{' '}
-                      {new Date(activeCycle.endDate).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </div>
+              <ActiveCycleSummary cycle={activeCycle} />
             ) : (
               <div className="text-center py-4">
                 <p className="text-sm text-muted-foreground mb-2">No active cycle</p>
