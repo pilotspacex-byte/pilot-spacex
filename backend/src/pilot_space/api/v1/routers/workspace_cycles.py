@@ -1,6 +1,7 @@
 """Workspace-scoped Cycles API router.
 
 Provides nested routes for cycles under workspaces.
+POST /workspaces/{workspace_id}/cycles
 GET /workspaces/{workspace_id}/cycles
 GET /workspaces/{workspace_id}/cycles/{cycle_id}
 
@@ -15,10 +16,12 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from pilot_space.api.v1.dependencies import (
+    CreateCycleServiceDep,
     CycleRepositoryDep,
     WorkspaceRepositoryDep,
 )
 from pilot_space.api.v1.schemas.cycle import (
+    CycleCreateRequest,
     CycleListResponse,
     CycleResponse,
 )
@@ -74,6 +77,53 @@ async def _resolve_workspace(
 # ============================================================================
 # Endpoints
 # ============================================================================
+
+
+@router.post(
+    "/{workspace_id}/cycles",
+    response_model=CycleResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a cycle in workspace",
+    tags=["workspace-cycles"],
+)
+async def create_workspace_cycle(
+    workspace_id: WorkspaceIdOrSlug,
+    request: CycleCreateRequest,
+    current_user_id: SyncedUserId,
+    session: DbSession,
+    workspace_repo: WorkspaceRepositoryDep,
+    create_service: CreateCycleServiceDep,
+) -> CycleResponse:
+    """Create a new cycle (sprint) in the workspace."""
+    from pilot_space.application.services.cycle import CreateCyclePayload
+
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+
+    payload = CreateCyclePayload(
+        workspace_id=workspace.id,
+        project_id=request.project_id,
+        name=request.name,
+        description=request.description,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        owned_by_id=request.owned_by_id or current_user_id,
+        status=request.status,
+    )
+
+    try:
+        result = await create_service.execute(payload)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+    logger.info(
+        "Cycle created",
+        extra={"cycle_id": str(result.cycle.id), "workspace_id": str(workspace.id)},
+    )
+
+    return CycleResponse.from_cycle(result.cycle)
 
 
 @router.get(

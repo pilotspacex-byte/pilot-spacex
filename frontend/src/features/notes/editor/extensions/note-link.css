@@ -50,6 +50,10 @@
   max-width: 320px;
   max-height: 280px;
   overflow-y: auto;
+}
+
+/* Fade-in on the tippy container (plays once on show, not on content swap) */
+.tippy-box[data-animation='shift-away'][data-state='visible'] .note-link-suggestion-list {
   animation: note-link-fade-in 0.15s ease;
 }
 

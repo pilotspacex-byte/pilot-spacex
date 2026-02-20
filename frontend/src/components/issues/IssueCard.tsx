@@ -145,7 +145,7 @@ export const IssueCard = observer(function IssueCard({
       draggable={!!onDragStart}
       tabIndex={onClick ? 0 : undefined}
       role={onClick ? 'button' : undefined}
-      aria-label={`Issue ${issue.identifier}: ${issue.title}`}
+      aria-label={`Issue ${issue.identifier}: ${issue.name}`}
     >
       {/* Header: Identifier + Priority + AI indicator */}
       <div className="mb-2 flex items-center justify-between">
@@ -206,7 +206,7 @@ export const IssueCard = observer(function IssueCard({
       </div>
 
       {/* Title */}
-      <h4 className="mb-1.5 line-clamp-2 text-xs font-medium leading-snug">{issue.title}</h4>
+      <h4 className="mb-1.5 line-clamp-2 text-xs font-medium leading-snug">{issue.name}</h4>
 
       {/* Description (if not compact) */}
       {!compact && issue.description && (

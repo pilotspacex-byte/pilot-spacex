@@ -291,8 +291,30 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
     let popup: TippyInstance | null = null;
     let component: HTMLElement | null = null;
     let selectedIndex = 0;
-    let items: NoteLinkSearchResult[] = [];
+    let currentItems: NoteLinkSearchResult[] = [];
     let currentCommand: ((attrs: { id: string }) => void) | null = null;
+
+    /** Update only the selected item highlight without recreating the DOM tree. */
+    function updateSelectedIndex(index: number): void {
+      if (!component) return;
+      const buttons = component.querySelectorAll<HTMLButtonElement>('.note-link-suggestion-item');
+      buttons.forEach((btn, i) => {
+        btn.setAttribute('aria-selected', String(i === index));
+        if (i === index) {
+          btn.scrollIntoView({ block: 'nearest' });
+        }
+      });
+    }
+
+    /** Rebuild the full suggestion list DOM (used when items change, not for selection-only updates). */
+    function replaceListContent(
+      listItems: NoteLinkSearchResult[],
+      command: (item: { id: string }) => void,
+      index: number
+    ): void {
+      component = createNoteLinkListElement({ items: listItems, command, selectedIndex: index });
+      if (popup) popup.setContent(component);
+    }
 
     const suggestionConfig = {
       char: '[[',
@@ -309,8 +331,8 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
               // R-9: Exclude current note from autocomplete (prevent self-links)
               const currentId = extension.options.currentNoteId;
               const filtered = currentId ? results.filter((r) => r.id !== currentId) : results;
-              items = filtered.slice(0, extension.options.maxSuggestions);
-              resolve(items);
+              currentItems = filtered.slice(0, extension.options.maxSuggestions);
+              resolve(currentItems);
             } catch {
               resolve([]);
             }
@@ -340,7 +362,7 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
         }
 
         // Cache the selected note's title in storage before inserting
-        const selectedItem = items.find((i) => i.id === itemProps.id);
+        const selectedItem = currentItems.find((i) => i.id === itemProps.id);
         if (selectedItem) {
           const titleMap = extension.storage.noteTitles as Map<string, string>;
           titleMap.set(selectedItem.id, selectedItem.title);
@@ -356,9 +378,11 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
           onStart: (props: SuggestionProps<NoteLinkSearchResult, { id: string }>) => {
             selectedIndex = 0;
             currentCommand = props.command;
+            // Use props.items (resolved by Suggestion plugin) instead of closure
+            currentItems = (props as unknown as { items: NoteLinkSearchResult[] }).items ?? [];
 
             component = createNoteLinkListElement({
-              items,
+              items: currentItems,
               command: (item) => props.command(item),
               selectedIndex,
             });
@@ -381,14 +405,14 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
 
           onUpdate: (props: SuggestionProps<NoteLinkSearchResult, { id: string }>) => {
             currentCommand = props.command;
+            // Use props.items from Suggestion plugin (authoritative, post-resolve)
+            const resolvedItems =
+              (props as unknown as { items: NoteLinkSearchResult[] }).items ?? currentItems;
+            currentItems = resolvedItems;
+            selectedIndex = Math.min(selectedIndex, Math.max(0, currentItems.length - 1));
 
-            component = createNoteLinkListElement({
-              items,
-              command: (item) => props.command(item),
-              selectedIndex,
-            });
+            replaceListContent(currentItems, (item) => props.command(item), selectedIndex);
 
-            if (popup) popup.setContent(component);
             if (props.clientRect) {
               const rect = props.clientRect();
               if (rect) popup?.setProps({ getReferenceClientRect: () => rect });
@@ -396,36 +420,22 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
           },
 
           onKeyDown: (props: SuggestionKeyDownProps) => {
+            if (currentItems.length === 0) return false;
+
             if (props.event.key === 'ArrowUp') {
-              selectedIndex = (selectedIndex - 1 + items.length) % items.length;
-              if (component && currentCommand) {
-                const newEl = createNoteLinkListElement({
-                  items,
-                  command: (item) => currentCommand!(item),
-                  selectedIndex,
-                });
-                popup?.setContent(newEl);
-                component = newEl;
-              }
+              selectedIndex = (selectedIndex - 1 + currentItems.length) % currentItems.length;
+              updateSelectedIndex(selectedIndex);
               return true;
             }
 
             if (props.event.key === 'ArrowDown') {
-              selectedIndex = (selectedIndex + 1) % items.length;
-              if (component && currentCommand) {
-                const newEl = createNoteLinkListElement({
-                  items,
-                  command: (item) => currentCommand!(item),
-                  selectedIndex,
-                });
-                popup?.setContent(newEl);
-                component = newEl;
-              }
+              selectedIndex = (selectedIndex + 1) % currentItems.length;
+              updateSelectedIndex(selectedIndex);
               return true;
             }
 
             if (props.event.key === 'Enter') {
-              const item = items[selectedIndex];
+              const item = currentItems[selectedIndex];
               if (item && currentCommand) {
                 currentCommand({ id: item.id });
                 return true;
@@ -445,7 +455,7 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
             popup = null;
             component = null;
             selectedIndex = 0;
-            items = [];
+            currentItems = [];
             currentCommand = null;
           },
         };
