@@ -25,6 +25,9 @@ from pilot_space.infrastructure.database.repositories.issue_repository import (
 from pilot_space.infrastructure.database.repositories.note_issue_link_repository import (
     NoteIssueLinkRepository,
 )
+from pilot_space.infrastructure.database.repositories.note_note_link_repository import (
+    NoteNoteLinkRepository,
+)
 from pilot_space.infrastructure.database.repositories.note_repository import (
     NoteRepository,
 )
@@ -95,6 +98,18 @@ NoteIssueLinkRepositoryDep = Annotated[
 
 
 @inject
+def _get_note_note_link_repository(
+    repo: NoteNoteLinkRepository = Depends(Provide[Container.note_note_link_repository]),
+) -> NoteNoteLinkRepository:
+    return repo
+
+
+NoteNoteLinkRepositoryDep = Annotated[
+    NoteNoteLinkRepository, Depends(_get_note_note_link_repository)
+]
+
+
+@inject
 def _get_note_repository(
     repo: NoteRepository = Depends(Provide[Container.note_repository]),
 ) -> NoteRepository:
@@ -151,6 +166,7 @@ __all__ = [
     "InvitationRepositoryDep",
     "IssueRepositoryDep",
     "NoteIssueLinkRepositoryDep",
+    "NoteNoteLinkRepositoryDep",
     "NoteRepositoryDep",
     "NoteYjsStateRepositoryDep",
     "ProjectRepositoryDep",

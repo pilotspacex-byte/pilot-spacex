@@ -1,6 +1,15 @@
 import { supabase } from '@/lib/supabase';
 import { apiClient, type PaginatedResponse } from './client';
-import type { Note, CreateNoteData, JSONContent, NoteAnnotation, AnnotationStatus } from '@/types';
+import type {
+  Note,
+  CreateNoteData,
+  JSONContent,
+  NoteAnnotation,
+  AnnotationStatus,
+  NoteNoteLink,
+  NoteBacklink,
+  NoteLinkSearchResult,
+} from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 
@@ -102,6 +111,40 @@ export const notesApi = {
       `/workspaces/${workspaceId}/notes/${noteId}/annotations/${annotationId}`,
       { status }
     );
+  },
+
+  searchNotes(workspaceId: string, query: string): Promise<NoteLinkSearchResult[]> {
+    return apiClient
+      .get<
+        PaginatedResponse<Note>
+      >(`/workspaces/${workspaceId}/notes`, { params: { search: query, pageSize: '10' } })
+      .then((res) => res.items.map((n) => ({ id: n.id, title: n.title, updatedAt: n.updatedAt })));
+  },
+
+  linkNote(
+    workspaceId: string,
+    noteId: string,
+    targetNoteId: string,
+    linkType: 'inline' | 'embed' = 'inline',
+    blockId?: string
+  ): Promise<NoteNoteLink> {
+    return apiClient.post<NoteNoteLink>(`/workspaces/${workspaceId}/notes/${noteId}/links`, {
+      target_note_id: targetNoteId,
+      link_type: linkType,
+      block_id: blockId,
+    });
+  },
+
+  unlinkNote(workspaceId: string, noteId: string, targetNoteId: string): Promise<void> {
+    return apiClient.delete(`/workspaces/${workspaceId}/notes/${noteId}/links/${targetNoteId}`);
+  },
+
+  getNoteLinks(workspaceId: string, noteId: string): Promise<NoteNoteLink[]> {
+    return apiClient.get<NoteNoteLink[]>(`/workspaces/${workspaceId}/notes/${noteId}/links`);
+  },
+
+  getNoteBacklinks(workspaceId: string, noteId: string): Promise<NoteBacklink[]> {
+    return apiClient.get<NoteBacklink[]>(`/workspaces/${workspaceId}/notes/${noteId}/backlinks`);
   },
 };
 

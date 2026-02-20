@@ -26,7 +26,7 @@ export interface AutoTOCProps {
   className?: string;
 }
 
-interface HeadingItem {
+export interface HeadingItem {
   id: string;
   level: 1 | 2 | 3;
   text: string;
@@ -36,7 +36,7 @@ interface HeadingItem {
 /**
  * Extract headings from editor content
  */
-function extractHeadings(editor: Editor): HeadingItem[] {
+export function extractHeadings(editor: Editor): HeadingItem[] {
   const headings: HeadingItem[] = [];
 
   editor.state.doc.descendants((node, pos) => {

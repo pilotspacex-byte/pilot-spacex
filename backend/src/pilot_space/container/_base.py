@@ -84,6 +84,9 @@ from pilot_space.infrastructure.database.repositories.note_annotation_repository
 from pilot_space.infrastructure.database.repositories.note_issue_link_repository import (
     NoteIssueLinkRepository,
 )
+from pilot_space.infrastructure.database.repositories.note_note_link_repository import (
+    NoteNoteLinkRepository,
+)
 from pilot_space.infrastructure.database.repositories.note_repository import (
     NoteRepository,
 )
@@ -268,6 +271,11 @@ class InfraContainer(containers.DeclarativeContainer):
 
     note_issue_link_repository = providers.Factory(
         NoteIssueLinkRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    note_note_link_repository = providers.Factory(
+        NoteNoteLinkRepository,
         session=providers.Callable(get_current_session),
     )
 

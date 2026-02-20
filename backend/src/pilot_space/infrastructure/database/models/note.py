@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         NoteAnnotation,
     )
     from pilot_space.infrastructure.database.models.note_issue_link import NoteIssueLink
+    from pilot_space.infrastructure.database.models.note_note_link import NoteNoteLink
     from pilot_space.infrastructure.database.models.project import Project
     from pilot_space.infrastructure.database.models.template import Template
     from pilot_space.infrastructure.database.models.threaded_discussion import (
@@ -170,6 +171,20 @@ class Note(WorkspaceScopedModel):
         back_populates="note",
         cascade="all, delete-orphan",
         lazy="selectin",
+    )
+    outgoing_note_links: Mapped[list[NoteNoteLink]] = relationship(
+        "NoteNoteLink",
+        foreign_keys="[NoteNoteLink.source_note_id]",
+        back_populates="source_note",
+        cascade="all, delete-orphan",
+        lazy="noload",
+    )
+    incoming_note_links: Mapped[list[NoteNoteLink]] = relationship(
+        "NoteNoteLink",
+        foreign_keys="[NoteNoteLink.target_note_id]",
+        back_populates="target_note",
+        cascade="all, delete-orphan",
+        lazy="noload",
     )
 
     # Indexes and constraints

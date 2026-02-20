@@ -94,6 +94,11 @@ import {
   type InlineIssueAttributes,
 } from './InlineIssueExtension';
 import { ParagraphSplitExtension, type ParagraphSplitOptions } from './ParagraphSplitExtension';
+import {
+  NoteLinkExtension,
+  type NoteLinkOptions,
+  type NoteLinkSearchResult,
+} from './NoteLinkExtension';
 import { AIBlockProcessingExtension } from './AIBlockProcessingExtension';
 import { OwnershipExtension, type OwnershipOptions, type BlockOwner } from './OwnershipExtension';
 import { DensityExtension, type DensityOptions } from './DensityExtension';
@@ -158,6 +163,14 @@ export interface EditorExtensionsOptions {
   enableParagraphSplit?: boolean;
   /** Paragraph split configuration */
   paragraphSplit?: Partial<ParagraphSplitOptions>;
+  /** Enable note-to-note linking with [[ trigger (default: false) */
+  enableNoteLinks?: boolean;
+  /** Note link configuration */
+  noteLink?: Partial<NoteLinkOptions> & {
+    onSearch?: (query: string) => Promise<NoteLinkSearchResult[]>;
+    onLinkCreated?: (targetNoteId: string, blockId?: string) => void;
+    onClick?: (noteId: string) => void;
+  };
   /** Ownership extension configuration (M6b — Feature 016) */
   ownership?: Partial<OwnershipOptions> & {
     /** Called when human tries to edit an AI block (show edit guard toast) */
@@ -228,6 +241,8 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
     inlineIssue,
     enableParagraphSplit = true,
     paragraphSplit,
+    enableNoteLinks = false,
+    noteLink,
     ownership,
     density,
   } = options;
@@ -437,6 +452,17 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
         onIssueHover: inlineIssue?.onHover,
         onIssueUnlink: inlineIssue?.onUnlink,
         ...inlineIssue,
+      })
+    );
+  }
+
+  // Note-to-note linking with [[ trigger (018-note-editor-enhancements)
+  if (enableNoteLinks && noteLink?.onSearch) {
+    extensions.push(
+      NoteLinkExtension.configure({
+        maxSuggestions: 10,
+        debounceMs: 150,
+        ...noteLink,
       })
     );
   }

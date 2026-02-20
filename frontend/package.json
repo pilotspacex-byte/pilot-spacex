@@ -57,6 +57,7 @@
     "@tiptap/pm": "^3.16.0",
     "@tiptap/react": "^3.16.0",
     "@tiptap/starter-kit": "^3.16.0",
+    "@tiptap/suggestion": "3.17.0",
     "ai": "^6.0.50",
     "axios": "^1.7.0",
     "class-variance-authority": "^0.7.1",

@@ -70,6 +70,10 @@ from pilot_space.infrastructure.database.models.note_issue_link import (
     NoteIssueLink,
     NoteLinkType,
 )
+from pilot_space.infrastructure.database.models.note_note_link import (
+    NoteNoteLink,
+    NoteNoteLinkType,
+)
 from pilot_space.infrastructure.database.models.note_version import NoteVersion, VersionTrigger
 from pilot_space.infrastructure.database.models.onboarding import WorkspaceOnboarding
 from pilot_space.infrastructure.database.models.pm_block_insight import PMBlockInsight
@@ -158,6 +162,8 @@ __all__ = [
     "NoteAnnotation",
     "NoteIssueLink",
     "NoteLinkType",
+    "NoteNoteLink",
+    "NoteNoteLinkType",
     "NoteVersion",
     "PMBlockInsight",
     "Project",

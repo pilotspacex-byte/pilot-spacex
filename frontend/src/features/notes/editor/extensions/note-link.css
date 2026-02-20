@@ -1,0 +1,120 @@
+.note-link-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 6px;
+  background: var(--background-subtle, #f7f5f2);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground, #171717);
+  cursor: pointer;
+  max-width: 200px;
+  vertical-align: middle;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.note-link-node:hover {
+  background: var(--primary-muted, rgba(41, 163, 134, 0.1));
+  border-color: rgba(41, 163, 134, 0.3);
+  color: var(--primary, #29a386);
+}
+
+.note-link-node:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(41, 163, 134, 0.3);
+}
+
+.note-link-node:active {
+  transform: scale(0.98);
+}
+
+.note-link-node.broken-link {
+  border-style: dashed;
+  border-color: rgba(217, 83, 79, 0.3);
+  color: var(--destructive, #d9534f);
+  font-style: italic;
+}
+
+.note-link-suggestion-list {
+  background: var(--popover, #fdfcfa);
+  border: 1px solid var(--border, #e5e2dd);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  min-width: 280px;
+  max-width: 320px;
+  max-height: 280px;
+  overflow-y: auto;
+  animation: note-link-fade-in 0.15s ease;
+}
+
+@keyframes note-link-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.note-link-suggestion-empty {
+  padding: 12px 16px;
+  color: var(--muted-foreground, #9c9590);
+  font-size: 13px;
+  text-align: center;
+}
+
+.note-link-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--foreground, #171717);
+  transition: background-color 0.15s ease;
+}
+
+.note-link-suggestion-item:hover,
+.note-link-suggestion-item[aria-selected='true'] {
+  background: var(--accent, #f7f5f2);
+  border-left-color: var(--primary, #29a386);
+}
+
+.note-link-suggestion-item-icon {
+  flex-shrink: 0;
+  color: var(--muted-foreground, #9c9590);
+}
+
+.note-link-suggestion-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.note-link-suggestion-item-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-link-suggestion-item-subtitle {
+  font-size: 11px;
+  color: var(--muted-foreground, #9c9590);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
