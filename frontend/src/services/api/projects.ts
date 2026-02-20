@@ -1,15 +1,19 @@
 import { apiClient, type PaginatedResponse } from './client';
 import type { Project } from '@/types';
 
-interface CreateProjectData {
+export interface CreateProjectData {
   name: string;
+  identifier?: string;
   description?: string;
+  icon?: string;
   leadId?: string;
 }
 
-interface UpdateProjectData {
+export interface UpdateProjectData {
   name?: string;
+  identifier?: string;
   description?: string;
+  icon?: string;
   leadId?: string;
 }
 

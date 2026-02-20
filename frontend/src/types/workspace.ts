@@ -93,14 +93,17 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
-  slug: string;
+  identifier: string;
+  slug?: string;
   workspaceId: string;
   leadId?: string;
-  lead?: User;
-  memberIds: string[];
+  lead?: { id: string; email: string; displayName?: string | null };
+  icon?: string;
+  memberIds?: string[];
   members?: User[];
   issueCount: number;
-  completedIssueCount: number;
+  openIssueCount: number;
+  completedIssueCount?: number;
   createdAt: string;
   updatedAt: string;
 }

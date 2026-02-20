@@ -86,6 +86,14 @@ class StateResponse(BaseSchema):
     sequence: int = Field(description="Sort order")
 
 
+class LeadBriefResponse(BaseSchema):
+    """Brief lead user info for project responses."""
+
+    id: UUID
+    email: str
+    display_name: str | None = None
+
+
 class ProjectResponse(EntitySchema):
     """Project response.
 
@@ -94,6 +102,9 @@ class ProjectResponse(EntitySchema):
         identifier: Unique project identifier.
         description: Project description.
         workspace_id: Parent workspace ID.
+        lead_id: Optional lead user ID.
+        lead: Optional lead user brief info.
+        icon: Optional icon identifier.
         issue_count: Number of issues.
         open_issue_count: Number of open issues.
     """
@@ -102,6 +113,9 @@ class ProjectResponse(EntitySchema):
     identifier: str = Field(description="Unique identifier")
     description: str | None = Field(default=None, description="Project description")
     workspace_id: UUID = Field(description="Parent workspace ID")
+    lead_id: UUID | None = Field(default=None, description="Lead user ID")
+    lead: LeadBriefResponse | None = Field(default=None, description="Lead user info")
+    icon: str | None = Field(default=None, description="Icon identifier")
     issue_count: int = Field(default=0, description="Total number of issues")
     open_issue_count: int = Field(default=0, description="Number of open issues")
 

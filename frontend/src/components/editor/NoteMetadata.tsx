@@ -46,7 +46,8 @@ export function NoteMetadata({
   if (!projectId && linkedIssues.length === 0) return null;
 
   const total = project ? Math.max(project.issueCount, 1) : 1;
-  const progress = project ? (project.completedIssueCount / total) * 100 : 0;
+  const completedCount = project ? project.issueCount - project.openIssueCount : 0;
+  const progress = project ? (completedCount / total) * 100 : 0;
 
   return (
     <div
@@ -60,7 +61,7 @@ export function NoteMetadata({
       {/* Project reference with progress bar */}
       {project && (
         <Link
-          href={`/${workspaceSlug}/projects/${project.slug}`}
+          href={`/${workspaceSlug}/projects/${project.id}`}
           className="flex items-center gap-1.5 hover:text-foreground transition-colors"
           data-testid="note-metadata-project"
         >
@@ -72,10 +73,10 @@ export function NoteMetadata({
                 <div
                   className="h-1.5 w-16 rounded-full bg-border overflow-hidden"
                   role="progressbar"
-                  aria-valuenow={project.completedIssueCount}
+                  aria-valuenow={completedCount}
                   aria-valuemin={0}
                   aria-valuemax={project.issueCount}
-                  aria-label={`${project.completedIssueCount} of ${project.issueCount} issues completed`}
+                  aria-label={`${completedCount} of ${project.issueCount} issues completed`}
                 >
                   <div
                     className="h-full rounded-full bg-primary transition-all"
@@ -83,12 +84,12 @@ export function NoteMetadata({
                   />
                 </div>
                 <span className="text-[10px]">
-                  {project.completedIssueCount}/{project.issueCount}
+                  {completedCount}/{project.issueCount}
                 </span>
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              {project.completedIssueCount} of {project.issueCount} issues completed
+              {completedCount} of {project.issueCount} issues completed
             </TooltipContent>
           </Tooltip>
         </Link>
