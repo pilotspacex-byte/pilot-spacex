@@ -70,7 +70,7 @@ export interface IssueContext {
  */
 export interface HomepageContextData {
   digestSummary: string;
-  activeIssueCount: number;
+  totalSuggestionCount: number;
   staleIssueCount: number;
   cycleRiskCount: number;
   recentNotes: Array<{ id: string; title: string }>;

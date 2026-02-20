@@ -27,7 +27,7 @@ import type { AIStore } from '../AIStore';
 
 const MOCK_HOMEPAGE_CONTEXT: HomepageContextData = {
   digestSummary: 'Workspace has 3 stale issues, 2 cycle risks, 1 blocked items.',
-  activeIssueCount: 12,
+  totalSuggestionCount: 12,
   staleIssueCount: 3,
   cycleRiskCount: 2,
   recentNotes: [

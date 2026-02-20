@@ -137,7 +137,7 @@ export const HomepageHub = observer(function HomepageHub({ workspaceSlug }: Home
 
     store.setHomepageContext({
       digestSummary,
-      activeIssueCount: suggestionCount,
+      totalSuggestionCount: suggestionCount,
       staleIssueCount: staleCount,
       cycleRiskCount,
       recentNotes,

@@ -11,7 +11,7 @@
  */
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { ForwardRefExoticComponent, RefAttributes } from 'react';
 import { observer } from 'mobx-react-lite';
 import { cn } from '@/lib/utils';
@@ -121,6 +121,7 @@ export const AnnotationCard = observer(function AnnotationCard({
 }: AnnotationCardProps) {
   const { aiStore } = useStore();
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const actionLockRef = useRef(false);
 
   const Icon = typeIcons[annotation.type] || Lightbulb;
   const actionConfig = actionConfigs[annotation.type];
@@ -128,17 +129,19 @@ export const AnnotationCard = observer(function AnnotationCard({
   const handleAction = useCallback(
     async (e: React.MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
-      if (!actionConfig || isActionLoading) return;
+      if (!actionConfig || actionLockRef.current) return;
 
+      actionLockRef.current = true;
       setIsActionLoading(true);
       try {
         const message = actionConfig.buildMessage(annotation);
         await aiStore.pilotSpace.sendMessage(message);
       } finally {
+        actionLockRef.current = false;
         setIsActionLoading(false);
       }
     },
-    [actionConfig, annotation, aiStore.pilotSpace, isActionLoading]
+    [actionConfig, annotation, aiStore.pilotSpace]
   );
 
   const ActionIcon = actionConfig?.icon;
