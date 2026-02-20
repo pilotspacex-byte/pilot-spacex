@@ -17,7 +17,7 @@
  * - Tablet (md-lg): Collapsible ChatView, full-width editor
  * - Mobile (<md): Overlay ChatView panel, compact header
  */
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import { motion } from 'motion/react';
 import { History, Users, MessageSquare } from 'lucide-react';
@@ -40,6 +40,8 @@ import type { SidebarTab } from './sidebar';
 import { PresenceSidebarPanel, ConversationSidebarPanel } from '@/features/notes/components/panels';
 import { VersionPanel } from '@/features/notes/components/VersionPanel';
 import { VersionStore } from '@/features/notes/stores/VersionStore';
+import { useIssueExtraction } from '@/features/notes/hooks/useIssueExtraction';
+import { ExtractionPreviewModal } from '@/features/notes/components/ExtractionPreviewModal';
 
 import type { NoteCanvasProps } from './NoteCanvasEditor';
 import { useNoteCanvasEditor, EditorErrorFallback, EditorSkeleton } from './NoteCanvasEditor';
@@ -99,6 +101,25 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
     linkedIssues = [],
   } = props;
 
+  // Issue extraction SSE pipeline (Feature 009)
+  const [extractionState, extractionActions] = useIssueExtraction();
+
+  const handleExtractIssues = useCallback(
+    (params: {
+      noteId: string;
+      noteTitle: string;
+      noteContent: Record<string, unknown>;
+      selectedText?: string;
+    }) => {
+      if (!workspaceId) return;
+      extractionActions.startExtraction({
+        ...params,
+        workspaceId,
+      });
+    },
+    [workspaceId, extractionActions]
+  );
+
   const {
     editor,
     editorContainerRef,
@@ -118,7 +139,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
     handleChatPanelResize,
     handleRetry,
     editorError,
-  } = useNoteCanvasEditor(props);
+  } = useNoteCanvasEditor({ ...props, onExtractIssues: handleExtractIssues });
 
   // T-136/T-137/T-138/T-139: Sidebar panel framework
   const sidebar = useSidebarPanel();
@@ -336,6 +357,21 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
       >
         {sidebarContent}
       </SidebarPanel>
+
+      {/* Issue Extraction Preview Modal (Feature 009) */}
+      {workspaceId && (
+        <ExtractionPreviewModal
+          open={extractionState.isModalOpen}
+          onOpenChange={(open) => {
+            if (!open) extractionActions.closeModal();
+          }}
+          issues={extractionState.issues}
+          isExtracting={extractionState.isExtracting}
+          error={extractionState.error}
+          workspaceId={workspaceId}
+          noteId={noteId}
+        />
+      )}
     </div>
   );
 }

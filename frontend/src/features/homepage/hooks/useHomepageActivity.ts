@@ -27,7 +27,7 @@ export function useHomepageActivity({ workspaceId, enabled = true }: UseHomepage
       homepageApi.getActivity(workspaceId, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: HomepageActivityResponse) => {
-      if (lastPage.meta.has_more && lastPage.meta.cursor) {
+      if (lastPage.meta.hasMore && lastPage.meta.cursor) {
         return lastPage.meta.cursor;
       }
       return undefined;

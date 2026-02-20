@@ -103,7 +103,7 @@ function createApiClient(): AxiosInstance {
     withCredentials: true,
   });
 
-  // Request interceptor: Add Supabase auth token
+  // Request interceptor: Add Supabase auth token and workspace context
   instance.interceptors.request.use(
     async (config: InternalAxiosRequestConfig) => {
       try {
@@ -117,6 +117,18 @@ function createApiClient(): AxiosInstance {
         // Silent fail - request will proceed without auth header
         console.warn('Failed to get auth session for API request');
       }
+
+      // Add X-Workspace-Id header from localStorage if not already set.
+      // The workspace ID is stored by WorkspaceStore.setCurrentWorkspace().
+      if (!config.headers['X-Workspace-Id'] && !config.headers['X-Workspace-ID']) {
+        if (typeof window !== 'undefined') {
+          const storedWorkspaceId = localStorage.getItem('pilot-space:current-workspace');
+          if (storedWorkspaceId) {
+            config.headers['X-Workspace-Id'] = storedWorkspaceId;
+          }
+        }
+      }
+
       return config;
     },
     (error) => Promise.reject(error)

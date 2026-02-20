@@ -52,7 +52,7 @@ import {
 } from '@/features/cycles/hooks';
 import type { Issue, IssueState, RolloverCycleData } from '@/types';
 import type { CycleIssue } from '@/stores/features/cycles';
-import { stateNameToKey } from '@/lib/issue-helpers';
+import { getIssueStateKey } from '@/lib/issue-helpers';
 
 // ============================================================================
 // Types
@@ -101,7 +101,7 @@ function groupIssuesByState(issues: Issue[]): Record<IssueState, CycleIssue[]> {
   const grouped: Record<IssueState, CycleIssue[]> = {} as Record<IssueState, CycleIssue[]>;
 
   states.forEach((state) => {
-    grouped[state] = issues.filter((i) => stateNameToKey(i.state?.name) === state) as CycleIssue[];
+    grouped[state] = issues.filter((i) => getIssueStateKey(i.state) === state) as CycleIssue[];
   });
 
   return grouped;

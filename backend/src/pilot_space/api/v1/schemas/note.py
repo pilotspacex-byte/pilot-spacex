@@ -111,6 +111,7 @@ class NoteResponse(EntitySchema):
     Includes basic note information without full content.
     """
 
+    workspace_id: UUID = Field(description="Workspace ID the note belongs to")
     project_id: UUID | None = Field(default=None, description="Project ID (optional)")
     title: str = Field(description="Note title")
     is_pinned: bool = Field(description="Pin status")

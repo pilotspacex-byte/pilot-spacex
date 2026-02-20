@@ -51,14 +51,12 @@ export function EstimateSelector({
           disabled={disabled}
           className={cn('justify-between gap-2', className)}
           aria-label={
-            value !== undefined
-              ? `Estimate: ${value} point${value !== 1 ? 's' : ''}`
-              : 'Set estimate'
+            value != null ? `Estimate: ${value} point${value !== 1 ? 's' : ''}` : 'Set estimate'
           }
         >
           <span className="flex items-center gap-2">
             <Target className="size-4 text-muted-foreground" />
-            <span>{value !== undefined ? `${value} pt${value !== 1 ? 's' : ''}` : 'Estimate'}</span>
+            <span>{value != null ? `${value} pt${value !== 1 ? 's' : ''}` : 'Estimate'}</span>
           </span>
           <ChevronDown className="size-4 opacity-50" />
         </Button>
@@ -86,7 +84,7 @@ export function EstimateSelector({
             </button>
           ))}
         </div>
-        {value !== undefined && (
+        {value != null && (
           <button
             type="button"
             onClick={handleClear}

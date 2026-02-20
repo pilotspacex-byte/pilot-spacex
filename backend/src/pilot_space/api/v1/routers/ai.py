@@ -29,7 +29,6 @@ from pilot_space.api.v1.routers.ai_annotations import router as annotations_rout
 from pilot_space.api.v1.routers.ai_approvals import router as approvals_router
 from pilot_space.api.v1.routers.ai_chat import router as chat_router
 from pilot_space.api.v1.routers.ai_costs import router as costs_router
-from pilot_space.api.v1.routers.ai_extraction import router as extraction_router
 from pilot_space.api.v1.routers.ai_pr_review import router as pr_review_router
 from pilot_space.api.v1.routers.notes_ai import router as notes_ai_router
 
@@ -41,7 +40,6 @@ router.include_router(notes_ai_router)
 router.include_router(costs_router)
 router.include_router(approvals_router)
 router.include_router(annotations_router)
-router.include_router(extraction_router)
 router.include_router(pr_review_router)
 
 

@@ -173,11 +173,13 @@ interface ChatViewProps {
   autoFocus?: boolean;
   /** Callback to close the chat panel */
   onClose?: () => void;
+  /** Custom suggested prompts shown in the empty state */
+  suggestedPrompts?: readonly string[];
   className?: string;
 }
 
 const ChatViewInternal = observer<ChatViewProps>(
-  ({ store, userName, userAvatar, autoFocus, onClose, className }) => {
+  ({ store, userName, userAvatar, autoFocus, onClose, suggestedPrompts, className }) => {
     const [inputValue, setInputValue] = useState('');
     const [taskPanelOpen, setTaskPanelOpen] = useState(true);
     const [showClearDialog, setShowClearDialog] = useState(false);
@@ -466,6 +468,7 @@ const ChatViewInternal = observer<ChatViewProps>(
               isLoadingMoreMessages={store.isLoadingMoreMessages}
               onLoadMore={handleLoadMoreMessages}
               onSuggestedPrompt={handleSuggestedPrompt}
+              suggestedPrompts={suggestedPrompts}
               streamingPhase={store.streamingState.phase}
               activeToolName={store.streamingState.activeToolName}
               wordCount={store.streamingState.wordCount ?? 0}

@@ -259,6 +259,20 @@ export const Sidebar = observer(function Sidebar() {
     }
   }, [workspaceSlug]);
 
+  // Load notes for sidebar pinned/recent sections.
+  // Depend on authStore.isAuthenticated to retry after login completes.
+  const isAuthenticated = authStore.isAuthenticated;
+  useEffect(() => {
+    if (
+      workspaceId &&
+      isAuthenticated &&
+      noteStore.notesList.length === 0 &&
+      !noteStore.isLoading
+    ) {
+      noteStore.loadNotes(workspaceId);
+    }
+  }, [workspaceId, isAuthenticated, noteStore]);
+
   const createNote = useCreateNote({
     workspaceId,
     onSuccess: (note) => {

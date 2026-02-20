@@ -109,7 +109,8 @@ export const IssueCard = observer(function IssueCard({
   compact = false,
   className,
 }: IssueCardProps) {
-  const PriorityIcon = priorityConfig[issue.priority].icon;
+  const effectivePriority = issue.priority ?? 'none';
+  const PriorityIcon = priorityConfig[effectivePriority].icon;
   const issueType = issue.type ?? 'task';
   const TypeIcon = typeConfig[issueType].icon;
 
@@ -192,11 +193,13 @@ export const IssueCard = observer(function IssueCard({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className={cn('flex items-center', priorityConfig[issue.priority].className)}>
+                <span
+                  className={cn('flex items-center', priorityConfig[effectivePriority].className)}
+                >
                   <PriorityIcon className="size-4" />
                 </span>
               </TooltipTrigger>
-              <TooltipContent>{priorityConfig[issue.priority].label}</TooltipContent>
+              <TooltipContent>{priorityConfig[effectivePriority].label}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>

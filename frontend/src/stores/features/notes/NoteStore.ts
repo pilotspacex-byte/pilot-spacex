@@ -318,7 +318,8 @@ export class NoteStore {
       runInAction(() => {
         this.notes.clear();
         response.items.forEach((note) => {
-          this.notes.set(note.id, note);
+          // Backend NoteResponse omits workspaceId; inject it so auto-save works
+          this.notes.set(note.id, { ...note, workspaceId });
         });
         this.isLoading = false;
       });
@@ -337,9 +338,11 @@ export class NoteStore {
     try {
       const note = await notesApi.get(workspaceId, noteId);
       runInAction(() => {
-        this.notes.set(note.id, note);
-        this.currentNoteId = note.id;
-        this._originalContent = JSON.stringify(note.content);
+        // Backend NoteDetailResponse omits workspaceId; inject it so auto-save works
+        const noteWithWorkspace = { ...note, workspaceId };
+        this.notes.set(noteWithWorkspace.id, noteWithWorkspace);
+        this.currentNoteId = noteWithWorkspace.id;
+        this._originalContent = JSON.stringify(noteWithWorkspace.content);
         this.isLoading = false;
       });
     } catch (err) {

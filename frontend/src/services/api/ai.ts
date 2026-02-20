@@ -221,8 +221,9 @@ export const aiApi = {
    * @returns Cost summary with breakdowns by agent, user, and day
    */
   getCostSummary: (workspaceId: string, startDate: string, endDate: string) =>
-    apiClient.get<CostSummary>(`/workspaces/${workspaceId}/ai/costs/summary`, {
+    apiClient.get<CostSummary>(`/ai/costs/summary`, {
       params: { start_date: startDate, end_date: endDate },
+      headers: { 'X-Workspace-Id': workspaceId },
     }),
 
   /**
@@ -287,7 +288,7 @@ export const aiApi = {
    * @returns Created issue IDs
    */
   createExtractedIssues: (
-    workspaceId: string,
+    _workspaceId: string,
     noteId: string,
     issues: Array<{
       title: string;
@@ -297,9 +298,9 @@ export const aiApi = {
       source_block_id?: string | null;
     }>
   ) =>
-    apiClient.post<{ created_issue_ids: string[]; count: number }>(
-      `/workspaces/${workspaceId}/notes/${noteId}/create-extracted-issues`,
-      { issues }
+    apiClient.post<{ created_issues: string[]; created_count: number }>(
+      `/notes/${noteId}/extract-issues/approve`,
+      { approval_id: '', selected_issues: issues.map((_, i) => i) }
     ),
 
   // ============================================================
