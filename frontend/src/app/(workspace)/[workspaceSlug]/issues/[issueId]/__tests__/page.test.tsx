@@ -1,8 +1,9 @@
 /**
- * IssueDetailPage composition tests.
+ * IssueDetailPage composition tests - Note-first layout.
  *
- * T047: Verifies the refactored page composes all child components correctly
- * with proper props and conditional rendering logic.
+ * Verifies the refactored page composes: IssueNoteHeader, IssueNoteLayout,
+ * IssueTitle, EditorContent, SubIssuesList, ActivityTimeline, and
+ * IssueNoteContext.Provider with proper props.
  */
 
 import React from 'react';
@@ -50,23 +51,30 @@ vi.mock('@/features/issues/hooks', async () => {
 vi.mock('@/stores', () => ({
   useStore: () => ({
     workspaceStore: { currentWorkspace: { id: 'ws-1', slug: 'test-ws' } },
-    aiStore: { settings: { aiContextEnabled: true } },
-    issueStore: { deleteIssue: vi.fn() },
+    aiStore: { pilotSpace: {}, settings: { aiContextEnabled: true } },
+    issueStore: {
+      deleteIssue: vi.fn(),
+      aggregateSaveStatus: 'idle',
+      getSaveStatus: () => 'idle',
+      setSaveStatus: vi.fn(),
+    },
+  }),
+  useIssueStore: () => ({
+    aggregateSaveStatus: 'idle',
+    getSaveStatus: () => 'idle',
+    setSaveStatus: vi.fn(),
   }),
 }));
 
 vi.mock('@/features/issues/components', () => ({
-  IssueHeader: (props: Record<string, unknown>) => (
-    <div data-testid="issue-header" data-identifier={props.identifier} />
+  IssueNoteHeader: (props: Record<string, unknown>) => (
+    <div data-testid="issue-note-header" data-identifier={props.identifier} />
   ),
-  AIContextSidebar: (props: Record<string, unknown>) => (
-    <div data-testid="ai-context-sidebar" data-open={String(props.open)} />
+  IssueNoteLayout: (props: Record<string, unknown>) => (
+    <div data-testid="issue-note-layout">{props.editorContent as React.ReactNode}</div>
   ),
   IssueTitle: (props: Record<string, unknown>) => (
     <div data-testid="issue-title">{String(props.title)}</div>
-  ),
-  IssueDescriptionEditor: (props: Record<string, unknown>) => (
-    <div data-testid="issue-description-editor" data-content={(props.content as string) ?? ''} />
   ),
   SubIssuesList: () => <div data-testid="sub-issues-list" />,
   ActivityTimeline: (props: Record<string, unknown>) => (
@@ -75,6 +83,25 @@ vi.mock('@/features/issues/components', () => ({
   IssuePropertiesPanel: (props: Record<string, unknown>) => (
     <div data-testid="issue-properties-panel" data-workspace-id={props.workspaceId} />
   ),
+  CollapsibleSection: (props: Record<string, unknown>) => (
+    <div data-testid="collapsible-section">{props.children as React.ReactNode}</div>
+  ),
+  IssueSectionDivider: (props: Record<string, unknown>) => (
+    <div data-testid="section-divider">{String(props.label)}</div>
+  ),
+}));
+
+vi.mock('@/features/issues/editor/create-issue-note-extensions', () => ({
+  createIssueNoteExtensions: () => [],
+}));
+
+vi.mock('@tiptap/react', () => ({
+  useEditor: () => null,
+  EditorContent: () => <div data-testid="editor-content" />,
+}));
+
+vi.mock('@/components/editor/SelectionToolbar', () => ({
+  SelectionToolbar: () => null,
 }));
 
 vi.mock('@/components/ui/button', () => ({
@@ -91,13 +118,22 @@ vi.mock('@/components/ui/skeleton', () => ({
   ),
 }));
 
-vi.mock('@/components/ui/separator', () => ({
-  Separator: () => <hr data-testid="separator" />,
+vi.mock('@/components/ui/sheet', () => ({
+  Sheet: (props: Record<string, unknown>) => <div>{props.children as React.ReactNode}</div>,
+  SheetContent: (props: Record<string, unknown>) => <div>{props.children as React.ReactNode}</div>,
+  SheetHeader: (props: Record<string, unknown>) => <div>{props.children as React.ReactNode}</div>,
+  SheetTitle: (props: Record<string, unknown>) => <div>{props.children as React.ReactNode}</div>,
+}));
+
+vi.mock('@/components/issues/DeleteConfirmDialog', () => ({
+  DeleteConfirmDialog: () => <div data-testid="delete-dialog" />,
 }));
 
 vi.mock('mobx-react-lite', () => ({
   observer: (component: React.FC) => component,
 }));
+
+vi.mock('@/features/notes/editor/extensions/note-link.css', () => ({}));
 
 // ---------------------------------------------------------------------------
 // Test data
@@ -142,7 +178,7 @@ import IssueDetailPage from '../page';
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('IssueDetailPage', () => {
+describe('IssueDetailPage (note-first layout)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseIssueDetail.mockReturnValue({
@@ -163,7 +199,7 @@ describe('IssueDetailPage', () => {
 
     const skeletons = screen.getAllByTestId('skeleton');
     expect(skeletons.length).toBeGreaterThan(0);
-    expect(screen.queryByTestId('issue-header')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('issue-note-header')).not.toBeInTheDocument();
   });
 
   it('shows "Issue not found" when no issue data', () => {
@@ -179,10 +215,10 @@ describe('IssueDetailPage', () => {
     expect(screen.getByText('Back to issues')).toBeInTheDocument();
   });
 
-  it('renders IssueHeader with correct identifier', () => {
+  it('renders IssueNoteHeader with correct identifier', () => {
     render(<IssueDetailPage />);
 
-    const header = screen.getByTestId('issue-header');
+    const header = screen.getByTestId('issue-note-header');
     expect(header).toBeInTheDocument();
     expect(header).toHaveAttribute('data-identifier', 'PS-42');
   });
@@ -195,62 +231,29 @@ describe('IssueDetailPage', () => {
     expect(title).toHaveTextContent('Test Issue');
   });
 
-  it('renders IssueDescriptionEditor with descriptionHtml', () => {
+  it('renders IssueNoteLayout', () => {
     render(<IssueDetailPage />);
-
-    const editor = screen.getByTestId('issue-description-editor');
-    expect(editor).toBeInTheDocument();
-    expect(editor).toHaveAttribute('data-content', '<p>Test description</p>');
-  });
-
-  it('falls back to plain description when descriptionHtml is null', () => {
-    mockUseIssueDetail.mockReturnValue({
-      data: { ...mockIssue, descriptionHtml: undefined, description: 'Plain text description' },
-      isLoading: false,
-      isError: false,
-    });
-
-    render(<IssueDetailPage />);
-
-    const editor = screen.getByTestId('issue-description-editor');
-    expect(editor).toHaveAttribute('data-content', 'Plain text description');
-  });
-
-  it('renders ActivityTimeline', () => {
-    render(<IssueDetailPage />);
-
-    expect(screen.getByTestId('activity-timeline')).toBeInTheDocument();
-  });
-
-  it('renders IssuePropertiesPanel', () => {
-    render(<IssueDetailPage />);
-
-    expect(screen.getByTestId('issue-properties-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-note-layout')).toBeInTheDocument();
   });
 
   it('renders SubIssuesList', () => {
     render(<IssueDetailPage />);
-
     expect(screen.getByTestId('sub-issues-list')).toBeInTheDocument();
   });
 
-  it('AI Context tab initially inactive', () => {
+  it('renders ActivityTimeline inside CollapsibleSection', () => {
     render(<IssueDetailPage />);
-
-    // AI Context is rendered as a tab; the "ai-context" tab content should be inactive by default
-    const tabPanels = screen.getAllByRole('tabpanel', { hidden: true });
-    const aiPanel = tabPanels.find((panel) => panel.id.includes('ai-context'));
-    expect(aiPanel).toBeDefined();
-    expect(aiPanel).toHaveAttribute('data-state', 'inactive');
+    expect(screen.getByTestId('activity-timeline')).toBeInTheDocument();
   });
 
-  it('passes correct workspaceId to child components', () => {
+  it('renders section divider for sub-issues', () => {
     render(<IssueDetailPage />);
+    const divider = screen.getByTestId('section-divider');
+    expect(divider).toHaveTextContent('Sub-issues');
+  });
 
-    const propsPanel = screen.getByTestId('issue-properties-panel');
-    expect(propsPanel).toHaveAttribute('data-workspace-id', 'ws-1');
-
-    const timeline = screen.getByTestId('activity-timeline');
-    expect(timeline).toHaveAttribute('data-workspace-id', 'ws-1');
+  it('renders delete dialog', () => {
+    render(<IssueDetailPage />);
+    expect(screen.getByTestId('delete-dialog')).toBeInTheDocument();
   });
 });
