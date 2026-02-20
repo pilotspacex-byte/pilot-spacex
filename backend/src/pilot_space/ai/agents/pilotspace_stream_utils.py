@@ -14,7 +14,6 @@ import contextlib
 import json
 import re
 from collections.abc import AsyncIterator
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import McpServerConfig
@@ -504,122 +503,6 @@ async def merge_sdk_and_queue(
         feeder.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await feeder
-
-
-# ---------------------------------------------------------------------------
-# Dynamic System Prompt Assembly
-# ---------------------------------------------------------------------------
-
-# Template directories
-_TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
-_ROLE_TEMPLATES_DIR = _TEMPLATES_DIR / "role_templates"
-_RULES_DIR = _TEMPLATES_DIR / "rules"
-
-# Rules to inject (compact ones only; ai-confidence.md is 415 lines, too large)
-_INJECTED_RULES = ("issues.md", "notes.md", "pm_blocks.md")
-
-# Max characters per rule file to prevent prompt bloat
-_MAX_RULE_CHARS = 4000
-
-# Module-level template cache; populated on first load per role_type
-_template_cache: dict[str, str] = {}
-
-
-async def _load_role_template(role_type: str) -> str | None:
-    """Load a role template markdown file by role type (cached after first read).
-
-    Args:
-        role_type: Role type string (e.g., 'developer', 'architect').
-
-    Returns:
-        Template content (body only, YAML frontmatter stripped) or None.
-    """
-    if role_type in _template_cache:
-        return _template_cache[role_type]
-
-    template_path = _ROLE_TEMPLATES_DIR / f"{role_type}.md"
-    if not template_path.is_file():
-        logger.debug("Role template not found: %s", template_path)
-        return None
-
-    content = await asyncio.to_thread(template_path.read_text, encoding="utf-8")
-
-    # Strip YAML frontmatter (--- ... ---)
-    if content.startswith("---"):
-        end_idx = content.find("---", 3)
-        if end_idx != -1:
-            content = content[end_idx + 3 :].strip()
-
-    _template_cache[role_type] = content
-    return content
-
-
-async def _load_rules() -> str:
-    """Load compact rule files for system prompt injection.
-
-    Returns:
-        Combined rules as a single string, truncated per file.
-    """
-    parts: list[str] = []
-    for filename in _INJECTED_RULES:
-        rule_path = _RULES_DIR / filename
-        if not rule_path.is_file():
-            logger.debug("Rule file not found: %s", rule_path)
-            continue
-
-        content = await asyncio.to_thread(rule_path.read_text, encoding="utf-8")
-        if len(content) > _MAX_RULE_CHARS:
-            content = content[:_MAX_RULE_CHARS] + "\n... (truncated)"
-        parts.append(content)
-
-    return "\n\n".join(parts)
-
-
-async def build_dynamic_system_prompt(
-    base_prompt: str,
-    role_type: str | None = None,
-    workspace_name: str | None = None,
-    project_names: list[str] | None = None,
-) -> str:
-    """Assemble a dynamic system prompt from base + role + rules.
-
-    Extends the static SYSTEM_PROMPT_BASE with:
-    1. User's primary role template (behavioral adaptation)
-    2. Workspace/project context (entity awareness)
-    3. Compact operational rules (issues.md, notes.md)
-
-    Args:
-        base_prompt: The static SYSTEM_PROMPT_BASE string.
-        role_type: User's primary role (e.g., 'developer', 'architect').
-        workspace_name: Current workspace name for context.
-        project_names: Active project names in the workspace.
-
-    Returns:
-        Assembled system prompt string.
-    """
-    sections: list[str] = [base_prompt]
-
-    # 1. Role-specific section
-    if role_type:
-        role_content = await _load_role_template(role_type)
-        if role_content:
-            sections.append(f"\n\n## Your User's Role\n{role_content}")
-
-    # 2. Workspace context
-    if workspace_name or project_names:
-        ctx_parts: list[str] = ["## Workspace Context"]
-        if workspace_name:
-            ctx_parts.append(f"Workspace: {workspace_name}")
-        if project_names:
-            ctx_parts.append(f"Active projects: {', '.join(project_names[:10])}")
-        sections.append("\n\n" + "\n".join(ctx_parts))
-
-    # 3. Operational rules
-    rules = await _load_rules()
-    if rules:
-        sections.append(f"\n\n## Operational Rules\n{rules}")
-
-    return "".join(sections)
 
 
 async def save_session_messages(

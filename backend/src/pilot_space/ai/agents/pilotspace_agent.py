@@ -25,15 +25,12 @@ from pilot_space.ai.agents.pilotspace_agent_helpers import (
     transform_sdk_message as transform_sdk_message_helper,
 )
 from pilot_space.ai.agents.pilotspace_intent_pipeline import (
-    PILOTSPACE_SYSTEM_PROMPT_BASE,
     ConfirmationBus,
-    build_memory_context_prefix,
     recall_workspace_context,
     run_intent_pipeline_step,
     save_skill_outcome_to_memory,
 )
 from pilot_space.ai.agents.pilotspace_stream_utils import (
-    build_dynamic_system_prompt,
     build_mcp_servers,
     capture_content_from_sse,
     classify_effort,
@@ -45,6 +42,7 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
 from pilot_space.ai.agents.role_skill_materializer import materialize_role_skills
 from pilot_space.ai.agents.sse_delta_buffer import DeltaBuffer
 from pilot_space.ai.context import clear_context, set_workspace_context
+from pilot_space.ai.prompt import PromptLayerConfig, assemble_system_prompt
 from pilot_space.ai.sdk.sandbox_config import ModelTier, configure_sdk_for_space
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.spaces.manager import SpaceManager
@@ -99,8 +97,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
     AGENT_NAME = "pilotspace_agent"
     DEFAULT_MODEL_TIER: ClassVar[ModelTier] = ModelTier.SONNET
-
-    SYSTEM_PROMPT_BASE: ClassVar[str] = PILOTSPACE_SYSTEM_PROMPT_BASE
 
     SUBAGENT_MAP: ClassVar[dict[str, str]] = {
         "pr-review": "PRReviewSubagent",
@@ -383,6 +379,26 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 effort = classify_effort(input_data.message)
                 streaming_input = estimate_tokens(input_data) > 30_000
 
+                # T-048: recall memory context before prompt assembly
+                memory_entries = await recall_workspace_context(
+                    workspace_id=context.workspace_id,
+                    query=input_data.message,
+                    memory_search_service=self._memory_search_service,
+                )
+
+                # Scaffolding: pending_approvals, budget_warning, conversation_summary
+                # not yet wired — wire when session manager provides these values.
+                assembled = await assemble_system_prompt(
+                    PromptLayerConfig(
+                        role_type=_role_type,
+                        workspace_name=input_data.context.get("workspace_name"),
+                        project_names=input_data.context.get("project_names"),
+                        user_message=input_data.message,
+                        has_note_context="<note_context>" in input_data.message,
+                        memory_entries=memory_entries,
+                    )
+                )
+
                 sdk_config = configure_sdk_for_space(
                     space_context,
                     permission_mode="default",
@@ -395,12 +411,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     include_partial_messages=True,
                     memory_enabled=True,
                     citations_enabled=True,
-                    system_prompt_base=await build_dynamic_system_prompt(
-                        self.SYSTEM_PROMPT_BASE,
-                        role_type=_role_type,
-                        workspace_name=input_data.context.get("workspace_name"),
-                        project_names=input_data.context.get("project_names"),
-                    ),
+                    system_prompt_base=assembled.prompt,
                     output_format=output_format,
                     enable_file_checkpointing=True,
                     effort=effort,
@@ -469,17 +480,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 )
 
                 self._active_clients[query_session_id] = client
-
-                # T-048: recall memory context and inject into system prompt
-                memory_entries = await recall_workspace_context(
-                    workspace_id=context.workspace_id,
-                    query=input_data.message,
-                    memory_search_service=self._memory_search_service,
-                )
-                memory_prefix = build_memory_context_prefix(memory_entries)
-                if memory_prefix:
-                    existing = sdk_config.system_prompt_base or ""
-                    sdk_config.system_prompt_base = memory_prefix + existing
 
                 # T-016/T-017: detect intents
                 intent_events = await self._detect_and_emit_intents(input_data, context)
