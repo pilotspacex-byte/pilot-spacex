@@ -42,7 +42,7 @@ export const notesApi = {
   },
 
   updateContent(workspaceId: string, noteId: string, content: JSONContent): Promise<Note> {
-    return apiClient.patch<Note>(`/workspaces/${workspaceId}/notes/${noteId}/content`, { content });
+    return apiClient.patch<Note>(`/workspaces/${workspaceId}/notes/${noteId}`, { content });
   },
 
   delete(workspaceId: string, noteId: string): Promise<void> {

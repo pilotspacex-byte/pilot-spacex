@@ -64,7 +64,8 @@ export function IssuePrioritySelect({
   disabled = false,
   className,
 }: IssuePrioritySelectProps) {
-  const currentConfig = priorityConfig[value];
+  const effectiveValue = value ?? 'none';
+  const currentConfig = priorityConfig[effectiveValue];
   const CurrentIcon = currentConfig.icon;
 
   const handleSelect = (priority: IssuePriority) => {

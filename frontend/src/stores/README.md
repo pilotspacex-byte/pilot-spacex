@@ -27,8 +27,7 @@ RootStore (RootStore.ts)
 │   ├── marginAnnotation: MarginAnnotationStore
 │   └── pilotSpace: PilotSpaceStore (Unified agent orchestration)
 ├── onboarding: OnboardingStore  (First-time setup UI)
-├── roleSkill: RoleSkillStore    (Role setup wizard UI)
-└── homepage: HomepageUIStore    (Home page layout)
+└── roleSkill: RoleSkillStore    (Role setup wizard UI)
 ```
 
 ---

@@ -30,3 +30,6 @@ export type {
   UseIssueSyncListenerReturn,
   IssueSyncEvent,
 } from './useIssueSyncListener';
+
+// Issue extraction
+export { useIssueExtraction } from './useIssueExtraction';

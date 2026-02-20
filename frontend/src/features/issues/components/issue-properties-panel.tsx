@@ -328,7 +328,7 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
 
         <PropertyRow label="Priority">
           <IssuePrioritySelect
-            value={issue.priority}
+            value={issue.priority ?? 'none'}
             onChange={handlePriorityChange}
             disabled={disabled}
             className="h-8 flex-1"
@@ -376,7 +376,7 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
 
         <PropertyRow label="Estimate">
           <EstimateSelector
-            value={issue.estimatePoints}
+            value={issue.estimatePoints ?? undefined}
             onChange={handleEstimateChange}
             disabled={disabled}
             className="h-8 flex-1"

@@ -92,6 +92,7 @@ def _note_to_response(note: Note) -> NoteResponse:
         id=note.id,
         created_at=note.created_at,
         updated_at=note.updated_at,
+        workspace_id=note.workspace_id,
         project_id=note.project_id,
         title=note.title,
         is_pinned=note.is_pinned,
@@ -118,6 +119,7 @@ def _note_to_detail_response(note: Note) -> NoteDetailResponse:
         id=note.id,
         created_at=note.created_at,
         updated_at=note.updated_at,
+        workspace_id=note.workspace_id,
         project_id=note.project_id,
         title=note.title,
         is_pinned=note.is_pinned,
@@ -588,8 +590,6 @@ async def update_annotation_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         ) from e
-
-
 
 
 __all__ = ["router"]

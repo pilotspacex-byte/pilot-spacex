@@ -35,7 +35,7 @@ import type {
   DuplicateCheckResult,
   AssigneeRecommendation,
 } from '@/stores/features/issues/IssueStore';
-import { stateNameToKey } from '@/lib/issue-helpers';
+import { getIssueStateKey } from '@/lib/issue-helpers';
 
 export interface IssueModalProps {
   /** Whether modal is open */
@@ -116,9 +116,9 @@ export const IssueModal = observer(function IssueModal({
   const [title, setTitle] = React.useState(issue?.name ?? '');
   const [description, setDescription] = React.useState(issue?.description ?? '');
   const [state, setState] = React.useState<IssueState>(
-    issue?.state ? stateNameToKey(issue.state.name) : defaultState
+    issue?.state ? getIssueStateKey(issue.state) : defaultState
   );
-  const [priority, setPriority] = React.useState<IssuePriority>(issue?.priority ?? 'none');
+  const [priority, setPriority] = React.useState<IssuePriority>(issue?.priority || 'none');
   // Type selector to be added in future iteration
   const [type, _setType] = React.useState<IssueType>(issue?.type ?? 'task');
   const [selectedLabels, setSelectedLabels] = React.useState<LabelBrief[]>(issue?.labels ?? []);
@@ -135,8 +135,8 @@ export const IssueModal = observer(function IssueModal({
     if (open) {
       setTitle(issue?.name ?? '');
       setDescription(issue?.description ?? '');
-      setState(issue?.state ? stateNameToKey(issue.state.name) : defaultState);
-      setPriority(issue?.priority ?? 'none');
+      setState(issue?.state ? getIssueStateKey(issue.state) : defaultState);
+      setPriority(issue?.priority || 'none');
       _setType(issue?.type ?? 'task');
       setSelectedLabels(issue?.labels ?? []);
       setAssignee(issue?.assignee ?? null);

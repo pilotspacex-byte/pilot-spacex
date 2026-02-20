@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock MobX observer as passthrough
@@ -7,41 +7,52 @@ vi.mock('mobx-react-lite', () => ({
   observer: (component: React.FC) => component,
 }));
 
-// Mock HomepageUIStore
-const mockSetActiveZone = vi.fn();
-const mockHomepageStore = {
-  chatExpanded: false,
-  activeZone: 'activity' as 'chat' | 'activity' | 'digest',
-  setActiveZone: mockSetActiveZone,
-  expandChat: vi.fn(),
-  collapseChat: vi.fn(),
-};
-
+// Mock stores
 vi.mock('@/stores/RootStore', () => ({
-  useHomepageStore: () => mockHomepageStore,
+  useAuthStore: () => ({
+    userDisplayName: 'Tin Dang',
+  }),
   useWorkspaceStore: () => ({
     currentWorkspace: { id: 'ws-1', slug: 'test-ws' },
   }),
 }));
 
+// Mock AIStore
+const mockPilotSpaceStore = {
+  workspaceId: '',
+  setWorkspaceId: vi.fn(),
+};
+
+vi.mock('@/stores/ai/AIStore', () => ({
+  getAIStore: () => ({
+    pilotSpace: mockPilotSpaceStore,
+  }),
+}));
+
 // Mock child components
-vi.mock('../components/CompactChatView', () => ({
-  CompactChatView: ({ inputRef }: { inputRef?: React.RefObject<HTMLInputElement | null> }) => (
-    <div data-testid="compact-chat-view">
-      <input ref={inputRef} data-testid="chat-input" />
-    </div>
+vi.mock('../components/DailyBrief', () => ({
+  DailyBrief: ({ workspaceSlug }: { workspaceSlug: string }) => (
+    <div data-testid="daily-brief" data-workspace-slug={workspaceSlug} />
   ),
 }));
 
-vi.mock('../components/ActivityFeed', () => ({
-  ActivityFeed: ({ workspaceSlug }: { workspaceSlug: string }) => (
-    <div data-testid="activity-feed" data-workspace-slug={workspaceSlug} />
-  ),
-}));
-
-vi.mock('../components/DigestPanel', () => ({
-  DigestPanel: ({ aiConfigured }: { aiConfigured?: boolean }) => (
-    <div data-testid="digest-panel" data-ai-configured={String(aiConfigured)} />
+vi.mock('@/features/ai/ChatView', () => ({
+  ChatView: ({
+    className,
+    autoFocus,
+    userName,
+  }: {
+    store: unknown;
+    userName: string;
+    className?: string;
+    autoFocus?: boolean;
+  }) => (
+    <div
+      data-testid="chat-view"
+      data-class={className}
+      data-auto-focus={String(autoFocus)}
+      data-user-name={userName}
+    />
   ),
 }));
 
@@ -50,96 +61,55 @@ import { HomepageHub } from '../components/HomepageHub';
 describe('HomepageHub', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockHomepageStore.activeZone = 'activity';
+    mockPilotSpaceStore.workspaceId = '';
   });
 
-  it('renders all 3 zones', () => {
+  it('renders DailyBrief and ChatView', () => {
     render(<HomepageHub workspaceSlug="test-ws" />);
 
-    expect(screen.getByTestId('compact-chat-view')).toBeInTheDocument();
-    expect(screen.getByTestId('activity-feed')).toBeInTheDocument();
-    expect(screen.getByTestId('digest-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('daily-brief')).toBeInTheDocument();
+    expect(screen.getByTestId('chat-view')).toBeInTheDocument();
   });
 
-  it('passes workspaceSlug to ActivityFeed', () => {
+  it('passes workspaceSlug to DailyBrief', () => {
     render(<HomepageHub workspaceSlug="my-workspace" />);
 
-    expect(screen.getByTestId('activity-feed')).toHaveAttribute(
+    expect(screen.getByTestId('daily-brief')).toHaveAttribute(
       'data-workspace-slug',
       'my-workspace'
     );
   });
 
-  it('passes aiConfigured prop to DigestPanel', () => {
-    render(<HomepageHub workspaceSlug="test-ws" aiConfigured={false} />);
-
-    expect(screen.getByTestId('digest-panel')).toHaveAttribute('data-ai-configured', 'false');
-  });
-
-  it('renders ARIA landmarks on all zones', () => {
+  it('renders ChatView with autoFocus disabled', () => {
     render(<HomepageHub workspaceSlug="test-ws" />);
 
-    expect(screen.getByRole('region', { name: 'Quick AI chat' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Recent activity' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'AI workspace insights' })).toBeInTheDocument();
+    expect(screen.getByTestId('chat-view')).toHaveAttribute('data-auto-focus', 'false');
   });
 
-  it('focuses chat input on "/" keypress', () => {
+  it('renders AI command center aside with ARIA label', () => {
     render(<HomepageHub workspaceSlug="test-ws" />);
 
-    const chatInput = screen.getByTestId('chat-input');
-    fireEvent.keyDown(document, { key: '/' });
-
-    expect(document.activeElement).toBe(chatInput);
+    const aside = screen.getByLabelText('AI command center');
+    expect(aside).toBeInTheDocument();
+    expect(aside.tagName).toBe('ASIDE');
   });
 
-  it('does not focus chat on "/" when typing in an input', () => {
-    render(
-      <div>
-        <input data-testid="other-input" />
-        <HomepageHub workspaceSlug="test-ws" />
-      </div>
-    );
-
-    const otherInput = screen.getByTestId('other-input');
-    otherInput.focus();
-
-    fireEvent.keyDown(otherInput, { key: '/' });
-
-    // Chat input should not have been focused
-    expect(document.activeElement).toBe(otherInput);
-  });
-
-  it('cycles zones on F6 keypress', () => {
-    mockHomepageStore.activeZone = 'chat';
+  it('sets workspace ID on AI store', () => {
     render(<HomepageHub workspaceSlug="test-ws" />);
 
-    fireEvent.keyDown(document, { key: 'F6' });
-
-    expect(mockSetActiveZone).toHaveBeenCalledWith('activity');
+    expect(mockPilotSpaceStore.setWorkspaceId).toHaveBeenCalledWith('ws-1');
   });
 
-  it('cycles zones backward on Shift+F6', () => {
-    mockHomepageStore.activeZone = 'activity';
+  it('does not set workspace ID when it matches', () => {
+    mockPilotSpaceStore.workspaceId = 'ws-1';
     render(<HomepageHub workspaceSlug="test-ws" />);
 
-    fireEvent.keyDown(document, { key: 'F6', shiftKey: true });
-
-    expect(mockSetActiveZone).toHaveBeenCalledWith('chat');
+    expect(mockPilotSpaceStore.setWorkspaceId).not.toHaveBeenCalled();
   });
 
-  it('wraps around when cycling past last zone', () => {
-    mockHomepageStore.activeZone = 'digest';
+  it('passes real userName to ChatView from auth store', () => {
     render(<HomepageHub workspaceSlug="test-ws" />);
 
-    fireEvent.keyDown(document, { key: 'F6' });
-
-    expect(mockSetActiveZone).toHaveBeenCalledWith('chat');
-  });
-
-  it('defaults aiConfigured to true', () => {
-    render(<HomepageHub workspaceSlug="test-ws" />);
-
-    expect(screen.getByTestId('digest-panel')).toHaveAttribute('data-ai-configured', 'true');
+    expect(screen.getByTestId('chat-view')).toHaveAttribute('data-user-name', 'Tin Dang');
   });
 });

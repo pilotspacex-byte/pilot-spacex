@@ -86,6 +86,13 @@ export interface NoteCanvasProps {
   onVersionHistory?: () => void;
   projectId?: string;
   linkedIssues?: LinkedIssueBrief[];
+  /** Callback to trigger issue extraction from note content */
+  onExtractIssues?: (params: {
+    noteId: string;
+    noteTitle: string;
+    noteContent: Record<string, unknown>;
+    selectedText?: string;
+  }) => void;
 }
 
 /**
@@ -169,6 +176,7 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
     title = 'Untitled',
     workspaceSlug = '',
     onTitleChange,
+    onExtractIssues,
   } = props;
 
   const [editorError, setEditorError] = useState<string | null>(null);
@@ -184,12 +192,15 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
   const titleRef = useRef(title);
   const onTitleChangeRef = useRef(onTitleChange);
 
+  const onExtractIssuesRef = useRef(onExtractIssues);
+
   // Sync refs in effect to avoid ref updates during render
   useEffect(() => {
     noteIdRef.current = noteId;
     titleRef.current = title;
     onTitleChangeRef.current = onTitleChange;
-  }, [noteId, title, onTitleChange]);
+    onExtractIssuesRef.current = onExtractIssues;
+  }, [noteId, title, onTitleChange, onExtractIssues]);
 
   const aiStore = getAIStore();
 
@@ -294,14 +305,25 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
         },
         slashCommand: {
           onAICommand: async (command: string, cmdEditor: Editor) => {
-            setIsChatViewOpen(true);
-
             const selectedText = cmdEditor.state.selection.empty
               ? undefined
               : cmdEditor.state.doc.textBetween(
                   cmdEditor.state.selection.from,
                   cmdEditor.state.selection.to
                 );
+
+            // Route extract-issues to the dedicated extraction pipeline
+            if (command === 'extract-issues' && onExtractIssuesRef.current && noteIdRef.current) {
+              onExtractIssuesRef.current({
+                noteId: noteIdRef.current,
+                noteTitle: titleRef.current || 'Untitled',
+                noteContent: cmdEditor.getJSON() as Record<string, unknown>,
+                selectedText: selectedText || undefined,
+              });
+              return;
+            }
+
+            setIsChatViewOpen(true);
 
             if (noteIdRef.current) {
               const selectedBlockIds: string[] = [];
@@ -325,7 +347,6 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
             }
 
             const commandMessages: Record<string, string> = {
-              'extract-issues': `Extract issues from this note${selectedText ? `: "${selectedText}"` : ''}`,
               improve: `Improve this text${selectedText ? `: "${selectedText}"` : ''}`,
               summarize: `Summarize this note${selectedText ? `: "${selectedText}"` : ''}`,
             };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stateNameToKey } from '../issue-helpers';
+import { stateNameToKey, getIssueStateKey } from '../issue-helpers';
 
 describe('stateNameToKey', () => {
   it('converts single-word state names', () => {
@@ -44,5 +44,33 @@ describe('stateNameToKey', () => {
   it('returns backlog for undefined or null input', () => {
     expect(stateNameToKey(undefined)).toBe('backlog');
     expect(stateNameToKey(null)).toBe('backlog');
+  });
+});
+
+describe('getIssueStateKey', () => {
+  it('handles plain string state keys from API', () => {
+    expect(getIssueStateKey('backlog')).toBe('backlog');
+    expect(getIssueStateKey('in_progress')).toBe('in_progress');
+    expect(getIssueStateKey('todo')).toBe('todo');
+    expect(getIssueStateKey('done')).toBe('done');
+    expect(getIssueStateKey('in_review')).toBe('in_review');
+    expect(getIssueStateKey('cancelled')).toBe('cancelled');
+  });
+
+  it('handles StateBrief objects', () => {
+    expect(
+      getIssueStateKey({ id: '1', name: 'In Progress', color: '#000', group: 'started' } as never)
+    ).toBe('in_progress');
+    expect(
+      getIssueStateKey({ id: '2', name: 'Done', color: '#000', group: 'completed' } as never)
+    ).toBe('done');
+    expect(
+      getIssueStateKey({ id: '3', name: 'Backlog', color: '#000', group: 'backlog' } as never)
+    ).toBe('backlog');
+  });
+
+  it('returns backlog for undefined or null', () => {
+    expect(getIssueStateKey(undefined)).toBe('backlog');
+    expect(getIssueStateKey(null)).toBe('backlog');
   });
 });

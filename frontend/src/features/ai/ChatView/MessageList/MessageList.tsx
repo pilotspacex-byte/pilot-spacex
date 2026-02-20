@@ -20,7 +20,7 @@ import { MessageGroup } from './MessageGroup';
 import { StreamingContent } from './StreamingContent';
 import { InlineStreamingIndicator } from './InlineStreamingIndicator';
 
-const SUGGESTED_PROMPTS = [
+const DEFAULT_SUGGESTED_PROMPTS = [
   'Extract issues from this note',
   'Summarize my project',
   'Improve the writing in this note',
@@ -60,6 +60,8 @@ interface MessageListProps {
   onLoadMore?: () => void;
   /** Callback when user clicks a suggested prompt pill */
   onSuggestedPrompt?: (prompt: string) => void;
+  /** Custom suggested prompts (overrides defaults when provided) */
+  suggestedPrompts?: readonly string[];
   /** Current streaming phase for inline indicator */
   streamingPhase?: StreamingPhase;
   /** Active tool name during tool_use phase */
@@ -114,6 +116,7 @@ export const MessageList = observer<MessageListProps>(
     isLoadingMoreMessages,
     onLoadMore,
     onSuggestedPrompt,
+    suggestedPrompts,
     streamingPhase,
     activeToolName,
     wordCount,
@@ -273,7 +276,7 @@ export const MessageList = observer<MessageListProps>(
             </p>
             {onSuggestedPrompt && (
               <div className="flex flex-wrap justify-center gap-2 max-w-md">
-                {SUGGESTED_PROMPTS.map((prompt) => (
+                {(suggestedPrompts ?? DEFAULT_SUGGESTED_PROMPTS).map((prompt) => (
                   <button
                     key={prompt}
                     type="button"

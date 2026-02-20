@@ -1,133 +1,80 @@
 'use client';
 
 /**
- * HomepageHub (H047) — Main 3-zone layout for the Homepage Hub (US-19).
+ * HomepageHub (H047) -- Two-column layout: DailyBrief + ChatView.
  *
- * Zone 1: Compact ChatView (max-w-[720px], centered)
- * Zone 2: Activity Feed (flex-[3])
- * Zone 3: AI Digest Panel (flex-[2])
+ * Layout (desktop, lg+):
+ * - Left column (flex-1): DailyBrief document
+ * - Right column (w-[380px]): Full ChatView as persistent command center
  *
- * Includes keyboard shortcuts (H049, H050) and ARIA landmarks (H051).
- * All animations use motion-safe: variants for reduced-motion support (H052).
+ * Layout (mobile, < lg):
+ * - Single column: DailyBrief only. Users navigate to /chat on mobile.
+ *
+ * Replaces the previous 3-zone layout (CompactChatView, ActivityFeed, DigestPanel)
+ * with a cleaner 2-panel approach.
  */
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
-import { useHomepageStore } from '@/stores/RootStore';
-import type { HomepageZone } from '../types';
-import { CompactChatView } from './CompactChatView';
-import { ActivityFeed } from './ActivityFeed';
-import { DigestPanel } from './DigestPanel';
+import { useAuthStore, useWorkspaceStore } from '@/stores/RootStore';
+import { getAIStore } from '@/stores/ai/AIStore';
+import { ChatView } from '@/features/ai/ChatView';
+import { DailyBrief } from './DailyBrief';
 
-/** Ordered zones for F6 cycling */
-const ZONE_ORDER: readonly HomepageZone[] = ['chat', 'activity', 'digest'] as const;
+/** Homepage-specific suggested prompts for daily routine */
+const HOMEPAGE_PROMPTS = [
+  'What should I focus on today?',
+  'Summarize my in-progress work',
+  'Generate my daily standup update',
+  'Find stale issues that need attention',
+] as const;
 
 interface HomepageHubProps {
   /** Workspace slug for navigation links */
   workspaceSlug: string;
-  /** Whether an AI provider is configured */
-  aiConfigured?: boolean;
 }
 
-export const HomepageHub = observer(function HomepageHub({
-  workspaceSlug,
-  aiConfigured = true,
-}: HomepageHubProps) {
-  const homepageStore = useHomepageStore();
+export const HomepageHub = observer(function HomepageHub({ workspaceSlug }: HomepageHubProps) {
+  const authStore = useAuthStore();
+  const workspaceStore = useWorkspaceStore();
+  const workspaceId = workspaceStore.currentWorkspace?.id ?? '';
+  const aiStore = getAIStore();
+  const store = aiStore.pilotSpace;
+  const userName = authStore.userDisplayName || 'User';
 
-  // Zone refs for F6 focus cycling
-  const chatRef = useRef<HTMLElement>(null);
-  const activityRef = useRef<HTMLElement>(null);
-  const digestRef = useRef<HTMLElement>(null);
-  const chatInputRef = useRef<HTMLInputElement>(null);
-
-  const zoneRefs = useMemo(
-    () => ({
-      chat: chatRef,
-      activity: activityRef,
-      digest: digestRef,
-    }),
-    []
-  );
-
-  /** Focus the given zone's section element */
-  const focusZone = useCallback(
-    (zone: HomepageZone) => {
-      homepageStore.setActiveZone(zone);
-      zoneRefs[zone].current?.focus();
-    },
-    [homepageStore, zoneRefs]
-  );
-
-  // H049: '/' shortcut to focus chat input
-  // H050: F6 to cycle zones
+  // Set workspace on AI store when it changes
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInputFocused =
-        target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-
-      // '/' focuses chat input (only when not typing in another input)
-      if (e.key === '/' && !isInputFocused) {
-        e.preventDefault();
-        chatInputRef.current?.focus();
-      }
-
-      // F6 cycles between zones
-      if (e.key === 'F6') {
-        e.preventDefault();
-        const currentIndex = ZONE_ORDER.indexOf(homepageStore.activeZone);
-        const nextIndex = e.shiftKey
-          ? (currentIndex - 1 + ZONE_ORDER.length) % ZONE_ORDER.length
-          : (currentIndex + 1) % ZONE_ORDER.length;
-        const nextZone = ZONE_ORDER[nextIndex];
-        if (nextZone) {
-          focusZone(nextZone);
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [homepageStore.activeZone, focusZone]);
+    if (store && workspaceId && store.workspaceId !== workspaceId) {
+      store.setWorkspaceId(workspaceId);
+    }
+  }, [store, workspaceId]);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      {/* Zone 1: Compact ChatView */}
-      <section
-        ref={chatRef}
-        role="region"
-        aria-label="Quick AI chat"
-        tabIndex={-1}
-        className="mx-auto w-full max-w-[720px] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:rounded-lg"
-      >
-        <CompactChatView inputRef={chatInputRef} />
+    <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 lg:flex-row">
+      {/* Left: Daily Brief document (scrolls independently) */}
+      <section className="min-w-0 flex-1 overflow-y-auto px-6 py-6 lg:px-10 lg:py-8">
+        <DailyBrief workspaceSlug={workspaceSlug} />
       </section>
 
-      {/* Zone 2 + Zone 3 wrapper */}
-      <div className="flex flex-col gap-6 lg:flex-row">
-        {/* Zone 2: Activity Feed */}
-        <section
-          ref={activityRef}
-          role="region"
-          aria-label="Recent activity"
-          tabIndex={-1}
-          className="min-w-0 flex-[3] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:rounded-lg lg:min-w-[380px]"
-        >
-          <ActivityFeed workspaceSlug={workspaceSlug} />
-        </section>
-
-        {/* Zone 3: AI Digest Panel */}
-        <section
-          ref={digestRef}
-          role="region"
-          aria-label="AI workspace insights"
-          tabIndex={-1}
-          className="min-w-0 flex-[2] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:rounded-lg lg:min-w-[300px]"
-        >
-          <DigestPanel aiConfigured={aiConfigured} />
-        </section>
-      </div>
+      {/* Right: ChatView command center (desktop only, viewport-pinned) */}
+      <aside
+        className="hidden lg:flex lg:w-[380px] lg:shrink-0 lg:border-l lg:border-border"
+        aria-label="AI command center"
+      >
+        {store ? (
+          <ChatView
+            store={store}
+            userName={userName}
+            className="h-full w-full"
+            autoFocus={false}
+            suggestedPrompts={HOMEPAGE_PROMPTS}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <p className="text-sm text-muted-foreground">Loading AI...</p>
+          </div>
+        )}
+      </aside>
     </div>
   );
 });

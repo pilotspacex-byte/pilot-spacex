@@ -18,7 +18,7 @@ import type {
   VelocityChartData,
 } from '@/types';
 
-import { stateNameToKey } from '@/lib/issue-helpers';
+import { getIssueStateKey } from '@/lib/issue-helpers';
 import { cyclesApi } from '@/services/api';
 import type { CycleIssue, CycleFilters, SortBy, SortOrder } from './cycle-store-types';
 import * as actions from './cycle-store-actions';
@@ -162,7 +162,7 @@ export class CycleStore {
 
     states.forEach((state) => {
       grouped[state] = Array.from(this.cycleIssues.values()).filter(
-        (i) => stateNameToKey(i.state?.name) === state
+        (i) => getIssueStateKey(i.state) === state
       );
     });
 

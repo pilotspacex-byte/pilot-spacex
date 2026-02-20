@@ -1,4 +1,4 @@
-import type { IssueState } from '@/types';
+import type { IssueState, StateBrief } from '@/types';
 
 const VALID_STATES: Set<string> = new Set([
   'backlog',
@@ -21,4 +21,16 @@ export function stateNameToKey(name: string | undefined | null): IssueState {
   if (!name) return 'backlog';
   const key = name.toLowerCase().replace(/\s+/g, '_').trim().replace(/^_|_$/g, '');
   return (VALID_STATES.has(key) ? key : 'backlog') as IssueState;
+}
+
+/**
+ * Extract the IssueState key from an issue's state field.
+ * Handles both formats:
+ * - StateBrief object: { id, name, color, group } → uses name
+ * - Plain string from API: "backlog", "in_progress" → uses directly
+ */
+export function getIssueStateKey(state: StateBrief | string | undefined | null): IssueState {
+  if (!state) return 'backlog';
+  if (typeof state === 'string') return stateNameToKey(state);
+  return stateNameToKey(state.name);
 }

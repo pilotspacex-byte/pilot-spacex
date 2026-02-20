@@ -21,6 +21,7 @@ from pilot_space.dependencies import (
     DbSession,
     get_approval_service_dep,
 )
+from pilot_space.dependencies.auth import require_workspace_member
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -31,7 +32,6 @@ router = APIRouter(tags=["AI Extraction"])
 class ExtractIssuesRequest(BaseModel):
     """Request for issue extraction."""
 
-    note_id: str = Field(description="Note ID")
     note_title: str = Field(
         max_length=255,
         description="Note title",
@@ -53,6 +53,7 @@ class ExtractIssuesRequest(BaseModel):
     )
     available_labels: list[str] | None = Field(
         default=None,
+        max_length=50,
         description="Labels available in the project",
     )
     max_issues: int = Field(
@@ -107,6 +108,7 @@ async def extract_issues_stream(
     request: Request,
     approval_service: Annotated[ApprovalService, Depends(get_approval_service_dep)],
     session: DbSession,
+    _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> SSEResponse:
     """Extract issues from note content with confidence tags.
 
@@ -125,7 +127,6 @@ async def extract_issues_stream(
         extract_request: Extraction request.
         current_user_id: Current user ID.
         request: FastAPI request.
-        orchestrator: SDK orchestrator for agent execution.
         approval_service: Approval service for human-in-the-loop.
         session: Database session.
 
@@ -135,21 +136,72 @@ async def extract_issues_stream(
     _ = correlation_id  # Used for tracing
 
     async def generate_events():
+        from pilot_space.application.services.extraction import (
+            ExtractIssuesPayload,
+            IssueExtractionService,
+        )
+
         builder = SSEStreamBuilder()
 
-        # SDKOrchestrator has been removed in the conversational agent architecture.
-        # Issue extraction will be migrated to PilotSpaceAgent skill-based execution.
-        # See: specs/005-conversational-agent-arch/plan.md
+        # Progress: starting
         yield builder.event(
-            "error",
-            {
-                "code": "NOT_IMPLEMENTED",
-                "message": (
-                    "Issue extraction is being migrated to the conversational agent architecture. "
-                    "Use POST /ai/chat with extraction instructions instead."
-                ),
-            },
+            "progress", {"stage": "analyzing", "message": "Analyzing note content..."}
         )
+
+        try:
+            service = IssueExtractionService(session=session)
+            payload = ExtractIssuesPayload(
+                workspace_id=workspace_id,
+                note_id=note_id,
+                note_title=extract_request.note_title,
+                note_content=extract_request.note_content,
+                project_id=extract_request.project_id,
+                project_context=extract_request.project_context,
+                selected_text=extract_request.selected_text,
+                available_labels=extract_request.available_labels,
+                max_issues=extract_request.max_issues,
+            )
+
+            yield builder.event(
+                "progress", {"stage": "extracting", "message": "Extracting issues..."}
+            )
+
+            result = await service.extract(payload)
+
+            # Stream each extracted issue
+            for idx, issue in enumerate(result.issues):
+                yield builder.event(
+                    "issue",
+                    {
+                        "index": idx,
+                        "title": issue.title,
+                        "description": issue.description,
+                        "priority": issue.priority,
+                        "labels": issue.labels,
+                        "confidenceScore": issue.confidence_score,
+                        "confidenceTag": issue.confidence_tag,
+                        "sourceBlockIds": issue.source_block_ids,
+                        "rationale": issue.rationale,
+                    },
+                )
+
+            # Complete event with summary
+            yield builder.event(
+                "complete",
+                {
+                    "totalCount": result.total_count,
+                    "recommendedCount": result.recommended_count,
+                    "processingTimeMs": result.processing_time_ms,
+                    "model": result.model,
+                },
+            )
+
+        except Exception:
+            logger.exception("Issue extraction failed", extra={"note_id": note_id})
+            yield builder.event(
+                "error",
+                {"code": "EXTRACTION_FAILED", "message": "Extraction failed. Please try again."},
+            )
 
     return SSEResponse(generate_events())
 
@@ -166,6 +218,7 @@ async def approve_extracted_issues(
     current_user_id: CurrentUserId,
     approval_service: Annotated[ApprovalService, Depends(get_approval_service_dep)],
     session: DbSession,
+    _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> dict[str, Any]:
     """Approve and create selected extracted issues.
 

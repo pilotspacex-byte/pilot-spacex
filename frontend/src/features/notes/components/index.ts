@@ -15,3 +15,6 @@ export { VersionRestoreConfirm } from './VersionRestoreConfirm';
 
 export { TemplatePicker } from './TemplatePicker';
 export type { TemplatePickerProps, TemplateId } from './TemplatePicker';
+
+export { ExtractionPreviewModal } from './ExtractionPreviewModal';
+export type { ExtractionPreviewModalProps, ExtractedIssue } from './ExtractionPreviewModal';
