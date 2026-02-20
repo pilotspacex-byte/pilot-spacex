@@ -8,13 +8,13 @@
 
 ### Role-Based Navigation
 
-**Backend developers** → See `backend/CLAUDE.md` for:
+**Backend developers** → See `backend/README.md` for:
 - Backend architecture & patterns
 - CQRS-lite service design
 - RLS security requirements
 - Quality gates & testing
 
-**Frontend developers** → See `frontend/CLAUDE.md` for:
+**Frontend developers** → See `frontend/README.md` for:
 - Frontend architecture & patterns
 - MobX + TanStack Query state management
 - TipTap editor extensions
@@ -174,7 +174,7 @@ Three-tier containerized architecture: Frontend (Next.js 14 App Router) → Back
 
 ## AI Agent Architecture
 
-**Complete AI layer architecture, agents, skills, MCP tools, and provider routing**: See `backend/src/pilot_space/ai/CLAUDE.md`
+**Complete AI layer architecture, agents, skills, MCP tools, and provider routing**: See `backend/src/pilot_space/ai/README.md`
 
 ### Quick Summary
 
@@ -259,7 +259,7 @@ Read details at `project-structure.md` but concise summary below.
 - **ai/** — PilotSpaceAgent orchestrator + subagents, Claude Agent SDK integration, MCP tools, providers, session management, cost tracking
 - **infrastructure/** — 22 SQLAlchemy models, ~15 repositories (some repos handle multiple models), 21 Alembic migrations, RLS helpers, Redis cache, pgmq queue, Supabase JWT auth
 
-*Full structure with current counts: see `backend/CLAUDE.md`*
+*Full structure with current counts: see `backend/README.md`*
 
 ### Frontend (`frontend/src/`)
 
@@ -271,7 +271,7 @@ Feature-based architecture:
 - **stores/** — MobX: RootStore, AuthStore, UIStore, WorkspaceStore, **11 AI stores**: PilotSpaceStore (unified orchestrator), GhostTextStore, PRReviewStore, AIContextStore, DocGeneratorStore, ApprovalStore, CostTrackingStore, SessionStore, ChatHistoryStore, AnnotationStore, ExtractionStore
 - **services/api/** — 9 typed API clients with RFC 7807 error handling
 
-*Full structure: see `frontend/CLAUDE.md`*
+*Full structure: see `frontend/README.md`*
 
 ---
 
@@ -302,19 +302,19 @@ Conventional commits,feat|fix|refactor|docs|test|chore(scope): description
 
 ### Backend Patterns
 
-**See `backend/CLAUDE.md` for complete backend patterns**
+**See `backend/README.md` for complete backend patterns**
 
 **Quick Summary**: CQRS-lite (Service.execute), Repository (RLS-enforced), Unit of Work, Domain Events, DI (dependency-injector), RFC 7807 Errors, Pydantic v2 Validation, Supabase Auth+RLS
 
 ### AI Agent Patterns
 
-**See `backend/src/pilot_space/ai/CLAUDE.md` for complete AI patterns**
+**See `backend/src/pilot_space/ai/README.md` for complete AI patterns**
 
 **Quick Summary**: Centralized agent (PilotSpaceAgent), SDK integration (query/multi-turn), Skill system (YAML), MCP tools (operation payloads), Provider routing (DD-011), Approval (DD-003), SSE streaming, Resilience (retry+circuit breaker), Session management (Redis+PostgreSQL)
 
 ### Frontend Patterns
 
-**See `frontend/CLAUDE.md` for complete frontend patterns**
+**See `frontend/README.md` for complete frontend patterns**
 
 **Quick Summary**: State split (MobX UI/TanStack server), Feature folders, 13 TipTap extensions, Optimistic updates, SSE handling (custom client), Auto-save (2s debounce), WCAG 2.2 AA Accessibility
 
@@ -322,7 +322,7 @@ Conventional commits,feat|fix|refactor|docs|test|chore(scope): description
 
 ## UI/UX Design System
 
-**Complete design system, component specs, and page catalog**: See `frontend/CLAUDE.md` - Section "UI/UX Design System"
+**Complete design system, component specs, and page catalog**: See `frontend/README.md` - Section "UI/UX Design System"
 
 ### Quick Summary
 
