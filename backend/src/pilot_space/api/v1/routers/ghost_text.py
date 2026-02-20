@@ -9,7 +9,7 @@ Design Decisions: DD-011 (Haiku for latency)
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
@@ -44,7 +44,9 @@ class GhostTextRequest(BaseModel):
     context: str = Field(..., max_length=500, description="Context text")
     prefix: str = Field(..., max_length=200, description="Prefix to complete")
     workspace_id: UUID = Field(..., description="Workspace ID")
-    block_type: str | None = Field(None, description="TipTap block type for prompt routing")
+    block_type: Literal["paragraph", "codeBlock", "heading", "bulletList"] | None = Field(
+        None, description="TipTap block type for prompt routing"
+    )
     note_title: str | None = Field(None, max_length=200, description="Note title for context")
     linked_issues: list[str] | None = Field(
         None, max_length=20, description="Linked issue identifiers"

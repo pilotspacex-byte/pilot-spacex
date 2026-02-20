@@ -155,7 +155,7 @@ class TestResolveSystemPrompt:
 
     def test_note_title_appended(self) -> None:
         result = GhostTextService._resolve_system_prompt("paragraph", note_title="Sprint Planning")
-        assert "Note title: Sprint Planning" in result
+        assert "<note_title>Sprint Planning</note_title>" in result
 
     def test_linked_issues_appended(self) -> None:
         result = GhostTextService._resolve_system_prompt(

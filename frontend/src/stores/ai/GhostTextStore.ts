@@ -64,7 +64,7 @@ export class GhostTextStore {
     if (!this.isEnabled || !this.rootStore.isGloballyEnabled) return;
 
     // Check cache
-    const cacheKey = `${noteId}:${context.slice(-100)}:${prefix.slice(-50)}`;
+    const cacheKey = `${noteId}:${blockType ?? 'p'}:${context.slice(-100)}:${prefix.slice(-50)}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
       this.error = null;
