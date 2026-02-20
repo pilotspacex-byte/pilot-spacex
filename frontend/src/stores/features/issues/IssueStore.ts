@@ -560,7 +560,7 @@ export class IssueStore {
   // ============================================================================
 
   /**
-   * Set save status for a specific field. Auto-clears to 'idle' after 2s when 'saved'.
+   * Set save status for a specific field. Auto-clears to 'idle' after 2s when 'saved', 5s when 'error'.
    */
   setSaveStatus(field: string, status: 'idle' | 'saving' | 'saved' | 'error') {
     this.saveStatus.set(field, status);
@@ -572,14 +572,15 @@ export class IssueStore {
       this._saveStatusTimers.delete(field);
     }
 
-    // Auto-clear to 'idle' after 2s when status is 'saved'
-    if (status === 'saved') {
+    // Auto-clear to 'idle' after timeout (2s for saved, 5s for error)
+    if (status === 'saved' || status === 'error') {
+      const timeout = status === 'saved' ? 2000 : 5000;
       const timer = setTimeout(() => {
         runInAction(() => {
           this.saveStatus.set(field, 'idle');
         });
         this._saveStatusTimers.delete(field);
-      }, 2000);
+      }, timeout);
       this._saveStatusTimers.set(field, timer);
     }
   }

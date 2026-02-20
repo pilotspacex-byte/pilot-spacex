@@ -36,6 +36,10 @@ vi.mock('@/stores', () => ({
     aiStore: { settings: { aiContextEnabled: true } },
     issueStore: { deleteIssue: vi.fn() },
   }),
+  useTaskStore: () => ({
+    getTasksForIssue: () => [],
+    getCompletedCount: () => 0,
+  }),
 }));
 
 vi.mock('@/features/issues/components', () => ({
@@ -46,6 +50,16 @@ vi.mock('@/features/issues/components', () => ({
   SubIssuesList: () => <div data-testid="sub-issues-list" />,
   ActivityTimeline: () => <div data-testid="activity-timeline" />,
   IssuePropertiesPanel: () => <div data-testid="issue-properties-panel" />,
+  AcceptanceCriteriaEditor: () => <div data-testid="acceptance-criteria" />,
+  TechnicalRequirementsEditor: () => <div data-testid="technical-requirements" />,
+  CollapsibleSection: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="collapsible-section">{children}</div>
+  ),
+  TaskProgressWidget: () => null,
+}));
+
+vi.mock('@/components/issues/DeleteConfirmDialog', () => ({
+  DeleteConfirmDialog: () => null,
 }));
 
 vi.mock('@/components/ui/button', () => ({
@@ -60,6 +74,18 @@ vi.mock('@/components/ui/skeleton', () => ({
 
 vi.mock('@/components/ui/separator', () => ({
   Separator: () => <hr />,
+}));
+
+vi.mock('@/components/ui/sheet', () => ({
+  Sheet: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="mobile-sheet">{children}</div>
+  ),
+  SheetTrigger: ({ children }: { children: React.ReactNode }) => children,
+  SheetContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="sheet-content">{children}</div>
+  ),
+  SheetHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SheetTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('mobx-react-lite', () => ({
@@ -113,19 +139,26 @@ describe('IssueDetailPage responsive layout', () => {
   it('main container has flex-col md:flex-row classes', () => {
     render(<IssueDetailPage />);
 
-    // The flex container wrapping sidebar + main content
-    const flexContainer =
-      screen.getByTestId('issue-properties-panel').parentElement!.parentElement!;
-    expect(flexContainer.className).toContain('flex-col');
-    expect(flexContainer.className).toContain('md:flex-row');
+    const panels = screen.getAllByTestId('issue-properties-panel');
+    // Desktop sidebar parent
+    const desktopSidebar = panels[0]?.parentElement;
+    const flexContainer = desktopSidebar?.parentElement;
+    expect(desktopSidebar).toBeDefined();
+    expect(flexContainer).toBeDefined();
+    expect(flexContainer!.className).toContain('flex-col');
+    expect(flexContainer!.className).toContain('md:flex-row');
   });
 
-  it('properties sidebar has responsive width classes', () => {
+  it('desktop sidebar is hidden on mobile, visible on md+', () => {
     render(<IssueDetailPage />);
 
-    const sidebar = screen.getByTestId('issue-properties-panel').parentElement!;
-    expect(sidebar.className).toContain('md:w-[35%]');
-    expect(sidebar.className).toContain('xl:w-[30%]');
+    const panels = screen.getAllByTestId('issue-properties-panel');
+    const desktopSidebar = panels[0]?.parentElement;
+    expect(desktopSidebar).toBeDefined();
+    expect(desktopSidebar!.className).toContain('hidden');
+    expect(desktopSidebar!.className).toContain('md:block');
+    expect(desktopSidebar!.className).toContain('md:w-[35%]');
+    expect(desktopSidebar!.className).toContain('xl:w-[30%]');
   });
 
   it('main content has responsive width classes', () => {
@@ -136,20 +169,19 @@ describe('IssueDetailPage responsive layout', () => {
     expect(mainContent.className).toContain('xl:w-[70%]');
   });
 
-  it('properties sidebar has order-first md:order-last for mobile-first layout', () => {
+  it('renders mobile Sheet trigger for properties', () => {
     render(<IssueDetailPage />);
 
-    const sidebar = screen.getByTestId('issue-properties-panel').parentElement!;
-    expect(sidebar.className).toContain('order-first');
-    expect(sidebar.className).toContain('md:order-last');
+    expect(screen.getByTestId('mobile-sheet')).toBeInTheDocument();
+    expect(screen.getByLabelText('Open issue properties')).toBeInTheDocument();
   });
 
-  it('sidebar has border-b on mobile, border-l on desktop', () => {
+  it('desktop sidebar has border-l on desktop', () => {
     render(<IssueDetailPage />);
 
-    const sidebar = screen.getByTestId('issue-properties-panel').parentElement!;
-    expect(sidebar.className).toContain('border-b');
-    expect(sidebar.className).toContain('md:border-b-0');
-    expect(sidebar.className).toContain('md:border-l');
+    const panels = screen.getAllByTestId('issue-properties-panel');
+    const desktopSidebar = panels[0]?.parentElement;
+    expect(desktopSidebar).toBeDefined();
+    expect(desktopSidebar!.className).toContain('md:border-l');
   });
 });

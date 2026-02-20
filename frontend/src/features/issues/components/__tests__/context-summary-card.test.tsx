@@ -49,7 +49,7 @@ describe('ContextSummaryCard', () => {
     expect(screen.getByText('Tasks')).toBeInTheDocument();
   });
 
-  it('renders with zero stat counts', () => {
+  it('renders fallback text when all stat counts are zero', () => {
     const emptySummary: ContextSummary = {
       issueIdentifier: 'PS-999',
       title: 'Simple issue with no context',
@@ -66,13 +66,35 @@ describe('ContextSummaryCard', () => {
 
     expect(screen.getByText('PS-999')).toBeInTheDocument();
     expect(screen.getByText('Simple issue with no context')).toBeInTheDocument();
+    expect(screen.getByText('No related items found yet')).toBeInTheDocument();
 
-    const zeroCounts = screen.getAllByText('0');
-    expect(zeroCounts).toHaveLength(4);
+    expect(screen.queryByText('Issues')).not.toBeInTheDocument();
+    expect(screen.queryByText('Docs')).not.toBeInTheDocument();
+    expect(screen.queryByText('Files')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tasks')).not.toBeInTheDocument();
+  });
 
-    expect(screen.getByText('Issues')).toBeInTheDocument();
+  it('only renders non-zero stat pills', () => {
+    const partialSummary: ContextSummary = {
+      issueIdentifier: 'PS-500',
+      title: 'Partial context',
+      summaryText: 'Some related items.',
+      stats: {
+        relatedCount: 0,
+        docsCount: 2,
+        filesCount: 0,
+        tasksCount: 5,
+      },
+    };
+
+    render(<ContextSummaryCard summary={partialSummary} />);
+
+    expect(screen.getByText('2')).toBeInTheDocument();
     expect(screen.getByText('Docs')).toBeInTheDocument();
-    expect(screen.getByText('Files')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
     expect(screen.getByText('Tasks')).toBeInTheDocument();
+
+    expect(screen.queryByText('Issues')).not.toBeInTheDocument();
+    expect(screen.queryByText('Files')).not.toBeInTheDocument();
   });
 });

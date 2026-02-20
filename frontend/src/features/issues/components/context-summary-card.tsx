@@ -29,12 +29,28 @@ export function ContextSummaryCard({ summary }: ContextSummaryCardProps) {
               <h3 className="text-base font-semibold leading-snug">{summary.title}</h3>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">{summary.summaryText}</p>
-            <div className="flex items-center gap-3 pt-1">
-              <StatPill icon={Link2} label="Issues" count={summary.stats.relatedCount} />
-              <StatPill icon={BookOpen} label="Docs" count={summary.stats.docsCount} />
-              <StatPill icon={Code} label="Files" count={summary.stats.filesCount} />
-              <StatPill icon={ListChecks} label="Tasks" count={summary.stats.tasksCount} />
-            </div>
+            {summary.stats.relatedCount +
+              summary.stats.docsCount +
+              summary.stats.filesCount +
+              summary.stats.tasksCount ===
+            0 ? (
+              <p className="text-xs text-muted-foreground italic">No related items found yet</p>
+            ) : (
+              <div className="flex items-center gap-3 pt-1 flex-wrap">
+                {summary.stats.relatedCount > 0 && (
+                  <StatPill icon={Link2} label="Issues" count={summary.stats.relatedCount} />
+                )}
+                {summary.stats.docsCount > 0 && (
+                  <StatPill icon={BookOpen} label="Docs" count={summary.stats.docsCount} />
+                )}
+                {summary.stats.filesCount > 0 && (
+                  <StatPill icon={Code} label="Files" count={summary.stats.filesCount} />
+                )}
+                {summary.stats.tasksCount > 0 && (
+                  <StatPill icon={ListChecks} label="Tasks" count={summary.stats.tasksCount} />
+                )}
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

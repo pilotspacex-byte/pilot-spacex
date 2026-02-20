@@ -273,7 +273,6 @@ describe('IssuePropertiesPanel', () => {
 
     expect(screen.getByTestId('state-select')).toBeInTheDocument();
     expect(screen.getByTestId('priority-select')).toBeInTheDocument();
-    expect(screen.getByTestId('type-select')).toBeInTheDocument();
     expect(screen.getByTestId('assignee-select')).toBeInTheDocument();
     expect(screen.getByTestId('label-select')).toBeInTheDocument();
     expect(screen.getByTestId('cycle-select')).toBeInTheDocument();
@@ -418,7 +417,6 @@ describe('IssuePropertiesPanel', () => {
     render(<IssuePropertiesPanel {...defaultProps} disabled />);
 
     expect(screen.getByTestId('priority-select')).toBeDisabled();
-    expect(screen.getByTestId('type-select')).toBeDisabled();
     expect(screen.getByTestId('assignee-select')).toBeDisabled();
     expect(screen.getByTestId('label-select')).toBeDisabled();
     expect(screen.getByTestId('cycle-select')).toBeDisabled();

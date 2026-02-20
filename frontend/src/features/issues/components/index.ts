@@ -78,3 +78,15 @@ export type { TechnicalRequirementsEditorProps } from './technical-requirements-
 
 export { TaskDependencyGraph } from './task-dependency-graph';
 export type { TaskDependencyGraphProps } from './task-dependency-graph';
+
+export { CollapsibleSection } from './collapsible-section';
+export type { CollapsibleSectionProps } from './collapsible-section';
+
+export { TaskProgressWidget } from './task-progress-widget';
+export type { TaskProgressWidgetProps } from './task-progress-widget';
+
+export { FieldSaveIndicator } from './field-save-indicator';
+export type { FieldSaveIndicatorProps } from './field-save-indicator';
+
+export { EffortField } from './effort-field';
+export type { EffortFieldProps } from './effort-field';

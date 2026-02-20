@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback, type ChangeEvent } from 'react';
+import { useMemo, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
@@ -12,7 +12,6 @@ import type {
   UpdateIssueData,
   IssueState,
   IssuePriority,
-  IssueType,
   LabelBrief,
   Cycle,
   UserBrief,
@@ -26,9 +25,7 @@ import { useSaveStatus, type WorkspaceMember } from '@/features/issues/hooks';
 import {
   IssueStateSelect,
   IssuePrioritySelect,
-  IssueTypeSelect,
   CycleSelector,
-  EstimateSelector,
   AssigneeSelector,
   LabelSelector,
 } from '@/components/issues';
@@ -38,6 +35,8 @@ import { Button } from '@/components/ui/button';
 import { SaveStatus } from '@/components/ui/save-status';
 import { LinkedPRsList } from '@/features/issues/components/linked-prs-list';
 import { SourceNotesList } from '@/features/issues/components/source-notes-list';
+import { EffortField } from '@/features/issues/components/effort-field';
+import { FieldSaveIndicator } from '@/features/issues/components/field-save-indicator';
 
 // ---------------------------------------------------------------------------
 // State group -> IssueState mapping
@@ -92,14 +91,18 @@ function formatDate(iso: string): string {
 
 interface PropertyRowProps {
   label: string;
+  fieldName?: string;
   children: React.ReactNode;
 }
 
-function PropertyRow({ label, children }: PropertyRowProps) {
+function PropertyRow({ label, fieldName, children }: PropertyRowProps) {
   return (
     <div className="flex items-center gap-2">
       <span className="w-24 shrink-0 text-sm text-muted-foreground">{label}</span>
-      <div className="flex min-w-0 flex-1 items-center gap-2">{children}</div>
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        {children}
+        {fieldName && <FieldSaveIndicator fieldName={fieldName} />}
+      </div>
     </div>
   );
 }
@@ -236,12 +239,6 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
     [wrapPriority, onUpdate]
   );
 
-  const handleTypeChange = useCallback((_type: IssueType) => {
-    // Backend Issue model does not have a type column.
-    // Type selector is read-only until schema supports it.
-    void _type;
-  }, []);
-
   const { wrapMutation: wrapAssignee } = useSaveStatus('assignee');
   const handleAssigneeChange = useCallback(
     (user: UserBrief | null) => {
@@ -275,7 +272,7 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
   );
 
   const { wrapMutation: wrapEstimate } = useSaveStatus('estimate');
-  const handleEstimateChange = useCallback(
+  const handlePointsChange = useCallback(
     (points: number | undefined) => {
       if (points !== undefined) {
         wrapEstimate(() => onUpdate({ estimatePoints: points })).catch(() => {});
@@ -287,18 +284,9 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
   );
 
   const { wrapMutation: wrapHours } = useSaveStatus('estimateHours');
-  const handleEstimateHoursBlur = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
-      const raw = e.target.value;
-      if (raw === '') {
-        wrapHours(() => onUpdate({ estimateHours: undefined })).catch(() => {});
-        return;
-      }
-      const val = parseFloat(raw);
-      if (!isNaN(val) && val >= 0 && val <= 9999.9) {
-        const rounded = Math.round(val * 2) / 2;
-        wrapHours(() => onUpdate({ estimateHours: rounded })).catch(() => {});
-      }
+  const handleHoursChange = useCallback(
+    (hours: number | undefined) => {
+      wrapHours(() => onUpdate({ estimateHours: hours })).catch(() => {});
     },
     [wrapHours, onUpdate]
   );
@@ -317,7 +305,7 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
           <SaveStatus status={issueStore.aggregateSaveStatus} />
         </div>
 
-        <PropertyRow label="State">
+        <PropertyRow label="State" fieldName="state">
           <IssueStateSelect
             value={currentIssueState}
             onChange={handleStateChange}
@@ -326,7 +314,7 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
           />
         </PropertyRow>
 
-        <PropertyRow label="Priority">
+        <PropertyRow label="Priority" fieldName="priority">
           <IssuePrioritySelect
             value={issue.priority ?? 'none'}
             onChange={handlePriorityChange}
@@ -335,16 +323,7 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
           />
         </PropertyRow>
 
-        <PropertyRow label="Type">
-          <IssueTypeSelect
-            value={issue.type ?? 'task'}
-            onChange={handleTypeChange}
-            disabled
-            className="h-8 flex-1"
-          />
-        </PropertyRow>
-
-        <PropertyRow label="Assignee">
+        <PropertyRow label="Assignee" fieldName="assignee">
           <AssigneeSelector
             value={assigneeUser}
             members={memberUsers}
@@ -354,7 +333,7 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
           />
         </PropertyRow>
 
-        <PropertyRow label="Labels">
+        <PropertyRow label="Labels" fieldName="labels">
           <LabelSelector
             selectedLabels={selectedLabels}
             availableLabels={labels}
@@ -364,7 +343,7 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
           />
         </PropertyRow>
 
-        <PropertyRow label="Cycle">
+        <PropertyRow label="Cycle" fieldName="cycle">
           <CycleSelector
             value={issue.cycleId ?? null}
             onChange={handleCycleChange}
@@ -374,34 +353,14 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
           />
         </PropertyRow>
 
-        <PropertyRow label="Estimate">
-          <EstimateSelector
-            value={issue.estimatePoints ?? undefined}
-            onChange={handleEstimateChange}
+        <PropertyRow label="Effort" fieldName="estimate">
+          <EffortField
+            estimatePoints={issue.estimatePoints ?? undefined}
+            estimateHours={issue.estimateHours || undefined}
+            onPointsChange={handlePointsChange}
+            onHoursChange={handleHoursChange}
             disabled={disabled}
-            className="h-8 flex-1"
           />
-        </PropertyRow>
-
-        <PropertyRow label="Hours">
-          <input
-            type="number"
-            min={0}
-            max={9999.9}
-            step={0.5}
-            defaultValue={issue.estimateHours ?? ''}
-            onBlur={handleEstimateHoursBlur}
-            disabled={disabled}
-            aria-label="Time estimate in hours"
-            placeholder="0.0"
-            className={cn(
-              'h-8 w-full flex-1 rounded-[10px] border border-input bg-background px-3 text-sm',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-              'text-foreground placeholder:text-muted-foreground'
-            )}
-          />
-          <span className="shrink-0 text-xs text-muted-foreground">h</span>
         </PropertyRow>
       </section>
 

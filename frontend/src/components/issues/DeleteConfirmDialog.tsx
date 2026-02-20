@@ -99,7 +99,7 @@ export function DeleteConfirmDialog({
           </AlertDialogTitle>
           <AlertDialogDescription>
             {issueCount === 1
-              ? `This will permanently delete "${issues[0]?.title ?? 'this issue'}".`
+              ? `This will permanently delete "${issues[0]?.name ?? 'this issue'}".`
               : `This will permanently delete ${issueCount} issues.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -112,7 +112,7 @@ export function DeleteConfirmDialog({
               <ul className="space-y-1 text-sm text-muted-foreground">
                 {previewIssues.map((issue) => (
                   <li key={issue.id} className="truncate">
-                    <span className="font-mono text-xs">{issue.identifier}</span> {issue.title}
+                    <span className="font-mono text-xs">{issue.identifier}</span> {issue.name}
                   </li>
                 ))}
                 {remainingCount > 0 && (
