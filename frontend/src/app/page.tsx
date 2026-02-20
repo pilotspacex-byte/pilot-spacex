@@ -46,8 +46,8 @@ export default function HomePage() {
       if (cancelled) return;
 
       if (!session) {
-        // Not authenticated → redirect to login
-        router.replace('/login');
+        // Not authenticated → redirect to landing page
+        router.replace('/welcome');
         return;
       }
 
