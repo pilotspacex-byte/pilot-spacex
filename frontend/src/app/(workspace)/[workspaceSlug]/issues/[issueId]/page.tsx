@@ -205,12 +205,19 @@ const IssueDetailPage = observer(function IssueDetailPage() {
     [issueId]
   );
 
+  // Prepend propertyBlock to HTML so the parser creates it at position 0
+  // without triggering appendTransaction during initial render (flushSync error).
+  const initialContent = useMemo<Content>(() => {
+    if (issue?.descriptionHtml) {
+      return `<div data-property-block></div>${issue.descriptionHtml}`;
+    }
+    return { type: 'doc', content: [{ type: 'propertyBlock' }, { type: 'paragraph' }] };
+  }, [issue?.descriptionHtml]);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions,
-    content: issue?.descriptionHtml
-      ? (issue.descriptionHtml as unknown as Content)
-      : { type: 'doc', content: [{ type: 'propertyBlock' }, { type: 'paragraph' }] },
+    content: initialContent,
     editorProps: {
       attributes: {
         class: cn(
