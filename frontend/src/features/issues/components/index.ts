@@ -90,3 +90,20 @@ export type { FieldSaveIndicatorProps } from './field-save-indicator';
 
 export { EffortField } from './effort-field';
 export type { EffortFieldProps } from './effort-field';
+
+export { PropertyChip } from './property-chip';
+export type { PropertyChipProps } from './property-chip';
+
+export { PropertyBlockView } from './property-block-view';
+
+export { PropertyBlockCollapsed } from './property-block-collapsed';
+export type { PropertyBlockCollapsedProps } from './property-block-collapsed';
+
+export { IssueNoteHeader } from './issue-note-header';
+export type { IssueNoteHeaderProps } from './issue-note-header';
+
+export { IssueNoteLayout } from './issue-note-layout';
+export type { IssueNoteLayoutProps } from './issue-note-layout';
+
+export { IssueSectionDivider } from './issue-section-divider';
+export type { IssueSectionDividerProps } from './issue-section-divider';
