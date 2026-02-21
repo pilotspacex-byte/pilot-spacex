@@ -1,38 +1,6 @@
 /**
  * Issue components exports.
- *
- * AI Context Tab components for issue detail page.
  */
-
-export { AIContextPanel } from './ai-context-panel';
-export type { AIContextPanelProps } from './ai-context-panel';
-
-export { AIContextTab } from './ai-context-tab';
-export type { AIContextTabProps } from './ai-context-tab';
-
-export { ContextSummaryCard } from './context-summary-card';
-export type { ContextSummaryCardProps } from './context-summary-card';
-
-export { ContextSection } from './context-section';
-export type { ContextSectionProps } from './context-section';
-
-export { RelatedIssuesSection } from './related-issues-section';
-export type { RelatedIssuesSectionProps } from './related-issues-section';
-
-export { RelatedDocsSection } from './related-docs-section';
-export type { RelatedDocsSectionProps } from './related-docs-section';
-
-export { AITasksSection } from './ai-tasks-section';
-export type { AITasksSectionProps } from './ai-tasks-section';
-
-export { PromptBlock } from './prompt-block';
-export type { PromptBlockProps } from './prompt-block';
-
-export { AIContextStreaming } from './ai-context-streaming';
-export type { AIContextStreamingProps } from './ai-context-streaming';
-
-export { ClaudeCodePromptCard } from './claude-code-prompt-card';
-export type { ClaudeCodePromptCardProps } from './claude-code-prompt-card';
 
 export { RelatedItemsList } from './related-items-list';
 export type { RelatedItemsListProps, RelatedItem, RelatedItemType } from './related-items-list';
@@ -107,3 +75,9 @@ export type { IssueNoteLayoutProps } from './issue-note-layout';
 
 export { IssueSectionDivider } from './issue-section-divider';
 export type { IssueSectionDividerProps } from './issue-section-divider';
+
+export { IssueEditorContent } from './issue-editor-content';
+export type { IssueEditorContentProps } from './issue-editor-content';
+
+export { IssueDescriptionEmptyState } from './issue-description-empty-state';
+export type { IssueDescriptionEmptyStateProps } from './issue-description-empty-state';

@@ -8,7 +8,7 @@
  * inline property chips and dispatch updates.
  */
 import { createContext, useContext } from 'react';
-import type { Issue, UpdateIssueData, LabelBrief, Cycle, UserBrief } from '@/types';
+import type { Issue, UpdateIssueData, IssueState, LabelBrief, Cycle, UserBrief } from '@/types';
 
 export interface IssueNoteContextValue {
   /** Current issue data */
@@ -21,6 +21,8 @@ export interface IssueNoteContextValue {
   cycles: Cycle[];
   /** Dispatch a partial update to the issue */
   onUpdate: (data: UpdateIssueData) => Promise<unknown>;
+  /** Update issue state via dedicated state endpoint (accepts state name, not UUID) */
+  onUpdateState: (state: IssueState) => Promise<unknown>;
   /** Whether the issue is read-only */
   disabled?: boolean;
 }

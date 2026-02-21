@@ -4,8 +4,9 @@
  * IssueNoteHeader - Minimal header for the note-first issue detail page.
  *
  * Matches the density of InlineNoteHeader from the note canvas.
- * Shows: ← | PS-42 [Type] [AI] | SaveStatus | ChatToggle | MoreMenu
+ * Shows: ← | PS-42 [Type] [AI] | SaveStatus | CloneContext | ChatToggle | MoreMenu
  */
+import { useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
 import {
   ArrowLeft,
@@ -15,7 +16,9 @@ import {
   Sparkles,
   MessageSquare,
   Link as LinkIcon,
+  TerminalSquare,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SaveStatus } from '@/components/ui/save-status';
@@ -27,11 +30,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { copyToClipboard } from '@/lib/copy-context';
 import { useIssueStore } from '@/stores';
+import { CloneContextPanel } from './clone-context-panel';
+import type { ExportFormat } from './clone-context-panel';
 import type { IssueType } from '@/types';
 
 export interface IssueNoteHeaderProps {
   identifier: string;
+  issueTitle?: string;
   issueType?: IssueType;
   aiGenerated?: boolean;
   isChatOpen: boolean;
@@ -39,6 +46,12 @@ export interface IssueNoteHeaderProps {
   onToggleChat: () => void;
   onCopyLink: () => void;
   onDelete: () => void;
+  onExport: (format: ExportFormat) => Promise<string | null>;
+  stats?: {
+    tasksCount: number;
+    relatedIssuesCount: number;
+    relatedDocsCount: number;
+  };
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -50,6 +63,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export const IssueNoteHeader = observer(function IssueNoteHeader({
   identifier,
+  issueTitle,
   issueType,
   aiGenerated = false,
   isChatOpen,
@@ -57,8 +71,26 @@ export const IssueNoteHeader = observer(function IssueNoteHeader({
   onToggleChat,
   onCopyLink,
   onDelete,
+  onExport,
+  stats,
 }: IssueNoteHeaderProps) {
   const issueStore = useIssueStore();
+
+  const handleQuickCopy = useCallback(async () => {
+    const content = await onExport('claude_code');
+    if (!content) {
+      toast.error('No context available yet', {
+        description: 'Generate AI context first from the AI chat panel.',
+      });
+      return;
+    }
+    const ok = await copyToClipboard(content);
+    if (ok) {
+      toast.success('Context copied to clipboard', {
+        description: 'Paste into Claude Code to start implementing.',
+      });
+    }
+  }, [onExport]);
 
   return (
     <header className="flex items-center h-12 shrink-0 border-b border-border bg-background px-4">
@@ -88,6 +120,13 @@ export const IssueNoteHeader = observer(function IssueNoteHeader({
       <div className="flex items-center gap-1.5">
         <SaveStatus status={issueStore.aggregateSaveStatus} />
 
+        <CloneContextPanel
+          onExport={onExport}
+          issueIdentifier={identifier}
+          issueTitle={issueTitle}
+          stats={stats}
+        />
+
         <Button
           variant="ghost"
           size="icon-sm"
@@ -106,6 +145,22 @@ export const IssueNoteHeader = observer(function IssueNoteHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {/* Clone to Claude Code — quick copy, no panel */}
+            <DropdownMenuItem onClick={() => void handleQuickCopy()} className="gap-2">
+              <TerminalSquare className="size-4 shrink-0" />
+              <div className="flex flex-col min-w-0">
+                <span>Copy for Claude Code</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  Copies prompt format to clipboard
+                </span>
+              </div>
+              <span className="ml-auto text-[11px] text-muted-foreground font-mono shrink-0">
+                ⇧⌘C
+              </span>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
             <DropdownMenuItem onClick={onCopyLink}>
               <LinkIcon className="mr-2 size-4" />
               Copy link

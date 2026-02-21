@@ -44,6 +44,8 @@ export interface LabelSelectorProps {
   /** Placeholder text */
   placeholder?: string;
   className?: string;
+  /** Render only the list without Popover wrapper (for embedding in popovers) */
+  inline?: boolean;
 }
 
 /**
@@ -61,6 +63,59 @@ export interface LabelSelectorProps {
  * />
  * ```
  */
+function LabelOptionsList({
+  selectedLabels,
+  availableLabels,
+  onChange,
+  disabled,
+}: Pick<LabelSelectorProps, 'selectedLabels' | 'availableLabels' | 'onChange' | 'disabled'>) {
+  const [search, setSearch] = React.useState('');
+  const selectedIds = new Set(selectedLabels.map((l) => l.id));
+
+  const filteredLabels = availableLabels.filter((label) =>
+    label.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleSelect = (label: Label) => {
+    if (selectedIds.has(label.id)) {
+      onChange(selectedLabels.filter((l) => l.id !== label.id));
+    } else {
+      onChange([...selectedLabels, label]);
+    }
+  };
+
+  return (
+    <Command shouldFilter={false}>
+      <CommandInput placeholder="Search labels..." value={search} onValueChange={setSearch} />
+      <CommandList>
+        <CommandEmpty>
+          <span className="p-2 text-sm text-muted-foreground">No labels found</span>
+        </CommandEmpty>
+        <CommandGroup>
+          {filteredLabels.map((label) => {
+            const isSelected = selectedIds.has(label.id);
+            return (
+              <CommandItem
+                key={label.id}
+                value={label.name}
+                onSelect={() => handleSelect(label)}
+                disabled={disabled}
+                className="flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="size-3 rounded-full" style={{ backgroundColor: label.color }} />
+                  {label.name}
+                </span>
+                {isSelected && <Check className="size-4" />}
+              </CommandItem>
+            );
+          })}
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  );
+}
+
 export function LabelSelector({
   selectedLabels,
   availableLabels,
@@ -72,10 +127,22 @@ export function LabelSelector({
   disabled = false,
   placeholder = 'Add labels...',
   className,
+  inline = false,
 }: LabelSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const [isCreating, setIsCreating] = React.useState(false);
+
+  if (inline) {
+    return (
+      <LabelOptionsList
+        selectedLabels={selectedLabels}
+        availableLabels={availableLabels}
+        onChange={onChange}
+        disabled={disabled}
+      />
+    );
+  }
 
   const selectedIds = new Set(selectedLabels.map((l) => l.id));
 

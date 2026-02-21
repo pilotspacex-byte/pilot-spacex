@@ -23,7 +23,7 @@ export function createIssueNoteExtensions(
 
   // Get full note canvas extension set
   const extensions = createEditorExtensions({
-    placeholder: 'Start writing issue description...',
+    placeholder: 'Start texting here...',
     ...editorOptions,
   });
 

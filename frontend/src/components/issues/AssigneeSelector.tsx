@@ -43,6 +43,8 @@ export interface AssigneeSelectorProps {
   /** Placeholder text */
   placeholder?: string;
   className?: string;
+  /** Render only the list without Popover wrapper (for embedding in popovers) */
+  inline?: boolean;
 }
 
 /**
@@ -71,6 +73,76 @@ function getInitials(name: string): string {
  * />
  * ```
  */
+function AssigneeOptionsList({
+  value,
+  members,
+  recommendations = [],
+  onChange,
+  onRecommendationAccept,
+}: Pick<
+  AssigneeSelectorProps,
+  'value' | 'members' | 'recommendations' | 'onChange' | 'onRecommendationAccept'
+>) {
+  const [search, setSearch] = React.useState('');
+
+  const filteredMembers = members.filter(
+    (member) =>
+      (member.displayName ?? member.email).toLowerCase().includes(search.toLowerCase()) ||
+      member.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleSelect = (member: UserType) => {
+    const recommendation = recommendations?.find((r) => r.userId === member.id);
+    if (recommendation) {
+      onRecommendationAccept?.(recommendation);
+    }
+    onChange(member);
+  };
+
+  return (
+    <Command shouldFilter={false}>
+      <CommandInput placeholder="Search members..." value={search} onValueChange={setSearch} />
+      <CommandList>
+        <CommandEmpty>No members found</CommandEmpty>
+        <CommandGroup heading="Team Members">
+          {filteredMembers.map((member) => {
+            const isSelected = value?.id === member.id;
+            return (
+              <CommandItem
+                key={member.id}
+                value={member.email}
+                onSelect={() => handleSelect(member)}
+                className="flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Avatar className="size-6">
+                    <AvatarFallback className="text-[10px]">
+                      {getInitials(member.displayName ?? member.email)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{member.displayName ?? member.email}</span>
+                </span>
+                {isSelected && <Check className="size-4" />}
+              </CommandItem>
+            );
+          })}
+        </CommandGroup>
+        {value && (
+          <>
+            <CommandSeparator />
+            <CommandGroup>
+              <CommandItem onSelect={() => onChange(null)} className="text-muted-foreground">
+                <X className="mr-2 size-4" />
+                Unassign
+              </CommandItem>
+            </CommandGroup>
+          </>
+        )}
+      </CommandList>
+    </Command>
+  );
+}
+
 export function AssigneeSelector({
   value,
   members,
@@ -81,9 +153,22 @@ export function AssigneeSelector({
   disabled = false,
   placeholder = 'Assign to...',
   className,
+  inline = false,
 }: AssigneeSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
+
+  if (inline) {
+    return (
+      <AssigneeOptionsList
+        value={value}
+        members={members}
+        recommendations={recommendations}
+        onChange={onChange}
+        onRecommendationAccept={onRecommendationAccept}
+      />
+    );
+  }
 
   // Filter members by search
   const filteredMembers = members.filter(

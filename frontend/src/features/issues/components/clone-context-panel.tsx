@@ -1,12 +1,20 @@
 'use client';
 
 import * as React from 'react';
-import { Terminal, Copy, Check, ListChecks, Link2, BookOpen } from 'lucide-react';
+import {
+  TerminalSquare,
+  Copy,
+  Check,
+  ListChecks,
+  MessageSquare,
+  FileText,
+  FileQuestion,
+  X,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 // ============================================================================
@@ -18,6 +26,8 @@ export type ExportFormat = 'markdown' | 'claude_code' | 'task_list';
 export interface CloneContextPanelProps {
   onExport: (format: ExportFormat) => Promise<string | null>;
   isLoading?: boolean;
+  issueIdentifier?: string;
+  issueTitle?: string;
   stats?: {
     tasksCount: number;
     relatedIssuesCount: number;
@@ -30,13 +40,69 @@ export interface CloneContextPanelProps {
 // Constants
 // ============================================================================
 
-const FORMAT_LABELS: Record<ExportFormat, string> = {
-  markdown: 'Markdown',
-  claude_code: 'Claude Code',
-  task_list: 'Task List',
-};
+interface TabConfig {
+  format: ExportFormat;
+  label: string;
+  icon: React.ReactNode;
+  description: string;
+}
 
-const COPY_FEEDBACK_MS = 1500;
+const TABS: TabConfig[] = [
+  {
+    format: 'claude_code',
+    label: 'Prompt',
+    icon: <MessageSquare className="size-3.5" aria-hidden="true" />,
+    description: 'Conversational prompt — paste into Claude Code chat',
+  },
+  {
+    format: 'markdown',
+    label: 'Markdown',
+    icon: <FileText className="size-3.5" aria-hidden="true" />,
+    description: 'Structured context — works in any markdown-compatible tool',
+  },
+  {
+    format: 'task_list',
+    label: 'Checklist',
+    icon: <ListChecks className="size-3.5" aria-hidden="true" />,
+    description: 'Step-by-step task list with acceptance criteria',
+  },
+];
+
+const COPY_FEEDBACK_MS = 2000;
+
+// ============================================================================
+// Loading skeleton
+// ============================================================================
+
+function CodeSkeleton() {
+  return (
+    <div className="space-y-2 p-4" aria-busy="true" aria-label="Loading context...">
+      {[100, 85, 92, 60].map((w, i) => (
+        <div
+          key={i}
+          className="h-3 rounded bg-neutral-700/60 animate-pulse"
+          style={{ width: `${w}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// Empty state
+// ============================================================================
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+      <FileQuestion className="size-8 text-neutral-500 mb-3" aria-hidden="true" />
+      <p className="text-sm font-medium text-neutral-300">No context to clone</p>
+      <p className="text-xs text-neutral-500 mt-1">
+        Add a description, tasks, or linked issues to generate context.
+      </p>
+    </div>
+  );
+}
 
 // ============================================================================
 // Component
@@ -45,18 +111,20 @@ const COPY_FEEDBACK_MS = 1500;
 export function CloneContextPanel({
   onExport,
   isLoading,
+  issueIdentifier,
+  issueTitle,
   stats,
   className,
 }: CloneContextPanelProps) {
-  const [activeFormat, setActiveFormat] = React.useState<ExportFormat>('markdown');
+  const [activeFormat, setActiveFormat] = React.useState<ExportFormat>('claude_code');
   const [preview, setPreview] = React.useState<string>('');
   const [isCopied, setIsCopied] = React.useState(false);
   const [isLoadingPreview, setIsLoadingPreview] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
 
   const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
 
-  // Clean up timeout on unmount
   React.useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -66,11 +134,12 @@ export function CloneContextPanel({
   const loadPreview = React.useCallback(
     async (format: ExportFormat) => {
       setIsLoadingPreview(true);
+      setPreview('');
       try {
         const content = await onExport(format);
         setPreview(content ?? '');
       } catch {
-        setPreview('Failed to load preview.');
+        setPreview('');
       } finally {
         setIsLoadingPreview(false);
       }
@@ -78,164 +147,270 @@ export function CloneContextPanel({
     [onExport]
   );
 
-  // Load preview when popover opens or format changes
   React.useEffect(() => {
     if (isOpen) {
       void loadPreview(activeFormat);
     }
   }, [isOpen, activeFormat, loadPreview]);
 
-  const handleCopy = async () => {
-    if (!preview || isLoadingPreview) return;
+  // ⌘C / Ctrl+C when panel is open and no text is selected
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta || e.key !== 'c') return;
+      const selection = window.getSelection();
+      if (selection && selection.toString().length > 0) return; // user is selecting text
+      e.preventDefault();
+      void handleCopy();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, preview]);
 
+  const copyText = React.useCallback(async (text: string) => {
     try {
-      await navigator.clipboard.writeText(preview);
-      setIsCopied(true);
-      toast.success('Context copied to clipboard', {
-        description: `Ready to paste into ${FORMAT_LABELS[activeFormat]}`,
-      });
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setIsCopied(false), COPY_FEEDBACK_MS);
+      await navigator.clipboard.writeText(text);
     } catch {
-      // Fallback for environments where clipboard API is unavailable
       const textarea = document.createElement('textarea');
-      textarea.value = preview;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
+      textarea.value = text;
+      textarea.style.cssText = 'position:fixed;opacity:0';
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      setIsCopied(true);
-      toast.success('Context copied to clipboard');
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setIsCopied(false), COPY_FEEDBACK_MS);
     }
+  }, []);
+
+  const handleCopy = React.useCallback(async () => {
+    if (!preview || isLoadingPreview) return;
+    await copyText(preview);
+    setIsCopied(true);
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    copyTimeoutRef.current = setTimeout(() => setIsCopied(false), COPY_FEEDBACK_MS);
+  }, [preview, isLoadingPreview, copyText]);
+
+  const handleCopyAndClose = async () => {
+    await handleCopy();
+    setIsOpen(false);
   };
 
-  const handleTabChange = (value: string) => {
-    setActiveFormat(value as ExportFormat);
+  const handleTabChange = (format: ExportFormat) => {
+    setActiveFormat(format);
     setIsCopied(false);
   };
 
+  // ArrowLeft / ArrowRight keyboard navigation for segmented control
+  const handleSegmentKeyDown = (e: React.KeyboardEvent) => {
+    const idx = TABS.findIndex((t) => t.format === activeFormat);
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const next = TABS[(idx + 1) % TABS.length];
+      if (next) handleTabChange(next.format);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const prev = TABS[(idx - 1 + TABS.length) % TABS.length];
+      if (prev) handleTabChange(prev.format);
+    }
+  };
+
+  const activeTab = TABS.find((t) => t.format === activeFormat) ?? TABS[0]!;
+  const statsLine = stats
+    ? `${stats.tasksCount} tasks · ${stats.relatedIssuesCount} issues · ${stats.relatedDocsCount} docs`
+    : null;
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn('gap-1.5', className)}
-          disabled={isLoading}
-          aria-haspopup="dialog"
-        >
-          <Terminal className="size-4" aria-hidden="true" />
-          Clone Context
-        </Button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              ref={triggerRef}
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'gap-1.5 h-8 px-2.5 text-xs font-medium text-muted-foreground',
+                'transition-colors',
+                isOpen && 'bg-[#6B8FAD]/10 text-[#6B8FAD]',
+                className
+              )}
+              disabled={isLoading}
+              aria-haspopup="dialog"
+              aria-expanded={isOpen}
+            >
+              <TerminalSquare
+                className={cn('size-4', isOpen ? 'text-[#6B8FAD]' : 'text-muted-foreground')}
+                aria-hidden="true"
+              />
+              <span>Clone</span>
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Clone context for Claude Code</TooltipContent>
+      </Tooltip>
+
       <PopoverContent
-        className="w-[480px] p-0 overflow-hidden"
+        className="w-[440px] p-0 overflow-hidden"
         align="end"
         sideOffset={8}
-        id="clone-context-panel"
+        role="dialog"
+        aria-label="Clone context for Claude Code"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          // Focus the first tab button
+        }}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          triggerRef.current?.focus();
+        }}
       >
         <AnimatePresence>
           {isOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -8 }}
+              initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             >
-              {/* Gradient header */}
-              <div className="bg-gradient-to-r from-primary to-ai px-4 py-3">
-                <h3 className="text-sm font-semibold text-white">Ready for Claude Code</h3>
-                <p className="text-xs text-white/70">Choose your preferred format</p>
+              {/* ── Header ── */}
+              <div className="flex items-center h-12 border-b border-border px-4">
+                <TerminalSquare
+                  className="size-4 text-[#6B8FAD] mr-2 shrink-0"
+                  aria-hidden="true"
+                />
+                <span className="text-sm font-semibold text-foreground flex-1">Clone Context</span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setIsOpen(false)}
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  aria-label="Close panel"
+                >
+                  <X className="size-4" />
+                </Button>
               </div>
 
-              <Tabs value={activeFormat} onValueChange={handleTabChange}>
-                <div className="border-b px-3 pt-3 pb-0">
-                  <TabsList className="w-full">
-                    <TabsTrigger value="markdown" className="flex-1 text-xs">
-                      Markdown
-                    </TabsTrigger>
-                    <TabsTrigger value="claude_code" className="flex-1 text-xs">
-                      Claude Code
-                    </TabsTrigger>
-                    <TabsTrigger value="task_list" className="flex-1 text-xs">
-                      Task List
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
-
-                {(['markdown', 'claude_code', 'task_list'] as const).map((format) => (
-                  <TabsContent key={format} value={format} className="mt-0">
-                    <div className="relative">
-                      <pre
-                        className="max-h-[360px] overflow-auto bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-950 text-[#D4D4D4] p-5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap"
-                        role="region"
-                        aria-label={`${FORMAT_LABELS[format]} preview`}
-                      >
-                        {isLoadingPreview ? (
-                          <span className="text-muted-foreground animate-pulse">
-                            Loading preview...
-                          </span>
-                        ) : (
-                          preview || 'No content available'
-                        )}
-                      </pre>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCopy}
-                        disabled={!preview || isLoadingPreview}
-                        className={cn(
-                          'absolute top-3 right-3 h-7 px-2.5 text-xs backdrop-blur-sm transition-all',
-                          isCopied
-                            ? 'text-green-400 hover:text-green-400 bg-green-500/10'
-                            : 'text-[#D4D4D4] hover:text-white bg-white/10 hover:bg-white/20'
-                        )}
-                        aria-live="polite"
-                        aria-label={isCopied ? 'Context copied to clipboard' : 'Copy context'}
-                      >
-                        {isCopied ? (
-                          <>
-                            <Check className="size-3.5 mr-1" aria-hidden="true" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="size-3.5 mr-1" aria-hidden="true" />
-                            Copy
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </TabsContent>
-                ))}
-              </Tabs>
-
-              {stats && (
-                <div className="border-t px-4 py-3 flex items-center gap-4 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <ListChecks className="size-3.5" aria-hidden="true" />
-                    <span className="font-medium text-foreground">{stats.tasksCount}</span> tasks
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Link2 className="size-3.5" aria-hidden="true" />
-                    <span className="font-medium text-foreground">
-                      {stats.relatedIssuesCount}
-                    </span>{' '}
-                    issues
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <BookOpen className="size-3.5" aria-hidden="true" />
-                    <span className="font-medium text-foreground">
-                      {stats.relatedDocsCount}
-                    </span>{' '}
-                    docs
-                  </div>
+              {/* ── Context summary ── */}
+              {(issueIdentifier || issueTitle || statsLine) && (
+                <div className="px-4 py-3 border-b border-border">
+                  {(issueIdentifier || issueTitle) && (
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {[issueIdentifier, issueTitle].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                  {statsLine && <p className="text-xs text-muted-foreground mt-0.5">{statsLine}</p>}
                 </div>
               )}
+
+              {/* ── Segmented control (tabs) ── */}
+              <div className="px-4 pt-3 pb-0">
+                <div
+                  className="inline-flex w-full rounded-lg bg-muted/50 p-1"
+                  role="tablist"
+                  aria-label="Export format"
+                  onKeyDown={handleSegmentKeyDown}
+                >
+                  {TABS.map((tab) => (
+                    <button
+                      key={tab.format}
+                      role="tab"
+                      aria-selected={activeFormat === tab.format}
+                      aria-controls={`panel-${tab.format}`}
+                      onClick={() => handleTabChange(tab.format)}
+                      className={cn(
+                        'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        activeFormat === tab.format
+                          ? 'bg-background text-foreground shadow-sm font-semibold'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {tab.icon}
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Tab description */}
+                <p className="text-[11px] text-muted-foreground px-0.5 py-2">
+                  {activeTab.description}
+                </p>
+              </div>
+
+              {/* ── Code preview ── */}
+              <div className="mx-3 mb-3 rounded-lg overflow-hidden border border-border relative">
+                <div
+                  id={`panel-${activeFormat}`}
+                  role="tabpanel"
+                  aria-label={`${activeTab.label} preview`}
+                  className="bg-neutral-900 max-h-[280px] overflow-auto scrollbar-thin scrollbar-track-neutral-800 scrollbar-thumb-neutral-600"
+                >
+                  {isLoadingPreview ? (
+                    <CodeSkeleton />
+                  ) : preview ? (
+                    <pre className="p-4 text-[13px] leading-5 font-mono text-neutral-200 whitespace-pre-wrap break-words">
+                      {preview}
+                    </pre>
+                  ) : (
+                    <EmptyState />
+                  )}
+                </div>
+
+                {/* Scroll shadow overlay */}
+                {preview && !isLoadingPreview && (
+                  <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-neutral-900 to-transparent pointer-events-none" />
+                )}
+
+                {/* Inline copy button */}
+                {preview && !isLoadingPreview && (
+                  <button
+                    onClick={handleCopy}
+                    className={cn(
+                      'absolute top-2 right-2 flex items-center gap-1 h-8 px-2.5 rounded-md text-xs font-medium',
+                      'border transition-all duration-150',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      isCopied
+                        ? 'text-[#29A386] bg-[#29A386]/20 border-[#29A386]/30'
+                        : 'text-neutral-300 bg-neutral-800 border-neutral-700 hover:bg-neutral-700 hover:text-neutral-100'
+                    )}
+                    aria-label={isCopied ? 'Copied to clipboard' : 'Copy context to clipboard'}
+                  >
+                    {isCopied ? (
+                      <>
+                        <Check className="size-3.5" aria-hidden="true" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-3.5" aria-hidden="true" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* aria-live region for copy announcement */}
+                <div aria-live="polite" className="sr-only">
+                  {isCopied ? 'Copied to clipboard' : ''}
+                </div>
+              </div>
+
+              {/* ── Footer ── */}
+              <div className="border-t border-border px-4 py-3 flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground font-mono">
+                  {typeof navigator !== 'undefined' && /Mac/.test(navigator.platform)
+                    ? '⌘C to copy'
+                    : 'Ctrl+C to copy'}
+                </span>
+                <Button
+                  size="sm"
+                  onClick={() => void handleCopyAndClose()}
+                  disabled={!preview || isLoadingPreview}
+                  className="h-7 px-3 text-xs"
+                >
+                  Copy &amp; Close
+                </Button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -243,3 +418,6 @@ export function CloneContextPanel({
     </Popover>
   );
 }
+
+// Re-export for legacy usage in AIContextTab (stats prop still accepted, displayed as context summary)
+export default CloneContextPanel;

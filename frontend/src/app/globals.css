@@ -881,6 +881,16 @@
 /* =============================================================================
    MINIMAL TIPTAP PROSE STYLES - Craft-like clean design
    ============================================================================= */
+/* TipTap Placeholder styles */
+.document-canvas .ProseMirror [data-placeholder]::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  pointer-events: none;
+  height: 0;
+}
+
 .document-canvas .prose {
   max-width: none;
 }
@@ -1158,9 +1168,9 @@
    Line numbers via decoration widgets (clickable to select block).
    Fold widgets positioned by ProseMirror decoration widgets.
    ============================================================================= */
-.document-canvas .ProseMirror {
+/* .document-canvas .ProseMirror {
   padding-left: 48px;
-}
+} */
 
 .document-canvas .ProseMirror [data-block-id] {
   position: relative;

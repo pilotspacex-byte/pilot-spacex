@@ -82,7 +82,8 @@ function getInitialCollapsed(): boolean {
 // ---------------------------------------------------------------------------
 
 export const PropertyBlockView = observer(function PropertyBlockView() {
-  const { issue, members, labels, cycles, onUpdate, disabled } = useIssueNoteContext();
+  const { issue, members, labels, cycles, onUpdate, onUpdateState, disabled } =
+    useIssueNoteContext();
 
   const [collapsed, setCollapsed] = useState(getInitialCollapsed);
 
@@ -109,14 +110,11 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
   const { wrapMutation: wrapState } = useSaveStatus('state');
   const handleStateChange = useCallback(
     (state: IssueState) => {
-      // Find matching StateBrief by group mapping
       const matched = STATE_GROUP_MAP[issue.state.group] === state ? issue.state : null;
-      if (matched) return; // No change
-      // We send stateId — but we don't have the full states list.
-      // Instead, send the state name directly and let the backend resolve it.
-      wrapState(() => onUpdate({ stateId: state })).catch(() => {});
+      if (matched) return;
+      wrapState(() => onUpdateState(state)).catch(() => {});
     },
-    [issue.state, wrapState, onUpdate]
+    [issue.state, wrapState, onUpdateState]
   );
 
   const { wrapMutation: wrapPriority } = useSaveStatus('priority');
@@ -215,26 +213,25 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
 
   if (collapsed) {
     return (
-      <NodeViewWrapper className="mb-4" data-testid="property-block">
-        <PropertyBlockCollapsed issue={issue} onExpand={toggleCollapsed} />
+      <NodeViewWrapper className="mb-2" data-testid="property-block">
+        <PropertyBlockCollapsed onExpand={toggleCollapsed} />
       </NodeViewWrapper>
     );
   }
 
   return (
-    <NodeViewWrapper className="mb-4" data-testid="property-block">
+    <NodeViewWrapper className="mb-2" data-testid="property-block">
       <div
         role="toolbar"
         aria-label="Issue properties"
         className={cn(
-          'rounded-[12px] border border-[#E5E2DD] bg-[#F8F6F3]',
-          'px-4 py-3',
+          'rounded-[10px] border border-[#E5E2DD] bg-[#F8F6F3]',
+          'px-3 py-2',
           'motion-safe:transition-all motion-safe:duration-200'
         )}
       >
-        {/* Row 1: State, Priority, Assignee, Cycle */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {/* State */}
+        {/* Row 1: State, Priority, Assignee, Cycle, Due date */}
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
           <PropertyChip
             label={`State: ${stateConf.label}`}
             fieldName="state"
@@ -244,6 +241,7 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
                 value={issueState}
                 onChange={handleStateChange}
                 disabled={disabled}
+                inline
               />
             }
           >
@@ -251,7 +249,6 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
             <span>{stateConf.label}</span>
           </PropertyChip>
 
-          {/* Priority */}
           <PropertyChip
             label={`Priority: ${priorityConf.label}`}
             fieldName="priority"
@@ -261,6 +258,7 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
                 value={issue.priority ?? 'none'}
                 onChange={handlePriorityChange}
                 disabled={disabled}
+                inline
               />
             }
           >
@@ -268,7 +266,6 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
             <span>{priorityConf.label}</span>
           </PropertyChip>
 
-          {/* Assignee */}
           <PropertyChip
             label={`Assignee: ${assigneeUser?.displayName ?? 'Not set'}`}
             fieldName="assignee"
@@ -279,6 +276,7 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
                 members={members}
                 onChange={handleAssigneeChange}
                 disabled={disabled}
+                inline
               />
             }
           >
@@ -286,7 +284,6 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
             <span>{assigneeUser?.displayName?.split(' ')[0] ?? 'Unassigned'}</span>
           </PropertyChip>
 
-          {/* Cycle */}
           <PropertyChip
             label={`Cycle: ${currentCycleName ?? 'None'}`}
             fieldName="cycle"
@@ -297,16 +294,13 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
                 onChange={handleCycleChange}
                 cycles={cycles}
                 disabled={disabled}
+                inline
               />
             }
           >
             <span className="text-muted-foreground">{currentCycleName ?? 'No cycle'}</span>
           </PropertyChip>
-        </div>
 
-        {/* Row 2: Due date, Labels */}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-          {/* Due date */}
           <PropertyChip
             label={`Due: ${dueDateStr ?? 'Not set'}`}
             fieldName="targetDate"
@@ -323,12 +317,14 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
             <CalendarIcon className="size-3.5 text-muted-foreground" />
             <span>{dueDateStr ?? 'No due date'}</span>
           </PropertyChip>
+        </div>
 
-          {/* Labels */}
+        {/* Row 2: Labels, Start date, Effort, Collapse */}
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
           {selectedLabels.map((label) => (
             <span
               key={label.id}
-              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+              className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-xs leading-5"
             >
               <span
                 className="size-2 rounded-full"
@@ -339,7 +335,6 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
             </span>
           ))}
 
-          {/* Add label chip */}
           <PropertyChip
             label="Add label"
             fieldName="labels"
@@ -350,17 +345,16 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
                 availableLabels={labels}
                 onChange={handleLabelsChange}
                 disabled={disabled}
+                inline
               />
             }
           >
             <Plus className="size-3 text-muted-foreground" />
             <span className="text-muted-foreground text-xs">Label</span>
           </PropertyChip>
-        </div>
 
-        {/* Row 3: Start date, Effort, Collapse toggle */}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-          {/* Start date */}
+          <span className="mx-0.5 h-3 w-px bg-border" aria-hidden="true" />
+
           <PropertyChip
             label={`Start: ${startDateStr ?? 'Not set'}`}
             fieldName="startDate"
@@ -378,7 +372,6 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
             <span>{startDateStr ?? 'Not set'}</span>
           </PropertyChip>
 
-          {/* Effort */}
           <PropertyChip
             label="Effort"
             fieldName="estimate"
@@ -396,25 +389,24 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
             <span className="text-xs text-muted-foreground">Effort:</span>
             <span>
               {issue.estimatePoints != null
-                ? `${issue.estimatePoints} pts`
+                ? `${issue.estimatePoints}pt`
                 : issue.estimateHours != null
                   ? `${issue.estimateHours}h`
-                  : 'Not set'}
+                  : '—'}
             </span>
           </PropertyChip>
 
-          {/* Spacer + Collapse toggle */}
           <button
             type="button"
             onClick={toggleCollapsed}
             className={cn(
-              'ml-auto inline-flex items-center gap-1 rounded-[8px] px-2 py-1 text-xs',
+              'ml-auto inline-flex items-center rounded-[6px] px-1.5 py-0.5 text-xs',
               'text-muted-foreground hover:bg-muted/50 transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
             )}
             aria-label="Collapse properties"
           >
-            <ChevronUp className="size-3.5" />
+            <ChevronUp className="size-3" />
           </button>
         </div>
       </div>

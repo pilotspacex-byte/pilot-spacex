@@ -32,14 +32,6 @@ export type { IssueBoardProps } from './IssueBoard';
 export { IssueModal } from './IssueModal';
 export type { IssueModalProps } from './IssueModal';
 
-// Phase 8: AI Context (US-12)
-export {
-  AIContext,
-  type AIContextProps,
-  type AIContextData,
-  type CodeReference,
-} from './AIContext';
-
 export {
   ContextItemList,
   type ContextItemListProps,
@@ -55,11 +47,3 @@ export {
 } from './TaskChecklist';
 
 export { ClaudeCodePrompt, type ClaudeCodePromptProps } from './ClaudeCodePrompt';
-
-export {
-  ContextChat,
-  type ContextChatProps,
-  type ChatMessage,
-  type MessageRole,
-  type SuggestedQuestion,
-} from './ContextChat';

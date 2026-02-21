@@ -26,6 +26,8 @@ export interface IssueStateSelectProps {
   onChange: (state: IssueState) => void;
   disabled?: boolean;
   className?: string;
+  /** Render only the list items without DropdownMenu wrapper (for embedding in popovers) */
+  inline?: boolean;
 }
 
 const states: IssueState[] = ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'cancelled'];
@@ -84,12 +86,67 @@ const stateConfig: Record<
  * />
  * ```
  */
+function StateOptionsList({ value, onChange }: Pick<IssueStateSelectProps, 'value' | 'onChange'>) {
+  return (
+    <div className="flex flex-col" role="listbox" aria-label="Issue state">
+      {states.slice(0, 4).map((state) => {
+        const config = stateConfig[state];
+        const Icon = config.icon;
+        return (
+          <button
+            key={state}
+            type="button"
+            role="option"
+            aria-selected={value === state}
+            onClick={() => onChange(state)}
+            className={cn(
+              'flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm',
+              'hover:bg-accent hover:text-accent-foreground cursor-pointer',
+              value === state && 'bg-accent'
+            )}
+          >
+            <Icon className={cn('size-4', config.className)} />
+            <span>{config.label}</span>
+          </button>
+        );
+      })}
+      <div className="my-1 h-px bg-border" role="separator" />
+      {states.slice(4).map((state) => {
+        const config = stateConfig[state];
+        const Icon = config.icon;
+        return (
+          <button
+            key={state}
+            type="button"
+            role="option"
+            aria-selected={value === state}
+            onClick={() => onChange(state)}
+            className={cn(
+              'flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm',
+              'hover:bg-accent hover:text-accent-foreground cursor-pointer',
+              value === state && 'bg-accent'
+            )}
+          >
+            <Icon className={cn('size-4', config.className)} />
+            <span>{config.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function IssueStateSelect({
   value,
   onChange,
   disabled = false,
   className,
+  inline = false,
 }: IssueStateSelectProps) {
+  if (inline) {
+    return <StateOptionsList value={value} onChange={onChange} />;
+  }
+
   const currentConfig = stateConfig[value];
   const CurrentIcon = currentConfig.icon;
 

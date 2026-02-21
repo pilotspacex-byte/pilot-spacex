@@ -44,7 +44,6 @@ vi.mock('@/stores', () => ({
 
 vi.mock('@/features/issues/components', () => ({
   IssueHeader: () => <div data-testid="issue-header" />,
-  AIContextSidebar: () => <div data-testid="ai-context-sidebar" />,
   IssueTitle: () => <div data-testid="issue-title" />,
   IssueDescriptionEditor: () => <div data-testid="issue-description-editor" />,
   SubIssuesList: () => <div data-testid="sub-issues-list" />,

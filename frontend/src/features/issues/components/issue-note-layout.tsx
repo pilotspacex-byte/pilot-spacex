@@ -20,6 +20,8 @@ const ChatView = lazy(() =>
 );
 
 export interface IssueNoteLayoutProps {
+  /** Header rendered above editor only (not above chat panel) */
+  headerContent?: ReactNode;
   /** Editor panel content */
   editorContent: ReactNode;
   /** AI store for ChatView */
@@ -33,6 +35,7 @@ export interface IssueNoteLayoutProps {
 }
 
 export function IssueNoteLayout({
+  headerContent,
   editorContent,
   aiStore,
   isChatOpen,
@@ -54,25 +57,39 @@ export function IssueNoteLayout({
     </Suspense>
   );
 
+  const leftColumn = (
+    <div className="flex flex-col h-full min-h-0">
+      {headerContent}
+      <div className="flex-1 overflow-hidden min-h-0">{editorContent}</div>
+    </div>
+  );
+
   // Mobile/Tablet layout
   if (isSmallScreen) {
     return (
-      <NoteCanvasMobileLayout
-        editorContent={editorContent}
-        chatViewContent={chatViewContent}
-        isChatViewOpen={isChatOpen}
-        onClose={onChatClose}
-        onOpen={onChatOpen}
-      />
+      <div className="flex flex-col h-full w-full">
+        {headerContent}
+        <NoteCanvasMobileLayout
+          editorContent={editorContent}
+          chatViewContent={chatViewContent}
+          isChatViewOpen={isChatOpen}
+          onClose={onChatClose}
+          onOpen={onChatOpen}
+        />
+      </div>
     );
   }
 
-  // Desktop: Resizable panels
+  // Desktop: Resizable panels — header sits above editor only; chat extends full height
   if (isChatOpen) {
     return (
-      <ResizablePanelGroup orientation="horizontal" className="h-full" id="issue-note-layout">
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="h-full w-full"
+        id="issue-note-layout"
+      >
         <ResizablePanel id="editor-panel" defaultSize="62%" minSize="50%" className="min-w-0">
-          {editorContent}
+          {leftColumn}
         </ResizablePanel>
 
         <ResizableHandle withHandle />
@@ -101,9 +118,12 @@ export function IssueNoteLayout({
 
   // Desktop: Chat closed with collapsed strip
   return (
-    <>
-      <div className="flex-1 min-w-0">{editorContent}</div>
+    <div className="flex h-full w-full">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        {headerContent}
+        <div className="flex-1 overflow-hidden min-h-0">{editorContent}</div>
+      </div>
       <CollapsedChatStrip onClick={onChatOpen} />
-    </>
+    </div>
   );
 }

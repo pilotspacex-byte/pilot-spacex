@@ -18,6 +18,8 @@ export interface CycleSelectorProps {
   cycles: Cycle[];
   disabled?: boolean;
   className?: string;
+  /** Render only the list items without DropdownMenu wrapper (for embedding in popovers) */
+  inline?: boolean;
 }
 
 function formatDateRange(startDate?: string, endDate?: string): string {
@@ -44,13 +46,72 @@ function formatDateRange(startDate?: string, endDate?: string): string {
  * <CycleSelector value={cycleId} onChange={setCycleId} cycles={cycles} />
  * ```
  */
+function CycleOptionsList({
+  value,
+  onChange,
+  cycles,
+}: Pick<CycleSelectorProps, 'value' | 'onChange' | 'cycles'>) {
+  return (
+    <div className="flex flex-col" role="listbox" aria-label="Cycle">
+      <button
+        type="button"
+        role="option"
+        aria-selected={value === null}
+        onClick={() => onChange(null)}
+        className={cn(
+          'flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm',
+          'hover:bg-accent hover:text-accent-foreground cursor-pointer',
+          value === null && 'bg-accent'
+        )}
+      >
+        <X className="size-4 text-muted-foreground" />
+        <span>No cycle</span>
+      </button>
+      {cycles.length > 0 && <div className="my-1 h-px bg-border" role="separator" />}
+      {cycles.map((cycle) => {
+        const dateRange = formatDateRange(cycle.startDate, cycle.endDate);
+        const isActive = cycle.status === 'active';
+        return (
+          <button
+            key={cycle.id}
+            type="button"
+            role="option"
+            aria-selected={value === cycle.id}
+            onClick={() => onChange(cycle.id)}
+            className={cn(
+              'flex flex-col items-start gap-0.5 rounded-sm px-2 py-1.5 text-sm',
+              'hover:bg-accent hover:text-accent-foreground cursor-pointer',
+              value === cycle.id && 'bg-accent'
+            )}
+          >
+            <span className="flex w-full items-center gap-2">
+              <span className="truncate font-medium">{cycle.name}</span>
+              {isActive && (
+                <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+                  Active
+                </span>
+              )}
+            </span>
+            {dateRange && <span className="text-xs text-muted-foreground">{dateRange}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function CycleSelector({
   value,
   onChange,
   cycles,
   disabled = false,
   className,
+  inline = false,
 }: CycleSelectorProps) {
+  if (inline) {
+    return <CycleOptionsList value={value} onChange={onChange} cycles={cycles} />;
+  }
+
   const selectedCycle = cycles.find((c) => c.id === value);
 
   const triggerLabel = selectedCycle ? selectedCycle.name : 'No cycle';

@@ -61,7 +61,7 @@ export function PropertyChip({
             aria-expanded={open}
             disabled={disabled}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1 text-sm',
+              'inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 text-xs',
               'transition-colors duration-100',
               'cursor-pointer select-none',
               'hover:bg-muted/50',
