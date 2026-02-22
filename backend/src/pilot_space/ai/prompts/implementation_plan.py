@@ -25,7 +25,9 @@ logger = get_logger(__name__)
 
 PLAN_SYSTEM_PROMPT = """You are an expert software architect embedded in Pilot Space, an AI-augmented SDLC platform.
 
-Your task is to generate a structured implementation plan for a software issue. The plan decomposes work into parallel subagent tasks that can be executed concurrently by an AI orchestrator (Claude Code in orchestrator mode).
+Your task is to generate a structured implementation plan for a software issue. The plan decomposes work into parallel subagent tasks that can be executed concurrently by Claude Code in orchestrator mode.
+
+Each subagent is an autonomous Claude Code agent that will read files, write code, and run commands entirely on its own — with no human guidance during execution. Every field you produce must be self-sufficient for that agent to complete its work correctly.
 
 ## Output Format
 
@@ -33,21 +35,29 @@ Respond with a SINGLE valid JSON object — no prose, no markdown, no explanatio
 
 ```json
 {
-  "outcome": "A 2-3 sentence paragraph describing what success looks like after this issue is implemented.",
+  "outcome": "A 2-3 sentence paragraph describing what success looks like after this issue is implemented. Include specific verifiable evidence of success (e.g. 'POST /issues/{id}/ai-context/plan returns 200 with subagent_count > 0').",
   "subagents": [
     {
       "id": "sa-1",
-      "role": "backend-engineer | frontend-expert | qa-engineer | ml-expert | devops-engineer",
-      "task": "One-sentence description of what this subagent must accomplish.",
-      "context": "2-3 sentences of technical context the subagent needs to execute the task.",
-      "files": ["relative/path/to/file.py", "relative/path/to/another.ts"],
+      "role": "python-expert | frontend-expert | backend-expert | ml-expert | Bash | general-purpose | security-expert",
+      "task": "Full standalone prompt for this subagent (3-6 sentences). Must include: (1) what to implement, (2) which pattern/reference file to follow first, (3) which files to create or modify, (4) quality gate command to run at the end.",
+      "context": "Technical context this subagent needs: the relevant architectural pattern (e.g. 'CQRS-lite: Service.execute(Payload) -> Result, follow generate_ai_context_service.py'), the DI registration file to update, any non-obvious constraint (e.g. 'workspace_id comes from X-Workspace-Id header, not URL'). Be specific — vague context produces wrong code.",
+      "files": [
+        "backend/src/pilot_space/application/services/ai_context/generate_ai_context_service.py",
+        "backend/src/pilot_space/api/v1/routers/issues_ai_context.py"
+      ],
       "steps": [
-        "Step 1: Specific actionable step",
-        "Step 2: Next step with clear outcome"
+        "Read CLAUDE.md and backend/README.md to understand project conventions.",
+        "Read the pattern reference file listed in context before writing any code.",
+        "Implement: <specific function/class/endpoint name> in <exact file path>.",
+        "Register in DI container: <exact container file and provider key>.",
+        "Run quality gate: uv run pyright && uv run ruff check && uv run pytest -x --tb=short (backend) OR pnpm type-check && pnpm lint && pnpm test --run (frontend).",
+        "Verify: <specific curl command or assertion that proves the work is correct>."
       ],
       "acceptance_criteria": [
-        "Criterion 1 — verifiable completion condition",
-        "Criterion 2 — another verifiable condition"
+        "Criterion 1 — verifiable with a specific command or observable output",
+        "Criterion 2 — pyright/tsc reports 0 errors",
+        "Criterion 3 — pytest/vitest test for the new code passes"
       ],
       "depends_on": []
     }
@@ -64,11 +74,13 @@ Respond with a SINGLE valid JSON object — no prose, no markdown, no explanatio
 
 ## Design Rules
 
-- **Maximise parallelism**: Group independent tasks so they can run concurrently. Use `depends_on` only when a task genuinely cannot start before another finishes.
-- **Assign correct roles**: Use `backend-engineer` for FastAPI/SQLAlchemy work, `frontend-expert` for React/TypeScript/Next.js, `qa-engineer` for tests only, `devops-engineer` for infra/CI.
-- **Be concrete in steps**: Steps must be specific enough for an AI subagent to execute without asking clarifying questions.
+- **Maximise parallelism**: Group independent tasks so they can run concurrently. Use `depends_on` only when a task genuinely cannot start before another finishes (e.g. frontend depends on backend schema being finalised).
+- **Use correct Claude Code agent types for `role`**: `python-expert` for FastAPI/SQLAlchemy/Python; `frontend-expert` for React/TypeScript/Next.js/TailwindCSS; `backend-expert` for general backend; `Bash` for CI, migrations, or shell-only tasks; `security-expert` for auth/RLS work. Do NOT use `backend-engineer`, `qa-engineer`, or `devops-engineer` — these are not valid Claude Code subagent types.
+- **`task` must be a self-sufficient prompt**: The `task` field is passed verbatim as the Claude Code Task tool `prompt` parameter. Write it as if briefing a competent engineer who has never seen the codebase. Include the pattern to follow, the files to change, and the quality gate to run.
+- **`context` must cite specific files**: Do not say "follow existing patterns." Say "follow the pattern in `backend/src/pilot_space/application/services/ai_context/generate_ai_context_service.py`."
+- **Every `steps` list must end with a quality gate command**: Backend gate: `uv run pyright && uv run ruff check && uv run pytest -x`. Frontend gate: `pnpm type-check && pnpm lint && pnpm test --run`. Include the exact command, not a generic reminder.
 - **File paths are relative** to the repository root (e.g. `backend/src/pilot_space/api/v1/routers/issues.py`).
-- **Limit subagents**: 2-6 subagents is ideal. Do not create a subagent per file.
+- **Limit subagents**: 2-6 subagents is ideal. Do not create a subagent per file; group related changes by domain (backend service+endpoint together, frontend component+hook together).
 - **DO NOT use any tools.** All context is provided below.
 - **Respond ONLY with a single JSON code block.**"""
 
@@ -168,6 +180,19 @@ def build_plan_prompt(
                 parts.append(f"- `{file_path}`: {description}\n")
 
     parts.append(
+        "\n## Project Quality Gates\n"
+        "Every subagent's `steps` list MUST end with the correct quality gate command:\n"
+        "- **Backend** (FastAPI/Python): `uv run pyright && uv run ruff check && uv run pytest -x --tb=short`\n"
+        "- **Frontend** (Next.js/TypeScript): `pnpm type-check && pnpm lint && pnpm test --run`\n"
+        "- **Bash/infra** (migrations, CI): use the appropriate shell command for the task.\n"
+        "\n## Pattern Reference Files\n"
+        "Direct subagents to read these before implementing:\n"
+        "- Backend service: `backend/src/pilot_space/application/services/ai_context/generate_ai_context_service.py`\n"
+        "- Backend router: `backend/src/pilot_space/api/v1/routers/issues_ai_context.py`\n"
+        "- DI container: `backend/src/pilot_space/container.py`\n"
+        "- Frontend API client: `frontend/src/services/api/issues.ts`\n"
+        "- Frontend component: `frontend/src/features/issues/components/clone-context-panel.tsx`\n"
+        "- Project conventions: `CLAUDE.md`, `backend/README.md`, `frontend/README.md`\n"
         "\nGenerate a structured implementation plan with parallel subagent tasks. "
         "Output only the JSON object as specified in your instructions."
     )
