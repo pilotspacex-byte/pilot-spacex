@@ -203,6 +203,9 @@ async def require_workspace_member(
     from pilot_space.infrastructure.database.models.workspace_member import (
         WorkspaceMember,
     )
+    from pilot_space.infrastructure.database.rls import set_rls_context
+
+    await set_rls_context(session, user_id, workspace_id)
 
     stmt = select(
         exists().where(
