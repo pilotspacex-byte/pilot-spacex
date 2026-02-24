@@ -398,6 +398,14 @@ async def update_workspace_issue(
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
 
+    # Verify issue belongs to this workspace BEFORE updating (prevents IDOR)
+    issue_ws_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
+    issue_workspace_id = issue_ws_row.scalar_one_or_none()
+    if issue_workspace_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+    if issue_workspace_id != workspace.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
     # Map priority string to enum if provided
     priority = UNCHANGED
     if issue_data.priority is not None:
@@ -469,15 +477,7 @@ async def update_workspace_issue(
     )
 
     try:
-        # Execute service with workspace validation
         result = await update_service.execute(payload)
-
-        # Verify workspace ownership
-        if result.issue.workspace_id != workspace.id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Issue not found",
-            )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -515,6 +515,14 @@ async def update_workspace_issue_state(
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
+
+    # Verify issue belongs to this workspace BEFORE updating (prevents IDOR)
+    issue_ws_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
+    issue_workspace_id = issue_ws_row.scalar_one_or_none()
+    if issue_workspace_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+    if issue_workspace_id != workspace.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     # Look up state by name
     state_name = body.state
@@ -568,15 +576,7 @@ async def update_workspace_issue_state(
     )
 
     try:
-        # Execute service
         result = await update_service.execute(payload)
-
-        # Verify workspace ownership
-        if result.issue.workspace_id != workspace.id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Issue not found",
-            )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
