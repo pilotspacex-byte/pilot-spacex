@@ -110,6 +110,7 @@ class GhostTextService:
         workspace_id: UUID,
         block_type: str | None = None,
         note_title: str | None = None,
+        linked_issues: list[str] | None = None,
     ) -> str:
         """Build cache key for completion.
 
@@ -119,6 +120,7 @@ class GhostTextService:
             workspace_id: Workspace UUID for scoping.
             block_type: Block type for prompt routing.
             note_title: Note title for context.
+            linked_issues: Linked issue identifiers for context.
 
         Returns:
             Cache key string.
@@ -126,7 +128,8 @@ class GhostTextService:
         # Length-prefixed format avoids ambiguity when context contains the separator.
         bt = block_type or "paragraph"
         nt = note_title or ""
-        content = f"{len(context)}:{context}{prefix}|{bt}|{nt}"
+        li = ",".join(sorted(linked_issues)) if linked_issues else ""
+        content = f"{len(context)}:{context}{prefix}|{bt}|{nt}|{li}"
         content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
 
         return f"{GHOST_TEXT_CACHE_PREFIX}:{workspace_id}:{content_hash}"
@@ -174,6 +177,7 @@ class GhostTextService:
             workspace_id,
             block_type,
             note_title,
+            linked_issues,
         )
         if use_cache:
             cached = await self._redis.get(cache_key)
