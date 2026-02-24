@@ -64,9 +64,14 @@ async def _check_redis_rate_limit(user_id: UUID, redis: RedisDep) -> None:
     """
     key = f"{RATE_LIMIT_KEY_PREFIX}:{user_id}"
     count = await redis.incr(key)
+    if count is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Rate limiter unavailable. Please try again later.",
+        )
     if count == 1:
         await redis.expire(key, RATE_LIMIT_WINDOW)
-    if count is not None and count > RATE_LIMIT_MAX:
+    if count > RATE_LIMIT_MAX:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Maximum 5 context generations per hour.",
@@ -113,13 +118,17 @@ async def get_ai_context(
     """
     from pilot_space.application.services.ai_context import GenerateAIContextPayload
     from pilot_space.infrastructure.database.repositories import AIContextRepository
+    from pilot_space.infrastructure.database.rls import set_rls_context
 
+    await set_rls_context(session, user_id, workspace_id)
     context_repo = AIContextRepository(session)
 
     # Try to get existing context
     context = await context_repo.get_by_issue_id(issue_id)
 
     if context and not context.is_stale:
+        if context.workspace_id != workspace_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         return AIContextResponse.from_model(context)
 
     if not generate_if_missing:
@@ -128,6 +137,8 @@ async def get_ai_context(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"AI context not found for issue: {issue_id}",
             )
+        if context.workspace_id != workspace_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         # Return stale context
         return AIContextResponse.from_model(context)
 
@@ -197,9 +208,12 @@ async def regenerate_ai_context(
         Generation result.
     """
     from pilot_space.application.services.ai_context import GenerateAIContextPayload
+    from pilot_space.infrastructure.database.rls import set_rls_context
 
     # Check rate limit
     await _check_redis_rate_limit(user_id, redis)
+
+    await set_rls_context(session, user_id, workspace_id)
 
     import uuid as uuid_module
 
@@ -248,6 +262,7 @@ async def refine_ai_context(
     issue_id: UUID,
     request: RefineContextRequest,
     session: SessionDep,
+    redis: RedisDep,
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user_id)],
     service: RefineAIContextServiceDep,
@@ -255,6 +270,7 @@ async def refine_ai_context(
     """Refine AI context with a chat message.
 
     Supports multi-turn conversation for context refinement.
+    Rate limited to 5 requests per hour per user.
 
     Args:
         issue_id: Issue UUID.
@@ -262,6 +278,7 @@ async def refine_ai_context(
         workspace_id: Current workspace.
         user_id: Current user.
         session: Database session.
+        redis: Redis client for rate limiting.
         service: Refine AI context service.
 
     Returns:
@@ -270,6 +287,10 @@ async def refine_ai_context(
     import uuid as uuid_module
 
     from pilot_space.application.services.ai_context import RefineAIContextPayload
+    from pilot_space.infrastructure.database.rls import set_rls_context
+
+    await _check_redis_rate_limit(user_id, redis)
+    await set_rls_context(session, user_id, workspace_id)
 
     payload = RefineAIContextPayload(
         workspace_id=workspace_id,
@@ -334,6 +355,9 @@ async def export_ai_context(
         ExportAIContextPayload,
         ExportFormat,
     )
+    from pilot_space.infrastructure.database.rls import set_rls_context
+
+    await set_rls_context(session, user_id, workspace_id)
 
     _format_map = {
         "markdown": ExportFormat.MARKDOWN,
