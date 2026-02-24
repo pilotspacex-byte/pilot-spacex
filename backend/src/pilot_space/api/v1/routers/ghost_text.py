@@ -144,6 +144,9 @@ async def generate_ghost_text(
     from pilot_space.infrastructure.database.models.workspace_member import (
         WorkspaceMember,
     )
+    from pilot_space.infrastructure.database.rls import set_rls_context
+
+    await set_rls_context(session, user_id, request.workspace_id)
 
     stmt = select(
         exists().where(
@@ -208,6 +211,9 @@ async def clear_workspace_cache(
     from pilot_space.infrastructure.database.models.workspace_member import (
         WorkspaceMember,
     )
+    from pilot_space.infrastructure.database.rls import set_rls_context
+
+    await set_rls_context(session, user_id, workspace_id)
 
     # Verify workspace membership
     stmt = select(
