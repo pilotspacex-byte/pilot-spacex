@@ -80,8 +80,14 @@ export function useUpdateIssue(workspaceId: string, issueId: string) {
     },
 
     onSuccess: (updatedIssue) => {
-      // Replace cache with full server response (includes resolved assignee, labels, state)
-      queryClient.setQueryData<Issue>(queryKey, updatedIssue);
+      // Merge server response but preserve the current cached state.
+      // useUpdateIssue never mutates state — useUpdateIssueState owns that field.
+      // Without this, a concurrent description auto-save can overwrite an optimistic
+      // state update with the server's stale state value, causing a visible blink.
+      queryClient.setQueryData<Issue>(queryKey, (current) => ({
+        ...updatedIssue,
+        state: current?.state ?? updatedIssue.state,
+      }));
     },
 
     onSettled: () => {
@@ -135,7 +141,13 @@ export function useUpdateIssueState(workspaceId: string, issueId: string) {
     },
 
     onSuccess: (updatedIssue) => {
-      queryClient.setQueryData<Issue>(queryKey, updatedIssue);
+      // Merge server response but preserve any in-flight description changes.
+      // useUpdateIssueState never mutates description/descriptionHtml.
+      queryClient.setQueryData<Issue>(queryKey, (current) => ({
+        ...updatedIssue,
+        description: current?.description ?? updatedIssue.description,
+        descriptionHtml: current?.descriptionHtml ?? updatedIssue.descriptionHtml,
+      }));
     },
 
     onSettled: () => {
