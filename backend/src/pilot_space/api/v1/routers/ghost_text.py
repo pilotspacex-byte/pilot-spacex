@@ -81,9 +81,14 @@ async def check_rate_limit(
     """
     key = f"{RATE_LIMIT_KEY_PREFIX}:{user_id}"
     count = await redis.incr(key)
+    if count is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Rate limiter unavailable. Please try again later.",
+        )
     if count == 1:
         await redis.expire(key, RATE_LIMIT_WINDOW)
-    if count is not None and count > RATE_LIMIT_REQUESTS:
+    if count > RATE_LIMIT_REQUESTS:
         raise HTTPException(
             status_code=429,
             detail=f"Rate limit exceeded: {RATE_LIMIT_REQUESTS} requests per {RATE_LIMIT_WINDOW} second(s)",
