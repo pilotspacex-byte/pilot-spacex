@@ -285,36 +285,32 @@ const ChatViewInternal = observer<ChatViewProps>(
 
     const completedAgentTasks = agentTasks.filter((t) => t.status === 'completed');
 
-    // Convert ApprovalRequest to ChatView ApprovalRequest
-    const chatViewApprovals = useMemo(() => {
-      return store.pendingApprovals.map((req) => ({
-        id: req.requestId,
-        agentName: 'PilotSpace Agent',
-        actionType: req.actionType,
-        status: 'pending' as const,
-        contextPreview: req.description,
-        payload: req.proposedContent as Record<string, unknown> | undefined,
-        createdAt: req.createdAt,
-        expiresAt: req.expiresAt,
-        reasoning: req.consequences,
-      }));
-    }, [store.pendingApprovals]);
+    // Convert ApprovalRequest to ChatView ApprovalRequest.
+    // Computed inline (no useMemo) because store.pendingApprovals is a MobX ObservableArray
+    // whose reference never changes on push — useMemo([store.pendingApprovals]) would
+    // cache stale empty array even after approvals arrive (observer re-renders correctly).
+    const chatViewApprovals = store.pendingApprovals.map((req) => ({
+      id: req.requestId,
+      agentName: 'PilotSpace Agent',
+      actionType: req.actionType,
+      status: 'pending' as const,
+      contextPreview: req.description,
+      payload: req.proposedContent as Record<string, unknown> | undefined,
+      createdAt: req.createdAt,
+      expiresAt: req.expiresAt,
+      reasoning: req.consequences,
+    }));
 
     // Split approvals: non-destructive inline cards vs destructive modal overlay
-    const { inlineApprovals, modalApprovals } = useMemo(() => {
-      const inline: typeof chatViewApprovals = [];
-      const modal: typeof chatViewApprovals = [];
-
-      for (const req of chatViewApprovals) {
-        if (isDestructiveAction(req.actionType)) {
-          modal.push(req);
-        } else {
-          inline.push(req);
-        }
+    const inlineApprovals: typeof chatViewApprovals = [];
+    const modalApprovals: typeof chatViewApprovals = [];
+    for (const req of chatViewApprovals) {
+      if (isDestructiveAction(req.actionType)) {
+        modalApprovals.push(req);
+      } else {
+        inlineApprovals.push(req);
       }
-
-      return { inlineApprovals: inline, modalApprovals: modal };
-    }, [chatViewApprovals]);
+    }
 
     // Auto-open task panel when tasks exist
     useEffect(() => {

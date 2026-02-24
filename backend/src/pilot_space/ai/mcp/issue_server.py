@@ -581,15 +581,89 @@ def create_issue_tools_server(
             payload["remove_label_ids"] = args["remove_label_ids"]
             changes.append(f"removing {len(args['remove_label_ids'])} labels")
 
-        approval_level = get_tool_approval_level("update_issue")
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        # PermissionCheckHook already handled the approval gate before this tool ran.
+        # Apply changes directly to the DB.
+        import contextlib
+        from datetime import date as date_type
 
-        logger.info("[IssueTools] update_issue: %s", args["issue_id"])
-        return _operation_payload(
-            "update_issue",
-            payload,
-            status=status,
-            preview={"issue_id": args["issue_id"], "changes": changes},
+        from pilot_space.infrastructure.database.models.issue import IssuePriority
+
+        if "title" in args:
+            issue.name = args["title"]
+        if "description" in args:
+            issue.description = args["description"]
+            issue.description_html = None  # Clear stale HTML so frontend falls back to markdown
+        if "priority" in args:
+            priority_map = {
+                "urgent": IssuePriority.URGENT,
+                "high": IssuePriority.HIGH,
+                "medium": IssuePriority.MEDIUM,
+                "low": IssuePriority.LOW,
+                "none": IssuePriority.NONE,
+            }
+            new_priority = priority_map.get(str(args["priority"]).lower())
+            if new_priority:
+                issue.priority = new_priority
+        if "assignee_id" in args:
+            with contextlib.suppress(ValueError, TypeError):
+                issue.assignee_id = UUID(args["assignee_id"]) if args["assignee_id"] else None
+        if "estimate_points" in args:
+            issue.estimate_points = args["estimate_points"]
+        if "start_date" in args:
+            with contextlib.suppress(ValueError, TypeError):
+                issue.start_date = date_type.fromisoformat(args["start_date"])
+        if "target_date" in args:
+            with contextlib.suppress(ValueError, TypeError):
+                issue.target_date = date_type.fromisoformat(args["target_date"])
+
+        # Handle label additions/removals
+        if "add_label_ids" in args or "remove_label_ids" in args:
+            from sqlalchemy import delete, insert, select
+
+            from pilot_space.infrastructure.database.models.issue_label import issue_labels
+
+            result = await tool_context.db_session.execute(
+                select(issue_labels.c.label_id).where(issue_labels.c.issue_id == issue_uuid)
+            )
+            current_label_ids = {row[0] for row in result.fetchall()}
+
+            if "add_label_ids" in args:
+                for lid_str in args["add_label_ids"]:
+                    with contextlib.suppress(ValueError, TypeError):
+                        current_label_ids.add(UUID(lid_str))
+            if "remove_label_ids" in args:
+                for lid_str in args["remove_label_ids"]:
+                    with contextlib.suppress(ValueError, TypeError):
+                        current_label_ids.discard(UUID(lid_str))
+
+            await tool_context.db_session.execute(
+                delete(issue_labels).where(issue_labels.c.issue_id == issue_uuid)
+            )
+            if current_label_ids:
+                await tool_context.db_session.execute(
+                    insert(issue_labels),
+                    [{"issue_id": issue_uuid, "label_id": lid} for lid in current_label_ids],
+                )
+
+        await tool_context.db_session.flush()
+        await tool_context.db_session.commit()
+
+        # Emit issue_updated event so frontend knows to refetch the issue
+        await publisher.publish_content_update(
+            {
+                "operation": "issue_updated",
+                "issueId": str(issue_uuid),
+                "noteId": "",
+            }
+        )
+
+        logger.info(
+            "[IssueTools] update_issue applied: %s changes=%s",
+            args["issue_id"],
+            changes,
+        )
+        return _text_result(
+            f"Issue {args['issue_id']} updated: {', '.join(changes) or 'no changes'}."
         )
 
     return create_sdk_mcp_server(

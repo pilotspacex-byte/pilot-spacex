@@ -6,7 +6,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { issuesApi } from '@/services/api';
-import type { Issue, UpdateIssueData } from '@/types';
+import type { Issue, IssueState, UpdateIssueData } from '@/types';
 import { issueDetailKeys } from './use-issue-detail';
 
 /**
@@ -81,6 +81,60 @@ export function useUpdateIssue(workspaceId: string, issueId: string) {
 
     onSuccess: (updatedIssue) => {
       // Replace cache with full server response (includes resolved assignee, labels, state)
+      queryClient.setQueryData<Issue>(queryKey, updatedIssue);
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
+}
+
+/**
+ * useUpdateIssueState - Optimistic state transition with cache sync.
+ *
+ * Separate from useUpdateIssue because state updates use a dedicated endpoint
+ * and optimistically patch only the state field while awaiting full server response.
+ */
+// Maps IssueState keys to the display names stored in DB (avoids blink on optimistic update).
+const STATE_DISPLAY_NAMES: Record<IssueState, string> = {
+  backlog: 'Backlog',
+  todo: 'Todo',
+  in_progress: 'In Progress',
+  in_review: 'In Review',
+  done: 'Done',
+  cancelled: 'Cancelled',
+};
+
+export function useUpdateIssueState(workspaceId: string, issueId: string) {
+  const queryClient = useQueryClient();
+  const queryKey = issueDetailKeys.detail(issueId);
+
+  return useMutation({
+    mutationFn: (state: IssueState) => issuesApi.updateState(workspaceId, issueId, state),
+
+    onMutate: async (newState) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previousIssue = queryClient.getQueryData<Issue>(queryKey);
+
+      if (previousIssue) {
+        queryClient.setQueryData<Issue>(queryKey, {
+          ...previousIssue,
+          state: { ...previousIssue.state, name: STATE_DISPLAY_NAMES[newState] ?? newState },
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      return { previousIssue };
+    },
+
+    onError: (_err, _state, context) => {
+      if (context?.previousIssue) {
+        queryClient.setQueryData<Issue>(queryKey, context.previousIssue);
+      }
+    },
+
+    onSuccess: (updatedIssue) => {
       queryClient.setQueryData<Issue>(queryKey, updatedIssue);
     },
 

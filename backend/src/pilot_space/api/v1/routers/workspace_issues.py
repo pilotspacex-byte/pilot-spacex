@@ -528,11 +528,13 @@ async def update_workspace_issue_state(
     normalized_state = state_name_map.get(state_name.lower(), state_name)
 
     state_result = await session.execute(
-        select(State).where(
+        select(State)
+        .where(
             State.workspace_id == workspace.id,
             State.name == normalized_state,
             State.is_deleted.is_(False),
         )
+        .limit(1)
     )
     new_state = state_result.scalar_one_or_none()
     if not new_state:

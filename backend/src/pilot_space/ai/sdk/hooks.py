@@ -191,8 +191,26 @@ class PermissionCheckHook(PreToolUseHook):
         return tool_name
 
     async def should_execute(self, context: ToolCallContext) -> HookResult:
-        """All tool calls execute immediately (approval gate disabled)."""
-        return HookResult.allow_execution(reason="Auto-execute: approval disabled")
+        """Check if tool execution requires approval (DD-003)."""
+        bare_name = self.strip_mcp_prefix(context.tool_name)
+        action_name = self.TOOL_ACTION_MAPPING.get(bare_name, bare_name)
+
+        permission_result = await self._permission_handler.check_permission(
+            workspace_id=context.workspace_id,
+            user_id=context.user_id,
+            agent_name=context.agent_name,
+            action_name=action_name,
+            description=self._build_description(context),
+            proposed_changes=context.tool_input,
+        )
+
+        if permission_result.requires_approval:
+            return HookResult.requires_approval_result(
+                approval_id=permission_result.approval_id,  # type: ignore[arg-type]
+                reason=permission_result.reason,
+            )
+
+        return HookResult.allow_execution(reason=permission_result.reason)
 
     def _build_description(self, context: ToolCallContext) -> str:
         """Build human-readable description of proposed action.

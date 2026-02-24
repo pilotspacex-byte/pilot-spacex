@@ -459,10 +459,15 @@ export class PilotSpaceStore {
   // Actions - Content Update Management
 
   handleContentUpdate(event: ContentUpdateEvent): void {
+    const data = event.data as { operation?: string; issueId?: string };
+    if (data.operation === 'issue_updated') {
+      window?.dispatchEvent(
+        new CustomEvent('pilot:issue-updated', { detail: { issueId: data.issueId } })
+      );
+      return;
+    }
     runInAction(() => {
-      if (this.pendingContentUpdates.length >= 100) {
-        this.pendingContentUpdates.shift();
-      }
+      if (this.pendingContentUpdates.length >= 100) this.pendingContentUpdates.shift();
       this.pendingContentUpdates.push(event.data);
     });
   }

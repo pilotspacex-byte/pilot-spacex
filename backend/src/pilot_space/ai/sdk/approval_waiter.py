@@ -126,10 +126,46 @@ class ApprovalActionExecutor:
         return {"status": "executed", "action_type": "create_issue", "name": name}
 
     async def _handle_update_issue(self, payload: dict[str, Any], user_id: UUID) -> dict[str, Any]:
-        issue_id = payload.get("issue_id")
+        # Payload may be wrapped as {"operation": ..., "payload": {...}} from issue_server.
+        inner = payload.get("payload", payload)
+        issue_id = inner.get("issue_id")
         if not issue_id:
             return {"status": "error", "action_error": "Missing issue_id in payload"}
-        return {"status": "executed", "action_type": "update_issue", "issue_id": str(issue_id)}
+
+        from pilot_space.infrastructure.database.repositories.issue_repository import (
+            IssueRepository,
+        )
+
+        repo = IssueRepository(self._session)
+        issue = await repo.get_by_id(UUID(str(issue_id)))
+        if not issue:
+            return {"status": "error", "action_error": f"Issue {issue_id} not found"}
+
+        updated_fields: list[str] = []
+        for field in ("title", "description", "priority", "assignee_id", "estimate_points"):
+            if field in inner:
+                setattr(issue, field, inner[field])
+                updated_fields.append(field)
+        for date_field in ("start_date", "target_date"):
+            if date_field in inner:
+                setattr(issue, date_field, inner[date_field])
+                updated_fields.append(date_field)
+
+        if not updated_fields:
+            return {
+                "status": "skipped",
+                "action_type": "update_issue",
+                "reason": "No fields to update",
+            }
+
+        await repo.update(issue)
+        await self._session.commit()
+        return {
+            "status": "executed",
+            "action_type": "update_issue",
+            "issue_id": str(issue_id),
+            "updated_fields": updated_fields,
+        }
 
     async def _handle_transition_issue_state(
         self, payload: dict[str, Any], user_id: UUID

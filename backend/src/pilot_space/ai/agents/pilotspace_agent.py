@@ -154,8 +154,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            msg = "Anthropic API key not found. Configure in workspace settings or set ANTHROPIC_API_KEY."
-            raise ValueError(msg)
+            raise ValueError(
+                "Anthropic API key not found. Configure in workspace settings or set ANTHROPIC_API_KEY."
+            )
         return api_key
 
     async def interrupt_session(self, session_id: str) -> bool:
@@ -209,10 +210,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         input_data: ChatInput,
         context: AgentContext,
     ) -> list[str]:
-        """Run intent detection and return SSE strings (T-016/T-017).
-
-        Delegates to run_intent_pipeline_step; no-ops if service not injected.
-        """
+        """Run intent detection and return SSE strings (T-016/T-017). No-ops if service not injected."""
         return await run_intent_pipeline_step(
             detection_service=self._intent_detection_service,
             message=input_data.message,
@@ -334,6 +332,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             _stream_error: BaseException | None = None
 
             try:
+                from pilot_space.infrastructure.database.rls import set_rls_context
+
+                await set_rls_context(db_session, context.user_id, context.workspace_id)
+
                 skill_count = await materialize_role_skills(
                     db_session=db_session,
                     user_id=context.user_id,
@@ -640,11 +642,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 session_id_str = str(existing.session_id)
 
         if not (self._space_manager and context.workspace_id and context.user_id):
-            msg = (
-                "SpaceManager, workspace_id, and user_id are required. "
-                "Legacy mode has been removed."
+            raise ValueError(
+                "SpaceManager, workspace_id, and user_id are required. Legacy mode has been removed."
             )
-            raise ValueError(msg)
 
         space = self._space_manager.get_space(context.workspace_id, context.user_id)
         async with space.session() as space_context:

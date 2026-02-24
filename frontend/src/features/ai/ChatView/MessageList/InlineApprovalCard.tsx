@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { IssuePreview } from '../ApprovalOverlay/IssuePreview';
+import { IssueUpdatePreview } from '../ApprovalOverlay/IssueUpdatePreview';
 import { ContentDiff } from '../ApprovalOverlay/ContentDiff';
 import { GenericJSON } from '../ApprovalOverlay/GenericJSON';
 import type { ApprovalRequest } from '../types';
@@ -35,6 +36,7 @@ function PayloadPreview({
   payload?: Record<string, unknown>;
 }) {
   if (!payload) return null;
+  if (actionType === 'update_issue') return <IssueUpdatePreview payload={payload} />;
   if (actionType.includes('issue') && payload.issue)
     return (
       <IssuePreview issue={payload.issue as Record<string, unknown>} className="border-ai/20" />
@@ -159,99 +161,106 @@ export const InlineApprovalCard = memo<InlineApprovalCardProps>(function InlineA
       role="region"
       aria-label={regionLabel}
       className={cn(
-        'mx-4 my-3 rounded-[12px] p-4 border-[1.5px] border-ai/30',
+        'mx-4 my-3 rounded-[12px] border-[1.5px] border-ai/30',
         'bg-[var(--color-ai-bg)] shadow-[0_2px_8px_rgba(0,0,0,0.06)] animate-fade-up',
+        'flex flex-col max-h-[55vh] min-h-0',
         className
       )}
     >
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-3">
-        <Sparkles className="h-4 w-4 text-ai" aria-hidden="true" />
-        <Badge variant="secondary" className="bg-ai/10 text-ai border-0 text-xs font-medium">
-          AI Suggestion
-        </Badge>
+      {/* Scrollable content — capped so action buttons always stay visible */}
+      <div className="flex-1 overflow-y-auto min-h-0 p-4 pb-0">
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className="h-4 w-4 text-ai" aria-hidden="true" />
+          <Badge variant="secondary" className="bg-ai/10 text-ai border-0 text-xs font-medium">
+            AI Suggestion
+          </Badge>
+        </div>
+
+        {/* Context */}
+        <p className="text-sm text-foreground leading-relaxed mb-3 line-clamp-3">
+          {approval.contextPreview || approval.reasoning || 'AI suggestion'}
+        </p>
+
+        {/* Payload preview */}
+        {hasPayload && (
+          <div className="mb-3">
+            <PayloadPreview actionType={approval.actionType} payload={approval.payload} />
+          </div>
+        )}
       </div>
 
-      {/* Context */}
-      <p className="text-sm text-foreground leading-relaxed mb-3">
-        {approval.contextPreview || approval.reasoning || 'AI suggestion'}
-      </p>
-
-      {/* Payload preview */}
-      {hasPayload && (
-        <div className="mb-3">
-          <PayloadPreview actionType={approval.actionType} payload={approval.payload} />
-        </div>
-      )}
-
-      {/* Rejection input */}
-      {isRejecting && (
-        <div className="mb-3 space-y-2">
-          <Textarea
-            ref={textareaRef}
-            value={reason}
-            onChange={(e) => setReason(e.target.value.slice(0, MAX_REASON_LEN))}
-            onKeyDown={onRejectKeyDown}
-            placeholder="Reason for rejection (optional)..."
-            maxLength={MAX_REASON_LEN}
-            rows={2}
-            className="resize-none text-sm"
-            aria-label="Rejection reason"
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              {reason.length}/{MAX_REASON_LEN}
-            </span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="ghost" onClick={handleCancelReject} className="text-xs">
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={handleConfirmReject}
-                className="text-xs"
-              >
-                Confirm Reject
-              </Button>
+      {/* Pinned footer — always visible regardless of content height */}
+      <div className="shrink-0 px-4 py-3 border-t border-ai/10">
+        {/* Rejection input */}
+        {isRejecting && (
+          <div className="space-y-2">
+            <Textarea
+              ref={textareaRef}
+              value={reason}
+              onChange={(e) => setReason(e.target.value.slice(0, MAX_REASON_LEN))}
+              onKeyDown={onRejectKeyDown}
+              placeholder="Reason for rejection (optional)..."
+              maxLength={MAX_REASON_LEN}
+              rows={2}
+              className="resize-none text-sm"
+              aria-label="Rejection reason"
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {reason.length}/{MAX_REASON_LEN}
+              </span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={handleCancelReject} className="text-xs">
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleConfirmReject}
+                  className="text-xs"
+                >
+                  Confirm Reject
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Action buttons */}
-      {!isRejecting && (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={handleApprove}
-            disabled={isLoading}
-            aria-busy={isLoading}
-            aria-label="Approve suggestion"
-            data-testid="approval-approve"
-            className="gap-1.5"
-          >
-            {isLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Check className="h-3.5 w-3.5" aria-hidden="true" />
-            )}
-            Approve
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleStartReject}
-            disabled={isLoading}
-            aria-label="Reject suggestion"
-            data-testid="approval-reject"
-            className="gap-1.5"
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-            Reject
-          </Button>
-        </div>
-      )}
+        {/* Action buttons */}
+        {!isRejecting && (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleApprove}
+              disabled={isLoading}
+              aria-busy={isLoading}
+              aria-label="Approve suggestion"
+              data-testid="approval-approve"
+              className="gap-1.5"
+            >
+              {isLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleStartReject}
+              disabled={isLoading}
+              aria-label="Reject suggestion"
+              data-testid="approval-reject"
+              className="gap-1.5"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+              Reject
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 });

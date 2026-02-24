@@ -195,7 +195,7 @@ export class PilotSpaceActions {
     try {
       // Send approval to backend via API
       const authHeaders = await this.streamHandler.getAuthHeaders();
-      const response = await fetch(`${API_BASE}/approvals/${requestId}/resolve`, {
+      const response = await fetch(`${API_BASE}/ai/approvals/${requestId}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ approved: true, ...(modifications && { modifications }) }),
@@ -234,7 +234,7 @@ export class PilotSpaceActions {
     try {
       // Send rejection to backend via API
       const authHeaders = await this.streamHandler.getAuthHeaders();
-      const response = await fetch(`${API_BASE}/approvals/${requestId}/resolve`, {
+      const response = await fetch(`${API_BASE}/ai/approvals/${requestId}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ approved: false, note: reason }),

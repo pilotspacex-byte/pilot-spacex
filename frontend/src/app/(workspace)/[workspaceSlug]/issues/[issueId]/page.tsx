@@ -20,6 +20,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DestructiveApprovalModal } from '@/features/ai/ChatView/ApprovalOverlay/DestructiveApprovalModal';
+import { isDestructiveAction } from '@/features/ai/ChatView/ChatView';
 
 import {
   IssueNoteHeader,
@@ -31,6 +33,7 @@ import { DeleteConfirmDialog } from '@/components/issues/DeleteConfirmDialog';
 import {
   useIssueDetail,
   useUpdateIssue,
+  useUpdateIssueState,
   useWorkspaceMembers,
   useWorkspaceLabels,
   useProjectCycles,
@@ -99,8 +102,9 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
 
   // -- TanStack Query hooks --
-  const { data: issue, isLoading, isError } = useIssueDetail(workspaceId, issueId);
+  const { data: issue, isLoading, isError, refetch } = useIssueDetail(workspaceId, issueId);
   const updateIssue = useUpdateIssue(workspaceId, issueId);
+  const updateIssueState = useUpdateIssueState(workspaceId, issueId);
   const { data: members = [] } = useWorkspaceMembers(workspaceId);
   const { data: labels = [] } = useWorkspaceLabels(workspaceId);
   const { data: cyclesData } = useProjectCycles(workspaceId, issue?.project?.id ?? '');
@@ -111,6 +115,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [editorKey, setEditorKey] = useState(0);
 
   // -- Derived data --
   const memberUsers = useMemo<UserBrief[]>(() => {
@@ -141,8 +146,8 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   );
 
   const handleUpdateState = useCallback(
-    (state: IssueState) => issuesApi.updateState(workspaceId, issueId, state),
-    [workspaceId, issueId]
+    (state: IssueState) => updateIssueState.mutateAsync(state),
+    [updateIssueState]
   );
 
   const handleCopyLink = useCallback(() => {
@@ -227,6 +232,39 @@ const IssueDetailPage = observer(function IssueDetailPage() {
     onForceSave: handleForceSave,
   });
 
+  // -- Initialise PilotSpaceStore context so chat includes workspace + issue --
+  // Both conversationContext (chat body) and X-Workspace-Id (sessions header)
+  // depend on these being set.
+  useEffect(() => {
+    const store = aiStore.pilotSpace as {
+      setWorkspaceId: (id: string | null) => void;
+      setIssueContext: (ctx: { issueId: string } | null) => void;
+    };
+    store.setWorkspaceId(workspaceId);
+    store.setIssueContext({ issueId });
+    return () => {
+      store.setIssueContext(null);
+    };
+  }, [workspaceId, issueId, aiStore.pilotSpace]);
+
+  // -- Refetch issue when AI agent applies an update, then remount editor --
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const { issueId: updatedId } = (e as CustomEvent<{ issueId?: string }>).detail;
+      if (updatedId !== issueId) return;
+      const result = await refetch();
+      // Only remount on success — a failed refetch (e.g. expired session) would
+      // remount with stale data and show no change to the user.
+      if (result.status === 'success') {
+        // Increment key to force IssueEditorContent remount with fresh issue data.
+        // useEditor's `content` option only applies at mount time.
+        setEditorKey((k) => k + 1);
+      }
+    };
+    window.addEventListener('pilot:issue-updated', handler);
+    return () => window.removeEventListener('pilot:issue-updated', handler);
+  }, [issueId, refetch]);
+
   // ⇧⌘C / Shift+Ctrl+C — quick copy claude_code context
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
@@ -247,6 +285,81 @@ const IssueDetailPage = observer(function IssueDetailPage() {
     return () => document.removeEventListener('keydown', handler);
   }, [handleExportContext]);
 
+  // -- DD-003: Approval flow --
+  // Map store approval shape to ChatView ApprovalRequest shape.
+  const issueApprovals = useMemo(() => {
+    return (
+      (aiStore.pilotSpace as { pendingApprovals?: unknown[] }).pendingApprovals
+        ?.filter(
+          (r): r is NonNullable<typeof r> =>
+            r !== null &&
+            typeof r === 'object' &&
+            'affectedEntities' in r &&
+            Array.isArray((r as { affectedEntities: unknown[] }).affectedEntities) &&
+            (r as { affectedEntities: Array<{ type: string; id: string }> }).affectedEntities.some(
+              (e) => e.type === 'issue' && e.id === issueId
+            )
+        )
+        .map((r) => {
+          const req = r as {
+            requestId: string;
+            actionType: string;
+            description: string;
+            consequences?: string;
+            proposedContent?: unknown;
+            createdAt: Date;
+            expiresAt: Date;
+          };
+          return {
+            id: req.requestId,
+            agentName: 'PilotSpace Agent',
+            actionType: req.actionType,
+            status: 'pending' as const,
+            contextPreview: req.description,
+            payload: req.proposedContent as Record<string, unknown> | undefined,
+            createdAt: req.createdAt,
+            expiresAt: req.expiresAt,
+            reasoning: req.consequences,
+          };
+        }) ?? []
+    );
+  }, [(aiStore.pilotSpace as { pendingApprovals?: unknown[] }).pendingApprovals, issueId]);
+
+  const destructiveApproval = useMemo(
+    () => issueApprovals.find((a) => isDestructiveAction(a.actionType)) ?? null,
+    [issueApprovals]
+  );
+
+  const [destructiveModalOpen, setDestructiveModalOpen] = useState(false);
+
+  // Auto-open chat for non-destructive approvals; open modal for destructive ones.
+  useEffect(() => {
+    if (issueApprovals.length === 0) return;
+    if (destructiveApproval) {
+      setDestructiveModalOpen(true);
+    } else {
+      setIsChatOpen(true);
+    }
+  }, [issueApprovals.length, destructiveApproval]);
+
+  const handleApproveAction = useCallback(
+    async (id: string) => {
+      await (
+        aiStore.pilotSpace as { approveRequest: (id: string) => Promise<void> }
+      ).approveRequest(id);
+    },
+    [aiStore.pilotSpace]
+  );
+
+  const handleRejectAction = useCallback(
+    async (id: string, reason: string) => {
+      await (
+        aiStore.pilotSpace as { rejectRequest: (id: string, reason: string) => Promise<void> }
+      ).rejectRequest(id, reason);
+    },
+    [aiStore.pilotSpace]
+  );
+
   // -- Render states --
   if (isLoading) return <IssueDetailSkeleton />;
   if (isError || !issue) return <IssueNotFound onBack={handleBack} />;
@@ -265,6 +378,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   // -- Editor content (non-observer component to avoid flushSync) --
   const editorContent = (
     <IssueEditorContent
+      key={editorKey}
       issue={issue}
       issueId={issueId}
       workspaceId={workspaceId}
@@ -329,6 +443,14 @@ const IssueDetailPage = observer(function IssueDetailPage() {
           issues={[issue]}
           onConfirm={handleDeleteConfirm}
           isDeleting={isDeleting}
+        />
+
+        <DestructiveApprovalModal
+          approval={destructiveApproval}
+          isOpen={destructiveModalOpen}
+          onApprove={handleApproveAction}
+          onReject={handleRejectAction}
+          onClose={() => setDestructiveModalOpen(false)}
         />
       </div>
     </IssueNoteContext.Provider>

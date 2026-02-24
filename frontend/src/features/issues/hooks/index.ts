@@ -8,7 +8,7 @@ export { useSaveStatus } from './use-save-status';
 export { useIssueDetail, issueDetailKeys } from './use-issue-detail';
 
 // T008: Issue update mutation with optimistic updates
-export { useUpdateIssue } from './use-update-issue';
+export { useUpdateIssue, useUpdateIssueState } from './use-update-issue';
 
 // T013: Project cycles query
 export { useProjectCycles, projectCyclesKeys } from './use-project-cycles';

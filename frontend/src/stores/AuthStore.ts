@@ -93,11 +93,30 @@ export class AuthStore {
       const { data, error } = await supabase.auth.getSession();
 
       if (error) {
+        // Supabase's _initialize already exhausts internal retries before surfacing this error.
+        // An invalid/missing refresh token is a definitive failure — redirect immediately.
+        const isDefinitiveTokenFailure =
+          error.message.toLowerCase().includes('refresh token not found') ||
+          error.message.toLowerCase().includes('invalid refresh token');
+
         runInAction(() => {
-          this.handleRefreshFailure();
-          this.error = error.message;
+          if (isDefinitiveTokenFailure) {
+            clearSupabaseAuthKeys();
+            this.user = null;
+            this.session = null;
+          } else {
+            this.handleRefreshFailure();
+            this.error = error.message;
+          }
           this.isLoading = false;
         });
+
+        // Always subscribe so future auth events (e.g. SIGNED_OUT) are tracked.
+        this.subscribeToAuthChanges();
+
+        if (isDefinitiveTokenFailure && typeof window !== 'undefined') {
+          window.location.href = '/login?error=Session+expired';
+        }
         return;
       }
 

@@ -122,12 +122,11 @@ export function isContentUpdateEvent(event: unknown): event is ContentUpdateEven
 
   const data = e.data as Record<string, unknown>;
 
-  // Must have required fields in data
-  if (!data.noteId || typeof data.noteId !== 'string') {
+  if (!data.operation || typeof data.operation !== 'string') {
     return false;
   }
 
-  const VALID_OPERATIONS = [
+  const NOTE_OPERATIONS = [
     'replace_block',
     'append_blocks',
     'insert_inline_issue',
@@ -138,8 +137,19 @@ export function isContentUpdateEvent(event: unknown): event is ContentUpdateEven
     'insert_pm_block',
     'update_pm_block',
   ];
-  if (!data.operation || !VALID_OPERATIONS.includes(data.operation as string)) {
+  const ENTITY_OPERATIONS = ['issue_updated'];
+  const VALID_OPERATIONS = [...NOTE_OPERATIONS, ...ENTITY_OPERATIONS];
+
+  if (!VALID_OPERATIONS.includes(data.operation as string)) {
     return false;
+  }
+
+  // Entity operations (e.g. issue_updated) don't target a note — noteId is optional.
+  // Note operations require a non-empty noteId.
+  if (NOTE_OPERATIONS.includes(data.operation as string)) {
+    if (!data.noteId || typeof data.noteId !== 'string') {
+      return false;
+    }
   }
 
   // All required fields present and valid

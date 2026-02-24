@@ -79,12 +79,20 @@ export function IssueEditorContent({
   );
 
   // Prepend propertyBlock to HTML so the parser creates it at position 0.
+  // Fall back to markdown description when descriptionHtml is stale/empty (e.g. after AI update).
+  // tiptap-markdown parses the markdown string in onBeforeCreate; appendTransaction adds propertyBlock.
   const initialContent = useMemo<Content>(() => {
-    if (issue.descriptionHtml) {
+    const htmlHasContent = !!(
+      issue.descriptionHtml && issue.descriptionHtml.replace(/<[^>]*>/g, '').trim().length > 0
+    );
+    if (htmlHasContent) {
       return `<div data-property-block></div>${issue.descriptionHtml}`;
     }
+    if (issue.description) {
+      return issue.description;
+    }
     return { type: 'doc', content: [{ type: 'propertyBlock' }, { type: 'paragraph' }] };
-  }, [issue.descriptionHtml]);
+  }, [issue.descriptionHtml, issue.description]);
 
   const editor = useEditor({
     immediatelyRender: false,
