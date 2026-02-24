@@ -37,6 +37,7 @@ from pilot_space.api.v1.schemas.ai_context import (
     RefineContextRequest,
     RefineContextResponse,
 )
+from pilot_space.dependencies import RedisDep
 from pilot_space.dependencies.auth import SessionDep, get_current_user_id
 from pilot_space.dependencies.workspace import get_current_workspace_id
 from pilot_space.infrastructure.logging import get_logger
@@ -46,39 +47,30 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/issues/{issue_id}/ai-context", tags=["ai-context"])
 
 
-# Rate limiting tracking (simplified - use Redis in production)
-_generation_counts: dict[str, list[float]] = {}
+RATE_LIMIT_KEY_PREFIX = "ai_context_rate_limit"
+RATE_LIMIT_MAX = 5
+RATE_LIMIT_WINDOW = 3600  # 1 hour
 
 
-def _check_rate_limit(user_id: str, limit: int = 5, window_hours: int = 1) -> bool:
-    """Check if user is within rate limit.
+async def _check_redis_rate_limit(user_id: UUID, redis: RedisDep) -> None:
+    """Enforce rate limit using atomic Redis INCR+EXPIRE.
 
     Args:
-        user_id: User UUID string.
-        limit: Max requests per window.
-        window_hours: Time window in hours.
+        user_id: User UUID.
+        redis: Redis client.
 
-    Returns:
-        True if within limit, False if exceeded.
+    Raises:
+        HTTPException: 429 if rate limit exceeded.
     """
-    import time
-
-    now = time.time()
-    window_seconds = window_hours * 3600
-
-    if user_id not in _generation_counts:
-        _generation_counts[user_id] = []
-
-    # Clean old entries
-    _generation_counts[user_id] = [
-        ts for ts in _generation_counts[user_id] if now - ts < window_seconds
-    ]
-
-    if len(_generation_counts[user_id]) >= limit:
-        return False
-
-    _generation_counts[user_id].append(now)
-    return True
+    key = f"{RATE_LIMIT_KEY_PREFIX}:{user_id}"
+    count = await redis.incr(key)
+    if count == 1:
+        await redis.expire(key, RATE_LIMIT_WINDOW)
+    if count is not None and count > RATE_LIMIT_MAX:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Maximum 5 context generations per hour.",
+        )
 
 
 # =============================================================================
@@ -94,6 +86,7 @@ def _check_rate_limit(user_id: str, limit: int = 5, window_hours: int = 1) -> bo
 async def get_ai_context(
     issue_id: UUID,
     session: SessionDep,
+    redis: RedisDep,
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user_id)],
     service: GenerateAIContextServiceDep,
@@ -139,11 +132,7 @@ async def get_ai_context(
         return AIContextResponse.from_model(context)
 
     # Check rate limit
-    if not _check_rate_limit(str(user_id)):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Maximum 5 context generations per hour.",
-        )
+    await _check_redis_rate_limit(user_id, redis)
 
     import uuid as uuid_module
 
@@ -188,6 +177,7 @@ async def get_ai_context(
 async def regenerate_ai_context(
     issue_id: UUID,
     session: SessionDep,
+    redis: RedisDep,
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user_id)],
     service: GenerateAIContextServiceDep,
@@ -209,11 +199,7 @@ async def regenerate_ai_context(
     from pilot_space.application.services.ai_context import GenerateAIContextPayload
 
     # Check rate limit
-    if not _check_rate_limit(str(user_id)):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Maximum 5 context generations per hour.",
-        )
+    await _check_redis_rate_limit(user_id, redis)
 
     import uuid as uuid_module
 
@@ -539,6 +525,7 @@ async def mark_task_completed(
 async def generate_implementation_plan(
     issue_id: UUID,
     session: SessionDep,
+    redis: RedisDep,
     workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     user_id: Annotated[UUID, Depends(get_current_user_id)],
     service: GeneratePlanServiceDep,
@@ -571,11 +558,7 @@ async def generate_implementation_plan(
     )
 
     # Check rate limit (shared with context generation)
-    if not _check_rate_limit(str(user_id)):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Maximum 5 generations per hour.",
-        )
+    await _check_redis_rate_limit(user_id, redis)
 
     import uuid as uuid_module
 

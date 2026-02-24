@@ -8,7 +8,6 @@ Design Decisions: DD-011 (Haiku for latency)
 
 from __future__ import annotations
 
-import time
 from typing import Any, Literal
 from uuid import UUID
 
@@ -71,7 +70,7 @@ async def check_rate_limit(
     user_id: UUID,
     redis: RedisDep,
 ) -> None:
-    """Check rate limit for user.
+    """Check rate limit for user using atomic INCR+EXPIRE.
 
     Args:
         user_id: User UUID.
@@ -81,34 +80,14 @@ async def check_rate_limit(
         HTTPException: 429 if rate limit exceeded.
     """
     key = f"{RATE_LIMIT_KEY_PREFIX}:{user_id}"
-    current_time = time.time()
-
-    # Get request timestamps from Redis
-    timestamps_str = await redis.get(key)
-
-    if timestamps_str:
-        # Parse timestamps
-        timestamps = [float(ts) for ts in timestamps_str.split(",")]
-
-        # Filter out expired timestamps
-        cutoff_time = current_time - RATE_LIMIT_WINDOW
-        valid_timestamps = [ts for ts in timestamps if ts > cutoff_time]
-
-        # Check limit
-        if len(valid_timestamps) >= RATE_LIMIT_REQUESTS:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Rate limit exceeded: {RATE_LIMIT_REQUESTS} requests per {RATE_LIMIT_WINDOW} second(s)",
-            )
-
-        # Add current timestamp
-        valid_timestamps.append(current_time)
-    else:
-        valid_timestamps = [current_time]
-
-    # Store updated timestamps
-    timestamps_str_new = ",".join(str(ts) for ts in valid_timestamps)
-    await redis.set(key, timestamps_str_new, ttl=RATE_LIMIT_WINDOW + 1)
+    count = await redis.incr(key)
+    if count == 1:
+        await redis.expire(key, RATE_LIMIT_WINDOW)
+    if count is not None and count > RATE_LIMIT_REQUESTS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded: {RATE_LIMIT_REQUESTS} requests per {RATE_LIMIT_WINDOW} second(s)",
+        )
 
 
 @router.post("")

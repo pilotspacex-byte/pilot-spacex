@@ -289,7 +289,22 @@ _SANITIZE_RE = re.compile(r"[^\w\s\-.,;:!?()'/\[\]#@&+=\"]", re.UNICODE)
 
 
 def _sanitize_user_text(text: str, max_length: int = 100) -> str:
-    """Strip control characters and limit length to prevent prompt injection."""
+    """Strip non-allowlisted characters and truncate to max_length.
+
+    Removes characters outside the allowlist [\\w\\s\\-.,;:!?()'/#@&+=\"[\\]]
+    using a compiled regex. This prevents special-character abuse (null bytes,
+    backticks, angle brackets) but does NOT block natural-language injection
+    phrases — that defense is provided by the XML tag wrapping in
+    build_context_note_section(), which instructs the model to treat the
+    content as data rather than instructions.
+
+    Args:
+        text: Raw user-supplied string.
+        max_length: Maximum length after stripping (default 100).
+
+    Returns:
+        Sanitized and truncated string.
+    """
     cleaned = _SANITIZE_RE.sub("", text)
     return cleaned[:max_length].strip()
 

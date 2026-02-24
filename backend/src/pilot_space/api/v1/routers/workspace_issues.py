@@ -34,6 +34,7 @@ from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
 from pilot_space.infrastructure.database.models.state import State
 from pilot_space.infrastructure.database.models.workspace import Workspace
+from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -212,7 +213,7 @@ async def list_workspace_issues(
     current_user_id: SyncedUserId,
     list_service: ListIssuesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
+    session: SessionDep,
     project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
     state: Annotated[str | None, Query(description="Filter by state")] = None,
     priority: Annotated[str | None, Query(description="Filter by priority")] = None,
@@ -225,6 +226,7 @@ async def list_workspace_issues(
     from pilot_space.application.services.issue import ListIssuesPayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Build service payload
     payload = ListIssuesPayload(
@@ -261,7 +263,7 @@ async def list_workspace_issues(
     summary="Get issue by ID",
 )
 async def get_workspace_issue(
-    _: SessionDep,
+    session: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     issue_id: IssueIdPath,
     current_user_id: SyncedUserId,
@@ -270,6 +272,7 @@ async def get_workspace_issue(
 ) -> IssueResponse:
     """Get a specific issue by ID."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Execute service
     result = await get_service.execute(issue_id)
@@ -303,12 +306,12 @@ async def create_workspace_issue(
     session: DbSession,
     create_service: CreateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> WorkspaceIssueResponse:
     """Create a new issue in the workspace."""
     from pilot_space.application.services.issue import CreateIssuePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Validate project_id is provided (required by service)
     if not issue_data.project_id:
@@ -384,7 +387,7 @@ async def update_workspace_issue(
     current_user_id: SyncedUserId,
     update_service: UpdateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
+    session: SessionDep,
 ) -> IssueResponse:
     """Update an existing issue."""
     from pilot_space.application.services.issue.update_issue_service import (
@@ -393,6 +396,7 @@ async def update_workspace_issue(
     )
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Map priority string to enum if provided
     priority = UNCHANGED
@@ -502,7 +506,6 @@ async def update_workspace_issue_state(
     session: DbSession,
     update_service: UpdateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    _: SessionDep,
 ) -> IssueResponse:
     """Update issue state (for Kanban drag/drop)."""
     from pilot_space.application.services.issue.update_issue_service import (
@@ -511,6 +514,7 @@ async def update_workspace_issue_state(
     )
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Look up state by name
     state_name = body.state
@@ -600,6 +604,7 @@ async def delete_workspace_issue(
     from pilot_space.application.services.issue import DeleteIssuePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Verify issue belongs to this workspace BEFORE deleting (prevents IDOR)
     result_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
