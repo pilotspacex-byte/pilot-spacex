@@ -63,3 +63,15 @@ export interface IssueContext {
   issueTitle?: string;
   issueStatus?: string;
 }
+
+/**
+ * Homepage context data injected when user is on the homepage.
+ * Provides workspace digest summary for AI awareness.
+ */
+export interface HomepageContextData {
+  digestSummary: string;
+  totalSuggestionCount: number;
+  staleIssueCount: number;
+  cycleRiskCount: number;
+  recentNotes: Array<{ id: string; title: string }>;
+}

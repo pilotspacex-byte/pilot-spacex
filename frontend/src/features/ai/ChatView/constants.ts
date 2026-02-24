@@ -95,6 +95,13 @@ export const FALLBACK_SKILLS: SkillDefinition[] = [
     icon: 'LayoutDashboard',
     examples: ['Generate PM blocks for sprint planning', 'Create risk register and timeline'],
   },
+  {
+    name: 'daily-standup',
+    description: 'Generate daily standup summary',
+    category: 'planning',
+    icon: 'CalendarCheck',
+    examples: ['Generate my daily standup', 'What did I work on yesterday?'],
+  },
 ];
 
 /**

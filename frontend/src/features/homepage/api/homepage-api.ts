@@ -4,7 +4,12 @@
  */
 
 import { apiClient } from '@/services/api/client';
-import type { HomepageActivityResponse } from '../types';
+import type {
+  DigestDismissPayload,
+  DigestRefreshResponse,
+  DigestResponse,
+  HomepageActivityResponse,
+} from '../types';
 
 export const homepageApi = {
   /**
@@ -18,5 +23,29 @@ export const homepageApi = {
     return apiClient.get<HomepageActivityResponse>(`/workspaces/${workspaceId}/homepage/activity`, {
       params,
     });
+  },
+
+  /**
+   * Fetch latest AI digest with user-filtered suggestions.
+   */
+  getDigest(workspaceId: string): Promise<DigestResponse> {
+    return apiClient.get<DigestResponse>(`/workspaces/${workspaceId}/homepage/digest`);
+  },
+
+  /**
+   * Trigger on-demand digest regeneration. Returns immediately with status.
+   */
+  refreshDigest(workspaceId: string): Promise<DigestRefreshResponse> {
+    return apiClient.post<DigestRefreshResponse>(
+      `/workspaces/${workspaceId}/homepage/digest/refresh`
+    );
+  },
+
+  /**
+   * Dismiss a digest suggestion so it no longer appears for this user.
+   * Returns void (204 No Content from backend).
+   */
+  dismissSuggestion(workspaceId: string, payload: DigestDismissPayload): Promise<void> {
+    return apiClient.post(`/workspaces/${workspaceId}/homepage/dismiss`, payload);
   },
 };

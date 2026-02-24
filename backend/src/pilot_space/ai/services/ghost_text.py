@@ -2,6 +2,7 @@
 
 Provides sub-500ms latency text completions bypassing full agent orchestration.
 Uses Claude Haiku for lowest latency on Anthropic's infrastructure.
+Supports block-type routing for context-aware completions (paragraph, code, heading, list).
 
 Reference: T080-T083 (GhostText Independent Fast Path)
 Design Decisions: DD-011 (Model Selection for Latency)
@@ -16,6 +17,15 @@ from uuid import UUID
 from anthropic.types import TextBlock
 from fastapi import HTTPException
 
+from pilot_space.ai.prompts.ghost_text import (
+    GHOST_TEXT_CODE_SYSTEM_PROMPT,
+    GHOST_TEXT_HEADING_SYSTEM_PROMPT,
+    GHOST_TEXT_LIST_SYSTEM_PROMPT,
+    build_code_ghost_text_prompt,
+    build_context_note_section,
+    build_heading_ghost_text_prompt,
+    build_list_ghost_text_prompt,
+)
 from pilot_space.ai.providers.provider_selector import TaskType
 from pilot_space.config import get_settings
 from pilot_space.infrastructure.logging import get_logger
@@ -38,8 +48,15 @@ GHOST_TEXT_CACHE_PREFIX = "ghost_text"
 MAX_TOKENS = 50
 TEMPERATURE = 0.3
 
-# Haiku system prompt — directive, no padding (Haiku follows system constraints precisely)
+# Default system prompt — directive, no padding (Haiku follows system constraints precisely)
 _SYSTEM_PROMPT = "Complete text naturally. Output ONLY the completion—no explanations, no quotes."
+
+# Block type to system prompt mapping
+_BLOCK_TYPE_SYSTEM_PROMPTS: dict[str, str] = {
+    "codeBlock": GHOST_TEXT_CODE_SYSTEM_PROMPT,
+    "heading": GHOST_TEXT_HEADING_SYSTEM_PROMPT,
+    "bulletList": GHOST_TEXT_LIST_SYSTEM_PROMPT,
+}
 
 
 class GhostTextService:
@@ -91,6 +108,9 @@ class GhostTextService:
         context: str,
         prefix: str,
         workspace_id: UUID,
+        block_type: str | None = None,
+        note_title: str | None = None,
+        linked_issues: list[str] | None = None,
     ) -> str:
         """Build cache key for completion.
 
@@ -98,13 +118,18 @@ class GhostTextService:
             context: Context text.
             prefix: Prefix to complete.
             workspace_id: Workspace UUID for scoping.
+            block_type: Block type for prompt routing.
+            note_title: Note title for context.
+            linked_issues: Linked issue identifiers for context.
 
         Returns:
             Cache key string.
         """
         # Length-prefixed format avoids ambiguity when context contains the separator.
-        # e.g. context="a|b", prefix="c" → "3:a|bc" ≠ context="a", prefix="|bc" → "1:a|bc"
-        content = f"{len(context)}:{context}{prefix}"
+        bt = block_type or "paragraph"
+        nt = note_title or ""
+        li = ",".join(sorted(linked_issues)) if linked_issues else ""
+        content = f"{len(context)}:{context}{prefix}|{bt}|{nt}|{li}"
         content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
 
         return f"{GHOST_TEXT_CACHE_PREFIX}:{workspace_id}:{content_hash}"
@@ -116,6 +141,9 @@ class GhostTextService:
         workspace_id: UUID,
         user_id: UUID,
         use_cache: bool = True,
+        block_type: str | None = None,
+        note_title: str | None = None,
+        linked_issues: list[str] | None = None,
     ) -> dict[str, Any]:
         """Generate text completion for ghost text.
 
@@ -125,6 +153,10 @@ class GhostTextService:
             workspace_id: Workspace UUID for context and caching.
             user_id: User UUID for cost attribution.
             use_cache: Whether to use/store in cache (default: True).
+            block_type: TipTap block type for prompt routing (paragraph, codeBlock,
+                heading, bulletList). Falls back to paragraph prompt for unknown types.
+            note_title: Title of the note being edited (injected into system prompt).
+            linked_issues: Linked issue identifiers (injected into system prompt).
 
         Returns:
             Dictionary with suggestion and confidence:
@@ -139,7 +171,14 @@ class GhostTextService:
             Exception: If API call fails after retries.
         """
         # Check cache first
-        cache_key = self._build_cache_key(context, prefix, workspace_id)
+        cache_key = self._build_cache_key(
+            context,
+            prefix,
+            workspace_id,
+            block_type,
+            note_title,
+            linked_issues,
+        )
         if use_cache:
             cached = await self._redis.get(cache_key)
 
@@ -172,6 +211,10 @@ class GhostTextService:
         # Client from DI-managed pool — hashed key, reused connection pool
         client = self._client_pool.get_client(api_key)
 
+        # Block-type routing: select system prompt and user prompt
+        system_prompt = self._resolve_system_prompt(block_type, note_title, linked_issues)
+        user_prompt = self._resolve_user_prompt(context, prefix, block_type)
+
         # API call via ResilientExecutor (retry + circuit breaker)
         try:
             response = await self._executor.execute(
@@ -180,8 +223,8 @@ class GhostTextService:
                     model=model,
                     max_tokens=MAX_TOKENS,
                     temperature=TEMPERATURE,
-                    system=_SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": self._build_prompt(context, prefix)}],
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}],
                 ),
                 timeout_sec=2.5,
             )
@@ -243,6 +286,66 @@ class GhostTextService:
         )
 
         return result
+
+    @staticmethod
+    def _resolve_system_prompt(
+        block_type: str | None,
+        note_title: str | None = None,
+        linked_issues: list[str] | None = None,
+    ) -> str:
+        """Select system prompt based on block type and append note context.
+
+        Args:
+            block_type: TipTap block type (paragraph, codeBlock, heading, bulletList).
+            note_title: Optional note title for context injection.
+            linked_issues: Optional linked issue identifiers for context injection.
+
+        Returns:
+            System prompt string with optional note context appended.
+        """
+        base_prompt = _BLOCK_TYPE_SYSTEM_PROMPTS.get(block_type or "", _SYSTEM_PROMPT)
+        context_section = build_context_note_section(note_title, linked_issues)
+        return base_prompt + context_section
+
+    @staticmethod
+    def _resolve_user_prompt(
+        context: str,
+        prefix: str,
+        block_type: str | None,
+    ) -> str:
+        """Select user prompt builder based on block type.
+
+        Args:
+            context: Previous paragraphs or surrounding content.
+            prefix: Current line/text to complete.
+            block_type: TipTap block type for routing.
+
+        Returns:
+            Formatted user prompt string.
+        """
+        # Use cursor_position = len(prefix) since we complete from end of prefix
+        cursor_pos = len(prefix)
+
+        if block_type == "codeBlock":
+            return build_code_ghost_text_prompt(
+                current_text=prefix,
+                cursor_position=cursor_pos,
+                context=context or None,
+            )
+        if block_type == "heading":
+            return build_heading_ghost_text_prompt(
+                current_text=prefix,
+                cursor_position=cursor_pos,
+                context=context or None,
+            )
+        if block_type == "bulletList":
+            return build_list_ghost_text_prompt(
+                current_text=prefix,
+                cursor_position=cursor_pos,
+                context=context or None,
+            )
+        # paragraph (default) and unknown types use the original prompt
+        return GhostTextService._build_prompt(context, prefix)
 
     @staticmethod
     def _build_prompt(context: str, prefix: str) -> str:

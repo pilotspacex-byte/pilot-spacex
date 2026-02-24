@@ -43,6 +43,7 @@ import { VersionStore } from '@/features/notes/stores/VersionStore';
 import { useIssueExtraction } from '@/features/notes/hooks/useIssueExtraction';
 import { ExtractionPreviewModal } from '@/features/notes/components/ExtractionPreviewModal';
 
+import { NoteHealthBadges } from './NoteHealthBadges';
 import type { NoteCanvasProps } from './NoteCanvasEditor';
 import { useNoteCanvasEditor, EditorErrorFallback, EditorSkeleton } from './NoteCanvasEditor';
 
@@ -139,6 +140,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
     handleChatPanelResize,
     handleRetry,
     editorError,
+    noteHealth,
   } = useNoteCanvasEditor({ ...props, onExtractIssues: handleExtractIssues });
 
   // T-136/T-137/T-138/T-139: Sidebar panel framework
@@ -191,6 +193,15 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
           disabled={readOnly}
         />
       )}
+
+      {/* Note health badges (T024) */}
+      <NoteHealthBadges
+        health={noteHealth}
+        pilotSpaceStore={aiStore.pilotSpace}
+        onOpenChat={handleChatViewOpen}
+        isSmallScreen={isSmallScreen}
+        className="px-4 py-1"
+      />
 
       {/* Note metadata: project + linked issues */}
       <NoteMetadata
@@ -258,7 +269,14 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
         </div>
       }
     >
-      <ChatView store={aiStore.pilotSpace} autoFocus onClose={() => setIsChatViewOpen(false)} />
+      <ChatView
+        store={aiStore.pilotSpace}
+        autoFocus
+        onClose={() => setIsChatViewOpen(false)}
+        suggestedPrompts={
+          noteHealth.suggestedPrompts.length > 0 ? noteHealth.suggestedPrompts : undefined
+        }
+      />
     </Suspense>
   );
 

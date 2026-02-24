@@ -172,6 +172,8 @@ export interface ConversationContext {
   workspaceSlug?: string;
   /** Current user ID */
   userId?: string;
+  /** Homepage digest summary for AI context awareness */
+  homepageDigestSummary?: string;
 }
 
 /**

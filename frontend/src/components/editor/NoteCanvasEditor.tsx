@@ -29,6 +29,8 @@ import { notesApi } from '@/services/api/notes';
 import { useResponsive } from '@/hooks/useMediaQuery';
 import type { JSONContent, User, LinkedIssueBrief } from '@/types';
 import { useAIAutoScroll } from '@/hooks/useAIAutoScroll';
+import { useNoteHealth } from '@/hooks/useNoteHealth';
+import type { NoteHealthData } from '@/hooks/useNoteHealth';
 import { useEditorSync } from './hooks/useEditorSync';
 
 import { Button } from '@/components/ui/button';
@@ -162,6 +164,8 @@ export interface NoteCanvasEditorState {
   handleChatPanelResize: (size: { asPercentage: number; inPixels: number }) => void;
   handleRetry: () => void;
   editorError: string | null;
+  /** Note health indicators (extractable items, clarity issues, linked issues) */
+  noteHealth: NoteHealthData;
 }
 
 /**
@@ -249,7 +253,9 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
         noteId,
         context.textBeforeCursor,
         prefix,
-        resolvedWorkspaceId
+        resolvedWorkspaceId,
+        context.blockType,
+        titleRef.current || undefined
       );
     },
     [noteId, resolvedWorkspaceId, aiStore.ghostText]
@@ -306,6 +312,9 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
           onClick: (_blockId: string) => {
             // Annotations handled via ChatView now
           },
+        },
+        marginAnnotationAutoTrigger: {
+          noteId,
         },
         enableNoteLinks: !readOnly && !!resolvedWorkspaceId,
         noteLink: {
@@ -563,6 +572,9 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
     window.location.reload();
   }, []);
 
+  // Note health indicators (T023)
+  const noteHealth = useNoteHealth(noteId, editor, props.linkedIssues ?? []);
+
   return {
     editor,
     editorContainerRef,
@@ -583,5 +595,6 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
     handleChatPanelResize,
     handleRetry,
     editorError,
+    noteHealth,
   };
 }

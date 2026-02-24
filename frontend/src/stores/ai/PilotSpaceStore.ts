@@ -1,18 +1,7 @@
 /**
  * PilotSpace Store - Unified conversational agent state management.
- *
- * Consolidates AI agent interactions with:
- * - Conversational chat with streaming SSE
- * - Multi-turn session management
- * - Task tracking and progress updates
- * - Approval flow per DD-003 (human-in-the-loop)
- * - Context-aware execution (note, issue, project)
- *
- * Stream handling delegated to PilotSpaceStreamHandler.
- * User-facing async actions delegated to PilotSpaceActions.
- *
+ * Stream handling → PilotSpaceStreamHandler. Actions → PilotSpaceActions.
  * @module stores/ai/PilotSpaceStore
- * @see specs/005-conversational-agent-arch/plan.md (T042-T049)
  */
 import { makeAutoObservable, runInAction, computed } from 'mobx';
 import type { AIStore } from './AIStore';
@@ -38,8 +27,20 @@ import { PilotSpaceStreamHandler } from './PilotSpaceStreamHandler';
 import { PilotSpaceActions } from './PilotSpaceActions';
 
 // Interfaces extracted to types/store-types.ts to keep this file under 700 lines.
-import type { TaskState, ApprovalRequest, NoteContext, IssueContext } from './types/store-types';
-export type { TaskState, ApprovalRequest, NoteContext, IssueContext } from './types/store-types';
+import type {
+  TaskState,
+  ApprovalRequest,
+  NoteContext,
+  IssueContext,
+  HomepageContextData,
+} from './types/store-types';
+export type {
+  TaskState,
+  ApprovalRequest,
+  NoteContext,
+  IssueContext,
+  HomepageContextData,
+} from './types/store-types';
 
 /**
  * PilotSpace Store - Unified conversational agent state.
@@ -48,9 +49,7 @@ export type { TaskState, ApprovalRequest, NoteContext, IssueContext } from './ty
 export type { WorkIntentState, SkillQueueState } from './types/conversation';
 
 export class PilotSpaceStore {
-  // ========================================
   // Observable State
-  // ========================================
 
   messages: ChatMessage[] = [];
   streamingState: StreamingState = {
@@ -83,7 +82,7 @@ export class PilotSpaceStore {
   pendingContentUpdates: ContentUpdateEvent['data'][] = [];
   noteContext: NoteContext | null = null;
   issueContext: IssueContext | null = null;
-
+  homepageContext: HomepageContextData | null = null;
   /** Current project context */
   projectContext: { projectId: string; name?: string; slug?: string } | null = null;
 
@@ -116,9 +115,7 @@ export class PilotSpaceStore {
   /** Last memory update from cross-session memory tool (T73) */
   lastMemoryUpdate: MemoryUpdateEvent['data'] | null = null;
 
-  // ========================================
   // Feature 015: Intent lifecycle state
-  // ========================================
 
   /** Live work intent states keyed by intentId */
   intents = new Map<string, WorkIntentState>();
@@ -138,9 +135,7 @@ export class PilotSpaceStore {
   /** Available skills registry */
   skills: SkillDefinition[] = [];
 
-  // ========================================
   // Message Pagination State (scroll-up loading)
-  // ========================================
 
   /** Total messages in the resumed session (for pagination calculation) */
   totalMessages: number = 0;
@@ -151,9 +146,7 @@ export class PilotSpaceStore {
   /** Loading state for fetching older messages */
   isLoadingMoreMessages: boolean = false;
 
-  // ========================================
   // Delegates
-  // ========================================
 
   private readonly streamHandler: PilotSpaceStreamHandler;
   private readonly actions: PilotSpaceActions;
@@ -175,9 +168,7 @@ export class PilotSpaceStore {
     });
   }
 
-  // ========================================
   // Computed Properties
-  // ========================================
 
   get isStreaming(): boolean {
     return this.streamingState.isStreaming;
@@ -221,6 +212,7 @@ export class PilotSpaceStore {
       projectId: this.projectContext?.projectId ?? null,
       selectedText: this.noteContext?.selectedText ?? null,
       selectedBlockIds: this.noteContext?.selectedBlockIds ?? [],
+      homepageDigestSummary: this.homepageContext?.digestSummary ?? undefined,
     };
   }
 
@@ -256,19 +248,13 @@ export class PilotSpaceStore {
     return this.skillQueue.queuedCount;
   }
 
-  // ========================================
   // Actions - Message Management
-  // ========================================
 
   addMessage(message: ChatMessage): void {
     this.messages.push(message);
   }
 
-  /**
-   * Prepend older messages to the beginning of the list.
-   * Used for scroll-up loading when resuming sessions.
-   * @param messages - Older messages to prepend (in chronological order)
-   */
+  /** Prepend older messages for scroll-up loading when resuming sessions. */
   prependMessages(messages: ChatMessage[]): void {
     this.messages = [...messages, ...this.messages];
   }
@@ -307,9 +293,7 @@ export class PilotSpaceStore {
     this.forkSessionId = forkSessionId;
   }
 
-  // ========================================
   // Actions - Task Management (delegated)
-  // ========================================
 
   addTask(taskId: string, update: Partial<Omit<TaskState, 'id'>>): void {
     const existing = this.tasks.get(taskId);
@@ -351,9 +335,7 @@ export class PilotSpaceStore {
     this.tasks.delete(taskId);
   }
 
-  // ========================================
   // Actions - Approval Management (DD-003, delegated)
-  // ========================================
 
   addApproval(request: ApprovalRequest): void {
     this.pendingApprovals.push(request);
@@ -382,9 +364,7 @@ export class PilotSpaceStore {
     this.clear();
   }
 
-  // ========================================
   // Actions - Structured Result Management
-  // ========================================
 
   /**
    * Set pending structured result (called by stream handler).
@@ -408,9 +388,7 @@ export class PilotSpaceStore {
     return result;
   }
 
-  // ========================================
   // Actions - Pending Tool Call Buffer (T63)
-  // ========================================
 
   /**
    * Buffer a tool call during streaming.
@@ -438,9 +416,7 @@ export class PilotSpaceStore {
     return calls;
   }
 
-  // ========================================
   // Actions - Pending Citation Buffer (T64)
-  // ========================================
 
   /**
    * Buffer citations during streaming.
@@ -460,9 +436,7 @@ export class PilotSpaceStore {
     return citations;
   }
 
-  // ========================================
   // Actions - Pending AI Block IDs (tool_use → auto-scroll)
-  // ========================================
 
   addPendingAIBlockId(blockId: string): void {
     if (!this.pendingAIBlockIds.includes(blockId)) {
@@ -482,9 +456,7 @@ export class PilotSpaceStore {
     this.pendingNoteEndScroll = false;
   }
 
-  // ========================================
   // Actions - Content Update Management
-  // ========================================
 
   handleContentUpdate(event: ContentUpdateEvent): void {
     runInAction(() => {
@@ -505,9 +477,7 @@ export class PilotSpaceStore {
     });
   }
 
-  // ========================================
   // Actions - Question Management
-  // ========================================
 
   /**
    * Handle incoming question_request SSE event.
@@ -566,9 +536,7 @@ export class PilotSpaceStore {
     this.pendingQuestion = null;
   }
 
-  // ========================================
   // Actions - Context Management
-  // ========================================
 
   setWorkspaceId(workspaceId: string | null): void {
     this.workspaceId = workspaceId;
@@ -576,24 +544,31 @@ export class PilotSpaceStore {
 
   setNoteContext(context: NoteContext | null): void {
     this.noteContext = context;
+    if (context) this.homepageContext = null;
   }
 
   setIssueContext(context: IssueContext | null): void {
     this.issueContext = context;
   }
 
+  setHomepageContext(data: HomepageContextData): void {
+    this.homepageContext = data;
+    this.noteContext = null;
+  }
+
+  clearHomepageContext(): void {
+    this.homepageContext = null;
+  }
+
   clearContext(): void {
     this.noteContext = null;
     this.issueContext = null;
+    this.homepageContext = null;
     this.projectContext = null;
     this.activeSkill = null;
     this.mentionedAgents = [];
   }
 
-  /**
-   * Set project context for AI operations.
-   * @param context - Project context state
-   */
   setProjectContext(context: { projectId: string; name?: string; slug?: string } | null): void {
     this.projectContext = context;
   }
@@ -608,9 +583,7 @@ export class PilotSpaceStore {
     }
   }
 
-  // ========================================
   // Feature 015: Intent Management Actions
-  // ========================================
 
   upsertIntent(intent: WorkIntentState): void {
     this.intents.set(intent.intentId, intent);
@@ -651,9 +624,7 @@ export class PilotSpaceStore {
     return intent;
   }
 
-  // ========================================
   // Delegated Actions (Message Sending + Lifecycle)
-  // ========================================
 
   /**
    * Send message to AI and stream response via SSE.

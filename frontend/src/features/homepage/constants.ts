@@ -28,3 +28,16 @@ export const DAY_GROUP_LABELS = {
 
 /** Ordered day group keys for rendering */
 export const DAY_GROUP_ORDER = ['today', 'yesterday', 'thisWeek'] as const;
+
+// ---------------------------------------------------------------------------
+// Digest
+// ---------------------------------------------------------------------------
+
+/** TanStack Query stale time for digest (1 minute) */
+export const DIGEST_STALE_TIME = 60_000;
+
+/** Background refetch interval for digest (5 minutes) */
+export const DIGEST_REFETCH_INTERVAL = 300_000;
+
+/** Maximum suggestions to show per category before "show more" */
+export const MAX_SUGGESTIONS_VISIBLE = 5;

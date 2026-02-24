@@ -9,7 +9,7 @@ Design Decisions: DD-011 (Haiku for latency)
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
@@ -35,11 +35,22 @@ class GhostTextRequest(BaseModel):
         context: Context text (previous paragraphs, max 500 chars).
         prefix: Prefix to complete (current line, max 200 chars).
         workspace_id: Workspace UUID for context and caching.
+        block_type: TipTap block type for prompt routing (paragraph, codeBlock,
+            heading, bulletList). Defaults to paragraph behavior when omitted.
+        note_title: Title of the note being edited (optional context).
+        linked_issues: Linked issue identifiers for context (optional).
     """
 
     context: str = Field(..., max_length=500, description="Context text")
     prefix: str = Field(..., max_length=200, description="Prefix to complete")
     workspace_id: UUID = Field(..., description="Workspace ID")
+    block_type: Literal["paragraph", "codeBlock", "heading", "bulletList"] | None = Field(
+        None, description="TipTap block type for prompt routing"
+    )
+    note_title: str | None = Field(None, max_length=200, description="Note title for context")
+    linked_issues: list[str] | None = Field(
+        None, max_length=20, description="Linked issue identifiers"
+    )
 
 
 class GhostTextResponse(BaseModel):
@@ -133,6 +144,9 @@ async def generate_ghost_text(
     from pilot_space.infrastructure.database.models.workspace_member import (
         WorkspaceMember,
     )
+    from pilot_space.infrastructure.database.rls import set_rls_context
+
+    await set_rls_context(session, user_id, request.workspace_id)
 
     stmt = select(
         exists().where(
@@ -150,6 +164,9 @@ async def generate_ghost_text(
             prefix=request.prefix,
             workspace_id=request.workspace_id,
             user_id=user_id,
+            block_type=request.block_type,
+            note_title=request.note_title,
+            linked_issues=request.linked_issues,
         )
 
         return GhostTextResponse(
@@ -194,6 +211,9 @@ async def clear_workspace_cache(
     from pilot_space.infrastructure.database.models.workspace_member import (
         WorkspaceMember,
     )
+    from pilot_space.infrastructure.database.rls import set_rls_context
+
+    await set_rls_context(session, user_id, workspace_id)
 
     # Verify workspace membership
     stmt = select(

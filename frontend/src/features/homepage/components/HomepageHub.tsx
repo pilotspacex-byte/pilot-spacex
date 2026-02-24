@@ -14,20 +14,74 @@
  * with a cleaner 2-panel approach.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useAuthStore, useWorkspaceStore } from '@/stores/RootStore';
 import { getAIStore } from '@/stores/ai/AIStore';
 import { ChatView } from '@/features/ai/ChatView';
 import { DailyBrief } from './DailyBrief';
+import { useWorkspaceDigest } from '../hooks/useWorkspaceDigest';
+import type { DigestCategoryGroup } from '../hooks/useWorkspaceDigest';
 
-/** Homepage-specific suggested prompts for daily routine */
-const HOMEPAGE_PROMPTS = [
+/** Fallback prompts when no digest data is available */
+const FALLBACK_PROMPTS = [
   'What should I focus on today?',
   'Summarize my in-progress work',
   'Generate my daily standup update',
   'Find stale issues that need attention',
 ] as const;
+
+/**
+ * Build contextual prompts from digest category groups.
+ * Returns up to 4 prompts derived from active digest categories,
+ * padded with fallback prompts if fewer than 4 categories are present.
+ */
+export function buildContextualPrompts(groups: DigestCategoryGroup[]): readonly string[] {
+  if (groups.length === 0) return FALLBACK_PROMPTS;
+
+  const prompts: string[] = [];
+
+  for (const group of groups) {
+    if (prompts.length >= 4) break;
+
+    const count = group.items.length;
+
+    switch (group.category) {
+      case 'stale_issues':
+        prompts.push(`Review ${count} stale issue${count !== 1 ? 's' : ''} needing attention`);
+        break;
+      case 'cycle_risk':
+        prompts.push('Sprint ends soon — prioritize remaining items?');
+        break;
+      case 'blocked_dependencies':
+        prompts.push(`${count} item${count !== 1 ? 's are' : ' is'} blocked — help resolve?`);
+        break;
+      case 'unlinked_notes':
+        prompts.push(
+          `${count} note${count !== 1 ? 's have' : ' has'} extractable issues — review?`
+        );
+        break;
+      case 'overdue_items':
+        prompts.push(`${count} overdue item${count !== 1 ? 's' : ''} need attention`);
+        break;
+      case 'unassigned_priority':
+        prompts.push(`${count} priority item${count !== 1 ? 's are' : ' is'} unassigned — assign?`);
+        break;
+    }
+  }
+
+  // Pad with fallback prompts to reach 4
+  let fallbackIdx = 0;
+  while (prompts.length < 4 && fallbackIdx < FALLBACK_PROMPTS.length) {
+    const candidate = FALLBACK_PROMPTS[fallbackIdx]!;
+    if (!prompts.includes(candidate)) {
+      prompts.push(candidate);
+    }
+    fallbackIdx++;
+  }
+
+  return prompts;
+}
 
 interface HomepageHubProps {
   /** Workspace slug for navigation links */
@@ -42,12 +96,57 @@ export const HomepageHub = observer(function HomepageHub({ workspaceSlug }: Home
   const store = aiStore.pilotSpace;
   const userName = authStore.userDisplayName || 'User';
 
+  const { groups, suggestionCount } = useWorkspaceDigest({ workspaceId });
+
+  const suggestedPrompts = useMemo(() => buildContextualPrompts(groups), [groups]);
+
   // Set workspace on AI store when it changes
   useEffect(() => {
     if (store && workspaceId && store.workspaceId !== workspaceId) {
       store.setWorkspaceId(workspaceId);
     }
   }, [store, workspaceId]);
+
+  // Inject homepage context into AI store for context-aware chat (T033)
+  useEffect(() => {
+    if (!store || !workspaceId) return;
+
+    const staleCount = groups
+      .filter((g) => g.category === 'stale_issues')
+      .reduce((sum, g) => sum + g.items.length, 0);
+    const cycleRiskCount = groups
+      .filter((g) => g.category === 'cycle_risk')
+      .reduce((sum, g) => sum + g.items.length, 0);
+    const blockedCount = groups
+      .filter((g) => g.category === 'blocked_dependencies')
+      .reduce((sum, g) => sum + g.items.length, 0);
+    const noteGroups = groups.filter((g) => g.category === 'unlinked_notes');
+    const recentNotes = noteGroups.flatMap((g) =>
+      g.items.map((item) => ({ id: item.entityId ?? item.id, title: item.title }))
+    );
+
+    const parts: string[] = [];
+    if (staleCount > 0) parts.push(`${staleCount} stale issues`);
+    if (cycleRiskCount > 0) parts.push(`${cycleRiskCount} cycle risks`);
+    if (blockedCount > 0) parts.push(`${blockedCount} blocked items`);
+    if (recentNotes.length > 0) parts.push(`${recentNotes.length} recent notes active`);
+    const digestSummary =
+      parts.length > 0
+        ? `Workspace has ${parts.join(', ')}.`
+        : `Workspace has ${suggestionCount} suggestions.`;
+
+    store.setHomepageContext({
+      digestSummary,
+      totalSuggestionCount: suggestionCount,
+      staleIssueCount: staleCount,
+      cycleRiskCount,
+      recentNotes,
+    });
+
+    return () => {
+      store.clearHomepageContext();
+    };
+  }, [store, workspaceId, groups, suggestionCount]);
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 lg:flex-row">
@@ -67,7 +166,7 @@ export const HomepageHub = observer(function HomepageHub({ workspaceSlug }: Home
             userName={userName}
             className="h-full w-full"
             autoFocus={false}
-            suggestedPrompts={HOMEPAGE_PROMPTS}
+            suggestedPrompts={suggestedPrompts}
           />
         ) : (
           <div className="flex h-full items-center justify-center">

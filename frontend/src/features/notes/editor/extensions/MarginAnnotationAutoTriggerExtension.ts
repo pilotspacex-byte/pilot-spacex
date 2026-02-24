@@ -37,6 +37,8 @@ export interface MarginAnnotationAutoTriggerOptions {
   contextBlocks: number;
   /** Whether auto-trigger is enabled */
   enabled: boolean;
+  /** ID of the note being edited — required for annotation persistence */
+  noteId: string;
   /** Callback when AI should be triggered with context */
   onTrigger?: (context: MarginAnnotationContext) => void;
 }
@@ -78,6 +80,7 @@ export const MarginAnnotationAutoTriggerExtension =
         minChars: 50,
         contextBlocks: 3,
         enabled: true,
+        noteId: '',
         onTrigger: undefined,
       };
     },
@@ -189,7 +192,7 @@ export const MarginAnnotationAutoTriggerExtension =
 
                 // Build context for AI
                 const context: MarginAnnotationContext = {
-                  noteId: '', // Should be provided by parent component
+                  noteId: extension.options.noteId,
                   blockIds,
                   cursorPosition: $pos.pos,
                   blockType: blockNode.type?.name ?? 'doc',
