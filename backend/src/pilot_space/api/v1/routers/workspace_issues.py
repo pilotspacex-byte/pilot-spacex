@@ -490,7 +490,7 @@ async def update_workspace_issue(
 
 @router.patch(
     "/{workspace_id}/issues/{issue_id}/state",
-    response_model=WorkspaceIssueResponse,
+    response_model=IssueResponse,
     tags=["workspace-issues"],
     summary="Update issue state",
 )
@@ -503,7 +503,7 @@ async def update_workspace_issue_state(
     update_service: UpdateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
     _: SessionDep,
-) -> WorkspaceIssueResponse:
+) -> IssueResponse:
     """Update issue state (for Kanban drag/drop)."""
     from pilot_space.application.services.issue.update_issue_service import (
         UNCHANGED,
@@ -579,7 +579,7 @@ async def update_workspace_issue_state(
             detail=str(e),
         ) from e
 
-    return _issue_to_response(result.issue)
+    return IssueResponse.from_issue(result.issue)
 
 
 @router.delete(
