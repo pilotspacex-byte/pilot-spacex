@@ -47,6 +47,7 @@ export interface Issue {
   technicalRequirements?: string;
   createdAt: string;
   updatedAt: string;
+  noteLinks?: NoteIssueLink[];
 }
 
 export interface CreateIssueData {

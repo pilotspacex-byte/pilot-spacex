@@ -11,7 +11,6 @@
  */
 import { useCallback, useEffect, useState, useRef } from 'react';
 import type { Editor } from '@tiptap/react';
-import { observer } from 'mobx-react-lite';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bold, Italic, Link2, MessageSquare, Wand2, TicketPlus } from 'lucide-react';
 
@@ -40,8 +39,14 @@ interface ToolbarPosition {
 
 /**
  * SelectionToolbar floating component
+ *
+ * NOTE: Intentionally NOT wrapped in observer(). This component is rendered inside
+ * NoteCanvasLayout which is adjacent to TipTap's ReactNodeViewRenderer. MobX observer()
+ * uses useSyncExternalStore which calls flushSync when observables change — this conflicts
+ * with TipTap's NodeView creation during React's rendering lifecycle (nested flushSync error).
+ * aiStore.pilotSpace is a stable singleton so observer() tracking provides no benefit.
  */
-export const SelectionToolbar = observer(function SelectionToolbar({
+export function SelectionToolbar({
   editor,
   workspaceId: _workspaceId,
   noteId,
@@ -276,6 +281,6 @@ export const SelectionToolbar = observer(function SelectionToolbar({
       )}
     </AnimatePresence>
   );
-});
+}
 
 export default SelectionToolbar;

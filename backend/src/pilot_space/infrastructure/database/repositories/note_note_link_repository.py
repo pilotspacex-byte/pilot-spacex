@@ -10,6 +10,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from pilot_space.infrastructure.database.models.note_note_link import (
     NoteNoteLink,
@@ -39,12 +40,16 @@ class NoteNoteLinkRepository(BaseRepository[NoteNoteLink]):
         Returns:
             List of NoteNoteLink records.
         """
-        query = select(NoteNoteLink).where(
-            and_(
-                NoteNoteLink.source_note_id == source_note_id,
-                NoteNoteLink.workspace_id == workspace_id,
-                NoteNoteLink.is_deleted == False,  # noqa: E712
+        query = (
+            select(NoteNoteLink)
+            .where(
+                and_(
+                    NoteNoteLink.source_note_id == source_note_id,
+                    NoteNoteLink.workspace_id == workspace_id,
+                    NoteNoteLink.is_deleted == False,  # noqa: E712
+                )
             )
+            .options(selectinload(NoteNoteLink.target_note))
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())
@@ -63,12 +68,16 @@ class NoteNoteLinkRepository(BaseRepository[NoteNoteLink]):
         Returns:
             List of NoteNoteLink records.
         """
-        query = select(NoteNoteLink).where(
-            and_(
-                NoteNoteLink.target_note_id == target_note_id,
-                NoteNoteLink.workspace_id == workspace_id,
-                NoteNoteLink.is_deleted == False,  # noqa: E712
+        query = (
+            select(NoteNoteLink)
+            .where(
+                and_(
+                    NoteNoteLink.target_note_id == target_note_id,
+                    NoteNoteLink.workspace_id == workspace_id,
+                    NoteNoteLink.is_deleted == False,  # noqa: E712
+                )
             )
+            .options(selectinload(NoteNoteLink.source_note))
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())

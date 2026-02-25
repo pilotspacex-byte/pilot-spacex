@@ -8,8 +8,8 @@ from contextlib import asynccontextmanager
 
 import dotenv
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
+from pilot_space.api.middleware.cors import configure_cors
 from pilot_space.api.middleware.error_handler import register_exception_handlers
 from pilot_space.api.middleware.request_context import RequestContextMiddleware
 from pilot_space.api.v1.routers import (
@@ -189,18 +189,7 @@ register_exception_handlers(app)
 # Request context middleware (must be first for header extraction)
 app.add_middleware(RequestContextMiddleware)
 
-# CORS middleware configuration
-# In production, replace with actual frontend origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Frontend dev server
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+configure_cors(app)
 
 
 @app.get("/health", tags=["Health"])

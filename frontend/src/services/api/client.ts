@@ -8,7 +8,7 @@ import axios, {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
 /**
  * RFC 7807 Problem Details for HTTP APIs

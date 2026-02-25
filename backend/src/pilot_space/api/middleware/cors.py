@@ -19,9 +19,39 @@ def configure_cors(app: FastAPI, settings: Settings | None = None) -> None:
     if settings is None:
         settings = get_settings()
 
+    origins = settings.cors_origins
+    # Wildcard "*" is incompatible with allow_credentials=True (browsers reject it).
+    # Use allow_origin_regex to reflect the actual Origin header instead.
+    if origins == ["*"]:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[],
+            allow_origin_regex=r".*",
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=[
+                "Accept",
+                "Accept-Language",
+                "Authorization",
+                "Content-Language",
+                "Content-Type",
+                "X-Request-ID",
+                "X-Workspace-ID",
+            ],
+            expose_headers=[
+                "X-Request-ID",
+                "X-RateLimit-Limit",
+                "X-RateLimit-Remaining",
+                "X-RateLimit-Reset",
+                "Retry-After",
+            ],
+            max_age=600,
+        )
+        return
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=[

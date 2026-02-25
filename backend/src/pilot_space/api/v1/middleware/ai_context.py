@@ -130,5 +130,6 @@ async def _load_issue(
     from pilot_space.infrastructure.database.repositories import IssueRepository
 
     repo = IssueRepository(session)
-    # RLS will enforce workspace_id access
-    return await repo.get_by_id(issue_id)
+    # Load with relations (project, state) so context enrichment can access
+    # issue.identifier and issue.state.name without triggering lazy loads.
+    return await repo.get_by_id_with_relations(issue_id)

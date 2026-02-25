@@ -45,6 +45,8 @@ import { copyToClipboard } from '@/lib/copy-context';
 import { issuesApi, tasksApi } from '@/services/api';
 import type { ExportFormat } from '@/features/issues/components';
 import type { UpdateIssueData, IssueState, UserBrief } from '@/types';
+import { IssueChatEmptyState } from '@/features/issues/components/issue-chat-empty-state';
+import type { AIContextResult } from '@/stores/ai/AIContextStore';
 
 import '@/features/notes/editor/extensions/note-link.css';
 
@@ -213,15 +215,30 @@ const IssueDetailPage = observer(function IssueDetailPage() {
     }
   }, [workspaceId, issueId]);
 
-  const handleAiGenerate = useCallback(() => {
+  const handleChatSend = useCallback(
+    (prompt: string) => {
+      void (aiStore.pilotSpace as { sendMessage: (c: string) => Promise<void> }).sendMessage(
+        prompt
+      );
+    },
+    [aiStore.pilotSpace]
+  );
+
+  // Opens chat AND immediately sends the generate-description prompt.
+  // Used by the editor empty state CTA so the button has a visible effect
+  // even when the chat panel is already open (isChatOpen defaults to true).
+  // Guard: no-op if the store is already streaming (prevents duplicate sends).
+  const handleAiGenerateFromEditor = useCallback(() => {
+    const store = aiStore.pilotSpace as {
+      sendMessage: (c: string) => Promise<void>;
+      isStreaming: boolean;
+    };
+    if (store.isStreaming) return;
     setIsChatOpen(true);
-    const prompt = [
-      `Generate a detailed description for issue "${issue?.name ?? 'this issue'}".`,
-      "Consider the issue's project, related issues, and any linked notes for context.",
-      'Structure it with: Problem statement, Acceptance criteria, and Technical approach.',
-    ].join(' ');
-    void (aiStore.pilotSpace as { sendMessage: (c: string) => Promise<void> }).sendMessage(prompt);
-  }, [issue?.name, aiStore.pilotSpace]);
+    handleChatSend(
+      `Generate a detailed description for this issue. Structure it with: Problem statement, Acceptance criteria, and Technical approach.`
+    );
+  }, [handleChatSend, aiStore.pilotSpace]);
 
   // -- Keyboard shortcuts --
   const handleForceSave = useCallback(() => {
@@ -364,6 +381,24 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   if (isLoading) return <IssueDetailSkeleton />;
   if (isError || !issue) return <IssueNotFound onBack={handleBack} />;
 
+  // -- AI context result + chat empty state --
+  const aiContextResult =
+    (aiStore.aiContext as { result: AIContextResult | null } | undefined)?.result ?? null;
+
+  const chatEmptyState = issue ? (
+    <IssueChatEmptyState
+      issue={issue}
+      aiContextResult={aiContextResult}
+      workspaceSlug={workspaceSlug}
+      onSendPrompt={handleChatSend}
+    />
+  ) : undefined;
+
+  const initialPrompt =
+    !issue?.description && isChatOpen
+      ? `Generate a detailed description for this issue. Structure it with: Problem statement, Acceptance criteria, and Technical approach.`
+      : undefined;
+
   // -- IssueNoteContext value --
   const contextValue = {
     issue,
@@ -385,7 +420,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
       workspaceSlug={workspaceSlug}
       onUpdate={handleUpdate}
       onChatOpen={handleChatOpen}
-      onAiGenerate={handleAiGenerate}
+      onAiGenerate={handleAiGenerateFromEditor}
     />
   );
 
@@ -416,6 +451,8 @@ const IssueDetailPage = observer(function IssueDetailPage() {
           isChatOpen={isChatOpen}
           onChatOpen={handleChatOpen}
           onChatClose={handleChatClose}
+          emptyStateSlot={chatEmptyState}
+          initialPrompt={initialPrompt}
         />
 
         <Sheet open={mobilePropertiesOpen} onOpenChange={setMobilePropertiesOpen}>

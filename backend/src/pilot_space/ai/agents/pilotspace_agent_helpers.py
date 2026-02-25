@@ -168,6 +168,23 @@ def build_contextual_message(
         else:
             parts.append(f"<note_context>\n{note_header}\n\n(empty note)\n</note_context>")
 
+    issue = input_data.context.get("issue")
+    if issue is not None:
+        name = getattr(issue, "name", "Unknown Issue")
+        desc = (getattr(issue, "description", None) or "").strip()
+        identifier = getattr(issue, "identifier", None)
+        state_name = getattr(getattr(issue, "state", None), "name", None)
+        priority = getattr(issue, "priority", None)
+        header = f"# {name}"
+        if identifier:
+            header += f"\nidentifier: {identifier}"
+        if priority is not None:
+            header += f"\npriority: {priority.value if hasattr(priority, 'value') else priority}"
+        if state_name:
+            header += f"\nstate: {state_name}"
+        body = desc or "(no description yet)"
+        parts.append(f"<issue_context>\n{header}\n\n{body}\n</issue_context>")
+
     selected_text = input_data.context.get("selected_text")
     if selected_text:
         parts.append(f"<selected_text>\n{selected_text}\n</selected_text>")

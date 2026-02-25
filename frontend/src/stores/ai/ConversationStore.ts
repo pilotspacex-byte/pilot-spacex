@@ -10,6 +10,7 @@
  * @see specs/004-mvp-agents-build/tasks/P22-P25-T178-T222.md#T215
  */
 import { makeAutoObservable, runInAction } from 'mobx';
+import { generateUUID } from '@/lib/utils';
 import { SSEClient, type SSEEvent } from '@/lib/sse-client';
 import { aiApi } from '@/services/api/ai';
 import type { AIStore } from './AIStore';
@@ -104,7 +105,7 @@ export class ConversationStore {
 
     // Add user message
     const userMessage: ConversationMessage = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       role: 'user',
       content,
       created_at: new Date().toISOString(),

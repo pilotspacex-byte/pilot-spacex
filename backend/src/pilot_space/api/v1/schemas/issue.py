@@ -111,6 +111,15 @@ class IssueUpdateRequest(BaseSchema):
     clear_target_date: bool = False
 
 
+class NoteIssueLinkBriefSchema(BaseSchema):
+    """Brief note-issue link for embedding in IssueResponse."""
+
+    id: UUID
+    note_id: UUID
+    link_type: str
+    note_title: str
+
+
 class IssueResponse(BaseSchema):
     """Full issue response."""
 
@@ -144,6 +153,7 @@ class IssueResponse(BaseSchema):
     assignee: UserBriefSchema | None
     reporter: UserBriefSchema
     labels: list[LabelBriefSchema]
+    note_links: list[NoteIssueLinkBriefSchema] = Field(default_factory=list)
 
     # AI metadata
     ai_metadata: dict[str, Any] | None
@@ -183,6 +193,18 @@ class IssueResponse(BaseSchema):
             assignee=UserBriefSchema.model_validate(issue.assignee) if issue.assignee else None,
             reporter=UserBriefSchema.model_validate(issue.reporter),
             labels=[LabelBriefSchema.model_validate(label) for label in issue.labels],
+            note_links=[
+                NoteIssueLinkBriefSchema(
+                    id=link.id,
+                    note_id=link.note_id,
+                    link_type=link.link_type.value.upper(),
+                    note_title=link.note.title if link.note else "",
+                )
+                # Issue.note_links uses lazy="selectin" with no is_deleted join filter,
+                # so deleted links must be excluded here.
+                for link in (issue.note_links or [])
+                if not link.is_deleted
+            ],
             ai_metadata=issue.ai_metadata,
             has_ai_enhancements=issue.has_ai_enhancements,
             sub_issue_count=len(issue.sub_issues) if issue.sub_issues else 0,
@@ -285,6 +307,7 @@ __all__ = [
     "IssueResponse",
     "IssueUpdateRequest",
     "LabelBriefSchema",
+    "NoteIssueLinkBriefSchema",
     "ProjectBriefSchema",
     "StateBriefSchema",
     "UserBriefSchema",

@@ -161,6 +161,23 @@ describe('MessageList (T60 virtualization)', () => {
   });
 
   // ========================================
+  // emptyStateSlot
+  // ========================================
+
+  it('renders emptyStateSlot when provided and no messages', () => {
+    render(
+      <MessageList messages={[]} emptyStateSlot={<div data-testid="custom-empty">Custom</div>} />
+    );
+    expect(screen.getByTestId('custom-empty')).toBeInTheDocument();
+    expect(screen.queryByText('Start a conversation')).not.toBeInTheDocument();
+  });
+
+  it('falls back to default empty state when emptyStateSlot is not provided', () => {
+    render(<MessageList messages={[]} />);
+    expect(screen.getByText('Start a conversation')).toBeInTheDocument();
+  });
+
+  // ========================================
   // groupMessagesByRole utility
   // ========================================
 

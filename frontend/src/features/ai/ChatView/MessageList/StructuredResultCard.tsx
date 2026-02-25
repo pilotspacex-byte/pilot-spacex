@@ -27,6 +27,7 @@ import type {
   DecomposedSubtask,
   DuplicateCandidate,
 } from '@/stores/ai/types/events';
+import { ContextNotesResultCard, ContextIssuesResultCard } from './ContextCards';
 
 interface StructuredResultCardProps {
   schemaType: string;
@@ -549,6 +550,10 @@ export const StructuredResultCard = memo<StructuredResultCardProps>(
           return <DuplicateSearchResultCard data={data} />;
         case 'standup_result':
           return <StandupResultCard data={data} />;
+        case 'context_notes_result':
+          return <ContextNotesResultCard data={data} />;
+        case 'context_issues_result':
+          return <ContextIssuesResultCard data={data} />;
         default:
           return (
             <div className="text-xs text-muted-foreground">Unknown result type: {schemaType}</div>

@@ -25,6 +25,8 @@ interface ReasoningGroupProps {
   /** The child blocks to render when expanded */
   children: React.ReactNode;
   className?: string;
+  /** Initial open state. True when any child is actively streaming. Defaults to false. */
+  defaultOpen?: boolean;
 }
 
 /** Format ms to compact string */
@@ -38,8 +40,8 @@ function formatDuration(ms: number): string {
 }
 
 export const ReasoningGroup = memo<ReasoningGroupProps>(
-  ({ stepCount, totalDurationMs, children, className }) => {
-    const [isOpen, setIsOpen] = useState(false);
+  ({ stepCount, totalDurationMs, children, className, defaultOpen }) => {
+    const [isOpen, setIsOpen] = useState(() => defaultOpen ?? false);
 
     const summary = useMemo(() => {
       const steps = stepCount === 1 ? '1 step' : `${stepCount} steps`;

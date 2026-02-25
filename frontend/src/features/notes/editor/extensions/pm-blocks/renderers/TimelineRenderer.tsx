@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, generateUUID } from '@/lib/utils';
 import type { PMRendererProps } from '../PMBlockNodeView';
 import { pmBlockStyles } from '../pm-block-styles';
 
@@ -67,7 +67,7 @@ export function TimelineRenderer({ data, readOnly, onDataChange }: PMRendererPro
 
   const addMilestone = useCallback(() => {
     if (readOnly) return;
-    const id = `m-${crypto.randomUUID()}`;
+    const id = `m-${generateUUID()}`;
     const milestones = [
       ...parsed.milestones,
       { id, name: '', date: '', status: 'on-track' as const, dependencies: [] },

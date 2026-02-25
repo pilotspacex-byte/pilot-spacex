@@ -1,6 +1,7 @@
 'use client';
 
 import { makeAutoObservable, reaction, computed, type IReactionDisposer } from 'mobx';
+import { generateUUID } from '@/lib/utils';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -206,7 +207,7 @@ export class UIStore {
   }
 
   showToast(toast: Omit<Toast, 'id'>): string {
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     const duration = toast.duration ?? 5000;
 
     const newToast: Toast = {

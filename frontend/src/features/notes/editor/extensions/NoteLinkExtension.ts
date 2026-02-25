@@ -62,11 +62,20 @@ function createNoteLinkListElement(props: {
   items: NoteLinkSearchResult[];
   command: (item: { id: string }) => void;
   selectedIndex: number;
+  isLoading?: boolean;
 }): HTMLElement {
   const container = document.createElement('div');
   container.className = 'note-link-suggestion-list';
   container.setAttribute('role', 'listbox');
   container.setAttribute('aria-label', 'Note search results');
+
+  if (props.isLoading) {
+    const loading = document.createElement('div');
+    loading.textContent = 'Searching…';
+    loading.className = 'note-link-suggestion-empty';
+    container.appendChild(loading);
+    return container;
+  }
 
   if (props.items.length === 0) {
     const empty = document.createElement('div');
@@ -293,6 +302,9 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
     let selectedIndex = 0;
     let currentItems: NoteLinkSearchResult[] = [];
     let currentCommand: ((attrs: { id: string }) => void) | null = null;
+    // Track whether the first onUpdate has fired so we can show "Searching…"
+    // during the initial debounce window instead of "No notes found".
+    let hasLoadedOnce = false;
 
     /** Update only the selected item highlight without recreating the DOM tree. */
     function updateSelectedIndex(index: number): void {
@@ -312,7 +324,12 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
       command: (item: { id: string }) => void,
       index: number
     ): void {
-      component = createNoteLinkListElement({ items: listItems, command, selectedIndex: index });
+      component = createNoteLinkListElement({
+        items: listItems,
+        command,
+        selectedIndex: index,
+        isLoading: !hasLoadedOnce,
+      });
       if (popup) popup.setContent(component);
     }
 
@@ -377,9 +394,11 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
         return {
           onStart: (props: SuggestionProps<NoteLinkSearchResult, { id: string }>) => {
             selectedIndex = 0;
+            hasLoadedOnce = false;
             currentCommand = props.command;
             // Use props.items (resolved by Suggestion plugin) instead of closure
             currentItems = (props as unknown as { items: NoteLinkSearchResult[] }).items ?? [];
+            hasLoadedOnce = true;
 
             component = createNoteLinkListElement({
               items: currentItems,
@@ -409,6 +428,7 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
             const resolvedItems =
               (props as unknown as { items: NoteLinkSearchResult[] }).items ?? currentItems;
             currentItems = resolvedItems;
+            hasLoadedOnce = true;
             selectedIndex = Math.min(selectedIndex, Math.max(0, currentItems.length - 1));
 
             replaceListContent(currentItems, (item) => props.command(item), selectedIndex);
@@ -457,6 +477,7 @@ export const NoteLinkExtension = Node.create<NoteLinkOptions>({
             selectedIndex = 0;
             currentItems = [];
             currentCommand = null;
+            hasLoadedOnce = false;
           },
         };
       },

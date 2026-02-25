@@ -17,7 +17,7 @@ export type { ContextEntry, SessionSummary } from './types/session';
  * API base URL for backend requests.
  * Falls back to localhost if not configured.
  */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
 /**
  * SessionListStore - Manages conversation session list.

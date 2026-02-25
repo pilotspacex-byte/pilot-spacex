@@ -5,6 +5,7 @@
  */
 
 import { useRef, useState, useCallback, useEffect } from 'react';
+import type React from 'react';
 import { observer } from 'mobx-react-lite';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Button } from '@/components/ui/button';
@@ -68,6 +69,8 @@ interface MessageListProps {
   activeToolName?: string | null;
   /** Word count during content phase */
   wordCount?: number;
+  /** Custom empty state slot — replaces the default empty state UI when provided */
+  emptyStateSlot?: React.ReactNode;
 }
 
 /**
@@ -120,6 +123,7 @@ export const MessageList = observer<MessageListProps>(
     streamingPhase,
     activeToolName,
     wordCount,
+    emptyStateSlot,
   }) => {
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
@@ -262,37 +266,39 @@ export const MessageList = observer<MessageListProps>(
         aria-label="Chat messages"
       >
         {totalCount === 0 && !isStreaming ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/80 to-ai/80 flex items-center justify-center mb-4">
-              <Sparkles className="h-8 w-8 text-white" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mb-5">
-              Ask me anything about your notes, issues, or code. Use{' '}
-              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">\skill</code> to
-              invoke skills or{' '}
-              <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">@agent</code> to
-              call specialized agents.
-            </p>
-            {onSuggestedPrompt && (
-              <div className="flex flex-wrap justify-center gap-2 max-w-md">
-                {(suggestedPrompts ?? DEFAULT_SUGGESTED_PROMPTS).map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => onSuggestedPrompt(prompt)}
-                    className={cn(
-                      'rounded-full border border-border px-3 py-1.5 text-xs',
-                      'text-muted-foreground hover:text-foreground hover:border-primary/40',
-                      'hover:bg-primary/5 transition-colors min-h-[36px]'
-                    )}
-                  >
-                    {prompt}
-                  </button>
-                ))}
+          (emptyStateSlot ?? (
+            <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/80 to-ai/80 flex items-center justify-center mb-4">
+                <Sparkles className="h-8 w-8 text-white" />
               </div>
-            )}
-          </div>
+              <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mb-5">
+                Ask me anything about your notes, issues, or code. Use{' '}
+                <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">\skill</code> to
+                invoke skills or{' '}
+                <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">@agent</code> to
+                call specialized agents.
+              </p>
+              {onSuggestedPrompt && (
+                <div className="flex flex-wrap justify-center gap-2 max-w-md">
+                  {(suggestedPrompts ?? DEFAULT_SUGGESTED_PROMPTS).map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => onSuggestedPrompt(prompt)}
+                      className={cn(
+                        'rounded-full border border-border px-3 py-1.5 text-xs',
+                        'text-muted-foreground hover:text-foreground hover:border-primary/40',
+                        'hover:bg-primary/5 transition-colors min-h-[36px]'
+                      )}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
         ) : (
           <Virtuoso
             ref={virtuosoRef}

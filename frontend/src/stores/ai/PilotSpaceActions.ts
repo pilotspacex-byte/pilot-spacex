@@ -9,6 +9,7 @@
  * @see specs/005-conversational-agent-arch/plan.md (T042-T049)
  */
 import { runInAction } from 'mobx';
+import { generateUUID } from '@/lib/utils';
 import type { ChatMessage, MessageRole, MessageMetadata } from './types/conversation';
 import type { PilotSpaceStore } from './PilotSpaceStore';
 import type { PilotSpaceStreamHandler } from './PilotSpaceStreamHandler';
@@ -17,7 +18,7 @@ import type { PilotSpaceStreamHandler } from './PilotSpaceStreamHandler';
  * API base URL for backend requests.
  * Falls back to localhost if not configured.
  */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
 /**
  * Encapsulates user-facing async actions: sending messages,
@@ -71,7 +72,7 @@ export class PilotSpaceActions {
     const userMessage: ChatMessage | null = skipUserMessage
       ? null
       : {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           role: 'user' as MessageRole,
           content: content,
           timestamp: new Date(),

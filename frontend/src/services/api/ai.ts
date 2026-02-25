@@ -5,8 +5,7 @@ import { apiClient } from './client';
  * @see specs/004-mvp-agents-build/tasks/P16-T111-T120.md#T113
  */
 
-// API base URL for SSE endpoints (must be absolute for EventSource)
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
 // Types
 export interface AIContextRequest {

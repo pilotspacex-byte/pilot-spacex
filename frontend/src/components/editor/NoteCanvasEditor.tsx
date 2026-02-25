@@ -316,7 +316,7 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
         marginAnnotationAutoTrigger: {
           noteId,
         },
-        enableNoteLinks: !readOnly && !!resolvedWorkspaceId,
+        enableNoteLinks: !readOnly,
         noteLink: {
           workspaceSlug,
           currentNoteId: noteId,
@@ -470,29 +470,63 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
     useAIAutoScroll(scrollRef, processingBlockIds, userEditingBlockId);
 
   // Populate noteTitles storage from existing links on mount (C-3 fix)
+  // Also resolves chips whose link records weren't persisted (e.g. before migration).
   useEffect(() => {
     if (!resolvedWorkspaceId || !noteId || !editor || editor.isDestroyed) return;
     let cancelled = false;
+
+    const storage = (editor.storage as unknown as Record<string, unknown>).noteLink as
+      | { noteTitles?: Map<string, string> }
+      | undefined;
+    if (!storage?.noteTitles) return;
+
     notesApi
       .getNoteLinks(resolvedWorkspaceId, noteId)
-      .then((links) => {
+      .then(async (links) => {
         if (cancelled || !editor || editor.isDestroyed) return;
-        const storage = (editor.storage as unknown as Record<string, unknown>).noteLink as
-          | { noteTitles?: Map<string, string> }
-          | undefined;
-        if (!storage?.noteTitles) return;
+
+        // Populate from persisted link records
+        const resolvedIds = new Set<string>();
         for (const link of links) {
           if (link.targetNoteTitle) {
-            storage.noteTitles.set(link.targetNoteId, link.targetNoteTitle);
+            storage.noteTitles!.set(link.targetNoteId, link.targetNoteTitle);
+            resolvedIds.add(link.targetNoteId);
           }
         }
-        // Trigger re-render of NoteLinkComponents via a no-op transaction
-        if (!editor.isDestroyed) {
+
+        // Collect note IDs present in the document but not in link records
+        const unresolvedIds: string[] = [];
+        editor.state.doc.descendants((node) => {
+          if (node.type.name === 'noteLink') {
+            const id = node.attrs.noteId as string;
+            if (id && !resolvedIds.has(id) && !storage.noteTitles!.has(id)) {
+              unresolvedIds.push(id);
+            }
+          }
+          return true;
+        });
+
+        // Batch-resolve missing titles via search (empty query returns all notes)
+        if (unresolvedIds.length > 0 && !cancelled) {
+          const allNotes = await notesApi
+            .searchNotes(resolvedWorkspaceId, '')
+            .catch(() => [] as { id: string; title: string }[]);
+          if (!cancelled && !editor.isDestroyed) {
+            for (const note of allNotes) {
+              if (unresolvedIds.includes(note.id)) {
+                storage.noteTitles!.set(note.id, note.title ?? '');
+              }
+            }
+          }
+        }
+
+        // Trigger re-render of all NoteLinkComponents
+        if (!cancelled && !editor.isDestroyed) {
           editor.view.dispatch(editor.state.tr);
         }
       })
       .catch(() => {
-        /* silently ignore — titles will show "Loading..." */
+        /* silently ignore — titles will show loading state */
       });
     return () => {
       cancelled = true;

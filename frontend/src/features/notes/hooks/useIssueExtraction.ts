@@ -11,7 +11,7 @@ import { SSEClient } from '@/lib/sse-client';
 import type { SSEEvent } from '@/lib/sse-client';
 import type { ExtractedIssue } from '../components/ExtractionPreviewModal';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
 interface ExtractionState {
   /** Extracted issues collected from SSE events */

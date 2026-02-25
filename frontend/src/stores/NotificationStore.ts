@@ -1,6 +1,7 @@
 'use client';
 
 import { makeAutoObservable, computed } from 'mobx';
+import { generateUUID } from '@/lib/utils';
 
 export type NotificationPriority = 'urgent' | 'important' | 'fyi';
 export type NotificationType = 'issue' | 'pr' | 'mention' | 'comment' | 'system';
@@ -42,7 +43,7 @@ export class NotificationStore {
   addNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'read'>): void {
     const newNotification: Notification = {
       ...notification,
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       createdAt: new Date(),
       read: false,
     };

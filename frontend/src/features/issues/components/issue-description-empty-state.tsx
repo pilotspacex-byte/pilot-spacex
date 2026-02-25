@@ -13,7 +13,6 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import { FileText, Sparkles, Target, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 
 // ---------------------------------------------------------------------------
 // Writing prompt definitions
@@ -45,7 +44,9 @@ function isEditorEmpty(editor: Editor): boolean {
 // ---------------------------------------------------------------------------
 export interface IssueDescriptionEmptyStateProps {
   editor: Editor | null;
-  onAiGenerate: () => void;
+  onChatOpen: () => void;
+  /** When provided, called instead of onChatOpen — opens chat AND sends the generate prompt. */
+  onAiGenerate?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -53,6 +54,7 @@ export interface IssueDescriptionEmptyStateProps {
 // ---------------------------------------------------------------------------
 export function IssueDescriptionEmptyState({
   editor,
+  onChatOpen,
   onAiGenerate,
 }: IssueDescriptionEmptyStateProps) {
   const [isEmpty, setIsEmpty] = useState(() => (editor ? isEditorEmpty(editor) : true));
@@ -125,20 +127,23 @@ export function IssueDescriptionEmptyState({
       </div>
 
       {/* AI CTA */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onAiGenerate}
-        className="gap-1.5 text-ai hover:text-ai hover:border-ai/40 hover:bg-ai/5"
+      <button
+        type="button"
+        onClick={onAiGenerate ?? onChatOpen}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full',
+          'border border-ai/30 bg-background',
+          'px-3 py-1.5 text-xs text-ai',
+          'hover:border-ai/50 hover:bg-ai/5 transition-colors min-h-[32px]'
+        )}
       >
         <Sparkles className="size-3.5" aria-hidden="true" />
-        Generate with Pilot Space
-      </Button>
+        Generate with AI Chat
+      </button>
 
       {/* Hint */}
       <p className="mt-3 text-xs text-muted-foreground/60">
-        Start typing, click a prompt above, or press{' '}
-        <kbd className="rounded border px-1 py-0.5 text-[10px]">/</kbd> for commands
+        Start typing, click a prompt, or use AI Chat for help
       </p>
     </div>
   );

@@ -35,7 +35,7 @@ export interface GhostTextServiceOptions {
 }
 
 const DEFAULT_OPTIONS: Required<GhostTextServiceOptions> = {
-  baseUrl: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1',
+  baseUrl: process.env.NEXT_PUBLIC_API_URL ?? '/api/v1',
   timeoutMs: 5000,
   maxReconnectAttempts: 3,
   reconnectDelayMs: 1000,

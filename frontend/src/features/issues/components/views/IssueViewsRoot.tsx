@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/stores';
 import { IssueToolbar } from './IssueToolbar';
@@ -121,12 +122,18 @@ export const IssueViewsRoot = observer(function IssueViewsRoot({
     }
   };
 
-  const handleCreateIssue = (state: IssueState, name: string) => {
-    if (workspaceId) {
-      issueStore.createIssue(workspaceId, {
-        name,
-        stateId: state,
-        projectId,
+  const handleCreateIssue = async (_state: IssueState, name: string) => {
+    if (!workspaceId) return;
+    if (!projectId) {
+      toast.error('Select a project first', {
+        description: 'New issues must belong to a project. Open a project to add issues.',
+      });
+      return;
+    }
+    const result = await issueStore.createIssue(workspaceId, { name, projectId });
+    if (!result) {
+      toast.error('Failed to create issue', {
+        description: issueStore.error ?? 'Please try again.',
       });
     }
   };

@@ -24,6 +24,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Issue, IssuePriority, IssueType } from '@/types';
 
+/** Strip HTML tags and collapse whitespace for plain-text preview. */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export type IssueCardDensity = 'comfortable' | 'compact' | 'minimal';
 
 export interface IssueCardProps {
@@ -356,9 +364,13 @@ export const IssueCard = observer(function IssueCard({
         <h4 className="mb-1.5 line-clamp-2 text-xs font-medium leading-snug">{issue.name}</h4>
 
         {/* Description */}
-        {issue.description && (
-          <p className="mb-2 line-clamp-2 text-[10px] text-muted-foreground">{issue.description}</p>
-        )}
+        {issue.description &&
+          (() => {
+            const text = stripHtml(issue.description);
+            return text ? (
+              <p className="mb-2 line-clamp-2 text-[10px] text-muted-foreground">{text}</p>
+            ) : null;
+          })()}
 
         {/* Labels */}
         {issue.labels.length > 0 && (

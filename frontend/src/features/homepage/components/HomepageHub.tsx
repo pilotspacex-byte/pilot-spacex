@@ -149,7 +149,7 @@ export const HomepageHub = observer(function HomepageHub({ workspaceSlug }: Home
   }, [store, workspaceId, groups, suggestionCount]);
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 lg:flex-row">
+    <div className="mx-auto flex flex-col min-h-0 w-full flex-1 lg:flex-row">
       {/* Left: Daily Brief document (scrolls independently) */}
       <section className="min-w-0 flex-1 overflow-y-auto px-6 py-6 lg:px-10 lg:py-8">
         <DailyBrief workspaceSlug={workspaceSlug} />
@@ -157,7 +157,7 @@ export const HomepageHub = observer(function HomepageHub({ workspaceSlug }: Home
 
       {/* Right: ChatView command center (desktop only, viewport-pinned) */}
       <aside
-        className="hidden lg:flex lg:w-[380px] lg:shrink-0 lg:border-l lg:border-border"
+        className="hidden lg:flex lg:flex-col lg:w-[380px] lg:shrink-0 lg:border-l lg:border-border"
         aria-label="AI command center"
       >
         {store ? (

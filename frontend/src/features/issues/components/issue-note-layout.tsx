@@ -32,6 +32,10 @@ export interface IssueNoteLayoutProps {
   onChatOpen: () => void;
   /** Set chat closed */
   onChatClose: () => void;
+  /** Optional empty state slot to render inside ChatView */
+  emptyStateSlot?: ReactNode;
+  /** Optional initial prompt to pre-fill in ChatView */
+  initialPrompt?: string;
 }
 
 export function IssueNoteLayout({
@@ -41,8 +45,12 @@ export function IssueNoteLayout({
   isChatOpen,
   onChatOpen,
   onChatClose,
+  emptyStateSlot,
+  initialPrompt,
 }: IssueNoteLayoutProps) {
   const isSmallScreen = useMediaQuery('(max-width: 1023px)');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pilotSpaceStore = aiStore.pilotSpace as any;
 
   const chatViewContent = (
     <Suspense
@@ -52,8 +60,13 @@ export function IssueNoteLayout({
         </div>
       }
     >
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <ChatView store={aiStore.pilotSpace as any} autoFocus onClose={onChatClose} />
+      <ChatView
+        store={pilotSpaceStore}
+        autoFocus
+        onClose={onChatClose}
+        emptyStateSlot={emptyStateSlot}
+        initialPrompt={initialPrompt}
+      />
     </Suspense>
   );
 

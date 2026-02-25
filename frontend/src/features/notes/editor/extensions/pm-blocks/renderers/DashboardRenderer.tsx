@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
+import { generateUUID } from '@/lib/utils';
 import type { PMRendererProps } from '../PMBlockNodeView';
 import { pmBlockStyles } from '../pm-block-styles';
 
@@ -60,7 +61,7 @@ export function DashboardRenderer({ data, readOnly, onDataChange }: PMRendererPr
 
   const addWidget = useCallback(() => {
     if (readOnly) return;
-    const id = `w-${crypto.randomUUID()}`;
+    const id = `w-${generateUUID()}`;
     const widgets = [
       ...parsed.widgets,
       { id, metric: '', value: 0, trend: 'flat' as const, unit: '' },

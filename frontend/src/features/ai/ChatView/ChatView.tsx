@@ -12,6 +12,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import type React from 'react';
 import { observer } from 'mobx-react-lite';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -175,11 +176,25 @@ interface ChatViewProps {
   onClose?: () => void;
   /** Custom suggested prompts shown in the empty state */
   suggestedPrompts?: readonly string[];
+  /** Custom empty state slot passed through to MessageList */
+  emptyStateSlot?: React.ReactNode;
+  /** Prompt to auto-send when ChatView mounts with an empty conversation */
+  initialPrompt?: string;
   className?: string;
 }
 
 const ChatViewInternal = observer<ChatViewProps>(
-  ({ store, userName, userAvatar, autoFocus, onClose, suggestedPrompts, className }) => {
+  ({
+    store,
+    userName,
+    userAvatar,
+    autoFocus,
+    onClose,
+    suggestedPrompts,
+    emptyStateSlot,
+    initialPrompt,
+    className,
+  }) => {
     const [inputValue, setInputValue] = useState('');
     const [taskPanelOpen, setTaskPanelOpen] = useState(true);
     const [showClearDialog, setShowClearDialog] = useState(false);
@@ -194,6 +209,24 @@ const ChatViewInternal = observer<ChatViewProps>(
 
     // T-062: Rehydrate active intents + pending approvals on mount/workspace change
     useIntentRehydration(store);
+
+    // Auto-send initialPrompt once when ChatView mounts with an empty conversation.
+    // INVARIANT: `store.messages.length === 0` is the primary re-fire guard.
+    // ChatView unmounts when the chat panel closes (IssueNoteLayout renders conditionally),
+    // so `initialPromptFiredRef` resets on each re-open. The message-length check ensures
+    // we never re-send if the store already has conversation history, even after remount.
+    const initialPromptFiredRef = useRef(false);
+    useEffect(() => {
+      if (
+        initialPrompt &&
+        !initialPromptFiredRef.current &&
+        store.messages.length === 0 &&
+        !store.isStreaming
+      ) {
+        initialPromptFiredRef.current = true;
+        void (store as { sendMessage: (c: string) => Promise<void> }).sendMessage(initialPrompt);
+      }
+    }, [initialPrompt, store]);
 
     // Track which note context has been loaded to avoid redundant fetches
     const loadedContextRef = useRef<string | null>(null);
@@ -465,6 +498,7 @@ const ChatViewInternal = observer<ChatViewProps>(
               onLoadMore={handleLoadMoreMessages}
               onSuggestedPrompt={handleSuggestedPrompt}
               suggestedPrompts={suggestedPrompts}
+              emptyStateSlot={emptyStateSlot}
               streamingPhase={store.streamingState.phase}
               activeToolName={store.streamingState.activeToolName}
               wordCount={store.streamingState.wordCount ?? 0}

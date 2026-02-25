@@ -94,7 +94,7 @@ export class MarginAnnotationStore {
 
     // Prepare request body
     const blockIds = blocks.map((b) => b.id);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
     const authHeaders = await getAuthHeaders();
 
     this.sseClient = new SSEClient({
@@ -159,7 +159,7 @@ export class MarginAnnotationStore {
 
     try {
       this.error = null;
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
       const authHeaders = await getAuthHeaders();
 
       const response = await fetch(
@@ -206,7 +206,7 @@ export class MarginAnnotationStore {
   ): Promise<void> {
     try {
       this.error = null;
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
       const authHeaders = await getAuthHeaders();
 
       const response = await fetch(
@@ -290,7 +290,7 @@ export class MarginAnnotationStore {
     this.error = null;
     this.generatingNoteId = noteId;
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
     const authHeaders = await getAuthHeaders();
 
     this.sseClient = new SSEClient({

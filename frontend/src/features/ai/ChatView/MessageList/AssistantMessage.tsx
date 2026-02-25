@@ -203,7 +203,7 @@ const GroupedContentBlocks = memo<{
           return <MarkdownContent key={`text-${gIdx}`} content={block.content} />;
         }
 
-        // Reasoning group: wrap in collapsible if 2+ steps, otherwise render inline
+        // Reasoning group: always wrap in collapsible (collapsed by default, open during streaming)
         const reasoningBlocks = group.blocks;
         const stepCount = reasoningBlocks.length;
         const totalDurationMs = reasoningBlocks.reduce((sum, b) => {
@@ -214,6 +214,15 @@ const GroupedContentBlocks = memo<{
           }
           return sum;
         }, 0);
+
+        const hasActiveTool = reasoningBlocks.some((block) => {
+          if (block.type === 'tool_call') {
+            const tc = message.toolCalls?.find((t) => t.id === block.toolCallId);
+            return tc?.status === 'pending';
+          }
+          if (block.type === 'thinking') return block.durationMs == null;
+          return false;
+        });
 
         const renderedBlocks = reasoningBlocks.map((block) => {
           if (block.type === 'thinking') {
@@ -238,19 +247,16 @@ const GroupedContentBlocks = memo<{
           return null;
         });
 
-        if (stepCount >= 2) {
-          return (
-            <ReasoningGroup
-              key={`reasoning-${gIdx}`}
-              stepCount={stepCount}
-              totalDurationMs={totalDurationMs}
-            >
-              {renderedBlocks}
-            </ReasoningGroup>
-          );
-        }
-
-        return <div key={`reasoning-${gIdx}`}>{renderedBlocks}</div>;
+        return (
+          <ReasoningGroup
+            key={`reasoning-${gIdx}`}
+            stepCount={stepCount}
+            totalDurationMs={totalDurationMs}
+            defaultOpen={hasActiveTool}
+          >
+            {renderedBlocks}
+          </ReasoningGroup>
+        );
       })}
     </>
   );
@@ -262,8 +268,10 @@ GroupedContentBlocks.displayName = 'GroupedContentBlocks';
 const FallbackContentBlocks = memo<{ message: ChatMessage }>(function FallbackContentBlocks({
   message,
 }) {
-  const hasMultipleReasoningBlocks =
-    (message.thinkingBlocks?.length ?? 0) + (message.toolCalls?.length ?? 0) >= 2;
+  const hasAnyReasoningBlocks =
+    (message.thinkingBlocks?.length ?? 0) + (message.toolCalls?.length ?? 0) >= 1;
+
+  const isAnyStreaming = message.toolCalls?.some((t) => t.status === 'pending') ?? false;
 
   const thinkingElements =
     message.thinkingBlocks && message.thinkingBlocks.length > 0
@@ -309,10 +317,11 @@ const FallbackContentBlocks = memo<{ message: ChatMessage }>(function FallbackCo
 
   return (
     <>
-      {hasMultipleReasoningBlocks ? (
+      {hasAnyReasoningBlocks ? (
         <ReasoningGroup
           stepCount={thinkingElements.length + (message.toolCalls?.length ?? 0)}
           totalDurationMs={totalDurationMs}
+          defaultOpen={isAnyStreaming}
         >
           {reasoningContent}
         </ReasoningGroup>

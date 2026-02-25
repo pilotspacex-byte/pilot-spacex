@@ -23,12 +23,18 @@ from pilot_space.api.v1.dependencies import (
     CreateIssueServiceDep,
     DeleteIssueServiceDep,
     GetIssueServiceDep,
+    IssueRepositoryDep,
     ListIssuesServiceDep,
+    NoteIssueLinkRepositoryDep,
     UpdateIssueServiceDep,
     WorkspaceRepositoryDep,
 )
 from pilot_space.api.v1.schemas.base import BaseSchema, DeleteResponse, PaginatedResponse
-from pilot_space.api.v1.schemas.issue import IssueResponse
+from pilot_space.api.v1.schemas.issue import (
+    IssueResponse,
+    NoteIssueLinkBriefSchema,
+    StateBriefSchema,
+)
 from pilot_space.dependencies import DbSession, SyncedUserId
 from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
@@ -54,7 +60,7 @@ class WorkspaceIssueResponse(BaseSchema):
     identifier: str
     name: str
     description: str | None = None
-    state: str
+    state: StateBriefSchema
     priority: str
     type: str = Field(default="task")
     project_id: UUID | None = None
@@ -171,17 +177,12 @@ async def _resolve_workspace(
 
 def _issue_to_response(issue: Issue) -> WorkspaceIssueResponse:
     """Convert Issue model to WorkspaceIssueResponse schema."""
-    # Get state name from relationship or default to "backlog"
-    state_name = "backlog"
-    if hasattr(issue, "state") and issue.state:
-        state_name = issue.state.name.lower().replace(" ", "_")
-
     return WorkspaceIssueResponse(
         id=issue.id,
         identifier=issue.identifier or f"ISSUE-{issue.sequence_id}",
         name=issue.name,
         description=issue.description,
-        state=state_name,
+        state=StateBriefSchema.model_validate(issue.state),
         priority=issue.priority.value if issue.priority else "none",
         type="task",  # Default type
         project_id=issue.project_id,
@@ -290,6 +291,42 @@ async def get_workspace_issue(
         )
 
     return IssueResponse.from_issue(result.issue)
+
+
+@router.get(
+    "/{workspace_id}/issues/{issue_id}/notes",
+    response_model=list[NoteIssueLinkBriefSchema],
+    tags=["workspace-issues"],
+    summary="List note links for an issue",
+)
+async def list_issue_note_links(
+    session: SessionDep,
+    workspace_id: WorkspaceIdOrSlug,
+    issue_id: IssueIdPath,
+    current_user_id: SyncedUserId,
+    link_repo: NoteIssueLinkRepositoryDep,
+    workspace_repo: WorkspaceRepositoryDep,
+    issue_repo: IssueRepositoryDep,
+) -> list[NoteIssueLinkBriefSchema]:
+    """List all notes linked to a specific issue."""
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
+
+    issue = await issue_repo.get_by_id_with_relations(issue_id)
+    if issue is None or issue.workspace_id != workspace.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+
+    # get_by_issue already filters is_deleted at the SQL level
+    links = await link_repo.get_by_issue(issue_id, workspace.id)
+    return [
+        NoteIssueLinkBriefSchema(
+            id=link.id,
+            note_id=link.note_id,
+            link_type=link.link_type.value.upper(),
+            note_title=link.note.title if link.note else "",
+        )
+        for link in links
+    ]
 
 
 @router.post(

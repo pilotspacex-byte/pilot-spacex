@@ -270,6 +270,7 @@ async def delete_note_link(
 async def list_note_links(
     workspace_id: WorkspaceIdPath,
     note_id: NoteIdPath,
+    _session: SessionDep,
     current_user_id: CurrentUserId,
     link_repo: NoteNoteLinkRepositoryDep,
 ) -> list[NoteLinkResponse]:
@@ -295,6 +296,7 @@ async def list_note_links(
 async def list_note_backlinks(
     workspace_id: WorkspaceIdPath,
     note_id: NoteIdPath,
+    _session: SessionDep,
     current_user_id: CurrentUserId,
     link_repo: NoteNoteLinkRepositoryDep,
 ) -> list[BacklinkResponse]:

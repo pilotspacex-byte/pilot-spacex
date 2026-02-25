@@ -47,7 +47,8 @@ export interface IssueEditorContentProps {
   workspaceSlug: string;
   onUpdate: (data: UpdateIssueData) => Promise<unknown>;
   onChatOpen: () => void;
-  onAiGenerate: () => void;
+  /** When provided, passed to the empty state CTA — opens chat AND sends generate prompt. */
+  onAiGenerate?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,7 +200,11 @@ export function IssueEditorContent({
 
             <div className="mt-1">
               <EditorContent editor={editor} />
-              <IssueDescriptionEmptyState editor={editor} onAiGenerate={onAiGenerate} />
+              <IssueDescriptionEmptyState
+                editor={editor}
+                onChatOpen={onChatOpen}
+                onAiGenerate={onAiGenerate}
+              />
             </div>
 
             {(issue.subIssueCount ?? 0) > 0 && (
