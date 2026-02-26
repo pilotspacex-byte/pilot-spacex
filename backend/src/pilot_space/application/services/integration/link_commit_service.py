@@ -307,6 +307,8 @@ class LinkCommitService:
                     "link_type": "pull_request",
                     "repository": payload.repository,
                     "pr_title": pr.title[:200],
+                    "pr_number": pr.number,
+                    "pr_state": pr_state,
                 },
             )
             await self._activity_repo.create(activity)

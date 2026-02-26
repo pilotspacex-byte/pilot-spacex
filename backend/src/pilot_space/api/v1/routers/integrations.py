@@ -15,7 +15,7 @@ from pilot_space.infrastructure.logging import get_logger
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from pilot_space.api.v1.schemas.integration import (
     ConnectGitHubResponse,
@@ -23,26 +23,15 @@ from pilot_space.api.v1.schemas.integration import (
     GitHubOAuthUrlResponse,
     GitHubRepositoriesResponse,
     GitHubRepositoryResponse,
-    IntegrationLinkResponse,
-    IntegrationLinksResponse,
     IntegrationListResponse,
     IntegrationResponse,
-    LinkCommitRequest,
-    LinkPullRequestRequest,
     WebhookSetupResponse,
-)
-from pilot_space.api.v1.schemas.pr_review import (
-    TriggerReviewRequest,
-    TriggerReviewResponse,
 )
 from pilot_space.config import get_settings
 from pilot_space.dependencies import CurrentUser, CurrentUserId, DbSession
 from pilot_space.infrastructure.database.models import IntegrationProvider
 from pilot_space.infrastructure.database.repositories import (
-    ActivityRepository,
-    IntegrationLinkRepository,
     IntegrationRepository,
-    IssueRepository,
     WorkspaceRepository,
 )
 from pilot_space.infrastructure.encryption import decrypt_api_key
@@ -426,253 +415,91 @@ async def setup_github_webhook(
 
 
 # ============================================================================
-# Integration Links
+# Workspace-Scoped GitHub Shortcuts (C-6, C-7)
+# Frontend calls workspace-scoped URLs; these resolve the active integration first.
 # ============================================================================
 
 
 @router.get(
-    "/issues/{issue_id}/links",
-    response_model=IntegrationLinksResponse,
-    summary="Get issue links",
+    "/workspaces/{workspace_id}/github/repositories",
+    response_model=GitHubRepositoriesResponse,
+    summary="List GitHub repositories for workspace",
+    tags=["integrations"],
 )
-async def get_issue_links(
+async def list_workspace_github_repos(
     session: DbSession,
     current_user: CurrentUser,
-    issue_id: Annotated[UUID, Path(description="Issue ID")],
-) -> IntegrationLinksResponse:
-    """Get all integration links (commits/PRs) for an issue."""
-    link_repo = IntegrationLinkRepository(session)
-    links = await link_repo.get_by_issue(issue_id)
-
-    return IntegrationLinksResponse(
-        items=[IntegrationLinkResponse.model_validate(link) for link in links],
-        total=len(links),
-    )
-
-
-@router.post(
-    "/issues/{issue_id}/links/commit",
-    response_model=IntegrationLinkResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Link commit to issue",
-)
-async def link_commit_to_issue(
-    session: DbSession,
-    current_user: CurrentUser,
-    current_user_id: CurrentUserId,
-    issue_id: Annotated[UUID, Path(description="Issue ID")],
-    integration_id: Annotated[UUID, Query(description="Integration ID")],
-    request: LinkCommitRequest,
-) -> IntegrationLinkResponse:
-    """Manually link a commit to an issue."""
-    # Get issue for workspace_id
-    issue_repo = IssueRepository(session)
-    issue = await issue_repo.get_by_id_with_relations(issue_id)
-    if not issue:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Issue not found",
-        )
-
-    from pilot_space.application.services.integration import (
-        LinkCommitPayload,
-        LinkCommitService,
-    )
-
-    service = LinkCommitService(
-        session=session,
-        integration_repo=IntegrationRepository(session),
-        integration_link_repo=IntegrationLinkRepository(session),
-        issue_repo=issue_repo,
-        activity_repo=ActivityRepository(session),
-    )
-
-    try:
-        result = await service.link_commit(
-            LinkCommitPayload(
-                workspace_id=issue.workspace_id,
-                issue_id=issue_id,
-                integration_id=integration_id,
-                repository=request.repository,
-                commit_sha=request.commit_sha,
-                actor_id=current_user_id,
-            )
-        )
-    except Exception as e:
-        logger.exception("Failed to link commit")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-
-    await session.commit()
-
-    return IntegrationLinkResponse.model_validate(result.link)
-
-
-@router.post(
-    "/issues/{issue_id}/links/pull-request",
-    response_model=IntegrationLinkResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Link PR to issue",
-)
-async def link_pr_to_issue(
-    session: DbSession,
-    current_user: CurrentUser,
-    current_user_id: CurrentUserId,
-    issue_id: Annotated[UUID, Path(description="Issue ID")],
-    integration_id: Annotated[UUID, Query(description="Integration ID")],
-    request: LinkPullRequestRequest,
-) -> IntegrationLinkResponse:
-    """Manually link a pull request to an issue."""
-    # Get issue for workspace_id
-    issue_repo = IssueRepository(session)
-    issue = await issue_repo.get_by_id_with_relations(issue_id)
-    if not issue:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Issue not found",
-        )
-
-    from pilot_space.application.services.integration import (
-        LinkCommitService,
-        LinkPullRequestPayload,
-    )
-
-    service = LinkCommitService(
-        session=session,
-        integration_repo=IntegrationRepository(session),
-        integration_link_repo=IntegrationLinkRepository(session),
-        issue_repo=issue_repo,
-        activity_repo=ActivityRepository(session),
-    )
-
-    try:
-        result = await service.link_pull_request(
-            LinkPullRequestPayload(
-                workspace_id=issue.workspace_id,
-                issue_id=issue_id,
-                integration_id=integration_id,
-                repository=request.repository,
-                pr_number=request.pr_number,
-                actor_id=current_user_id,
-            )
-        )
-    except Exception as e:
-        logger.exception("Failed to link PR")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-
-    await session.commit()
-
-    return IntegrationLinkResponse.model_validate(result.link)
-
-
-# ============================================================================
-# PR Review (T198)
-# ============================================================================
-
-
-@router.post(
-    "/github/{integration_id}/prs/{pr_number}/review",
-    response_model=TriggerReviewResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Trigger AI PR Review",
-)
-async def trigger_pr_review(
-    request: Request,
-    session: DbSession,
-    current_user: CurrentUser,
-    current_user_id: CurrentUserId,
-    integration_id: Annotated[UUID, Path(description="Integration ID")],
-    pr_number: Annotated[int, Path(description="PR number", ge=1)],
-    review_request: TriggerReviewRequest,
-) -> TriggerReviewResponse:
-    """Trigger AI-powered PR review.
-
-    Enqueues a PR review job for async processing. The review covers:
-    - Architecture (SOLID principles, layer separation)
-    - Security (OWASP Top 10, auth, input validation)
-    - Code quality (readability, naming, error handling)
-    - Performance (N+1 queries, blocking I/O)
-    - Documentation (docstrings, comments)
-
-    For large PRs (>5000 lines or >50 files), only priority files are reviewed.
-
-    Returns:
-        Job status with job_id for polling.
-    """
-    # Get workspace from integration
-    integration_repo = IntegrationRepository(session)
-    integration = await integration_repo.get_by_id(integration_id)
+    workspace_id: Annotated[str, Path(description="Workspace ID or slug")],
+) -> GitHubRepositoriesResponse:
+    """List GitHub repos for the active integration of a workspace."""
+    resolved_id = await _resolve_workspace_id(workspace_id, session)
+    repo = IntegrationRepository(session)
+    integration = await repo.get_active_github(resolved_id)
 
     if not integration:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
+            detail="No active GitHub integration found for this workspace",
         )
 
-    workspace_id = integration.workspace_id
+    from pilot_space.integrations.github import GitHubClient
 
-    # Get correlation ID from request headers
-    correlation_id = request.headers.get("X-Correlation-ID", "")
+    access_token = decrypt_api_key(integration.access_token)
+    async with GitHubClient(access_token) as client:
+        try:
+            repos = await client.get_repos()
+        except Exception as e:
+            logger.exception("Failed to fetch repos for workspace %s", workspace_id)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to fetch repositories: {e}",
+            ) from e
 
-    from pilot_space.application.services.ai import (
-        TriggerPRReviewPayload,
-        TriggerPRReviewService,
-    )
-    from pilot_space.container import get_container
-
-    container = get_container()
-    queue_client = container.queue_client()
-
-    if not queue_client:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Queue service not configured",
-        )
-
-    try:
-        service = TriggerPRReviewService(
-            session=session,
-            queue_client=queue_client,
-            integration_repo=integration_repo,
-            cache_client=container.redis_client() if container.redis_client else None,
-        )
-
-        result = await service.execute(
-            TriggerPRReviewPayload(
-                workspace_id=workspace_id,
-                integration_id=integration_id,
-                repository=review_request.repository,
-                pr_number=pr_number,
-                user_id=current_user_id,
-                correlation_id=correlation_id,
-                post_comments=review_request.post_comments,
-                post_summary=review_request.post_summary,
-                project_context=review_request.project_context,
+    return GitHubRepositoriesResponse(
+        items=[
+            GitHubRepositoryResponse(
+                id=r.id,
+                name=r.name,
+                full_name=r.full_name,
+                private=r.private,
+                default_branch=r.default_branch,
+                description=r.description,
+                html_url=r.html_url,
             )
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-    except Exception as e:
-        logger.exception("Failed to trigger PR review")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to trigger PR review",
-        ) from e
+            for r in repos
+        ],
+        total=len(repos),
+    )
 
-    return TriggerReviewResponse(
-        job_id=result.job_id,
-        status=result.status.value,
-        queued_at=result.queued_at,
-        estimated_wait_minutes=result.estimated_wait_minutes,
-        message=result.message,
+
+@router.delete(
+    "/workspaces/{workspace_id}/github",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Disconnect GitHub integration for workspace",
+    tags=["integrations"],
+)
+async def disconnect_workspace_github(
+    session: DbSession,
+    current_user: CurrentUser,
+    workspace_id: Annotated[str, Path(description="Workspace ID or slug")],
+) -> None:
+    """Deactivate the active GitHub integration for a workspace."""
+    resolved_id = await _resolve_workspace_id(workspace_id, session)
+    repo = IntegrationRepository(session)
+    integration = await repo.get_active_github(resolved_id)
+
+    if not integration:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active GitHub integration found for this workspace",
+        )
+
+    await repo.deactivate(integration.id)
+    await session.commit()
+
+    logger.info(
+        "GitHub integration disconnected via workspace route",
+        extra={"workspace_id": str(resolved_id), "integration_id": str(integration.id)},
     )
 
 

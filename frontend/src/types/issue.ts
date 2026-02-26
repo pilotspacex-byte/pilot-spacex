@@ -136,16 +136,21 @@ export interface ActivityTimelineResponse {
   total: number;
 }
 
-// Integration Link (frontend-only, for future backend support)
+// Integration Link
 export interface IntegrationLink {
   id: string;
   issueId: string;
-  integrationType: 'github_pr' | 'github_issue' | 'slack';
+  integrationType: 'github_pr' | 'github_issue' | 'github_commit' | 'slack';
   externalId: string;
   externalUrl: string;
   prNumber?: number;
   prTitle?: string;
   prStatus?: 'open' | 'merged' | 'closed';
+  /** Discriminant from the backend /integrations/issues/{id}/links endpoint. */
+  link_type?: 'commit' | 'pull_request' | 'branch' | 'mention';
+  title?: string;
+  authorName?: string;
+  authorAvatarUrl?: string | null;
 }
 
 // Note Issue Link (frontend-only, for future backend support)

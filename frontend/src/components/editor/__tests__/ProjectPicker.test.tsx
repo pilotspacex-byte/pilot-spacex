@@ -141,7 +141,14 @@ describe('ProjectPicker', () => {
     });
 
     (useQuery as Mock).mockReturnValue({
-      data: { items: mockProjects, total: 3, page: 1, pageSize: 50, hasMore: false },
+      data: {
+        items: mockProjects,
+        total: 3,
+        nextCursor: null,
+        prevCursor: null,
+        hasNext: false,
+        hasPrev: false,
+      },
       isLoading: false,
     });
 
@@ -278,7 +285,14 @@ describe('ProjectPicker', () => {
 
   it('renders empty state when no projects available', () => {
     (useQuery as Mock).mockReturnValue({
-      data: { items: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+      data: {
+        items: [],
+        total: 0,
+        nextCursor: null,
+        prevCursor: null,
+        hasNext: false,
+        hasPrev: false,
+      },
       isLoading: false,
     });
 

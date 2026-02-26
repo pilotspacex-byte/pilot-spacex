@@ -171,56 +171,52 @@ production reliability, security, or maintainability."""
     def get_tools(self) -> list[dict[str, Any]]:
         """Get MCP tools for PR review.
 
+        Registered tool names from github_tools.py via @register_tool("github"):
+        - get_pr_details: PR metadata (title, author, labels, merge status)
+        - get_pr_diff: Changed files with unified diff patches
+        - post_pr_comment: Post general or line-specific review comment
+
         Returns:
-            List of tool definitions for GitHub and code analysis
+            List of tool definitions for GitHub code review
         """
         return [
             {
+                "name": "get_pr_details",
+                "description": "Get pull request metadata including title, description, author, and merge status",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "pr_number": {"type": "integer"},
+                        "integration_id": {"type": "string"},
+                    },
+                    "required": ["pr_number"],
+                },
+            },
+            {
                 "name": "get_pr_diff",
-                "description": "Get full diff for pull request",
+                "description": "Get changed files with unified diff patches for code review analysis",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "repository_id": {"type": "string"},
                         "pr_number": {"type": "integer"},
+                        "integration_id": {"type": "string"},
                     },
-                    "required": ["repository_id", "pr_number"],
+                    "required": ["pr_number"],
                 },
             },
             {
-                "name": "get_pr_files",
-                "description": "Get list of changed files in PR",
+                "name": "post_pr_comment",
+                "description": "Post a general or line-specific review comment on the pull request",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "repository_id": {"type": "string"},
                         "pr_number": {"type": "integer"},
+                        "body": {"type": "string"},
+                        "integration_id": {"type": "string"},
+                        "path": {"type": "string"},
+                        "line": {"type": "integer"},
                     },
-                    "required": ["repository_id", "pr_number"],
-                },
-            },
-            {
-                "name": "add_review_comment",
-                "description": "Add inline comment to specific line in PR",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "repository_id": {"type": "string"},
-                        "pr_number": {"type": "integer"},
-                        "file_path": {"type": "string"},
-                        "line_number": {"type": "integer"},
-                        "severity": {"enum": ["critical", "warning", "suggestion"]},
-                        "comment": {"type": "string"},
-                        "fix_suggestion": {"type": "string"},
-                    },
-                    "required": [
-                        "repository_id",
-                        "pr_number",
-                        "file_path",
-                        "line_number",
-                        "severity",
-                        "comment",
-                    ],
+                    "required": ["pr_number", "body"],
                 },
             },
         ]
@@ -287,29 +283,47 @@ Provide detailed findings with:
 - Specific fix recommendations
 
 Use available tools to:
-1. Get PR diff and changed files
-2. Analyze code for issues
-3. Add inline review comments where appropriate
+1. Call get_pr_details to retrieve PR metadata (title, author, labels)
+2. Call get_pr_diff to retrieve changed files with unified diff patches
+3. Call post_pr_comment to post inline or general review comments
+4. Call search_code_in_repo to look up related code context
 
 Be constructive and focus on production reliability, security, and maintainability."""
 
     def _create_agent_options(self, context: AgentContext) -> ClaudeAgentOptions:
         """Create Claude SDK options for PR review.
 
+        Builds a "github" MCP server from the db_session stored in
+        context.metadata["db_session"] (set by the router) so the agent
+        can call mcp__github__* tools backed by real GitHubClient calls.
+
         Args:
-            context: Agent execution context
+            context: Agent execution context (metadata["db_session"] required)
 
         Returns:
             ClaudeAgentOptions configured for PR review
         """
+        from pilot_space.ai.mcp.github_server import create_github_tools_server
+        from pilot_space.ai.tools.mcp_server import ToolContext
+
+        db_session = context.metadata.get("db_session")
+        mcp_servers = {}
+        if db_session is not None:
+            tool_context = ToolContext(
+                db_session=db_session,
+                workspace_id=str(context.workspace_id),
+                user_id=str(context.user_id),
+            )
+            mcp_servers["github"] = create_github_tools_server(tool_context)
+
         return ClaudeAgentOptions(  # type: ignore[call-arg]
             model=self.DEFAULT_MODEL,
             allowed_tools=[
-                "Read",
-                "Glob",
-                "Grep",
-                "WebFetch",
+                "mcp__github__get_pr_details",
+                "mcp__github__get_pr_diff",
+                "mcp__github__post_pr_comment",
             ],
+            mcp_servers=mcp_servers,  # type: ignore[arg-type]
             setting_sources=["project"],  # type: ignore[call-arg]
         )
 
@@ -404,4 +418,4 @@ Be constructive and focus on production reliability, security, and maintainabili
 
         except Exception as e:
             error_data = {"type": "error", "error_type": "pr_review_error", "message": str(e)}
-            yield f"data: {json.dumps(error_data)}\n\n"
+            yield f"event: error\ndata: {json.dumps(error_data)}\n\n"

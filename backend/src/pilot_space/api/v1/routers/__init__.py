@@ -29,6 +29,7 @@ from pilot_space.api.v1.routers.block_ownership import router as block_ownership
 from pilot_space.api.v1.routers.cycles import router as cycles_router
 from pilot_space.api.v1.routers.dependency_graph import router as dependency_graph_router
 from pilot_space.api.v1.routers.ghost_text import router as ghost_text_router
+from pilot_space.api.v1.routers.github_links import router as github_links_router
 from pilot_space.api.v1.routers.homepage import (
     notes_from_chat_router as homepage_notes_from_chat_router,
     router as homepage_router,
@@ -133,6 +134,7 @@ __all__ = [
     "debug_router",
     "dependency_graph_router",
     "ghost_text_router",
+    "github_links_router",
     "homepage_notes_from_chat_router",
     "homepage_router",
     "integrations_router",

@@ -97,6 +97,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Complex hook dispatch has many return paths
 "src/pilot_space/ai/sdk/file_hooks.py" = ["PLR0911"]
 "src/pilot_space/ai/sdk/hook_executor.py" = ["PLR0911"]
+# GitHub tools use early-return guard clauses across multiple error paths
+"src/pilot_space/ai/tools/github_tools.py" = ["PLR0911"]
 # Scripts have relaxed rules
 "scripts/**/*.py" = ["DTZ005", "T20", "INP001", "F841", "PTH123", "RET504", "TRY400", "PLR0911", "RUF022"]
 

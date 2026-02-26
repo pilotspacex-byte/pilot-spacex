@@ -271,9 +271,11 @@ export const apiClient = {
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
-  page: number;
+  nextCursor: string | null;
+  prevCursor: string | null;
+  hasNext: boolean;
+  hasPrev: boolean;
   pageSize: number;
-  hasMore: boolean;
 }
 
 /**

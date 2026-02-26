@@ -125,18 +125,18 @@ export const AIFeatureToggles = observer(function AIFeatureToggles() {
           icon={Lightbulb}
           label="Issue Extraction"
           description="Extract actionable issues from notes using AI"
-          checked={settings.settings?.issue_extraction_enabled ?? false}
+          checked={settings.settings?.features?.issueExtractionEnabled ?? false}
           disabled={isDisabled}
-          onCheckedChange={(checked) => handleToggle('issue_extraction_enabled', checked)}
+          onCheckedChange={(checked) => handleToggle('issueExtractionEnabled', checked)}
         />
         <Separator />
         <FeatureToggle
           icon={GitPullRequest}
           label="PR Review"
           description="AI-powered pull request reviews with architecture and security analysis"
-          checked={settings.settings?.pr_review_enabled ?? false}
+          checked={settings.settings?.features?.prReviewEnabled ?? false}
           disabled={isDisabled}
-          onCheckedChange={(checked) => handleToggle('pr_review_enabled', checked)}
+          onCheckedChange={(checked) => handleToggle('prReviewEnabled', checked)}
         />
       </CardContent>
     </Card>

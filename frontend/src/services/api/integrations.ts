@@ -4,6 +4,7 @@
  * T188-T192: API client for GitHub integration feature (US-18).
  */
 
+import type { IntegrationLink } from '@/types';
 import { apiClient } from './client';
 
 // ============================================================================
@@ -84,6 +85,70 @@ export interface IntegrationSettings {
   commitMessageFormat?: string;
 }
 
+/** Wire shape of `link_metadata` for pull_request links (backend `metadata` JSONB column). */
+interface PRLinkMetadata {
+  /** PR number (integer). */
+  number?: number;
+  /** PR state from GitHub. */
+  state?: 'open' | 'closed' | 'merged';
+  head_branch?: string;
+  base_branch?: string;
+  repository?: string;
+  is_draft?: boolean;
+  merged_at?: string | null;
+  commits_count?: number;
+  changed_files?: number;
+  additions?: number;
+  deletions?: number;
+}
+
+/** Wire shape of `link_metadata` for commit links. */
+interface CommitLinkMetadata {
+  sha?: string;
+  message?: string;
+  branch?: string;
+  repository?: string;
+  timestamp?: string;
+  files_changed?: number;
+  additions?: number;
+  deletions?: number;
+}
+
+/** Wire shape of `link_metadata` for branch links. */
+interface BranchLinkMetadata {
+  name?: string;
+  repository?: string;
+  is_protected?: boolean;
+  ahead_by?: number;
+  behind_by?: number;
+}
+
+/** Wire shape returned by GET /integrations/issues/{issueId}/links */
+interface IntegrationLinkRaw {
+  id: string;
+  issue_id: string;
+  integration_id: string;
+  link_type: 'commit' | 'pull_request' | 'branch' | 'mention';
+  external_id: string;
+  external_url: string;
+  title: string | null;
+  author_name: string | null;
+  author_avatar_url: string | null;
+  /** Serialized as `metadata` by the backend Pydantic schema (DB column alias). */
+  metadata?: PRLinkMetadata | CommitLinkMetadata | BranchLinkMetadata | null;
+}
+
+interface IntegrationLinksResponse {
+  items: IntegrationLinkRaw[];
+  total: number;
+}
+
+/** Maps a backend PR state string to the frontend union. Returns undefined for unknown values. */
+function mapPRStatus(state: string | undefined | null): 'open' | 'closed' | 'merged' | undefined {
+  if (state === 'open' || state === 'closed' || state === 'merged') return state;
+  return undefined;
+}
+
 // ============================================================================
 // API Client
 // ============================================================================
@@ -110,14 +175,30 @@ export const integrationsApi = {
 
   /**
    * Complete GitHub OAuth callback.
+   * Backend returns ConnectGitHubResponse; we map it to GitHubInstallation.
    */
   completeGitHubAuth(
     _workspaceId: string,
     code: string,
     state: string
   ): Promise<GitHubInstallation> {
-    // workspace_id is embedded in state, backend extracts it
-    return apiClient.post<GitHubInstallation>(`/integrations/github/callback`, { code, state });
+    return apiClient
+      .post<{
+        integration: { id: string; provider: string; is_active: boolean };
+        github_login: string;
+        github_name: string | null;
+        github_avatar_url: string;
+      }>(`/integrations/github/callback`, { code, state })
+      .then((response) => ({
+        id: response.integration.id,
+        installationId: 0, // not available from OAuth response
+        accountLogin: response.github_login,
+        accountType: 'User' as const,
+        avatarUrl: response.github_avatar_url,
+        permissions: {},
+        repositorySelection: 'selected' as const,
+        connectedAt: new Date().toISOString(),
+      }));
   },
 
   /**
@@ -158,10 +239,10 @@ export const integrationsApi = {
   },
 
   /**
-   * Disconnect GitHub integration.
+   * Disconnect GitHub integration for a workspace.
    */
   disconnectGitHub(workspaceId: string): Promise<void> {
-    return apiClient.delete<void>(`/workspaces/${workspaceId}/integrations/github`);
+    return apiClient.delete<void>(`/integrations/workspaces/${workspaceId}/github`);
   },
 
   // ============================================================================
@@ -169,12 +250,33 @@ export const integrationsApi = {
   // ============================================================================
 
   /**
-   * List available repositories from GitHub installation.
+   * List available repositories from the active GitHub integration for a workspace.
    */
   listRepositories(workspaceId: string): Promise<GitHubRepository[]> {
-    return apiClient.get<GitHubRepository[]>(
-      `/workspaces/${workspaceId}/integrations/github/repositories`
-    );
+    return apiClient
+      .get<{
+        items: Array<{
+          id: string | number;
+          name: string;
+          full_name: string;
+          private: boolean;
+          default_branch: string;
+          description: string | null;
+          html_url: string;
+        }>;
+      }>(`/integrations/workspaces/${workspaceId}/github/repositories`)
+      .then((response) =>
+        (response.items ?? []).map((r) => ({
+          id: String(r.id),
+          fullName: r.full_name,
+          name: r.name,
+          owner: r.full_name.split('/')[0] ?? '',
+          private: r.private,
+          defaultBranch: r.default_branch,
+          syncEnabled: false,
+          webhookActive: false,
+        }))
+      );
   },
 
   /**
@@ -203,6 +305,46 @@ export const integrationsApi = {
   // ============================================================================
   // Issue Links
   // ============================================================================
+
+  /**
+   * Get all integration links for an issue.
+   * Backend enforces workspace membership via RLS; workspaceId is used only
+   * to satisfy the enabled guard in the hook.
+   */
+  getIssueLinks(_workspaceId: string, issueId: string): Promise<IntegrationLink[]> {
+    return apiClient
+      .get<IntegrationLinksResponse>(`/integrations/issues/${issueId}/links`)
+      .then((response) =>
+        response.items.map((raw): IntegrationLink => {
+          const isPR = raw.link_type === 'pull_request';
+          const prMeta = isPR ? (raw.metadata as PRLinkMetadata | undefined | null) : null;
+
+          return {
+            id: raw.id,
+            issueId: raw.issue_id,
+            // pull_request → 'github_pr'; all other types fall back to 'github_issue'
+            integrationType: isPR
+              ? 'github_pr'
+              : raw.link_type === 'commit'
+                ? 'github_commit'
+                : 'github_issue',
+            externalId: raw.external_id,
+            externalUrl: raw.external_url,
+            link_type: raw.link_type,
+            title: raw.title ?? undefined,
+            authorName: raw.author_name ?? undefined,
+            authorAvatarUrl: raw.author_avatar_url,
+            // PR-specific fields: number and state from link_metadata, title from the
+            // dedicated title column (backend populates it from GitHub's PR.title).
+            prNumber:
+              prMeta?.number ??
+              (raw.external_id ? parseInt(raw.external_id, 10) || undefined : undefined),
+            prTitle: isPR ? (raw.title ?? undefined) : undefined,
+            prStatus: mapPRStatus(prMeta?.state),
+          };
+        })
+      );
+  },
 
   /**
    * Get branch name suggestion for an issue.

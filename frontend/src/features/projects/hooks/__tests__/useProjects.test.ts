@@ -38,9 +38,11 @@ const mockProject: Project = {
 const mockPaginatedResponse: PaginatedResponse<Project> = {
   items: [mockProject],
   total: 1,
-  page: 1,
+  nextCursor: null,
   pageSize: 50,
-  hasMore: false,
+  hasNext: false,
+  hasPrev: false,
+  prevCursor: null,
 };
 
 function createWrapper() {
@@ -80,10 +82,9 @@ describe('useProjects', () => {
   });
 
   it('is disabled when enabled option is false', () => {
-    const { result } = renderHook(
-      () => useProjects({ workspaceId: 'ws-1', enabled: false }),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useProjects({ workspaceId: 'ws-1', enabled: false }), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.fetchStatus).toBe('idle');
     expect(projectsApi.list).not.toHaveBeenCalled();
@@ -120,7 +121,15 @@ describe('selectAllProjects', () => {
   });
 
   it('returns empty array when items is empty', () => {
-    const result = selectAllProjects({ items: [], total: 0, page: 1, pageSize: 50, hasMore: false });
+    const result = selectAllProjects({
+      items: [],
+      total: 0,
+      nextCursor: null,
+      pageSize: 50,
+      hasNext: false,
+      hasPrev: false,
+      prevCursor: null,
+    });
     expect(result).toEqual([]);
   });
 });

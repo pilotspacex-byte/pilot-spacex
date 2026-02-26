@@ -26,13 +26,18 @@ export interface SuggestedTask {
 // Task Management (013)
 export type TaskStatus = 'todo' | 'in_progress' | 'done';
 
+export interface AcceptanceCriterion {
+  text: string;
+  done: boolean;
+}
+
 export interface Task {
   id: string;
   issueId: string;
   workspaceId: string;
   title: string;
   description?: string;
-  acceptanceCriteria: string[];
+  acceptanceCriteria: AcceptanceCriterion[];
   status: TaskStatus;
   sortOrder: number;
   estimatedHours?: number;
@@ -47,7 +52,7 @@ export interface Task {
 export interface TaskCreate {
   title: string;
   description?: string;
-  acceptanceCriteria?: string[];
+  acceptanceCriteria?: AcceptanceCriterion[];
   estimatedHours?: number;
   codeReferences?: CodeReference[];
   aiPrompt?: string;
@@ -56,7 +61,7 @@ export interface TaskCreate {
 export interface TaskUpdate {
   title?: string;
   description?: string;
-  acceptanceCriteria?: string[];
+  acceptanceCriteria?: AcceptanceCriterion[];
   status?: TaskStatus;
   estimatedHours?: number;
   codeReferences?: CodeReference[];

@@ -1,7 +1,4 @@
-"""GitHub API client with OAuth and rate limiting.
-
-T177: Create GitHubClient with authenticated requests and rate limiting.
-"""
+"""GitHub API client with OAuth and rate limiting."""
 
 from __future__ import annotations
 
@@ -522,6 +519,9 @@ class GitHubClient:
             additions=data["additions"],
             deletions=data["deletions"],
             changed_files=data["changed_files"],
+            draft=data.get("draft", False),
+            labels=[lbl["name"] for lbl in data.get("labels", [])],
+            requested_reviewers=[rv["login"] for rv in data.get("requested_reviewers", [])],
         )
 
     async def post_comment(

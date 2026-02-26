@@ -29,6 +29,7 @@ from pilot_space.api.v1.routers import (
     debug_router,
     dependency_graph_router,
     ghost_text_router,
+    github_links_router,
     homepage_notes_from_chat_router,
     homepage_router,
     integrations_router,
@@ -240,6 +241,7 @@ app.include_router(mcp_tools_router, prefix=API_V1_PREFIX)
 app.include_router(ai_pr_review_router, prefix=API_V1_PREFIX)
 app.include_router(ai_sessions_router, prefix=API_V1_PREFIX)
 app.include_router(integrations_router, prefix=API_V1_PREFIX)
+app.include_router(github_links_router, prefix=API_V1_PREFIX)
 app.include_router(webhooks_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_ai_settings_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_cycles_router, prefix=f"{API_V1_PREFIX}/workspaces")

@@ -2,13 +2,23 @@
  * ActivityEntry component for issue activity timeline.
  *
  * Renders activity items: comments, state changes, assignments,
- * labels, priority changes, and creation events.
+ * labels, priority changes, creation events, and GitHub integration
+ * events (commit linked, PR opened/merged/closed).
  *
  * @see T035 - Issue Detail Page activity timeline
+ * @see T183 - LinkCommitService (backend verb: "linked_to_note" + metadata.link_type)
  */
 'use client';
 
-import { Settings, Sparkles } from 'lucide-react';
+import {
+  ExternalLink,
+  GitCommitHorizontal,
+  GitMerge,
+  GitPullRequest,
+  Settings,
+  Sparkles,
+  XCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Activity } from '@/types';
 
@@ -16,6 +26,10 @@ export interface ActivityEntryProps {
   activity: Activity;
   isLast?: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function getInitial(actor: Activity['actor']): string {
   if (!actor) return '';
@@ -69,6 +83,23 @@ function isAIGenerated(activity: Activity): boolean {
   );
 }
 
+/** Returns true when the activity is a GitHub commit link event. */
+function isCommitLinked(activity: Activity): boolean {
+  return activity.activityType === 'linked_to_note' && activity.metadata?.link_type === 'commit';
+}
+
+/** Returns true when the activity is a GitHub PR link event. */
+function isPRLinked(activity: Activity): boolean {
+  return (
+    activity.activityType === 'linked_to_note' && activity.metadata?.link_type === 'pull_request'
+  );
+}
+
+/** Returns true when a state change was triggered by a PR auto-transition. */
+function isAutoTransition(activity: Activity): boolean {
+  return activity.activityType === 'state_changed' && activity.metadata?.auto_transition === true;
+}
+
 function buildDescription(activity: Activity): string {
   const actor = getActorName(activity.actor);
   const { activityType, field, oldValue, newValue } = activity;
@@ -77,7 +108,12 @@ function buildDescription(activity: Activity): string {
   if (activityType === 'comment') return '';
 
   if (field === 'state') {
-    return `${actor} changed state from ${oldValue ?? '?'} to ${newValue ?? '?'}`;
+    const base = `${actor} changed state from ${oldValue ?? '?'} to ${newValue ?? '?'}`;
+    if (isAutoTransition(activity)) {
+      const prNum = activity.metadata?.pr_number as number | undefined;
+      return prNum ? `${base} (auto · PR #${prNum})` : `${base} (auto-transition)`;
+    }
+    return base;
   }
   if (field === 'assignee') {
     return newValue ? `${actor} assigned to ${newValue}` : `${actor} removed assignee`;
@@ -94,10 +130,213 @@ function buildDescription(activity: Activity): string {
   return `${actor} updated ${field ?? 'issue'}`;
 }
 
+// ---------------------------------------------------------------------------
+// GitHub sub-components
+// ---------------------------------------------------------------------------
+
+interface CommitLinkedContentProps {
+  activity: Activity;
+}
+
+function CommitLinkedContent({ activity }: CommitLinkedContentProps) {
+  const meta = activity.metadata ?? {};
+  const sha = (meta.sha as string | undefined) ?? activity.newValue ?? '';
+  const shortSha = sha.slice(0, 8);
+  const message = (meta.commit_message as string | undefined) ?? '';
+  const truncatedMessage = message.length > 60 ? `${message.slice(0, 60)}…` : message;
+  const externalUrl = meta.external_url as string | undefined;
+  const repository = meta.repository as string | undefined;
+  const authorName = getActorName(activity.actor);
+
+  return (
+    <div className="flex items-start gap-2 min-h-[32px] flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {externalUrl ? (
+          <a
+            href={externalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View commit ${shortSha} on GitHub`}
+            className="group inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded"
+          >
+            {shortSha}
+            <ExternalLink
+              className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity"
+              aria-hidden="true"
+            />
+          </a>
+        ) : (
+          <span className="font-mono text-xs text-primary">{shortSha}</span>
+        )}
+        {truncatedMessage && (
+          <span className="text-sm text-muted-foreground">· {truncatedMessage}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto flex-shrink-0">
+        {repository && <span className="hidden sm:inline">{repository} ·</span>}
+        <span>{authorName}</span>
+        <span>·</span>
+        <time dateTime={activity.createdAt}>{formatRelativeTime(activity.createdAt)}</time>
+      </div>
+    </div>
+  );
+}
+
+type PRStatus = 'open' | 'merged' | 'closed';
+
+interface PRLinkedContentProps {
+  activity: Activity;
+}
+
+function PRLinkedContent({ activity }: PRLinkedContentProps) {
+  const meta = activity.metadata ?? {};
+  const prNumberRaw = meta.pr_number as number | string | undefined;
+  // newValue is stored as "#123" by the backend
+  const prNumber = prNumberRaw ?? activity.newValue?.replace('#', '') ?? '';
+  const prTitle = (meta.pr_title as string | undefined) ?? '';
+  const externalUrl = meta.external_url as string | undefined;
+
+  // Derive status from metadata: the backend stores pr_state or state
+  const rawState = (meta.pr_state ?? meta.state) as string | undefined;
+  const status: PRStatus =
+    rawState === 'merged' ? 'merged' : rawState === 'closed' ? 'closed' : 'open';
+
+  const statusConfig: Record<PRStatus, { label: string; badgeClass: string }> = {
+    open: {
+      label: 'open',
+      badgeClass: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    },
+    merged: {
+      label: 'merged',
+      badgeClass: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+    },
+    closed: {
+      label: 'closed',
+      badgeClass: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    },
+  };
+
+  const { label, badgeClass } = statusConfig[status];
+  const displayTitle = prTitle.length > 60 ? `${prTitle.slice(0, 60)}…` : prTitle;
+
+  return (
+    <div className="flex items-start gap-2 min-h-[32px] flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {externalUrl ? (
+          <a
+            href={externalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View PR #${prNumber} on GitHub`}
+            className="group inline-flex items-center gap-1 text-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded"
+          >
+            PR #{prNumber}
+            <ExternalLink
+              className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity"
+              aria-hidden="true"
+            />
+          </a>
+        ) : (
+          <span className="text-sm text-primary">PR #{prNumber}</span>
+        )}
+        {displayTitle && <span className="text-sm text-muted-foreground">· {displayTitle}</span>}
+        <span
+          className={cn(
+            'inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium leading-none',
+            badgeClass
+          )}
+        >
+          {label}
+        </span>
+      </div>
+      <time
+        dateTime={activity.createdAt}
+        className="text-xs text-muted-foreground flex-shrink-0 ml-auto"
+      >
+        {formatRelativeTime(activity.createdAt)}
+      </time>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Avatar icon resolution
+// ---------------------------------------------------------------------------
+
+interface AvatarConfig {
+  wrapperClass: string;
+  content: React.ReactNode;
+}
+
+function resolveAvatarConfig(
+  activity: Activity,
+  isAI: boolean,
+  actor: Activity['actor']
+): AvatarConfig {
+  if (isCommitLinked(activity)) {
+    return {
+      wrapperClass: 'bg-muted text-muted-foreground border border-border',
+      content: <GitCommitHorizontal className="h-3.5 w-3.5" />,
+    };
+  }
+
+  if (isPRLinked(activity)) {
+    const meta = activity.metadata ?? {};
+    const rawState = (meta.pr_state ?? meta.state) as string | undefined;
+
+    if (rawState === 'merged') {
+      return {
+        wrapperClass:
+          'bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800',
+        content: <GitMerge className="h-3.5 w-3.5" />,
+      };
+    }
+    if (rawState === 'closed') {
+      return {
+        wrapperClass:
+          'bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
+        content: <XCircle className="h-3.5 w-3.5" />,
+      };
+    }
+    // open (default)
+    return {
+      wrapperClass:
+        'bg-green-100 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+      content: <GitPullRequest className="h-3.5 w-3.5" />,
+    };
+  }
+
+  if (isAI) {
+    return {
+      wrapperClass: 'bg-[#6B8FAD]/15 text-[#6B8FAD] border border-[#6B8FAD]/30',
+      content: <Sparkles className="h-3.5 w-3.5" />,
+    };
+  }
+
+  if (actor) {
+    return {
+      wrapperClass: 'bg-primary/10 text-primary border border-primary/20',
+      content: getInitial(actor),
+    };
+  }
+
+  return {
+    wrapperClass: 'bg-muted text-muted-foreground border border-border',
+    content: <Settings className="h-3.5 w-3.5" />,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
 export function ActivityEntry({ activity, isLast = false }: ActivityEntryProps) {
-  const isComment = activity.activityType === 'comment';
+  const isComment = activity.activityType === 'comment_added';
   const actor = activity.actor;
   const isAI = isAIGenerated(activity);
+  const isGitHubEvent = isCommitLinked(activity) || isPRLinked(activity);
+
+  const { wrapperClass, content } = resolveAvatarConfig(activity, isAI, actor);
 
   return (
     <div className="relative flex gap-3">
@@ -110,21 +349,11 @@ export function ActivityEntry({ activity, isLast = false }: ActivityEntryProps) 
       <div
         className={cn(
           'relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium',
-          isAI
-            ? 'bg-[#6B8FAD]/15 text-[#6B8FAD] border border-[#6B8FAD]/30'
-            : actor
-              ? 'bg-primary/10 text-primary border border-primary/20'
-              : 'bg-muted text-muted-foreground border border-border'
+          wrapperClass
         )}
         aria-hidden="true"
       >
-        {isAI ? (
-          <Sparkles className="h-3.5 w-3.5" />
-        ) : actor ? (
-          getInitial(actor)
-        ) : (
-          <Settings className="h-3.5 w-3.5" />
-        )}
+        {content}
       </div>
 
       {/* Content */}
@@ -145,6 +374,14 @@ export function ActivityEntry({ activity, isLast = false }: ActivityEntryProps) 
             <p className="text-sm text-foreground whitespace-pre-wrap break-words">
               {activity.comment}
             </p>
+          </div>
+        ) : isGitHubEvent ? (
+          <div className="flex-1 min-w-0">
+            {isCommitLinked(activity) ? (
+              <CommitLinkedContent activity={activity} />
+            ) : (
+              <PRLinkedContent activity={activity} />
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-2 min-h-[32px]">

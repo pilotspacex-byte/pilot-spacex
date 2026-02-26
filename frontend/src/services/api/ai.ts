@@ -28,20 +28,28 @@ export interface ApprovalResolutionRequest {
   selected_issues?: number[];
 }
 
+export interface WorkspaceAISettingsFeatures {
+  ghostTextEnabled: boolean;
+  marginAnnotationsEnabled: boolean;
+  aiContextEnabled: boolean;
+  issueExtractionEnabled: boolean;
+  prReviewEnabled: boolean;
+  docGenerationEnabled: boolean;
+}
+
+export interface WorkspaceAISettingsProvider {
+  provider: string;
+  isConfigured: boolean;
+  isValid: boolean | null;
+  lastValidatedAt: string | null;
+}
+
 export interface WorkspaceAISettings {
-  anthropic_key_set: boolean;
-  openai_key_set: boolean;
-  ghost_text_enabled: boolean;
-  margin_annotations_enabled: boolean;
-  ai_context_enabled: boolean;
-  issue_extraction_enabled: boolean;
-  pr_review_enabled: boolean;
-  provider_status?: Array<{
-    provider: 'anthropic' | 'openai' | 'google';
-    key_set: boolean;
-    last_validated_at?: string | null;
-    status?: 'connected' | 'disconnected' | 'unknown';
-  }>;
+  workspaceId: string;
+  providers: WorkspaceAISettingsProvider[];
+  features: WorkspaceAISettingsFeatures;
+  defaultProvider: string;
+  costLimitUsd: number | null;
 }
 
 export interface CostSummary {
@@ -177,7 +185,7 @@ export const aiApi = {
       anthropic_api_key?: string;
       openai_api_key?: string;
     }
-  ) => apiClient.put<WorkspaceAISettings>(`/workspaces/${workspaceId}/ai/settings`, settings),
+  ) => apiClient.patch<WorkspaceAISettings>(`/workspaces/${workspaceId}/ai/settings`, settings),
 
   /**
    * Approval endpoints for human-in-the-loop actions.
@@ -364,23 +372,23 @@ export const aiApi = {
     }),
 };
 
-// Intent response types (matches IntentResponse schema from backend)
+// Intent response types (matches IntentResponse schema from backend — EntitySchema → camelCase)
 export interface IntentResponse {
   id: string;
-  workspace_id: string;
+  workspaceId: string;
   what: string;
   why?: string;
   constraints?: unknown[];
   acceptance?: unknown[];
   status: string;
-  dedup_status: string;
+  dedupStatus: string;
   confidence: number;
   owner?: string;
-  source_block_id?: string;
-  parent_intent_id?: string;
-  dedup_hash?: string;
-  created_at: string;
-  updated_at: string;
+  sourceBlockId?: string;
+  parentIntentId?: string;
+  dedupHash?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ConfirmAllResponse {
