@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Chat context attachments: local file upload (PDF, DOCX, images, code, text) injected as Claude content blocks per conversation turn (Feature 020)
+- Google Drive integration: OAuth PKCE flow, Drive file browser, import-as-attachment for Docs/Sheets/Slides with auto-export to PDF/CSV; `GET /ai/drive/auth-url`, `GET /ai/drive/callback`, `GET /ai/drive/files`, `POST /ai/drive/import`, `DELETE /ai/drive/credentials` (Feature 020)
+- `DriveOAuthService` with Redis-backed PKCE state for multi-worker deployments; 10-min TTL; in-memory fallback for tests
+- Silent token refresh: `DriveFileService` proactively refreshes access token 5 min before expiry; mid-request 401 triggers single retry
+- `DriveFilePicker` component with folder navigation, search, and pagination
+- `AttachmentButton` with upload progress, retry on failure, and Drive picker integration
+- `useAttachments` hook: retry now re-submits original `File` reference stored on attachment state
+- Two-phase attachment ownership/expiry check: 403 for not-owned vs 400 for expired (distinct UX errors)
+- `drive_file_id` stored on `ChatAttachment` for Drive-sourced files
+- Guest restriction enforced at router level for attachment upload and Drive auth URL endpoints
+
+### Fixed
+
+- Raw `httpx.HTTPStatusError` detail redacted from 502 `DRIVE_API_ERROR` responses; error now logged server-side only
+- OAuth callback returns `302 RedirectResponse` (not JSON) matching Google's redirect expectation
+- Role for Drive auth-url fetched from DB — removed insecure caller-supplied `user_role` query parameter
+
 ## [0.1.0-alpha.1] - 2026-02-26
 
 ### Added
