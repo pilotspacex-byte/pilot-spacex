@@ -35,6 +35,8 @@ export interface AttachmentContext {
   source: AttachmentSource;
   status: AttachmentStatus;
   error?: string;
+  /** Original File object retained for retry (only present for local uploads). Not persisted or serialized. */
+  _file?: File;
 }
 
 /**

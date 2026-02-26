@@ -263,4 +263,7 @@ class AttachmentUploadService:
         )
 
 
-__all__ = ["AttachmentUploadService"]
+# Public alias — consumed by DriveFileService for cross-module size enforcement.
+ATTACHMENT_SIZE_LIMITS: dict[str, int] = _SIZE_LIMITS
+
+__all__ = ["ATTACHMENT_SIZE_LIMITS", "AttachmentUploadService"]

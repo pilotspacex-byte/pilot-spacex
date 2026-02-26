@@ -73,19 +73,51 @@ class ChatAttachmentRepository:
         attachment_ids: list[UUID],
         user_id: UUID,
     ) -> list[ChatAttachment]:
-        """Batch-fetch attachments by IDs, filtered to the given user.
+        """Batch-fetch non-expired attachments by IDs, filtered to the given user.
 
-        Validates ownership at the query level: only rows matching both
-        ``id IN (...)`` and ``user_id = ?`` are returned. Missing or
-        foreign-owned IDs are silently excluded; callers must compare
-        counts to detect access violations.
+        Validates ownership and TTL at the query level: only rows matching
+        ``id IN (...)``, ``user_id = ?``, and ``expires_at > now()`` are
+        returned. Expired or foreign-owned IDs are silently excluded; callers
+        must compare counts to detect violations.
 
         Args:
             attachment_ids: List of attachment UUIDs to retrieve.
             user_id: The requesting user's UUID; enforces ownership.
 
         Returns:
-            List of ChatAttachment rows owned by the user.
+            List of non-expired ChatAttachment rows owned by the user.
+        """
+        if not attachment_ids:
+            return []
+
+        result = await self.session.execute(
+            select(ChatAttachment).where(
+                and_(
+                    ChatAttachment.id.in_(attachment_ids),
+                    ChatAttachment.user_id == user_id,
+                    ChatAttachment.expires_at > func.now(),
+                )
+            )
+        )
+        return list(result.scalars().all())
+
+    async def get_by_ids_for_user_include_expired(
+        self,
+        attachment_ids: list[UUID],
+        user_id: UUID,
+    ) -> list[ChatAttachment]:
+        """Batch-fetch attachments by IDs including expired ones, filtered to the given user.
+
+        Used for ownership validation before checking expiry: returns all
+        rows owned by the user regardless of TTL so callers can distinguish
+        between "not owned" and "expired".
+
+        Args:
+            attachment_ids: List of attachment UUIDs to retrieve.
+            user_id: The requesting user's UUID; enforces ownership.
+
+        Returns:
+            List of ChatAttachment rows owned by the user (including expired).
         """
         if not attachment_ids:
             return []

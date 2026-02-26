@@ -18,10 +18,15 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import select
 
 from pilot_space.api.v1.schemas.attachments import AttachmentUploadResponse
-from pilot_space.dependencies.auth import CurrentUserId
+from pilot_space.dependencies.auth import CurrentUserId, DbSession
 from pilot_space.dependencies.services import AttachmentUploadServiceDep
+from pilot_space.infrastructure.database.models.workspace_member import (
+    WorkspaceMember,
+    WorkspaceRole,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -63,6 +68,7 @@ def _build_upload_response(record: Any) -> AttachmentUploadResponse:
 async def upload_attachment(
     user_id: CurrentUserId,
     upload_service: AttachmentUploadServiceDep,
+    db: DbSession,
     workspace_id: Annotated[UUID, Form(...)],
     file: Annotated[UploadFile, File(...)],
     session_id: Annotated[str | None, Form()] = None,
@@ -71,7 +77,7 @@ async def upload_attachment(
 
     Validates MIME type against the supported whitelist and enforces
     per-type size limits before persisting to Supabase Storage.
-    Guests are blocked at the service level (GUEST_NOT_ALLOWED).
+    Guests are blocked at the router level (GUEST_NOT_ALLOWED).
 
     Args:
         workspace_id: Workspace that owns the attachment.
@@ -79,6 +85,7 @@ async def upload_attachment(
         file: Multipart file to upload.
         user_id: Authenticated user ID (injected by FastAPI).
         upload_service: AttachmentUploadService (injected by FastAPI).
+        db: Database session (injected by FastAPI).
 
     Returns:
         AttachmentUploadResponse with attachment metadata.
@@ -87,6 +94,20 @@ async def upload_attachment(
         HTTPException 400: UNSUPPORTED_FILE_TYPE, FILE_TOO_LARGE, or EMPTY_FILE.
         HTTPException 403: GUEST_NOT_ALLOWED.
     """
+    # Guest check — must happen before reading file bytes
+    result = await db.execute(
+        select(WorkspaceMember.role).where(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == user_id,
+        )
+    )
+    role = result.scalar()
+    if role == WorkspaceRole.GUEST:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "GUEST_NOT_ALLOWED", "message": "Guests cannot upload attachments"},
+        )
+
     file_data = await file.read()
     filename = file.filename or "upload"
     content_type = file.content_type or "application/octet-stream"

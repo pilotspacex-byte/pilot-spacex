@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.dependencies.auth import get_session
@@ -211,14 +211,16 @@ ChatAttachmentRepositoryDep = Annotated[
 
 async def get_drive_oauth_service(
     session: Annotated[AsyncSession, Depends(get_session)],
+    request: Request,
 ) -> DriveOAuthService:
     """Get DriveOAuthService instance.
 
     Args:
         session: Database session.
+        request: FastAPI request for accessing Redis from app state.
 
     Returns:
-        Configured DriveOAuthService.
+        Configured DriveOAuthService with optional Redis for PKCE state.
     """
     from pilot_space.application.services.ai.drive_oauth_service import DriveOAuthService
     from pilot_space.config import get_settings
@@ -226,24 +228,33 @@ async def get_drive_oauth_service(
         DriveCredentialRepository,
     )
 
+    redis_client = None
+    if hasattr(request.app.state, "container"):
+        container = request.app.state.container
+        redis_client = container.redis_client()
+
     return DriveOAuthService(
         credential_repo=DriveCredentialRepository(session),
         settings=get_settings(),
+        redis_client=redis_client,
     )
 
 
 async def get_drive_file_service(
     session: Annotated[AsyncSession, Depends(get_session)],
+    request: Request,
 ) -> DriveFileService:
     """Get DriveFileService instance.
 
     Args:
         session: Database session.
+        request: FastAPI request for accessing Redis from app state.
 
     Returns:
-        Configured DriveFileService.
+        Configured DriveFileService with injected DriveOAuthService for token refresh.
     """
     from pilot_space.application.services.ai.drive_file_service import DriveFileService
+    from pilot_space.application.services.ai.drive_oauth_service import DriveOAuthService
     from pilot_space.config import get_settings
     from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
         ChatAttachmentRepository,
@@ -253,11 +264,26 @@ async def get_drive_file_service(
     )
     from pilot_space.infrastructure.storage.client import SupabaseStorageClient
 
+    settings = get_settings()
+    credential_repo = DriveCredentialRepository(session)
+
+    redis_client = None
+    if hasattr(request.app.state, "container"):
+        container = request.app.state.container
+        redis_client = container.redis_client()
+
+    oauth_service = DriveOAuthService(
+        credential_repo=credential_repo,
+        settings=settings,
+        redis_client=redis_client,
+    )
+
     return DriveFileService(
-        credential_repo=DriveCredentialRepository(session),
+        credential_repo=credential_repo,
         attachment_repo=ChatAttachmentRepository(session),
         storage_client=SupabaseStorageClient(),
-        settings=get_settings(),
+        settings=settings,
+        oauth_service=oauth_service,
     )
 
 

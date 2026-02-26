@@ -10,7 +10,7 @@ Task: T038
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
 import pytest
@@ -22,6 +22,7 @@ from pilot_space.api.v1.routers.ai_drive import (
     import_drive_file,
     list_drive_files,
     revoke_drive_credentials,
+    route_get_drive_auth_url,
 )
 from pilot_space.api.v1.schemas.attachments import (
     AttachmentUploadResponse,
@@ -30,6 +31,7 @@ from pilot_space.api.v1.schemas.attachments import (
     DriveImportRequest,
     DriveStatusResponse,
 )
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 
 pytestmark = pytest.mark.asyncio
 
@@ -280,3 +282,77 @@ class TestRevokeDriveCredentials:
 
         assert result is None
         mock_service.revoke.assert_awaited_once()
+
+
+# ===========================================================================
+# TestRouteGetDriveAuthUrlDbLookup
+# ===========================================================================
+
+
+def _make_db_session(role: WorkspaceRole | None) -> AsyncMock:
+    """Build a mock AsyncSession that returns the given role from scalar()."""
+    db = AsyncMock()
+    scalar_result = MagicMock()
+    scalar_result.scalar = MagicMock(return_value=role)
+    db.execute = AsyncMock(return_value=scalar_result)
+    return db
+
+
+class TestRouteGetDriveAuthUrlDbLookup:
+    """route_get_drive_auth_url fetches role from DB — never from caller-supplied param."""
+
+    async def test_route_member_receives_auth_url(self) -> None:
+        """Member in DB → role lookup passes, auth URL returned."""
+        mock_service = _make_drive_service()
+        mock_service.get_auth_url.return_value = {
+            "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?scope=drive"
+        }
+        db = _make_db_session(WorkspaceRole.MEMBER)
+
+        result = await route_get_drive_auth_url(
+            workspace_id=TEST_WORKSPACE_ID,
+            redirect_uri="http://localhost:3000/callback",
+            user_id=TEST_USER_ID,
+            drive_service=mock_service,
+            db=db,
+        )
+
+        assert result["auth_url"].startswith("https://accounts.google.com")
+        db.execute.assert_awaited_once()
+        mock_service.get_auth_url.assert_awaited_once()
+
+    async def test_route_guest_in_db_is_blocked(self) -> None:
+        """Guest in DB → 403 FORBIDDEN; service.get_auth_url never called."""
+        mock_service = _make_drive_service()
+        db = _make_db_session(WorkspaceRole.GUEST)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await route_get_drive_auth_url(
+                workspace_id=TEST_WORKSPACE_ID,
+                redirect_uri="http://localhost:3000/callback",
+                user_id=TEST_USER_ID,
+                drive_service=mock_service,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 403
+        db.execute.assert_awaited_once()
+        mock_service.get_auth_url.assert_not_awaited()
+
+    async def test_route_no_membership_treated_as_guest(self) -> None:
+        """User absent from workspace (role=None) → treated as guest → 403."""
+        mock_service = _make_drive_service()
+        # role=None: no row found; safe default is 'guest'
+        db = _make_db_session(role=None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await route_get_drive_auth_url(
+                workspace_id=TEST_WORKSPACE_ID,
+                redirect_uri="http://localhost:3000/callback",
+                user_id=TEST_USER_ID,
+                drive_service=mock_service,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 403
+        mock_service.get_auth_url.assert_not_awaited()

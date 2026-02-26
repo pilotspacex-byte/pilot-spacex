@@ -257,15 +257,75 @@ describe('useAttachments', () => {
 
   // ── retry ────────────────────────────────────────────────────────────────
 
-  it('retry_sets_error_status_for_id', async () => {
-    vi.mocked(attachmentsApi.upload).mockResolvedValue(makeUploadResponse('r.pdf'));
+  it('addFile_stores_file_reference_on_attachment', async () => {
+    const file = makeFile('ref.pdf', 'application/pdf', 1024);
+    vi.mocked(attachmentsApi.upload).mockResolvedValue(makeUploadResponse('ref.pdf'));
 
     const { result } = renderHook(() => useAttachments({ workspaceId: 'ws-1' }), {
       wrapper: createWrapper(),
     });
 
     await act(async () => {
-      result.current.addFile(makeFile('r.pdf', 'application/pdf', 1024));
+      result.current.addFile(file);
+    });
+
+    expect(result.current.attachments[0]!._file).toBe(file);
+  });
+
+  it('retry_reattempts_upload_when_file_available', async () => {
+    const file = makeFile('retry.pdf', 'application/pdf', 1024);
+    const uploadError = new Error('Network error');
+
+    // First call fails, second call (retry) succeeds
+    vi.mocked(attachmentsApi.upload)
+      .mockRejectedValueOnce(uploadError)
+      .mockResolvedValueOnce(makeUploadResponse('retry.pdf'));
+
+    const { result } = renderHook(() => useAttachments({ workspaceId: 'ws-1' }), {
+      wrapper: createWrapper(),
+    });
+
+    // Add file — upload will fail
+    await act(async () => {
+      result.current.addFile(file);
+    });
+
+    await waitFor(() => {
+      expect(result.current.attachments[0]!.status).toBe('error');
+    });
+
+    const id = result.current.attachments[0]!.id;
+
+    // Retry — should succeed
+    await act(async () => {
+      await result.current.retry(id);
+    });
+
+    await waitFor(() => {
+      expect(result.current.attachments[0]!.status).toBe('ready');
+    });
+
+    expect(result.current.attachments[0]!.attachment_id).toBe('srv-retry.pdf');
+    expect(attachmentsApi.upload).toHaveBeenCalledTimes(2);
+  });
+
+  it('retry_shows_error_when_no_file_reference', async () => {
+    const { result } = renderHook(() => useAttachments({ workspaceId: 'ws-1' }), {
+      wrapper: createWrapper(),
+    });
+
+    // Add a Drive attachment directly — it has no _file
+    const driveResponse: AttachmentUploadResponse = {
+      attachment_id: 'drive-no-file',
+      filename: 'sheet.gdoc',
+      mime_type: 'application/vnd.google-apps.document',
+      size_bytes: 512,
+      source: 'google_drive' as const,
+      expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+    };
+
+    act(() => {
+      result.current.addFromDrive(driveResponse);
     });
 
     const id = result.current.attachments[0]!.id;
@@ -276,6 +336,7 @@ describe('useAttachments', () => {
 
     expect(result.current.attachments[0]!.status).toBe('error');
     expect(result.current.attachments[0]!.error).toMatch(/no longer available/i);
+    expect(attachmentsApi.upload).not.toHaveBeenCalled();
   });
 
   // ── attachmentIds ────────────────────────────────────────────────────────

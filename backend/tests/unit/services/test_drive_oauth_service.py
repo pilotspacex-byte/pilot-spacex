@@ -160,6 +160,7 @@ class TestGetAuthUrl:
         result = await service.get_auth_url(
             workspace_id=TEST_WORKSPACE_ID,
             redirect_uri="http://localhost:3000/callback",
+            user_id=TEST_USER_ID,
         )
 
         # result may be a dict {"auth_url": "..."} or a string
@@ -189,8 +190,6 @@ class TestHandleCallback:
             await service.handle_callback(
                 code="code123",
                 state="invalid-state-that-was-never-issued",
-                workspace_id=TEST_WORKSPACE_ID,
-                user_id=TEST_USER_ID,
                 session=mock_session,
             )
 
@@ -207,6 +206,7 @@ class TestHandleCallback:
         auth_result = await service.get_auth_url(
             workspace_id=TEST_WORKSPACE_ID,
             redirect_uri="http://localhost:3000/callback",
+            user_id=TEST_USER_ID,
         )
         auth_url: str = auth_result["auth_url"] if isinstance(auth_result, dict) else auth_result
         parsed = urlparse(auth_url)
@@ -237,13 +237,11 @@ class TestHandleCallback:
             await service.handle_callback(
                 code="auth-code",
                 state=valid_state,
-                workspace_id=TEST_WORKSPACE_ID,
-                user_id=TEST_USER_ID,
                 session=mock_session,
             )
 
         assert mock_credential_repo.upsert.called
-        # Verify credential is stored with correct user_id (not workspace_id)
+        # Verify credential is stored with correct user_id (extracted from state, not passed in)
         saved_credential = mock_credential_repo.upsert.call_args[0][0]
         assert saved_credential.user_id == TEST_USER_ID
         assert saved_credential.workspace_id == TEST_WORKSPACE_ID

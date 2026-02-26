@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from pilot_space.config import Settings
+    from pilot_space.infrastructure.cache.redis import RedisClient
     from pilot_space.infrastructure.database.repositories.drive_credential_repository import (
         DriveCredentialRepository,
     )
@@ -41,25 +42,34 @@ _SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 class DriveOAuthService:
     """Manages Google Drive OAuth PKCE flow and credential lifecycle.
 
-    Maintains an in-memory pending-state registry (state → code_verifier +
-    workspace_id) for CSRF protection during the OAuth redirect flow.
+    Maintains a PKCE pending-state registry (state → code_verifier +
+    workspace_id + redirect_uri + user_id) for CSRF protection during
+    the OAuth redirect flow. Redis is used when available for multi-worker
+    compatibility; falls back to in-memory for single-worker/test environments.
     """
+
+    _PKCE_STATE_TTL = 600  # 10 minutes
 
     def __init__(
         self,
         credential_repo: DriveCredentialRepository,
         settings: Settings,
+        redis_client: RedisClient | None = None,
     ) -> None:
         """Initialize service.
 
         Args:
             credential_repo: Repository for Drive credential persistence.
             settings: Application settings with Google OAuth fields.
+            redis_client: Optional Redis client for multi-worker PKCE state storage.
+                When None, falls back to in-memory dict (single-worker / tests).
         """
         self._credential_repo = credential_repo
         self._settings = settings
-        # state → (code_verifier, workspace_id_str, redirect_uri)
-        self._pending_states: dict[str, tuple[str, str, str]] = {}
+        self._redis = redis_client
+        # Fallback in-memory for tests/dev (redis_client is None)
+        # state → (code_verifier, workspace_id_str, redirect_uri, user_id_str)
+        self._pending_states: dict[str, tuple[str, str, str, str]] = {}
 
     async def get_status(
         self,
@@ -91,16 +101,18 @@ class DriveOAuthService:
         self,
         workspace_id: UUID,
         redirect_uri: str,
+        user_id: UUID,
     ) -> dict[str, str]:
         """Build a Google OAuth PKCE authorization URL.
 
         Generates a PKCE code verifier + challenge pair and a random state
-        token, stores both in ``_pending_states`` keyed by state, then
-        returns the constructed authorization URL.
+        token, stores both (plus user_id) in the state registry keyed by state,
+        then returns the constructed authorization URL.
 
         Args:
             workspace_id: Workspace initiating the OAuth flow.
             redirect_uri: Callback URI registered with the OAuth client.
+            user_id: Authenticated user ID initiating the OAuth flow.
 
         Returns:
             Dict with key ``auth_url`` containing the full authorization URL.
@@ -110,7 +122,13 @@ class DriveOAuthService:
         code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
         state = secrets.token_urlsafe(32)
 
-        self._pending_states[state] = (code_verifier, str(workspace_id), redirect_uri)
+        state_data = (code_verifier, str(workspace_id), redirect_uri, str(user_id))
+
+        if self._redis is not None:
+            key = f"drive:pkce:{state}"
+            await self._redis.set(key, {"state_data": list(state_data)}, ttl=self._PKCE_STATE_TTL)
+        else:
+            self._pending_states[state] = state_data
 
         from urllib.parse import urlencode
 
@@ -132,33 +150,55 @@ class DriveOAuthService:
         self,
         code: str,
         state: str,
-        workspace_id: UUID,
-        user_id: UUID,
         session: AsyncSession | None = None,
-    ) -> None:
+    ) -> str:
         """Exchange an authorization code for tokens and persist the credential.
 
-        Validates the ``state`` parameter against the in-memory registry,
+        Validates the ``state`` parameter against the state registry,
         performs the PKCE token exchange with Google, fetches the associated
         Google account email, encrypts the tokens, and upserts the credential.
+        The user_id and workspace_id are extracted from the state registry —
+        no JWT is required on this endpoint (Google does not send one).
 
         Args:
             code: Authorization code received from Google's redirect.
             state: CSRF state token that must match a previously issued value.
-            workspace_id: Workspace the credential belongs to.
-            user_id: Authenticated user ID owning the credential.
             session: Optional database session (unused; repo manages its own).
+
+        Returns:
+            workspace_id as a string (used by the caller to build the redirect URL).
 
         Raises:
             HTTPException 400: When ``state`` is invalid or was never issued.
         """
-        if state not in self._pending_states:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"code": "INVALID_STATE", "message": "OAuth state is invalid or expired"},
+        if self._redis is not None:
+            key = f"drive:pkce:{state}"
+            cached = await self._redis.get(key)
+            if not cached:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVALID_STATE",
+                        "message": "OAuth state is invalid or expired",
+                    },
+                )
+            code_verifier, workspace_id_str, redirect_uri, user_id_str = cached["state_data"]
+            await self._redis.delete(key)
+        else:
+            if state not in self._pending_states:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVALID_STATE",
+                        "message": "OAuth state is invalid or expired",
+                    },
+                )
+            code_verifier, workspace_id_str, redirect_uri, user_id_str = self._pending_states.pop(
+                state
             )
 
-        code_verifier, _workspace_id_str, redirect_uri = self._pending_states.pop(state)
+        user_id = UUID(user_id_str)
+        workspace_id = UUID(workspace_id_str)
 
         async with httpx.AsyncClient() as client:
             token_response = await client.post(
@@ -206,6 +246,78 @@ class DriveOAuthService:
             workspace_id=str(workspace_id),
             google_email=userinfo.get("email"),
         )
+
+        return workspace_id_str
+
+    async def refresh_access_token(
+        self,
+        user_id: UUID,
+        workspace_id: UUID,
+    ) -> str:
+        """Silently refresh an expired access token using the stored refresh token.
+
+        Args:
+            user_id: Authenticated user ID.
+            workspace_id: Target workspace ID.
+
+        Returns:
+            New plaintext access token.
+
+        Raises:
+            HTTPException 402: When no credential or no refresh token exists.
+            HTTPException 502: When Google refresh API call fails.
+        """
+        cred = await self._credential_repo.get_by_user_workspace(user_id, workspace_id)
+        if not cred:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={"code": "DRIVE_NOT_CONNECTED", "message": "No Drive credential"},
+            )
+
+        try:
+            refresh_token = decrypt_api_key(cred.refresh_token)
+        except EncryptionError:
+            refresh_token = cred.refresh_token
+
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={"code": "DRIVE_NOT_CONNECTED", "message": "No refresh token stored"},
+            )
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    _TOKEN_URL,
+                    data={
+                        "client_id": str(self._settings.google_client_id),
+                        "client_secret": self._settings.google_client_secret.get_secret_value(),
+                        "refresh_token": refresh_token,
+                        "grant_type": "refresh_token",
+                    },
+                )
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail={"code": "DRIVE_API_ERROR", "message": "Token refresh failed"},
+                ) from exc
+
+        token_data = response.json()
+        new_access_token = token_data["access_token"]
+        expires_in: int = token_data.get("expires_in", 3600)
+        new_expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
+
+        cred.access_token = encrypt_api_key(new_access_token)
+        cred.token_expires_at = new_expires_at
+        await self._credential_repo.upsert(cred)
+
+        logger.info(
+            "drive_token_refreshed",
+            user_id=str(user_id),
+            workspace_id=str(workspace_id),
+        )
+        return new_access_token
 
     async def revoke(
         self,

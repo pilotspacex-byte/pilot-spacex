@@ -27,8 +27,13 @@ async def resolve_attachments(
 ) -> tuple[list[Any], list[dict[str, Any]]]:
     """Fetch attachment records owned by *user_id* and build Claude content blocks.
 
+    Distinguishes between two failure modes:
+    - 403 ATTACHMENT_NOT_OWNED: one or more IDs do not exist or belong to another user.
+    - 400 ATTACHMENT_EXPIRED: all IDs are owned but one or more have passed their TTL.
+
     Raises:
-        HTTPException 403 if any attachment is missing or not owned by the user.
+        HTTPException 403 if any attachment is not owned by the user.
+        HTTPException 400 if any owned attachment has expired.
 
     Returns:
         Tuple of (attachment ORM records, list of Claude content-block dicts).
@@ -37,9 +42,10 @@ async def resolve_attachments(
         return [], []
 
     repo = ChatAttachmentRepository(session)
-    records = await repo.get_by_ids_for_user(attachment_ids, user_id)
 
-    if len(records) != len(attachment_ids):
+    # Phase 1: ownership check (includes expired rows).
+    all_owned = await repo.get_by_ids_for_user_include_expired(attachment_ids, user_id)
+    if len(all_owned) != len(attachment_ids):
         raise HTTPException(
             status_code=403,
             detail={
@@ -48,5 +54,18 @@ async def resolve_attachments(
             },
         )
 
-    blocks = await AttachmentContentService(SupabaseStorageClient()).build_content_blocks(records)
-    return records, blocks
+    # Phase 2: expiry check (only non-expired rows).
+    valid_records = await repo.get_by_ids_for_user(attachment_ids, user_id)
+    if len(valid_records) != len(attachment_ids):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "ATTACHMENT_EXPIRED",
+                "message": "One or more attachments have expired",
+            },
+        )
+
+    blocks = await AttachmentContentService(SupabaseStorageClient()).build_content_blocks(
+        valid_records
+    )
+    return valid_records, blocks

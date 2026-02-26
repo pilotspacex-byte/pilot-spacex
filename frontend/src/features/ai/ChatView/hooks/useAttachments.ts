@@ -146,6 +146,7 @@ export function useAttachments({
         size_bytes: file.size,
         source: 'local',
         status: 'uploading',
+        _file: file,
       };
 
       setAttachments((prev) => [...prev, newAttachment]);
@@ -160,15 +161,29 @@ export function useAttachments({
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
-  const retry = useCallback(async (id: string): Promise<void> => {
-    setAttachments((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? { ...a, status: 'error', error: 'Original file no longer available for retry.' }
-          : a
-      )
-    );
-  }, []);
+  const retry = useCallback(
+    async (id: string): Promise<void> => {
+      const attachment = attachments.find((a) => a.id === id);
+      if (!attachment?._file) {
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.id === id
+              ? { ...a, status: 'error', error: 'File no longer available for retry.' }
+              : a
+          )
+        );
+        return;
+      }
+
+      // Reset to uploading state, preserve _file for future retries
+      setAttachments((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: 'uploading', error: undefined } : a))
+      );
+
+      scheduleUpload(id, attachment._file);
+    },
+    [attachments, scheduleUpload]
+  );
 
   const addFromDrive = useCallback((response: AttachmentUploadResponse): void => {
     if (countRef.current >= 5) {

@@ -3,7 +3,7 @@
 Routes:
     GET    /ai/drive/status       — Connection status (200)
     GET    /ai/drive/auth-url     — OAuth authorization URL (200, 403 for guests)
-    GET    /ai/drive/callback     — OAuth authorization code exchange (200)
+    GET    /ai/drive/callback     — OAuth authorization code exchange (302 redirect)
     GET    /ai/drive/files        — List Drive files (200, 402 if not connected)
     POST   /ai/drive/import       — Import Drive file as attachment (201)
     DELETE /ai/drive/credentials  — Revoke Drive credential (204)
@@ -19,6 +19,8 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 
 from pilot_space.api.v1.schemas.attachments import (
     AttachmentUploadResponse,
@@ -26,13 +28,17 @@ from pilot_space.api.v1.schemas.attachments import (
     DriveImportRequest,
     DriveStatusResponse,
 )
-from pilot_space.dependencies.auth import CurrentUserId
+from pilot_space.config import Settings, get_settings
+from pilot_space.dependencies.auth import CurrentUserId, DbSession
 from pilot_space.dependencies.services import DriveFileServiceDep, DriveOAuthServiceDep
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceMember
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["ai-drive"])
+
+SettingsDep = Annotated[Settings, get_settings]
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +92,11 @@ async def get_drive_auth_url(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "Guests cannot connect Google Drive"},
         )
-    return await drive_service.get_auth_url(workspace_id=workspace_id, redirect_uri=redirect_uri)
+    return await drive_service.get_auth_url(
+        workspace_id=workspace_id,
+        redirect_uri=redirect_uri,
+        user_id=user_id,
+    )
 
 
 async def list_drive_files(
@@ -140,32 +150,25 @@ async def import_drive_file(
 async def handle_drive_callback(
     code: str,
     state: str,
-    workspace_id: UUID,
-    user_id: UUID,
     drive_service: Any,
-) -> dict[str, str]:
+) -> str:
     """Exchange the OAuth authorization code for tokens and persist the credential.
+
+    The user_id and workspace_id are extracted from the PKCE state registry —
+    no JWT is required (Google does not send one on redirect).
 
     Args:
         code: Authorization code from Google's redirect.
         state: CSRF state token issued by get_auth_url.
-        workspace_id: Workspace the credential belongs to.
-        user_id: Authenticated user owning the credential.
         drive_service: DriveOAuthService instance.
 
     Returns:
-        Dict with ``status`` = ``"connected"``.
+        workspace_id as string (used by caller to build redirect URL).
 
     Raises:
         HTTPException 400: When ``state`` is invalid or expired.
     """
-    await drive_service.handle_callback(
-        code=code,
-        state=state,
-        workspace_id=workspace_id,
-        user_id=user_id,
-    )
-    return {"status": "connected"}
+    return await drive_service.handle_callback(code=code, state=state)
 
 
 async def revoke_drive_credentials(
@@ -208,16 +211,59 @@ async def route_get_drive_auth_url(  # noqa: RUF100
     redirect_uri: Annotated[str, Query()],
     user_id: CurrentUserId,
     drive_service: DriveOAuthServiceDep,
-    user_role: Annotated[str, Query()] = "member",
+    db: DbSession,
 ) -> dict[str, str]:
-    """GET /ai/drive/auth-url — OAuth authorization URL."""
+    """GET /ai/drive/auth-url — OAuth authorization URL.
+
+    Fetches the caller's actual workspace role from the database.
+    Never trusts a caller-supplied role parameter.
+    """
+    # Fetch actual role from DB — never trust caller-supplied role
+    result = await db.execute(
+        select(WorkspaceMember.role).where(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == user_id,
+        )
+    )
+    role = result.scalar()
     return await get_drive_auth_url(
         workspace_id=workspace_id,
         redirect_uri=redirect_uri,
         user_id=user_id,
         drive_service=drive_service,
-        user_role=user_role,
+        user_role=str(role.value).lower() if role else "guest",
     )
+
+
+@router.get("/drive/callback")
+async def route_handle_drive_callback(  # noqa: RUF100
+    code: Annotated[str, Query()],
+    state: Annotated[str, Query()],
+    drive_service: DriveOAuthServiceDep,
+) -> RedirectResponse:
+    """GET /ai/drive/callback — Exchange OAuth code for tokens, redirect to frontend.
+
+    Auth: None — Google's redirect does not carry a JWT Bearer token.
+    On success: redirects to {frontend_url}?drive_connected=true&workspace_id={id}
+    On error: redirects to {frontend_url}?drive_error={code}
+    """
+    settings = get_settings()
+    try:
+        workspace_id_str = await handle_drive_callback(
+            code=code,
+            state=state,
+            drive_service=drive_service,
+        )
+        redirect_url = (
+            f"{settings.frontend_url}?drive_connected=true&workspace_id={workspace_id_str}"
+        )
+        return RedirectResponse(url=redirect_url, status_code=302)
+    except HTTPException as exc:
+        error_code = (
+            exc.detail.get("code", "OAUTH_ERROR") if isinstance(exc.detail, dict) else "OAUTH_ERROR"
+        )
+        redirect_url = f"{settings.frontend_url}?drive_error={error_code}"
+        return RedirectResponse(url=redirect_url, status_code=302)
 
 
 @router.get("/drive/files", response_model=DriveFileListResponse)
@@ -258,24 +304,6 @@ async def route_import_drive_file(  # noqa: RUF100
     )
 
 
-@router.get("/drive/callback")
-async def route_handle_drive_callback(  # noqa: RUF100
-    code: Annotated[str, Query()],
-    state: Annotated[str, Query()],
-    workspace_id: Annotated[UUID, Query()],
-    user_id: CurrentUserId,
-    drive_service: DriveOAuthServiceDep,
-) -> dict[str, str]:
-    """GET /ai/drive/callback — Exchange OAuth code for tokens."""
-    return await handle_drive_callback(
-        code=code,
-        state=state,
-        workspace_id=workspace_id,
-        user_id=user_id,
-        drive_service=drive_service,
-    )
-
-
 @router.delete("/drive/credentials", status_code=status.HTTP_204_NO_CONTENT)
 async def route_revoke_drive_credentials(  # noqa: RUF100
     workspace_id: Annotated[UUID, Query()],
@@ -297,5 +325,6 @@ __all__ = [
     "import_drive_file",
     "list_drive_files",
     "revoke_drive_credentials",
+    "route_get_drive_auth_url",
     "router",
 ]

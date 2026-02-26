@@ -78,18 +78,26 @@ def service(
     mock_settings: MagicMock,
 ) -> DriveFileService:
     """DriveFileService with all dependencies mocked."""
+    mock_oauth_service = AsyncMock()
+    mock_oauth_service.refresh_access_token = AsyncMock(return_value="refreshed-token")
     return DriveFileService(
         credential_repo=mock_credential_repo,
         attachment_repo=mock_attachment_repo,
         storage_client=mock_storage_client,
         settings=mock_settings,
+        oauth_service=mock_oauth_service,
     )
 
 
 def _make_credential(access_token: str = "plain-token") -> MagicMock:
     """Build a mock DriveCredential ORM record."""
+    from datetime import UTC, datetime, timedelta
+
     cred = MagicMock()
     cred.access_token = access_token
+    cred.refresh_token = "plain-refresh-token"
+    # Set expiry well in future so _get_valid_access_token skips refresh
+    cred.token_expires_at = datetime.now(UTC) + timedelta(hours=1)
     return cred
 
 
@@ -499,3 +507,128 @@ class TestImportFile:
 
         assert result.source == "google_drive"
         mock_storage_client.upload_object.assert_awaited_once()
+
+    async def test_import_file_sets_drive_file_id(
+        self,
+        service: DriveFileService,
+        mock_credential_repo: AsyncMock,
+        mock_attachment_repo: AsyncMock,
+    ) -> None:
+        """ChatAttachment is created with drive_file_id matching request.file_id."""
+        mock_credential_repo.get_by_user_workspace.return_value = _make_credential()
+
+        file_content = b"pdf bytes"
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.content = file_content
+
+        mock_http_client = AsyncMock()
+        mock_http_client.get = AsyncMock(return_value=mock_response)
+        mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+        mock_http_client.__aexit__ = AsyncMock(return_value=None)
+
+        request = DriveImportRequest(
+            workspace_id=TEST_WORKSPACE_ID,
+            file_id="drive-abc-123",
+            filename="report.pdf",
+            mime_type="application/pdf",
+            session_id=None,
+        )
+
+        captured: list = []
+        mock_attachment_repo.create = AsyncMock(side_effect=lambda a: (captured.append(a), a)[1])
+
+        with patch("httpx.AsyncClient", return_value=mock_http_client):
+            await service.import_file(request=request, user_id=TEST_USER_ID)
+
+        assert len(captured) == 1
+        assert captured[0].drive_file_id == "drive-abc-123"
+
+    async def test_import_file_storage_key_format(
+        self,
+        service: DriveFileService,
+        mock_credential_repo: AsyncMock,
+        mock_attachment_repo: AsyncMock,
+        mock_storage_client: AsyncMock,
+    ) -> None:
+        """Storage key follows chat-attachments/{workspace_id}/{user_id}/{id}/{filename}."""
+        mock_credential_repo.get_by_user_workspace.return_value = _make_credential()
+
+        file_content = b"data"
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.content = file_content
+
+        mock_http_client = AsyncMock()
+        mock_http_client.get = AsyncMock(return_value=mock_response)
+        mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+        mock_http_client.__aexit__ = AsyncMock(return_value=None)
+
+        request = DriveImportRequest(
+            workspace_id=TEST_WORKSPACE_ID,
+            file_id="file-key-test",
+            filename="myfile.pdf",
+            mime_type="application/pdf",
+            session_id=None,
+        )
+
+        captured: list = []
+        mock_attachment_repo.create = AsyncMock(side_effect=lambda a: (captured.append(a), a)[1])
+
+        with patch("httpx.AsyncClient", return_value=mock_http_client):
+            await service.import_file(request=request, user_id=TEST_USER_ID)
+
+        assert len(captured) == 1
+        key: str = captured[0].storage_key
+        # Must start with bucket prefix
+        assert key.startswith("chat-attachments/")
+        # Format: chat-attachments/{workspace_id}/{user_id}/{attachment_id}/{filename}
+        parts = key.split("/")
+        assert len(parts) == 5
+        assert parts[0] == "chat-attachments"
+        assert parts[1] == str(TEST_WORKSPACE_ID)
+        assert parts[2] == str(TEST_USER_ID)
+        assert parts[4] == "myfile.pdf"
+        # attachment id in path must match the id stored on the model
+        assert parts[3] == str(captured[0].id)
+
+    async def test_import_file_raises_400_when_file_too_large(
+        self,
+        service: DriveFileService,
+        mock_credential_repo: AsyncMock,
+        mock_storage_client: AsyncMock,
+    ) -> None:
+        """HTTPException 400 FILE_TOO_LARGE raised when downloaded content exceeds limit."""
+        mock_credential_repo.get_by_user_workspace.return_value = _make_credential()
+
+        # application/pdf limit is 25 MB; send 26 MB of data
+        oversized_content = b"x" * (26 * 1024 * 1024)
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.content = oversized_content
+
+        mock_http_client = AsyncMock()
+        mock_http_client.get = AsyncMock(return_value=mock_response)
+        mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+        mock_http_client.__aexit__ = AsyncMock(return_value=None)
+
+        request = DriveImportRequest(
+            workspace_id=TEST_WORKSPACE_ID,
+            file_id="file-too-large",
+            filename="huge.pdf",
+            mime_type="application/pdf",
+            session_id=None,
+        )
+
+        with (
+            pytest.raises(HTTPException) as exc_info,
+            patch("httpx.AsyncClient", return_value=mock_http_client),
+        ):
+            await service.import_file(request=request, user_id=TEST_USER_ID)
+
+        assert exc_info.value.status_code == 400
+        detail = exc_info.value.detail
+        assert isinstance(detail, dict)
+        assert detail.get("code") == "FILE_TOO_LARGE"
+        # Storage must NOT have been called
+        mock_storage_client.upload_object.assert_not_awaited()
