@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-02-26
+
 ### Added
 
 - Chat context attachments: local file upload (PDF, DOCX, images, code, text) injected as Claude content blocks per conversation turn (Feature 020)
@@ -165,7 +167,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Meilisearch full-text search integration
 - pgvector 768-dim HNSW embeddings for semantic search
 
-[Unreleased]: https://github.com/TinDang97/pilot-space/compare/v0.1.0-alpha.1...HEAD
+[Unreleased]: https://github.com/TinDang97/pilot-space/compare/v0.1.0-alpha.2...HEAD
+[0.1.0-alpha.2]: https://github.com/TinDang97/pilot-space/compare/0.0.4-fixed...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/TinDang97/pilot-space/compare/0.0.4-fixed...v0.1.0-alpha.1
 [0.1.0-alpha.1]: https://github.com/TinDang97/pilot-space/compare/v0.0.4...v0.1.0-alpha.1
 [0.0.4]: https://github.com/TinDang97/pilot-space/compare/v0.0.3...v0.0.4
