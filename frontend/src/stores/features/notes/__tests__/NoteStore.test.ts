@@ -63,9 +63,11 @@ describe('NoteStore', () => {
       vi.mocked(notesApi.list).mockResolvedValue({
         items: mockNotes,
         total: 2,
-        page: 1,
+        nextCursor: null,
         pageSize: 50,
-        hasMore: false,
+        hasNext: false,
+        hasPrev: false,
+        prevCursor: null,
       });
 
       await store.loadNotes('workspace-abc');
@@ -91,9 +93,11 @@ describe('NoteStore', () => {
       vi.mocked(notesApi.list).mockResolvedValue({
         items: mockNotes,
         total: 3,
-        page: 1,
+        nextCursor: null,
         pageSize: 50,
-        hasMore: false,
+        hasNext: false,
+        hasPrev: false,
+        prevCursor: null,
       });
 
       await store.loadNotes('workspace-abc');
@@ -147,9 +151,11 @@ describe('NoteStore', () => {
       vi.mocked(notesApi.list).mockResolvedValue({
         items: mockNotes,
         total: 3,
-        page: 1,
+        nextCursor: null,
         pageSize: 50,
-        hasMore: false,
+        hasNext: false,
+        hasPrev: false,
+        prevCursor: null,
       });
 
       await store.loadNotes('ws');

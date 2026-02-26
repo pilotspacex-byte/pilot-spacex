@@ -337,4 +337,4 @@ Use available tools to:
 
         except Exception as e:
             error_data = {"type": "error", "error_type": "doc_generator_error", "message": str(e)}
-            yield f"data: {json.dumps(error_data)}\n\n"
+            yield f"event: error\ndata: {json.dumps(error_data)}\n\n"

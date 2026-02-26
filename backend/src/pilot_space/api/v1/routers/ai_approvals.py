@@ -161,7 +161,7 @@ async def list_approvals(
                 status=ApprovalStatusSchema(r.status),
                 created_at=r.created_at,
                 expires_at=r.expires_at,
-                requested_by=r.user.name if r.user else "Unknown",
+                requested_by=(r.user.full_name or r.user.email) if r.user else "Unknown",
                 context_preview=_get_context_preview(r.payload),
             )
             for r in requests
@@ -221,7 +221,9 @@ async def get_approval(
         created_at=approval_request.created_at,
         expires_at=approval_request.expires_at,
         resolved_at=approval_request.resolved_at,
-        resolved_by=approval_request.resolver.name if approval_request.resolver else None,
+        resolved_by=(approval_request.resolver.full_name or approval_request.resolver.email)
+        if approval_request.resolver
+        else None,
         resolution_note=approval_request.resolution_note,
     )
 

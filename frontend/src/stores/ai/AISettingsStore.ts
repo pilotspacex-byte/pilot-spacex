@@ -29,23 +29,27 @@ export class AISettingsStore {
   }
 
   get anthropicKeySet(): boolean {
-    return this.settings?.anthropic_key_set ?? false;
+    return (
+      this.settings?.providers?.some((p) => p.provider === 'anthropic' && p.isConfigured) ?? false
+    );
   }
 
   get openaiKeySet(): boolean {
-    return this.settings?.openai_key_set ?? false;
+    return (
+      this.settings?.providers?.some((p) => p.provider === 'openai' && p.isConfigured) ?? false
+    );
   }
 
   get ghostTextEnabled(): boolean {
-    return this.settings?.ghost_text_enabled ?? false;
+    return this.settings?.features?.ghostTextEnabled ?? false;
   }
 
   get marginAnnotationsEnabled(): boolean {
-    return this.settings?.margin_annotations_enabled ?? false;
+    return this.settings?.features?.marginAnnotationsEnabled ?? false;
   }
 
   get aiContextEnabled(): boolean {
-    return this.settings?.ai_context_enabled ?? false;
+    return this.settings?.features?.aiContextEnabled ?? false;
   }
 
   async loadSettings(workspaceId: string): Promise<void> {

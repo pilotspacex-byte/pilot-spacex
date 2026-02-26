@@ -5,7 +5,7 @@ Data classes for GitHub API responses.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -67,6 +67,9 @@ class GitHubPullRequest:
     additions: int = 0
     deletions: int = 0
     changed_files: int = 0
+    draft: bool = False
+    labels: list[str] = field(default_factory=list)
+    requested_reviewers: list[str] = field(default_factory=list)
 
 
 @dataclass

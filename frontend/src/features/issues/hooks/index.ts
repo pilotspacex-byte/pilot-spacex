@@ -43,3 +43,7 @@ export { useIssuesList, issuesListKeys } from './use-issues-list';
 
 // Bulk update for multi-select actions
 export { useBulkUpdateIssues } from './use-bulk-update-issues';
+
+// Issue integration links (commits, PRs, branches)
+export { useIssueLinks, issueLinksKeys } from './use-issue-links';
+export type { UseIssueLinksResult } from './use-issue-links';

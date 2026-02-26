@@ -11,7 +11,7 @@ Supports both UUID and slug for workspace identification.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -54,10 +54,12 @@ router = APIRouter()
 
 
 class WorkspaceIssueResponse(BaseSchema):
-    """Issue response matching frontend Issue type."""
+    """Issue response matching frontend Issue type (StateBrief-compatible)."""
 
     id: UUID
+    workspace_id: UUID
     identifier: str
+    sequence_id: int
     name: str
     description: str | None = None
     state: StateBriefSchema
@@ -67,10 +69,10 @@ class WorkspaceIssueResponse(BaseSchema):
     assignee_id: UUID | None = None
     reporter_id: UUID
     labels: list[dict[str, Any]] = Field(default_factory=list)
-    due_date: str | None = None
-    estimated_hours: float | None = None
-    ai_generated: bool = False
-    source_note_id: UUID | None = None
+    target_date: str | None = None
+    estimate_hours: float | None = None
+    has_ai_enhancements: bool = False
+    sub_issue_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -80,17 +82,23 @@ class WorkspaceIssueCreateRequest(BaseSchema):
 
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
+    description_html: str | None = None
     project_id: UUID | None = None
-    state: str = Field(default="backlog")
+    state_id: UUID | None = None
     priority: str = Field(default="none")
     type: str = Field(default="task")
     assignee_id: UUID | None = None
-    labels: list[str] = Field(default_factory=list)
-    due_date: str | None = None
-    estimated_hours: float | None = None
-    source_note_id: UUID | None = None
+    label_ids: list[str] = Field(default_factory=list)
+    estimate_hours: float | None = None
+    estimate_points: int | None = None
+    start_date: date | None = None
+    target_date: date | None = None
+    cycle_id: UUID | None = None
+    parent_id: UUID | None = None
 
-    @field_validator("project_id", "assignee_id", "source_note_id", mode="before")
+    @field_validator(
+        "project_id", "assignee_id", "state_id", "cycle_id", "parent_id", mode="before"
+    )
     @classmethod
     def empty_string_to_none(cls, v: Any) -> Any:
         """Convert empty strings to None for optional UUID fields."""
@@ -179,20 +187,22 @@ def _issue_to_response(issue: Issue) -> WorkspaceIssueResponse:
     """Convert Issue model to WorkspaceIssueResponse schema."""
     return WorkspaceIssueResponse(
         id=issue.id,
+        workspace_id=issue.workspace_id,
         identifier=issue.identifier or f"ISSUE-{issue.sequence_id}",
+        sequence_id=issue.sequence_id or 0,
         name=issue.name,
         description=issue.description,
         state=StateBriefSchema.model_validate(issue.state),
         priority=issue.priority.value if issue.priority else "none",
-        type="task",  # Default type
+        type="task",
         project_id=issue.project_id,
         assignee_id=issue.assignee_id,
         reporter_id=issue.reporter_id,
-        labels=[],  # TODO: Add label relations
-        due_date=issue.target_date.isoformat() if issue.target_date else None,
-        estimated_hours=float(issue.estimate_hours) if issue.estimate_hours is not None else None,
-        ai_generated=issue.has_ai_enhancements,
-        source_note_id=None,
+        labels=[],
+        target_date=issue.target_date.isoformat() if issue.target_date else None,
+        estimate_hours=float(issue.estimate_hours) if issue.estimate_hours is not None else None,
+        has_ai_enhancements=issue.has_ai_enhancements,
+        sub_issue_count=0,
         created_at=issue.created_at,
         updated_at=issue.updated_at,
     )
@@ -367,11 +377,11 @@ async def create_workspace_issue(
     }
     priority = priority_map.get(issue_data.priority.lower(), IssuePriority.NONE)
 
-    # Convert label strings to UUIDs if provided
+    # Convert label_ids strings to UUIDs if provided
     label_uuids: list[UUID] = []
-    if issue_data.labels:
+    if issue_data.label_ids:
         try:
-            label_uuids = [UUID(label) for label in issue_data.labels]
+            label_uuids = [UUID(label) for label in issue_data.label_ids]
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -385,17 +395,17 @@ async def create_workspace_issue(
         reporter_id=current_user_id,
         name=issue_data.name,
         description=issue_data.description,
-        description_html=None,
+        description_html=issue_data.description_html,
         priority=priority,
-        state_id=None,  # Service will resolve default state
+        state_id=issue_data.state_id,
         assignee_id=issue_data.assignee_id,
-        cycle_id=None,
+        cycle_id=issue_data.cycle_id,
         module_id=None,
-        parent_id=None,
-        estimate_points=None,
-        estimate_hours=issue_data.estimated_hours,
-        start_date=None,
-        target_date=None,
+        parent_id=issue_data.parent_id,
+        estimate_points=issue_data.estimate_points,
+        estimate_hours=issue_data.estimate_hours,
+        start_date=issue_data.start_date,
+        target_date=issue_data.target_date,
         label_ids=label_uuids,
         ai_enhanced=False,
     )

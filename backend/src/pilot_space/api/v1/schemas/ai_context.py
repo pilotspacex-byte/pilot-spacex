@@ -10,6 +10,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pilot_space.api.v1.schemas.base import BaseSchema
+
 # Export format pattern — shared between schema validation and router Query()
 EXPORT_FORMAT_PATTERN = "^(markdown|json|implementation_plan)$"
 
@@ -278,15 +280,13 @@ class ConversationHistoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GeneratePlanResponse(BaseModel):
+class GeneratePlanResponse(BaseSchema):
     """Response from implementation plan generation."""
 
     context_id: str
     issue_id: str
     subagent_count: int
     generated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 __all__ = [

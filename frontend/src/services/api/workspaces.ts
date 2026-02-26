@@ -28,19 +28,15 @@ interface WorkspaceResponse {
   updated_at: string;
 }
 
+/** Flat response from GET /workspaces/{id}/members — camelCase because backend uses BaseSchema. */
 interface WorkspaceMemberResponse {
-  user_id: string;
-  workspace_id: string;
+  userId: string;
+  email: string;
+  fullName: string | null;
+  avatarUrl: string | null;
   role: WorkspaceRole;
-  created_at: string;
-  /** T-246: Weekly capacity in hours (default 40) */
+  joinedAt: string;
   weeklyAvailableHours?: number;
-  user?: {
-    id: string;
-    email: string;
-    name: string | null;
-    avatar_url: string | null;
-  };
 }
 
 interface PaginatedWorkspaceResponse {
@@ -73,17 +69,17 @@ function transformWorkspace(response: WorkspaceResponse): Workspace {
  */
 function transformWorkspaceMember(response: WorkspaceMemberResponse): WorkspaceMember {
   return {
-    id: `${response.workspace_id}-${response.user_id}`,
-    userId: response.user_id,
-    workspaceId: response.workspace_id,
+    id: response.userId,
+    userId: response.userId,
+    workspaceId: '',
     role: response.role,
-    joinedAt: response.created_at,
+    joinedAt: response.joinedAt,
     weeklyAvailableHours: response.weeklyAvailableHours ?? 40,
     user: {
-      id: response.user?.id ?? response.user_id,
-      email: response.user?.email ?? '',
-      name: response.user?.name ?? 'Unknown',
-      avatarUrl: response.user?.avatar_url ?? undefined,
+      id: response.userId,
+      email: response.email,
+      name: response.fullName ?? 'Unknown',
+      avatarUrl: response.avatarUrl ?? undefined,
     },
   };
 }

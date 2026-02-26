@@ -37,6 +37,7 @@ import { LinkedPRsList } from '@/features/issues/components/linked-prs-list';
 import { SourceNotesList } from '@/features/issues/components/source-notes-list';
 import { EffortField } from '@/features/issues/components/effort-field';
 import { FieldSaveIndicator } from '@/features/issues/components/field-save-indicator';
+import { BranchSuggestion } from '@/components/integrations/BranchSuggestion';
 
 // ---------------------------------------------------------------------------
 // State group -> IssueState mapping
@@ -175,7 +176,7 @@ function DatePickerField({
 
 export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
   issue,
-  workspaceId: _workspaceId,
+  workspaceId,
   workspaceSlug,
   members,
   labels,
@@ -434,6 +435,14 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
         </h3>
 
         <LinkedPRsList links={integrationLinks} />
+        {workspaceId && issue.id && (
+          <BranchSuggestion
+            workspaceId={workspaceId}
+            issueId={issue.id}
+            issueIdentifier={issue.identifier}
+            compact
+          />
+        )}
         <SourceNotesList links={noteLinks} workspaceSlug={workspaceSlug} />
       </section>
     </aside>

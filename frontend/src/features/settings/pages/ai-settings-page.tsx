@@ -84,24 +84,25 @@ export const AISettingsPage = observer(function AISettingsPage() {
               provider="anthropic"
               isKeySet={settings.anthropicKeySet}
               lastValidated={
-                settings.settings?.provider_status?.find((p) => p.provider === 'anthropic')
-                  ?.last_validated_at
+                settings.settings?.providers?.find((p) => p.provider === 'anthropic')
+                  ?.lastValidatedAt
               }
               status={
-                settings.settings?.provider_status?.find((p) => p.provider === 'anthropic')
-                  ?.status ?? 'unknown'
+                settings.settings?.providers?.find((p) => p.provider === 'anthropic')?.isValid
+                  ? 'connected'
+                  : 'unknown'
               }
             />
             <ProviderStatusCard
               provider="openai"
               isKeySet={settings.openaiKeySet}
               lastValidated={
-                settings.settings?.provider_status?.find((p) => p.provider === 'openai')
-                  ?.last_validated_at
+                settings.settings?.providers?.find((p) => p.provider === 'openai')?.lastValidatedAt
               }
               status={
-                settings.settings?.provider_status?.find((p) => p.provider === 'openai')?.status ??
-                'unknown'
+                settings.settings?.providers?.find((p) => p.provider === 'openai')?.isValid
+                  ? 'connected'
+                  : 'unknown'
               }
             />
           </div>

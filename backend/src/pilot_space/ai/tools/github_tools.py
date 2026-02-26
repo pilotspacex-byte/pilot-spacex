@@ -17,9 +17,15 @@ from uuid import UUID
 from sqlalchemy import select
 
 from pilot_space.ai.tools.mcp_server import ToolContext, register_tool
+from pilot_space.infrastructure.encryption import decrypt_api_key
+from pilot_space.infrastructure.logging import get_logger
+from pilot_space.integrations.github import GitHubClient
+from pilot_space.integrations.github.exceptions import GitHubAPIError
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.integration import Integration
+
+logger = get_logger(__name__)
 
 
 async def _get_github_integration(
@@ -112,11 +118,7 @@ async def get_pr_details(
     """Get pull request details from GitHub.
 
     Retrieves PR metadata including title, description,
-    author, reviewers, and CI status.
-
-    This tool currently returns a placeholder response indicating
-    the integration connection status. Full GitHub API integration
-    is pending - use gh CLI or direct API calls for actual PR data.
+    author, reviewers, labels, and merge status.
 
     Args:
         pr_number: PR number in the repository (must be positive)
@@ -125,24 +127,9 @@ async def get_pr_details(
 
     Returns:
         Dictionary with:
-        - found (bool): Whether integration was found
-        - pr (dict): PR metadata (placeholder in MVP)
+        - found (bool): Whether the PR was retrieved successfully
+        - pr (dict): Full PR metadata
         - error (str): Error message if found=False
-        - note (str): Implementation status note
-
-    Example:
-        >>> await get_pr_details(
-        ...     pr_number=123, ctx=ToolContext(db_session=session, workspace_id=ws_id)
-        ... )
-        {
-            "found": True,
-            "pr": {
-                "number": 123,
-                "repository": "octocat/hello-world",
-                "integration_id": "uuid-here"
-            },
-            "note": "GitHub API integration pending..."
-        }
     """
     if pr_number <= 0:
         return {
@@ -155,49 +142,55 @@ async def get_pr_details(
     if error:
         return {"error": error, "found": False}
 
-    assert integration is not None  # Type narrowing after error check
+    if integration is None:
+        return {"error": "Integration not found", "found": False}
 
     repo_owner, repo_name, repo_error = _extract_repo_info(integration)
 
     if repo_error:
         return {"error": repo_error, "found": False}
 
-    assert repo_owner is not None
-    assert repo_name is not None
+    if repo_owner is None or repo_name is None:
+        return {
+            "error": "Could not determine repository owner/name from integration settings",
+            "found": False,
+        }
 
-    # Note: Actual GitHub API call would go here
-    # Example implementation:
-    # from github import Github
-    # gh = Github(integration.access_token)
-    # repo = gh.get_repo(f"{repo_owner}/{repo_name}")
-    # pr = repo.get_pull(pr_number)
-    # return {
-    #     "found": True,
-    #     "pr": {
-    #         "number": pr.number,
-    #         "title": pr.title,
-    #         "body": pr.body,
-    #         "state": pr.state,
-    #         "author": pr.user.login,
-    #         "created_at": pr.created_at.isoformat(),
-    #         "updated_at": pr.updated_at.isoformat(),
-    #         "mergeable": pr.mergeable,
-    #         "merged": pr.merged,
-    #         "draft": pr.draft,
-    #     }
-    # }
+    try:
+        access_token = decrypt_api_key(integration.access_token)
+    except Exception:
+        logger.exception("Failed to decrypt GitHub access token for integration %s", integration.id)
+        return {"found": False, "error": "Failed to decrypt access token"}
 
-    # For MVP, return placeholder showing integration is connected
-    return {
-        "found": True,
-        "pr": {
-            "number": pr_number,
-            "repository": f"{repo_owner}/{repo_name}",
-            "integration_id": str(integration.id),
-            "settings_available": bool(integration.settings),
-        },
-        "note": "GitHub API integration pending - use gh CLI or direct API for PR details",
-    }
+    async with GitHubClient(access_token) as client:
+        try:
+            pr = await client.get_pull_request(repo_owner, repo_name, pr_number)
+            return {
+                "found": True,
+                "pr": {
+                    "number": pr.number,
+                    "title": pr.title,
+                    "body": pr.body,
+                    "state": pr.state,
+                    "html_url": pr.html_url,
+                    "merged": pr.merged,
+                    "draft": pr.draft,
+                    "user": {
+                        "login": pr.author_login,
+                        "avatar_url": pr.author_avatar_url,
+                    },
+                    "base": pr.base_branch,
+                    "head": pr.head_branch,
+                    "additions": pr.additions,
+                    "deletions": pr.deletions,
+                    "changed_files": pr.changed_files,
+                    "merged_at": pr.merged_at.isoformat() if pr.merged_at else None,
+                    "labels": pr.labels,
+                    "requested_reviewers": pr.requested_reviewers,
+                },
+            }
+        except GitHubAPIError as e:
+            return {"error": str(e), "found": False}
 
 
 @register_tool("github")
@@ -211,10 +204,6 @@ async def get_pr_diff(
     Retrieves the complete diff for code review analysis.
     Returns file-by-file changes with additions/deletions.
 
-    This tool currently returns a placeholder response indicating
-    the integration connection status. Full GitHub API integration
-    is pending - use gh CLI or direct API calls for actual diffs.
-
     Args:
         pr_number: PR number in the repository (must be positive)
         ctx: Tool context with db_session and workspace_id
@@ -222,28 +211,10 @@ async def get_pr_diff(
 
     Returns:
         Dictionary with:
-        - found (bool): Whether integration was found
-        - pr_number (int): The requested PR number
-        - repository (str): Repository in "owner/repo" format
-        - diff (str | None): Unified diff content (None in MVP)
-        - files (list): List of changed files (empty in MVP)
-        - stats (dict): Change statistics (zeros in MVP)
+        - found (bool): Whether files were retrieved successfully
+        - files (list): List of changed file dictionaries
+        - stats (dict): Aggregate change statistics
         - error (str): Error message if found=False
-        - note (str): Implementation status note
-
-    Example:
-        >>> await get_pr_diff(
-        ...     pr_number=123, ctx=ToolContext(db_session=session, workspace_id=ws_id)
-        ... )
-        {
-            "found": True,
-            "pr_number": 123,
-            "repository": "octocat/hello-world",
-            "diff": None,
-            "files": [],
-            "stats": {"additions": 0, "deletions": 0, "changed_files": 0},
-            "note": "GitHub API integration pending..."
-        }
     """
     if pr_number <= 0:
         return {
@@ -256,66 +227,54 @@ async def get_pr_diff(
     if error:
         return {"error": error, "found": False}
 
-    assert integration is not None
+    if integration is None:
+        return {"error": "Integration not found", "found": False}
 
     repo_owner, repo_name, repo_error = _extract_repo_info(integration)
 
     if repo_error:
         return {"error": repo_error, "found": False}
 
-    assert repo_owner is not None
-    assert repo_name is not None
+    if repo_owner is None or repo_name is None:
+        return {
+            "error": "Could not determine repository owner/name from integration settings",
+            "found": False,
+        }
 
-    # Note: Actual GitHub API call for diff would go here
-    # Example implementation:
-    # from github import Github
-    # gh = Github(integration.access_token)
-    # repo = gh.get_repo(f"{repo_owner}/{repo_name}")
-    # pr = repo.get_pull(pr_number)
-    #
-    # files = []
-    # total_additions = 0
-    # total_deletions = 0
-    #
-    # for file in pr.get_files():
-    #     files.append({
-    #         "filename": file.filename,
-    #         "status": file.status,
-    #         "additions": file.additions,
-    #         "deletions": file.deletions,
-    #         "changes": file.changes,
-    #         "patch": file.patch,
-    #     })
-    #     total_additions += file.additions
-    #     total_deletions += file.deletions
-    #
-    # return {
-    #     "found": True,
-    #     "pr_number": pr_number,
-    #     "repository": f"{repo_owner}/{repo_name}",
-    #     "diff": "\n".join(f["patch"] for f in files if f.get("patch")),
-    #     "files": files,
-    #     "stats": {
-    #         "additions": total_additions,
-    #         "deletions": total_deletions,
-    #         "changed_files": len(files),
-    #     },
-    # }
+    try:
+        access_token = decrypt_api_key(integration.access_token)
+    except Exception:
+        logger.exception("Failed to decrypt GitHub access token for integration %s", integration.id)
+        return {"found": False, "error": "Failed to decrypt access token"}
 
-    # For MVP, return placeholder
-    return {
-        "found": True,
-        "pr_number": pr_number,
-        "repository": f"{repo_owner}/{repo_name}",
-        "diff": None,
-        "files": [],
-        "stats": {
-            "additions": 0,
-            "deletions": 0,
-            "changed_files": 0,
-        },
-        "note": "GitHub API integration pending - use gh CLI for diffs (e.g., gh pr diff 123)",
-    }
+    async with GitHubClient(access_token) as client:
+        try:
+            pr = await client.get_pull_request(repo_owner, repo_name, pr_number)
+            files = await client.get_pull_request_files(repo_owner, repo_name, pr_number)
+
+            file_dicts = [
+                {
+                    "filename": f.get("filename"),
+                    "status": f.get("status"),
+                    "additions": f.get("additions", 0),
+                    "deletions": f.get("deletions", 0),
+                    "changes": f.get("changes", 0),
+                    "patch": f.get("patch"),
+                }
+                for f in files
+            ]
+
+            return {
+                "found": True,
+                "files": file_dicts,
+                "stats": {
+                    "additions": pr.additions,
+                    "deletions": pr.deletions,
+                    "changed_files": pr.changed_files,
+                },
+            }
+        except GitHubAPIError as e:
+            return {"error": str(e), "found": False}
 
 
 @register_tool("github")
@@ -331,10 +290,6 @@ async def search_code_in_repo(
     Uses GitHub code search API for real-time search.
     Requires GitHub integration with appropriate permissions.
 
-    This tool currently returns a placeholder response indicating
-    the integration connection status. Full GitHub API integration
-    is pending - use gh CLI or GitHub web interface for actual searches.
-
     Args:
         query: Search query string (required, non-empty)
         ctx: Tool context with db_session and workspace_id
@@ -347,23 +302,9 @@ async def search_code_in_repo(
         - found (bool): Whether integration was found
         - query (str): Full constructed GitHub search query
         - repository (str): Repository in "owner/repo" format
-        - matches (list): List of matching code snippets (empty in MVP)
+        - matches (list): List of matching code snippets (empty — not implemented)
+        - note (str): Explanation of limitation
         - error (str): Error message if found=False
-        - note (str): Implementation status note
-
-    Example:
-        >>> await search_code_in_repo(
-        ...     query="async def",
-        ...     ctx=ToolContext(db_session=session, workspace_id=ws_id),
-        ...     extension="py",
-        ... )
-        {
-            "found": True,
-            "query": "async def repo:octocat/hello-world extension:py",
-            "repository": "octocat/hello-world",
-            "matches": [],
-            "note": "GitHub code search API integration pending"
-        }
     """
     if not query or not query.strip():
         return {
@@ -377,15 +318,20 @@ async def search_code_in_repo(
     if error:
         return {"error": error, "found": False, "matches": []}
 
-    assert integration is not None
+    if integration is None:
+        return {"error": "Integration not found", "found": False, "matches": []}
 
     repo_owner, repo_name, repo_error = _extract_repo_info(integration)
 
     if repo_error:
         return {"error": repo_error, "found": False, "matches": []}
 
-    assert repo_owner is not None
-    assert repo_name is not None
+    if repo_owner is None or repo_name is None:
+        return {
+            "error": "Could not determine repository owner/name from integration settings",
+            "found": False,
+            "matches": [],
+        }
 
     # Build search query for GitHub
     search_parts = [query.strip(), f"repo:{repo_owner}/{repo_name}"]
@@ -404,39 +350,16 @@ async def search_code_in_repo(
 
     full_query = " ".join(search_parts)
 
-    # Note: Actual GitHub code search API call would go here
-    # Example implementation:
-    # from github import Github
-    # gh = Github(integration.access_token)
-    # results = gh.search_code(full_query)
-    #
-    # matches = []
-    # for item in results[:50]:  # Limit to first 50 results
-    #     matches.append({
-    #         "path": item.path,
-    #         "repository": item.repository.full_name,
-    #         "sha": item.sha,
-    #         "url": item.html_url,
-    #         "score": item.score,
-    #         # Note: GitHub API doesn't return content in search results
-    #         # Would need separate API call to get file content
-    #     })
-    #
-    # return {
-    #     "found": True,
-    #     "query": full_query,
-    #     "repository": f"{repo_owner}/{repo_name}",
-    #     "matches": matches,
-    #     "total_count": results.totalCount,
-    # }
-
-    # For MVP, return placeholder
     return {
         "found": True,
         "query": full_query,
         "repository": f"{repo_owner}/{repo_name}",
         "matches": [],
-        "note": "GitHub code search API integration pending - use gh CLI (e.g., gh search code 'query')",
+        "note": (
+            "Code search via GitHub API not yet supported. "
+            "Use get_pr_diff to inspect changed files in a PR, "
+            "or request specific file content via the note tools."
+        ),
     }
 
 
@@ -465,90 +388,63 @@ async def post_pr_comment(
     Returns:
         Dictionary with:
         - posted (bool): Whether comment was posted
-        - pr_number (int): PR number
-        - repository (str): Repository in "owner/repo" format
-        - comment_type (str): "general_comment" or "line_comment"
-        - body_preview (str): Preview of comment body
-        - path (str | None): File path if line comment
-        - line (int | None): Line number if line comment
+        - comment_id (int): ID of created comment
+        - url (str): URL of created comment
+        - type (str): "general_comment" or "line_comment"
         - error (str): Error message if posted=False
-        - note (str): Implementation status note
     """
+    input_error: str | None = None
     if pr_number <= 0:
-        return {
-            "error": f"Invalid PR number: {pr_number} (must be positive)",
-            "posted": False,
-        }
+        input_error = f"Invalid PR number: {pr_number} (must be positive)"
+    elif not body or not body.strip():
+        input_error = "Comment body cannot be empty"
+    elif line is not None and not path:
+        input_error = "Line comment requires both path and line parameters"
 
-    if not body or not body.strip():
-        return {
-            "error": "Comment body cannot be empty",
-            "posted": False,
-        }
-
-    if line is not None and not path:
-        return {
-            "error": "Line comment requires both path and line parameters",
-            "posted": False,
-        }
+    if input_error:
+        return {"error": input_error, "posted": False}
 
     integration, error = await _get_github_integration(ctx, integration_id)
 
     if error:
         return {"error": error, "posted": False}
 
-    assert integration is not None
+    if integration is None:
+        return {"error": "Integration not found", "posted": False}
 
     repo_owner, repo_name, repo_error = _extract_repo_info(integration)
 
     if repo_error:
         return {"error": repo_error, "posted": False}
 
-    assert repo_owner is not None
-    assert repo_name is not None
+    if repo_owner is None or repo_name is None:
+        return {
+            "error": "Could not determine repository owner/name from integration settings",
+            "posted": False,
+        }
+
+    try:
+        access_token = decrypt_api_key(integration.access_token)
+    except Exception:
+        logger.exception("Failed to decrypt GitHub access token for integration %s", integration.id)
+        return {"posted": False, "error": "Failed to decrypt access token"}
 
     comment_type = "line_comment" if path and line else "general_comment"
 
-    # Note: Actual GitHub API call would post the comment
-    # Example implementation:
-    # from github import Github
-    # gh = Github(integration.access_token)
-    # repo = gh.get_repo(f"{repo_owner}/{repo_name}")
-    # pr = repo.get_pull(pr_number)
-    #
-    # if comment_type == "line_comment":
-    #     # Post review comment on specific line
-    #     commit = pr.get_commits()[pr.commits - 1]  # Latest commit
-    #     pr.create_review_comment(
-    #         body=body,
-    #         commit=commit,
-    #         path=path,
-    #         line=line,
-    #     )
-    # else:
-    #     # Post general PR comment
-    #     pr.create_issue_comment(body)
-    #
-    # return {
-    #     "posted": True,
-    #     "pr_number": pr_number,
-    #     "repository": f"{repo_owner}/{repo_name}",
-    #     "comment_type": comment_type,
-    #     "body_preview": body[:200],
-    #     "path": path,
-    #     "line": line,
-    #     "comment_id": comment.id,
-    #     "url": comment.html_url,
-    # }
+    async with GitHubClient(access_token) as client:
+        try:
+            if comment_type == "line_comment" and path is not None and line is not None:
+                comment = await client.post_review_comment(
+                    repo_owner, repo_name, pr_number, path, line, body
+                )
+            else:
+                comment = await client.post_comment(repo_owner, repo_name, pr_number, body)
 
-    # For MVP, return placeholder
-    return {
-        "posted": False,  # Would be True after actual API call
-        "pr_number": pr_number,
-        "repository": f"{repo_owner}/{repo_name}",
-        "comment_type": comment_type,
-        "body_preview": body[:200] if len(body) > 200 else body,
-        "path": path,
-        "line": line,
-        "note": "GitHub API integration pending - comment not actually posted. Use gh CLI (e.g., gh pr comment 123 --body 'text')",
-    }
+            return {
+                "posted": True,
+                "comment_id": comment["id"],
+                "url": comment["html_url"],
+                "type": comment_type,
+            }
+        except GitHubAPIError as e:
+            return {"posted": False, "error": str(e)}

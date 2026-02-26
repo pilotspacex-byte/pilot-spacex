@@ -75,15 +75,11 @@ export function useInfiniteNotes({
 }: UseNotesOptions) {
   return useInfiniteQuery({
     queryKey: [...notesKeys.list(workspaceId, { projectId, isPinned }), 'infinite'],
-    queryFn: ({ pageParam = 1 }) =>
+    queryFn: ({ pageParam }) =>
       notesApi.list(workspaceId, { projectId, isPinned, authorId }, pageParam, pageSize),
     initialPageParam: 1,
-    getNextPageParam: (lastPage) => {
-      if (lastPage.hasMore) {
-        return lastPage.page + 1;
-      }
-      return undefined;
-    },
+    getNextPageParam: (lastPage, _pages, lastPageParam) =>
+      lastPage.hasNext ? lastPageParam + 1 : undefined,
     enabled: enabled && !!workspaceId,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,

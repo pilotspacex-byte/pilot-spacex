@@ -196,6 +196,7 @@ class ProcessGitHubWebhookService:
         repository = payload.get("repository", {}).get("full_name", "")
 
         if not installation_id and not repository:
+            result.processed = False
             result.error = "No installation or repository info"
             return
 
@@ -213,6 +214,7 @@ class ProcessGitHubWebhookService:
         if not integrations:
             # Try by account name
             logger.warning(f"No integrations found for {installation_id or repo_owner}")
+            result.processed = False
             result.error = "No matching integration found"
             return
 
@@ -220,7 +222,8 @@ class ProcessGitHubWebhookService:
         push = self._webhook_handler.parse_push_event(payload)
 
         if push.is_branch_delete:
-            # Skip branch deletions
+            result.processed = False
+            result.error = "Branch deletion events are not processed"
             return
 
         # Process for each workspace
@@ -262,6 +265,7 @@ class ProcessGitHubWebhookService:
         )
 
         if not integrations:
+            result.processed = False
             result.error = "No matching integration found"
             return
 

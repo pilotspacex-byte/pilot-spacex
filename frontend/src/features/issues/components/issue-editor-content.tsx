@@ -29,6 +29,8 @@ import {
   IssueSectionDivider,
 } from '@/features/issues/components';
 import { IssueDescriptionEmptyState } from './issue-description-empty-state';
+import { GitHubSection } from './github-section';
+import { useIssueLinks } from '@/features/issues/hooks';
 import { createIssueNoteExtensions } from '@/features/issues/editor/create-issue-note-extensions';
 import type { Issue, UpdateIssueData } from '@/types';
 
@@ -65,6 +67,9 @@ export function IssueEditorContent({
 }: IssueEditorContentProps) {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedHtmlRef = useRef(issue.descriptionHtml ?? '');
+
+  // -- GitHub integration links --
+  const { pullRequests, commits, isLoading: linksLoading } = useIssueLinks(workspaceId, issueId);
 
   // -- TipTap Editor --
   const extensions = useMemo(
@@ -219,6 +224,8 @@ export function IssueEditorContent({
                 />
               </>
             )}
+
+            <GitHubSection pullRequests={pullRequests} commits={commits} isLoading={linksLoading} />
 
             <CollapsibleSection title="Activity" icon={<MessageSquare className="size-3.5" />}>
               <ActivityTimeline issueId={issueId} workspaceId={workspaceId} />

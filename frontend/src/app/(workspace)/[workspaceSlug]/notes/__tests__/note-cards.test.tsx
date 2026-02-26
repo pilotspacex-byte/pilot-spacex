@@ -156,13 +156,29 @@ function makeProject(overrides: Partial<Project> = {}): Project {
 
 async function renderNotesPage(notes: Note[], projects: Project[] = []) {
   (useQuery as Mock).mockReturnValue({
-    data: { items: projects, total: projects.length, page: 1, hasMore: false },
+    data: {
+      items: projects,
+      total: projects.length,
+      nextCursor: null,
+      prevCursor: null,
+      hasNext: false,
+      hasPrev: false,
+    },
     isLoading: false,
   });
 
   mockUseInfiniteNotes.mockReturnValue({
     data: {
-      pages: [{ items: notes, total: notes.length, page: 1, hasMore: false }],
+      pages: [
+        {
+          items: notes,
+          total: notes.length,
+          nextCursor: null,
+          prevCursor: null,
+          hasNext: false,
+          hasPrev: false,
+        },
+      ],
     },
     isLoading: false,
     isFetchingNextPage: false,

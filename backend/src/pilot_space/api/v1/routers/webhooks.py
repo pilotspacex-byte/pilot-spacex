@@ -10,11 +10,22 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Request, status
 
 from pilot_space.api.v1.schemas.integration import WebhookProcessResult
+from pilot_space.application.services.integration import (
+    ProcessGitHubWebhookService,
+    ProcessWebhookPayload,
+)
 from pilot_space.config import get_settings
+from pilot_space.dependencies import DbSession
+from pilot_space.infrastructure.database.repositories import (
+    ActivityRepository,
+    IntegrationLinkRepository,
+    IntegrationRepository,
+    IssueRepository,
+)
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.integrations.github import (
+    GitHubSyncService,
     GitHubWebhookHandler,
-    WebhookProcessingError,
     WebhookVerificationError,
 )
 
@@ -30,6 +41,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 )
 async def receive_github_webhook(
     request: Request,
+    session: DbSession,
     x_github_event: str = Header(..., alias="X-GitHub-Event"),
     x_github_delivery: str = Header(..., alias="X-GitHub-Delivery"),
     x_hub_signature_256: str = Header(..., alias="X-Hub-Signature-256"),
@@ -77,54 +89,46 @@ async def receive_github_webhook(
             detail="Invalid JSON payload",
         ) from e
 
-    # Parse event
-    try:
-        webhook = handler.parse_event(
-            event_type=x_github_event,
-            delivery_id=x_github_delivery,
-            payload=payload,
-        )
-    except WebhookProcessingError as e:
-        logger.info(f"Unsupported webhook event: {e}")
-        return WebhookProcessResult(
-            processed=False,
-            event_type=x_github_event,
-            error=str(e),
-        )
+    # Construct repositories and services inline (per-request, no shared state)
+    integration_link_repo = IntegrationLinkRepository(session)
+    issue_repo = IssueRepository(session)
 
-    # Check for duplicate
-    if handler.is_duplicate(x_github_delivery):
-        logger.info(
-            "Duplicate webhook delivery",
-            extra={"delivery_id": x_github_delivery},
-        )
-        return WebhookProcessResult(
-            processed=False,
-            event_type=x_github_event,
-            error="Duplicate delivery",
-        )
-
-    logger.info(
-        "Received GitHub webhook",
-        extra={
-            "event_type": webhook.event_type.value,
-            "action": webhook.action,
-            "delivery_id": webhook.delivery_id,
-            "repository": webhook.repository,
-        },
+    sync_service = GitHubSyncService(
+        session=session,
+        integration_link_repo=integration_link_repo,
+        issue_repo=issue_repo,
     )
 
-    # For now, acknowledge receipt and enqueue for async processing
-    # In a production setup, this would use Supabase Queue
-    # TODO: Integrate with ProcessGitHubWebhookService via queue
+    service = ProcessGitHubWebhookService(
+        session=session,
+        integration_repo=IntegrationRepository(session),
+        integration_link_repo=integration_link_repo,
+        issue_repo=issue_repo,
+        activity_repo=ActivityRepository(session),
+        webhook_handler=handler,
+        sync_service=sync_service,
+    )
 
-    # Mark as processed
-    handler.mark_processed(x_github_delivery)
+    result = await service.execute(
+        ProcessWebhookPayload(
+            event_type=x_github_event,
+            delivery_id=x_github_delivery,
+            signature=x_hub_signature_256,
+            payload=payload,
+        )
+    )
+
+    if result.processed:
+        await session.commit()
 
     return WebhookProcessResult(
-        processed=True,
-        event_type=webhook.event_type.value,
-        action=webhook.action,
+        processed=result.processed,
+        event_type=result.event_type or x_github_event,
+        action=result.action,
+        links_created=result.links_created,
+        issues_affected=result.issues_affected,
+        auto_transitioned=result.auto_transitioned,
+        error=result.error,
     )
 
 
