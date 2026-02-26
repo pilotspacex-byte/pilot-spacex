@@ -15,9 +15,11 @@ from pilot_space.api.middleware.request_context import RequestContextMiddleware
 from pilot_space.api.v1.routers import (
     ai_annotations_router,
     ai_approvals_router,
+    ai_attachments_router,
     ai_chat_router,
     ai_configuration_router,
     ai_costs_router,
+    ai_drive_router,
     ai_extraction_router,
     ai_pr_review_router,
     ai_router,
@@ -231,6 +233,8 @@ app.include_router(cycles_router, prefix=API_V1_PREFIX)
 app.include_router(ai_router, prefix=API_V1_PREFIX)
 app.include_router(ai_annotations_router, prefix=API_V1_PREFIX)
 app.include_router(ai_approvals_router, prefix=f"{API_V1_PREFIX}/ai")
+app.include_router(ai_attachments_router, prefix=f"{API_V1_PREFIX}/ai")
+app.include_router(ai_drive_router, prefix=f"{API_V1_PREFIX}/ai")
 app.include_router(ai_chat_router, prefix=f"{API_V1_PREFIX}/ai")
 app.include_router(ai_configuration_router, prefix=API_V1_PREFIX)
 app.include_router(ai_costs_router, prefix=f"{API_V1_PREFIX}/ai")

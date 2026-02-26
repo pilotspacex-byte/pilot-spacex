@@ -4,6 +4,7 @@
  *
  * @module stores/ai/types/conversation
  */
+import type { AttachmentMetadata } from '@/types/attachments';
 
 /**
  * Message role in conversation.
@@ -149,6 +150,8 @@ export interface MessageMetadata {
   costUsd?: number;
   /** Whether this message is an answer to an agent question (hides protocol text) */
   isAnswerMessage?: boolean;
+  /** Files attached to this message (persisted in message metadata for history) */
+  attachments?: AttachmentMetadata[];
 }
 
 /**

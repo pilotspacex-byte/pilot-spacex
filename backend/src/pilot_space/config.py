@@ -171,6 +171,20 @@ class Settings(BaseSettings):
         description="GitHub OAuth callback URL",
     )
 
+    # Google OAuth Integration (Drive)
+    google_client_id: str = Field(
+        default="",
+        description="Google OAuth Client ID for Drive integration",
+    )
+    google_client_secret: SecretStr = Field(
+        default=SecretStr(""),
+        description="Google OAuth Client Secret for Drive integration",
+    )
+    frontend_url: str = Field(
+        default="http://localhost:3000",
+        description="Frontend base URL for OAuth callback construction",
+    )
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str | list[str]) -> list[str]:

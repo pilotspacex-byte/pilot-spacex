@@ -65,6 +65,7 @@ export {
   type UpdateTemplateData,
 } from './templates';
 export { noteYjsStateApi } from './note-yjs-state';
+export { attachmentsApi } from './attachments';
 export {
   roleSkillsApi,
   type SDLCRoleType,

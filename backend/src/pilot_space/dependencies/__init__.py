@@ -70,7 +70,11 @@ from pilot_space.dependencies.auth import (
 
 # Re-export service dependencies
 from pilot_space.dependencies.services import (
+    AttachmentUploadServiceDep,
+    ChatAttachmentRepositoryDep,
     get_activity_service,
+    get_attachment_upload_service,
+    get_chat_attachment_repository,
     get_create_issue_service,
     get_get_issue_service,
     get_list_issues_service,
@@ -88,6 +92,8 @@ get_db_session = get_db_session_dep
 
 __all__ = [
     "ApprovalServiceDep",
+    "AttachmentUploadServiceDep",
+    "ChatAttachmentRepositoryDep",
     "CostTrackerDep",
     "CurrentUser",
     "CurrentUserId",
@@ -113,7 +119,9 @@ __all__ = [
     "get_ai_config_or_demo",
     "get_ai_context_service",
     "get_approval_service_dep",
+    "get_attachment_upload_service",
     "get_auth",
+    "get_chat_attachment_repository",
     "get_cost_tracker_dep",
     "get_create_issue_service",
     "get_current_user",

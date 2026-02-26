@@ -55,7 +55,11 @@ export class PilotSpaceActions {
    * @param content - User message content
    * @param metadata - Optional message metadata (skill invocation, agent mention)
    */
-  async sendMessage(content: string, metadata?: Partial<MessageMetadata>): Promise<void> {
+  async sendMessage(
+    content: string,
+    metadata?: Partial<MessageMetadata>,
+    attachmentIds?: string[]
+  ): Promise<void> {
     // Enrich metadata with active skill/agent context
     const enrichedMetadata: Partial<MessageMetadata> = { ...metadata };
     if (this.store.activeSkill) {
@@ -105,7 +109,10 @@ export class PilotSpaceActions {
         },
         body: JSON.stringify({
           message: content,
-          context: this.store.conversationContext,
+          context: {
+            ...this.store.conversationContext,
+            attachment_ids: attachmentIds ?? [],
+          },
           session_id: this.store.sessionId,
           fork_session_id: this.store.forkSessionId,
           metadata: enrichedMetadata,

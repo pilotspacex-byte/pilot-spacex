@@ -636,9 +636,14 @@ export class PilotSpaceStore {
    *
    * @param content - User message content
    * @param metadata - Optional message metadata (skill invocation, agent mention)
+   * @param attachmentIds - Optional server-assigned attachment IDs to include in context
    */
-  async sendMessage(content: string, metadata?: Partial<MessageMetadata>): Promise<void> {
-    return this.actions.sendMessage(content, metadata);
+  async sendMessage(
+    content: string,
+    metadata?: Partial<MessageMetadata>,
+    attachmentIds?: string[]
+  ): Promise<void> {
+    return this.actions.sendMessage(content, metadata, attachmentIds);
   }
 
   /**

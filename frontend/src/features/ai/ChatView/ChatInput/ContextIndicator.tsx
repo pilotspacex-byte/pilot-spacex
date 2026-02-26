@@ -10,6 +10,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { FileText, ListTodo, FolderOpen, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NoteContext, IssueContext, ProjectContext } from '../types';
+import type { AttachmentContext } from '@/types/attachments';
+import { AttachmentPill } from './AttachmentPill';
 
 interface ContextIndicatorProps {
   noteContext?: NoteContext | null;
@@ -18,6 +20,8 @@ interface ContextIndicatorProps {
   onClearNoteContext?: () => void;
   onClearIssueContext?: () => void;
   onClearProjectContext?: () => void;
+  attachments?: AttachmentContext[];
+  onRemoveAttachment?: (id: string) => void;
   className?: string;
 }
 
@@ -29,18 +33,24 @@ export const ContextIndicator = memo<ContextIndicatorProps>(
     onClearNoteContext,
     onClearIssueContext,
     onClearProjectContext,
+    attachments,
+    onRemoveAttachment,
     className,
   }) => {
-    const hasContext = noteContext || issueContext || projectContext;
+    const hasStructuredContext = noteContext || issueContext || projectContext;
+    const hasAttachments = (attachments?.length ?? 0) > 0;
+    const hasContext = hasStructuredContext || hasAttachments;
 
     if (!hasContext) return null;
+
+    const label = hasStructuredContext ? 'Context:' : 'Attachments:';
 
     return (
       <div
         data-testid="context-indicator"
         className={cn('flex flex-wrap items-center gap-2', className)}
       >
-        <span className="text-xs text-muted-foreground">Context:</span>
+        <span className="text-xs text-muted-foreground">{label}</span>
 
         {noteContext && (
           <Tooltip>
@@ -114,6 +124,14 @@ export const ContextIndicator = memo<ContextIndicatorProps>(
             )}
           </Badge>
         )}
+
+        {attachments?.map((att) => (
+          <AttachmentPill
+            key={att.id}
+            attachment={att}
+            onRemove={() => onRemoveAttachment?.(att.id)}
+          />
+        ))}
       </div>
     );
   }

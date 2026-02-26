@@ -97,3 +97,13 @@ export type {
   CreateApprovalRequest,
   ApprovalResolution,
 } from './approval';
+
+export type {
+  // Attachment domain
+  AttachmentStatus,
+  AttachmentSource,
+  AttachmentMetadata,
+  AttachmentContext,
+  AttachmentUploadResponse,
+} from './attachments';
+export { ACCEPTED_MIME_TYPES, FILE_SIZE_LIMITS } from './attachments';

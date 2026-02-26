@@ -16,6 +16,9 @@ from pilot_space.infrastructure.database.repositories.base import (
     BaseRepository,
     CursorPage,
 )
+from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
+    ChatAttachmentRepository,
+)
 from pilot_space.infrastructure.database.repositories.cycle_repository import (
     CycleFilters,
     CycleMetrics,
@@ -28,6 +31,9 @@ from pilot_space.infrastructure.database.repositories.digest_repository import (
 from pilot_space.infrastructure.database.repositories.discussion_repository import (
     DiscussionCommentRepository,
     DiscussionRepository,
+)
+from pilot_space.infrastructure.database.repositories.drive_credential_repository import (
+    DriveCredentialRepository,
 )
 from pilot_space.infrastructure.database.repositories.homepage_repository import (
     HomepageRepository,
@@ -96,6 +102,7 @@ __all__ = [
     "AIContextRepository",
     "ActivityRepository",
     "BaseRepository",
+    "ChatAttachmentRepository",
     "CursorPage",
     "CycleFilters",
     "CycleMetrics",
@@ -104,6 +111,7 @@ __all__ = [
     "DiscussionCommentRepository",
     "DiscussionRepository",
     "DismissalRepository",
+    "DriveCredentialRepository",
     "HomepageRepository",
     "IntegrationLinkRepository",
     "IntegrationRepository",

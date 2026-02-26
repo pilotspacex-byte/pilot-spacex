@@ -53,6 +53,9 @@ class ChatContext(BaseSchema):
         default_factory=list,
         description="Block IDs selected in editor",
     )
+    attachment_ids: list[UUID] = Field(
+        default_factory=list, description="Attachment IDs to include as file context", max_length=5
+    )
 
 
 class ChatRequest(BaseSchema):
@@ -307,6 +310,16 @@ async def chat(
     # This ensures extract_ai_context and session operations respect RLS policies
     await set_rls_context(session, user_id)
 
+    # Fetch and inject attachment content blocks
+    from pilot_space.api.v1.routers._chat_attachments import resolve_attachments
+
+    ctx_attachment_ids = ctx.attachment_ids if ctx else []
+    attachments, attachment_content_blocks = await resolve_attachments(
+        ctx_attachment_ids if ctx_workspace_id is not None else [],
+        user_id,
+        session,
+    )
+
     # Extract full AI context (loads Note/Issue objects if IDs provided)
     if ctx_workspace_id is not None:
         ai_context = await extract_ai_context(
@@ -411,6 +424,17 @@ async def chat(
         ),
         "user_id": str(user_id),
         "workspace_id": str(ctx_workspace_id) if ctx_workspace_id else None,
+        "attachment_content_blocks": attachment_content_blocks,
+        "attachment_metadata": [
+            {
+                "attachment_id": str(a.id),
+                "filename": a.filename,
+                "mime_type": a.mime_type,
+                "source": a.source,
+                "size_bytes": a.size_bytes,
+            }
+            for a in attachments
+        ],
     }
 
     async def stream_response():
