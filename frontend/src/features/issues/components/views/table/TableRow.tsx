@@ -33,12 +33,12 @@ const stateIcons: Record<string, React.ElementType> = {
   cancelled: XCircle,
 };
 const stateColors: Record<string, string> = {
-  backlog: 'text-gray-500',
-  todo: 'text-blue-500',
-  in_progress: 'text-yellow-500',
-  in_review: 'text-purple-500',
-  done: 'text-green-500',
-  cancelled: 'text-red-500',
+  backlog: 'text-[var(--color-state-backlog)]',
+  todo: 'text-[var(--color-state-todo)]',
+  in_progress: 'text-[var(--color-state-in-progress)]',
+  in_review: 'text-[var(--color-state-in-review)]',
+  done: 'text-[var(--color-state-done)]',
+  cancelled: 'text-[var(--color-state-cancelled)]',
 };
 const priorityIcons: Record<IssuePriority, React.ElementType> = {
   urgent: AlertCircle,
@@ -48,11 +48,11 @@ const priorityIcons: Record<IssuePriority, React.ElementType> = {
   none: Minus,
 };
 const priorityColors: Record<IssuePriority, string> = {
-  urgent: 'text-red-500',
-  high: 'text-orange-500',
-  medium: 'text-yellow-500',
-  low: 'text-blue-500',
-  none: 'text-gray-400',
+  urgent: 'text-[var(--color-priority-urgent)]',
+  high: 'text-[var(--color-priority-high)]',
+  medium: 'text-[var(--color-priority-medium)]',
+  low: 'text-[var(--color-priority-low)]',
+  none: 'text-[var(--color-priority-none)]',
 };
 const typeIcons: Record<IssueType, React.ElementType> = {
   bug: Bug,

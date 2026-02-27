@@ -56,33 +56,33 @@ const priorityConfig: Record<
 > = {
   urgent: {
     icon: AlertCircle,
-    className: 'text-red-500',
+    className: 'text-[var(--color-priority-urgent)]',
     label: 'Urgent',
-    dotColor: 'fill-red-500 text-red-500',
+    dotColor: 'text-[var(--color-priority-urgent)]',
   },
   high: {
     icon: ArrowUp,
-    className: 'text-orange-500',
+    className: 'text-[var(--color-priority-high)]',
     label: 'High',
-    dotColor: 'fill-orange-500 text-orange-500',
+    dotColor: 'text-[var(--color-priority-high)]',
   },
   medium: {
     icon: Minus,
-    className: 'text-yellow-500',
+    className: 'text-[var(--color-priority-medium)]',
     label: 'Medium',
-    dotColor: 'fill-yellow-500 text-yellow-500',
+    dotColor: 'text-[var(--color-priority-medium)]',
   },
   low: {
     icon: ArrowDown,
-    className: 'text-blue-500',
+    className: 'text-[var(--color-priority-low)]',
     label: 'Low',
-    dotColor: 'fill-blue-500 text-blue-500',
+    dotColor: 'text-[var(--color-priority-low)]',
   },
   none: {
     icon: Minus,
-    className: 'text-gray-400',
+    className: 'text-[var(--color-priority-none)]',
     label: 'No priority',
-    dotColor: 'fill-gray-400 text-gray-400',
+    dotColor: 'text-[var(--color-priority-none)]',
   },
 };
 
@@ -250,7 +250,7 @@ export const IssueCard = observer(function IssueCard({
                   <TooltipTrigger asChild>
                     <Avatar className="size-4">
                       <AvatarImage
-                        src=""
+                        src={issue.assignee.avatarUrl ?? ''}
                         alt={issue.assignee.displayName ?? issue.assignee.email}
                       />
                       <AvatarFallback className="text-[8px]">
@@ -404,7 +404,10 @@ export const IssueCard = observer(function IssueCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Avatar className="size-5">
-                    <AvatarImage src="" alt={issue.assignee.displayName ?? issue.assignee.email} />
+                    <AvatarImage
+                      src={issue.assignee.avatarUrl ?? ''}
+                      alt={issue.assignee.displayName ?? issue.assignee.email}
+                    />
                     <AvatarFallback className="text-[10px]">
                       {getInitials(issue.assignee.displayName ?? issue.assignee.email)}
                     </AvatarFallback>

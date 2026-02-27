@@ -25,6 +25,7 @@ class UserBriefSchema(BaseSchema):
     id: UUID
     email: str
     display_name: str | None = None
+    avatar_url: str | None = None
 
 
 class StateBriefSchema(BaseSchema):

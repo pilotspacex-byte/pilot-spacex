@@ -13,10 +13,10 @@ interface IssueReferenceCardProps {
 }
 
 const STATE_GROUP_DOT: Record<string, string> = {
-  unstarted: 'bg-gray-400',
-  started: 'bg-amber-400',
-  completed: 'bg-green-500',
-  cancelled: 'bg-red-400',
+  unstarted: 'bg-[var(--color-state-todo)]',
+  started: 'bg-[var(--color-state-in-progress)]',
+  completed: 'bg-[var(--color-state-done)]',
+  cancelled: 'bg-[var(--color-state-cancelled)]',
 };
 
 const RELATION_TYPE_CHIP: Record<IssueReferenceCardProps['relationType'], string> = {

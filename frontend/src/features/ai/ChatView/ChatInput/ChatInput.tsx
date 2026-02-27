@@ -315,7 +315,7 @@ export const ChatInput = observer<ChatInputProps>(
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask anything… ⏎ to send"
+                placeholder="Ask anything… or type \ for skills"
                 disabled={isDisabled}
                 className={cn(
                   'min-h-[40px] max-h-[160px] resize-none pr-20',

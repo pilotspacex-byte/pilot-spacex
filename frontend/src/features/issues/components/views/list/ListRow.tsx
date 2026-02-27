@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Issue, IssueState, IssuePriority, IssueType } from '@/types';
@@ -37,23 +38,35 @@ const stateConfig: Record<
   IssueState,
   { icon: React.ElementType; className: string; label: string }
 > = {
-  backlog: { icon: CircleDashed, className: 'text-gray-500', label: 'Backlog' },
-  todo: { icon: Circle, className: 'text-blue-500', label: 'Todo' },
-  in_progress: { icon: PlayCircle, className: 'text-yellow-500', label: 'In Progress' },
-  in_review: { icon: CircleDot, className: 'text-purple-500', label: 'In Review' },
-  done: { icon: CheckCircle2, className: 'text-green-500', label: 'Done' },
-  cancelled: { icon: XCircle, className: 'text-red-500', label: 'Cancelled' },
+  backlog: { icon: CircleDashed, className: 'text-[var(--color-state-backlog)]', label: 'Backlog' },
+  todo: { icon: Circle, className: 'text-[var(--color-state-todo)]', label: 'Todo' },
+  in_progress: {
+    icon: PlayCircle,
+    className: 'text-[var(--color-state-in-progress)]',
+    label: 'In Progress',
+  },
+  in_review: {
+    icon: CircleDot,
+    className: 'text-[var(--color-state-in-review)]',
+    label: 'In Review',
+  },
+  done: { icon: CheckCircle2, className: 'text-[var(--color-state-done)]', label: 'Done' },
+  cancelled: {
+    icon: XCircle,
+    className: 'text-[var(--color-state-cancelled)]',
+    label: 'Cancelled',
+  },
 };
 
 const priorityConfig: Record<
   IssuePriority,
   { icon: React.ElementType; className: string; label: string }
 > = {
-  urgent: { icon: AlertCircle, className: 'text-red-500', label: 'Urgent' },
-  high: { icon: ArrowUp, className: 'text-orange-500', label: 'High' },
-  medium: { icon: Minus, className: 'text-yellow-500', label: 'Medium' },
-  low: { icon: ArrowDown, className: 'text-blue-500', label: 'Low' },
-  none: { icon: Minus, className: 'text-gray-400', label: 'None' },
+  urgent: { icon: AlertCircle, className: 'text-[var(--color-priority-urgent)]', label: 'Urgent' },
+  high: { icon: ArrowUp, className: 'text-[var(--color-priority-high)]', label: 'High' },
+  medium: { icon: Minus, className: 'text-[var(--color-priority-medium)]', label: 'Medium' },
+  low: { icon: ArrowDown, className: 'text-[var(--color-priority-low)]', label: 'Low' },
+  none: { icon: Minus, className: 'text-[var(--color-priority-none)]', label: 'None' },
 };
 
 function getIssueStateName(issue: Issue): IssueState {
@@ -104,11 +117,10 @@ export function ListRow({
       style={{ paddingLeft: `${12 + indent * 16}px` }}
     >
       {/* Checkbox */}
-      <input
-        type="checkbox"
+      <Checkbox
         checked={isSelected}
-        onChange={() => onToggleSelect(issue.id)}
-        className="size-4 shrink-0 rounded border accent-[#29A386]"
+        onCheckedChange={() => onToggleSelect(issue.id)}
+        className="shrink-0"
         aria-label={`Select ${issue.identifier}`}
       />
 

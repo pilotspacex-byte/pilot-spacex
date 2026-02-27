@@ -163,15 +163,15 @@
   --state-backlog: #9c9590;
   --state-todo: #5b8fc9;
   --state-in-progress: #d9853f;
-  --state-in-review: #9b7bc9;
+  --state-in-review: #8b7ec8;
   --state-done: #29a386;
   --state-cancelled: #d9534f;
 
   /* Priority */
   --priority-urgent: #d9534f;
   --priority-high: #d9853f;
-  --priority-medium: hsl(45 70% 48%);
-  --priority-low: #6b8fad;
+  --priority-medium: #c4a035;
+  --priority-low: #5b8fc9;
   --priority-none: #9c9590;
 
   /* Sidebar */
@@ -265,7 +265,7 @@
   /* Priority */
   --priority-urgent: #e5605b;
   --priority-high: #e5955b;
-  --priority-medium: hsl(45 65% 45%);
+  --priority-medium: #d4b045;
   --priority-low: #7da3c1;
   --priority-none: #7a7570;
 

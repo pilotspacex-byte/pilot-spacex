@@ -18,12 +18,32 @@ import { BulkActionsBar } from './BulkActionsBar';
 import type { Issue, IssueState, IssuePriority } from '@/types';
 
 const STATE_GROUPS = [
-  { key: 'backlog', label: 'Backlog', icon: CircleDashed, iconClass: 'text-gray-500' },
-  { key: 'todo', label: 'Todo', icon: Circle, iconClass: 'text-blue-500' },
-  { key: 'in_progress', label: 'In Progress', icon: PlayCircle, iconClass: 'text-yellow-500' },
-  { key: 'in_review', label: 'In Review', icon: CircleDot, iconClass: 'text-purple-500' },
-  { key: 'done', label: 'Done', icon: CheckCircle2, iconClass: 'text-green-500' },
-  { key: 'cancelled', label: 'Cancelled', icon: XCircle, iconClass: 'text-red-500' },
+  {
+    key: 'backlog',
+    label: 'Backlog',
+    icon: CircleDashed,
+    iconClass: 'text-[var(--color-state-backlog)]',
+  },
+  { key: 'todo', label: 'Todo', icon: Circle, iconClass: 'text-[var(--color-state-todo)]' },
+  {
+    key: 'in_progress',
+    label: 'In Progress',
+    icon: PlayCircle,
+    iconClass: 'text-[var(--color-state-in-progress)]',
+  },
+  {
+    key: 'in_review',
+    label: 'In Review',
+    icon: CircleDot,
+    iconClass: 'text-[var(--color-state-in-review)]',
+  },
+  { key: 'done', label: 'Done', icon: CheckCircle2, iconClass: 'text-[var(--color-state-done)]' },
+  {
+    key: 'cancelled',
+    label: 'Cancelled',
+    icon: XCircle,
+    iconClass: 'text-[var(--color-state-cancelled)]',
+  },
 ];
 
 function getIssueState(issue: Issue): string {

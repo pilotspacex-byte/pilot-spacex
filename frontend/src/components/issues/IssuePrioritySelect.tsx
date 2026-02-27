@@ -36,11 +36,11 @@ const priorityConfig: Record<
   IssuePriority,
   { icon: React.ElementType; className: string; label: string }
 > = {
-  urgent: { icon: AlertCircle, className: 'text-red-500', label: 'Urgent' },
-  high: { icon: ArrowUp, className: 'text-orange-500', label: 'High' },
-  medium: { icon: Minus, className: 'text-yellow-500', label: 'Medium' },
-  low: { icon: ArrowDown, className: 'text-blue-500', label: 'Low' },
-  none: { icon: Minus, className: 'text-gray-400', label: 'No priority' },
+  urgent: { icon: AlertCircle, className: 'text-[var(--color-priority-urgent)]', label: 'Urgent' },
+  high: { icon: ArrowUp, className: 'text-[var(--color-priority-high)]', label: 'High' },
+  medium: { icon: Minus, className: 'text-[var(--color-priority-medium)]', label: 'Medium' },
+  low: { icon: ArrowDown, className: 'text-[var(--color-priority-low)]', label: 'Low' },
+  none: { icon: Minus, className: 'text-[var(--color-priority-none)]', label: 'No priority' },
 };
 
 /**

@@ -30,23 +30,39 @@ const STATE_ICON: Record<
   IssueState,
   { icon: React.ElementType; className: string; label: string }
 > = {
-  backlog: { icon: CircleDashed, className: 'text-gray-500', label: 'Backlog' },
-  todo: { icon: Circle, className: 'text-blue-500', label: 'Todo' },
-  in_progress: { icon: PlayCircle, className: 'text-yellow-500', label: 'In Progress' },
-  in_review: { icon: CircleDot, className: 'text-purple-500', label: 'In Review' },
-  done: { icon: CheckCircle2, className: 'text-green-500', label: 'Done' },
-  cancelled: { icon: XCircle, className: 'text-red-500', label: 'Cancelled' },
+  backlog: { icon: CircleDashed, className: 'text-[var(--color-state-backlog)]', label: 'Backlog' },
+  todo: { icon: Circle, className: 'text-[var(--color-state-todo)]', label: 'Todo' },
+  in_progress: {
+    icon: PlayCircle,
+    className: 'text-[var(--color-state-in-progress)]',
+    label: 'In Progress',
+  },
+  in_review: {
+    icon: CircleDot,
+    className: 'text-[var(--color-state-in-review)]',
+    label: 'In Review',
+  },
+  done: { icon: CheckCircle2, className: 'text-[var(--color-state-done)]', label: 'Done' },
+  cancelled: {
+    icon: XCircle,
+    className: 'text-[var(--color-state-cancelled)]',
+    label: 'Cancelled',
+  },
 };
 
 const PRIORITY_ICON: Record<
   IssuePriority,
   { icon: React.ElementType; className: string; label: string }
 > = {
-  urgent: { icon: AlertTriangle, className: 'text-red-500', label: 'Urgent' },
-  high: { icon: SignalHigh, className: 'text-orange-500', label: 'High' },
-  medium: { icon: SignalMedium, className: 'text-yellow-500', label: 'Medium' },
-  low: { icon: SignalLow, className: 'text-blue-400', label: 'Low' },
-  none: { icon: Minus, className: 'text-gray-400', label: 'None' },
+  urgent: {
+    icon: AlertTriangle,
+    className: 'text-[var(--color-priority-urgent)]',
+    label: 'Urgent',
+  },
+  high: { icon: SignalHigh, className: 'text-[var(--color-priority-high)]', label: 'High' },
+  medium: { icon: SignalMedium, className: 'text-[var(--color-priority-medium)]', label: 'Medium' },
+  low: { icon: SignalLow, className: 'text-[var(--color-priority-low)]', label: 'Low' },
+  none: { icon: Minus, className: 'text-[var(--color-priority-none)]', label: 'None' },
 };
 
 const STATE_GROUP_MAP: Record<string, IssueState> = {

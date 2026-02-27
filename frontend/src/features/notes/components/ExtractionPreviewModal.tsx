@@ -25,6 +25,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
+
 import { cn } from '@/lib/utils';
 import { aiApi } from '@/services/api/ai';
 
@@ -153,8 +155,12 @@ export function ExtractionPreviewModal({
         }));
 
       const result = await aiApi.createExtractedIssues(workspaceId, noteId, selectedIssues);
+      const count = result.created_issues.length;
       onCreated?.(result.created_issues);
       onOpenChange(false);
+      toast.success(`${count} issue${count !== 1 ? 's' : ''} created`, {
+        description: 'View them in the Issues board.',
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create issues';
       setCreateError(message);

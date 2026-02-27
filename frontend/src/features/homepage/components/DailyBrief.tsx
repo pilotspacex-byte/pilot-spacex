@@ -56,12 +56,12 @@ const MAX_ISSUES_TOTAL = 20;
 
 /** State key to display color and human-readable label */
 const STATE_COLORS: Record<string, { dot: string; label: string }> = {
-  backlog: { dot: 'bg-muted-foreground/40', label: 'Backlog' },
-  todo: { dot: 'bg-blue-400', label: 'Todo' },
-  in_progress: { dot: 'bg-amber-500', label: 'In Progress' },
-  in_review: { dot: 'bg-violet-500', label: 'In Review' },
-  done: { dot: 'bg-emerald-500', label: 'Done' },
-  cancelled: { dot: 'bg-muted-foreground/40', label: 'Cancelled' },
+  backlog: { dot: 'bg-[var(--color-state-backlog)]', label: 'Backlog' },
+  todo: { dot: 'bg-[var(--color-state-todo)]', label: 'Todo' },
+  in_progress: { dot: 'bg-[var(--color-state-in-progress)]', label: 'In Progress' },
+  in_review: { dot: 'bg-[var(--color-state-in-review)]', label: 'In Review' },
+  done: { dot: 'bg-[var(--color-state-done)]', label: 'Done' },
+  cancelled: { dot: 'bg-[var(--color-state-cancelled)]', label: 'Cancelled' },
 };
 
 // ---------------------------------------------------------------------------
