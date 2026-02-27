@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -11,24 +12,11 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from authcore.config import Settings
-from authcore.domain.services.password_policy import PasswordPolicy
-from authcore.infrastructure.cache.redis_client import RedisClient
-from authcore.infrastructure.database.base import Base
-from authcore.infrastructure.database.models.audit_log import AuditLogModel  # noqa: F401
-from authcore.infrastructure.database.models.refresh_token import RefreshTokenModel  # noqa: F401
-from authcore.infrastructure.database.models.user import UserModel  # noqa: F401
-from authcore.infrastructure.database.repositories.audit_log_repository import AuditLogRepository
-from authcore.infrastructure.database.repositories.refresh_token_repository import (
-    RefreshTokenRepository,
-)
-from authcore.infrastructure.database.repositories.user_repository import UserRepository
-from authcore.infrastructure.tokens.jwt_service import JWTService
-from authcore.infrastructure.tokens.key_manager import KeyManager
-
 
 # ---------------------------------------------------------------------------
 # RSA key pair (generated once per process)
+# Must happen before authcore imports so main.py module-level create_app()
+# can construct Settings() from these env vars when the module is imported.
 # ---------------------------------------------------------------------------
 
 def _generate_rsa_pem_pair() -> tuple[str, str]:
@@ -47,6 +35,32 @@ def _generate_rsa_pem_pair() -> tuple[str, str]:
 
 
 _PRIVATE_PEM, _PUBLIC_PEM = _generate_rsa_pem_pair()
+
+# Set env vars BEFORE any authcore.* import so main.py's module-level
+# `app = create_app()` can build Settings() without ValidationError.
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ.setdefault("JWT_PRIVATE_KEY", _PRIVATE_PEM)
+os.environ.setdefault("JWT_PUBLIC_KEY", _PUBLIC_PEM)
+
+
+# ---------------------------------------------------------------------------
+# authcore imports (after env vars are set)
+# ---------------------------------------------------------------------------
+
+from authcore.config import Settings  # noqa: E402
+from authcore.domain.services.password_policy import PasswordPolicy  # noqa: E402
+from authcore.infrastructure.cache.redis_client import RedisClient  # noqa: E402
+from authcore.infrastructure.database.base import Base  # noqa: E402
+from authcore.infrastructure.database.models.audit_log import AuditLogModel  # noqa: E402, F401
+from authcore.infrastructure.database.models.refresh_token import RefreshTokenModel  # noqa: E402, F401
+from authcore.infrastructure.database.models.user import UserModel  # noqa: E402, F401
+from authcore.infrastructure.database.repositories.audit_log_repository import AuditLogRepository  # noqa: E402
+from authcore.infrastructure.database.repositories.refresh_token_repository import (  # noqa: E402
+    RefreshTokenRepository,
+)
+from authcore.infrastructure.database.repositories.user_repository import UserRepository  # noqa: E402
+from authcore.infrastructure.tokens.jwt_service import JWTService  # noqa: E402
+from authcore.infrastructure.tokens.key_manager import KeyManager  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

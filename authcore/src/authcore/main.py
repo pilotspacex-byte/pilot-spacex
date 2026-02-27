@@ -96,7 +96,7 @@ async def _liveness() -> dict[str, str]:
 
 async def _readiness() -> dict[str, str]:
     container = _get_container()
-    redis: RedisClient = await container.infra.redis_client()  # type: ignore[misc]
+    redis: RedisClient = container.infra.redis_client()  # type: ignore[misc]
     redis_ok: bool = await redis.ping()  # type: ignore[misc]
     if not redis_ok:
         raise HTTPException(status_code=503, detail="Redis unavailable")
