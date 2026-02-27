@@ -6,7 +6,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { getAuthProviderSync } from '@/services/auth/providers';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
@@ -103,15 +103,13 @@ function createApiClient(): AxiosInstance {
     withCredentials: true,
   });
 
-  // Request interceptor: Add Supabase auth token and workspace context
+  // Request interceptor: Add auth token and workspace context
   instance.interceptors.request.use(
     async (config: InternalAxiosRequestConfig) => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          config.headers.Authorization = `Bearer ${session.access_token}`;
+        const token = await getAuthProviderSync().getToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
         }
       } catch {
         // Silent fail - request will proceed without auth header
@@ -142,8 +140,10 @@ function createApiClient(): AxiosInstance {
 
       // Handle 401 Unauthorized - redirect to login
       if (status === 401) {
-        // Sign out from Supabase to clear session
-        await supabase.auth.signOut();
+        // Sign out via provider to clear session (works for both Supabase and AuthCore)
+        await getAuthProviderSync()
+          .logout()
+          .catch(() => undefined);
 
         // Only redirect on client-side
         if (typeof window !== 'undefined') {

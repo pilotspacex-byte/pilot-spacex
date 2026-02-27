@@ -3,6 +3,7 @@
 import { makeAutoObservable, runInAction, computed } from 'mobx';
 import { supabase, type User, type Session } from '@/lib/supabase';
 import type { AuthChangeEvent } from '@supabase/supabase-js';
+import { getAuthProviderSync } from '@/services/auth/providers';
 
 export interface AuthUser {
   id: string;
@@ -283,15 +284,7 @@ export class AuthStore {
     this.error = null;
 
     try {
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        runInAction(() => {
-          this.error = error.message;
-          this.isLoading = false;
-        });
-        return;
-      }
+      await getAuthProviderSync().logout();
 
       runInAction(() => {
         this.user = null;
