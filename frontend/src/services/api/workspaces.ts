@@ -57,7 +57,9 @@ function transformWorkspace(response: WorkspaceResponse): Workspace {
     id: response.id,
     name: response.name,
     slug: response.slug,
+    description: response.description ?? undefined,
     ownerId: response.ownerId,
+    memberCount: response.memberCount,
     memberIds: [],
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,
@@ -72,7 +74,7 @@ function transformWorkspaceMember(response: WorkspaceMemberResponse): WorkspaceM
     id: response.userId,
     userId: response.userId,
     workspaceId: '',
-    role: response.role,
+    role: response.role.toLowerCase() as WorkspaceRole,
     joinedAt: response.joinedAt,
     weeklyAvailableHours: response.weeklyAvailableHours ?? 40,
     user: {

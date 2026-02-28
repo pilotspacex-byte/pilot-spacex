@@ -11,14 +11,16 @@
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useStore } from '@/stores';
 
 export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
@@ -26,18 +28,21 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
   const user = authStore.user;
 
   const [displayName, setDisplayName] = React.useState(user?.name ?? '');
+  const [bio, setBio] = React.useState(user?.bio ?? '');
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = React.useState(false);
   const [hasChanges, setHasChanges] = React.useState(false);
 
   React.useEffect(() => {
-    if (user?.name) {
-      setDisplayName(user.name);
+    if (user) {
+      setDisplayName(user.name ?? '');
+      setBio(user.bio ?? '');
     }
-  }, [user?.name]);
+  }, [user]);
 
   React.useEffect(() => {
-    setHasChanges(displayName !== (user?.name ?? ''));
-  }, [displayName, user?.name]);
+    setHasChanges(displayName !== (user?.name ?? '') || bio !== (user?.bio ?? ''));
+  }, [displayName, bio, user?.name, user?.bio]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +50,10 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
     if (!hasChanges) return;
 
     setIsSaving(true);
-    const success = await authStore.updateProfile({ name: displayName });
+    const success = await authStore.updateProfile({
+      name: displayName,
+      bio: bio.trim() || undefined,
+    });
     setIsSaving(false);
 
     if (success) {
@@ -59,8 +67,89 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
     }
   };
 
+  React.useEffect(() => {
+    if (!hasChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ''; // Required for Chromium browsers
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasChanges]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+      toast.error('File too large', { description: 'Avatar must be smaller than 5MB.' });
+      e.target.value = '';
+      return;
+    }
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error('Invalid file type', {
+        description: 'Please upload a JPEG, PNG, GIF, or WebP image.',
+      });
+      e.target.value = '';
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    const result = await authStore.uploadAvatar(file);
+    setIsUploadingAvatar(false);
+    // Reset so the same file can be re-selected after a failed upload
+    e.target.value = '';
+
+    if (result) {
+      toast.success('Avatar updated');
+    } else {
+      toast.error('Failed to upload avatar', {
+        description: authStore.error ?? 'Please try again.',
+      });
+    }
+  };
+
   if (!user) {
-    return null;
+    return (
+      <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="space-y-6">
+          <div className="space-y-1">
+            <Skeleton className="h-7 w-24" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-72" />
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-16 w-16 rounded-full" />
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-48" />
+                </div>
+              </div>
+              <Skeleton className="h-px w-full" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-10 w-full sm:max-w-md" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-10" />
+                <Skeleton className="h-20 w-full sm:max-w-md" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-12" />
+                <Skeleton className="h-10 w-full sm:max-w-md" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   const initials = authStore.userInitials;
@@ -86,18 +175,35 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSave} className="space-y-6">
-              {/* Avatar Preview */}
+              {/* Avatar Upload */}
               <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  {user.avatarUrl && (
-                    <AvatarImage src={user.avatarUrl} alt={user.name || 'User avatar'} />
-                  )}
-                  <AvatarFallback className="text-lg">{initials}</AvatarFallback>
-                </Avatar>
+                <div className="relative group">
+                  <Avatar className="h-16 w-16">
+                    {user.avatarUrl && (
+                      <AvatarImage src={user.avatarUrl} alt={user.name || 'User avatar'} />
+                    )}
+                    <AvatarFallback className="text-lg">{initials}</AvatarFallback>
+                  </Avatar>
+                  <label
+                    htmlFor="avatar-upload"
+                    className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
+                    aria-label="Upload avatar"
+                  >
+                    <Upload className="h-5 w-5 text-white" />
+                  </label>
+                  <input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={handleAvatarUpload}
+                    disabled={isUploadingAvatar}
+                  />
+                </div>
                 <div>
                   <p className="font-medium text-foreground">{user.name || user.email}</p>
                   <p className="text-sm text-muted-foreground">
-                    Your avatar is synced from your auth provider.
+                    {isUploadingAvatar ? 'Uploading...' : 'Click avatar to upload a new photo'}
                   </p>
                 </div>
               </div>
@@ -119,6 +225,25 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
                 />
                 <p id="display-name-hint" className="text-sm text-muted-foreground">
                   This is how your name appears to other workspace members.
+                </p>
+              </div>
+
+              {/* Bio — optional, max 200 chars */}
+              <div className="space-y-2">
+                <Label htmlFor="bio">Bio</Label>
+                <Textarea
+                  id="bio"
+                  placeholder="Tell your teammates about yourself..."
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value.slice(0, 200))}
+                  disabled={isSaving}
+                  rows={3}
+                  maxLength={200}
+                  className="w-full sm:max-w-md"
+                  aria-describedby="bio-hint"
+                />
+                <p id="bio-hint" className="text-sm text-muted-foreground">
+                  {bio.length}/200 characters
                 </p>
               </div>
 

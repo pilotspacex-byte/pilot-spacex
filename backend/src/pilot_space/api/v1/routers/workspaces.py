@@ -245,6 +245,7 @@ async def update_workspace(
                 workspace_id_or_slug=workspace_id,
                 user_id=current_user.user_id,
                 name=update_data.get("name"),
+                slug=update_data.get("slug"),
                 description=update_data.get("description"),
                 settings=update_data.get("settings"),
             )
@@ -254,6 +255,11 @@ async def update_workspace(
         if "not found" in error_msg.lower():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg,
+            ) from e
+        if "already taken" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
                 detail=error_msg,
             ) from e
         raise HTTPException(

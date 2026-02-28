@@ -5,8 +5,10 @@ export interface Workspace {
   id: string;
   name: string;
   slug: string;
+  description?: string;
   ownerId: string;
   owner?: User;
+  memberCount: number;
   memberIds: string[];
   members?: User[];
   createdAt: string;
@@ -25,7 +27,7 @@ export interface WorkspaceMember {
 
 export interface CreateWorkspaceData {
   name: string;
-  slug?: string;
+  slug: string;
   description?: string;
 }
 

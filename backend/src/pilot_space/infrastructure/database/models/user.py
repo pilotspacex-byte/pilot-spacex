@@ -55,6 +55,12 @@ class User(BaseModel):
         nullable=True,
     )
 
+    # Short bio displayed to teammates (max 200 chars)
+    bio: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+    )
+
     # Relationships
     workspace_memberships: Mapped[list[WorkspaceMember]] = relationship(
         "WorkspaceMember",

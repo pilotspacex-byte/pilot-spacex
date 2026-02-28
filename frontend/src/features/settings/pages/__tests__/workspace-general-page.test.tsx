@@ -64,6 +64,7 @@ const defaultWorkspaceData = {
   slug: 'test-workspace',
   createdAt: '2025-06-15T10:00:00Z',
   memberIds: ['u1', 'u2', 'u3'],
+  memberCount: 3,
 };
 
 describe('WorkspaceGeneralPage', () => {

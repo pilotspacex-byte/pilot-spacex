@@ -21,9 +21,12 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useStore } from '@/stores';
-import type { Workspace } from '@/types';
 import { useWorkspaceSettings, useUpdateWorkspaceSettings } from '../hooks/use-workspace-settings';
 import { DeleteWorkspaceDialog } from '../components/delete-workspace-dialog';
+import { workspacesApi } from '@/services/api/workspaces';
+import { ApiError } from '@/services/api/client';
+
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function LoadingSkeleton() {
   return (
@@ -56,10 +59,9 @@ export const WorkspaceGeneralPage = observer(function WorkspaceGeneralPage() {
   const [description, setDescription] = React.useState('');
   const [hasChanges, setHasChanges] = React.useState(false);
   const [slugError, setSlugError] = React.useState<string | null>(null);
+  const [isCheckingSlug, setIsCheckingSlug] = React.useState(false);
 
-  // Workspace may have an optional description not yet in the type
-  const workspaceDescription =
-    (workspaceData as Workspace & { description?: string })?.description ?? '';
+  const workspaceDescription = workspaceData?.description ?? '';
 
   React.useEffect(() => {
     if (workspaceData) {
@@ -78,7 +80,15 @@ export const WorkspaceGeneralPage = observer(function WorkspaceGeneralPage() {
     );
   }, [name, slug, description, workspaceData, workspaceDescription]);
 
-  const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+  React.useEffect(() => {
+    if (!hasChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ''; // Required for Chromium browsers
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasChanges]);
 
   const handleSlugChange = (value: string) => {
     setSlug(value);
@@ -91,8 +101,27 @@ export const WorkspaceGeneralPage = observer(function WorkspaceGeneralPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!hasChanges || !workspaceData || slugError) return;
+
+    // Check slug availability only if slug has changed
+    if (slug !== workspaceData.slug) {
+      setIsCheckingSlug(true);
+      try {
+        await workspacesApi.get(slug);
+        // Resolved → slug is taken by another workspace
+        setSlugError('This slug is already taken.');
+        return;
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          // 404 = slug is free, proceed
+        } else {
+          setSlugError('Unable to check slug availability. Please try again.');
+          return;
+        }
+      } finally {
+        setIsCheckingSlug(false);
+      }
+    }
 
     try {
       await updateSettings.mutateAsync({ name, slug, description });
@@ -136,7 +165,7 @@ export const WorkspaceGeneralPage = observer(function WorkspaceGeneralPage() {
     year: 'numeric',
   });
 
-  const memberCount = workspaceData.memberIds?.length ?? 0;
+  const memberCount = workspaceData.memberCount ?? 0;
 
   return (
     <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
@@ -202,6 +231,11 @@ export const WorkspaceGeneralPage = observer(function WorkspaceGeneralPage() {
                     Used in the URL: /{slug}
                   </p>
                 )}
+                {!slugError && isAdmin && slug !== workspaceData.slug && (
+                  <p className="text-sm text-amber-600 dark:text-amber-400" role="alert">
+                    Changing the slug will update all URLs. Share the new URL with your team.
+                  </p>
+                )}
               </div>
 
               {/* Description */}
@@ -224,14 +258,18 @@ export const WorkspaceGeneralPage = observer(function WorkspaceGeneralPage() {
                 <div className="flex items-center gap-3">
                   <Button
                     type="submit"
-                    disabled={!hasChanges || updateSettings.isPending}
-                    aria-busy={updateSettings.isPending}
+                    disabled={!hasChanges || updateSettings.isPending || isCheckingSlug}
+                    aria-busy={updateSettings.isPending || isCheckingSlug}
                     className="min-w-[120px]"
                   >
-                    {updateSettings.isPending && (
+                    {(updateSettings.isPending || isCheckingSlug) && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                     )}
-                    {updateSettings.isPending ? 'Saving...' : 'Save Changes'}
+                    {isCheckingSlug
+                      ? 'Checking...'
+                      : updateSettings.isPending
+                        ? 'Saving...'
+                        : 'Save Changes'}
                   </Button>
                   {hasChanges && (
                     <p className="text-sm text-muted-foreground" role="status">

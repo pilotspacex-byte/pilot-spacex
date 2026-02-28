@@ -55,6 +55,7 @@ class UpdateProfilePayload:
     user_id: UUID
     full_name: str | None = None
     avatar_url: str | None = None
+    bio: str | None = None
     default_sdlc_role: str | None = None
 
 
@@ -168,6 +169,9 @@ class AuthService:
         if payload.avatar_url is not None:
             user.avatar_url = payload.avatar_url
             changed_fields.append("avatar_url")
+        if payload.bio is not None:
+            user.bio = payload.bio
+            changed_fields.append("bio")
         if payload.default_sdlc_role is not None:
             user.default_sdlc_role = payload.default_sdlc_role
             changed_fields.append("default_sdlc_role")

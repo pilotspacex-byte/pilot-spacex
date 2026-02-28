@@ -46,6 +46,7 @@ class WorkspaceUpdate(BaseSchema):
 
     Attributes:
         name: New workspace name.
+        slug: New URL-friendly identifier. Must be globally unique.
         description: New workspace description.
         settings: Workspace-level settings.
     """
@@ -55,6 +56,13 @@ class WorkspaceUpdate(BaseSchema):
         min_length=1,
         max_length=255,
         description="New workspace name",
+    )
+    slug: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=100,
+        pattern=r"^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$",
+        description="New URL-friendly identifier (lowercase letters, numbers, hyphens)",
     )
     description: str | None = Field(
         default=None,

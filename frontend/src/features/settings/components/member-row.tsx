@@ -30,6 +30,7 @@ interface MemberRowProps {
   member: WorkspaceMember;
   currentUserRole: WorkspaceRole | null;
   isCurrentUser: boolean;
+  isLastAdmin?: boolean;
   onRoleChange: (userId: string, role: WorkspaceRole) => void;
   onRemove: (userId: string) => void;
   onTransferOwnership?: (userId: string) => void;
@@ -79,6 +80,7 @@ export function MemberRow({
   member,
   currentUserRole,
   isCurrentUser,
+  isLastAdmin = false,
   onRoleChange,
   onRemove,
   onTransferOwnership,
@@ -91,6 +93,7 @@ export function MemberRow({
   const isMemberOwner = member.role === 'owner';
   const canEditRole = isAdmin && !isMemberOwner && !isCurrentUser;
   const canRemove = isAdmin && !isMemberOwner && !isCurrentUser;
+  const removeDisabled = isLastAdmin;
   const canTransferOwnership = isOwner && !isCurrentUser && !isMemberOwner;
   const canEditAvailability = isCurrentUser || isAdmin;
 
@@ -229,13 +232,18 @@ export function MemberRow({
                   </DropdownMenuItem>
                 )}
                 {canRemove && (
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => onRemove(member.userId)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Remove Member
-                  </DropdownMenuItem>
+                  <span title={removeDisabled ? 'Cannot remove the only admin' : undefined}>
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      disabled={removeDisabled}
+                      onClick={() => {
+                        if (!removeDisabled) onRemove(member.userId);
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remove Member
+                    </DropdownMenuItem>
+                  </span>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>

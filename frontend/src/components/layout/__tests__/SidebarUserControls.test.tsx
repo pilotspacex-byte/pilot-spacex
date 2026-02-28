@@ -48,6 +48,22 @@ vi.mock('@/features/notes/hooks', () => ({
   createNoteDefaults: () => ({}),
 }));
 
+// Mock workspace API to prevent supabase import chain via workspace-switcher
+vi.mock('@/services/api/workspaces', () => ({
+  workspacesApi: {
+    get: vi.fn(),
+    list: vi.fn().mockResolvedValue({ items: [] }),
+    create: vi.fn(),
+  },
+}));
+
+// Mock supabase to prevent NEXT_PUBLIC_SUPABASE_URL missing error
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+  },
+}));
+
 function createMockAuthStore(overrides: Partial<AuthStore> = {}): AuthStore {
   return {
     user: {

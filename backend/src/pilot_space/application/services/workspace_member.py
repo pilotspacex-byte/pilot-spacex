@@ -214,6 +214,15 @@ class WorkspaceMemberService:
 
         ownership_transferred = False
 
+        # Last-admin guard: prevent demoting the only admin to a non-admin role
+        target_is_admin = target_member.is_admin
+        new_role_is_non_admin = new_role_enum not in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+        if target_is_admin and new_role_is_non_admin:
+            admin_count = sum(1 for m in (workspace.members or []) if m.is_admin)
+            if admin_count <= 1:
+                msg = "Cannot demote the only admin from workspace"
+                raise ValueError(msg)
+
         # Ownership transfer guard (FR-017, T020a)
         if new_role_enum == WorkspaceRole.OWNER:
             if not actor_member.is_owner:
@@ -295,10 +304,14 @@ class WorkspaceMemberService:
                 "Workspace owner cannot remove themselves. Transfer ownership first."
             )
 
-        # Prevent removing the only admin/owner
-        if is_self and is_admin:
+        # Prevent removing the last admin/owner regardless of who initiates the removal
+        target_member = next(
+            (m for m in (workspace.members or []) if m.user_id == payload.target_user_id),
+            None,
+        )
+        if target_member and target_member.is_admin:
             admin_count = sum(1 for m in (workspace.members or []) if m.is_admin)
-            if admin_count == 1:
+            if admin_count <= 1:
                 raise UnauthorizedError("Cannot remove the only admin from workspace")
 
         await self.workspace_repo.remove_member(

@@ -13,6 +13,7 @@ import { OnboardingStore } from './OnboardingStore';
 import { RoleSkillStore } from './RoleSkillStore';
 import { TaskStore } from '@/stores/TaskStore';
 import { IssueViewStore } from './features/issues/IssueViewStore';
+import { workspacesApi } from '@/services/api/workspaces';
 
 export class RootStore {
   auth: AuthStore;
@@ -44,6 +45,7 @@ export class RootStore {
 
     // Wire cross-store references
     this.workspace.setAuthStore(this.auth);
+    this.workspace.setApi(workspacesApi);
   }
 
   reset(): void {

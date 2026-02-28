@@ -93,6 +93,7 @@ async def get_current_user_profile(
         email=user.email,
         full_name=user.full_name,
         avatar_url=user.avatar_url,
+        bio=user.bio,
         default_sdlc_role=user.default_sdlc_role,
         created_at=user.created_at,
     )
@@ -127,6 +128,7 @@ async def update_current_user_profile(
                 user_id=current_user.user_id,
                 full_name=update_data.get("full_name"),
                 avatar_url=update_data.get("avatar_url"),
+                bio=update_data.get("bio"),
                 default_sdlc_role=update_data.get("default_sdlc_role"),
             ),
         )
@@ -142,6 +144,7 @@ async def update_current_user_profile(
         email=user.email,
         full_name=user.full_name,
         avatar_url=user.avatar_url,
+        bio=user.bio,
         default_sdlc_role=user.default_sdlc_role,
         created_at=user.created_at,
     )

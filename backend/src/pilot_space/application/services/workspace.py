@@ -111,6 +111,7 @@ class UpdateWorkspacePayload:
     workspace_id_or_slug: str
     user_id: UUID
     name: str | None = None
+    slug: str | None = None
     description: str | None = None
     settings: dict[str, Any] | None = None
 
@@ -385,6 +386,15 @@ class WorkspaceService:
         if payload.name is not None:
             workspace.name = payload.name
             changed_fields.append("name")
+        if payload.slug is not None and payload.slug != workspace.slug:
+            slug_taken = await self.workspace_repo.slug_exists(
+                payload.slug, exclude_id=workspace.id
+            )
+            if slug_taken:
+                msg = f"Slug '{payload.slug}' is already taken"
+                raise ValueError(msg)
+            workspace.slug = payload.slug
+            changed_fields.append("slug")
         if payload.description is not None:
             workspace.description = payload.description
             changed_fields.append("description")

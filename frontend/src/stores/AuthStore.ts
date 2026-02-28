@@ -11,6 +11,7 @@ export interface AuthUser {
   email: string;
   name: string;
   avatarUrl: string | null;
+  bio?: string;
 }
 
 const MAX_REFRESH_FAILURES = 3;
@@ -200,6 +201,7 @@ export class AuthStore {
       email: supabaseUser.email || '',
       name: supabaseUser.user_metadata?.name || supabaseUser.user_metadata?.full_name || '',
       avatarUrl: supabaseUser.user_metadata?.avatar_url || null,
+      bio: supabaseUser.user_metadata?.['bio'] as string | undefined,
     };
   }
 
@@ -375,7 +377,7 @@ export class AuthStore {
     }
   }
 
-  async updateProfile(data: { name?: string; avatarUrl?: string }): Promise<boolean> {
+  async updateProfile(data: { name?: string; avatarUrl?: string; bio?: string }): Promise<boolean> {
     if (isAuthCoreMode) {
       // AuthCore profile updates handled via separate profile API
       return false;
@@ -390,6 +392,7 @@ export class AuthStore {
           name: data.name,
           full_name: data.name,
           avatar_url: data.avatarUrl,
+          bio: data.bio,
         },
       });
 
@@ -416,6 +419,38 @@ export class AuthStore {
       });
       return false;
     }
+  }
+
+  async uploadAvatar(file: File): Promise<string | null> {
+    if (!this.user) return null;
+
+    // Derive extension from MIME type to avoid trusting user-controlled filename
+    const MIME_TO_EXT: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+    };
+    const ext = MIME_TO_EXT[file.type] ?? 'jpg';
+    const filePath = `${this.user.id}/avatar.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) {
+      runInAction(() => {
+        this.error = uploadError.message;
+      });
+      return null;
+    }
+
+    const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+    // Append cache-busting param so browsers refetch after re-upload to the same path
+    const avatarUrl = `${data.publicUrl}?t=${Date.now()}`;
+
+    const success = await this.updateProfile({ avatarUrl });
+    return success ? avatarUrl : null;
   }
 
   async resetPassword(email: string): Promise<boolean> {

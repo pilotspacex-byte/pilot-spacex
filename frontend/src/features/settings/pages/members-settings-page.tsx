@@ -91,6 +91,11 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
     });
   }, [members]);
 
+  const adminCount = React.useMemo(() => {
+    if (!sortedMembers) return 0;
+    return sortedMembers.filter((m) => m.role === 'admin' || m.role === 'owner').length;
+  }, [sortedMembers]);
+
   const pendingInvitations = React.useMemo(() => {
     if (!invitations) return [];
     return invitations.filter((inv) => inv.status === 'pending');
@@ -118,6 +123,16 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
   const handleRemoveMember = (userId: string) => {
     const member = members?.find((m) => m.userId === userId);
     if (!member) return;
+
+    const isLastAdminCheck =
+      (member.role === 'admin' || member.role === 'owner') &&
+      (members?.filter((m) => m.role === 'admin' || m.role === 'owner').length ?? 0) <= 1;
+    if (isLastAdminCheck) {
+      toast.error('Cannot remove the only admin', {
+        description: 'This workspace must have at least one admin.',
+      });
+      return;
+    }
 
     const displayName = member.fullName || member.email;
     setConfirmDialog({
@@ -270,6 +285,9 @@ export const MembersSettingsPage = observer(function MembersSettingsPage() {
                   member={member}
                   currentUserRole={workspaceStore.currentUserRole}
                   isCurrentUser={member.userId === currentUserId}
+                  isLastAdmin={
+                    (member.role === 'admin' || member.role === 'owner') && adminCount <= 1
+                  }
                   onRoleChange={handleRoleChange}
                   onRemove={handleRemoveMember}
                   onTransferOwnership={handleTransferOwnership}

@@ -80,11 +80,14 @@ describe('ProfileSettingsPage', () => {
     expect(saveButton).toBeDisabled();
   });
 
-  it('returns null when no user', () => {
+  it('renders loading skeleton when no user', () => {
     mockAuthStore.user = null;
 
     const { container } = render(<ProfileSettingsPage />);
-    expect(container.innerHTML).toBe('');
+    // Skeleton loading state — not empty
+    expect(container.innerHTML).not.toBe('');
+    // Profile form is not rendered (no Display Name field)
+    expect(screen.queryByLabelText('Display Name')).not.toBeInTheDocument();
   });
 
   it('calls updateProfile and shows success toast on save', async () => {
@@ -101,7 +104,9 @@ describe('ProfileSettingsPage', () => {
     fireEvent.submit(saveButton.closest('form')!);
 
     await waitFor(() => {
-      expect(mockAuthStore.updateProfile).toHaveBeenCalledWith({ name: 'Jane Doe' });
+      expect(mockAuthStore.updateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Jane Doe' })
+      );
     });
 
     await waitFor(() => {

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
-import { Compass, Loader2, Plus, Building2 } from 'lucide-react';
+import { Compass, Loader2, Plus, Building2, ArrowLeft, Check, AlertCircle } from 'lucide-react';
 import { WorkspaceSelector, addRecentWorkspace } from '@/components/workspace-selector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getAuthProvider } from '@/services/auth/providers';
 import { workspacesApi } from '@/services/api/workspaces';
+import { ApiError } from '@/services/api/client';
+import { toSlug } from '@/lib/slug';
 
 const WORKSPACE_STORAGE_KEY = 'pilot-space:last-workspace';
 
@@ -27,19 +29,18 @@ const stagger = {
   },
 };
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
 export default function HomePage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(true);
   const [hasWorkspaces, setHasWorkspaces] = React.useState(true);
+  const [fetchError, setFetchError] = React.useState<string | null>(null);
+
+  // Wizard state
+  const [step, setStep] = React.useState<1 | 2>(1);
   const [newWorkspaceName, setNewWorkspaceName] = React.useState('');
+  const [workspaceSlug, setWorkspaceSlug] = React.useState('');
+  const [slugError, setSlugError] = React.useState<string | null>(null);
+  const [isValidatingSlug, setIsValidatingSlug] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
   const [isCreating, setIsCreating] = React.useState(false);
 
@@ -72,8 +73,23 @@ export default function HomePage() {
           router.replace(`/${target.slug}`);
           return;
         }
-      } catch {
-        // API error → fall through to workspace selector
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : '';
+        // Auth errors → redirect to login
+        if (
+          msg.includes('401') ||
+          msg.includes('403') ||
+          msg.toLowerCase().includes('unauthorized') ||
+          msg.toLowerCase().includes('forbidden')
+        ) {
+          router.replace('/login');
+          return;
+        }
+        // Other errors (network, 5xx) → show error UI
+        setFetchError('Failed to load workspaces. Please refresh the page.');
+        setIsLoading(false);
+        return;
       }
 
       // 3. No workspaces found → clear stale stored slug and show creation form
@@ -96,16 +112,54 @@ export default function HomePage() {
     router.push(`/${slug}`);
   };
 
-  const handleCreateWorkspace = async () => {
-    const name = newWorkspaceName.trim();
-    if (!name) return;
+  // Step 1: sync slug from name input
+  const handleNameChange = (value: string) => {
+    setNewWorkspaceName(value);
+    setSlugError(null);
+    const derived = toSlug(value);
+    setWorkspaceSlug(derived);
+  };
 
+  // Step 1: manual slug edit — format as-you-type, clear error
+  const handleSlugChange = (value: string) => {
+    setSlugError(null);
+    setWorkspaceSlug(toSlug(value));
+  };
+
+  // Step 1 → Step 2: validate slug uniqueness
+  const handleNext = async () => {
+    if (!newWorkspaceName.trim() || !workspaceSlug) return;
+
+    setSlugError(null);
+    setIsValidatingSlug(true);
+
+    try {
+      await workspacesApi.get(workspaceSlug);
+      // Resolved → slug exists → taken
+      setSlugError('Slug taken — try another');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        // 404 = slug is free → proceed
+        setStep(2);
+      } else {
+        // Network / 5xx — do not proceed, show error
+        setSlugError('Unable to check availability. Please try again.');
+      }
+    } finally {
+      setIsValidatingSlug(false);
+    }
+  };
+
+  // Step 2: create workspace
+  const handleCreateWorkspace = async () => {
     setCreateError(null);
     setIsCreating(true);
 
     try {
-      const slug = slugify(name);
-      const workspace = await workspacesApi.create({ name, slug });
+      const workspace = await workspacesApi.create({
+        name: newWorkspaceName.trim(),
+        slug: workspaceSlug,
+      });
       addRecentWorkspace(workspace.slug);
       router.replace(`/${workspace.slug}`);
     } catch (err) {
@@ -113,6 +167,23 @@ export default function HomePage() {
       setIsCreating(false);
     }
   };
+
+  const isNextDisabled =
+    !newWorkspaceName.trim() || !workspaceSlug || slugError !== null || isValidatingSlug;
+
+  if (fetchError) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background px-4">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <AlertCircle className="h-10 w-10 text-destructive" />
+          <p className="text-sm text-muted-foreground">{fetchError}</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -165,19 +236,28 @@ export default function HomePage() {
           {hasWorkspaces ? 'Select a workspace to get started' : 'Create your first workspace'}
         </motion.p>
 
-        {/* Workspace Selector or Creation Form */}
+        {/* Workspace Selector or Creation Wizard */}
         <motion.div variants={fadeUp} className="w-full">
           {hasWorkspaces ? (
             <WorkspaceSelector onSelect={handleWorkspaceSelect} />
-          ) : (
+          ) : step === 1 ? (
             <Card className="border-border/50 shadow-warm">
               <CardContent className="p-6">
-                <div className="mb-4 flex items-center justify-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                {/* Step indicator */}
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                     <Building2 className="h-6 w-6 text-primary" />
                   </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                      Step 1 of 2
+                    </p>
+                    <p className="text-sm font-semibold text-foreground">Name your workspace</p>
+                  </div>
                 </div>
+
                 <div className="space-y-4">
+                  {/* Workspace name */}
                   <div className="space-y-2">
                     <Label htmlFor="workspace-name">Workspace name</Label>
                     <Input
@@ -185,33 +265,142 @@ export default function HomePage() {
                       type="text"
                       placeholder="My team workspace"
                       value={newWorkspaceName}
-                      onChange={(e) => setNewWorkspaceName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleCreateWorkspace()}
-                      disabled={isCreating}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !isNextDisabled) handleNext();
+                      }}
+                      disabled={isValidatingSlug}
                       className="h-11"
+                      autoFocus
                     />
-                    {newWorkspaceName.trim() && (
-                      <p className="text-xs text-muted-foreground">
-                        Slug: {slugify(newWorkspaceName)}
+                  </div>
+
+                  {/* Slug */}
+                  <div className="space-y-2">
+                    <Label htmlFor="workspace-slug">URL slug</Label>
+                    <Input
+                      id="workspace-slug"
+                      type="text"
+                      placeholder="my-team-workspace"
+                      value={workspaceSlug}
+                      onChange={(e) => handleSlugChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !isNextDisabled) handleNext();
+                      }}
+                      disabled={isValidatingSlug}
+                      maxLength={48}
+                      className={`h-11 font-mono text-sm ${slugError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                      aria-describedby={slugError ? 'slug-error' : 'slug-hint'}
+                    />
+                    {slugError ? (
+                      <p
+                        id="slug-error"
+                        role="alert"
+                        className="flex items-center gap-1.5 text-xs text-destructive"
+                      >
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        {slugError}
+                      </p>
+                    ) : workspaceSlug ? (
+                      <p id="slug-hint" className="text-xs text-muted-foreground">
+                        pilotspace.io/
+                        <span className="font-medium text-foreground">{workspaceSlug}</span>
+                      </p>
+                    ) : (
+                      <p id="slug-hint" className="text-xs text-muted-foreground">
+                        pilotspace.io/your-slug
                       </p>
                     )}
                   </div>
-                  {createError && (
-                    <p className="text-sm text-destructive" role="alert">
-                      {createError}
+
+                  <Button onClick={handleNext} disabled={isNextDisabled} className="w-full gap-2">
+                    {isValidatingSlug ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        Checking availability...
+                      </>
+                    ) : (
+                      'Next'
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-border/50 shadow-warm">
+              <CardContent className="p-6">
+                {/* Step indicator */}
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Check className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                      Step 2 of 2
                     </p>
-                  )}
+                    <p className="text-sm font-semibold text-foreground">You&apos;re all set!</p>
+                  </div>
+                </div>
+
+                {/* Summary block */}
+                <div className="mb-5 rounded-lg border border-border/60 bg-muted/40 px-4 py-3 space-y-2">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">Name</span>
+                    <span className="text-sm font-semibold text-foreground truncate max-w-[220px]">
+                      {newWorkspaceName.trim()}
+                    </span>
+                  </div>
+                  <div className="h-px bg-border/50" />
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">URL</span>
+                    <span className="font-mono text-xs text-foreground truncate max-w-[220px]">
+                      pilotspace.io/
+                      <span className="font-semibold text-primary">{workspaceSlug}</span>
+                    </span>
+                  </div>
+                </div>
+
+                {createError && (
+                  <p
+                    role="alert"
+                    className="mb-4 flex items-center gap-1.5 text-sm text-destructive"
+                  >
+                    <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    {createError}
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setStep(1);
+                      setCreateError(null);
+                    }}
+                    disabled={isCreating}
+                    className="gap-1.5"
+                    aria-label="Back to step 1"
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    Back
+                  </Button>
+
                   <Button
                     onClick={handleCreateWorkspace}
-                    disabled={!newWorkspaceName.trim() || isCreating}
-                    className="w-full gap-2"
+                    disabled={isCreating}
+                    className="flex-1 gap-2"
                   >
                     {isCreating ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        Creating...
+                      </>
                     ) : (
-                      <Plus className="h-4 w-4" />
+                      <>
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                        Create Workspace
+                      </>
                     )}
-                    Create workspace
                   </Button>
                 </div>
               </CardContent>

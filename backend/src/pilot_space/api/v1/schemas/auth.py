@@ -57,6 +57,7 @@ class UserProfileResponse(BaseSchema):
         email: User email address.
         full_name: User display name.
         avatar_url: Profile image URL.
+        bio: Short bio displayed to teammates.
         created_at: Account creation timestamp.
     """
 
@@ -64,6 +65,7 @@ class UserProfileResponse(BaseSchema):
     email: EmailStr = Field(description="User email address")
     full_name: str | None = Field(default=None, description="User display name")
     avatar_url: str | None = Field(default=None, description="Profile image URL")
+    bio: str | None = Field(default=None, description="Short bio displayed to teammates")
     default_sdlc_role: str | None = Field(default=None, description="User's default SDLC role")
     created_at: datetime = Field(description="Account creation timestamp")
 
@@ -74,10 +76,12 @@ class UserProfileUpdateRequest(BaseSchema):
     Attributes:
         full_name: New display name.
         avatar_url: New profile image URL.
+        bio: Short bio (max 200 characters).
     """
 
     full_name: str | None = Field(default=None, max_length=255, description="Display name")
     avatar_url: str | None = Field(default=None, max_length=2048, description="Profile image URL")
+    bio: str | None = Field(default=None, max_length=200, description="Short bio (max 200 chars)")
     default_sdlc_role: str | None = Field(
         default=None, max_length=50, description="Default SDLC role"
     )

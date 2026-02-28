@@ -53,6 +53,7 @@ import type { NotificationStore } from '@/stores/NotificationStore';
 import type { UIStore } from '@/stores/UIStore';
 import { NotificationPanel } from '@/components/layout/notification-panel';
 import { addRecentWorkspace } from '@/components/workspace-selector';
+import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
 
 const navigationItems = [
   { name: 'Home', path: '', icon: Home, testId: 'nav-home' },
@@ -325,15 +326,16 @@ export const Sidebar = observer(function Sidebar() {
         >
           <Compass className="h-5 w-5 text-primary" />
         </motion.div>
-        {!collapsed && (
+        {collapsed ? (
+          <WorkspaceSwitcher currentSlug={workspaceSlug} collapsed />
+        ) : (
           <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
             className="flex flex-col"
           >
-            <span className="text-xs font-semibold text-sidebar-foreground">Pilot Space</span>
-            <span className="text-[10px] text-muted-foreground">Workspace</span>
+            <WorkspaceSwitcher currentSlug={workspaceSlug} />
           </motion.div>
         )}
       </div>

@@ -93,7 +93,6 @@ export const InviteMemberDialog = observer(function InviteMemberDialog({
       queryClient.invalidateQueries({ queryKey: workspaceMembersKeys.all(workspaceId) });
       queryClient.invalidateQueries({ queryKey: workspaceInvitationsKeys.all(workspaceId) });
       resetForm();
-      setOpen(false);
     } else {
       const errorMsg = workspaceStore.error ?? 'Failed to send invitation.';
       if (errorMsg.toLowerCase().includes('already') || errorMsg.includes('409')) {
