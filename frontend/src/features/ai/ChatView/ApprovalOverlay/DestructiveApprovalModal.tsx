@@ -26,6 +26,7 @@ import { IssuePreview } from './IssuePreview';
 import { ContentDiff } from './ContentDiff';
 import { GenericJSON } from './GenericJSON';
 import { cn } from '@/lib/utils';
+import { formatActionType } from '../utils';
 
 const URGENT_THRESHOLD_SECONDS = 60;
 
@@ -39,10 +40,6 @@ interface DestructiveApprovalModalProps {
   onClose: () => void;
   /** Total number of destructive approvals queued — shows "1 of N" when > 1 */
   totalCount?: number;
-}
-
-function formatActionType(actionType: string): string {
-  return actionType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export const DestructiveApprovalModal = memo<DestructiveApprovalModalProps>(
@@ -75,15 +72,17 @@ const DestructiveApprovalModalInner = memo<
 >(({ approval, isOpen, onApprove, onReject, onClose, totalCount }) => {
   const [modalState, setModalState] = useState<ModalState>('default');
   const [rejectionReason, setRejectionReason] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(() =>
     Math.max(0, Math.floor((approval.expiresAt.getTime() - Date.now()) / 1000))
   );
   const rejectButtonRef = useRef<HTMLButtonElement>(null);
   const hasAutoRejected = useRef(false);
 
-  // Countdown timer with auto-reject
+  // Countdown timer with auto-reject.
+  // Pauses during 'approving' state to prevent auto-reject racing with in-flight approve.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || modalState === 'approving') return;
 
     const computeRemaining = () =>
       Math.max(0, Math.floor((approval.expiresAt.getTime() - Date.now()) / 1000));
@@ -101,7 +100,7 @@ const DestructiveApprovalModalInner = memo<
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [approval, isOpen, onReject, onClose]);
+  }, [approval, isOpen, modalState, onReject, onClose]);
 
   // Focus reject button on mount (safety-first)
   useEffect(() => {
@@ -117,6 +116,7 @@ const DestructiveApprovalModalInner = memo<
   const handleApprove = useCallback(async () => {
     if (!approval) return;
 
+    setErrorMessage(null);
     setModalState('approving');
     try {
       await onApprove(approval.id);
@@ -124,12 +124,14 @@ const DestructiveApprovalModalInner = memo<
     } catch (error) {
       console.error('Failed to approve destructive action:', error);
       setModalState('default');
+      setErrorMessage('Failed to approve. Please try again.');
     }
   }, [approval, onApprove, onClose]);
 
   const handleReject = useCallback(async () => {
     if (!approval) return;
 
+    setErrorMessage(null);
     setModalState('approving'); // reuse loading state to disable all buttons
     try {
       await onReject(approval.id, rejectionReason || 'Rejected by user');
@@ -139,6 +141,7 @@ const DestructiveApprovalModalInner = memo<
     } catch (error) {
       console.error('Failed to reject destructive action:', error);
       setModalState('default');
+      setErrorMessage('Failed to reject. Please try again.');
     }
   }, [approval, rejectionReason, onReject, onClose]);
 
@@ -207,8 +210,6 @@ const DestructiveApprovalModalInner = memo<
                       ? 'border-destructive/50 text-destructive animate-pulse'
                       : 'border-orange-500/50 text-orange-600 dark:text-orange-400'
                   )}
-                  aria-live="polite"
-                  aria-label={`${minutes} minutes and ${seconds} seconds remaining`}
                 >
                   <Clock className="h-3 w-3" aria-hidden="true" />
                   <span>
@@ -291,7 +292,12 @@ const DestructiveApprovalModalInner = memo<
         </div>
 
         {/* Footer */}
-        <DialogFooter className="border-t px-6 py-4">
+        <DialogFooter className="border-t px-6 py-4 flex-col items-stretch gap-3">
+          {errorMessage && (
+            <p role="alert" className="text-xs text-destructive w-full">
+              {errorMessage}
+            </p>
+          )}
           {modalState === 'rejecting' ? (
             <>
               <Button

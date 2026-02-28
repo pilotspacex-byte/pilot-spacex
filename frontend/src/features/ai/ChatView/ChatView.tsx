@@ -46,25 +46,8 @@ import { IntentMessageRenderer } from './MessageList/IntentMessageRenderer';
 import { ConfirmAllButton } from './ConfirmAllButton';
 import { QueueDepthIndicator } from './QueueDepthIndicator';
 import { useIntentRehydration } from './hooks/useIntentRehydration';
-
-/**
- * Destructive actions that require modal overlay approval (DD-003).
- * Non-destructive actions render as inline InlineApprovalCard instead.
- */
-const DESTRUCTIVE_ACTIONS = new Set([
-  'delete_issue',
-  'merge_pr',
-  'close_issue',
-  'archive_workspace',
-  'delete_note',
-  'delete_comment',
-  'unlink_issue_from_note',
-  'unlink_issues',
-]);
-
-export function isDestructiveAction(actionType: string): boolean {
-  return DESTRUCTIVE_ACTIONS.has(actionType);
-}
+import { useApprovals } from './hooks/useApprovals';
+export { isDestructiveAction } from './utils';
 
 interface ChatViewProps {
   store: PilotSpaceStore;
@@ -230,39 +213,10 @@ const ChatViewInternal = observer<ChatViewProps>(
 
     const completedAgentTasks = agentTasks.filter((t) => t.status === 'completed');
 
-    // SSE-triggered approvals (current session, in-memory).
-    // Computed inline (no useMemo) because store.pendingApprovals is a MobX ObservableArray
-    // whose reference never changes on push — useMemo([store.pendingApprovals]) would
-    // cache stale empty array even after approvals arrive (observer re-renders correctly).
-    const sseApprovals = store.pendingApprovals.map((req) => ({
-      id: req.requestId,
-      agentName: 'PilotSpace Agent',
-      actionType: req.actionType,
-      status: 'pending' as const,
-      contextPreview: req.description,
-      payload: req.proposedContent as Record<string, unknown> | undefined,
-      createdAt: req.createdAt,
-      expiresAt: req.expiresAt,
-      reasoning: req.consequences,
-    }));
-
-    // Backend-polled approvals (all sessions); de-dup against SSE list by id.
-    const polledApprovals = (approvalStore?.pendingRequests ?? []).filter(
-      (r) => !sseApprovals.some((s) => s.id === r.id)
-    );
-
-    const chatViewApprovals = [...sseApprovals, ...polledApprovals];
-
-    // Split approvals: non-destructive inline cards vs destructive modal overlay
-    const inlineApprovals: typeof chatViewApprovals = [];
-    const modalApprovals: typeof chatViewApprovals = [];
-    for (const req of chatViewApprovals) {
-      if (isDestructiveAction(req.actionType)) {
-        modalApprovals.push(req);
-      } else {
-        inlineApprovals.push(req);
-      }
-    }
+    // Derive inline / modal approval lists from SSE + polled sources.
+    // useApprovals must be called inside observer() — MobX auto-tracks the
+    // store.pendingApprovals ObservableArray accesses made in the hook.
+    const { inlineApprovals, modalApprovals } = useApprovals(store, approvalStore);
 
     // Auto-open task panel when tasks exist
     useEffect(() => {

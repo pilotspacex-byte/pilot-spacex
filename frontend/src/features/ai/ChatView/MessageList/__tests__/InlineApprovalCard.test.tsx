@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ApprovalRequest } from '../../types';
 
@@ -114,7 +114,7 @@ describe('InlineApprovalCard', () => {
     });
 
     it('renders an expiry countdown badge', () => {
-      const { container } = render(
+      render(
         <InlineApprovalCard
           approval={makeApproval()}
           onApprove={mockOnApprove}
@@ -122,9 +122,7 @@ describe('InlineApprovalCard', () => {
         />
       );
 
-      // Countdown badge has aria-live="polite" and tabular-nums class
-      const countdownEl = container.querySelector('[aria-live="polite"]');
-      expect(countdownEl).toBeInTheDocument();
+      expect(screen.getByTestId('countdown-badge')).toBeInTheDocument();
     });
 
     it('renders both Approve and Reject buttons', () => {
@@ -608,6 +606,106 @@ describe('InlineApprovalCard', () => {
       await user.keyboard('{Enter}');
 
       expect(mockOnApprove).toHaveBeenCalledWith('keyboard-test');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Error feedback (F-07)
+  // ---------------------------------------------------------------------------
+
+  describe('error feedback', () => {
+    it('shows inline error when onApprove throws', async () => {
+      const user = userEvent.setup();
+      const failApprove = vi.fn().mockRejectedValue(new Error('Network timeout'));
+
+      render(
+        <InlineApprovalCard
+          approval={makeApproval()}
+          onApprove={failApprove}
+          onReject={mockOnReject}
+        />
+      );
+
+      await user.click(screen.getByRole('button', { name: /approve/i }));
+
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+      expect(screen.getByRole('alert')).toHaveTextContent('Network timeout');
+    });
+
+    it('shows inline error when onReject throws', async () => {
+      const user = userEvent.setup();
+      const failReject = vi.fn().mockRejectedValue(new Error('Reject failed'));
+
+      render(
+        <InlineApprovalCard
+          approval={makeApproval()}
+          onApprove={mockOnApprove}
+          onReject={failReject}
+        />
+      );
+
+      await user.click(screen.getByRole('button', { name: /reject/i }));
+      await user.click(screen.getByRole('button', { name: /confirm reject/i }));
+
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+      expect(screen.getByRole('alert')).toHaveTextContent('Reject failed');
+    });
+
+    it('shows fallback error text when thrown value is not an Error instance', async () => {
+      const user = userEvent.setup();
+      const failApprove = vi.fn().mockRejectedValue('string error');
+
+      render(
+        <InlineApprovalCard
+          approval={makeApproval()}
+          onApprove={failApprove}
+          onReject={mockOnReject}
+        />
+      );
+
+      await user.click(screen.getByRole('button', { name: /approve/i }));
+
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to approve. Please try again.');
+    });
+
+    it('clears error and returns to idle state after failed approve', async () => {
+      const user = userEvent.setup();
+      const failApprove = vi.fn().mockRejectedValue(new Error('fail'));
+
+      render(
+        <InlineApprovalCard
+          approval={makeApproval()}
+          onApprove={failApprove}
+          onReject={mockOnReject}
+        />
+      );
+
+      await user.click(screen.getByRole('button', { name: /approve/i }));
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+
+      // Buttons should be re-enabled (back to idle)
+      expect(screen.getByRole('button', { name: /approve/i })).not.toBeDisabled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Expiry (F-07)
+  // ---------------------------------------------------------------------------
+
+  describe('expiry', () => {
+    it('disables Approve and Reject buttons when approval has already expired', () => {
+      render(
+        <InlineApprovalCard
+          approval={makeApproval({ expiresAt: new Date(Date.now() - 1000) })}
+          onApprove={mockOnApprove}
+          onReject={mockOnReject}
+        />
+      );
+
+      // timeRemaining initialises to 0 — isExpired is true before any interval fires
+      expect(screen.getByTestId('approval-approve')).toBeDisabled();
+      expect(screen.getByTestId('approval-reject')).toBeDisabled();
     });
   });
 });

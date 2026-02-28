@@ -5,7 +5,7 @@
  */
 'use client';
 
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useId, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,7 @@ export const ApprovalCardGroup = memo<ApprovalCardGroupProps>(function ApprovalC
   onApprove,
   onReject,
 }) {
+  const listId = useId();
   const [isExpanded, setIsExpanded] = useState(true);
   const [isBatchLoading, setIsBatchLoading] = useState(false);
   const [batchError, setBatchError] = useState<string | null>(null);
@@ -71,7 +72,7 @@ export const ApprovalCardGroup = memo<ApprovalCardGroupProps>(function ApprovalC
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 text-sm font-medium text-ai hover:text-ai/80 transition-colors"
           aria-expanded={isExpanded}
-          aria-controls="approval-group-list"
+          aria-controls={listId}
         >
           {isExpanded ? (
             <ChevronUp className="h-4 w-4" aria-hidden="true" />
@@ -124,7 +125,7 @@ export const ApprovalCardGroup = memo<ApprovalCardGroupProps>(function ApprovalC
 
       {/* Cards list */}
       {isExpanded && (
-        <div id="approval-group-list" className="max-h-[50vh] overflow-y-auto">
+        <div id={listId} className="max-h-[50vh] overflow-y-auto">
           {approvals.map((approval, index) => (
             <InlineApprovalCard
               key={approval.id}

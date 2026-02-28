@@ -30,6 +30,7 @@ import { IssueUpdatePreview } from '../ApprovalOverlay/IssueUpdatePreview';
 import { ContentDiff } from '../ApprovalOverlay/ContentDiff';
 import { GenericJSON } from '../ApprovalOverlay/GenericJSON';
 import type { ApprovalRequest } from '../types';
+import { formatActionType } from '../utils';
 
 type CardState = 'idle' | 'rejecting' | 'loading' | 'approved' | 'rejected' | 'expired';
 const MAX_REASON_LEN = 200;
@@ -40,10 +41,6 @@ interface InlineApprovalCardProps {
   onApprove: (id: string, modifications?: Record<string, unknown>) => Promise<void>;
   onReject: (id: string, reason: string) => Promise<void>;
   className?: string;
-}
-
-function formatActionType(actionType: string): string {
-  return actionType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 type ActionBadgeProps = { icon: LucideIcon; label: string };
@@ -278,14 +275,13 @@ export const InlineApprovalCard = memo<InlineApprovalCardProps>(function InlineA
           {/* Expiry countdown */}
           <Badge
             variant="outline"
+            data-testid="countdown-badge"
             className={cn(
               'shrink-0 gap-1.5 tabular-nums text-xs transition-colors duration-300',
               isUrgent
                 ? 'border-destructive/50 text-destructive animate-pulse'
                 : 'border-muted-foreground/30 text-muted-foreground'
             )}
-            aria-live="polite"
-            aria-label={`${minutes} minutes and ${seconds} seconds remaining`}
           >
             <Clock className="h-3 w-3" aria-hidden="true" />
             <span>
