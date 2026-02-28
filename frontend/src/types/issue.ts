@@ -164,4 +164,12 @@ export interface NoteIssueLink {
   noteTitle: string;
 }
 
+// Issue-to-issue relation (from GET /workspaces/{id}/issues/{id}/relations)
+export interface IssueRelation {
+  id: string;
+  linkType: 'blocks' | 'blocked_by' | 'duplicates' | 'related';
+  direction: 'outbound' | 'inbound';
+  relatedIssue: IssueBrief;
+}
+
 export type { UserBrief, StateBrief, ProjectBrief, LabelBrief, User, IssuePriority };

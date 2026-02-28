@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { Content } from '@tiptap/core';
-import { MessageSquare } from 'lucide-react';
+import { Link2, MessageSquare } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { SelectionToolbar } from '@/components/editor/SelectionToolbar';
@@ -27,6 +27,7 @@ import {
   ActivityTimeline,
   CollapsibleSection,
   IssueSectionDivider,
+  IssueGraph,
 } from '@/features/issues/components';
 import { IssueDescriptionEmptyState } from './issue-description-empty-state';
 import { GitHubSection } from './github-section';
@@ -226,6 +227,14 @@ export function IssueEditorContent({
             )}
 
             <GitHubSection pullRequests={pullRequests} commits={commits} isLoading={linksLoading} />
+
+            <CollapsibleSection
+              title="Relationships"
+              icon={<Link2 className="size-3.5" />}
+              count={(issue.noteLinks?.length ?? 0) + (issue.project ? 1 : 0)}
+            >
+              <IssueGraph issue={issue} workspaceId={workspaceId} workspaceSlug={workspaceSlug} />
+            </CollapsibleSection>
 
             <CollapsibleSection title="Activity" icon={<MessageSquare className="size-3.5" />}>
               <ActivityTimeline issueId={issueId} workspaceId={workspaceId} />

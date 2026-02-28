@@ -39,6 +39,7 @@ export type {
   Activity,
   ActivityTimelineResponse,
   IntegrationLink,
+  IssueRelation,
   NoteIssueLink,
 } from './issue';
 

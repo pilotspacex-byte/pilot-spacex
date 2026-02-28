@@ -9,7 +9,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.infrastructure.database.models import IssuePriority, StateGroup
@@ -297,6 +297,110 @@ class IssueFilterParams(BaseSchema):
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$")
 
 
+# ============================================================================
+# Workspace-scoped Issue Schemas (used by workspace_issues router)
+# ============================================================================
+
+
+class WorkspaceIssueResponse(BaseSchema):
+    """Issue response matching frontend Issue type (StateBrief-compatible)."""
+
+    id: UUID
+    workspace_id: UUID
+    identifier: str
+    sequence_id: int
+    name: str
+    description: str | None = None
+    description_html: str | None = None
+    state: StateBriefSchema
+    priority: str
+    type: str = Field(default="task")
+    project_id: UUID | None = None
+    assignee_id: UUID | None = None
+    reporter_id: UUID
+    cycle_id: UUID | None = None
+    parent_id: UUID | None = None
+    labels: list[dict[str, Any]] = Field(default_factory=list)
+    target_date: str | None = None
+    start_date: str | None = None
+    estimate_hours: float | None = None
+    estimate_points: int | None = None
+    sort_order: int = 0
+    has_ai_enhancements: bool = False
+    sub_issue_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class WorkspaceIssueCreateRequest(BaseSchema):
+    """Create issue request matching frontend CreateIssueData."""
+
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    description_html: str | None = None
+    project_id: UUID | None = None
+    state_id: UUID | None = None
+    priority: str = Field(default="none")
+    type: str = Field(default="task")
+    assignee_id: UUID | None = None
+    label_ids: list[str] = Field(default_factory=list)
+    estimate_hours: float | None = None
+    estimate_points: int | None = None
+    start_date: date | None = None
+    target_date: date | None = None
+    cycle_id: UUID | None = None
+    parent_id: UUID | None = None
+
+    @field_validator(
+        "project_id", "assignee_id", "state_id", "cycle_id", "parent_id", mode="before"
+    )
+    @classmethod
+    def empty_string_to_none(cls, v: Any) -> Any:
+        """Convert empty strings to None for optional UUID fields."""
+        if v == "":
+            return None
+        return v
+
+
+class WorkspaceIssueUpdateRequest(BaseSchema):
+    """Update issue request matching frontend UpdateIssueData."""
+
+    name: str | None = None
+    description: str | None = None
+    description_html: str | None = None
+    priority: str | None = None
+    state_id: UUID | None = None
+    assignee_id: UUID | None = None
+    cycle_id: UUID | None = None
+    estimate_points: int | None = None
+    estimate_hours: float | None = None
+    start_date: str | None = None
+    target_date: str | None = None
+    sort_order: int | None = None
+    label_ids: list[UUID] | None = None
+
+    # Clear flags
+    clear_assignee: bool = False
+    clear_cycle: bool = False
+    clear_estimate: bool = False
+    clear_start_date: bool = False
+    clear_target_date: bool = False
+
+
+# ============================================================================
+# Issue Relation Schema (used by /issues/{id}/relations endpoint)
+# ============================================================================
+
+
+class IssueLinkSchema(BaseSchema):
+    """Issue-to-issue relation for the GET /relations endpoint."""
+
+    id: UUID
+    link_type: str
+    direction: str
+    related_issue: IssueBriefResponse
+
+
 __all__ = [
     "ActivityResponse",
     "ActivityTimelineResponse",
@@ -304,6 +408,7 @@ __all__ = [
     "IssueBriefResponse",
     "IssueCreateRequest",
     "IssueFilterParams",
+    "IssueLinkSchema",
     "IssueListResponse",
     "IssueResponse",
     "IssueUpdateRequest",
@@ -312,4 +417,7 @@ __all__ = [
     "ProjectBriefSchema",
     "StateBriefSchema",
     "UserBriefSchema",
+    "WorkspaceIssueCreateRequest",
+    "WorkspaceIssueResponse",
+    "WorkspaceIssueUpdateRequest",
 ]

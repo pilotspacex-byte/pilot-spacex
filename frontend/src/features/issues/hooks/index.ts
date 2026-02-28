@@ -47,3 +47,6 @@ export { useBulkUpdateIssues } from './use-bulk-update-issues';
 // Issue integration links (commits, PRs, branches)
 export { useIssueLinks, issueLinksKeys } from './use-issue-links';
 export type { UseIssueLinksResult } from './use-issue-links';
+
+// Issue-to-issue relations (blocks, blocked_by, duplicates, related)
+export { useIssueRelations, issueRelationsKeys } from './use-issue-relations';

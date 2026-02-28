@@ -4,6 +4,7 @@ import type {
   CreateIssueData,
   UpdateIssueData,
   IssuePriority,
+  IssueRelation,
   Activity,
   ActivityTimelineResponse,
 } from '@/types';
@@ -113,6 +114,10 @@ export const issuesApi = {
 
   updateState(workspaceId: string, issueId: string, state: string): Promise<Issue> {
     return apiClient.patch<Issue>(`/workspaces/${workspaceId}/issues/${issueId}/state`, { state });
+  },
+
+  getRelations(workspaceId: string, issueId: string): Promise<IssueRelation[]> {
+    return apiClient.get<IssueRelation[]>(`/workspaces/${workspaceId}/issues/${issueId}/relations`);
   },
 
   assignTo(workspaceId: string, issueId: string, assigneeId: string | null): Promise<Issue> {

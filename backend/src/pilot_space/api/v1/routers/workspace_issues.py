@@ -11,12 +11,11 @@ Supports both UUID and slug for workspace identification.
 
 from __future__ import annotations
 
-from datetime import date, datetime
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from pilot_space.api.v1.dependencies import (
@@ -29,11 +28,18 @@ from pilot_space.api.v1.dependencies import (
     UpdateIssueServiceDep,
     WorkspaceRepositoryDep,
 )
-from pilot_space.api.v1.schemas.base import BaseSchema, DeleteResponse, PaginatedResponse
+from pilot_space.api.v1.repository_deps import IssueLinkRepositoryDep
+from pilot_space.api.v1.schemas.base import DeleteResponse, PaginatedResponse
 from pilot_space.api.v1.schemas.issue import (
+    IssueBriefResponse,
+    IssueLinkSchema,
     IssueResponse,
     NoteIssueLinkBriefSchema,
     StateBriefSchema,
+    UserBriefSchema,
+    WorkspaceIssueCreateRequest,
+    WorkspaceIssueResponse,
+    WorkspaceIssueUpdateRequest,
 )
 from pilot_space.dependencies import DbSession, SyncedUserId
 from pilot_space.dependencies.auth import SessionDep
@@ -48,109 +54,11 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-# ============================================================================
-# Schemas for workspace-scoped issues (matching frontend types)
-# ============================================================================
-
-
-class WorkspaceIssueResponse(BaseSchema):
-    """Issue response matching frontend Issue type (StateBrief-compatible)."""
-
-    id: UUID
-    workspace_id: UUID
-    identifier: str
-    sequence_id: int
-    name: str
-    description: str | None = None
-    description_html: str | None = None
-    state: StateBriefSchema
-    priority: str
-    type: str = Field(default="task")
-    project_id: UUID | None = None
-    assignee_id: UUID | None = None
-    reporter_id: UUID
-    cycle_id: UUID | None = None
-    parent_id: UUID | None = None
-    labels: list[dict[str, Any]] = Field(default_factory=list)
-    target_date: str | None = None
-    start_date: str | None = None
-    estimate_hours: float | None = None
-    estimate_points: int | None = None
-    sort_order: int = 0
-    has_ai_enhancements: bool = False
-    sub_issue_count: int = 0
-    created_at: datetime
-    updated_at: datetime
-
-
-class WorkspaceIssueCreateRequest(BaseSchema):
-    """Create issue request matching frontend CreateIssueData."""
-
-    name: str = Field(min_length=1, max_length=255)
-    description: str | None = None
-    description_html: str | None = None
-    project_id: UUID | None = None
-    state_id: UUID | None = None
-    priority: str = Field(default="none")
-    type: str = Field(default="task")
-    assignee_id: UUID | None = None
-    label_ids: list[str] = Field(default_factory=list)
-    estimate_hours: float | None = None
-    estimate_points: int | None = None
-    start_date: date | None = None
-    target_date: date | None = None
-    cycle_id: UUID | None = None
-    parent_id: UUID | None = None
-
-    @field_validator(
-        "project_id", "assignee_id", "state_id", "cycle_id", "parent_id", mode="before"
-    )
-    @classmethod
-    def empty_string_to_none(cls, v: Any) -> Any:
-        """Convert empty strings to None for optional UUID fields."""
-        if v == "":
-            return None
-        return v
-
-
-class WorkspaceIssueUpdateRequest(BaseSchema):
-    """Update issue request matching frontend UpdateIssueData."""
-
-    name: str | None = None
-    description: str | None = None
-    description_html: str | None = None
-    priority: str | None = None
-    state_id: UUID | None = None
-    assignee_id: UUID | None = None
-    cycle_id: UUID | None = None
-    estimate_points: int | None = None
-    # T-245: Time estimate in hours (0.5 increments)
-    estimate_hours: float | None = None
-    start_date: str | None = None
-    target_date: str | None = None
-    sort_order: int | None = None
-    label_ids: list[UUID] | None = None
-
-    # Clear flags
-    clear_assignee: bool = False
-    clear_cycle: bool = False
-    clear_estimate: bool = False
-    clear_start_date: bool = False
-    clear_target_date: bool = False
-
-
 class StateUpdateRequest(BaseModel):
     """Request body for state update."""
 
     state: str
 
-
-# ============================================================================
-# Helper functions
-# ============================================================================
-
-
-# Repository dependencies are now centralized in api/v1/dependencies.py
 
 # Accept string to support both UUID and slug
 WorkspaceIdOrSlug = Annotated[str, Path(description="Workspace ID (UUID) or slug")]
@@ -220,11 +128,6 @@ def _issue_to_response(issue: Issue) -> WorkspaceIssueResponse:
     )
 
 
-# ============================================================================
-# Endpoints
-# ============================================================================
-
-
 @router.get(
     "/{workspace_id}/issues",
     response_model=PaginatedResponse[WorkspaceIssueResponse],
@@ -251,7 +154,6 @@ async def list_workspace_issues(
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
 
-    # Build service payload
     payload = ListIssuesPayload(
         workspace_id=workspace.id,
         project_id=project_id,
@@ -263,9 +165,7 @@ async def list_workspace_issues(
         sort_order="desc",
     )
 
-    # Execute service
     result = await list_service.execute(payload)
-
     items = [_issue_to_response(issue) for issue in result.items]
 
     return PaginatedResponse(
@@ -297,7 +197,6 @@ async def get_workspace_issue(
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
 
-    # Execute service
     result = await get_service.execute(issue_id)
     if not result.found or not result.issue:
         raise HTTPException(
@@ -305,7 +204,6 @@ async def get_workspace_issue(
             detail="Issue not found",
         )
 
-    # Verify workspace ownership
     if result.issue.workspace_id != workspace.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -338,7 +236,6 @@ async def list_issue_note_links(
     if issue is None or issue.workspace_id != workspace.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
 
-    # get_by_issue already filters is_deleted at the SQL level
     links = await link_repo.get_by_issue(issue_id, workspace.id)
     return [
         NoteIssueLinkBriefSchema(
@@ -348,6 +245,49 @@ async def list_issue_note_links(
             note_title=link.note.title if link.note else "",
         )
         for link in links
+    ]
+
+
+@router.get(
+    "/{workspace_id}/issues/{issue_id}/relations",
+    response_model=list[IssueLinkSchema],
+    tags=["workspace-issues"],
+    summary="List issue-to-issue relations",
+)
+async def list_issue_relations(
+    session: SessionDep,
+    workspace_id: WorkspaceIdOrSlug,
+    issue_id: IssueIdPath,
+    current_user_id: SyncedUserId,
+    workspace_repo: WorkspaceRepositoryDep,
+    link_repo: IssueLinkRepositoryDep,
+) -> list[IssueLinkSchema]:
+    """List all issue-to-issue relations (blocks, blocked_by, duplicates, related)."""
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
+
+    row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
+    issue_workspace_id = row.scalar_one_or_none()
+    if issue_workspace_id is None or issue_workspace_id != workspace.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+
+    links = await link_repo.find_all_for_issue(issue_id, workspace.id)
+    return [
+        IssueLinkSchema(
+            id=link.id,
+            link_type=link.link_type.value,
+            direction="outbound" if link.source_issue_id == issue_id else "inbound",
+            related_issue=IssueBriefResponse(
+                id=rel.id,
+                identifier=rel.identifier,
+                name=rel.name,
+                priority=rel.priority,
+                state=StateBriefSchema.model_validate(rel.state),
+                assignee=UserBriefSchema.model_validate(rel.assignee) if rel.assignee else None,
+            ),
+        )
+        for link in links
+        for rel in [link.target_issue if link.source_issue_id == issue_id else link.source_issue]
     ]
 
 
@@ -372,14 +312,12 @@ async def create_workspace_issue(
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
 
-    # Validate project_id is provided (required by service)
     if not issue_data.project_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="project_id is required",
         )
 
-    # Map priority string to enum for service payload
     priority_map = {
         "urgent": IssuePriority.URGENT,
         "high": IssuePriority.HIGH,
@@ -389,7 +327,6 @@ async def create_workspace_issue(
     }
     priority = priority_map.get(issue_data.priority.lower(), IssuePriority.NONE)
 
-    # Convert label_ids strings to UUIDs if provided
     label_uuids: list[UUID] = []
     if issue_data.label_ids:
         try:
@@ -400,7 +337,6 @@ async def create_workspace_issue(
                 detail=f"Invalid label UUID format: {e}",
             ) from e
 
-    # Build service payload
     payload = CreateIssuePayload(
         workspace_id=workspace.id,
         project_id=issue_data.project_id,
@@ -422,7 +358,6 @@ async def create_workspace_issue(
         ai_enhanced=False,
     )
 
-    # Execute service
     result = await create_service.execute(payload)
 
     logger.info(
@@ -457,7 +392,6 @@ async def update_workspace_issue(
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
 
-    # Verify issue belongs to this workspace BEFORE updating (prevents IDOR)
     issue_ws_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
     issue_workspace_id = issue_ws_row.scalar_one_or_none()
     if issue_workspace_id is None:
@@ -465,7 +399,6 @@ async def update_workspace_issue(
     if issue_workspace_id != workspace.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    # Map priority string to enum if provided
     priority = UNCHANGED
     if issue_data.priority is not None:
         priority_map = {
@@ -477,7 +410,6 @@ async def update_workspace_issue(
         }
         priority = priority_map.get(issue_data.priority.lower(), IssuePriority.NONE)
 
-    # Handle date conversions
     from datetime import date as date_type
 
     start_date_value = UNCHANGED
@@ -504,7 +436,6 @@ async def update_workspace_issue(
                 detail=f"Invalid target_date format: {e}",
             ) from e
 
-    # Build service payload with explicit handling of clear flags
     payload = UpdateIssuePayload(
         issue_id=issue_id,
         actor_id=current_user_id,
@@ -575,7 +506,6 @@ async def update_workspace_issue_state(
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
 
-    # Verify issue belongs to this workspace BEFORE updating (prevents IDOR)
     issue_ws_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
     issue_workspace_id = issue_ws_row.scalar_one_or_none()
     if issue_workspace_id is None:
@@ -583,7 +513,6 @@ async def update_workspace_issue_state(
     if issue_workspace_id != workspace.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    # Look up state by name
     state_name = body.state
     state_name_map = {
         "backlog": "Backlog",
@@ -614,7 +543,6 @@ async def update_workspace_issue_state(
             detail=f"State '{state_name}' not found",
         )
 
-    # Build service payload (only updating state)
     payload = UpdateIssuePayload(
         issue_id=issue_id,
         actor_id=current_user_id,
@@ -665,7 +593,6 @@ async def delete_workspace_issue(
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
 
-    # Verify issue belongs to this workspace BEFORE deleting (prevents IDOR)
     result_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
     issue_workspace_id = result_row.scalar_one_or_none()
     if issue_workspace_id is None:

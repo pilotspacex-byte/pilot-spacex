@@ -19,6 +19,9 @@ from pilot_space.infrastructure.database.repositories.cycle_repository import (
 from pilot_space.infrastructure.database.repositories.invitation_repository import (
     InvitationRepository,
 )
+from pilot_space.infrastructure.database.repositories.issue_link_repository import (
+    IssueLinkRepository,
+)
 from pilot_space.infrastructure.database.repositories.issue_repository import (
     IssueRepository,
 )
@@ -73,6 +76,16 @@ def _get_invitation_repository(
 
 
 InvitationRepositoryDep = Annotated[InvitationRepository, Depends(_get_invitation_repository)]
+
+
+@inject
+def _get_issue_link_repository(
+    repo: IssueLinkRepository = Depends(Provide[Container.issue_link_repository]),
+) -> IssueLinkRepository:
+    return repo
+
+
+IssueLinkRepositoryDep = Annotated[IssueLinkRepository, Depends(_get_issue_link_repository)]
 
 
 @inject
@@ -164,6 +177,7 @@ __all__ = [
     "ActivityRepositoryDep",
     "CycleRepositoryDep",
     "InvitationRepositoryDep",
+    "IssueLinkRepositoryDep",
     "IssueRepositoryDep",
     "NoteIssueLinkRepositoryDep",
     "NoteNoteLinkRepositoryDep",
