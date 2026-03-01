@@ -15,6 +15,7 @@
  * - Child components like PropertyBlockView use observer() in isolation
  */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { Content } from '@tiptap/core';
 import { MessageSquare } from 'lucide-react';
@@ -32,6 +33,7 @@ import { IssueDescriptionEmptyState } from './issue-description-empty-state';
 import { GitHubSection } from './github-section';
 import { useIssueLinks } from '@/features/issues/hooks';
 import { createIssueNoteExtensions } from '@/features/issues/editor/create-issue-note-extensions';
+import { integrationsApi } from '@/services/api/integrations';
 import type { Issue, UpdateIssueData } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -69,7 +71,20 @@ export function IssueEditorContent({
   const lastSavedHtmlRef = useRef(issue.descriptionHtml ?? '');
 
   // -- GitHub integration links --
-  const { pullRequests, commits, isLoading: linksLoading } = useIssueLinks(workspaceId, issueId);
+  const {
+    pullRequests,
+    commits,
+    branches,
+    isLoading: linksLoading,
+  } = useIssueLinks(workspaceId, issueId);
+
+  // -- GitHub installation (for Create Branch button) --
+  const { data: githubInstallation } = useQuery({
+    queryKey: ['github-installation', workspaceId],
+    queryFn: () => integrationsApi.getGitHubInstallation(workspaceId),
+    staleTime: 5 * 60_000,
+    enabled: !!workspaceId,
+  });
 
   // -- TipTap Editor --
   const extensions = useMemo(
@@ -225,7 +240,15 @@ export function IssueEditorContent({
               </>
             )}
 
-            <GitHubSection pullRequests={pullRequests} commits={commits} isLoading={linksLoading} />
+            <GitHubSection
+              pullRequests={pullRequests}
+              commits={commits}
+              branches={branches}
+              isLoading={linksLoading}
+              integrationId={githubInstallation?.id}
+              workspaceId={workspaceId}
+              issueId={issueId}
+            />
 
             <CollapsibleSection title="Activity" icon={<MessageSquare className="size-3.5" />}>
               <ActivityTimeline issueId={issueId} workspaceId={workspaceId} />

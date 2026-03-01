@@ -6,6 +6,7 @@ Services:
 - LinkCommitService: Commit-issue linking
 - AutoTransitionService: Auto-transition based on PR events
 - CommitScannerService: Scheduled commit scanning
+- CreateBranchService: GitHub branch creation linked to an issue
 """
 
 from pilot_space.application.services.integration.auto_transition_service import (
@@ -17,6 +18,12 @@ from pilot_space.application.services.integration.connect_github_service import 
     ConnectGitHubPayload,
     ConnectGitHubResult,
     ConnectGitHubService,
+)
+from pilot_space.application.services.integration.create_branch_service import (
+    CreateBranchError,
+    CreateBranchPayload,
+    CreateBranchResult,
+    CreateBranchService,
 )
 from pilot_space.application.services.integration.link_commit_service import (
     LinkCommitPayload,
@@ -38,6 +45,10 @@ __all__ = [
     "ConnectGitHubPayload",
     "ConnectGitHubResult",
     "ConnectGitHubService",
+    "CreateBranchError",
+    "CreateBranchPayload",
+    "CreateBranchResult",
+    "CreateBranchService",
     "LinkCommitPayload",
     "LinkCommitResult",
     "LinkCommitService",

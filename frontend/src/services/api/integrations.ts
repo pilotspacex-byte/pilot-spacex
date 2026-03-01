@@ -363,6 +363,36 @@ export const integrationsApi = {
   },
 
   /**
+   * Create a GitHub branch from an issue.
+   * POST /integrations/issues/{issueId}/links/branch?integration_id={integrationId}
+   */
+  createBranch(
+    _workspaceId: string,
+    issueId: string,
+    integrationId: string,
+    data: { repository: string; branch_name: string; base_branch?: string }
+  ): Promise<IntegrationLink> {
+    return apiClient
+      .post<IntegrationLinkRaw>(
+        `/integrations/issues/${issueId}/links/branch?integration_id=${integrationId}`,
+        data
+      )
+      .then(
+        (raw): IntegrationLink => ({
+          id: raw.id,
+          issueId: raw.issue_id,
+          integrationType: 'github_issue',
+          externalId: raw.external_id,
+          externalUrl: raw.external_url ?? '',
+          link_type: raw.link_type,
+          title: raw.title ?? undefined,
+          authorName: raw.author_name ?? undefined,
+          authorAvatarUrl: raw.author_avatar_url,
+        })
+      );
+  },
+
+  /**
    * Get commits linked to an issue.
    */
   getIssueCommits(workspaceId: string, issueId: string): Promise<GitHubCommit[]> {

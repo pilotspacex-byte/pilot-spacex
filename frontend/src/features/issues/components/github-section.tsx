@@ -5,10 +5,13 @@
  * Pure presentational — data is passed as props (no observer wrapper needed).
  */
 
-import { Github, GitPullRequest, GitCommit, ExternalLink } from 'lucide-react';
+import { Github, GitPullRequest, GitCommit, GitBranch, ExternalLink } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { CollapsibleSection } from './collapsible-section';
+import { CreateBranchPopover } from './create-branch-popover';
 import type { IntegrationLink } from '@/types';
 
 export interface GitHubSectionProps {
@@ -16,7 +19,13 @@ export interface GitHubSectionProps {
   pullRequests: IntegrationLink[];
   /** Links filtered to link_type === 'commit' */
   commits: IntegrationLink[];
+  /** Links filtered to link_type === 'branch' */
+  branches: IntegrationLink[];
   isLoading?: boolean;
+  /** Active GitHub integration ID — required to show Create Branch button. */
+  integrationId?: string;
+  workspaceId?: string;
+  issueId?: string;
 }
 
 const PR_STATE: Record<string, string> = {
@@ -29,8 +38,19 @@ const LINK_CLS =
   'group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const EXT_ICO = 'size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-50';
 
-export function GitHubSection({ pullRequests, commits, isLoading = false }: GitHubSectionProps) {
-  const total = pullRequests.length + commits.length;
+export function GitHubSection({
+  pullRequests,
+  commits,
+  branches,
+  isLoading = false,
+  integrationId,
+  workspaceId,
+  issueId,
+}: GitHubSectionProps) {
+  const total = pullRequests.length + commits.length + branches.length;
+  const showCreateBranch = branches.length === 0 && !isLoading;
+  const canCreateBranch = !!(integrationId && workspaceId && issueId);
+
   return (
     <CollapsibleSection
       title="GitHub"
@@ -49,9 +69,17 @@ export function GitHubSection({ pullRequests, commits, isLoading = false }: GitH
           ))}
         </div>
       ) : total === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-6 text-center">
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
           <Github className="size-8 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">No linked GitHub activity</p>
+          {showCreateBranch && (
+            <CreateBranchAction
+              canCreate={canCreateBranch}
+              integrationId={integrationId}
+              workspaceId={workspaceId}
+              issueId={issueId}
+            />
+          )}
         </div>
       ) : (
         <div>
@@ -120,8 +148,82 @@ export function GitHubSection({ pullRequests, commits, isLoading = false }: GitH
               </ul>
             </>
           )}
+          {(pullRequests.length > 0 || commits.length > 0) && branches.length > 0 && (
+            <hr className="border-border my-2" />
+          )}
+          {branches.length > 0 && (
+            <>
+              <p className="px-2 mb-1 text-xs font-medium text-muted-foreground">Branches</p>
+              <ul role="list" aria-label="Linked branches">
+                {branches.map((link) => (
+                  <li key={link.id}>
+                    <a
+                      href={link.externalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={LINK_CLS}
+                    >
+                      <GitBranch className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate font-mono text-xs">{link.externalId}</span>
+                      <ExternalLink className={cn(EXT_ICO, 'ml-auto')} />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {showCreateBranch && (
+            <div className="mt-3 px-2">
+              <CreateBranchAction
+                canCreate={canCreateBranch}
+                integrationId={integrationId}
+                workspaceId={workspaceId}
+                issueId={issueId}
+              />
+            </div>
+          )}
         </div>
       )}
     </CollapsibleSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Internal helper — renders Create Branch button or disabled tooltip variant
+// ---------------------------------------------------------------------------
+
+interface CreateBranchActionProps {
+  canCreate: boolean;
+  integrationId?: string;
+  workspaceId?: string;
+  issueId?: string;
+}
+
+function CreateBranchAction({
+  canCreate,
+  integrationId,
+  workspaceId,
+  issueId,
+}: CreateBranchActionProps) {
+  if (canCreate) {
+    return (
+      <CreateBranchPopover
+        integrationId={integrationId!}
+        workspaceId={workspaceId!}
+        issueId={issueId!}
+      />
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="outline" size="sm" disabled aria-label="Create GitHub branch">
+          <GitBranch className="size-3.5" />
+          Create branch
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Connect GitHub first</TooltipContent>
+    </Tooltip>
   );
 }

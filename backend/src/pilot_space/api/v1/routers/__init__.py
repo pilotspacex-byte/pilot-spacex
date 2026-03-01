@@ -67,6 +67,9 @@ from pilot_space.api.v1.routers.webhooks import router as webhooks_router
 from pilot_space.api.v1.routers.workspace_ai_settings import router as workspace_ai_settings_router
 from pilot_space.api.v1.routers.workspace_cycles import router as workspace_cycles_router
 from pilot_space.api.v1.routers.workspace_invitations import router as workspace_invitations_router
+from pilot_space.api.v1.routers.workspace_issue_branches import (
+    router as workspace_issue_branches_router,
+)
 from pilot_space.api.v1.routers.workspace_issues import router as workspace_issues_router
 from pilot_space.api.v1.routers.workspace_members import router as workspace_members_router
 from pilot_space.api.v1.routers.workspace_note_issue_links import (
@@ -169,6 +172,7 @@ __all__ = [
     "workspace_ai_settings_router",
     "workspace_cycles_router",
     "workspace_invitations_router",
+    "workspace_issue_branches_router",
     "workspace_issues_router",
     "workspace_members_router",
     "workspace_note_issue_links_router",

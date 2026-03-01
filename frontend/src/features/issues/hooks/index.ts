@@ -47,3 +47,7 @@ export { useBulkUpdateIssues } from './use-bulk-update-issues';
 // Issue integration links (commits, PRs, branches)
 export { useIssueLinks, issueLinksKeys } from './use-issue-links';
 export type { UseIssueLinksResult } from './use-issue-links';
+
+// Create GitHub branch from issue
+export { useCreateBranch } from './use-create-branch';
+export type { CreateBranchVars } from './use-create-branch';

@@ -45,6 +45,24 @@ class LinkPullRequestRequest(BaseModel):
     pr_number: int = Field(..., ge=1)
 
 
+class CreateBranchRequest(BaseModel):
+    """Request to create a GitHub branch linked to an issue."""
+
+    repository: str = Field(
+        ..., pattern=r"^[^/]+/[^/]+$", description="Repository full name (owner/repo)"
+    )
+    branch_name: str = Field(..., min_length=1, max_length=100)
+    base_branch: str = Field(default="main", max_length=100)
+
+
+class BranchNameResponse(BaseModel):
+    """Suggested branch name derived from issue identifier and title."""
+
+    branch_name: str
+    git_command: str
+    format: str
+
+
 class SetupWebhookRequest(BaseModel):
     """Request to setup webhook for a repository."""
 
@@ -197,7 +215,9 @@ class WebhookProcessResult(BaseModel):
 
 
 __all__ = [
+    "BranchNameResponse",
     "ConnectGitHubResponse",
+    "CreateBranchRequest",
     "GitHubOAuthCallbackRequest",
     "GitHubOAuthUrlResponse",
     "GitHubRepositoriesResponse",

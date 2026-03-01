@@ -14,6 +14,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Path, Query, Request, status
 
 from pilot_space.api.v1.schemas.integration import (
+    CreateBranchRequest,
     IntegrationLinkResponse,
     IntegrationLinksResponse,
     LinkCommitRequest,
@@ -23,6 +24,11 @@ from pilot_space.api.v1.schemas.pr_review import (
     TriggerReviewRequest,
     TriggerReviewResponse,
 )
+from pilot_space.application.services.integration import (
+    CreateBranchError,
+    CreateBranchPayload,
+    CreateBranchService,
+)
 from pilot_space.dependencies import CurrentUser, CurrentUserId, DbSession
 from pilot_space.infrastructure.database.repositories import (
     ActivityRepository,
@@ -30,6 +36,7 @@ from pilot_space.infrastructure.database.repositories import (
     IntegrationRepository,
     IssueRepository,
 )
+from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -254,6 +261,89 @@ async def trigger_pr_review(
         estimated_wait_minutes=result.estimated_wait_minutes,
         message=result.message,
     )
+
+
+# ============================================================================
+# Branch Creation
+# ============================================================================
+# NOTE: GET /issues/{issue_id}/branch-name lives in workspace_issue_branches.py
+# (registered under /workspaces prefix) to satisfy the frontend URL contract and
+# to enforce workspace-scoped RLS. See C-1/C-2 in validator findings.
+
+
+@router.post(
+    "/issues/{issue_id}/links/branch",
+    response_model=IntegrationLinkResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create GitHub branch and link to issue",
+)
+async def create_branch_for_issue(
+    session: DbSession,
+    current_user: CurrentUser,
+    current_user_id: CurrentUserId,
+    issue_id: Annotated[UUID, Path(description="Issue ID")],
+    integration_id: Annotated[UUID, Query(description="Integration ID")],
+    request: CreateBranchRequest,
+) -> IntegrationLinkResponse:
+    """Create a GitHub branch and link it to an issue.
+
+    Derives workspace context from the integration to enforce RLS before
+    querying the issue, preventing cross-workspace data access.
+    """
+    # Resolve integration first — its workspace_id is the RLS anchor.
+    integration_repo = IntegrationRepository(session)
+    integration = await integration_repo.get_by_id(integration_id)
+    if not integration:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+
+    # Enforce RLS: user must belong to the integration's workspace.
+    await set_rls_context(session, current_user_id, integration.workspace_id)
+
+    issue_repo = IssueRepository(session)
+    issue = await issue_repo.get_by_id_with_relations(issue_id)
+    if not issue:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+    if issue.workspace_id != integration.workspace_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+
+    service = CreateBranchService(
+        session=session,
+        integration_repo=integration_repo,
+        integration_link_repo=IntegrationLinkRepository(session),
+        issue_repo=issue_repo,
+        activity_repo=ActivityRepository(session),
+    )
+
+    try:
+        result = await service.execute(
+            CreateBranchPayload(
+                workspace_id=issue.workspace_id,
+                issue_id=issue_id,
+                integration_id=integration_id,
+                repository=request.repository,
+                branch_name=request.branch_name,
+                base_branch=request.base_branch,
+                actor_id=current_user_id,
+            )
+        )
+    except ValueError as e:
+        # Duplicate branch link — surface message directly (safe, user-defined input).
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except CreateBranchError as exc:
+        logger.exception("Branch creation failed for issue %s", issue_id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to create branch. Verify the GitHub integration and repository access.",
+        ) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error creating branch for issue %s", issue_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred.",
+        ) from exc
+
+    await session.commit()
+    return IntegrationLinkResponse.model_validate(result.link)
 
 
 __all__ = ["router"]
