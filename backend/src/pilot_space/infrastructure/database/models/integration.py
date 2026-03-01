@@ -76,7 +76,12 @@ class Integration(WorkspaceScopedModel):
 
     # Provider type
     provider: Mapped[IntegrationProvider] = mapped_column(
-        SQLEnum(IntegrationProvider, name="integration_provider", create_type=False),
+        SQLEnum(
+            IntegrationProvider,
+            name="integration_provider",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
     )
 
