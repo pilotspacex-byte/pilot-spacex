@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.infrastructure.database.models.user import User
 from pilot_space.infrastructure.database.repositories.pilot_api_key_repository import (
@@ -244,21 +248,26 @@ class ValidateAPIKeyService:
         self,
         api_key_repository: PilotAPIKeyRepository,
         workspace_repository: WorkspaceRepository,
+        session: AsyncSession,
     ) -> None:
         """Initialize ValidateAPIKeyService.
 
         Args:
             api_key_repository: Repository for pilot_api_keys table.
             workspace_repository: Repository for workspaces table.
+            session: Async database session for RLS context setup.
         """
         self._api_key_repo = api_key_repository
         self._workspace_repo = workspace_repository
+        self._session = session
 
     async def execute(self, payload: ValidateAPIKeyPayload) -> ValidateAPIKeyResult:
         """Validate a raw CLI API key and return workspace info.
 
-        Hashes the raw key with SHA-256, looks it up in the database, checks
-        expiry, updates last_used_at, and returns the associated workspace slug.
+        Hashes the raw key with SHA-256, looks it up in the database (the
+        pilot_api_keys SELECT policy permits cross-workspace lookup without
+        workspace context — see migration 053), then sets RLS context using
+        the key's user_id and workspace_id before querying the workspaces table.
 
         Args:
             payload: Payload containing the raw API key.
@@ -268,9 +277,10 @@ class ValidateAPIKeyService:
 
         Raises:
             ValueError: With code "invalid_api_key" if key not found.
-            ValueError: With code "expired_api_key" if key has expired.
             ValueError: With code "workspace_not_found" if workspace missing.
         """
+        from pilot_space.infrastructure.database.rls import set_rls_context
+
         key_hash = hashlib.sha256(payload.raw_key.encode()).hexdigest()
 
         api_key = await self._api_key_repo.get_by_key_hash(key_hash)
@@ -279,18 +289,11 @@ class ValidateAPIKeyService:
             msg = "invalid_api_key"
             raise ValueError(msg)
 
-        # get_by_key_hash already filters expired keys in SQL, but we defend
-        # in depth against any clock skew edge cases.
-        if api_key.is_expired:
-            logger.warning(
-                "api_key_validation_failed",
-                reason="key_expired",
-                key_id=str(api_key.id),
-            )
-            msg = "expired_api_key"
-            raise ValueError(msg)
-
+        # SQL query already filters expired/deleted keys — no Python re-check needed.
         await self._api_key_repo.mark_last_used(api_key.id)
+
+        # Set RLS context so workspace_repository.get_by_id() is scoped correctly.
+        await set_rls_context(self._session, api_key.user_id, api_key.workspace_id)
 
         workspace = await self._workspace_repo.get_by_id(api_key.workspace_id)
         if workspace is None:

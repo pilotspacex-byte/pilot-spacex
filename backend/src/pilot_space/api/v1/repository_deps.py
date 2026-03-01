@@ -37,6 +37,9 @@ from pilot_space.infrastructure.database.repositories.note_repository import (
 from pilot_space.infrastructure.database.repositories.note_yjs_state_repository import (
     NoteYjsStateRepository,
 )
+from pilot_space.infrastructure.database.repositories.pilot_api_key_repository import (
+    PilotAPIKeyRepository,
+)
 from pilot_space.infrastructure.database.repositories.project_repository import (
     ProjectRepository,
 )
@@ -165,6 +168,16 @@ UserRepositoryDep = Annotated[UserRepository, Depends(_get_user_repository)]
 
 
 @inject
+def _get_pilot_api_key_repository(
+    repo: PilotAPIKeyRepository = Depends(Provide[Container.pilot_api_key_repository]),
+) -> PilotAPIKeyRepository:
+    return repo
+
+
+PilotAPIKeyRepositoryDep = Annotated[PilotAPIKeyRepository, Depends(_get_pilot_api_key_repository)]
+
+
+@inject
 def _get_workspace_repository(
     repo: WorkspaceRepository = Depends(Provide[Container.workspace_repository]),
 ) -> WorkspaceRepository:
@@ -183,6 +196,7 @@ __all__ = [
     "NoteNoteLinkRepositoryDep",
     "NoteRepositoryDep",
     "NoteYjsStateRepositoryDep",
+    "PilotAPIKeyRepositoryDep",
     "ProjectRepositoryDep",
     "UserRepositoryDep",
     "WorkspaceRepositoryDep",

@@ -9,9 +9,10 @@ Thin HTTP adapter; all business logic delegated to AuthService (DD-064).
 
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from pilot_space.api.v1.dependencies import AuthServiceDep
 from pilot_space.api.v1.dependencies_pilot import ValidateAPIKeyServiceDep
@@ -196,18 +197,61 @@ async def get_auth_config() -> dict[str, str | None]:
     return {"provider": provider, "authcore_url": authcore_url}
 
 
+_VALIDATE_KEY_RATE_LIMIT = 20  # max requests per window
+_VALIDATE_KEY_RATE_WINDOW = 60  # seconds
+
+
+async def _check_validate_key_rate_limit(request: Request, response: Response) -> None:
+    """Enforce IP-based rate limit on the validate-key endpoint via Redis.
+
+    Fail-open on Redis outage to avoid blocking legitimate requests.
+
+    Args:
+        request: Incoming request (used to read client IP).
+        response: Response object (used to set Retry-After header on 429).
+
+    Raises:
+        HTTPException 429: If the rate limit has been exceeded.
+    """
+    try:
+        from pilot_space.dependencies.ai import get_redis_client
+
+        redis = await get_redis_client(request)
+        client_ip = request.client.host if request.client else "unknown"
+        rate_key = f"validate_key_rl:{client_ip}"
+        count: int = (await redis.incr(rate_key)) or 0
+        if count == 1:
+            await redis.expire(rate_key, _VALIDATE_KEY_RATE_WINDOW)
+        if count > _VALIDATE_KEY_RATE_LIMIT:
+            response.headers["Retry-After"] = str(_VALIDATE_KEY_RATE_WINDOW)
+            _raise_rate_limited()
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Fail open — do not block legitimate requests on Redis outage
+
+
+def _raise_rate_limited() -> None:
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="Rate limit exceeded. Try again later.",
+    )
+
+
 @router.post(
     "/validate-key",
     summary="Validate a Pilot CLI API key",
     description=(
         "Used by the `pilot` CLI to verify the configured API key before use. "
         "Reads `Authorization: Bearer <key>` from the request header. "
-        "Does NOT require Supabase JWT — the API key IS the authentication mechanism."
+        "Does NOT require Supabase JWT — the API key IS the authentication mechanism. "
+        "Rate-limited to 20 requests per 60 seconds per IP."
     ),
     status_code=status.HTTP_200_OK,
 )
 async def validate_api_key(
     request: Request,
+    response: Response,
     service: ValidateAPIKeyServiceDep,
     _session: SessionDep,
 ) -> dict[str, str]:
@@ -216,13 +260,13 @@ async def validate_api_key(
     Validates a CLI API key supplied via Bearer token header.
     Returns workspace_slug on success; 401 on invalid or expired key.
 
-    The ``_session`` parameter sets the ContextVar consumed by
-    ``get_current_session()``, which repository Factory providers rely on.
-    No workspace context is set here — the RLS policy for key_hash lookup
-    permits cross-workspace SELECT on the ``pilot_api_keys`` table.
+    Rate limited by IP address (20 req / 60s) to prevent brute-force attacks.
+    A fixed 50ms delay is applied on both success and failure paths to make
+    timing-based oracle attacks infeasible.
 
     Args:
-        request: Incoming HTTP request (used to read Authorization header).
+        request: Incoming HTTP request (used to read Authorization header and client IP).
+        response: FastAPI response (used to set Retry-After header on 429).
         service: ValidateAPIKeyService (injected via DI container).
         _session: Database session — establishes ContextVar for repositories.
 
@@ -230,11 +274,15 @@ async def validate_api_key(
         JSON body with ``workspace_slug`` on success.
 
     Raises:
-        HTTPException 401: If the Authorization header is missing, malformed,
-            or contains an invalid/expired API key.
+        HTTPException 401: Authorization header missing, malformed, or invalid/expired key.
+        HTTPException 429: Rate limit exceeded.
     """
+    # IP-based rate limiting via Redis (fail-open on Redis outage)
+    await _check_validate_key_rate_limit(request, response)
+
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
+        await asyncio.sleep(0.05)  # constant-time response
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or malformed Authorization header. Expected: Bearer <api-key>",
@@ -244,11 +292,13 @@ async def validate_api_key(
     try:
         result = await service.execute(ValidateAPIKeyPayload(raw_key=raw_key))
     except ValueError as exc:
+        await asyncio.sleep(0.05)  # constant-time response prevents timing oracle
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired API key",
         ) from exc
 
+    await asyncio.sleep(0.05)  # uniform timing on success path too
     return {"workspace_slug": result.workspace_slug}
 
 

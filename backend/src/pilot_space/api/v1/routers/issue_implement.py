@@ -9,19 +9,20 @@ Accepts both UUID and human-readable identifier formats (e.g., "PS-42").
 from __future__ import annotations
 
 import re
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, HTTPException, status
 from pydantic import BaseModel
 
 from pilot_space.api.v1.dependencies import UpdateIssueServiceDep
-from pilot_space.api.v1.dependencies_pilot import GetImplementContextServiceDep
+from pilot_space.api.v1.dependencies_pilot import (
+    CLIRequesterContextDep,
+    GetImplementContextServiceDep,
+)
 from pilot_space.api.v1.repository_deps import IssueRepositoryDep
 from pilot_space.api.v1.schemas.implement_context import ImplementContextResponse
 from pilot_space.application.services.issue import GetImplementContextPayload
-from pilot_space.dependencies.auth import SessionDep, get_current_user_id
-from pilot_space.dependencies.workspace import get_current_workspace_id
+from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
@@ -72,7 +73,7 @@ async def _resolve_issue_id(
     if not match:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Issue not found: {issue_ref}",
+            detail="Issue not found",
         )
 
     project_identifier = match.group(1)
@@ -86,7 +87,7 @@ async def _resolve_issue_id(
     if issue is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Issue not found: {issue_ref}",
+            detail="Issue not found",
         )
     return issue.id
 
@@ -107,28 +108,32 @@ async def get_implement_context(
     session: SessionDep,
     service: GetImplementContextServiceDep,
     issue_repo: IssueRepositoryDep,
-    workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
-    current_user_id: Annotated[UUID, Depends(get_current_user_id)],
+    requester_context: CLIRequesterContextDep,
 ) -> ImplementContextResponse:
     """Assemble and return the implement context for an issue.
+
+    Accepts both Supabase JWT (web browser) and Pilot API key (CLI) auth.
+    For API key auth, workspace_id is derived from the key record — no
+    X-Workspace-Id header required.
 
     Args:
         issue_ref: UUID string or human-readable identifier (e.g., "PS-42").
         session: Database session (triggers RLS context).
         service: Injected GetImplementContextService.
         issue_repo: Injected IssueRepository for identifier resolution.
-        workspace_id: Resolved from X-Workspace-Id header.
-        current_user_id: Authenticated user UUID.
+        requester_context: (user_id, workspace_id) resolved from JWT or API key.
 
     Returns:
         ImplementContextResponse with issue details, linked notes,
         repository context, workspace and project metadata, and suggested branch.
 
     Raises:
+        HTTPException 401: Missing or invalid credentials.
         HTTPException 403: Requester is not the assignee or an admin/owner.
         HTTPException 404: Issue does not exist or identifier is invalid.
         HTTPException 422: No active GitHub integration configured.
     """
+    current_user_id, workspace_id = requester_context
     await set_rls_context(session, current_user_id, workspace_id)
 
     issue_id = await _resolve_issue_id(issue_ref, workspace_id, issue_repo)
@@ -208,23 +213,24 @@ async def update_issue_state(
     session: SessionDep,
     update_service: UpdateIssueServiceDep,
     issue_repo: IssueRepositoryDep,
-    workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
-    current_user_id: Annotated[UUID, Depends(get_current_user_id)],
+    requester_context: CLIRequesterContextDep,
     body: _StateUpdateBody = Body(...),
 ) -> None:
     """Update the state of an issue.
+
+    Accepts both Supabase JWT and Pilot API key authentication.
 
     Args:
         issue_ref: UUID string or human-readable identifier (e.g., "PS-42").
         session: Database session (triggers RLS context).
         update_service: Injected UpdateIssueService.
         issue_repo: Injected IssueRepository for identifier resolution.
-        workspace_id: Resolved from X-Workspace-Id header.
-        current_user_id: Authenticated user UUID.
+        requester_context: (user_id, workspace_id) resolved from JWT or API key.
         body: Request body containing the target state name.
 
     Raises:
         HTTPException 400: State name not found in the workspace.
+        HTTPException 401: Missing or invalid credentials.
         HTTPException 404: Issue does not exist or identifier is invalid.
     """
     from sqlalchemy import select
@@ -235,6 +241,7 @@ async def update_issue_state(
     )
     from pilot_space.infrastructure.database.models.state import State
 
+    current_user_id, workspace_id = requester_context
     await set_rls_context(session, current_user_id, workspace_id)
 
     issue_id = await _resolve_issue_id(issue_ref, workspace_id, issue_repo)

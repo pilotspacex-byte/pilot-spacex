@@ -56,7 +56,7 @@ class PilotConfig:
         File permissions are set to 0o600 (user-only read/write) to protect
         the API key from other users on the system.
         """
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
         fd = _os.open(str(CONFIG_FILE), _os.O_WRONLY | _os.O_CREAT | _os.O_TRUNC, 0o600)
         with _os.fdopen(fd, "wb") as f:
             tomli_w.dump(

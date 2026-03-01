@@ -49,8 +49,15 @@ def test_auth_router_expected_route_count() -> None:
     """Verify auth router has exactly the expected number of routes.
 
     Expected: /auth/login (GET), /auth/me (GET, PATCH), /auth/logout (POST),
-              /auth/config (GET — JWT provider config for frontend).
+              /auth/config (GET — JWT provider config for frontend),
+              /auth/validate-key (POST — CLI API key validation).
     """
     paths = _get_route_paths()
-    expected_paths = {"/auth/login", "/auth/me", "/auth/logout", "/auth/config"}
+    expected_paths = {
+        "/auth/login",
+        "/auth/me",
+        "/auth/logout",
+        "/auth/config",
+        "/auth/validate-key",
+    }
     assert paths == expected_paths

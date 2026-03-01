@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlparse
 
 import git
 import typer
@@ -24,6 +26,12 @@ WORKSPACES_DIR = Path.home() / ".pilot" / "workspaces"
 
 _BACKEND_GATE = "uv run pyright && uv run ruff check && uv run pytest --cov=."
 _FRONTEND_GATE = "pnpm lint && pnpm type-check && pnpm test"
+
+# Allowed git hosting domains for clone_url (F-8: SSRF prevention)
+_ALLOWED_CLONE_HOSTS = frozenset({"github.com", "gitlab.com", "bitbucket.org"})
+
+# Safe slug pattern — alphanumeric, hyphens, underscores only (F-7: path traversal)
+_SAFE_SLUG_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 def implement_command(
@@ -80,8 +88,18 @@ async def _run_implement(issue_id: str, config: PilotConfig) -> None:
     default_branch: str = ctx["repository"]["defaultBranch"]
     console.print(f"[green]✓[/green] [dim]{issue_title!r}[/dim]")
 
+    # F-8: Validate clone_url against allowed hosts to prevent SSRF
+    _validate_clone_url(clone_url)
+
     # ── Step 2: Clone repository ─────────────────────────────────────────────
+    # F-7: Validate path components to prevent directory traversal
+    _validate_path_component(config.workspace_slug, "workspace_slug")
+    _validate_path_component(issue_id, "issue_id")
     target_path = WORKSPACES_DIR / config.workspace_slug / issue_id
+    # Extra check: ensure resolved path stays inside WORKSPACES_DIR
+    if not str(target_path.resolve()).startswith(str(WORKSPACES_DIR.resolve())):
+        console.print("[red]Error:[/red] Invalid workspace/issue path detected.")
+        raise typer.Exit(1)
     console.print("[dim][[/dim]2/6[dim]][/dim] Cloning repository...", end=" ")
 
     if target_path.exists():
@@ -156,8 +174,10 @@ async def _run_implement(issue_id: str, config: PilotConfig) -> None:
         )
         return
 
+    # F-13: Sanitize issue_title to prevent commit message injection
+    safe_title = _sanitize_text(issue_title, max_len=100)
     commit_msg = (
-        f"feat({issue_id}): {issue_title}\n\n"
+        f"feat({issue_id}): {safe_title}\n\n"
         f"Implemented via `pilot implement {issue_id}`.\n\n"
         f"Closes #{issue_id}"
     )
@@ -195,6 +215,109 @@ async def _run_implement(issue_id: str, config: PilotConfig) -> None:
         console.print(f"Issue [bold]{issue_id}[/bold] updated → [bold]In Review[/bold]")
     except PilotAPIError as e:
         console.print(f"[yellow]Warning:[/yellow] Could not update issue status: {e}")
+
+
+def _sanitize_text(text: str, max_len: int = 500) -> str:
+    """Strip control characters and Markdown code-fence markers from user text.
+
+    Prevents prompt injection when user-controlled content is rendered into
+    CLAUDE.md (Claude Code's instruction context) or git commit messages.
+
+    Args:
+        text: Raw user-supplied string.
+        max_len: Maximum allowed length after stripping.
+
+    Returns:
+        Sanitized, length-capped string safe for use in Markdown context.
+    """
+    # Remove carriage returns and other control characters (keep newlines + tabs)
+    sanitized = re.sub(r"[\r\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    # Strip triple-backtick sequences that could escape/inject code blocks
+    sanitized = sanitized.replace("```", "")
+    return sanitized[:max_len].strip()
+
+
+def _sanitize_context(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Sanitize all user-controlled text fields in the normalized context dict.
+
+    Called before Jinja2 template rendering to prevent prompt injection of
+    workspace/project/issue content into CLAUDE.md (F-5).
+    """
+    issue = ctx["issue"]
+    issue["title"] = _sanitize_text(issue.get("title", ""), max_len=200)
+    issue["description"] = _sanitize_text(issue.get("description") or "", max_len=2000)
+    issue["acceptance_criteria"] = [
+        _sanitize_text(c, max_len=500) for c in (issue.get("acceptance_criteria") or [])
+    ]
+
+    project = ctx["project"]
+    project["name"] = _sanitize_text(project.get("name", ""), max_len=100)
+    project["tech_stack_summary"] = _sanitize_text(
+        project.get("tech_stack_summary", ""), max_len=300
+    )
+
+    workspace = ctx["workspace"]
+    workspace["name"] = _sanitize_text(workspace.get("name", ""), max_len=100)
+
+    linked_notes = ctx.get("linked_notes", [])
+    for note in linked_notes:
+        note["note_title"] = _sanitize_text(note.get("note_title", ""), max_len=200)
+        note["relevant_blocks"] = [
+            _sanitize_text(b, max_len=500) for b in (note.get("relevant_blocks") or [])
+        ]
+
+    return ctx
+
+
+def _validate_clone_url(clone_url: str) -> None:
+    """Validate that clone_url points to an allowed git hosting domain.
+
+    Prevents SSRF attacks where a malicious server returns a crafted clone_url
+    pointing to an attacker-controlled host (F-8).
+
+    Args:
+        clone_url: URL from the implement-context API response.
+
+    Raises:
+        typer.Exit: If the URL is invalid or points to a disallowed host.
+    """
+    try:
+        parsed = urlparse(clone_url)
+        host = parsed.hostname or ""
+        # Strip port and normalize
+        if host not in _ALLOWED_CLONE_HOSTS and not any(
+            host.endswith(f".{allowed}") for allowed in _ALLOWED_CLONE_HOSTS
+        ):
+            console.print(
+                f"[red]Error:[/red] Untrusted clone URL host: {host!r}. "
+                f"Allowed: {', '.join(sorted(_ALLOWED_CLONE_HOSTS))}"
+            )
+            raise typer.Exit(1)
+    except typer.Exit:
+        raise
+    except Exception:
+        console.print(f"[red]Error:[/red] Invalid clone URL: {clone_url!r}")
+        raise typer.Exit(1)
+
+
+def _validate_path_component(value: str, field: str) -> None:
+    """Ensure a path component contains only safe characters.
+
+    Prevents directory traversal attacks where a malicious server returns
+    a workspace_slug or issue_id containing path separators (F-7).
+
+    Args:
+        value: The path component to validate (workspace slug or issue ID).
+        field: Field name for error messages.
+
+    Raises:
+        typer.Exit: If the value contains unsafe characters.
+    """
+    if not _SAFE_SLUG_RE.match(value):
+        console.print(
+            f"[red]Error:[/red] Unsafe {field} value received from server: {value!r}"
+        )
+        raise typer.Exit(1)
 
 
 def _normalize_ctx(ctx: dict[str, Any]) -> dict[str, Any]:
@@ -254,12 +377,17 @@ def _normalize_ctx(ctx: dict[str, Any]) -> dict[str, Any]:
 
 
 def _inject_claude_md(target_path: Path, ctx: dict[str, Any]) -> None:
-    """Render CLAUDE.md from template; append to existing file if present."""
+    """Render CLAUDE.md from template; append to existing file if present.
+
+    User-controlled text fields (title, description, notes, tech stack) are
+    sanitized before rendering to prevent prompt injection into Claude Code's
+    instruction context (F-5).
+    """
     templates_dir = Path(__file__).parent.parent / "templates"
     env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=False)
     template = env.get_template("CLAUDE_MD_TEMPLATE.md")
 
-    normalized = _normalize_ctx(ctx)
+    normalized = _sanitize_context(_normalize_ctx(ctx))
 
     rendered = template.render(
         issue=normalized["issue"],
