@@ -28,23 +28,23 @@ depends_on = None
 def upgrade() -> None:
     """Create skill_executions table with approval workflow."""
     # 1. Create approval_status enum
-    op.execute("""
-        CREATE TYPE skill_approval_status_enum AS ENUM (
-            'auto_approved',
-            'pending_approval',
-            'approved',
-            'rejected',
-            'expired'
-        )
-    """)
+    # op.execute("""
+    #     CREATE TYPE skill_approval_status_enum AS ENUM (
+    #         'auto_approved',
+    #         'pending_approval',
+    #         'approved',
+    #         'rejected',
+    #         'expired'
+    #     )
+    # """)
 
-    # 2. Create required_approval_role enum (C-7)
-    op.execute("""
-        CREATE TYPE skill_approval_role_enum AS ENUM (
-            'admin',
-            'member'
-        )
-    """)
+    # # 2. Create required_approval_role enum (C-7)
+    # op.execute("""
+    #     CREATE TYPE skill_approval_role_enum AS ENUM (
+    #         'admin',
+    #         'member'
+    #     )
+    # """)
 
     # 3. Create skill_executions table
     op.create_table(

@@ -1,6 +1,6 @@
 """Add pg_cron job for skill_executions approval expiry (T-070).
 
-Revision ID: 041_add_skill_approval_expiry_cron
+Revision ID: 041_add_skill_approval_expiry
 Revises: 040_add_memory_engine
 Create Date: 2026-02-19
 
@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "041_add_skill_approval_expiry_cron"
+revision: str = "041_add_skill_approval_expiry"
 down_revision: str = "040_add_memory_engine"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

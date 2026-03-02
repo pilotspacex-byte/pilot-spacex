@@ -5,7 +5,7 @@ Supports auto/manual/ai_before/ai_after triggers with RLS workspace isolation.
 Includes pg_cron function fn_auto_version_active_notes() scheduled every 5 min.
 
 Revision ID: 042_add_note_versions
-Revises: 041_add_skill_approval_expiry_cron
+Revises: 041_add_skill_approval_expiry
 Create Date: 2026-02-19
 
 Feature 017: Note Versioning + PM Blocks — Sprint 1 (T-201, T-202)
@@ -18,7 +18,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "042_add_note_versions"
-down_revision = "041_add_skill_approval_expiry_cron"
+down_revision = "041_add_skill_approval_expiry"
 branch_labels = None
 depends_on = None
 

@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 import httpx
-import orjson
+# import orjson
 
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.infrastructure.queue.models import (
@@ -143,26 +143,28 @@ class SupabaseQueueClient:
             QueueConnectionError: If connection fails.
             QueueOperationError: If RPC call fails.
         """
-        client = await self._get_client()
+        # **TODO**: Implement retry logic with exponential backoff for transient errors
+        pass
+        # client = await self._get_client()
 
-        try:
-            response = await client.post(
-                f"/rpc/{function_name}",
-                content=orjson.dumps(params),
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.ConnectError as e:
-            logger.exception("Failed to connect to Supabase")
-            raise QueueConnectionError(f"Connection failed: {e}") from e
-        except httpx.HTTPStatusError as e:
-            logger.exception("RPC call %s failed: %s", function_name, e.response.text)
-            raise QueueOperationError(
-                f"RPC {function_name} failed: {e.response.status_code}"
-            ) from e
-        except httpx.RequestError as e:
-            logger.exception("Request error for %s", function_name)
-            raise QueueOperationError(f"Request failed: {e}") from e
+        # try:
+        #     response = await client.post(
+        #         f"/rpc/{function_name}",
+        #         content=orjson.dumps(params),
+        #     )
+        #     response.raise_for_status()
+        #     return response.json()
+        # except httpx.ConnectError as e:
+        #     logger.exception("Failed to connect to Supabase")
+        #     raise QueueConnectionError(f"Connection failed: {e}") from e
+        # except httpx.HTTPStatusError as e:
+        #     logger.exception("RPC call %s failed: %s", function_name, e.response.text)
+        #     raise QueueOperationError(
+        #         f"RPC {function_name} failed: {e.response.status_code}"
+        #     ) from e
+        # except httpx.RequestError as e:
+        #     logger.exception("Request error for %s", function_name)
+        #     raise QueueOperationError(f"Request failed: {e}") from e
 
     # =========================================================================
     # Core Queue Operations

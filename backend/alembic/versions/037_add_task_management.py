@@ -5,7 +5,7 @@ Adds acceptance_criteria (JSONB) and technical_requirements (Text) to issues.
 Includes RLS policies and indexes for workspace isolation.
 
 Revision ID: 037_add_task_management
-Revises: 036_fix_ai_sessions_rls_enum_case
+Revises: 036_fix_ai_sessions_rls_enum
 Create Date: 2026-02-14
 """
 
@@ -16,7 +16,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "037_add_task_management"
-down_revision = "036_fix_ai_sessions_rls_enum_case"
+down_revision = "036_fix_ai_sessions_rls_enum"
 branch_labels = None
 depends_on = None
 

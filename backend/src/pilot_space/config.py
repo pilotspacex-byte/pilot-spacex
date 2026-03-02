@@ -129,7 +129,7 @@ class Settings(BaseSettings):
     rate_limit_ai_per_minute: int = Field(default=100, ge=10)
 
     # CORS
-    cors_origins: list[str] = Field(
+    cors_origins: str | list[str] = Field(
         default=["*"],
         description="Allowed CORS origins",
     )

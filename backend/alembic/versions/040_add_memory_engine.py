@@ -23,22 +23,22 @@ depends_on = None
 def upgrade() -> None:
     """Create memory engine tables with RLS, indexes, and vector support."""
     # 1. Create enums
-    op.execute("""
-        CREATE TYPE memory_source_type_enum AS ENUM (
-            'intent',
-            'skill_outcome',
-            'user_feedback',
-            'constitution'
-        )
-    """)
+    # op.execute("""
+    #     CREATE TYPE memory_source_type_enum AS ENUM (
+    #         'intent',
+    #         'skill_outcome',
+    #         'user_feedback',
+    #         'constitution'
+    #     )
+    # """)
 
-    op.execute("""
-        CREATE TYPE constitution_severity_enum AS ENUM (
-            'must',
-            'should',
-            'may'
-        )
-    """)
+    # op.execute("""
+    #     CREATE TYPE constitution_severity_enum AS ENUM (
+    #         'must',
+    #         'should',
+    #         'may'
+    #     )
+    # """)
 
     # 2. Create memory_entries table
     op.create_table(
