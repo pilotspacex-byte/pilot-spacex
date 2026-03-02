@@ -62,15 +62,21 @@ class WorkspaceIssueResponse(BaseSchema):
     sequence_id: int
     name: str
     description: str | None = None
+    description_html: str | None = None
     state: StateBriefSchema
     priority: str
     type: str = Field(default="task")
     project_id: UUID | None = None
     assignee_id: UUID | None = None
     reporter_id: UUID
+    cycle_id: UUID | None = None
+    parent_id: UUID | None = None
     labels: list[dict[str, Any]] = Field(default_factory=list)
     target_date: str | None = None
+    start_date: str | None = None
     estimate_hours: float | None = None
+    estimate_points: int | None = None
+    sort_order: int = 0
     has_ai_enhancements: bool = False
     sub_issue_count: int = 0
     created_at: datetime
@@ -192,15 +198,21 @@ def _issue_to_response(issue: Issue) -> WorkspaceIssueResponse:
         sequence_id=issue.sequence_id or 0,
         name=issue.name,
         description=issue.description,
+        description_html=issue.description_html,
         state=StateBriefSchema.model_validate(issue.state),
         priority=issue.priority.value if issue.priority else "none",
         type="task",
         project_id=issue.project_id,
         assignee_id=issue.assignee_id,
         reporter_id=issue.reporter_id,
+        cycle_id=issue.cycle_id,
+        parent_id=issue.parent_id,
         labels=[],
         target_date=issue.target_date.isoformat() if issue.target_date else None,
+        start_date=issue.start_date.isoformat() if issue.start_date else None,
         estimate_hours=float(issue.estimate_hours) if issue.estimate_hours is not None else None,
+        estimate_points=issue.estimate_points,
+        sort_order=issue.sort_order or 0,
         has_ai_enhancements=issue.has_ai_enhancements,
         sub_issue_count=0,
         created_at=issue.created_at,
@@ -341,7 +353,7 @@ async def list_issue_note_links(
 
 @router.post(
     "/{workspace_id}/issues",
-    response_model=WorkspaceIssueResponse,
+    response_model=IssueResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["workspace-issues"],
     summary="Create a new issue",
@@ -353,7 +365,7 @@ async def create_workspace_issue(
     session: DbSession,
     create_service: CreateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-) -> WorkspaceIssueResponse:
+) -> IssueResponse:
     """Create a new issue in the workspace."""
     from pilot_space.application.services.issue import CreateIssuePayload
 
@@ -418,7 +430,7 @@ async def create_workspace_issue(
         extra={"issue_id": str(result.issue.id), "workspace_id": str(workspace.id)},
     )
 
-    return _issue_to_response(result.issue)
+    return IssueResponse.from_issue(result.issue)
 
 
 @router.patch(

@@ -34,7 +34,7 @@ export interface WorkspaceAISettingsFeatures {
   aiContextEnabled: boolean;
   issueExtractionEnabled: boolean;
   prReviewEnabled: boolean;
-  docGenerationEnabled: boolean;
+  autoApproveNonDestructive: boolean;
 }
 
 export interface WorkspaceAISettingsProvider {
@@ -254,22 +254,33 @@ export const aiApi = {
     apiClient.get<ConversationMessage[]>(`/ai/conversation/sessions/${sessionId}/messages`),
 
   /**
-   * Approve an action request with optional modifications.
+   * Approve an action request with optional note.
    * @param requestId - Request UUID
-   * @param modifications - Optional modifications to apply
-   * @returns Updated approval request
+   * @param modifications - Optional modifications to apply (passed as note)
+   * @returns Approval resolution result
    */
   approveAction: (requestId: string, modifications?: Record<string, unknown>) =>
-    apiClient.post<ApprovalRequest>(`/ai/approvals/${requestId}/approve`, { modifications }),
+    apiClient.post<{
+      approved: boolean;
+      action_result: Record<string, unknown> | null;
+      action_error: string | null;
+    }>(`/ai/approvals/${requestId}/resolve`, {
+      approved: true,
+      note: modifications ? JSON.stringify(modifications) : undefined,
+    }),
 
   /**
    * Reject an action request with a reason.
    * @param requestId - Request UUID
    * @param reason - Rejection reason
-   * @returns Updated approval request
+   * @returns Approval resolution result
    */
   rejectAction: (requestId: string, reason: string) =>
-    apiClient.post<ApprovalRequest>(`/ai/approvals/${requestId}/reject`, { reason }),
+    apiClient.post<{
+      approved: boolean;
+      action_result: Record<string, unknown> | null;
+      action_error: string | null;
+    }>(`/ai/approvals/${requestId}/resolve`, { approved: false, note: reason }),
 
   /**
    * List available skills from backend templates.
@@ -393,7 +404,7 @@ export interface IntentResponse {
 
 export interface ConfirmAllResponse {
   confirmed: IntentResponse[];
-  confirmed_count: number;
-  remaining_count: number;
-  deduplicating_count: number;
+  confirmedCount: number;
+  remainingCount: number;
+  deduplicatingCount: number;
 }

@@ -13,6 +13,7 @@ import { useParams } from 'next/navigation';
 import { AlertCircle, Lock, Plus, Wand2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useStore } from '@/stores';
 import {
@@ -22,10 +23,15 @@ import {
   useRegenerateSkill,
   useDeleteRoleSkill,
 } from '@/features/onboarding/hooks';
+import { RoleSelectorStep } from '@/features/onboarding/components/RoleSelectorStep';
+import { CustomRoleInput } from '@/features/onboarding/components/CustomRoleInput';
+import { SkillGenerationWizard } from '@/features/onboarding/components/SkillGenerationWizard';
 import { SkillCard } from '../components/skill-card';
 import { RegenerateSkillModal } from '../components/regenerate-skill-modal';
 import { ConfirmActionDialog } from '../components/confirm-action-dialog';
 import type { RoleSkill } from '@/services/api/role-skills';
+
+type RoleSetupView = 'role_grid' | 'custom_role' | 'skill_wizard';
 
 const MAX_ROLES = 3;
 
@@ -90,6 +96,11 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   const [regenerateTarget, setRegenerateTarget] = React.useState<RoleSkill | null>(null);
   const [removeTarget, setRemoveTarget] = React.useState<RoleSkill | null>(null);
   const [resetTarget, setResetTarget] = React.useState<RoleSkill | null>(null);
+
+  // Role setup dialog sub-flow state
+  const [isSetupOpen, setIsSetupOpen] = React.useState(false);
+  const [roleSetupView, setRoleSetupView] = React.useState<RoleSetupView>('role_grid');
+  const [currentWizardIndex, setCurrentWizardIndex] = React.useState(0);
 
   const skillCount = skills?.length ?? 0;
   const slotsLeft = MAX_ROLES - skillCount;
@@ -163,9 +174,72 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
     });
   };
 
+  const existingSkillRoleTypes = React.useMemo(
+    () => (skills ?? []).map((s) => s.roleType),
+    [skills]
+  );
+
+  const closeSetupDialog = React.useCallback(() => {
+    setIsSetupOpen(false);
+    setRoleSetupView('role_grid');
+    setCurrentWizardIndex(0);
+    roleSkillStore.setGenerationStep(null);
+  }, [roleSkillStore]);
+
   const handleSetupRole = () => {
+    roleSkillStore.clearSelectedRoles();
     roleSkillStore.setGenerationStep('select');
+    setRoleSetupView('role_grid');
+    setIsSetupOpen(true);
   };
+
+  const handleRoleContinue = () => {
+    if (roleSkillStore.selectedRoles.length === 0) return;
+    setCurrentWizardIndex(0);
+    roleSkillStore.setGenerationStep('form');
+    setRoleSetupView('skill_wizard');
+  };
+
+  const handleCustomRole = () => {
+    setRoleSetupView('custom_role');
+  };
+
+  const handleCustomRoleBack = () => {
+    setRoleSetupView('role_grid');
+  };
+
+  const handleCustomRoleGenerate = () => {
+    if (!roleSkillStore.selectedRoles.includes('custom')) {
+      roleSkillStore.toggleRole('custom');
+    }
+    setCurrentWizardIndex(roleSkillStore.selectedRoles.indexOf('custom'));
+    roleSkillStore.setGenerationStep('form');
+    roleSkillStore.setExperienceDescription(roleSkillStore.customRoleDescription);
+    setRoleSetupView('skill_wizard');
+  };
+
+  const handleWizardBack = () => {
+    if (currentWizardIndex > 0) {
+      setCurrentWizardIndex(currentWizardIndex - 1);
+      roleSkillStore.setGenerationStep('form');
+    } else {
+      setRoleSetupView('role_grid');
+    }
+  };
+
+  const handleWizardComplete = () => {
+    const nextIndex = currentWizardIndex + 1;
+    if (nextIndex < roleSkillStore.selectedRoles.length) {
+      setCurrentWizardIndex(nextIndex);
+      roleSkillStore.setGenerationStep('form');
+    } else {
+      closeSetupDialog();
+    }
+  };
+
+  const currentWizardRole = roleSkillStore.selectedRoles[currentWizardIndex];
+  const currentTemplate = templates?.find((t) => t.roleType === currentWizardRole);
+  const needsWideModal = roleSetupView === 'skill_wizard' || roleSetupView === 'custom_role';
 
   if (isGuest) {
     return (
@@ -302,6 +376,41 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
           variant="destructive"
         />
       )}
+
+      {/* Role setup dialog */}
+      <Dialog open={isSetupOpen} onOpenChange={(open) => !open && closeSetupDialog()}>
+        <DialogContent className={needsWideModal ? 'sm:max-w-4xl' : 'sm:max-w-xl'}>
+          <div className="py-2">
+            {roleSetupView === 'role_grid' && (
+              <RoleSelectorStep
+                existingSkillRoleTypes={existingSkillRoleTypes}
+                onContinue={handleRoleContinue}
+                onSkip={closeSetupDialog}
+                onBack={closeSetupDialog}
+                onCustomRole={handleCustomRole}
+              />
+            )}
+            {roleSetupView === 'custom_role' && (
+              <CustomRoleInput
+                onBack={handleCustomRoleBack}
+                onGenerate={handleCustomRoleGenerate}
+                isGenerating={roleSkillStore.isGenerating}
+              />
+            )}
+            {roleSetupView === 'skill_wizard' && currentWizardRole && (
+              <SkillGenerationWizard
+                roleType={currentWizardRole}
+                template={currentTemplate}
+                workspaceId={workspaceId}
+                onBack={handleWizardBack}
+                onComplete={handleWizardComplete}
+                currentIndex={currentWizardIndex + 1}
+                totalRoles={roleSkillStore.selectedRoles.length}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });

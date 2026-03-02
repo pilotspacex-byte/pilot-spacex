@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TaskStore } from '../TaskStore';
-import type { Task, TaskListResponse, ContextExportResponse } from '@/types';
+import type { Task, TaskListResponse, DecomposeResponse, ContextExportResponse } from '@/types';
 
 vi.mock('@/services/api', () => ({
   tasksApi: {
@@ -413,13 +413,20 @@ describe('TaskStore', () => {
         createTask({ id: 'd1', title: 'Subtask 1', aiGenerated: true }),
         createTask({ id: 'd2', title: 'Subtask 2', aiGenerated: true }),
       ];
+      const decomposeResponse: DecomposeResponse = {
+        subtasks: [],
+        summary: null,
+        totalEstimatedDays: null,
+        criticalPath: null,
+        parallelOpportunities: null,
+      };
       const listResponse: TaskListResponse = {
         tasks: decomposedTasks,
         total: 2,
         completed: 0,
         completionPercent: 0,
       };
-      mockedTasksApi.decompose.mockResolvedValue(listResponse);
+      mockedTasksApi.decompose.mockResolvedValue(decomposeResponse);
       mockedTasksApi.list.mockResolvedValue(listResponse);
 
       await store.decomposeTasks('ws-1', 'issue-1');
@@ -432,8 +439,8 @@ describe('TaskStore', () => {
     });
 
     it('should toggle isDecomposing flag during operation', async () => {
-      let resolveDecompose: (value: TaskListResponse) => void;
-      const decomposePromise = new Promise<TaskListResponse>((resolve) => {
+      let resolveDecompose: (value: DecomposeResponse) => void;
+      const decomposePromise = new Promise<DecomposeResponse>((resolve) => {
         resolveDecompose = resolve;
       });
       mockedTasksApi.decompose.mockReturnValue(decomposePromise);
@@ -448,10 +455,11 @@ describe('TaskStore', () => {
       expect(store.isDecomposing).toBe(true);
 
       resolveDecompose!({
-        tasks: [],
-        total: 0,
-        completed: 0,
-        completionPercent: 0,
+        subtasks: [],
+        summary: null,
+        totalEstimatedDays: null,
+        criticalPath: null,
+        parallelOpportunities: null,
       });
       await actionPromise;
       expect(store.isDecomposing).toBe(false);

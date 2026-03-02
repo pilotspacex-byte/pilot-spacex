@@ -36,6 +36,9 @@ from pilot_space.infrastructure.database.repositories.ai_task_repository import 
 from pilot_space.infrastructure.database.repositories.approval_repository import (
     ApprovalRepository,
 )
+from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
+    ChatAttachmentRepository,
+)
 from pilot_space.infrastructure.database.repositories.constitution_repository import (
     ConstitutionRuleRepository,
 )
@@ -47,6 +50,9 @@ from pilot_space.infrastructure.database.repositories.digest_repository import (
 )
 from pilot_space.infrastructure.database.repositories.discussion_repository import (
     DiscussionRepository,
+)
+from pilot_space.infrastructure.database.repositories.drive_credential_repository import (
+    DriveCredentialRepository,
 )
 from pilot_space.infrastructure.database.repositories.homepage_repository import (
     HomepageRepository,
@@ -126,6 +132,7 @@ from pilot_space.infrastructure.database.repositories.user_repository import (
 from pilot_space.infrastructure.database.repositories.workspace_repository import (
     WorkspaceRepository,
 )
+from pilot_space.infrastructure.storage.client import SupabaseStorageClient
 
 
 class InfraContainer(containers.DeclarativeContainer):
@@ -189,6 +196,11 @@ class InfraContainer(containers.DeclarativeContainer):
         session=providers.Callable(get_current_session),
     )
 
+    chat_attachment_repository = providers.Factory(
+        ChatAttachmentRepository,
+        session=providers.Callable(get_current_session),
+    )
+
     cycle_repository = providers.Factory(
         CycleRepository,
         session=providers.Callable(get_current_session),
@@ -196,6 +208,11 @@ class InfraContainer(containers.DeclarativeContainer):
 
     digest_repository = providers.Factory(
         DigestRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    drive_credential_repository = providers.Factory(
+        DriveCredentialRepository,
         session=providers.Callable(get_current_session),
     )
 
@@ -328,6 +345,7 @@ class InfraContainer(containers.DeclarativeContainer):
 
     queue_client = providers.Singleton(create_queue_client)
     redis_client = providers.Singleton(create_redis_client)
+    storage_client = providers.Singleton(SupabaseStorageClient)
 
     encryption_key = providers.Factory(
         get_encryption_key_from_config,

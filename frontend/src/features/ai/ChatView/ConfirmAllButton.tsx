@@ -45,9 +45,9 @@ export const ConfirmAllButton = observer<ConfirmAllButtonProps>(function Confirm
     try {
       const response = await aiApi.confirmAllIntents(store.workspaceId, 0.7, 10);
       setResult({
-        confirmedCount: response.confirmed_count,
-        remainingCount: response.remaining_count,
-        deduplicatingCount: response.deduplicating_count,
+        confirmedCount: response.confirmedCount,
+        remainingCount: response.remainingCount,
+        deduplicatingCount: response.deduplicatingCount,
       });
       // Update local intent states to confirmed
       for (const confirmed of response.confirmed) {

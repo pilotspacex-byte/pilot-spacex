@@ -9,6 +9,8 @@ from __future__ import annotations
 from dependency_injector import containers, providers
 
 from pilot_space.application.services.ai import (
+    AttachmentContentService,
+    AttachmentUploadService,
     GetPRReviewStatusService,
     TriggerPRReviewService,
 )
@@ -537,6 +539,19 @@ class Container(InfraContainer):
     get_pr_review_status_service = providers.Factory(
         GetPRReviewStatusService,
         cache_client=InfraContainer.redis_client,
+    )
+
+    # AI Services (Attachments — Feature 020)
+    attachment_upload_service = providers.Factory(
+        AttachmentUploadService,
+        session=providers.Callable(get_current_session),
+        storage_client=InfraContainer.storage_client,
+        attachment_repo=InfraContainer.chat_attachment_repository,
+    )
+
+    attachment_content_service = providers.Factory(
+        AttachmentContentService,
+        storage_client=InfraContainer.storage_client,
     )
 
     # Task Services

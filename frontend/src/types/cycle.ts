@@ -1,4 +1,4 @@
-import type { User, ProjectBrief } from './workspace';
+import type { UserBrief, ProjectBrief } from './workspace';
 import type { IssueBrief } from './issue';
 
 export type CycleStatus = 'draft' | 'planned' | 'active' | 'completed' | 'cancelled';
@@ -15,7 +15,7 @@ export interface Cycle {
   createdAt: string;
   updatedAt: string;
   project: ProjectBrief;
-  ownedBy?: User;
+  ownedBy?: UserBrief;
   metrics?: CycleMetrics;
   issueCount: number;
 }

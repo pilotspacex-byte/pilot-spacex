@@ -19,7 +19,7 @@ export interface ApiProblemDetails {
   status: number;
   detail?: string;
   instance?: string;
-  errors?: Record<string, string[]>;
+  errors?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }
 
@@ -30,7 +30,7 @@ export class ApiError extends Error {
   public readonly status: number;
   public readonly type: string;
   public readonly detail?: string;
-  public readonly errors?: Record<string, string[]>;
+  public readonly errors?: Array<Record<string, unknown>>;
   public readonly isRetryable: boolean;
 
   constructor(problem: ApiProblemDetails) {

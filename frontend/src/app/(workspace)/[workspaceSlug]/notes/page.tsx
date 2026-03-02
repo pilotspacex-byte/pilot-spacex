@@ -352,7 +352,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
       notes = notes.filter(
         (note) =>
           note.title.toLowerCase().includes(query) ||
-          note.topics.some((t) => t.toLowerCase().includes(query))
+          note.topics?.some((t) => t.toLowerCase().includes(query))
       );
     }
 

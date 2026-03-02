@@ -8,7 +8,9 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+
+from pilot_space.api.v1.schemas.base import BaseSchema
 
 # ============================================================================
 # Enhancement Schemas
@@ -23,7 +25,7 @@ class IssueEnhancementRequest(BaseModel):
     project_id: UUID
 
 
-class LabelSuggestion(BaseModel):
+class LabelSuggestion(BaseSchema):
     """A suggested label with confidence."""
 
     name: str
@@ -31,14 +33,14 @@ class LabelSuggestion(BaseModel):
     is_existing: bool = True
 
 
-class PrioritySuggestion(BaseModel):
+class PrioritySuggestion(BaseSchema):
     """A suggested priority with confidence."""
 
     priority: str
     confidence: float = Field(..., ge=0, le=1)
 
 
-class IssueEnhancementResponse(BaseModel):
+class IssueEnhancementResponse(BaseSchema):
     """Response with AI enhancement suggestions."""
 
     enhanced_title: str
@@ -64,7 +66,7 @@ class DuplicateCheckRequest(BaseModel):
     threshold: float = Field(default=0.75, ge=0, le=1)
 
 
-class DuplicateCandidateResponse(BaseModel):
+class DuplicateCandidateResponse(BaseSchema):
     """A potential duplicate issue."""
 
     issue_id: UUID
@@ -73,10 +75,8 @@ class DuplicateCandidateResponse(BaseModel):
     similarity: float = Field(..., ge=0, le=1)
     explanation: str | None
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class DuplicateCheckResponse(BaseModel):
+class DuplicateCheckResponse(BaseSchema):
     """Response with duplicate detection results."""
 
     candidates: list[DuplicateCandidateResponse]
@@ -98,7 +98,7 @@ class AssigneeRecommendationRequest(BaseModel):
     project_id: UUID
 
 
-class AssigneeRecommendationResponse(BaseModel):
+class AssigneeRecommendationResponse(BaseSchema):
     """A recommended assignee."""
 
     user_id: UUID
@@ -108,7 +108,7 @@ class AssigneeRecommendationResponse(BaseModel):
     reason: str
 
 
-class AssigneeRecommendationsResponse(BaseModel):
+class AssigneeRecommendationsResponse(BaseSchema):
     """Response with assignee recommendations."""
 
     recommendations: list[AssigneeRecommendationResponse]

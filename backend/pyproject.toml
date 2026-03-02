@@ -1,6 +1,6 @@
 [project]
 name = "pilot-space"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 description = "AI-Augmented SDLC Platform with Note-First Workflow"
 readme = "README.md"
 requires-python = ">=3.12"

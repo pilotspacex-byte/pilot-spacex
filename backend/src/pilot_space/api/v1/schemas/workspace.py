@@ -105,13 +105,13 @@ class WorkspaceMemberCreate(BaseSchema):
 
     Attributes:
         email: User email to invite.
-        role: Role to assign (admin, member, guest).
+        role: Role to assign (owner, admin, member, guest).
     """
 
     email: str = Field(description="User email to invite")
     role: str = Field(
         default="member",
-        pattern="^(admin|member|guest)$",
+        pattern="^(owner|admin|member|guest)$",
         description="Role to assign",
     )
 

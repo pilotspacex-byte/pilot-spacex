@@ -68,6 +68,13 @@ Scale: 5–100 members per workspace. BYOK model: Anthropic Claude, Google Gemin
 - Extended thinking blocks, tool call timelines, structured result cards
 - Session history with resume (`\resume`) and fork
 
+### Chat Context Attachments (Feature 020)
+- Attach local files (PDF, DOCX, images, code, plain text) to any conversation turn — injected as Claude content blocks
+- Google Drive integration: OAuth PKCE flow per workspace, Drive file browser with folder navigation and search, import Docs/Sheets/Slides (auto-exported to PDF/CSV) or raw files up to per-type size limits
+- Silent token refresh: access tokens refreshed proactively 5 min before expiry, with single mid-request retry on 401
+- Attachment lifecycle: 24-hour TTL, retry on upload failure, two-phase ownership/expiry error distinction (403 vs 400)
+- Guest restriction: attachment upload and Drive OAuth blocked for guest-role members
+
 ### GitHub Integration
 - Webhook-triggered PR review: 5-dimension analysis (Architecture, Code Quality, Security, Performance, Docs)
 - Severity-based comment filtering: only `critical` and `major` are posted as blocking
@@ -474,5 +481,3 @@ For full AI architecture documentation: `backend/src/pilot_space/ai/README.md` a
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
-
-Author: Tin Dang `<tin@pilotspace.dev>`

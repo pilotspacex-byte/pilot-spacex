@@ -18,22 +18,23 @@ export interface JSONContent {
 export interface Note {
   id: string;
   title: string;
-  content: JSONContent;
+  content?: JSONContent;
   summary?: string;
   wordCount: number;
-  readingTimeMins: number;
+  readingTimeMins?: number;
   isPinned: boolean;
   /** Whether note contains AI-assisted edits (per UI Spec v3.3) */
   isAIAssisted?: boolean;
   projectId?: string;
   templateId?: string;
-  ownerId: string;
+  ownerId?: string;
+  lastEditedById?: string;
   workspaceId: string;
   owner?: User;
-  collaborators: User[];
+  collaborators?: User[];
   linkedIssues: LinkedIssueBrief[];
-  annotations: NoteAnnotation[];
-  topics: string[];
+  annotations?: NoteAnnotation[];
+  topics?: string[];
   createdAt: string;
   updatedAt: string;
 }

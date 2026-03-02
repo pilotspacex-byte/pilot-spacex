@@ -94,16 +94,15 @@ export const approvalsApi = {
   approve: (_workspaceId: string, approvalId: string, note?: string): Promise<ApprovalResolution> =>
     apiClient
       .post<{
-        id: string;
-        status: string;
-        resolved_at: string;
-        resolved_by: string;
+        approved: boolean;
+        action_result: Record<string, unknown> | null;
+        action_error: string | null;
       }>(`/ai/approvals/${approvalId}/resolve`, { approved: true, note })
       .then(
         (r) =>
           ({
-            approval: { id: r.id, status: r.status } as unknown as PendingApproval,
-            actionExecuted: r.status === 'approved',
+            approval: { id: approvalId, status: 'approved' } as unknown as PendingApproval,
+            actionExecuted: r.approved && r.action_error === null,
           }) as ApprovalResolution
       ),
 
@@ -115,15 +114,14 @@ export const approvalsApi = {
   ): Promise<ApprovalResolution> =>
     apiClient
       .post<{
-        id: string;
-        status: string;
-        resolved_at: string;
-        resolved_by: string;
+        approved: boolean;
+        action_result: Record<string, unknown> | null;
+        action_error: string | null;
       }>(`/ai/approvals/${approvalId}/resolve`, { approved: false, note: reason })
       .then(
-        (r) =>
+        () =>
           ({
-            approval: { id: r.id, status: r.status } as unknown as PendingApproval,
+            approval: { id: approvalId, status: 'rejected' } as unknown as PendingApproval,
             actionExecuted: false,
           }) as ApprovalResolution
       ),

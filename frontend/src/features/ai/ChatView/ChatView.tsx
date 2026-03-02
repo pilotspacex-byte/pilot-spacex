@@ -359,18 +359,21 @@ const ChatViewInternal = observer<ChatViewProps>(
       }
     }, [modalApprovals.length]);
 
-    const handleSubmit = useCallback(async () => {
-      if (!inputValue.trim() || store.isStreaming) return;
+    const handleSubmit = useCallback(
+      async (attachmentIds: string[]) => {
+        if (!inputValue.trim() || store.isStreaming) return;
 
-      const message = inputValue.trim();
-      try {
-        setInputValue('');
-        await store.sendMessage(message);
-      } catch (error) {
-        setInputValue(message);
-        store.error = error instanceof Error ? error.message : 'Failed to send message';
-      }
-    }, [inputValue, store]);
+        const message = inputValue.trim();
+        try {
+          setInputValue('');
+          await store.sendMessage(message, undefined, attachmentIds);
+        } catch (error) {
+          setInputValue(message);
+          store.error = error instanceof Error ? error.message : 'Failed to send message';
+        }
+      },
+      [inputValue, store]
+    );
 
     const handleConfirmClear = useCallback(() => {
       store.clearConversation();
@@ -605,6 +608,8 @@ const ChatViewInternal = observer<ChatViewProps>(
           autoFocus={autoFocus}
           isStreaming={store.isStreaming}
           isDisabled={store.hasUnresolvedApprovals}
+          workspaceId={store.workspaceId ?? ''}
+          sessionId={store.sessionId ?? undefined}
           noteContext={
             store.noteContext
               ? {

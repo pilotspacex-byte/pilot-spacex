@@ -21,11 +21,11 @@ interface WorkspaceResponse {
   name: string;
   slug: string;
   description: string | null;
-  owner_id: string;
-  member_count: number;
-  project_count: number;
-  created_at: string;
-  updated_at: string;
+  ownerId: string;
+  memberCount: number;
+  projectCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** Flat response from GET /workspaces/{id}/members — camelCase because backend uses BaseSchema. */
@@ -42,11 +42,11 @@ interface WorkspaceMemberResponse {
 interface PaginatedWorkspaceResponse {
   items: WorkspaceResponse[];
   total: number;
-  has_next: boolean;
-  has_prev: boolean;
-  next_cursor: string | null;
-  prev_cursor: string | null;
-  page_size: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+  nextCursor: string | null;
+  prevCursor: string | null;
+  pageSize: number;
 }
 
 /**
@@ -57,10 +57,10 @@ function transformWorkspace(response: WorkspaceResponse): Workspace {
     id: response.id,
     name: response.name,
     slug: response.slug,
-    ownerId: response.owner_id,
+    ownerId: response.ownerId,
     memberIds: [],
-    createdAt: response.created_at,
-    updatedAt: response.updated_at,
+    createdAt: response.createdAt,
+    updatedAt: response.updatedAt,
   };
 }
 

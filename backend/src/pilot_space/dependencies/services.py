@@ -1,19 +1,22 @@
 """Service layer dependencies.
 
 Provides request-scoped factory functions for domain service instances
-(issue services, activity service).
+(issue services, activity service, attachment upload service).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.dependencies.auth import get_session
 
 if TYPE_CHECKING:
+    from pilot_space.application.services.ai.attachment_upload_service import (
+        AttachmentUploadService,
+    )
     from pilot_space.application.services.issue import (
         ActivityService,
         CreateIssueService,
@@ -135,3 +138,158 @@ async def get_activity_service(
     return ActivityService(
         activity_repository=ActivityRepository(session),
     )
+
+
+# ============================================================================
+# Attachment Service Dependencies
+# ============================================================================
+
+
+async def get_attachment_upload_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AttachmentUploadService:
+    """Get AttachmentUploadService instance.
+
+    Args:
+        session: Database session.
+
+    Returns:
+        Configured AttachmentUploadService.
+    """
+    from pilot_space.application.services.ai.attachment_upload_service import (
+        AttachmentUploadService,
+    )
+    from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
+        ChatAttachmentRepository,
+    )
+    from pilot_space.infrastructure.storage.client import SupabaseStorageClient
+
+    return AttachmentUploadService(
+        session=session,
+        storage_client=SupabaseStorageClient(),
+        attachment_repo=ChatAttachmentRepository(session),
+    )
+
+
+AttachmentUploadServiceDep = Annotated[
+    "AttachmentUploadService", Depends(get_attachment_upload_service)
+]
+
+
+async def get_chat_attachment_repository(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ChatAttachmentRepository:
+    """Get ChatAttachmentRepository instance.
+
+    Args:
+        session: Database session.
+
+    Returns:
+        Configured ChatAttachmentRepository.
+    """
+    from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
+        ChatAttachmentRepository,
+    )
+
+    return ChatAttachmentRepository(session)
+
+
+if TYPE_CHECKING:
+    from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
+        ChatAttachmentRepository,
+    )
+
+ChatAttachmentRepositoryDep = Annotated[
+    "ChatAttachmentRepository", Depends(get_chat_attachment_repository)
+]
+
+
+# ============================================================================
+# Drive Service Dependencies
+# ============================================================================
+
+
+async def get_drive_oauth_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    request: Request,
+) -> DriveOAuthService:
+    """Get DriveOAuthService instance.
+
+    Args:
+        session: Database session.
+        request: FastAPI request for accessing Redis from app state.
+
+    Returns:
+        Configured DriveOAuthService with optional Redis for PKCE state.
+    """
+    from pilot_space.application.services.ai.drive_oauth_service import DriveOAuthService
+    from pilot_space.config import get_settings
+    from pilot_space.infrastructure.database.repositories.drive_credential_repository import (
+        DriveCredentialRepository,
+    )
+
+    redis_client = None
+    if hasattr(request.app.state, "container"):
+        container = request.app.state.container
+        redis_client = container.redis_client()
+
+    return DriveOAuthService(
+        credential_repo=DriveCredentialRepository(session),
+        settings=get_settings(),
+        redis_client=redis_client,
+    )
+
+
+async def get_drive_file_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    request: Request,
+) -> DriveFileService:
+    """Get DriveFileService instance.
+
+    Args:
+        session: Database session.
+        request: FastAPI request for accessing Redis from app state.
+
+    Returns:
+        Configured DriveFileService with injected DriveOAuthService for token refresh.
+    """
+    from pilot_space.application.services.ai.drive_file_service import DriveFileService
+    from pilot_space.application.services.ai.drive_oauth_service import DriveOAuthService
+    from pilot_space.config import get_settings
+    from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
+        ChatAttachmentRepository,
+    )
+    from pilot_space.infrastructure.database.repositories.drive_credential_repository import (
+        DriveCredentialRepository,
+    )
+    from pilot_space.infrastructure.storage.client import SupabaseStorageClient
+
+    settings = get_settings()
+    credential_repo = DriveCredentialRepository(session)
+
+    redis_client = None
+    if hasattr(request.app.state, "container"):
+        container = request.app.state.container
+        redis_client = container.redis_client()
+
+    oauth_service = DriveOAuthService(
+        credential_repo=credential_repo,
+        settings=settings,
+        redis_client=redis_client,
+    )
+
+    return DriveFileService(
+        credential_repo=credential_repo,
+        attachment_repo=ChatAttachmentRepository(session),
+        storage_client=SupabaseStorageClient(),
+        settings=settings,
+        oauth_service=oauth_service,
+    )
+
+
+if TYPE_CHECKING:
+    from pilot_space.application.services.ai.drive_file_service import DriveFileService
+    from pilot_space.application.services.ai.drive_oauth_service import DriveOAuthService
+
+DriveOAuthServiceDep = Annotated["DriveOAuthService", Depends(get_drive_oauth_service)]
+DriveFileServiceDep = Annotated["DriveFileService", Depends(get_drive_file_service)]

@@ -4,6 +4,7 @@ import type {
   TaskCreate,
   TaskUpdate,
   TaskListResponse,
+  DecomposeResponse,
   ContextExportResponse,
   TaskStatus,
 } from '@/types';
@@ -41,7 +42,7 @@ export const tasksApi = {
   exportContext(
     workspaceId: string,
     issueId: string,
-    format: 'markdown' | 'claude_code' | 'task_list' | 'implementation_plan' = 'markdown'
+    format: 'markdown' | 'claude_code' | 'task_list' = 'markdown'
   ): Promise<ContextExportResponse> {
     return apiClient.get<ContextExportResponse>(
       `/workspaces/${workspaceId}/issues/${issueId}/context/export`,
@@ -49,8 +50,8 @@ export const tasksApi = {
     );
   },
 
-  decompose(workspaceId: string, issueId: string): Promise<TaskListResponse> {
-    return apiClient.post<TaskListResponse>(
+  decompose(workspaceId: string, issueId: string): Promise<DecomposeResponse> {
+    return apiClient.post<DecomposeResponse>(
       `/workspaces/${workspaceId}/issues/${issueId}/tasks/decompose`
     );
   },

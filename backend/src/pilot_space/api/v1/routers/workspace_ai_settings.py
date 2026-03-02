@@ -154,7 +154,7 @@ async def get_ai_settings(
     )
 
 
-@router.put(
+@router.patch(
     "/{workspace_id}/ai/settings",
     response_model=WorkspaceAISettingsUpdateResponse,
     tags=["workspaces", "ai"],

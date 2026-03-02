@@ -25,9 +25,15 @@ vi.mock('next/navigation', () => ({
 
 const mockRoleSkillStore = {
   editingSkillId: null as string | null,
+  selectedRoles: [] as string[],
+  isGenerating: false,
+  customRoleDescription: '',
   setEditingSkillId: vi.fn(),
   clearEditingSkillId: vi.fn(),
   setGenerationStep: vi.fn(),
+  clearSelectedRoles: vi.fn(),
+  toggleRole: vi.fn(),
+  setExperienceDescription: vi.fn(),
 };
 
 const mockWorkspaceStore = {

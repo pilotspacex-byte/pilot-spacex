@@ -24,10 +24,6 @@ from pilot_space.ai.agents.subagents.pr_review_subagent import (
     PRReviewSubagent,
 )
 from pilot_space.ai.prompts.pr_review import format_review_as_markdown
-from pilot_space.api.v1.schemas.pr_review import (
-    ReviewComment,
-    ReviewSeverity,
-)
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.infrastructure.queue.models import QueueName
 
@@ -37,6 +33,7 @@ if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
+    from pilot_space.api.v1.schemas.pr_review import ReviewComment
     from pilot_space.infrastructure.database.repositories import (
         AIConfigurationRepository,
         IntegrationRepository,
@@ -475,6 +472,8 @@ class PRReviewJobHandler:
         posted = 0
 
         # Group critical and warning comments for inline posting
+        from pilot_space.api.v1.schemas.pr_review import ReviewSeverity
+
         important_comments = [
             c for c in comments if c.severity in (ReviewSeverity.CRITICAL, ReviewSeverity.WARNING)
         ]
@@ -541,6 +540,8 @@ class PRReviewJobHandler:
         Returns:
             Formatted markdown string.
         """
+        from pilot_space.api.v1.schemas.pr_review import ReviewSeverity
+
         severity_icons = {
             ReviewSeverity.CRITICAL: ":red_circle:",
             ReviewSeverity.WARNING: ":orange_circle:",

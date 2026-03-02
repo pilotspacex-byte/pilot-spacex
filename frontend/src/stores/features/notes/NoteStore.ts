@@ -95,7 +95,7 @@ export class NoteStore {
       notes = notes.filter(
         (n) =>
           n.title.toLowerCase().includes(query) ||
-          n.topics.some((t) => t.toLowerCase().includes(query))
+          n.topics?.some((t) => t.toLowerCase().includes(query))
       );
     }
 
@@ -409,7 +409,7 @@ export class NoteStore {
    */
   async saveNote(): Promise<boolean> {
     const note = this.currentNote;
-    if (!note || !this.hasUnsavedChanges) return true;
+    if (!note || !this.hasUnsavedChanges || !note.content) return true;
 
     this.isSaving = true;
     this.error = null;
