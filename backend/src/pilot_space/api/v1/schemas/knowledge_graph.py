@@ -23,6 +23,7 @@ class GraphNodeDTO(BaseModel):
     summary: str | None = Field(default=None, description="First 120 chars of content")
     properties: dict[str, Any] = Field(default_factory=dict, description="Type-specific metadata")
     created_at: datetime = Field(description="UTC creation timestamp")
+    updated_at: datetime = Field(description="UTC last-modified timestamp")
     score: float | None = Field(default=None, description="Relevance score (search results only)")
 
 
@@ -47,7 +48,7 @@ class GraphResponse(BaseModel):
 
     nodes: list[GraphNodeDTO] = Field(default_factory=list, description="Graph nodes")
     edges: list[GraphEdgeDTO] = Field(default_factory=list, description="Edges between the nodes")
-    center_node_id: str | None = Field(
+    center_node_id: UUID | None = Field(
         default=None,
         description="UUID of the focal node (search pivot or root)",
     )

@@ -19,6 +19,8 @@ from uuid import UUID, uuid4
 import pytest
 
 from pilot_space.api.v1.routers.knowledge_graph import (
+    _EDGE_LABELS,
+    _edge_to_dto,
     _node_to_dto,
     get_issue_knowledge_graph,
     get_node_neighbors,
@@ -57,9 +59,12 @@ def _make_graph_node(
     node.id = node_id or uuid4()
     node.node_type = NodeType(node_type)
     node.label = label
-    node.content = content or f"Content for {label}"
+    _content = content or f"Content for {label}"
+    node.content = _content
+    node.summary = _content[:120]
     node.properties = {"state": "todo"}
     node.created_at = datetime.now(tz=UTC)
+    node.updated_at = datetime.now(tz=UTC)
     return node
 
 
@@ -186,6 +191,15 @@ class TestNodeToDto:
         assert dto.summary == "Bug fix"
         assert dto.score == 0.9
 
+    def test_maps_updated_at_from_node(self) -> None:
+        """updated_at is propagated from the domain node to the DTO."""
+        fixed_ts = datetime(2025, 6, 1, 12, 0, 0, tzinfo=UTC)
+        node = _make_graph_node()
+        node.updated_at = fixed_ts
+        dto = _node_to_dto(node)
+
+        assert dto.updated_at == fixed_ts
+
     def test_truncates_summary_at_120_chars(self) -> None:
         """Content longer than 120 chars is truncated for summary."""
         long_content = "x" * 200
@@ -200,6 +214,48 @@ class TestNodeToDto:
         node = _make_graph_node()
         dto = _node_to_dto(node)
         assert dto.score is None
+
+
+class TestEdgeToDto:
+    """Unit tests for the _edge_to_dto mapping helper."""
+
+    def test_known_edge_type_uses_human_readable_label(self) -> None:
+        """A known edge_type maps to its human-readable label via _EDGE_LABELS."""
+        dto = _edge_to_dto(
+            edge_id=uuid4(),
+            source_id=uuid4(),
+            target_id=uuid4(),
+            edge_type="relates_to",
+            weight=0.8,
+            properties={},
+        )
+        assert dto.label == "related to"
+        assert dto.edge_type == "relates_to"
+
+    def test_unknown_edge_type_falls_back_to_raw_value(self) -> None:
+        """An unrecognised edge_type falls back to the raw enum string."""
+        dto = _edge_to_dto(
+            edge_id=uuid4(),
+            source_id=uuid4(),
+            target_id=uuid4(),
+            edge_type="custom_edge",
+            weight=0.5,
+            properties={},
+        )
+        assert dto.label == "custom_edge"
+
+    def test_all_known_edge_labels_present(self) -> None:
+        """Every entry in _EDGE_LABELS round-trips through _edge_to_dto correctly."""
+        for edge_type, expected_label in _EDGE_LABELS.items():
+            dto = _edge_to_dto(
+                edge_id=uuid4(),
+                source_id=uuid4(),
+                target_id=uuid4(),
+                edge_type=edge_type.value,
+                weight=1.0,
+                properties={},
+            )
+            assert dto.label == expected_label, f"Failed for edge_type={edge_type}"
 
 
 # ---------------------------------------------------------------------------
@@ -374,7 +430,7 @@ class TestGetNodeNeighbors:
 
         assert isinstance(result, GraphResponse)
         assert len(result.nodes) == 1
-        assert result.center_node_id == str(TEST_NODE_ID)
+        assert result.center_node_id == TEST_NODE_ID
         assert result.nodes[0].node_type == "note"
 
     async def test_neighbors_passes_edge_type_filter(self) -> None:
@@ -481,7 +537,7 @@ class TestGetSubgraph:
         assert isinstance(result, GraphResponse)
         assert len(result.nodes) == 2
         assert len(result.edges) == 1
-        assert result.center_node_id == str(TEST_NODE_ID)
+        assert result.center_node_id == TEST_NODE_ID
         assert result.edges[0].edge_type == "relates_to"
 
 
@@ -636,7 +692,7 @@ class TestIssueKnowledgeGraph:
         assert isinstance(result, GraphResponse)
         assert result.nodes == []
         assert result.edges == []
-        assert result.center_node_id == str(TEST_ISSUE_ID)
+        assert result.center_node_id == TEST_ISSUE_ID
         # Subgraph is NOT called when no graph node found
         repo.get_subgraph.assert_not_awaited()
 

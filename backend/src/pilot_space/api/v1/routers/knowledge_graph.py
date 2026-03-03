@@ -83,6 +83,22 @@ def _node_tier(node_type: str) -> int:
 # Domain → DTO mappers
 # ---------------------------------------------------------------------------
 
+_EDGE_LABELS: dict[EdgeType, str] = {
+    EdgeType.RELATES_TO: "related to",
+    EdgeType.CAUSED_BY: "caused by",
+    EdgeType.LED_TO: "led to",
+    EdgeType.DECIDED_IN: "decided in",
+    EdgeType.AUTHORED_BY: "authored by",
+    EdgeType.ASSIGNED_TO: "assigned to",
+    EdgeType.BELONGS_TO: "belongs to",
+    EdgeType.REFERENCES: "references",
+    EdgeType.LEARNED_FROM: "learned from",
+    EdgeType.SUMMARIZES: "summarizes",
+    EdgeType.BLOCKS: "blocks",
+    EdgeType.DUPLICATES: "duplicates",
+    EdgeType.PARENT_OF: "parent of",
+}
+
 
 def _node_to_dto(node: GraphNode, score: float | None = None) -> GraphNodeDTO:
     """Map a domain GraphNode to a GraphNodeDTO.
@@ -98,9 +114,10 @@ def _node_to_dto(node: GraphNode, score: float | None = None) -> GraphNodeDTO:
         id=str(node.id),
         node_type=node.node_type.value,
         label=node.label,
-        summary=node.content[:120] if node.content else None,
+        summary=node.summary if node.content else None,
         properties=node.properties,  # type: ignore[arg-type]
         created_at=node.created_at,
+        updated_at=node.updated_at,
         score=score,
     )
 
@@ -114,12 +131,16 @@ def _edge_to_dto(
     properties: dict[str, object],
 ) -> GraphEdgeDTO:
     """Build a GraphEdgeDTO from edge fields."""
+    try:
+        label = _EDGE_LABELS[EdgeType(edge_type)]
+    except ValueError:
+        label = edge_type
     return GraphEdgeDTO(
         id=str(edge_id),
         source_id=str(source_id),
         target_id=str(target_id),
         edge_type=edge_type,
-        label=edge_type,
+        label=label,
         weight=weight,
         properties=properties,
     )
@@ -212,7 +233,7 @@ async def get_node_neighbors(
     )
 
     node_dtos = [_node_to_dto(n) for n in neighbors]
-    return GraphResponse(nodes=node_dtos, edges=[], center_node_id=str(node_id))
+    return GraphResponse(nodes=node_dtos, edges=[], center_node_id=node_id)
 
 
 @router.get(
@@ -253,7 +274,7 @@ async def get_subgraph(
         )
         for e in edges
     ]
-    return GraphResponse(nodes=node_dtos, edges=edge_dtos, center_node_id=str(root_id))
+    return GraphResponse(nodes=node_dtos, edges=edge_dtos, center_node_id=root_id)
 
 
 @router.get(
@@ -361,7 +382,7 @@ async def get_issue_knowledge_graph(
             issue_id=str(issue_id),
             workspace_id=str(workspace_id),
         )
-        return GraphResponse(nodes=[], edges=[], center_node_id=str(issue_id))
+        return GraphResponse(nodes=[], edges=[], center_node_id=issue_id)
 
     center_node_id = graph_node_model.id
 
@@ -424,6 +445,7 @@ async def get_issue_knowledge_graph(
                         "ephemeral": True,
                     },
                     created_at=now,
+                    updated_at=now,
                     score=None,
                 )
             )
@@ -434,7 +456,7 @@ async def get_issue_knowledge_graph(
     return GraphResponse(
         nodes=node_dtos,
         edges=edge_dtos,
-        center_node_id=str(center_node_id),
+        center_node_id=center_node_id,
     )
 
 
