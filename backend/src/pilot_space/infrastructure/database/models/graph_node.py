@@ -47,7 +47,7 @@ def _make_vector_type(dim: int) -> Any:
         return Text()
 
 
-_VECTOR_TYPE: Any = _make_vector_type(1536)
+_VECTOR_TYPE: Any = _make_vector_type(768)
 
 
 class GraphNodeModel(WorkspaceScopedModel):

@@ -26,10 +26,12 @@ logger = get_logger(__name__)
 
 _GEMINI_EMBEDDING_MODEL = "models/gemini-embedding-exp-03-07"
 _OPENAI_EMBEDDING_MODEL = "text-embedding-3-large"
+_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text-v2-moe"
+_OLLAMA_BASE_URL = "http://localhost:11434"
 _MEMORY_TABLE = "memory_entries"
 _CONSTITUTION_TABLE = "constitution_rules"
 _GRAPH_NODES_TABLE = "graph_nodes"
-_GRAPH_EMBEDDING_DIMS = 1536
+_GRAPH_EMBEDDING_DIMS = 768
 
 
 async def _embed_text(content: str, api_key: str | None) -> list[float] | None:
@@ -90,17 +92,55 @@ async def _embed_text_openai(content: str, api_key: str | None) -> list[float] |
         return None
 
 
+def _ollama_embed_sync(content: str, base_url: str) -> list[float] | None:
+    """Synchronous Ollama embed call — run inside asyncio.to_thread."""
+    import json
+    import urllib.request
+
+    payload = json.dumps({"model": _OLLAMA_EMBEDDING_MODEL, "input": content}).encode()
+    req = urllib.request.Request(
+        f"{base_url}/api/embed",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        body = json.loads(resp.read())
+    embeddings = body.get("embeddings")
+    return list(embeddings[0]) if embeddings else None
+
+
+async def _embed_text_ollama(content: str, base_url: str = _OLLAMA_BASE_URL) -> list[float] | None:
+    """Embed text via Ollama nomic-embed-text-v2-moe (768-dim, local).
+
+    Args:
+        content: Text to embed.
+        base_url: Ollama API base URL (default: http://localhost:11434).
+
+    Returns:
+        768-dim float list or None on failure.
+    """
+    try:
+        return await asyncio.to_thread(_ollama_embed_sync, content, base_url)
+    except Exception:
+        logger.warning("Ollama embedding failed in MemoryEmbeddingJobHandler", exc_info=True)
+        return None
+
+
 class MemoryEmbeddingJobHandler:
     """Handles memory and graph embedding jobs from the ai_normal queue.
 
     Routes by payload type:
     - payload['table'] in {memory_entries, constitution_rules}: embed via Gemini (768-dim)
-    - handle_graph_node(payload): embed graph_nodes row via OpenAI (1536-dim)
+    - handle_graph_node(payload): embed graph_nodes row (768-dim).
+      Provider priority: OpenAI → Ollama local (nomic-embed-text-v2-moe).
 
     Args:
         session: Async DB session.
         google_api_key: Google AI API key for Gemini embeddings.
-        openai_api_key: OpenAI API key for graph node embeddings.
+        openai_api_key: OpenAI API key for graph node embeddings (optional;
+            falls back to Ollama when absent).
+        ollama_base_url: Ollama API base URL for local embeddings.
     """
 
     def __init__(
@@ -108,10 +148,12 @@ class MemoryEmbeddingJobHandler:
         session: AsyncSession,
         google_api_key: str | None = None,
         openai_api_key: str | None = None,
+        ollama_base_url: str = _OLLAMA_BASE_URL,
     ) -> None:
         self._session = session
         self._api_key = google_api_key
         self._openai_api_key = openai_api_key
+        self._ollama_base_url = ollama_base_url
 
     async def handle(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Process a memory embedding job.
@@ -159,10 +201,11 @@ class MemoryEmbeddingJobHandler:
         return {"success": True, "entry_id": str(entry_id), "table": table}
 
     async def handle_graph_node(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Embed a graph node using OpenAI text-embedding-3-large (1536-dim).
+        """Embed a graph node (768-dim).
 
-        Fetches the node's content from graph_nodes, generates a 1536-dim
-        embedding via OpenAI, and stores it back via a raw SQL UPDATE.
+        Provider priority:
+          1. OpenAI text-embedding-3-large (if openai_api_key is set)
+          2. Ollama nomic-embed-text-v2-moe (local fallback)
 
         Args:
             payload: Queue message payload with node_id and workspace_id.
@@ -170,9 +213,6 @@ class MemoryEmbeddingJobHandler:
         Returns:
             Result dict with success status and node_id.
         """
-        if not self._openai_api_key:
-            return {"success": False, "error": "no OpenAI api_key configured"}
-
         node_id_str = payload.get("node_id")
         workspace_id_str = payload.get("workspace_id")
 
@@ -197,12 +237,19 @@ class MemoryEmbeddingJobHandler:
                 "error": f"graph node {node_id} not found",
             }
 
-        # Generate 1536-dim embedding via OpenAI
-        embedding = await _embed_text_openai(content, self._openai_api_key)
+        # Provider priority: OpenAI → Ollama local
+        embedding: list[float] | None = None
+        provider = "none"
+        if self._openai_api_key:
+            embedding = await _embed_text_openai(content, self._openai_api_key)
+            provider = "openai"
+        if embedding is None:
+            embedding = await _embed_text_ollama(content, self._ollama_base_url)
+            provider = "ollama"
         if embedding is None:
             return {
                 "success": False,
-                "error": "OpenAI embedding generation failed",
+                "error": "all embedding providers failed (OpenAI + Ollama)",
             }
 
         # Store embedding back to graph_nodes
@@ -211,8 +258,9 @@ class MemoryEmbeddingJobHandler:
         await self._session.commit()
 
         logger.info(
-            "MemoryEmbeddingJobHandler: embedded graph node %s (%d dims)",
+            "MemoryEmbeddingJobHandler: embedded graph node %s via %s (%d dims)",
             node_id,
+            provider,
             len(embedding),
         )
         return {
@@ -220,6 +268,7 @@ class MemoryEmbeddingJobHandler:
             "node_id": str(node_id),
             "workspace_id": str(workspace_id),
             "dims": len(embedding),
+            "provider": provider,
         }
 
     async def _fetch_content(self, entry_id: UUID, table: str) -> str | None:
