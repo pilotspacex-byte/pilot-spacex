@@ -1,0 +1,62 @@
+# =============================================================================
+# Pilot Space Migration Dockerfile
+# =============================================================================
+# Runs Alembic migrations against the database.
+# Built from the same base as the backend to share dependencies.
+#
+# Usage:
+#   docker build -f infra/docker/Dockerfile.migration -t pilot-space-migration .
+# =============================================================================
+
+ARG PYTHON_VERSION=3.12
+
+FROM python:${PYTHON_VERSION}-slim AS migration
+
+ENV VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=random \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONPATH=/app/src
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+RUN pip install --no-cache-dir uv
+
+RUN uv venv /app/.venv
+
+COPY pyproject.toml uv.lock ./
+
+RUN uv sync --frozen --no-install-project
+
+COPY src/ ./src/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
+COPY README.md ./
+COPY scripts/ ./scripts/
+
+RUN uv sync --frozen
+
+RUN groupadd --gid 1000 appgroup \
+    && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser \
+    && chown -R appuser:appgroup /app
+
+USER appuser
+
+ARG RUN_SEED=false
+
+RUN if [ "$RUN_SEED" = "true" ]; then \
+        printf '#!/bin/sh\nalembic upgrade head && uv run scripts/seed_demo.py\n' > /app/entrypoint.sh; \
+    else \
+        printf '#!/bin/sh\nalembic upgrade head\n' > /app/entrypoint.sh; \
+    fi && chmod +x /app/entrypoint.sh
+
+CMD ["/app/entrypoint.sh"]

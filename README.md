@@ -16,11 +16,10 @@ Pilot Space embeds an AI agent directly into your software development lifecycle
 - [Tech Stack](#tech-stack)
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
-  - [1. Infrastructure Services](#1-infrastructure-services)
-  - [2. Supabase (Auth + Database)](#2-supabase-auth--database)
-  - [3. Backend](#3-backend)
-  - [4. Frontend](#4-frontend)
-- [Environment Variables](#environment-variables)
+  - [1. Supabase (Auth + Database)](#1-supabase-auth--database)
+  - [2. Configure Environment](#2-configure-environment)
+  - [3. Start All Services](#3-start-all-services)
+  - [4. Rebuild After Code Changes](#4-rebuild-after-code-changes)
 - [Development Commands](#development-commands)
 - [Project Structure](#project-structure)
 - [AI Agent System](#ai-agent-system)
@@ -169,127 +168,80 @@ Backend (FastAPI, port 8000)
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| Python | 3.12+ | Backend runtime |
-| Node.js | 20+ | Frontend runtime |
-| pnpm | 9+ | Frontend package manager |
-| Docker | 24+ | Redis + Meilisearch |
-| Supabase CLI | latest | Local Supabase stack |
-| uv | latest | Python package manager |
+| Docker | 24+ | All services run in containers |
+| Docker Compose | 2.x+ | Bundled with Docker Desktop |
 
-Install `uv`: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-
-Install Supabase CLI: `brew install supabase/tap/supabase`
+That's it. Everything else (PostgreSQL, Redis, Meilisearch, backend, frontend) runs inside Docker.
 
 ---
 
 ## Setup
 
-### 1. Infrastructure Services
+All services start from `infra/docker/`. The full stack is:
 
-Start Redis and Meilisearch via Docker Compose:
+| Service | Port | Description |
+|---------|------|-------------|
+| Frontend | 3000 | Next.js application |
+| Backend | 8000 | FastAPI application |
+| PostgreSQL | 5432 | Database (pgvector) |
+| Redis | 6379 | Session cache |
+| Meilisearch | 7700 | Full-text search |
+
+### 1. Supabase (Auth + Database)
+
+Pilot Space uses Supabase for authentication, Row-Level Security, Realtime, and Storage. Choose one option:
+
+**Option A — Supabase Cloud (recommended for quick start)**
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Go to **Project Settings → API** and copy:
+   - Project URL
+   - `anon` public key
+   - `service_role` secret key
+   - JWT secret
+
+**Option B — Self-hosted Supabase via Docker**
+
+Follow the official self-hosting guide: https://supabase.com/docs/guides/self-hosting/docker
 
 ```bash
+# Clone the Supabase repo and start the stack
+git clone --depth 1 https://github.com/supabase/supabase
+cd supabase/docker
+cp .env.example .env   # Edit credentials as needed
 docker compose up -d
 ```
 
-Services started:
-- Redis — `localhost:6379`
-- Meilisearch — `localhost:7700`
-
-### 2. Supabase (Auth + Database)
-
-```bash
-# Start local Supabase stack (PostgreSQL, Auth, Realtime, Storage)
-supabase start
-
-# Apply database migrations
-cd backend && alembic upgrade head
-```
-
-Supabase services:
+Self-hosted services will be available at:
 - API: `http://localhost:54321`
-- Database: `postgresql://postgres:postgres@localhost:54322/postgres`
 - Studio: `http://localhost:54323`
+- Database: `postgresql://postgres:postgres@localhost:54322/postgres`
 
-Get your anon/service keys from `supabase status`.
+Get your keys from `supabase status` (CLI) or the Studio → Settings → API page.
 
-### 3. Backend
-
-```bash
-cd backend
-
-# Create virtual environment and install dependencies
-uv venv && source .venv/bin/activate
-uv sync
-
-# Install pre-commit hooks
-pre-commit install
-
-# Copy and configure environment
-cp .env.example .env   # Edit with your values (see Environment Variables)
-
-# Start development server
-uvicorn pilot_space.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-API docs available at `http://localhost:8000/docs`.
-
-### 4. Frontend
+### 2. Configure Environment
 
 ```bash
-cd frontend
-
-# Install dependencies
-pnpm install
-
-# Copy and configure environment
-cp .env.local.example .env.local   # Edit with your values
-
-# Start development server
-pnpm dev
+cd infra/docker
+cp .env.example .env
 ```
 
-App available at `http://localhost:3000`.
-
----
-
-## Environment Variables
-
-### Backend (`backend/.env`)
+Edit `.env` with your values. Required fields:
 
 ```env
-# Application
-APP_ENV=development
-DEBUG=true
+# Supabase — paste from Step 1
+SUPABASE_URL=https://<project-ref>.supabase.co    # or http://localhost:54321 for self-hosted
+SUPABASE_ANON_KEY=<anon key>
+SUPABASE_SERVICE_KEY=<service_role key>
+SUPABASE_JWT_SECRET=<jwt secret>
 
-# Database (Supabase local)
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:54322/postgres
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-
-# Supabase
-SUPABASE_URL=http://localhost:54321
-SUPABASE_ANON_KEY=<from supabase status>
-SUPABASE_SERVICE_KEY=<from supabase status>
-SUPABASE_JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long
-
-# Meilisearch
-MEILISEARCH_URL=http://localhost:7700
-MEILISEARCH_API_KEY=masterKey
-
-# AI Providers (BYOK — workspace keys stored encrypted; these are deployment fallbacks)
+# AI Providers (BYOK — bring your own keys)
 ANTHROPIC_API_KEY=sk-ant-...       # Required for AI features
 GOOGLE_API_KEY=AIza...             # Required for ghost text (Gemini Flash) + embeddings
 OPENAI_API_KEY=sk-...              # Required for semantic search embeddings
 
 # Security
-ENCRYPTION_KEY=<32-byte base64-encoded Fernet key>
-
-# GitHub Integration (optional)
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
-GITHUB_WEBHOOK_SECRET=
+ENCRYPTION_KEY=<32-byte base64 Fernet key>
 ```
 
 Generate an encryption key:
@@ -297,14 +249,38 @@ Generate an encryption key:
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-**Development shortcut**: Set `AI_FAKE_MODE=true` to use fake AI responses without external API keys.
+**Development shortcut**: Set `AI_FAKE_MODE=true` in `.env` to use fake AI responses without API keys.
 
-### Frontend (`frontend/.env.local`)
+### 3. Start All Services
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<from supabase status>
-NEXT_PUBLIC_API_URL=http://localhost:8000
+```bash
+cd infra/docker
+docker compose up -d
+```
+
+This starts PostgreSQL, Redis, Meilisearch, runs Alembic migrations, then starts the backend and frontend.
+
+Check status:
+```bash
+docker compose ps
+docker compose logs -f backend    # tail backend logs
+docker compose logs -f frontend   # tail frontend logs
+```
+
+Once all containers are healthy:
+- App: `http://localhost:3000`
+- API docs: `http://localhost:8000/docs`
+- Meilisearch: `http://localhost:7700`
+
+### 4. Rebuild After Code Changes
+
+```bash
+# Rebuild a single service
+docker compose build backend
+docker compose up -d backend
+
+# Rebuild everything
+docker compose build && docker compose up -d
 ```
 
 ---
@@ -386,12 +362,18 @@ pilot-space/
 │       ├── stores/              # MobX: RootStore, PilotSpaceStore, GhostTextStore, …
 │       ├── components/          # Shared UI (shadcn/ui primitives + editor components)
 │       └── services/api/        # Typed API clients
+├── infra/docker/
+│   ├── docker-compose.yml       # Full stack: postgres, redis, meilisearch, backend, frontend
+│   ├── .env.example             # Environment template — copy to .env and fill in values
+│   ├── Dockerfile.backend       # FastAPI image
+│   ├── Dockerfile.frontend      # Next.js image
+│   ├── Dockerfile.migration     # Alembic one-shot migration runner
+│   └── init-scripts/            # PostgreSQL init SQL (extensions, etc.)
 ├── docs/
 │   ├── wiki/                    # 19 feature wiki docs
 │   ├── architect/               # Architecture decision records
 │   └── dev-pattern/             # 45 dev patterns
 ├── specs/                       # Product specs (MVP, data model, UI/UX)
-├── docker-compose.yml           # Redis + Meilisearch
 └── CLAUDE.md                    # AI agent and developer conventions
 ```
 

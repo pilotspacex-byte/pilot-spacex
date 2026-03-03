@@ -9,7 +9,7 @@ Fixes:
   instead of just checking user is authenticated.
 - SEC-C3: Adds UPDATE (admin-only) and DELETE (admin-only) policies on
   workspace_digests to prevent unauthorized mutations.
-- ARCH-M5: Replaces current_setting('app.current_user_id') with auth.uid()
+- ARCH-M5: Replaces current_setting('app.current_user_id') with current_setting('app.current_user_id', true)::uuid
   to match project-standard RLS pattern.
 
 Source: PR #9 Devil's Advocate Review
@@ -27,14 +27,14 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Replace insecure RLS policies with auth.uid() standard."""
+    """Replace insecure RLS policies with current_setting('app.current_user_id', true)::uuid standard."""
     # ── workspace_digests: drop and recreate all policies ───────────────
 
     # Drop old policies
     op.execute('DROP POLICY IF EXISTS "workspace_digests_service_insert" ON workspace_digests')
     op.execute('DROP POLICY IF EXISTS "workspace_digests_member_select" ON workspace_digests')
 
-    # SEC-C2 + ARCH-M5: SELECT — workspace members only (using auth.uid())
+    # SEC-C2 + ARCH-M5: SELECT — workspace members only (using current_setting('app.current_user_id', true)::uuid)
     op.execute("""
         CREATE POLICY "workspace_digests_member_select"
         ON workspace_digests
@@ -43,7 +43,7 @@ def upgrade() -> None:
             workspace_id IN (
                 SELECT wm.workspace_id
                 FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
             )
         )
@@ -58,7 +58,7 @@ def upgrade() -> None:
             workspace_id IN (
                 SELECT wm.workspace_id
                 FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
             )
         )
@@ -73,7 +73,7 @@ def upgrade() -> None:
             workspace_id IN (
                 SELECT wm.workspace_id
                 FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.role IN ('ADMIN', 'OWNER')
                 AND wm.is_deleted = false
             )
@@ -89,26 +89,26 @@ def upgrade() -> None:
             workspace_id IN (
                 SELECT wm.workspace_id
                 FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.role IN ('ADMIN', 'OWNER')
                 AND wm.is_deleted = false
             )
         )
     """)
 
-    # ── digest_dismissals: migrate to auth.uid() ──────────────────────
+    # ── digest_dismissals: migrate to current_setting('app.current_user_id', true)::uuid ──────────────────────
 
     # Drop old policies
     op.execute('DROP POLICY IF EXISTS "digest_dismissals_user_select" ON digest_dismissals')
     op.execute('DROP POLICY IF EXISTS "digest_dismissals_user_insert" ON digest_dismissals')
     op.execute('DROP POLICY IF EXISTS "digest_dismissals_user_delete" ON digest_dismissals')
 
-    # Recreate with auth.uid()
+    # Recreate with current_setting('app.current_user_id', true)::uuid
     op.execute("""
         CREATE POLICY "digest_dismissals_user_select"
         ON digest_dismissals
         FOR SELECT
-        USING (user_id = auth.uid())
+        USING (user_id = current_setting('app.current_user_id', true)::uuid)
     """)
 
     op.execute("""
@@ -116,11 +116,11 @@ def upgrade() -> None:
         ON digest_dismissals
         FOR INSERT
         WITH CHECK (
-            user_id = auth.uid()
+            user_id = current_setting('app.current_user_id', true)::uuid
             AND workspace_id IN (
                 SELECT wm.workspace_id
                 FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
             )
         )
@@ -130,7 +130,7 @@ def upgrade() -> None:
         CREATE POLICY "digest_dismissals_user_delete"
         ON digest_dismissals
         FOR DELETE
-        USING (user_id = auth.uid())
+        USING (user_id = current_setting('app.current_user_id', true)::uuid)
     """)
 
 

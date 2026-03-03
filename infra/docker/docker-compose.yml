@@ -11,6 +11,7 @@
 #   - redis:           Redis 7 cache (port 6379)
 #   - meilisearch:     Typo-tolerant search (port 7700)
 #   - supabase-studio: Database GUI (port 54323, optional)
+#   - migration:       Alembic migrations (runs once, then exits)
 #   - backend:         FastAPI application (port 8000)
 #   - frontend:        Next.js application (port 3000)
 
@@ -20,7 +21,7 @@ services:
   # ============================================================================
 
   postgres:
-    image: supabase/postgres:15.8.1.076
+    image: pgvector/pgvector:pg17
     container_name: pilot-space-postgres
     restart: unless-stopped
     ports:
@@ -123,33 +124,53 @@ services:
   # SUPABASE SERVICES (Optional - use `supabase start` for full local dev)
   # ============================================================================
 
-  supabase-studio:
-    image: supabase/studio:20240422-5cf8f30
-    container_name: pilot-space-supabase-studio
-    restart: unless-stopped
-    profiles:
-      - supabase
-      - dev-tools
-    ports:
-      - "${SUPABASE_STUDIO_PORT:-54323}:3000"
+  # supabase-studio:
+  #   image: supabase/studio:20240422-5cf8f30
+  #   container_name: pilot-space-supabase-studio
+  #   restart: unless-stopped
+  #   profiles:
+  #     - supabase
+  #     - dev-tools
+  #   ports:
+  #     - "${SUPABASE_STUDIO_PORT:-54323}:3000"
+  #   environment:
+  #     STUDIO_PG_META_URL: http://postgres:5432
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  #     DEFAULT_ORGANIZATION_NAME: Pilot Space
+  #     DEFAULT_PROJECT_NAME: pilot-space-local
+  #     SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
+  #     SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://localhost:54321}
+  #     SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+  #     SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   networks:
+  #     - pilot-space-network
+
+  # ============================================================================
+  # APPLICATION SERVICES
+  # ============================================================================
+
+  migration:
+    build:
+      context: ../../backend
+      dockerfile: ../infra/docker/Dockerfile.migration
+      args:
+        PYTHON_VERSION: "3.12"
+        RUN_SEED: ${RUN_SEED:-true}
+    container_name: pilot-space-migration
+    restart: "no"
     environment:
-      STUDIO_PG_META_URL: http://postgres:5432
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      DEFAULT_ORGANIZATION_NAME: Pilot Space
-      DEFAULT_PROJECT_NAME: pilot-space-local
-      SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
-      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://localhost:54321}
-      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      # env.py converts postgresql+asyncpg:// -> postgresql:// for psycopg2
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-pilot_space}
+      SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - pilot-space-network
-
-  # ============================================================================
-  # APPLICATION SERVICES
-  # ============================================================================
 
   backend:
     build:
@@ -175,7 +196,7 @@ services:
       WORKERS: ${BACKEND_WORKERS:-1}
 
       # Database (connects to local postgres container)
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-pilot_space}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-pilot_space}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
       DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}
 
@@ -219,12 +240,14 @@ services:
       - ../../backend/src:/app/src:ro
       - ../../backend/alembic:/app/alembic:ro
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
-      meilisearch:
+      migration:
+        condition: service_completed_successfully
+      postgres:
         condition: service_healthy
+      # meilisearch:
+      #   condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -268,10 +291,10 @@ services:
 
       # Telemetry (disable in dev)
       NEXT_TELEMETRY_DISABLED: "1"
-    volumes:
-      # Hot reload in development (read-only for security)
-      - ../../frontend/src:/app/src:ro
-      - ../../frontend/public:/app/public:ro
+    # volumes:
+    #   # Hot reload in development (read-only for security)
+    #   - ../../frontend/src:/app/src:ro
+    #   - ../../frontend/public:/app/public:ro
     depends_on:
       backend:
         condition: service_healthy

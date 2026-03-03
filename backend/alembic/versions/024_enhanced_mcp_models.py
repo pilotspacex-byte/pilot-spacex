@@ -108,7 +108,7 @@ def upgrade() -> None:
         USING (
             workspace_id IN (
                 SELECT wm.workspace_id FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
             )
         );
     """)

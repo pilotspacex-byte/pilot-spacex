@@ -10,7 +10,7 @@ Run this script to set up a complete demo environment:
 
 Requirements:
 - Supabase local instance running (docker compose up)
-- SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in environment
+- SUPABASE_URL and SUPABASE_SERVICE_KEY in environment
 - Database migrations applied (alembic upgrade head)
 """
 
@@ -37,7 +37,7 @@ DEMO_WORKSPACE_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
 # Supabase configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL", "http://localhost:18000")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 
 
 def create_tiptap_note(paragraphs: list[str]) -> dict:
@@ -56,8 +56,8 @@ async def create_or_get_auth_user() -> uuid.UUID:
         UUID of the Auth user (existing or newly created).
     """
     if not SUPABASE_SERVICE_KEY:
-        print("❌ ERROR: SUPABASE_SERVICE_ROLE_KEY environment variable not set")
-        print("   Set it in backend/.env or run: export SUPABASE_SERVICE_ROLE_KEY=<key>")
+        print("❌ ERROR: SUPABASE_SERVICE_KEY environment variable not set")
+        print("   Set it in backend/.env or run: export SUPABASE_SERVICE_KEY=<key>")
         sys.exit(1)
 
     print("\n" + "=" * 60)

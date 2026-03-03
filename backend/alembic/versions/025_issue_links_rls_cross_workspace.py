@@ -38,7 +38,7 @@ def upgrade() -> None:
         USING (
             workspace_id IN (
                 SELECT wm.workspace_id FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
             )
         );
     """)
@@ -50,13 +50,13 @@ def upgrade() -> None:
         USING (
             workspace_id IN (
                 SELECT wm.workspace_id FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
             )
         )
         WITH CHECK (
             workspace_id IN (
                 SELECT wm.workspace_id FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
             )
             AND EXISTS (
                 SELECT 1 FROM issues
@@ -88,7 +88,7 @@ def downgrade() -> None:
         USING (
             workspace_id IN (
                 SELECT wm.workspace_id FROM workspace_members wm
-                WHERE wm.user_id = auth.uid()
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
             )
         );
     """)

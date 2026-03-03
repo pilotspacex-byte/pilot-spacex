@@ -81,6 +81,8 @@ def run_migrations_online() -> None:
     """
     url = get_database_url()
 
+    print("Running migrations online with URL:", url)
+
     connectable = create_engine(
         url,
         poolclass=pool.NullPool,
