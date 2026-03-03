@@ -644,6 +644,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                             )
                             if assistant_texts:
                                 _ctx_issue = input_data.context.get("issue_id")
+                                _issue_id_uuid: UUID | None = None
+                                if _ctx_issue is not None:
+                                    _issue_id_uuid = (
+                                        _ctx_issue
+                                        if isinstance(_ctx_issue, UUID)
+                                        else UUID(str(_ctx_issue))
+                                    )
                                 await extract_and_persist_to_graph(
                                     graph_write_service=_graph_write_svc,
                                     workspace_id=context.workspace_id,
@@ -652,7 +659,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                         {"role": "user", "content": input_data.message},
                                         {"role": "assistant", "content": assistant_texts[-1]},
                                     ],
-                                    issue_id=UUID(_ctx_issue) if _ctx_issue else None,
+                                    issue_id=_issue_id_uuid,
                                 )
 
                     await client.disconnect()
