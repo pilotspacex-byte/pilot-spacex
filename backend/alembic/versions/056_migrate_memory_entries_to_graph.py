@@ -70,49 +70,51 @@ def upgrade() -> None:
     # 768-dim Gemini vectors; graph_nodes expects 1536-dim OpenAI vectors.
     # Migrated nodes will be re-embedded by the graph embedding worker.
     # ------------------------------------------------------------------
-    op.execute(
-        text("""
-        INSERT INTO graph_nodes (
-            id,
-            workspace_id,
-            user_id,
-            node_type,
-            external_id,
-            label,
-            content,
-            properties,
-            embedding,
-            created_at,
-            updated_at
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute(
+            text("""
+            INSERT INTO graph_nodes (
+                id,
+                workspace_id,
+                user_id,
+                node_type,
+                external_id,
+                label,
+                content,
+                properties,
+                embedding,
+                created_at,
+                updated_at
+            )
+            SELECT
+                gen_random_uuid(),
+                me.workspace_id,
+                NULL,
+                CASE me.source_type
+                    WHEN 'intent'        THEN 'work_intent'
+                    WHEN 'skill_outcome' THEN 'skill_outcome'
+                    WHEN 'user_feedback' THEN 'learned_pattern'
+                    WHEN 'constitution'  THEN 'constitution_rule'
+                    ELSE                      'skill_outcome'
+                END,
+                me.source_id,
+                SUBSTR(me.content, 1, 100),
+                me.content,
+                jsonb_build_object(
+                    'migrated_from', 'memory_entries',
+                    'source_type',   me.source_type::text,
+                    'pinned',        me.pinned
+                ),
+                NULL,
+                me.created_at,
+                COALESCE(me.updated_at, me.created_at)
+            FROM memory_entries me
+            WHERE
+                me.is_deleted = FALSE
+                AND (me.expires_at IS NULL OR me.expires_at > NOW())
+        """)
         )
-        SELECT
-            gen_random_uuid(),
-            me.workspace_id,
-            NULL,
-            CASE me.source_type
-                WHEN 'intent'        THEN 'work_intent'
-                WHEN 'skill_outcome' THEN 'skill_outcome'
-                WHEN 'user_feedback' THEN 'learned_pattern'
-                WHEN 'constitution'  THEN 'constitution_rule'
-                ELSE                      'skill_outcome'
-            END,
-            me.source_id,
-            LEFT(me.content, 100),
-            me.content,
-            jsonb_build_object(
-                'migrated_from', 'memory_entries',
-                'source_type',   me.source_type::text,
-                'pinned',        me.pinned
-            ),
-            NULL,
-            me.created_at,
-            COALESCE(me.updated_at, me.created_at)
-        FROM memory_entries me
-        WHERE
-            me.is_deleted = FALSE
-            AND (me.expires_at IS NULL OR me.expires_at > NOW())
-    """)
-    )
 
 
 def downgrade() -> None:

@@ -41,11 +41,7 @@ def upgrade() -> None:
             id              UUID        NOT NULL DEFAULT gen_random_uuid(),
             workspace_id    UUID        NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
             user_id         UUID                 REFERENCES users(id) ON DELETE SET NULL,
-            node_type       VARCHAR(50) NOT NULL CHECK (node_type IN (
-                                'issue', 'note', 'concept', 'agent', 'user',
-                                'workspace', 'project', 'cycle', 'label',
-                                'comment', 'document', 'task', 'sprint', 'epic'
-                            )),
+            node_type       VARCHAR(50) NOT NULL,
             external_id     UUID,
             label           VARCHAR(500) NOT NULL,
             content         TEXT         NOT NULL DEFAULT '',
@@ -55,7 +51,12 @@ def upgrade() -> None:
             updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
             is_deleted      BOOLEAN      NOT NULL DEFAULT false,
             deleted_at      TIMESTAMPTZ,
-            CONSTRAINT pk_graph_nodes PRIMARY KEY (id)
+            CONSTRAINT pk_graph_nodes PRIMARY KEY (id),
+            CONSTRAINT graph_nodes_node_type_check CHECK (node_type IN (
+                'issue', 'note', 'concept', 'agent', 'user',
+                'workspace', 'project', 'cycle', 'label',
+                'comment', 'document', 'task', 'sprint', 'epic'
+            ))
         )
     """)
     )
