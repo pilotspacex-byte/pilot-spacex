@@ -60,7 +60,8 @@ class PromptLayerConfig(BaseModel):
         project_names: Active project names in the workspace.
         user_message: The current user message for intent classification.
         has_note_context: Whether note context is present in the conversation.
-        memory_entries: Retrieved memory entries for context.
+        memory_entries: Retrieved memory entries for context (legacy).
+        graph_context: Scored nodes from the knowledge graph (preferred over memory_entries).
         pending_approvals: Count of pending approval requests.
         budget_warning: Optional budget/token warning message.
         conversation_summary: Optional summary of prior conversation turns.
@@ -73,6 +74,7 @@ class PromptLayerConfig(BaseModel):
     user_message: str = ""
     has_note_context: bool = False
     memory_entries: list[dict[str, Any]] = Field(default_factory=list)
+    graph_context: list[dict[str, Any]] = Field(default_factory=list)
     pending_approvals: int = 0
     budget_warning: str | None = None
     conversation_summary: str | None = None

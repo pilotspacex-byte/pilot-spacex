@@ -78,6 +78,9 @@ from pilot_space.infrastructure.database.repositories.issue_link_repository impo
 from pilot_space.infrastructure.database.repositories.issue_repository import (
     IssueRepository,
 )
+from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
+    KnowledgeGraphRepository,
+)
 from pilot_space.infrastructure.database.repositories.label_repository import (
     LabelRepository,
 )
@@ -336,6 +339,11 @@ class InfraContainer(containers.DeclarativeContainer):
 
     memory_entry_repository = providers.Factory(
         MemoryEntryRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    knowledge_graph_repository = providers.Factory(
+        KnowledgeGraphRepository,
         session=providers.Callable(get_current_session),
     )
 

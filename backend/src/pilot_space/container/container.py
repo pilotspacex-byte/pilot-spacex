@@ -54,6 +54,8 @@ from pilot_space.application.services.issue import (
 from pilot_space.application.services.memory.constitution_service import (
     ConstitutionIngestService,
 )
+from pilot_space.application.services.memory.graph_search_service import GraphSearchService
+from pilot_space.application.services.memory.graph_write_service import GraphWriteService
 from pilot_space.application.services.memory.memory_save_service import MemorySaveService
 from pilot_space.application.services.memory.memory_search_service import MemorySearchService
 from pilot_space.application.services.note import (
@@ -157,6 +159,19 @@ class Container(InfraContainer):
 
     space_manager = providers.Singleton(create_space_manager)
 
+    # Graph Services — defined before pilotspace_agent (singleton ordering)
+    graph_search_service = providers.Factory(
+        GraphSearchService,
+        knowledge_graph_repository=InfraContainer.knowledge_graph_repository,
+    )
+
+    graph_write_service = providers.Factory(
+        GraphWriteService,
+        session=providers.Callable(get_current_session),
+        knowledge_graph_repository=InfraContainer.knowledge_graph_repository,
+        queue=InfraContainer.queue_client,
+    )
+
     pilotspace_agent = providers.Singleton(
         create_pilotspace_agent,
         tool_registry=tool_registry,
@@ -164,6 +179,8 @@ class Container(InfraContainer):
         resilient_executor=resilient_executor,
         session_manager=session_manager,
         space_manager=space_manager,
+        graph_search_service=graph_search_service,
+        graph_write_service=graph_write_service,
     )
 
     # ===== Service Factories =====
@@ -529,7 +546,7 @@ class Container(InfraContainer):
         cache_client=InfraContainer.redis_client,
     )
 
-    # AI Services (Attachments — Feature 020)
+    # Attachment Services
     attachment_upload_service = providers.Factory(
         AttachmentUploadService,
         session=providers.Callable(get_current_session),
@@ -550,7 +567,7 @@ class Container(InfraContainer):
         issue_repository=InfraContainer.issue_repository,
     )
 
-    # Intent Services (Feature 015)
+    # Intent Services
     intent_detection_service = providers.Factory(
         IntentDetectionService,
         session=providers.Callable(get_current_session),
@@ -585,7 +602,7 @@ class Container(InfraContainer):
         concurrency_manager=skill_concurrency_manager,
     )
 
-    # Note Version Services (Feature 017)
+    # Note Version Services
     version_snapshot_service = providers.Factory(
         VersionSnapshotService,
         session=providers.Callable(get_current_session),
@@ -624,14 +641,14 @@ class Container(InfraContainer):
         version_repo=InfraContainer.note_version_repository,
     )
 
-    # PM Block Insight Service (Feature 016)
+    # PM Block Insight Service
     pm_block_insight_service = providers.Factory(
         PMBlockInsightService,
         session=providers.Callable(get_current_session),
         repository=InfraContainer.pm_block_insight_repository,
     )
 
-    # Memory Services (Feature 015)
+    # Memory Services
     memory_search_service = providers.Factory(
         MemorySearchService,
         session=providers.Callable(get_current_session),
@@ -654,14 +671,7 @@ class Container(InfraContainer):
 
 
 def create_container(settings: Settings | None = None) -> Container:
-    """Create and configure the DI container.
-
-    Args:
-        settings: Optional settings override for testing.
-
-    Returns:
-        Configured Container instance.
-    """
+    """Create and configure the DI container (settings override for testing)."""
     container = Container()
     if settings is not None:
         container.config.override(providers.Object(settings))  # type: ignore[no-untyped-call]
@@ -673,13 +683,7 @@ _container: Container | None = None
 
 
 def get_container() -> Container:
-    """Get the global container instance (lazy-loaded).
-
-    Creates the container on first access to avoid circular import issues.
-
-    Returns:
-        Global Container instance.
-    """
+    """Get or create the global container instance."""
     global _container  # noqa: PLW0603
     if _container is None:
         _container = create_container()

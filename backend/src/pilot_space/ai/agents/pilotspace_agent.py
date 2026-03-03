@@ -25,7 +25,8 @@ from pilot_space.ai.agents.pilotspace_agent_helpers import (
 )
 from pilot_space.ai.agents.pilotspace_intent_pipeline import (
     ConfirmationBus,
-    recall_workspace_context,
+    extract_and_persist_to_graph,
+    recall_graph_context,
     run_intent_pipeline_step,
     save_skill_outcome_to_memory,
 )
@@ -59,6 +60,12 @@ if TYPE_CHECKING:
     from pilot_space.ai.tools.mcp_server import ToolRegistry
     from pilot_space.application.services.intent.detection_service import (
         IntentDetectionService,
+    )
+    from pilot_space.application.services.memory.graph_search_service import (
+        GraphSearchService,
+    )
+    from pilot_space.application.services.memory.graph_write_service import (
+        GraphWriteService,
     )
     from pilot_space.application.services.memory.memory_save_service import (
         MemorySaveService,
@@ -110,7 +117,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
     SUBAGENT_MAP: ClassVar[dict[str, str]] = {
         "pr-review": "PRReviewSubagent",
-        # ai-context: now handled via ai-context skill (DD-086), no longer a subagent
         "doc-gen": "DocGeneratorSubagent",
     }
 
@@ -128,6 +134,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         intent_detection_service: IntentDetectionService | None = None,
         memory_search_service: MemorySearchService | None = None,
         memory_save_service: MemorySaveService | None = None,
+        graph_search_service: GraphSearchService | None = None,
+        graph_write_service: GraphWriteService | None = None,
     ) -> None:
         super().__init__(
             provider_selector=provider_selector,
@@ -142,6 +150,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._intent_detection_service = intent_detection_service
         self._memory_search_service = memory_search_service
         self._memory_save_service = memory_save_service
+        self._graph_search_service = graph_search_service
+        self._graph_write_service = graph_write_service
         self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
         self._active_clients: dict[str, ClaudeSDKClient] = {}
 
@@ -164,9 +174,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            raise ValueError(
-                "Anthropic API key not found. Configure in workspace settings or set ANTHROPIC_API_KEY."
-            )
+            raise ValueError("ANTHROPIC_API_KEY not set and no workspace key configured.")
         return api_key
 
     async def interrupt_session(self, session_id: str) -> bool:
@@ -180,11 +188,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             logger.info("[SDK/Interrupt] Interrupted session %s", session_id)
             return True
         except Exception as e:  # Intentional catch-all: corrupt client must not crash caller
-            logger.warning(
-                "[SDK/Interrupt] Failed to interrupt session %s: %s",
-                session_id,
-                e,
-            )
+            logger.warning("[SDK/Interrupt] Failed to interrupt session %s: %s", session_id, e)
             return False
 
     async def submit_tool_result(
@@ -330,11 +334,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         effort = classify_effort(input_data.message)
         streaming_input = estimate_tokens(input_data) > 30_000
 
-        # T-048: recall memory context before prompt assembly
-        memory_entries = await recall_workspace_context(
+        # Recall graph context (replaces legacy memory recall — T-048 / Unit 11)
+        graph_context = await recall_graph_context(
             workspace_id=context.workspace_id,
+            user_id=context.user_id,
             query=input_data.message,
-            memory_search_service=self._memory_search_service,
+            graph_search_service=self._graph_search_service,
         )
 
         # Scaffolding: pending_approvals, budget_warning, conversation_summary
@@ -346,7 +351,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 project_names=input_data.context.get("project_names"),
                 user_message=input_data.message,
                 has_note_context="<note_context>" in input_data.message,
-                memory_entries=memory_entries,
+                graph_context=graph_context,
             )
         )
 
@@ -390,10 +395,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             agents=subagent_definitions,
             resume=resume_id,
             continue_conversation=resume_id is not None,
-            include_partial_messages=sdk_params.get(
-                "include_partial_messages",
-                True,
-            ),
+            include_partial_messages=sdk_params.get("include_partial_messages", True),
             system_prompt=sdk_config.system_prompt_base,
             max_thinking_tokens=sdk_config.max_thinking_tokens,
             max_budget_usd=sdk_config.max_budget_usd,
@@ -432,10 +434,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 logger.info("Resuming SDK session: %s", resume_id)
 
             if not (self._space_manager and context.workspace_id and context.user_id):
-                raise ValueError(  # noqa: TRY301
-                    "SpaceManager, workspace_id, and user_id are required. "
-                    "Legacy mode has been removed."
-                )
+                raise ValueError("SpaceManager, workspace_id, and user_id are required.")  # noqa: TRY301
             async for chunk in self._stream_with_space(
                 input_data=input_data,
                 context=context,
@@ -600,12 +599,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         duration_ms=duration_ms,
                         exc_info=True,
                     )
-                    err = {
-                        "errorCode": "stream_error",
-                        "message": str(stream_err),
-                        "retryable": False,
-                    }
-                    yield f"event: error\ndata: {json.dumps(err)}\n\n"
+                    yield f"event: error\ndata: {json.dumps({'errorCode': 'stream_error', 'message': str(stream_err), 'retryable': False})}\n\n"
                 else:
                     final_flush = delta_buffer.flush()
                     if final_flush:
@@ -643,14 +637,26 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     if stream_completed:
                         await self._save_session_messages(input_data, content_blocks)
 
-                        # T-050: save conversation outcome to workspace memory
-                        if content_blocks:
-                            outcome_summary = " ".join(
-                                block.get("text", "")[:200]
+                        # T-050: persist conversation outcome to knowledge graph
+                        if content_blocks and context.workspace_id:
+                            assistant_texts = [
+                                block.get("text", "")
                                 for block in content_blocks.values()
                                 if block.get("text")
-                            )[:500]
-                            if outcome_summary and context.workspace_id:
+                            ]
+                            if self._graph_write_service and assistant_texts:
+                                await extract_and_persist_to_graph(
+                                    graph_write_service=self._graph_write_service,
+                                    workspace_id=context.workspace_id,
+                                    user_id=context.user_id,
+                                    messages=[
+                                        {"role": "user", "content": input_data.message},
+                                        {"role": "assistant", "content": assistant_texts[-1]},
+                                    ],
+                                )
+                            elif assistant_texts:
+                                # Fallback: legacy memory save when graph write not available
+                                outcome_summary = " ".join(t[:200] for t in assistant_texts)[:500]
                                 await save_skill_outcome_to_memory(
                                     memory_save_service=self._memory_save_service,
                                     workspace_id=context.workspace_id,

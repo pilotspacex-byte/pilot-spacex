@@ -1728,6 +1728,7 @@ dev = [
 [package.dev-dependencies]
 dev = [
     { name = "aiosqlite" },
+    { name = "faker" },
 ]
 
 [package.metadata]
@@ -1777,7 +1778,10 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "aiosqlite", specifier = ">=0.22.1" }]
+dev = [
+    { name = "aiosqlite", specifier = ">=0.22.1" },
+    { name = "faker", specifier = ">=40.1.2" },
+]
 
 [[package]]
 name = "platformdirs"

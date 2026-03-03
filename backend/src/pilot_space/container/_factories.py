@@ -154,6 +154,8 @@ def create_pilotspace_agent(
     resilient_executor: ResilientExecutor,
     session_manager: Any,
     space_manager: Any,
+    graph_search_service: Any = None,
+    graph_write_service: Any = None,
 ) -> Any:
     """Create PilotSpaceAgent with all dependencies.
 
@@ -163,6 +165,8 @@ def create_pilotspace_agent(
         resilient_executor: Retry and circuit breaker service.
         session_manager: Session manager (None if Redis not configured).
         space_manager: Space management service.
+        graph_search_service: Optional graph search service for context recall.
+        graph_write_service: Optional graph write service for outcome persistence.
 
     Returns:
         Fully initialized PilotSpaceAgent.
@@ -196,6 +200,8 @@ def create_pilotspace_agent(
         permission_handler=permission_handler,
         session_handler=session_handler,
         space_manager=space_manager,
+        graph_search_service=graph_search_service,
+        graph_write_service=graph_write_service,
     )
 
 

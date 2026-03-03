@@ -156,8 +156,10 @@ def _build_session_section(config: PromptLayerConfig) -> list[str]:
     """
     parts: list[str] = []
 
-    # Memory context
-    if config.memory_entries:
+    # Memory context: graph-based context takes precedence over legacy memory entries
+    if config.graph_context:
+        parts.append(format_graph_context(config.graph_context))
+    elif config.memory_entries:
         parts.append(format_memory_entries(config.memory_entries))
 
     # Conversation summary
@@ -188,5 +190,26 @@ def format_memory_entries(memory_entries: list[dict[str, Any]]) -> str:
         source = entry.get("source_type", "unknown")
         content = entry.get("content", "")
         lines.append(f"- [{source}] {content}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_graph_context(graph_context: list[dict[str, Any]]) -> str:
+    """Format knowledge graph nodes as a system prompt section.
+
+    Args:
+        graph_context: List of scored node dicts from recall_graph_context.
+
+    Returns:
+        Formatted markdown section, or empty string when graph_context is empty.
+    """
+    if not graph_context:
+        return ""
+    lines = ["## Workspace Knowledge Graph Context\n"]
+    for entry in graph_context:
+        node_type = entry.get("node_type", "unknown")
+        label = entry.get("label", "")
+        content = entry.get("content", "")
+        lines.append(f"- [{node_type}] **{label}**: {content}")
     lines.append("")
     return "\n".join(lines)
