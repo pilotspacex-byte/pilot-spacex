@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, Depends, Path, Response, status
 
 from pilot_space.api.v1.schemas.memory import (
     ConstitutionIngestRequest,
@@ -65,9 +65,13 @@ async def search_memory(
     workspace_id: WorkspaceIdPath,
     request: MemorySearchRequest,
     session: SessionDep,
+    response: Response,
     _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> MemorySearchResponse:
     """Search workspace memory entries with hybrid scoring."""
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "2026-06-01"
+    response.headers["Link"] = '</api/v1/knowledge-graph/search>; rel="successor-version"'
 
     settings = get_settings()
     google_api_key = settings.google_api_key.get_secret_value() if settings.google_api_key else None
@@ -115,9 +119,15 @@ async def search_memory(
 async def get_constitution_version(
     workspace_id: WorkspaceIdPath,
     session: SessionDep,
+    response: Response,
     _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> ConstitutionVersionResponse:
     """Get the current constitution version for the workspace."""
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "2026-06-01"
+    response.headers["Link"] = (
+        '</api/v1/knowledge-graph/constitution/version>; rel="successor-version"'
+    )
 
     const_repo = ConstitutionRuleRepository(session)
     version = await const_repo.get_latest_version(workspace_id)
@@ -142,9 +152,15 @@ async def ingest_constitution(
     workspace_id: WorkspaceIdPath,
     request: ConstitutionIngestRequest,
     session: SessionDep,
+    response: Response,
     _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> ConstitutionIngestResponse:
     """Ingest workspace constitution rules as a new version."""
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "2026-06-01"
+    response.headers["Link"] = (
+        '</api/v1/knowledge-graph/constitution/ingest>; rel="successor-version"'
+    )
 
     const_repo = ConstitutionRuleRepository(session)
 
