@@ -84,3 +84,18 @@ export type { IssueDescriptionEmptyStateProps } from './issue-description-empty-
 
 export { IssueGraph } from './issue-graph';
 export type { IssueGraphProps } from './issue-graph';
+
+export { IssueKnowledgeGraphMini } from './issue-knowledge-graph-mini';
+export type { IssueKnowledgeGraphMiniProps } from './issue-knowledge-graph-mini';
+
+export { IssueKnowledgeGraphFull } from './issue-knowledge-graph-full';
+export type { IssueKnowledgeGraphFullProps } from './issue-knowledge-graph-full';
+
+export { GitHubImplementationSection } from './github-implementation-section';
+export type { GitHubImplementationSectionProps } from './github-implementation-section';
+
+export { GraphNodeComponent, nodeTypes } from './graph-node-renderer';
+export type { GraphNodeData, GraphFlowNode } from './graph-node-renderer';
+
+export { GraphEmptyState } from './graph-empty-state';
+export type { GraphEmptyStateProps } from './graph-empty-state';

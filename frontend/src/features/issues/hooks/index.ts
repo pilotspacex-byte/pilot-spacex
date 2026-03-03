@@ -54,3 +54,6 @@ export type { CreateBranchVars } from './use-create-branch';
 
 // Issue-to-issue relations (blocks, blocked_by, duplicates, related)
 export { useIssueRelations, issueRelationsKeys } from './use-issue-relations';
+
+// Knowledge graph data for an issue
+export { useIssueKnowledgeGraph, issueKnowledgeGraphKeys } from './use-issue-knowledge-graph';
