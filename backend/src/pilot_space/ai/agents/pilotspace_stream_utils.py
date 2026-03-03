@@ -559,3 +559,36 @@ async def save_session_messages(
             "[SDK/Space] Failed to persist session messages: %s",
             exc,
         )
+
+
+def build_graph_search_service_for_session(db_session: Any) -> Any:
+    """Build a fresh GraphSearchService bound to the active request DB session.
+
+    Called once per request inside _build_stream_config to avoid the
+    session=None singleton-capture bug.
+    """
+    from pilot_space.application.services.memory.graph_search_service import GraphSearchService
+    from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
+        KnowledgeGraphRepository,
+    )
+
+    return GraphSearchService(knowledge_graph_repository=KnowledgeGraphRepository(db_session))
+
+
+def build_graph_write_service_for_session(db_session: Any, queue_client: Any) -> Any:
+    """Build a fresh GraphWriteService bound to the active request DB session.
+
+    Returns None if queue_client is absent (graph writes are then skipped).
+    """
+    if queue_client is None:
+        return None
+    from pilot_space.application.services.memory.graph_write_service import GraphWriteService
+    from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
+        KnowledgeGraphRepository,
+    )
+
+    return GraphWriteService(
+        knowledge_graph_repository=KnowledgeGraphRepository(db_session),
+        queue=queue_client,
+        session=db_session,
+    )

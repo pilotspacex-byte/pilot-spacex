@@ -54,8 +54,6 @@ from pilot_space.application.services.issue import (
 from pilot_space.application.services.memory.constitution_service import (
     ConstitutionIngestService,
 )
-from pilot_space.application.services.memory.graph_search_service import GraphSearchService
-from pilot_space.application.services.memory.graph_write_service import GraphWriteService
 from pilot_space.application.services.memory.memory_save_service import MemorySaveService
 from pilot_space.application.services.memory.memory_search_service import MemorySearchService
 from pilot_space.application.services.note import (
@@ -159,19 +157,6 @@ class Container(InfraContainer):
 
     space_manager = providers.Singleton(create_space_manager)
 
-    # Graph Services — defined before pilotspace_agent (singleton ordering)
-    graph_search_service = providers.Factory(
-        GraphSearchService,
-        knowledge_graph_repository=InfraContainer.knowledge_graph_repository,
-    )
-
-    graph_write_service = providers.Factory(
-        GraphWriteService,
-        session=providers.Callable(get_current_session),
-        knowledge_graph_repository=InfraContainer.knowledge_graph_repository,
-        queue=InfraContainer.queue_client,
-    )
-
     pilotspace_agent = providers.Singleton(
         create_pilotspace_agent,
         tool_registry=tool_registry,
@@ -179,8 +164,7 @@ class Container(InfraContainer):
         resilient_executor=resilient_executor,
         session_manager=session_manager,
         space_manager=space_manager,
-        graph_search_service=graph_search_service,
-        graph_write_service=graph_write_service,
+        queue_client=InfraContainer.queue_client,
     )
 
     # ===== Service Factories =====

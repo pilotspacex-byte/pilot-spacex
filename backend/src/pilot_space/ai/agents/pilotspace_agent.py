@@ -31,6 +31,8 @@ from pilot_space.ai.agents.pilotspace_intent_pipeline import (
     save_skill_outcome_to_memory,
 )
 from pilot_space.ai.agents.pilotspace_stream_utils import (
+    build_graph_search_service_for_session,
+    build_graph_write_service_for_session,
     build_mcp_servers,
     capture_content_from_sse,
     classify_effort,
@@ -60,12 +62,6 @@ if TYPE_CHECKING:
     from pilot_space.ai.tools.mcp_server import ToolRegistry
     from pilot_space.application.services.intent.detection_service import (
         IntentDetectionService,
-    )
-    from pilot_space.application.services.memory.graph_search_service import (
-        GraphSearchService,
-    )
-    from pilot_space.application.services.memory.graph_write_service import (
-        GraphWriteService,
     )
     from pilot_space.application.services.memory.memory_save_service import (
         MemorySaveService,
@@ -134,8 +130,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         intent_detection_service: IntentDetectionService | None = None,
         memory_search_service: MemorySearchService | None = None,
         memory_save_service: MemorySaveService | None = None,
-        graph_search_service: GraphSearchService | None = None,
-        graph_write_service: GraphWriteService | None = None,
+        graph_queue_client: Any = None,
     ) -> None:
         super().__init__(
             provider_selector=provider_selector,
@@ -150,8 +145,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._intent_detection_service = intent_detection_service
         self._memory_search_service = memory_search_service
         self._memory_save_service = memory_save_service
-        self._graph_search_service = graph_search_service
-        self._graph_write_service = graph_write_service
+        self._graph_queue_client = graph_queue_client
         self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
         self._active_clients: dict[str, ClaudeSDKClient] = {}
 
@@ -334,12 +328,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         effort = classify_effort(input_data.message)
         streaming_input = estimate_tokens(input_data) > 30_000
 
-        # Recall graph context (replaces legacy memory recall — T-048 / Unit 11)
+        # Recall graph context — fresh service per request to avoid session=None (T-048 / Unit 11)
+        _graph_search_svc = build_graph_search_service_for_session(db_session)
         graph_context = await recall_graph_context(
             workspace_id=context.workspace_id,
             user_id=context.user_id,
             query=input_data.message,
-            graph_search_service=self._graph_search_service,
+            graph_search_service=_graph_search_svc,
         )
 
         # Scaffolding: pending_approvals, budget_warning, conversation_summary
@@ -644,9 +639,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                 for block in content_blocks.values()
                                 if block.get("text")
                             ]
-                            if self._graph_write_service and assistant_texts:
+                            # Build fresh GraphWriteService per request — avoids session=None (T-050)
+                            _graph_write_svc = build_graph_write_service_for_session(
+                                db_session, self._graph_queue_client
+                            )
+                            if _graph_write_svc and assistant_texts:
                                 await extract_and_persist_to_graph(
-                                    graph_write_service=self._graph_write_service,
+                                    graph_write_service=_graph_write_svc,
                                     workspace_id=context.workspace_id,
                                     user_id=context.user_id,
                                     messages=[
