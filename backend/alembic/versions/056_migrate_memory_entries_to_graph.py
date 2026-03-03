@@ -72,49 +72,62 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":
-        op.execute(
+        # Only migrate if memory_entries table exists (it was created by
+        # migration 040_add_memory_engine which may not be in every environment).
+        table_exists = bind.execute(
             text("""
-            INSERT INTO graph_nodes (
-                id,
-                workspace_id,
-                user_id,
-                node_type,
-                external_id,
-                label,
-                content,
-                properties,
-                embedding,
-                created_at,
-                updated_at
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'memory_entries'
             )
-            SELECT
-                gen_random_uuid(),
-                me.workspace_id,
-                NULL,
-                CASE me.source_type
-                    WHEN 'intent'        THEN 'work_intent'
-                    WHEN 'skill_outcome' THEN 'skill_outcome'
-                    WHEN 'user_feedback' THEN 'learned_pattern'
-                    WHEN 'constitution'  THEN 'constitution_rule'
-                    ELSE                      'skill_outcome'
-                END,
-                me.source_id,
-                SUBSTR(me.content, 1, 100),
-                me.content,
-                jsonb_build_object(
-                    'migrated_from', 'memory_entries',
-                    'source_type',   me.source_type::text,
-                    'pinned',        me.pinned
-                ),
-                NULL,
-                me.created_at,
-                COALESCE(me.updated_at, me.created_at)
-            FROM memory_entries me
-            WHERE
-                me.is_deleted = FALSE
-                AND (me.expires_at IS NULL OR me.expires_at > NOW())
         """)
-        )
+        ).scalar()
+
+        if table_exists:
+            op.execute(
+                text("""
+                INSERT INTO graph_nodes (
+                    id,
+                    workspace_id,
+                    user_id,
+                    node_type,
+                    external_id,
+                    label,
+                    content,
+                    properties,
+                    embedding,
+                    created_at,
+                    updated_at
+                )
+                SELECT
+                    gen_random_uuid(),
+                    me.workspace_id,
+                    NULL,
+                    CASE me.source_type
+                        WHEN 'intent'        THEN 'work_intent'
+                        WHEN 'skill_outcome' THEN 'skill_outcome'
+                        WHEN 'user_feedback' THEN 'learned_pattern'
+                        WHEN 'constitution'  THEN 'constitution_rule'
+                        ELSE                      'skill_outcome'
+                    END,
+                    me.source_id,
+                    SUBSTR(me.content, 1, 100),
+                    me.content,
+                    jsonb_build_object(
+                        'migrated_from', 'memory_entries',
+                        'source_type',   me.source_type::text,
+                        'pinned',        me.pinned
+                    ),
+                    NULL,
+                    me.created_at,
+                    COALESCE(me.updated_at, me.created_at)
+                FROM memory_entries me
+                WHERE
+                    me.is_deleted = FALSE
+                    AND (me.expires_at IS NULL OR me.expires_at > NOW())
+            """)
+            )
 
 
 def downgrade() -> None:

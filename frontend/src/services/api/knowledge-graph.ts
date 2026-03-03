@@ -14,20 +14,20 @@ export const knowledgeGraphApi = {
     if (params?.includeGithub !== undefined) queryParams.include_github = params.includeGithub;
     if (params?.nodeTypes?.length) queryParams.node_types = params.nodeTypes;
 
-    return apiClient.get<GraphResponse>(`/issues/${issueId}/knowledge-graph`, {
-      params: queryParams,
-      headers: { 'X-Workspace-Id': workspaceId },
-    });
+    return apiClient.get<GraphResponse>(
+      `/workspaces/${workspaceId}/issues/${issueId}/knowledge-graph`,
+      { params: queryParams }
+    );
   },
 
   getNodeNeighbors(workspaceId: string, nodeId: string, depth?: number): Promise<GraphResponse> {
     const queryParams: Record<string, number> = {};
     if (depth !== undefined) queryParams.depth = depth;
 
-    return apiClient.get<GraphResponse>(`/knowledge-graph/nodes/${nodeId}/neighbors`, {
-      params: queryParams,
-      headers: { 'X-Workspace-Id': workspaceId },
-    });
+    return apiClient.get<GraphResponse>(
+      `/workspaces/${workspaceId}/knowledge-graph/nodes/${nodeId}/neighbors`,
+      { params: queryParams }
+    );
   },
 
   searchGraph(
@@ -38,9 +38,8 @@ export const knowledgeGraphApi = {
     const queryParams: Record<string, string | string[]> = { query };
     if (nodeTypes?.length) queryParams.node_types = nodeTypes;
 
-    return apiClient.get<GraphResponse>('/knowledge-graph/search', {
+    return apiClient.get<GraphResponse>(`/workspaces/${workspaceId}/knowledge-graph/search`, {
       params: queryParams,
-      headers: { 'X-Workspace-Id': workspaceId },
     });
   },
 };
