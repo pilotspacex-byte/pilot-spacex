@@ -11,6 +11,7 @@ Core Models:
 - AIContext, AIConfiguration
 - Embedding
 - WorkspaceDigest, DigestDismissal
+- GraphNodeModel, GraphEdgeModel (knowledge graph)
 """
 
 from pilot_space.infrastructure.database.base import (
@@ -46,6 +47,8 @@ from pilot_space.infrastructure.database.models.discussion_comment import (
 )
 from pilot_space.infrastructure.database.models.drive_credential import DriveCredential
 from pilot_space.infrastructure.database.models.embedding import Embedding, EmbeddingType
+from pilot_space.infrastructure.database.models.graph_edge import GraphEdgeModel
+from pilot_space.infrastructure.database.models.graph_node import GraphNodeModel
 from pilot_space.infrastructure.database.models.integration import (
     Integration,
     IntegrationLink,
@@ -146,6 +149,8 @@ __all__ = [
     "Embedding",
     "EmbeddingType",
     "EntityId",
+    "GraphEdgeModel",
+    "GraphNodeModel",
     "Integration",
     "IntegrationLink",
     "IntegrationLinkType",

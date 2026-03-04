@@ -14,16 +14,23 @@ Feature 015: AI Workforce Platform
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
 
+from pilot_space.api.v1.streaming import format_sse_event
+
 if TYPE_CHECKING:
     from pilot_space.application.services.intent.detection_service import (
         DetectIntentResult,
         IntentDetectionService,
+    )
+    from pilot_space.application.services.memory.graph_search_service import (
+        GraphSearchService,
+    )
+    from pilot_space.application.services.memory.graph_write_service import (
+        GraphWriteService,
     )
     from pilot_space.application.services.memory.memory_save_service import (
         MemorySaveService,
@@ -117,10 +124,6 @@ class ConfirmationBus:
 # ---------------------------------------------------------------------------
 
 
-def _make_sse(event_type: str, data: dict[str, Any]) -> str:
-    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-
-
 def _intent_to_sse_data(intent: Any) -> dict[str, Any]:
     """Serialize a WorkIntent ORM model to SSE payload dict."""
     return {
@@ -186,7 +189,7 @@ async def emit_intent_detected_events(
     events: list[str] = []
     for intent in intents:
         data = _intent_to_sse_data(intent)
-        events.append(_make_sse(INTENT_DETECTED, data))
+        events.append(format_sse_event(INTENT_DETECTED, data))
     return events
 
 
@@ -231,7 +234,7 @@ def make_intent_executing_event(
     skill_name: str,
 ) -> str:
     """Build intent_executing SSE string."""
-    return _make_sse(
+    return format_sse_event(
         INTENT_EXECUTING,
         {"intent_id": intent_id, "skill_name": skill_name},
     )
@@ -243,7 +246,7 @@ def make_intent_completed_event(
     artifacts: list[dict[str, Any]] | None = None,
 ) -> str:
     """Build intent_completed SSE string."""
-    return _make_sse(
+    return format_sse_event(
         INTENT_COMPLETED,
         {
             "intent_id": intent_id,
@@ -255,7 +258,7 @@ def make_intent_completed_event(
 
 def make_intent_confirmed_event(intent_id: str) -> str:
     """Build intent_confirmed SSE string."""
-    return _make_sse(INTENT_CONFIRMED, {"intent_id": intent_id})
+    return format_sse_event(INTENT_CONFIRMED, {"intent_id": intent_id})
 
 
 # ---------------------------------------------------------------------------
@@ -453,6 +456,135 @@ async def save_skill_outcome_to_memory(
     except Exception:
         logger.warning(
             "[IntentPipeline] Memory save failed (non-fatal)",
+            exc_info=True,
+        )
+        return False
+
+
+async def recall_graph_context(
+    workspace_id: UUID,
+    user_id: UUID | None,
+    query: str,
+    graph_search_service: GraphSearchService | None,
+    limit: int = 10,
+    openai_api_key: str | None = None,
+) -> list[dict[str, Any]]:
+    """Graph-aware context recall replacing recall_workspace_context.
+
+    Args:
+        workspace_id: Current workspace UUID.
+        user_id: Optional user UUID for personal node filtering.
+        query: Search query derived from user message.
+        graph_search_service: Optional injected GraphSearchService.
+        limit: Maximum number of scored nodes to return.
+        openai_api_key: Optional OpenAI key for vector embedding.
+
+    Returns:
+        List of graph context dicts; empty on failure or missing service.
+    """
+    if not graph_search_service:
+        logger.debug(
+            "[IntentPipeline] No GraphSearchService — skipping graph recall workspace=%s",
+            workspace_id,
+        )
+        return []
+
+    try:
+        from pilot_space.application.services.memory.graph_search_service import (
+            GraphSearchPayload,
+        )
+
+        payload = GraphSearchPayload(
+            query=query,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            limit=limit,
+            openai_api_key=openai_api_key,
+        )
+        result = await graph_search_service.execute(payload)
+        entries = [
+            {
+                "content": n.node.content,
+                "label": n.node.label,
+                "node_type": n.node.node_type.value,
+                "score": n.score,
+                "properties": n.node.properties,
+            }
+            for n in result.nodes
+        ]
+        logger.debug(
+            "[IntentPipeline] Recalled %d graph nodes workspace=%s",
+            len(entries),
+            workspace_id,
+        )
+        return entries
+    except Exception:
+        logger.warning(
+            "[IntentPipeline] Graph recall failed, continuing without context",
+            exc_info=True,
+        )
+        return []
+
+
+async def extract_and_persist_to_graph(
+    graph_write_service: GraphWriteService,
+    workspace_id: UUID,
+    user_id: UUID | None,
+    messages: list[dict[str, str]],
+    issue_id: UUID | None = None,
+) -> bool:
+    """Persist conversation outcome as a skill-outcome node in the knowledge graph.
+
+    Replaces save_skill_outcome_to_memory with structured graph persistence.
+
+    Args:
+        graph_write_service: Injected GraphWriteService.
+        workspace_id: Workspace to save the node in.
+        user_id: Optional user scope for the node.
+        messages: List of conversation messages (role/content dicts).
+        issue_id: Optional originating issue UUID for external_id linking.
+
+    Returns:
+        True if persisted successfully, False otherwise.
+    """
+    if not messages:
+        return False
+
+    try:
+        from pilot_space.application.services.memory.graph_write_service import (
+            GraphWritePayload,
+            NodeInput,
+        )
+        from pilot_space.domain.graph_node import NodeType
+
+        assistant_messages = [m for m in messages if m.get("role") == "assistant"]
+        if not assistant_messages:
+            return False
+
+        content = assistant_messages[-1].get("content", "")[:500]
+        node = NodeInput(
+            node_type=NodeType.SKILL_OUTCOME,
+            label="Skill outcome",
+            content=content,
+            properties={},
+            external_id=issue_id,
+            user_id=user_id,
+        )
+        payload = GraphWritePayload(
+            workspace_id=workspace_id,
+            nodes=[node],
+            edges=[],
+            user_id=user_id,
+        )
+        await graph_write_service.execute(payload)
+        logger.info(
+            "[IntentPipeline] Persisted skill outcome to knowledge graph workspace=%s",
+            workspace_id,
+        )
+        return True
+    except Exception:
+        logger.warning(
+            "[IntentPipeline] Graph persistence failed (non-fatal)",
             exc_info=True,
         )
         return False

@@ -559,3 +559,49 @@ async def save_session_messages(
             "[SDK/Space] Failed to persist session messages: %s",
             exc,
         )
+
+
+def build_graph_search_service_for_session(db_session: Any) -> Any:
+    """Build a fresh GraphSearchService bound to the active request DB session.
+
+    Called once per request inside _build_stream_config to avoid the
+    session=None singleton-capture bug.
+    """
+    from pilot_space.application.services.memory.graph_search_service import GraphSearchService
+    from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
+        KnowledgeGraphRepository,
+    )
+
+    return GraphSearchService(knowledge_graph_repository=KnowledgeGraphRepository(db_session))
+
+
+def build_graph_write_service_for_session(db_session: Any, queue_client: Any) -> Any:
+    """Build a fresh GraphWriteService bound to the active request DB session.
+
+    queue_client may be None; node upsert still occurs, only embedding enqueue is skipped.
+    """
+    from pilot_space.application.services.memory.graph_write_service import GraphWriteService
+    from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
+        KnowledgeGraphRepository,
+    )
+
+    return GraphWriteService(
+        knowledge_graph_repository=KnowledgeGraphRepository(db_session),
+        queue=queue_client,
+        session=db_session,
+    )
+
+
+async def get_workspace_openai_key(db_session: Any, workspace_id: Any) -> str | None:
+    """Look up the workspace BYOK OpenAI API key, returning None on any failure."""
+    try:
+        from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+        from pilot_space.config import get_settings
+
+        storage = SecureKeyStorage(
+            db=db_session,
+            master_secret=get_settings().encryption_key.get_secret_value(),
+        )
+        return await storage.get_api_key(workspace_id, "openai")
+    except Exception:
+        return None

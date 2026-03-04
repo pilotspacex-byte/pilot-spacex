@@ -19,11 +19,26 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+  },
+}));
+
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  };
+});
+
 const mockUseIssueDetail = vi.fn();
 
 vi.mock('@/features/issues/hooks', () => ({
   useIssueDetail: (...args: unknown[]) => mockUseIssueDetail(...args),
   useUpdateIssue: () => ({ mutateAsync: vi.fn() }),
+  useUpdateIssueState: () => ({ mutateAsync: vi.fn() }),
   useWorkspaceMembers: () => ({ data: [] }),
   useWorkspaceLabels: () => ({ data: [] }),
   useProjectCycles: () => ({ data: undefined }),
@@ -33,8 +48,20 @@ vi.mock('@/features/issues/hooks', () => ({
 vi.mock('@/stores', () => ({
   useStore: () => ({
     workspaceStore: { currentWorkspace: { id: 'ws-1', slug: 'test-ws' } },
-    aiStore: { settings: { aiContextEnabled: true } },
-    issueStore: { deleteIssue: vi.fn() },
+    aiStore: {
+      pilotSpace: {
+        setWorkspaceId: vi.fn(),
+        setIssueContext: vi.fn(),
+        pendingApprovals: [],
+      },
+      settings: { aiContextEnabled: true },
+    },
+    issueStore: {
+      deleteIssue: vi.fn(),
+      aggregateSaveStatus: 'idle',
+      getSaveStatus: () => 'idle',
+      setSaveStatus: vi.fn(),
+    },
   }),
   useTaskStore: () => ({
     getTasksForIssue: () => [],
@@ -44,21 +71,37 @@ vi.mock('@/stores', () => ({
 
 vi.mock('@/features/issues/components', () => ({
   IssueHeader: () => <div data-testid="issue-header" />,
-  IssueTitle: () => <div data-testid="issue-title" />,
-  IssueDescriptionEditor: () => <div data-testid="issue-description-editor" />,
-  SubIssuesList: () => <div data-testid="sub-issues-list" />,
-  ActivityTimeline: () => <div data-testid="activity-timeline" />,
+  IssueNoteHeader: () => <div data-testid="issue-note-header" />,
+  IssueNoteLayout: ({
+    headerContent,
+    editorContent,
+  }: {
+    headerContent: React.ReactNode;
+    editorContent: React.ReactNode;
+  }) => (
+    <div data-testid="issue-note-layout">
+      {headerContent}
+      {editorContent}
+    </div>
+  ),
   IssuePropertiesPanel: () => <div data-testid="issue-properties-panel" />,
-  AcceptanceCriteriaEditor: () => <div data-testid="acceptance-criteria" />,
-  TechnicalRequirementsEditor: () => <div data-testid="technical-requirements" />,
   CollapsibleSection: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="collapsible-section">{children}</div>
   ),
+  IssueSectionDivider: () => <div data-testid="section-divider" />,
   TaskProgressWidget: () => null,
+}));
+
+vi.mock('@/features/issues/components/issue-editor-content', () => ({
+  IssueEditorContent: () => <div data-testid="issue-editor-content" />,
 }));
 
 vi.mock('@/components/issues/DeleteConfirmDialog', () => ({
   DeleteConfirmDialog: () => null,
+}));
+
+vi.mock('@/components/editor/ProjectContextHeader', () => ({
+  ProjectContextHeader: () => <div data-testid="project-context-header" />,
 }));
 
 vi.mock('@/components/ui/button', () => ({
@@ -135,52 +178,40 @@ describe('IssueDetailPage responsive layout', () => {
     });
   });
 
-  it('main container has flex-col md:flex-row classes', () => {
+  it('top-level container has flex layout with overflow-hidden', () => {
     render(<IssueDetailPage />);
 
-    const panels = screen.getAllByTestId('issue-properties-panel');
-    // Desktop sidebar parent
-    const desktopSidebar = panels[0]?.parentElement;
-    const flexContainer = desktopSidebar?.parentElement;
-    expect(desktopSidebar).toBeDefined();
-    expect(flexContainer).toBeDefined();
-    expect(flexContainer!.className).toContain('flex-col');
-    expect(flexContainer!.className).toContain('md:flex-row');
+    const container = screen.getByTestId('issue-detail');
+    expect(container.className).toContain('flex');
+    expect(container.className).toContain('h-full');
+    expect(container.className).toContain('overflow-hidden');
   });
 
-  it('desktop sidebar is hidden on mobile, visible on md+', () => {
+  it('renders IssueNoteLayout as the main content area', () => {
     render(<IssueDetailPage />);
 
-    const panels = screen.getAllByTestId('issue-properties-panel');
-    const desktopSidebar = panels[0]?.parentElement;
-    expect(desktopSidebar).toBeDefined();
-    expect(desktopSidebar!.className).toContain('hidden');
-    expect(desktopSidebar!.className).toContain('md:block');
-    expect(desktopSidebar!.className).toContain('md:w-[35%]');
-    expect(desktopSidebar!.className).toContain('xl:w-[30%]');
+    expect(screen.getByTestId('issue-note-layout')).toBeInTheDocument();
   });
 
-  it('main content has responsive width classes', () => {
-    render(<IssueDetailPage />);
-
-    const mainContent = screen.getByRole('main');
-    expect(mainContent.className).toContain('md:w-[65%]');
-    expect(mainContent.className).toContain('xl:w-[70%]');
-  });
-
-  it('renders mobile Sheet trigger for properties', () => {
+  it('renders mobile Sheet for properties panel', () => {
     render(<IssueDetailPage />);
 
     expect(screen.getByTestId('mobile-sheet')).toBeInTheDocument();
-    expect(screen.getByLabelText('Open issue properties')).toBeInTheDocument();
   });
 
-  it('desktop sidebar has border-l on desktop', () => {
+  it('Sheet contains IssuePropertiesPanel', () => {
     render(<IssueDetailPage />);
 
-    const panels = screen.getAllByTestId('issue-properties-panel');
-    const desktopSidebar = panels[0]?.parentElement;
-    expect(desktopSidebar).toBeDefined();
-    expect(desktopSidebar!.className).toContain('md:border-l');
+    // Sheet wraps the properties panel for mobile bottom-sheet access
+    const sheet = screen.getByTestId('mobile-sheet');
+    expect(sheet).toBeInTheDocument();
+    // SheetContent renders with Properties title
+    expect(screen.getByText('Properties')).toBeInTheDocument();
+  });
+
+  it('renders editor content inside note layout', () => {
+    render(<IssueDetailPage />);
+
+    expect(screen.getByTestId('issue-editor-content')).toBeInTheDocument();
   });
 });

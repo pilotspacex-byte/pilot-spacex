@@ -18,9 +18,25 @@ interface IssueFilters {
 }
 
 export interface ImplementContextResponse {
-  issue: { identifier: string; title: string };
-  suggested_branch: string;
-  repository: { clone_url: string; default_branch: string; provider: string };
+  issue: {
+    id: string;
+    identifier: string;
+    title: string;
+    description: string | null;
+    status: string;
+    priority: string;
+    state: { id: string; name: string; color: string; group: string };
+    labels: { id: string; name: string; color: string }[];
+  };
+  suggestedBranch: string;
+  repository: {
+    cloneUrl: string;
+    defaultBranch: string;
+    provider: string;
+  };
+  linkedNotes?: { noteTitle: string; relevantBlocks: string[] }[];
+  workspace?: { slug: string; name: string };
+  project?: { name: string; techStackSummary: string };
 }
 
 // Plan generation response

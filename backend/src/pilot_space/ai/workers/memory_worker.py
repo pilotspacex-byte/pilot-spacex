@@ -3,12 +3,14 @@
 T-068: Routes by task_type:
 - 'intent_dedup'              → IntentDedupJobHandler
 - 'memory_embedding'          → MemoryEmbeddingJobHandler
+- 'graph_embedding'           → MemoryEmbeddingJobHandler.handle_graph_node
 - 'memory_dlq_reconciliation' → MemoryDLQJobHandler
 
 Follows DigestWorker pattern: poll → process → ack/nack/dead-letter.
 Sleeps 2s on empty queue.
 
 Feature 015: AI Workforce Platform — Memory Engine
+Feature 016: Knowledge Graph — graph_embedding dispatch added
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ logger = get_logger(__name__)
 # Task type constants
 TASK_INTENT_DEDUP = "intent_dedup"
 TASK_MEMORY_EMBEDDING = "memory_embedding"
+TASK_GRAPH_EMBEDDING = "graph_embedding"
 TASK_MEMORY_DLQ = "memory_dlq_reconciliation"
 
 _BATCH_SIZE = 1
@@ -42,13 +45,15 @@ _MAX_NACK_ATTEMPTS = 2
 class MemoryWorker:
     """Worker polling ai_normal queue for memory engine jobs.
 
-    Handles intent_dedup, memory_embedding, and memory_dlq_reconciliation
-    task types. Uses session per job for clean transaction boundaries.
+    Handles intent_dedup, memory_embedding, graph_embedding, and
+    memory_dlq_reconciliation task types. Uses session per job for
+    clean transaction boundaries.
 
     Args:
         queue: Supabase queue client.
         session_factory: Async session factory for per-job sessions.
         google_api_key: Optional Google API key for Gemini embedding.
+        openai_api_key: Optional OpenAI API key for graph node embedding.
     """
 
     def __init__(
@@ -56,10 +61,12 @@ class MemoryWorker:
         queue: SupabaseQueueClient,
         session_factory: async_sessionmaker[AsyncSession],
         google_api_key: str | None = None,
+        openai_api_key: str | None = None,
     ) -> None:
         self.queue = queue
         self._session_factory = session_factory
         self._google_api_key = google_api_key
+        self._openai_api_key = openai_api_key
         self._running = False
 
     async def start(self) -> None:
@@ -98,7 +105,12 @@ class MemoryWorker:
         task_type = payload.get("task_type", "")
         msg_id = message.id  # type: ignore[attr-defined]
 
-        if task_type not in (TASK_INTENT_DEDUP, TASK_MEMORY_EMBEDDING, TASK_MEMORY_DLQ):
+        if task_type not in (
+            TASK_INTENT_DEDUP,
+            TASK_MEMORY_EMBEDDING,
+            TASK_GRAPH_EMBEDDING,
+            TASK_MEMORY_DLQ,
+        ):
             logger.debug("MemoryWorker: skipping unknown task_type %s", task_type)
             await self.queue.nack(
                 QueueName.AI_NORMAL,
@@ -179,8 +191,24 @@ class MemoryWorker:
                 MemoryEmbeddingJobHandler,
             )
 
-            handler = MemoryEmbeddingJobHandler(session, self._google_api_key)
+            handler = MemoryEmbeddingJobHandler(
+                session,
+                google_api_key=self._google_api_key,
+                openai_api_key=self._openai_api_key,
+            )
             return await handler.handle(payload)
+
+        if task_type == TASK_GRAPH_EMBEDDING:
+            from pilot_space.infrastructure.queue.handlers.memory_embedding_handler import (
+                MemoryEmbeddingJobHandler,
+            )
+
+            handler = MemoryEmbeddingJobHandler(
+                session,
+                google_api_key=self._google_api_key,
+                openai_api_key=self._openai_api_key,
+            )
+            return await handler.handle_graph_node(payload)
 
         if task_type == TASK_MEMORY_DLQ:
             from pilot_space.infrastructure.queue.handlers.memory_dlq_handler import (

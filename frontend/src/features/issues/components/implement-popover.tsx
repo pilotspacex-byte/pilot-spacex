@@ -70,7 +70,7 @@ export function ImplementPopover({ workspaceId, issueId, issueIdentifier }: Impl
             <div>
               <p className="mb-1 text-xs font-medium text-muted-foreground">Branch</p>
               <code className="block rounded bg-muted px-2 py-1 font-mono text-xs">
-                {data.suggested_branch}
+                {data.suggestedBranch}
               </code>
             </div>
 

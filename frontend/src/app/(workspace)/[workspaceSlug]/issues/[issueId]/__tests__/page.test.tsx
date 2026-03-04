@@ -20,6 +20,20 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+  },
+}));
+
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  };
+});
+
 const mockUseIssueDetail = vi.fn((_issueId: string) => ({
   data: undefined as Issue | undefined,
   isLoading: false,
@@ -40,6 +54,7 @@ vi.mock('@/features/issues/hooks', async () => {
     useIssueDetail: (issueId: string) => mockUseIssueDetail(issueId),
     useUpdateIssue: (workspaceId: string, issueId: string) =>
       mockUseUpdateIssue(workspaceId, issueId),
+    useUpdateIssueState: () => ({ mutateAsync: vi.fn() }),
     useWorkspaceMembers: (workspaceId: string) => mockUseWorkspaceMembers(workspaceId),
     useWorkspaceLabels: (workspaceId: string) => mockUseWorkspaceLabels(workspaceId),
     useProjectCycles: (workspaceId: string, projectId: string) =>
@@ -51,7 +66,14 @@ vi.mock('@/features/issues/hooks', async () => {
 vi.mock('@/stores', () => ({
   useStore: () => ({
     workspaceStore: { currentWorkspace: { id: 'ws-1', slug: 'test-ws' } },
-    aiStore: { pilotSpace: {}, settings: { aiContextEnabled: true } },
+    aiStore: {
+      pilotSpace: {
+        setWorkspaceId: vi.fn(),
+        setIssueContext: vi.fn(),
+        pendingApprovals: [],
+      },
+      settings: { aiContextEnabled: true },
+    },
     issueStore: {
       deleteIssue: vi.fn(),
       aggregateSaveStatus: 'idle',
@@ -70,15 +92,12 @@ vi.mock('@/features/issues/components', () => ({
   IssueNoteHeader: (props: Record<string, unknown>) => (
     <div data-testid="issue-note-header" data-identifier={props.identifier} />
   ),
+  // Render both headerContent and editorContent so tests can find nested components
   IssueNoteLayout: (props: Record<string, unknown>) => (
-    <div data-testid="issue-note-layout">{props.editorContent as React.ReactNode}</div>
-  ),
-  IssueTitle: (props: Record<string, unknown>) => (
-    <div data-testid="issue-title">{String(props.title)}</div>
-  ),
-  SubIssuesList: () => <div data-testid="sub-issues-list" />,
-  ActivityTimeline: (props: Record<string, unknown>) => (
-    <div data-testid="activity-timeline" data-workspace-id={props.workspaceId} />
+    <div data-testid="issue-note-layout">
+      {props.headerContent as React.ReactNode}
+      {props.editorContent as React.ReactNode}
+    </div>
   ),
   IssuePropertiesPanel: (props: Record<string, unknown>) => (
     <div data-testid="issue-properties-panel" data-workspace-id={props.workspaceId} />
@@ -93,6 +112,10 @@ vi.mock('@/features/issues/components', () => ({
 
 vi.mock('@/features/issues/editor/create-issue-note-extensions', () => ({
   createIssueNoteExtensions: () => [],
+}));
+
+vi.mock('@/features/issues/components/issue-editor-content', () => ({
+  IssueEditorContent: () => <div data-testid="issue-editor-content" />,
 }));
 
 vi.mock('@tiptap/react', () => ({
@@ -127,6 +150,10 @@ vi.mock('@/components/ui/sheet', () => ({
 
 vi.mock('@/components/issues/DeleteConfirmDialog', () => ({
   DeleteConfirmDialog: () => <div data-testid="delete-dialog" />,
+}));
+
+vi.mock('@/components/editor/ProjectContextHeader', () => ({
+  ProjectContextHeader: () => <div data-testid="project-context-header" />,
 }));
 
 vi.mock('mobx-react-lite', () => ({
@@ -223,33 +250,16 @@ describe('IssueDetailPage (note-first layout)', () => {
     expect(header).toHaveAttribute('data-identifier', 'PS-42');
   });
 
-  it('renders IssueTitle with issue.name', () => {
-    render(<IssueDetailPage />);
-
-    const title = screen.getByTestId('issue-title');
-    expect(title).toBeInTheDocument();
-    expect(title).toHaveTextContent('Test Issue');
-  });
-
   it('renders IssueNoteLayout', () => {
     render(<IssueDetailPage />);
     expect(screen.getByTestId('issue-note-layout')).toBeInTheDocument();
   });
 
-  it('renders SubIssuesList', () => {
+  it('renders IssueEditorContent inside IssueNoteLayout', () => {
     render(<IssueDetailPage />);
-    expect(screen.getByTestId('sub-issues-list')).toBeInTheDocument();
-  });
-
-  it('renders ActivityTimeline inside CollapsibleSection', () => {
-    render(<IssueDetailPage />);
-    expect(screen.getByTestId('activity-timeline')).toBeInTheDocument();
-  });
-
-  it('renders section divider for sub-issues', () => {
-    render(<IssueDetailPage />);
-    const divider = screen.getByTestId('section-divider');
-    expect(divider).toHaveTextContent('Sub-issues');
+    // IssueEditorContent (mocked) is the editorContent slot of IssueNoteLayout.
+    // SubIssuesList, ActivityTimeline etc. live inside IssueEditorContent.
+    expect(screen.getByTestId('issue-editor-content')).toBeInTheDocument();
   });
 
   it('renders delete dialog', () => {

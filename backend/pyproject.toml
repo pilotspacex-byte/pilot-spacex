@@ -147,4 +147,5 @@ show_missing = true
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.1",
+    "faker>=40.1.2",
 ]

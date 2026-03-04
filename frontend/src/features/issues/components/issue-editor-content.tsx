@@ -31,7 +31,8 @@ import {
   IssueGraph,
 } from '@/features/issues/components';
 import { IssueDescriptionEmptyState } from './issue-description-empty-state';
-import { GitHubSection } from './github-section';
+import { GitHubImplementationSection } from './github-implementation-section';
+import { IssueKnowledgeGraphMini } from './issue-knowledge-graph-mini';
 import { useIssueLinks, useIssueRelations } from '@/features/issues/hooks';
 import { createIssueNoteExtensions } from '@/features/issues/editor/create-issue-note-extensions';
 import { integrationsApi } from '@/services/api/integrations';
@@ -54,6 +55,10 @@ export interface IssueEditorContentProps {
   onChatOpen: () => void;
   /** When provided, passed to the empty state CTA — opens chat AND sends generate prompt. */
   onAiGenerate?: () => void;
+  /** Called when user clicks "Expand full view" in the mini knowledge graph. */
+  onExpandGraphFullView?: () => void;
+  /** Called when a GitHub linked item is clicked — highlights the node in the graph panel. */
+  onNodeClickHighlight?: (nodeId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +72,8 @@ export function IssueEditorContent({
   onUpdate,
   onChatOpen,
   onAiGenerate,
+  onExpandGraphFullView,
+  onNodeClickHighlight,
 }: IssueEditorContentProps) {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedHtmlRef = useRef(issue.descriptionHtml ?? '');
@@ -247,7 +254,7 @@ export function IssueEditorContent({
               </>
             )}
 
-            <GitHubSection
+            <GitHubImplementationSection
               pullRequests={pullRequests}
               commits={commits}
               branches={branches}
@@ -256,6 +263,13 @@ export function IssueEditorContent({
               workspaceId={workspaceId}
               issueId={issueId}
               issueIdentifier={issue.identifier}
+              onAffectedNodeClick={onNodeClickHighlight}
+            />
+
+            <IssueKnowledgeGraphMini
+              workspaceId={workspaceId}
+              issueId={issueId}
+              onExpandFullView={onExpandGraphFullView ?? (() => {})}
             />
 
             <CollapsibleSection

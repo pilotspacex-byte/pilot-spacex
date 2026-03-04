@@ -154,6 +154,7 @@ def create_pilotspace_agent(
     resilient_executor: ResilientExecutor,
     session_manager: Any,
     space_manager: Any,
+    queue_client: Any = None,
 ) -> Any:
     """Create PilotSpaceAgent with all dependencies.
 
@@ -163,6 +164,7 @@ def create_pilotspace_agent(
         resilient_executor: Retry and circuit breaker service.
         session_manager: Session manager (None if Redis not configured).
         space_manager: Space management service.
+        queue_client: Queue client for graph embedding jobs (optional).
 
     Returns:
         Fully initialized PilotSpaceAgent.
@@ -196,6 +198,7 @@ def create_pilotspace_agent(
         permission_handler=permission_handler,
         session_handler=session_handler,
         space_manager=space_manager,
+        graph_queue_client=queue_client,
     )
 
 

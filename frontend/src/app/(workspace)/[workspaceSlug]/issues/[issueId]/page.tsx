@@ -12,9 +12,10 @@
  * during the same render cycle as TipTap's ReactNodeViewRenderer.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ import {
   useProjectCycles,
   useIssueKeyboardShortcuts,
 } from '@/features/issues/hooks';
+import { implementationPlanKeys } from '@/features/issues/hooks/use-implementation-plan';
 import { IssueNoteContext } from '@/features/issues/contexts/issue-note-context';
 import { useStore } from '@/stores';
 import { copyToClipboard } from '@/lib/copy-context';
@@ -48,8 +50,18 @@ import type { ExportFormat } from '@/features/issues/components';
 import type { UpdateIssueData, IssueState, UserBrief } from '@/types';
 import { IssueChatEmptyState } from '@/features/issues/components/issue-chat-empty-state';
 import type { AIContextResult } from '@/stores/ai/AIContextStore';
+import type { RightPanelTab } from '@/features/issues/components/issue-note-layout';
 
 import '@/features/notes/editor/extensions/note-link.css';
+
+// ---------------------------------------------------------------------------
+// Lazy-loaded heavy components
+// ---------------------------------------------------------------------------
+const IssueKnowledgeGraphFull = lazy(() =>
+  import('@/features/issues/components/issue-knowledge-graph-full').then((m) => ({
+    default: m.IssueKnowledgeGraphFull,
+  }))
+);
 
 // ---------------------------------------------------------------------------
 // Loading skeleton
@@ -103,6 +115,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
 
   const { workspaceStore, issueStore, aiStore } = useStore();
   const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
+  const queryClient = useQueryClient();
 
   // -- TanStack Query hooks --
   const { data: issue, isLoading, isError, refetch } = useIssueDetail(workspaceId, issueId);
@@ -119,6 +132,10 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
+
+  // -- Right panel tab state --
+  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('chat');
+  const [highlightNodeId, setHighlightNodeId] = useState<string | undefined>();
 
   // -- Derived data --
   const memberUsers = useMemo<UserBrief[]>(() => {
@@ -207,6 +224,9 @@ const IssueDetailPage = observer(function IssueDetailPage() {
       toast.success('Implementation plan generated', {
         description: `Plan with ${result.subagentCount} subagent${result.subagentCount !== 1 ? 's' : ''} ready. Open Clone → Plan tab to copy.`,
       });
+      void queryClient.invalidateQueries({
+        queryKey: implementationPlanKeys.detail(issueId),
+      });
     } catch {
       toast.error('Failed to generate plan', {
         description: 'Ensure AI context is generated first, then try again.',
@@ -214,7 +234,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
     } finally {
       setIsGeneratingPlan(false);
     }
-  }, [workspaceId, issueId]);
+  }, [workspaceId, issueId, queryClient]);
 
   const handleChatSend = useCallback(
     (prompt: string) => {
@@ -240,6 +260,22 @@ const IssueDetailPage = observer(function IssueDetailPage() {
       `Generate a detailed description for this issue. Structure it with: Problem statement, Acceptance criteria, and Technical approach.`
     );
   }, [handleChatSend, aiStore.pilotSpace]);
+
+  // -- Knowledge graph handlers --
+
+  /** Called by mini-graph "Expand full view" button → switch right panel to graph tab */
+  const handleExpandGraphFullView = useCallback(() => {
+    setRightPanelTab('knowledge-graph');
+  }, []);
+
+  /**
+   * Called when user clicks a node in the GitHub implementation panel.
+   * Highlights the node in the graph panel and switches to the graph tab.
+   */
+  const handleNodeClickHighlight = useCallback((nodeId: string) => {
+    setHighlightNodeId(nodeId);
+    setRightPanelTab('knowledge-graph');
+  }, []);
 
   // -- Keyboard shortcuts --
   const handleForceSave = useCallback(() => {
@@ -422,7 +458,27 @@ const IssueDetailPage = observer(function IssueDetailPage() {
       onUpdate={handleUpdate}
       onChatOpen={handleChatOpen}
       onAiGenerate={handleAiGenerateFromEditor}
+      onExpandGraphFullView={handleExpandGraphFullView}
+      onNodeClickHighlight={handleNodeClickHighlight}
     />
+  );
+
+  // -- Knowledge graph full view (lazy-loaded, rendered in right panel) --
+  const knowledgeGraphContent = (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-full p-4 text-sm text-muted-foreground">
+          Loading graph...
+        </div>
+      }
+    >
+      <IssueKnowledgeGraphFull
+        workspaceId={workspaceId}
+        issueId={issueId}
+        highlightNodeId={highlightNodeId}
+        onClose={() => setRightPanelTab('chat')}
+      />
+    </Suspense>
   );
 
   const header = (
@@ -463,6 +519,9 @@ const IssueDetailPage = observer(function IssueDetailPage() {
           onChatClose={handleChatClose}
           emptyStateSlot={chatEmptyState}
           initialPrompt={initialPrompt}
+          knowledgeGraphContent={knowledgeGraphContent}
+          rightPanelTab={rightPanelTab}
+          onRightPanelTabChange={setRightPanelTab}
         />
 
         <Sheet open={mobilePropertiesOpen} onOpenChange={setMobilePropertiesOpen}>
