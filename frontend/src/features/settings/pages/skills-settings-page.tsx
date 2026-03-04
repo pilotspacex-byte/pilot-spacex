@@ -245,7 +245,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
     return (
       <div className="max-w-3xl px-8 py-6">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">AI Skills</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Roles</h1>
         </div>
         <GuestView />
       </div>
@@ -279,9 +279,9 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">AI Skills</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Roles</h1>
             <p className="text-sm text-muted-foreground">
-              Configure how the AI assistant adapts to your role.
+              Configure your SDLC roles to personalize AI assistance.
             </p>
           </div>
           <div className="text-right">

@@ -18,7 +18,8 @@ Workspace configuration with strict role-based access control: workspace general
 | `/settings/profile`      | `profile-settings-page.tsx`  | Display name, avatar, email                  |
 | `/settings/members`      | `members-settings-page.tsx`  | Invite, remove, change roles                 |
 | `/settings/ai-providers` | `ai-settings-page.tsx`       | API keys, feature toggles, provider status   |
-| `/settings/skills`       | `skills-settings-page.tsx`   | Role-based AI skills (max 3 per workspace)   |
+
+> **Note**: Skills page migrated to `/{workspaceSlug}/roles` (sidebar AI section). Old URL redirects automatically.
 
 ---
 
@@ -29,7 +30,7 @@ Workspace configuration with strict role-based access control: workspace general
 - **InviteMemberDialog**: Email + role selection
 - **AIFeatureToggles**: 5 switches (ghost text, annotations, context, extraction, PR review)
 - **DeleteWorkspaceDialog**: Confirmation with exact name entry (owner-only)
-- **SkillCard**: Display skill with edit/regenerate/remove
+- **SkillCard**: Display skill with edit/regenerate/remove _(used by Roles page at `/{workspaceSlug}/roles`)_
 
 ---
 
@@ -68,7 +69,7 @@ Permission checks: `workspaceStore.isAdmin` (admin OR owner), `workspaceStore.is
 
 **Profile**: Display name (editable), avatar and email (read-only).
 
-**Skills**: Max 3 per workspace. Create from template + AI generation, edit with word count, regenerate from description, reset/remove.
+**Skills** _(migrated to `/{workspaceSlug}/roles`)_: Max 3 per workspace. Create from template + AI generation, edit with word count, regenerate from description, reset/remove.
 
 ---
 

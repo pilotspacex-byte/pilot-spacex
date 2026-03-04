@@ -11,17 +11,7 @@
 import * as React from 'react';
 import { useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import {
-  Building2,
-  CreditCard,
-  Menu,
-  Plug,
-  Settings,
-  Sparkles,
-  User,
-  Users,
-  Wand2,
-} from 'lucide-react';
+import { Building2, CreditCard, Menu, Plug, Settings, Sparkles, User, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -91,12 +81,6 @@ const settingsNavSections: NavSection[] = [
         label: 'AI Providers',
         icon: Sparkles,
         href: (slug: string) => `/${slug}/settings/ai-providers`,
-      },
-      {
-        id: 'skills',
-        label: 'Skills',
-        icon: Wand2,
-        href: (slug: string) => `/${slug}/settings/skills`,
       },
     ],
   },

@@ -198,7 +198,7 @@ describe('SkillsSettingsPage', () => {
       });
 
       render(<SkillsSettingsPage />);
-      expect(screen.getByText('AI Skills')).toBeInTheDocument();
+      expect(screen.getByText('Roles')).toBeInTheDocument();
       expect(screen.getByText('Developer')).toBeInTheDocument();
       expect(screen.getByText('Tester')).toBeInTheDocument();
       expect(screen.getByText('PRIMARY')).toBeInTheDocument();

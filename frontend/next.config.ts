@@ -12,6 +12,16 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  async redirects() {
+    return [
+      {
+        source: '/:slug/settings/skills',
+        destination: '/:slug/roles',
+        permanent: true,
+      },
+    ];
+  },
+
   // Enable standalone output for Docker deployment
   // This creates a self-contained build with minimal node_modules
   output: 'standalone',

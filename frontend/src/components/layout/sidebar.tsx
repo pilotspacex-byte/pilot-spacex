@@ -22,11 +22,14 @@ import {
   Loader2,
   LogOut,
   User,
+  UserCog,
+  Sparkles,
   X,
   Sun,
   Moon,
   Monitor,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useUIStore, useNoteStore, useNotificationStore, useAuthStore } from '@/stores';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
 import { Button } from '@/components/ui/button';
@@ -54,13 +57,31 @@ import { NotificationPanel } from '@/components/layout/notification-panel';
 import { addRecentWorkspace } from '@/components/workspace-selector';
 import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
 
-const navigationItems = [
-  { name: 'Home', path: '', icon: Home, testId: 'nav-home' },
-  { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes' },
-  { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues' },
-  { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects' },
-  { name: 'AI Chat', path: 'chat', icon: MessageSquare, testId: 'nav-chat' },
-  { name: 'Costs', path: 'costs', icon: DollarSign, testId: 'nav-costs' },
+interface NavSection {
+  label: string;
+  icon?: LucideIcon;
+  items: { name: string; path: string; icon: LucideIcon; testId: string }[];
+}
+
+const navigationSections: NavSection[] = [
+  {
+    label: 'Main',
+    items: [
+      { name: 'Home', path: '', icon: Home, testId: 'nav-home' },
+      { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes' },
+      { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues' },
+      { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects' },
+    ],
+  },
+  {
+    label: 'AI',
+    icon: Sparkles,
+    items: [
+      { name: 'Chat', path: 'chat', icon: MessageSquare, testId: 'nav-chat' },
+      { name: 'Roles', path: 'roles', icon: UserCog, testId: 'nav-roles' },
+      { name: 'Costs', path: 'costs', icon: DollarSign, testId: 'nav-costs' },
+    ],
+  },
 ];
 
 /**
@@ -280,9 +301,13 @@ export const Sidebar = observer(function Sidebar() {
   });
 
   const navigation = useMemo(() => {
-    return navigationItems.map((item) => ({
-      ...item,
-      href: item.path ? `/${workspaceSlug}/${item.path}` : `/${workspaceSlug}`,
+    return navigationSections.map((section) => ({
+      label: section.label,
+      icon: section.icon,
+      items: section.items.map((item) => ({
+        ...item,
+        href: item.path ? `/${workspaceSlug}/${item.path}` : `/${workspaceSlug}`,
+      })),
     }));
   }, [workspaceSlug]);
 
@@ -340,51 +365,77 @@ export const Sidebar = observer(function Sidebar() {
 
       {/* Main Navigation */}
       <div className="flex flex-col gap-0.5 p-2">
-        {navigation.map((item) => {
-          // Use startsWith for non-home routes to highlight parent nav when on nested routes
-          // e.g., /workspace/notes/123 should highlight "Notes" nav item
-          const isActive = item.path ? pathname.startsWith(item.href) : pathname === item.href;
-          return (
-            <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
-              <TooltipTrigger asChild>
-                <Link
-                  href={item.href}
-                  data-testid={item.testId}
-                  className={cn(
-                    'group flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200',
-                    isActive
-                      ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50',
-                    collapsed && 'justify-center px-2'
-                  )}
-                >
-                  <item.icon
-                    className={cn(
-                      'h-4 w-4 shrink-0 transition-colors',
-                      isActive
-                        ? 'text-sidebar-primary'
-                        : 'text-muted-foreground group-hover:text-sidebar-foreground'
-                    )}
-                  />
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+        {navigation.map((section, sectionIndex) => (
+          <nav
+            key={section.label}
+            aria-label={`${section.label} navigation`}
+            className={cn(sectionIndex > 0 && 'mt-3')}
+          >
+            {!collapsed ? (
+              <div className="mb-1 flex items-center gap-1.5 px-2.5" aria-hidden="true">
+                {section.icon && (
+                  <section.icon className="h-2.5 w-2.5 text-sidebar-foreground/40" />
+                )}
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                  {section.label}
+                </span>
+              </div>
+            ) : (
+              sectionIndex > 0 && (
+                <div
+                  className="mx-auto mb-1.5 h-px w-4 rounded-full bg-sidebar-border"
+                  aria-hidden="true"
+                />
+              )
+            )}
+            {section.items.map((item) => {
+              const isActive = item.path
+                ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                : pathname === item.href;
+              return (
+                <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href={item.href}
+                      data-testid={item.testId}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={cn(
+                        'group flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200',
+                        isActive
+                          ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
+                          : 'text-sidebar-foreground hover:bg-sidebar-accent/50',
+                        collapsed && 'justify-center px-2'
+                      )}
                     >
+                      <item.icon
+                        className={cn(
+                          'h-4 w-4 shrink-0 transition-colors',
+                          isActive
+                            ? 'text-sidebar-primary'
+                            : 'text-muted-foreground group-hover:text-sidebar-foreground'
+                        )}
+                      />
+                      {!collapsed && (
+                        <motion.span
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                        >
+                          {item.name}
+                        </motion.span>
+                      )}
+                    </Link>
+                  </TooltipTrigger>
+                  {collapsed && (
+                    <TooltipContent side="right" className="font-medium">
                       {item.name}
-                    </motion.span>
+                    </TooltipContent>
                   )}
-                </Link>
-              </TooltipTrigger>
-              {collapsed && (
-                <TooltipContent side="right" className="font-medium">
-                  {item.name}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          );
-        })}
+                </Tooltip>
+              );
+            })}
+          </nav>
+        ))}
       </div>
 
       <Separator className="mx-2" />
