@@ -54,7 +54,7 @@ class GraphNode:
         label: Human-readable display name (e.g. "PS-42", note title).
         content: Searchable text content; used for FTS and embedding.
         properties: Type-specific JSONB metadata (state, priority, etc.).
-        embedding: 1536-dim OpenAI embedding vector (async filled).
+        embedding: 768-dim embedding vector (async filled by background worker).
         user_id: For user-scoped nodes (UserPreference, LearnedPattern).
         external_id: FK reference to the originating entity.
         created_at: UTC creation timestamp.
@@ -251,8 +251,8 @@ class LearnedPatternNode(GraphNode):
         content: str,
         occurrence_count: int,
         confidence: float,
-        user_id: UUID | None = None,
         external_id: UUID | None = None,
+        user_id: UUID | None = None,
     ) -> LearnedPatternNode:
         """Construct a typed LearnedPatternNode with required pattern properties."""
         return cls(
@@ -264,8 +264,8 @@ class LearnedPatternNode(GraphNode):
                 "occurrence_count": occurrence_count,
                 "confidence": confidence,
             },
-            user_id=user_id,
             external_id=external_id,
+            user_id=user_id,
         )
 
 
@@ -323,8 +323,8 @@ class SkillOutcomeNode(GraphNode):
         content: str,
         skill_name: str,
         outcome_summary: str,
-        user_id: UUID | None = None,
         external_id: UUID | None = None,
+        user_id: UUID | None = None,
     ) -> SkillOutcomeNode:
         """Construct a typed SkillOutcomeNode with required skill properties."""
         return cls(
@@ -336,8 +336,8 @@ class SkillOutcomeNode(GraphNode):
                 "skill_name": skill_name,
                 "outcome_summary": outcome_summary,
             },
-            user_id=user_id,
             external_id=external_id,
+            user_id=user_id,
         )
 
 
@@ -359,8 +359,8 @@ class ConversationSummaryNode(GraphNode):
         content: str,
         session_id: str,
         message_count: int,
-        user_id: UUID | None = None,
         external_id: UUID | None = None,
+        user_id: UUID | None = None,
     ) -> ConversationSummaryNode:
         """Construct a typed ConversationSummaryNode with required session properties."""
         return cls(
@@ -372,8 +372,8 @@ class ConversationSummaryNode(GraphNode):
                 "session_id": session_id,
                 "message_count": message_count,
             },
-            user_id=user_id,
             external_id=external_id,
+            user_id=user_id,
         )
 
 

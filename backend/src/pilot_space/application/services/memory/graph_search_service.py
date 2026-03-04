@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pilot_space.domain.graph_edge import GraphEdge
-from pilot_space.domain.graph_node import NodeType
+from pilot_space.domain.graph_node import GraphNode, NodeType
 from pilot_space.domain.graph_query import ScoredNode
 from pilot_space.infrastructure.database.repositories._graph_helpers import (
     GRAPH_EMBEDDING_DIMS,
@@ -109,13 +109,29 @@ class GraphSearchService:
     async def execute(self, payload: GraphSearchPayload) -> GraphSearchResult:
         """Execute hybrid knowledge graph search.
 
+        Embedding generation and user context fetch are independent and run
+        concurrently via asyncio.gather when user_id is set.
+
         Args:
             payload: Search parameters.
 
         Returns:
             GraphSearchResult with ranked nodes and intra-result edges.
         """
-        embedding, embedding_used = await self._get_embedding(payload.query, payload.openai_api_key)
+        if payload.user_id is not None:
+            (embedding, embedding_used), user_nodes = await asyncio.gather(
+                self._get_embedding(payload.query, payload.openai_api_key),
+                self._repo.get_user_context(
+                    user_id=payload.user_id,
+                    workspace_id=payload.workspace_id,
+                    limit=payload.limit,
+                ),
+            )
+        else:
+            embedding, embedding_used = await self._get_embedding(
+                payload.query, payload.openai_api_key
+            )
+            user_nodes = None
 
         # Primary hybrid search (includes edge-density scoring internally)
         scored_nodes = await self._repo.hybrid_search(
@@ -126,14 +142,9 @@ class GraphSearchService:
             limit=payload.limit,
         )
 
-        # Merge user-scoped context nodes
-        if payload.user_id is not None:
-            scored_nodes = await self._merge_user_context(
-                scored_nodes,
-                user_id=payload.user_id,
-                workspace_id=payload.workspace_id,
-                limit=payload.limit,
-            )
+        # Merge pre-fetched user-scoped context nodes
+        if user_nodes is not None:
+            scored_nodes = _merge_user_context(scored_nodes, user_nodes)
 
         # Re-rank with full four-component formula
         scored_nodes = _rerank(scored_nodes)
@@ -203,54 +214,6 @@ class GraphSearchService:
             )
             return None, False
 
-    async def _merge_user_context(
-        self,
-        scored_nodes: list[ScoredNode],
-        *,
-        user_id: UUID,
-        workspace_id: UUID,
-        limit: int,
-    ) -> list[ScoredNode]:
-        """Merge user-scoped nodes into the result set.
-
-        Nodes already present (by id) are not duplicated.
-
-        Args:
-            scored_nodes: Current result set.
-            user_id: User to fetch context for.
-            workspace_id: Workspace scope.
-            limit: Cap on additional user nodes.
-
-        Returns:
-            Updated result list including user context nodes.
-        """
-        user_nodes = await self._repo.get_user_context(
-            user_id=user_id,
-            workspace_id=workspace_id,
-            limit=limit,
-        )
-        existing_ids = {sn.node.id for sn in scored_nodes}
-        now = datetime.now(tz=UTC)
-
-        for node in user_nodes:
-            if node.id in existing_ids:
-                continue
-            age_days = (now - node.updated_at).total_seconds() / GRAPH_SECONDS_PER_DAY
-            recency = 1.0 / (1.0 + age_days)
-            scored_nodes.append(
-                ScoredNode(
-                    node=node,
-                    score=GRAPH_RECENCY_WEIGHT * recency,
-                    embedding_score=0.0,
-                    text_score=0.0,
-                    recency_score=recency,
-                    edge_density_score=0.0,
-                )
-            )
-            existing_ids.add(node.id)
-
-        return scored_nodes
-
     async def _collect_edges(
         self,
         scored_nodes: list[ScoredNode],
@@ -285,8 +248,47 @@ class GraphSearchService:
 
 
 # ------------------------------------------------------------------
-# Module-level score fusion helper
+# Module-level helpers
 # ------------------------------------------------------------------
+
+
+def _merge_user_context(
+    scored_nodes: list[ScoredNode],
+    user_nodes: list[GraphNode],
+) -> list[ScoredNode]:
+    """Merge pre-fetched user-scoped nodes into the result set.
+
+    Nodes already present (by id) are not duplicated. Accepts an already-
+    fetched list so callers can parallelize the DB fetch with embedding.
+
+    Args:
+        scored_nodes: Current result set.
+        user_nodes: Pre-fetched user-context nodes from the repository.
+
+    Returns:
+        Updated result list including deduplicated user context nodes.
+    """
+    existing_ids = {sn.node.id for sn in scored_nodes}
+    now = datetime.now(tz=UTC)
+
+    for node in user_nodes:
+        if node.id in existing_ids:
+            continue
+        age_days = (now - node.updated_at).total_seconds() / GRAPH_SECONDS_PER_DAY
+        recency = 1.0 / (1.0 + age_days)
+        scored_nodes.append(
+            ScoredNode(
+                node=node,
+                score=GRAPH_RECENCY_WEIGHT * recency,
+                embedding_score=0.0,
+                text_score=0.0,
+                recency_score=recency,
+                edge_density_score=0.0,
+            )
+        )
+        existing_ids.add(node.id)
+
+    return scored_nodes
 
 
 def _rerank(scored_nodes: list[ScoredNode]) -> list[ScoredNode]:

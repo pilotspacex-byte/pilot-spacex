@@ -456,8 +456,106 @@ class KnowledgeGraphRepository:
     # ------------------------------------------------------------------
 
     async def bulk_upsert_nodes(self, nodes: list[GraphNode]) -> list[GraphNode]:
-        """Batch upsert; delegates to upsert_node for each entry."""
-        return [await self.upsert_node(node) for node in nodes]
+        """Batch upsert: 3 queries for PostgreSQL regardless of N.
+
+        SQLite falls back to serial upsert (test environments only).
+        PostgreSQL path:
+          1. SELECT batch-find all keyed nodes
+          2. Single flush for all updates + inserts
+          3. SELECT batch-refresh all final node IDs
+        """
+        if not nodes:
+            return []
+        if self._is_sqlite():
+            return [await self.upsert_node(node) for node in nodes]
+        return await self._bulk_upsert_pg(nodes)
+
+    async def _bulk_upsert_pg(self, nodes: list[GraphNode]) -> list[GraphNode]:
+        """PostgreSQL-only batch upsert implementation."""
+        keyed = [n for n in nodes if n.external_id is not None]
+        unkeyed = [n for n in nodes if n.external_id is None]
+
+        final_ids: list[UUID] = []
+
+        # (1) Batch-find all existing keyed nodes in one SELECT
+        if keyed:
+            conditions = or_(
+                *[
+                    and_(
+                        GraphNodeModel.workspace_id == n.workspace_id,
+                        GraphNodeModel.node_type == str(n.node_type),
+                        GraphNodeModel.external_id == n.external_id,
+                        GraphNodeModel.is_deleted == False,  # noqa: E712
+                    )
+                    for n in keyed
+                ]
+            )
+            existing_models = (
+                (await self._session.execute(select(GraphNodeModel).where(conditions)))
+                .scalars()
+                .all()
+            )
+            existing_map: dict[tuple[UUID, str, UUID | None], GraphNodeModel] = {
+                (m.workspace_id, m.node_type, m.external_id): m for m in existing_models
+            }
+
+            for node in keyed:
+                key = (node.workspace_id, str(node.node_type), node.external_id)
+                existing = existing_map.get(key)
+                if existing is not None:
+                    existing.label = node.label
+                    existing.content = node.content
+                    existing.properties = node.properties
+                    if node.embedding is not None:
+                        existing.embedding = node.embedding
+                    final_ids.append(existing.id)
+                else:
+                    self._session.add(
+                        GraphNodeModel(
+                            id=node.id,
+                            workspace_id=node.workspace_id,
+                            node_type=str(node.node_type),
+                            label=node.label,
+                            content=node.content,
+                            properties=node.properties,
+                            embedding=node.embedding,
+                            user_id=node.user_id,
+                            external_id=node.external_id,
+                        )
+                    )
+                    final_ids.append(node.id)
+
+        for node in unkeyed:
+            self._session.add(
+                GraphNodeModel(
+                    id=node.id,
+                    workspace_id=node.workspace_id,
+                    node_type=str(node.node_type),
+                    label=node.label,
+                    content=node.content,
+                    properties=node.properties,
+                    embedding=node.embedding,
+                    user_id=node.user_id,
+                    external_id=None,
+                )
+            )
+            final_ids.append(node.id)
+
+        # (2) Single flush for all pending changes
+        await self._session.flush()
+
+        # (3) Batch refresh
+        refreshed = (
+            (
+                await self._session.execute(
+                    select(GraphNodeModel).where(GraphNodeModel.id.in_(final_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        id_to_model: dict[UUID, GraphNodeModel] = {m.id: m for m in refreshed}
+        return [node_model_to_domain(id_to_model[nid]) for nid in final_ids if nid in id_to_model]
 
     # ------------------------------------------------------------------
     # Soft-delete expiry

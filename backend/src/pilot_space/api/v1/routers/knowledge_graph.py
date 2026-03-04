@@ -27,6 +27,10 @@ from pilot_space.api.v1.schemas.knowledge_graph import (
     GraphNodeDTO,
     GraphResponse,
 )
+from pilot_space.application.services.memory.graph_search_service import (
+    GraphSearchPayload,
+    GraphSearchService,
+)
 from pilot_space.dependencies.auth import SessionDep, SyncedUserId
 from pilot_space.domain.graph_edge import EdgeType
 from pilot_space.domain.graph_node import GraphNode, NodeType
@@ -65,8 +69,22 @@ WorkspaceIdPath = Annotated[UUID, Path(description="Workspace UUID")]
 # Node importance tiers for sorting
 # ---------------------------------------------------------------------------
 
-_TIER_HIGH = {"issue", "note", "decision", "project"}
-_TIER_MID = {"pull_request", "branch", "code_reference", "work_intent"}
+_TIER_HIGH: frozenset[str] = frozenset(
+    {
+        NodeType.ISSUE.value,
+        NodeType.NOTE.value,
+        NodeType.DECISION.value,
+        NodeType.PROJECT.value,
+    }
+)
+_TIER_MID: frozenset[str] = frozenset(
+    {
+        NodeType.PULL_REQUEST.value,
+        NodeType.BRANCH.value,
+        NodeType.CODE_REFERENCE.value,
+        NodeType.WORK_INTENT.value,
+    }
+)
 # All others fall to tier 3 (summary, skill_outcome, etc.)
 
 
@@ -183,17 +201,46 @@ async def search_knowledge_graph(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=f"Invalid node_type: {exc}") from exc
 
+    # Look up workspace OpenAI key for vector embedding (BYOK pattern)
+    openai_api_key: str | None = None
+    try:
+        from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+        from pilot_space.config import get_settings
+
+        settings = get_settings()
+        key_storage = SecureKeyStorage(
+            db=session, master_secret=settings.encryption_key.get_secret_value()
+        )
+        openai_api_key = await key_storage.get_api_key(workspace_id, "openai")
+    except Exception:
+        logger.warning("knowledge_graph_search_key_lookup_failed", workspace_id=str(workspace_id))
+
     repo = KnowledgeGraphRepository(session)
-    scored_nodes = await repo.hybrid_search(
-        query_embedding=None,
-        query_text=q,
-        workspace_id=workspace_id,
-        node_types=parsed_types,
-        limit=limit,
+    service = GraphSearchService(repo)
+    result = await service.execute(
+        GraphSearchPayload(
+            query=q,
+            workspace_id=workspace_id,
+            user_id=current_user_id,
+            node_types=parsed_types,
+            limit=limit,
+            openai_api_key=openai_api_key,
+        )
     )
 
-    node_dtos = [_node_to_dto(sn.node, score=sn.score) for sn in scored_nodes]
-    return GraphResponse(nodes=node_dtos, edges=[])
+    node_dtos = [_node_to_dto(sn.node, score=sn.score) for sn in result.nodes]
+    edge_dtos = [
+        _edge_to_dto(
+            edge_id=e.id,
+            source_id=e.source_id,
+            target_id=e.target_id,
+            edge_type=e.edge_type.value,
+            weight=e.weight,
+            properties=e.properties,  # type: ignore[arg-type]
+        )
+        for e in result.edges
+    ]
+    return GraphResponse(nodes=node_dtos, edges=edge_dtos)
 
 
 @router.get(
@@ -312,10 +359,10 @@ async def get_user_context(
 # ---------------------------------------------------------------------------
 
 _GITHUB_NODE_TYPE_MAP: dict[str, str] = {
-    IntegrationLinkType.PULL_REQUEST: "pull_request",
-    IntegrationLinkType.BRANCH: "branch",
-    IntegrationLinkType.COMMIT: "code_reference",
-    IntegrationLinkType.MENTION: "note",
+    IntegrationLinkType.PULL_REQUEST: NodeType.PULL_REQUEST.value,
+    IntegrationLinkType.BRANCH: NodeType.BRANCH.value,
+    IntegrationLinkType.COMMIT: NodeType.CODE_REFERENCE.value,
+    IntegrationLinkType.MENTION: NodeType.NOTE.value,
 }
 
 

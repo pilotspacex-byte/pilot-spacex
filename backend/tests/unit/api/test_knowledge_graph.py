@@ -297,7 +297,9 @@ class TestSearchKnowledgeGraph:
         assert isinstance(result, GraphResponse)
         assert len(result.nodes) == 1
         assert result.nodes[0].node_type == "issue"
-        assert result.nodes[0].score == 0.95
+        # Score is recomputed by GraphSearchService._rerank from sub-components;
+        # exact value is tested in graph_search_service tests.
+        assert result.nodes[0].score is not None
 
     async def test_search_with_node_type_filter(self) -> None:
         """node_types param is forwarded as parsed NodeType list to the repo."""

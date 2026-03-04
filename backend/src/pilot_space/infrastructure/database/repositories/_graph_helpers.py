@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy import and_, func, or_, select, text, union_all
 
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from pilot_space.domain.graph_node import GraphNode, NodeType
@@ -88,31 +88,39 @@ def edge_model_to_domain(model: GraphEdgeModel) -> GraphEdge:
 async def enrich_edge_density(
     session: AsyncSession,
     scored: list[ScoredNode],
+    workspace_id: UUID | None = None,
 ) -> list[ScoredNode]:
     """Add edge_density_score to each ScoredNode.
 
-    Counts both outgoing and incoming edges so target-only nodes are not
-    penalised. Normalises by max_degree within the result set.
+    Counts both outgoing and incoming edges in a single UNION ALL query so
+    target-only nodes are not penalised. Normalises by max_degree within the
+    result set. workspace_id filters edges to the owning workspace only.
     """
     if not scored:
         return scored
 
     node_ids = [sn.node.id for sn in scored]
-    out_result = await session.execute(
+    ws_conditions = (
+        [GraphEdgeModel.workspace_id == workspace_id] if workspace_id is not None else []
+    )
+    out_q = (
         select(GraphEdgeModel.source_id.label("node_id"), func.count().label("degree"))
-        .where(GraphEdgeModel.source_id.in_(node_ids))
+        .where(GraphEdgeModel.source_id.in_(node_ids), *ws_conditions)
         .group_by(GraphEdgeModel.source_id)
     )
-    in_result = await session.execute(
+    in_q = (
         select(GraphEdgeModel.target_id.label("node_id"), func.count().label("degree"))
-        .where(GraphEdgeModel.target_id.in_(node_ids))
+        .where(GraphEdgeModel.target_id.in_(node_ids), *ws_conditions)
         .group_by(GraphEdgeModel.target_id)
     )
-    degree_map: dict[UUID, int] = {}
-    for row in out_result.fetchall():
-        degree_map[row.node_id] = degree_map.get(row.node_id, 0) + row.degree
-    for row in in_result.fetchall():
-        degree_map[row.node_id] = degree_map.get(row.node_id, 0) + row.degree
+    combined = union_all(out_q, in_q).subquery()
+    degree_q = select(combined.c.node_id, func.sum(combined.c.degree).label("total")).group_by(
+        combined.c.node_id
+    )
+
+    degree_map: dict[UUID, int] = {
+        row.node_id: int(row.total) for row in (await session.execute(degree_q)).fetchall()
+    }
 
     max_degree = max(degree_map.values(), default=1)
     return [
@@ -170,7 +178,7 @@ async def keyword_search(
                 edge_density_score=0.0,
             )
         )
-    return await enrich_edge_density(session, scored)
+    return await enrich_edge_density(session, scored, workspace_id)
 
 
 async def hybrid_search_pg(
@@ -188,24 +196,26 @@ async def hybrid_search_pg(
     node_type_filter = "AND node_type = ANY(:node_types)" if node_types else ""
     node_types_param = [str(nt) for nt in node_types] if node_types else None
 
+    # CTE computes each component score once; ORDER BY references the alias
+    # to avoid recomputing the expensive embedding <=> operation twice.
     raw = text(f"""
-        SELECT id,
-            (1 - (embedding <=> CAST(:embedding AS vector({GRAPH_EMBEDDING_DIMS})))) AS embedding_score,
-            COALESCE(ts_rank(
-                to_tsvector('english', COALESCE(content,'') || ' ' || COALESCE(label,'')),
-                plainto_tsquery('english', :query_text)
-            ), 0.0) AS text_score,
-            1.0 / (1.0 + EXTRACT(EPOCH FROM (NOW() - updated_at)) / :spd) AS recency_score
-        FROM graph_nodes
-        WHERE workspace_id = :workspace_id AND is_deleted = false
-          AND embedding IS NOT NULL {node_type_filter}
-        ORDER BY (
-            :ew * (1 - (embedding <=> CAST(:embedding AS vector({GRAPH_EMBEDDING_DIMS}))))
-            + :tw * COALESCE(ts_rank(
-                to_tsvector('english', COALESCE(content,'') || ' ' || COALESCE(label,'')),
-                plainto_tsquery('english', :query_text)), 0.0)
-            + :rw * (1.0 / (1.0 + EXTRACT(EPOCH FROM (NOW() - updated_at)) / :spd))
-        ) DESC LIMIT :limit
+        WITH scored AS (
+            SELECT id,
+                (1 - (embedding <=> CAST(:embedding AS vector({GRAPH_EMBEDDING_DIMS})))) AS embedding_score,
+                COALESCE(ts_rank(
+                    to_tsvector('english', COALESCE(content,'') || ' ' || COALESCE(label,'')),
+                    plainto_tsquery('english', :query_text)
+                ), 0.0) AS text_score,
+                1.0 / (1.0 + EXTRACT(EPOCH FROM (NOW() - updated_at)) / :spd) AS recency_score
+            FROM graph_nodes
+            WHERE workspace_id = :workspace_id AND is_deleted = false
+              AND embedding IS NOT NULL {node_type_filter}
+        )
+        SELECT id, embedding_score, text_score, recency_score,
+               :ew * embedding_score + :tw * text_score + :rw * recency_score AS combined_score
+        FROM scored
+        ORDER BY combined_score DESC
+        LIMIT :limit
     """)
     params: dict[str, object] = {
         "embedding": embedding_literal,
@@ -252,4 +262,4 @@ async def hybrid_search_pg(
                 edge_density_score=0.0,
             )
         )
-    return await enrich_edge_density(session, scored)
+    return await enrich_edge_density(session, scored, workspace_id)
