@@ -849,3 +849,272 @@ class TestIssueKnowledgeGraph:
         # First node must be issue (tier 0), last must be skill_outcome (tier 2)
         assert result.nodes[0].node_type == "issue"
         assert result.nodes[-1].node_type == "skill_outcome"
+
+    async def test_issue_graph_include_github_false_skips_link_query(self) -> None:
+        """include_github=False does not query integration_links at all."""
+        from unittest.mock import patch
+
+        gn_model = MagicMock()
+        gn_model.id = TEST_NODE_ID
+        gn_model.workspace_id = TEST_WORKSPACE_ID
+        gn_model.is_deleted = False
+
+        # Only 2 DB calls expected: issue existence + graph node lookup
+        session = _make_sequential_session(
+            {"scalar": TEST_ISSUE_ID},
+            {"scalar": gn_model},
+        )
+
+        graph_node = _make_graph_node(node_id=TEST_NODE_ID, label="PS-1")
+        repo = _make_repo(get_subgraph=AsyncMock(return_value=([graph_node], [])))
+
+        with (
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.set_rls_context",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.KnowledgeGraphRepository",
+                return_value=repo,
+            ),
+        ):
+            result = await get_issue_knowledge_graph(
+                workspace_id=TEST_WORKSPACE_ID,
+                issue_id=TEST_ISSUE_ID,
+                session=session,
+                current_user_id=TEST_USER_ID,
+                depth=2,
+                node_types=None,
+                max_nodes=50,
+                include_github=False,
+            )
+
+        # Only the graph node — no ephemeral nodes added
+        assert len(result.nodes) == 1
+        assert result.nodes[0].node_type == "issue"
+        # Session was called exactly twice (issue check + node lookup)
+        assert session.execute.await_count == 2
+
+    async def test_issue_graph_edges_from_subgraph_included_in_response(self) -> None:
+        """Edges returned by get_subgraph are included in the response."""
+        from unittest.mock import patch
+
+        gn_model = MagicMock()
+        gn_model.id = TEST_NODE_ID
+        gn_model.workspace_id = TEST_WORKSPACE_ID
+        gn_model.is_deleted = False
+
+        session = _make_sequential_session(
+            {"scalar": TEST_ISSUE_ID},
+            {"scalar": gn_model},
+        )
+
+        node_a = _make_graph_node(node_id=TEST_NODE_ID, label="Issue A")
+        node_b_id = uuid4()
+        node_b = _make_graph_node(node_id=node_b_id, node_type="note", label="Note B")
+        edge = _make_graph_edge(source_id=TEST_NODE_ID, target_id=node_b_id)
+        repo = _make_repo(get_subgraph=AsyncMock(return_value=([node_a, node_b], [edge])))
+
+        with (
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.set_rls_context",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.KnowledgeGraphRepository",
+                return_value=repo,
+            ),
+        ):
+            result = await get_issue_knowledge_graph(
+                workspace_id=TEST_WORKSPACE_ID,
+                issue_id=TEST_ISSUE_ID,
+                session=session,
+                current_user_id=TEST_USER_ID,
+                depth=2,
+                node_types=None,
+                max_nodes=50,
+                include_github=False,
+            )
+
+        assert len(result.nodes) == 2
+        assert len(result.edges) == 1
+        assert result.edges[0].source_id == str(TEST_NODE_ID)
+        assert result.edges[0].target_id == str(node_b_id)
+
+    async def test_issue_graph_depth_and_max_nodes_forwarded_to_subgraph(self) -> None:
+        """depth and max_nodes query params are forwarded to get_subgraph."""
+        from unittest.mock import patch
+
+        gn_model = MagicMock()
+        gn_model.id = TEST_NODE_ID
+        gn_model.workspace_id = TEST_WORKSPACE_ID
+        gn_model.is_deleted = False
+
+        session = _make_sequential_session(
+            {"scalar": TEST_ISSUE_ID},
+            {"scalar": gn_model},
+        )
+
+        repo = _make_repo(get_subgraph=AsyncMock(return_value=([], [])))
+
+        with (
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.set_rls_context",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.KnowledgeGraphRepository",
+                return_value=repo,
+            ),
+        ):
+            await get_issue_knowledge_graph(
+                workspace_id=TEST_WORKSPACE_ID,
+                issue_id=TEST_ISSUE_ID,
+                session=session,
+                current_user_id=TEST_USER_ID,
+                depth=3,
+                node_types=None,
+                max_nodes=25,
+                include_github=False,
+            )
+
+        call_kwargs = repo.get_subgraph.call_args.kwargs
+        assert call_kwargs["max_depth"] == 3
+        assert call_kwargs["max_nodes"] == 25
+
+    async def test_issue_graph_deduplicates_github_node_already_in_graph(self) -> None:
+        """Ephemeral node skipped when a real graph node already has the same external_id."""
+        from unittest.mock import patch
+
+        gn_model = MagicMock()
+        gn_model.id = TEST_NODE_ID
+        gn_model.workspace_id = TEST_WORKSPACE_ID
+        gn_model.is_deleted = False
+
+        pr_link = _make_integration_link_mock(link_type="pull_request", external_id="pr-99")
+
+        # The real graph node already references the same PR external_id in properties
+        graph_node = _make_graph_node(node_id=TEST_NODE_ID, node_type="pull_request", label="PR")
+        graph_node.properties = {"external_id": "pr-99"}
+
+        session = _make_sequential_session(
+            {"scalar": TEST_ISSUE_ID},
+            {"scalar": gn_model},
+            {"scalars_all": [pr_link]},
+        )
+
+        repo = _make_repo(get_subgraph=AsyncMock(return_value=([graph_node], [])))
+
+        with (
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.set_rls_context",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.KnowledgeGraphRepository",
+                return_value=repo,
+            ),
+        ):
+            result = await get_issue_knowledge_graph(
+                workspace_id=TEST_WORKSPACE_ID,
+                issue_id=TEST_ISSUE_ID,
+                session=session,
+                current_user_id=TEST_USER_ID,
+                depth=2,
+                node_types=None,
+                max_nodes=50,
+                include_github=True,
+            )
+
+        # Ephemeral node must NOT be added — real node already covers it
+        pr_nodes = [n for n in result.nodes if n.node_type == "pull_request"]
+        assert len(pr_nodes) == 1
+        assert pr_nodes[0].properties.get("ephemeral") is not True
+
+    async def test_issue_graph_all_github_link_types_mapped(self) -> None:
+        """branch, commit (→code_reference), and mention (→note) links are mapped correctly."""
+        from unittest.mock import patch
+
+        gn_model = MagicMock()
+        gn_model.id = TEST_NODE_ID
+        gn_model.workspace_id = TEST_WORKSPACE_ID
+        gn_model.is_deleted = False
+
+        branch_link = _make_integration_link_mock(link_type="branch", title="feat/login")
+        commit_link = _make_integration_link_mock(link_type="commit", title="abc123")
+        mention_link = _make_integration_link_mock(link_type="mention", title="related note")
+
+        session = _make_sequential_session(
+            {"scalar": TEST_ISSUE_ID},
+            {"scalar": gn_model},
+            {"scalars_all": [branch_link, commit_link, mention_link]},
+        )
+
+        repo = _make_repo(get_subgraph=AsyncMock(return_value=([], [])))
+
+        with (
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.set_rls_context",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.KnowledgeGraphRepository",
+                return_value=repo,
+            ),
+        ):
+            result = await get_issue_knowledge_graph(
+                workspace_id=TEST_WORKSPACE_ID,
+                issue_id=TEST_ISSUE_ID,
+                session=session,
+                current_user_id=TEST_USER_ID,
+                depth=2,
+                node_types=None,
+                max_nodes=50,
+                include_github=True,
+            )
+
+        node_types_in_result = {n.node_type for n in result.nodes}
+        assert "branch" in node_types_in_result
+        assert "code_reference" in node_types_in_result
+        assert "note" in node_types_in_result
+        assert all(n.properties.get("ephemeral") is True for n in result.nodes)
+
+    async def test_issue_graph_center_node_id_is_graph_node_not_issue(self) -> None:
+        """center_node_id in response is the graph node id, not the issue id."""
+        from unittest.mock import patch
+
+        gn_model = MagicMock()
+        gn_model.id = TEST_NODE_ID  # graph node id — different from TEST_ISSUE_ID
+        gn_model.workspace_id = TEST_WORKSPACE_ID
+        gn_model.is_deleted = False
+
+        session = _make_sequential_session(
+            {"scalar": TEST_ISSUE_ID},
+            {"scalar": gn_model},
+        )
+
+        repo = _make_repo(get_subgraph=AsyncMock(return_value=([], [])))
+
+        with (
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.set_rls_context",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "pilot_space.api.v1.routers.knowledge_graph.KnowledgeGraphRepository",
+                return_value=repo,
+            ),
+        ):
+            result = await get_issue_knowledge_graph(
+                workspace_id=TEST_WORKSPACE_ID,
+                issue_id=TEST_ISSUE_ID,
+                session=session,
+                current_user_id=TEST_USER_ID,
+                depth=2,
+                node_types=None,
+                max_nodes=50,
+                include_github=False,
+            )
+
+        assert result.center_node_id == TEST_NODE_ID
+        assert result.center_node_id != TEST_ISSUE_ID
