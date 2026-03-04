@@ -159,3 +159,127 @@ class TestHandleGraphNodeHappyPath:
         assert result["success"] is False
         assert "all embedding providers failed" in result["error"]
         session.commit.assert_not_called()
+
+
+class TestHandleGraphNodeOllamaProvider:
+    """Tests for the Ollama fallback/primary embedding path."""
+
+    def _make_db(self, content: str) -> AsyncMock:
+        """Build a session mock that returns content on SELECT, no-op on UPDATE."""
+        select_result = MagicMock()
+        select_result.first.return_value = (content,)
+        update_result = MagicMock()
+        session = _make_session()
+        session.execute = AsyncMock(side_effect=[select_result, update_result])
+        return session
+
+    async def test_ollama_used_when_no_openai_key(self) -> None:
+        """No OpenAI key → Ollama provides the embedding; result is success."""
+        session = self._make_db("A decision was made to use pgvector for search.")
+        handler = _make_handler(session, openai_api_key=None)
+        fake_embedding = [0.42] * 768
+
+        with patch(
+            "pilot_space.infrastructure.queue.handlers.memory_embedding_handler._embed_text_ollama",
+            new=AsyncMock(return_value=fake_embedding),
+        ):
+            result = await handler.handle_graph_node(
+                {"node_id": str(_NODE_ID), "workspace_id": str(_WORKSPACE_ID)}
+            )
+
+        assert result["success"] is True
+        assert result["provider"] == "ollama"
+        assert result["dims"] == 768
+        session.commit.assert_awaited_once()
+
+    async def test_ollama_fallback_when_openai_fails(self) -> None:
+        """OpenAI returns None → Ollama is tried and succeeds."""
+        session = self._make_db("Rate limiting implemented via token bucket.")
+        handler = _make_handler(session, openai_api_key="sk-test")  # pragma: allowlist secret
+        fake_embedding = [0.1] * 768
+
+        with (
+            patch(
+                "pilot_space.infrastructure.queue.handlers.memory_embedding_handler._embed_text_openai",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "pilot_space.infrastructure.queue.handlers.memory_embedding_handler._embed_text_ollama",
+                new=AsyncMock(return_value=fake_embedding),
+            ),
+        ):
+            result = await handler.handle_graph_node(
+                {"node_id": str(_NODE_ID), "workspace_id": str(_WORKSPACE_ID)}
+            )
+
+        assert result["success"] is True
+        assert result["provider"] == "ollama"
+        assert result["dims"] == 768
+
+    async def test_ollama_embedding_is_768_dim(self) -> None:
+        """Ollama-produced embedding is exactly 768 dimensions."""
+        session = self._make_db("Learned pattern: always add RLS policies.")
+        handler = _make_handler(session, openai_api_key=None)
+        fake_embedding = list(range(768))  # 0..767 — distinct values
+
+        with patch(
+            "pilot_space.infrastructure.queue.handlers.memory_embedding_handler._embed_text_ollama",
+            new=AsyncMock(return_value=fake_embedding),
+        ):
+            result = await handler.handle_graph_node(
+                {"node_id": str(_NODE_ID), "workspace_id": str(_WORKSPACE_ID)}
+            )
+
+        assert result["dims"] == 768
+        # Verify the UPDATE was executed (embedding stored)
+        assert session.execute.await_count == 2
+
+    async def test_ollama_called_with_node_content(self) -> None:
+        """_embed_text_ollama receives the text fetched from graph_nodes."""
+        content = "Work intent: refactor knowledge graph repository."
+        session = self._make_db(content)
+        handler = _make_handler(session, openai_api_key=None)
+
+        captured: list[str] = []
+
+        async def _capture_embed(text: str, base_url: str = "") -> list[float]:
+            captured.append(text)
+            return [0.0] * 768
+
+        with patch(
+            "pilot_space.infrastructure.queue.handlers.memory_embedding_handler._embed_text_ollama",
+            new=_capture_embed,
+        ):
+            result = await handler.handle_graph_node(
+                {"node_id": str(_NODE_ID), "workspace_id": str(_WORKSPACE_ID)}
+            )
+
+        assert result["success"] is True
+        assert captured == [content]
+
+    async def test_ollama_sync_embed_parses_response_correctly(self) -> None:
+        """_ollama_embed_sync extracts embeddings[0] from the JSON response."""
+        from unittest.mock import (
+            MagicMock,
+            patch as stdlib_patch,
+        )
+
+        fake_vector = [round(i * 0.001, 4) for i in range(768)]
+        fake_body = {"embeddings": [fake_vector]}
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = __import__("json").dumps(fake_body).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        from pilot_space.infrastructure.queue.handlers.memory_embedding_handler import (
+            _ollama_embed_sync,
+        )
+
+        with stdlib_patch("urllib.request.urlopen", return_value=mock_resp):
+            result = _ollama_embed_sync("some text", "http://localhost:11434")
+
+        assert result is not None
+        assert len(result) == 768
+        assert result[0] == pytest.approx(0.0)
+        assert result[1] == pytest.approx(0.001)
