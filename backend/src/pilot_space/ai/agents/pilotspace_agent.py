@@ -37,6 +37,7 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
     classify_effort,
     detect_skill_from_message,
     estimate_tokens,
+    get_workspace_openai_key,
     merge_sdk_and_queue,
     save_session_messages,
 )
@@ -328,17 +329,16 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         effort = classify_effort(input_data.message)
         streaming_input = estimate_tokens(input_data) > 30_000
 
-        # Recall graph context — fresh service per request to avoid session=None (T-048 / Unit 11)
-        _graph_search_svc = build_graph_search_service_for_session(db_session)
+        _graph_search_svc = build_graph_search_service_for_session(db_session)  # fresh per-req
+        _openai_key_for_recall = await get_workspace_openai_key(db_session, context.workspace_id)
         graph_context = await recall_graph_context(
             workspace_id=context.workspace_id,
             user_id=context.user_id,
             query=input_data.message,
             graph_search_service=_graph_search_svc,
+            openai_api_key=_openai_key_for_recall,
         )
 
-        # Scaffolding: pending_approvals, budget_warning, conversation_summary
-        # not yet wired — wire when session manager provides these values.
         assembled = await assemble_system_prompt(
             PromptLayerConfig(
                 role_type=_role_type,

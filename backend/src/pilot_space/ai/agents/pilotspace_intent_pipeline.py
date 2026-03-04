@@ -467,6 +467,7 @@ async def recall_graph_context(
     query: str,
     graph_search_service: GraphSearchService | None,
     limit: int = 10,
+    openai_api_key: str | None = None,
 ) -> list[dict[str, Any]]:
     """Graph-aware context recall replacing recall_workspace_context.
 
@@ -476,6 +477,7 @@ async def recall_graph_context(
         query: Search query derived from user message.
         graph_search_service: Optional injected GraphSearchService.
         limit: Maximum number of scored nodes to return.
+        openai_api_key: Optional OpenAI key for vector embedding.
 
     Returns:
         List of graph context dicts; empty on failure or missing service.
@@ -497,6 +499,7 @@ async def recall_graph_context(
             workspace_id=workspace_id,
             user_id=user_id,
             limit=limit,
+            openai_api_key=openai_api_key,
         )
         result = await graph_search_service.execute(payload)
         entries = [

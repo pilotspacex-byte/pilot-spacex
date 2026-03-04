@@ -219,32 +219,27 @@ class GraphSearchService:
         scored_nodes: list[ScoredNode],
         workspace_id: UUID | None = None,
     ) -> list[GraphEdge]:
-        """Collect edges between the result nodes from the top node's sub-graph.
+        """Collect edges between the result nodes.
 
-        Uses get_subgraph from the top-scored node to retrieve intra-result
-        edges without an additional N queries.
+        Issues a single SELECT WHERE source_id IN (...) AND target_id IN (...)
+        instead of traversing from the top node only, so interconnected nodes
+        anywhere in the result set are captured.
 
         Args:
             scored_nodes: Ranked result list.
-            workspace_id: Optional workspace scope to enforce boundary in subgraph.
+            workspace_id: Optional workspace scope to enforce boundary.
 
         Returns:
             Edges where both endpoints appear in the result set.
         """
         if not scored_nodes:
             return []
-
-        result_ids = {sn.node.id for sn in scored_nodes}
-        root_id = scored_nodes[0].node.id
+        node_ids = [sn.node.id for sn in scored_nodes]
         try:
-            _, edges = await self._repo.get_subgraph(
-                root_id, max_depth=2, workspace_id=workspace_id
-            )
+            return await self._repo.get_edges_between(node_ids, workspace_id=workspace_id)
         except Exception:
-            logger.warning("get_subgraph failed for root %s — returning empty edges", root_id)
+            logger.warning("get_edges_between failed — returning empty edges", exc_info=True)
             return []
-
-        return [e for e in edges if e.source_id in result_ids and e.target_id in result_ids]
 
 
 # ------------------------------------------------------------------

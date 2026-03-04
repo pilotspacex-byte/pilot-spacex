@@ -164,7 +164,7 @@ class TestGraphSearchServiceReturnsNodes:
             _make_scored_node(node_a),
             _make_scored_node(node_b),
         ]
-        mock_repo.get_subgraph.return_value = ([node_a, node_b], [edge])
+        mock_repo.get_edges_between.return_value = [edge]
 
         payload = GraphSearchPayload(query="foo", workspace_id=workspace_id)
         result = await service.execute(payload)

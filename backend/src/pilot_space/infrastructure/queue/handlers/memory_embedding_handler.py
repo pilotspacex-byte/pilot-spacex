@@ -62,25 +62,25 @@ async def _embed_text(content: str, api_key: str | None) -> list[float] | None:
 
 
 async def _embed_text_openai(content: str, api_key: str | None) -> list[float] | None:
-    """Embed text via OpenAI text-embedding-3-large (1536-dim).
+    """Embed text via OpenAI text-embedding-3-large (768-dim, truncated).
 
     Args:
         content: Text to embed.
         api_key: OpenAI API key.
 
     Returns:
-        1536-dim float list or None on failure.
+        768-dim float list or None on failure.
     """
     if not api_key:
         return None
     try:
-        import openai  # type: ignore[import-untyped]
+        from openai import AsyncOpenAI  # type: ignore[import-untyped]
 
-        client = openai.OpenAI(api_key=api_key)
-        response = await asyncio.to_thread(
-            client.embeddings.create,
+        client = AsyncOpenAI(api_key=api_key)
+        response = await client.embeddings.create(
             model=_OPENAI_EMBEDDING_MODEL,
             input=content,
+            dimensions=_GRAPH_EMBEDDING_DIMS,
         )
         embedding: list[float] = response.data[0].embedding
         return embedding
@@ -341,7 +341,7 @@ class MemoryEmbeddingJobHandler:
         node_id: UUID,
         embedding_str: str,
     ) -> None:
-        """Store 1536-dim vector embedding in graph_nodes table.
+        """Store 768-dim vector embedding in graph_nodes table.
 
         Args:
             node_id: Graph node UUID.

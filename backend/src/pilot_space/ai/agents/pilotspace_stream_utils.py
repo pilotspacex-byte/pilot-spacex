@@ -590,3 +590,18 @@ def build_graph_write_service_for_session(db_session: Any, queue_client: Any) ->
         queue=queue_client,
         session=db_session,
     )
+
+
+async def get_workspace_openai_key(db_session: Any, workspace_id: Any) -> str | None:
+    """Look up the workspace BYOK OpenAI API key, returning None on any failure."""
+    try:
+        from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+        from pilot_space.config import get_settings
+
+        storage = SecureKeyStorage(
+            db=db_session,
+            master_secret=get_settings().encryption_key.get_secret_value(),
+        )
+        return await storage.get_api_key(workspace_id, "openai")
+    except Exception:
+        return None

@@ -22,6 +22,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException, Path, Query, status
 from sqlalchemy import select
 
+from pilot_space.ai.agents.pilotspace_stream_utils import get_workspace_openai_key
 from pilot_space.api.v1.schemas.knowledge_graph import (
     GraphEdgeDTO,
     GraphNodeDTO,
@@ -202,18 +203,7 @@ async def search_knowledge_graph(
             raise HTTPException(status_code=422, detail=f"Invalid node_type: {exc}") from exc
 
     # Look up workspace OpenAI key for vector embedding (BYOK pattern)
-    openai_api_key: str | None = None
-    try:
-        from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
-        from pilot_space.config import get_settings
-
-        settings = get_settings()
-        key_storage = SecureKeyStorage(
-            db=session, master_secret=settings.encryption_key.get_secret_value()
-        )
-        openai_api_key = await key_storage.get_api_key(workspace_id, "openai")
-    except Exception:
-        logger.warning("knowledge_graph_search_key_lookup_failed", workspace_id=str(workspace_id))
+    openai_api_key = await get_workspace_openai_key(session, workspace_id)
 
     repo = KnowledgeGraphRepository(session)
     service = GraphSearchService(repo)

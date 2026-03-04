@@ -585,5 +585,34 @@ class KnowledgeGraphRepository:
             await self._session.flush()
         return count
 
+    async def get_edges_between(
+        self,
+        node_ids: list[UUID],
+        workspace_id: UUID | None = None,
+    ) -> list[GraphEdge]:
+        """Return all edges where both source and target are in node_ids.
+
+        Single SELECT — no N+1. Used by GraphSearchService to build the
+        intra-result sub-graph for display.
+
+        Args:
+            node_ids: Pool of node UUIDs to check membership.
+            workspace_id: Optional workspace scope filter.
+
+        Returns:
+            Edges where both endpoints appear in node_ids.
+        """
+        if not node_ids:
+            return []
+        filters: list[Any] = [
+            GraphEdgeModel.source_id.in_(node_ids),
+            GraphEdgeModel.target_id.in_(node_ids),
+        ]
+        if workspace_id is not None:
+            filters.append(GraphEdgeModel.workspace_id == workspace_id)
+        stmt = select(GraphEdgeModel).where(*filters)
+        result = await self._session.execute(stmt)
+        return [edge_model_to_domain(m) for m in result.scalars().all()]
+
 
 __all__ = ["KnowledgeGraphRepository"]
