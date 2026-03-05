@@ -5,7 +5,7 @@ Adds acceptance_criteria (JSONB) and technical_requirements (Text) to issues.
 Includes RLS policies and indexes for workspace isolation.
 
 Revision ID: 037_add_task_management
-Revises: 036_fix_ai_sessions_rls_enum_case
+Revises: 036_fix_ai_sessions_rls_enum
 Create Date: 2026-02-14
 """
 
@@ -16,7 +16,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "037_add_task_management"
-down_revision = "036_fix_ai_sessions_rls_enum_case"
+down_revision = "036_fix_ai_sessions_rls_enum"
 branch_labels = None
 depends_on = None
 
@@ -25,7 +25,9 @@ def upgrade() -> None:
     """Add task management infrastructure."""
     # 1. Enhance issues table
     op.add_column("issues", sa.Column("acceptance_criteria", sa.JSON(), nullable=True))
-    op.add_column("issues", sa.Column("technical_requirements", sa.Text(), nullable=True))
+    op.add_column(
+        "issues", sa.Column("technical_requirements", sa.Text(), nullable=True)
+    )
 
     # 2. Create tasks table (sa.Enum will auto-create task_status_enum type)
     op.create_table(
@@ -90,7 +92,8 @@ def upgrade() -> None:
     op.execute("ALTER TABLE tasks ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE tasks FORCE ROW LEVEL SECURITY")
 
-    op.execute("""
+    op.execute(
+        """
         CREATE POLICY "tasks_workspace_isolation"
         ON tasks FOR ALL
         USING (
@@ -109,7 +112,8 @@ def upgrade() -> None:
                 AND wm.is_deleted = false
             )
         )
-    """)
+    """
+    )
 
 
 def downgrade() -> None:

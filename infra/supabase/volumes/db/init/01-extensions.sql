@@ -112,7 +112,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_net" WITH SCHEMA extensions;
 
 -- pgvector for AI embeddings and vector similarity search
 -- Supports HNSW and IVFFlat indexes
-CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS "vector";
 
 -- =============================================================================
 -- QUEUE/SCHEDULING EXTENSIONS
@@ -122,7 +122,7 @@ CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS "pgmq";
 
 -- pg_cron for scheduled jobs (background tasks, cleanup, etc.)
-CREATE EXTENSION IF NOT EXISTS "pg_cron";
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
 
 -- =============================================================================
 -- SEARCH/TEXT EXTENSIONS

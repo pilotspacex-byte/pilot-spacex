@@ -5,7 +5,7 @@ matching the workspace_role enum type (OWNER, ADMIN, MEMBER, GUEST).
 Also adds a GIN index on session_data for JSONB search performance
 (context_history lookups).
 
-Revision ID: 036_fix_ai_sessions_rls_enum_case
+Revision ID: 036_fix_ai_sessions_rls_enum
 Revises: 035_fix_digest_cron_security
 Create Date: 2026-02-11
 """
@@ -13,7 +13,7 @@ Create Date: 2026-02-11
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "036_fix_ai_sessions_rls_enum_case"
+revision = "036_fix_ai_sessions_rls_enum"
 down_revision = "035_fix_digest_cron_security"
 branch_labels = None
 depends_on = None
@@ -25,7 +25,8 @@ def upgrade() -> None:
     op.execute('DROP POLICY IF EXISTS "ai_sessions_admin_select" ON ai_sessions')
 
     # Recreate with correct UPPERCASE enum values matching workspace_role type
-    op.execute("""
+    op.execute(
+        """
         CREATE POLICY "ai_sessions_admin_select"
         ON ai_sessions
         FOR SELECT
@@ -38,13 +39,16 @@ def upgrade() -> None:
                 AND wm.is_deleted = false
             )
         )
-    """)
+    """
+    )
 
     # Add GIN index on session_data for JSONB search performance
-    op.execute("""
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS ix_ai_sessions_session_data_gin
         ON ai_sessions USING gin (session_data)
-    """)
+    """
+    )
 
 
 def downgrade() -> None:
@@ -54,7 +58,8 @@ def downgrade() -> None:
     op.execute('DROP POLICY IF EXISTS "ai_sessions_admin_select" ON ai_sessions')
 
     # Restore original policy (same UPPERCASE values, no functional change in downgrade)
-    op.execute("""
+    op.execute(
+        """
         CREATE POLICY "ai_sessions_admin_select"
         ON ai_sessions
         FOR SELECT
@@ -67,4 +72,5 @@ def downgrade() -> None:
                 AND wm.is_deleted = false
             )
         )
-    """)
+    """
+    )

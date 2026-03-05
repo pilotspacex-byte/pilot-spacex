@@ -1,0 +1,60 @@
+services:
+  db:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - pilot-space-network
+    env_file:
+      - ../supabase/.env
+
+  kong:
+    env_file:
+      - ../supabase/.env
+
+  auth:
+    env_file:
+      - ../supabase/.env
+
+  rest:
+    env_file:
+      - ../supabase/.env
+
+  realtime:
+    env_file:
+      - ../supabase/.env
+
+  storage:
+    env_file:
+      - ../supabase/.env
+
+  imgproxy:
+    env_file:
+      - ../supabase/.env
+
+  meta:
+    env_file:
+      - ../supabase/.env
+
+  functions:
+    env_file:
+      - ../supabase/.env
+
+  supavisor:
+    env_file:
+      - ../supabase/.env
+
+  studio:
+    env_file:
+      - ../supabase/.env
+
+  analytics:
+    env_file:
+      - ../supabase/.env
+
+  redis:
+    env_file:
+      - ../supabase/.env
+
+  meilisearch:
+    env_file:
+      - ../supabase/.env
