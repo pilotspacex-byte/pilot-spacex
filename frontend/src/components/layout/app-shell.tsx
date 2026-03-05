@@ -24,6 +24,14 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
     uiStore.hydrate();
   }, [uiStore]);
 
+  // Auto-collapse sidebar on small screens (mobile/tablet)
+  useEffect(() => {
+    if (isSmallScreen) {
+      uiStore.setSidebarCollapsed(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSmallScreen]);
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
       {/* Skip to main content - accessibility */}
