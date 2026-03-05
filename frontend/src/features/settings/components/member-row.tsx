@@ -25,6 +25,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { WorkspaceMember } from '@/features/issues/hooks/use-workspace-members';
 import type { WorkspaceRole } from '@/stores/WorkspaceStore';
+import {
+  ROLE_HIERARCHY,
+  ROLE_BADGE_VARIANT,
+  getInitials,
+  formatJoinDate,
+} from '@/features/members/utils/member-utils';
 
 interface MemberRowProps {
   member: WorkspaceMember;
@@ -37,43 +43,6 @@ interface MemberRowProps {
   onAvailabilityChange?: (userId: string, hours: number) => void;
   isUpdating?: boolean;
   onClick?: () => void;
-}
-
-const ROLE_HIERARCHY: Record<string, number> = {
-  owner: 0,
-  admin: 1,
-  member: 2,
-  guest: 3,
-};
-
-const ROLE_BADGE_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
-  owner: 'default',
-  admin: 'secondary',
-  member: 'outline',
-  guest: 'outline',
-};
-
-function getInitials(name: string | null, email: string): string {
-  if (name) {
-    const parts = name
-      .trim()
-      .split(/\s+/)
-      .filter((p) => p.length > 0);
-    if (parts.length >= 2) {
-      return ((parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  }
-  return email.slice(0, 2).toUpperCase();
-}
-
-function formatJoinDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
 }
 
 export function MemberRow({

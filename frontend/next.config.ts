@@ -19,6 +19,11 @@ const nextConfig: NextConfig = {
         destination: '/:slug/roles',
         permanent: true,
       },
+      {
+        source: '/:slug/settings/members',
+        destination: '/:slug/members',
+        permanent: true,
+      },
     ];
   },
 

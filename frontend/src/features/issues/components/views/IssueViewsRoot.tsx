@@ -32,6 +32,7 @@ export const IssueViewsRoot = observer(function IssueViewsRoot({
 
   const workspace = workspaceStore.currentWorkspace;
   const workspaceId = workspace?.id ?? workspaceSlug;
+  const canCreateContent = workspaceStore.currentUserRole !== 'guest';
 
   // Hydrate view store from localStorage on mount
   React.useEffect(() => {
@@ -175,7 +176,7 @@ export const IssueViewsRoot = observer(function IssueViewsRoot({
             isLoading={issueStore.isLoading}
             onIssueClick={handleIssueClick}
             onIssueDrop={handleIssueDrop}
-            onCreateIssue={handleCreateIssue}
+            onCreateIssue={canCreateContent ? handleCreateIssue : undefined}
           />
         )}
 

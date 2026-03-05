@@ -2,16 +2,18 @@
  * Shared settings layout with sidebar navigation.
  *
  * Provides consistent sidebar + content area for all settings sub-routes:
- * General (/settings), Members (/settings/members), Profile (/settings/profile),
+ * General (/settings), Profile (/settings/profile),
  * AI Providers (/settings/ai-providers), Integrations (/settings/integrations).
+ * Members migrated to top-level /members route.
  */
 
 'use client';
 
 import * as React from 'react';
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, CreditCard, Menu, Plug, Settings, Sparkles, User, Users } from 'lucide-react';
+import { useWorkspaceStore } from '@/stores/RootStore';
+import { Building2, CreditCard, Menu, Plug, Settings, Sparkles, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -40,12 +42,6 @@ const settingsNavSections: NavSection[] = [
         icon: Building2,
         href: (slug: string) => `/${slug}/settings`,
         exact: true,
-      },
-      {
-        id: 'members',
-        label: 'Members',
-        icon: Users,
-        href: (slug: string) => `/${slug}/settings/members`,
       },
       {
         id: 'ai-providers',
@@ -141,8 +137,17 @@ function SettingsNavContent({
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const pathname = usePathname();
+  const router = useRouter();
   const workspaceSlug = params?.workspaceSlug as string;
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const workspaceStore = useWorkspaceStore();
+
+  // Guests may only access their profile settings
+  React.useEffect(() => {
+    if (workspaceStore.currentUserRole === 'guest' && !pathname.includes('/settings/profile')) {
+      router.replace(`/${workspaceSlug}/settings/profile`);
+    }
+  }, [workspaceStore.currentUserRole, pathname, workspaceSlug, router]);
 
   return (
     <div className="flex h-full flex-col">

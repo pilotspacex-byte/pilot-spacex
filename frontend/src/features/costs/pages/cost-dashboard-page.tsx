@@ -66,7 +66,7 @@ function formatTokens(tokens: number): string {
 export const CostDashboardPage = observer(function CostDashboardPage({
   workspaceId,
 }: CostDashboardPageProps) {
-  const { ai } = useStore();
+  const { ai, workspaceStore } = useStore();
   const { cost } = ai;
 
   // Load cost summary on mount
@@ -78,6 +78,19 @@ export const CostDashboardPage = observer(function CostDashboardPage({
   const handleDateRangeChange = async (range: { start: Date; end: Date }) => {
     await cost.setDateRange(range, workspaceId);
   };
+
+  // Admin guard
+  if (!workspaceStore.isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <AlertCircle className="h-10 w-10 text-muted-foreground/50 mb-3" />
+        <h3 className="text-lg font-medium">Access restricted</h3>
+        <p className="text-sm text-muted-foreground">
+          AI cost analytics are only available to workspace admins.
+        </p>
+      </div>
+    );
+  }
 
   // Loading state
   if (cost.isLoading && !cost.summary) {

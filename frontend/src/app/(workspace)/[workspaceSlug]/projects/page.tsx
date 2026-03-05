@@ -64,11 +64,16 @@ export default function ProjectsPage() {
   const router = useRouter();
   const workspaceStore = useWorkspaceStore();
   const workspaceId = workspaceStore.currentWorkspaceId ?? '';
+  const isAdmin = workspaceStore.isAdmin;
 
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [leadFilter, setLeadFilter] = useState<string>('all');
-  const viewMode = useSyncExternalStore(subscribeToViewMode, getViewModeSnapshot, getViewModeServerSnapshot);
+  const viewMode = useSyncExternalStore(
+    subscribeToViewMode,
+    getViewModeSnapshot,
+    getViewModeServerSnapshot
+  );
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     localStorage.setItem(VIEW_MODE_KEY, mode);
     // Force re-render since useSyncExternalStore only triggers on storage events from other tabs
@@ -151,10 +156,12 @@ export default function ProjectsPage() {
               <List className="h-4 w-4" />
             </Button>
           </div>
-          <Button className="gap-2 shadow-warm-sm" onClick={() => setCreateModalOpen(true)}>
-            <Plus className="h-4 w-4" />
-            New Project
-          </Button>
+          {isAdmin && (
+            <Button className="gap-2 shadow-warm-sm" onClick={() => setCreateModalOpen(true)}>
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
+          )}
         </div>
       </div>
 
@@ -234,7 +241,7 @@ export default function ProjectsPage() {
                 ? 'Try adjusting your search or filters.'
                 : 'Create your first project to get started.'}
             </p>
-            {!search && leadFilter === 'all' && (
+            {!search && leadFilter === 'all' && isAdmin && (
               <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
                 <Plus className="h-4 w-4" />
                 Create your first project

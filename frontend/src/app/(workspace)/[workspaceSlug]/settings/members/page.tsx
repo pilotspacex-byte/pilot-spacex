@@ -1,11 +1,18 @@
 /**
- * Members settings route page.
- *
- * T021: Renders MembersSettingsPage within the workspace settings layout.
+ * Settings members redirect — migrated to top-level /members route.
  */
 
-import { MembersSettingsPage } from '@/features/settings/pages/members-settings-page';
+import { redirect } from 'next/navigation';
 
-export default function MembersSettingsRoute() {
-  return <MembersSettingsPage />;
+interface PageParams {
+  workspaceSlug: string;
+}
+
+interface PageProps {
+  params: Promise<PageParams>;
+}
+
+export default async function MembersSettingsRedirect({ params }: PageProps) {
+  const { workspaceSlug } = await params;
+  redirect(`/${workspaceSlug}/members`);
 }

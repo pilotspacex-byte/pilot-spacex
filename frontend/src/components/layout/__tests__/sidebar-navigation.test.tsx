@@ -101,13 +101,14 @@ describe('Sidebar Navigation', () => {
   });
 
   describe('section structure', () => {
-    it('renders Main section items (Home, Notes, Issues, Projects)', () => {
+    it('renders Main section items (Home, Notes, Issues, Projects, Members)', () => {
       renderSidebar();
 
       expect(screen.getByTestId('nav-home')).toBeInTheDocument();
       expect(screen.getByTestId('nav-notes')).toBeInTheDocument();
       expect(screen.getByTestId('nav-issues')).toBeInTheDocument();
       expect(screen.getByTestId('nav-projects')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-members')).toBeInTheDocument();
     });
 
     it('renders AI section items (Chat, Roles, Costs)', () => {
@@ -171,6 +172,30 @@ describe('Sidebar Navigation', () => {
 
       const rolesLink = screen.getByTestId('nav-roles');
       expect(rolesLink.className).toContain('bg-sidebar-accent');
+    });
+  });
+
+  describe('Members nav item', () => {
+    it('links to /test-ws/members', () => {
+      renderSidebar();
+
+      const membersLink = screen.getByTestId('nav-members');
+      expect(membersLink).toHaveAttribute('href', '/test-ws/members');
+    });
+
+    it('displays "Members" label text', () => {
+      renderSidebar();
+
+      expect(screen.getByText('Members')).toBeInTheDocument();
+    });
+
+    it('highlights Members when pathname matches /test-ws/members', () => {
+      mockPathname.mockReturnValue('/test-ws/members');
+      renderSidebar();
+
+      const membersLink = screen.getByTestId('nav-members');
+      expect(membersLink.className).toContain('bg-sidebar-accent');
+      expect(membersLink).toHaveAttribute('aria-current', 'page');
     });
   });
 

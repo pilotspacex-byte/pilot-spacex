@@ -1,7 +1,7 @@
 /**
  * MemberProfileSheet — Quick-peek slide-in panel for member profile.
  *
- * Opens from member row click in MembersSettingsPage.
+ * Opens from member row click in MembersPage.
  * Shows profile header + contribution stats + condensed 5-item activity timeline.
  * Footer: "View full profile" link.
  */

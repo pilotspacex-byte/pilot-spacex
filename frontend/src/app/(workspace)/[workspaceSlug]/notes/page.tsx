@@ -267,7 +267,7 @@ function GridSkeleton() {
 /**
  * Empty state component
  */
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({ onCreate }: { onCreate?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mb-4">
@@ -278,10 +278,12 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         Start capturing your thoughts, ideas, and discussions. Notes are the foundation of your
         workflow.
       </p>
-      <Button onClick={onCreate}>
-        <Plus className="mr-2 h-4 w-4" />
-        Create your first note
-      </Button>
+      {onCreate && (
+        <Button onClick={onCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create your first note
+        </Button>
+      )}
     </div>
   );
 }
@@ -294,6 +296,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const workspaceStore = useWorkspaceStore();
+  const canCreateContent = workspaceStore.currentUserRole !== 'guest';
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -426,19 +429,21 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
           <h1 className="text-2xl font-semibold text-foreground">Notes</h1>
           <p className="text-sm text-muted-foreground">Your collaborative thinking space</p>
         </div>
-        <Button
-          onClick={handleCreateNote}
-          disabled={createNote.isPending}
-          className="gap-2 shadow-warm-sm"
-          data-testid="create-note-button"
-        >
-          {createNote.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Plus className="h-4 w-4" />
-          )}
-          New Note
-        </Button>
+        {canCreateContent && (
+          <Button
+            onClick={handleCreateNote}
+            disabled={createNote.isPending}
+            className="gap-2 shadow-warm-sm"
+            data-testid="create-note-button"
+          >
+            {createNote.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            New Note
+          </Button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -557,7 +562,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
         </div>
       ) : filteredNotes.length === 0 ? (
         <div className="flex-1 overflow-auto p-6">
-          <EmptyState onCreate={handleCreateNote} />
+          <EmptyState onCreate={canCreateContent ? handleCreateNote : undefined} />
         </div>
       ) : viewMode === 'grid' ? (
         <div className="flex-1 overflow-auto p-6">

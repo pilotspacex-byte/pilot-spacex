@@ -14,7 +14,6 @@ export type { ProviderStatus, ProviderStatusCardProps } from './provider-status-
 
 export { ConfirmActionDialog } from './confirm-action-dialog';
 export { MemberRow } from './member-row';
-export { InviteMemberDialog } from './invite-member-dialog';
 export { DeleteWorkspaceDialog } from './delete-workspace-dialog';
 
 export { SkillCard } from './skill-card';

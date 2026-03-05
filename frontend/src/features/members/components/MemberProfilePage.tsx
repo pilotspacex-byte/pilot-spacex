@@ -42,7 +42,7 @@ function MemberProfileContent({ workspaceId, workspaceSlug, userId }: MemberProf
           Member not found or you don&apos;t have access.
         </p>
         <Button asChild variant="ghost" className="mt-4">
-          <Link href={`/${workspaceSlug}/settings/members`}>Back to members</Link>
+          <Link href={`/${workspaceSlug}/members`}>Back to members</Link>
         </Button>
       </div>
     );
@@ -52,7 +52,7 @@ function MemberProfileContent({ workspaceId, workspaceSlug, userId }: MemberProf
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       {/* Back nav */}
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-4">
-        <Link href={`/${workspaceSlug}/settings/members`} className="flex items-center gap-1.5">
+        <Link href={`/${workspaceSlug}/members`} className="flex items-center gap-1.5">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Members
         </Link>

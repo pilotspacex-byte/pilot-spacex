@@ -10,6 +10,7 @@ import {
   FileText,
   LayoutGrid,
   FolderKanban,
+  Users,
   MessageSquare,
   DollarSign,
   Settings,
@@ -30,7 +31,13 @@ import {
   Monitor,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useUIStore, useNoteStore, useNotificationStore, useAuthStore } from '@/stores';
+import {
+  useUIStore,
+  useNoteStore,
+  useNotificationStore,
+  useAuthStore,
+  useWorkspaceStore,
+} from '@/stores';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -71,6 +78,7 @@ const navigationSections: NavSection[] = [
       { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes' },
       { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues' },
       { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects' },
+      { name: 'Members', path: 'members', icon: Users, testId: 'nav-members' },
     ],
   },
   {
@@ -253,6 +261,8 @@ export const Sidebar = observer(function Sidebar() {
   const noteStore = useNoteStore();
   const notificationStore = useNotificationStore();
   const authStore = useAuthStore();
+  const workspaceStore = useWorkspaceStore();
+  const canCreateContent = workspaceStore.currentUserRole !== 'guest';
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = uiStore.sidebarCollapsed;
@@ -505,37 +515,41 @@ export const Sidebar = observer(function Sidebar() {
         )}
       </ScrollArea>
 
-      {/* New Note Button */}
-      <div className={cn('border-t border-sidebar-border p-2', collapsed && 'flex justify-center')}>
-        <Tooltip delayDuration={collapsed ? 0 : 1000}>
-          <TooltipTrigger asChild>
-            <Button
-              variant="default"
-              size={collapsed ? 'icon' : 'sm'}
-              data-testid="new-note-button"
-              onClick={handleNewNote}
-              disabled={createNote.isPending}
-              className={cn(
-                'shadow-warm-sm transition-all duration-200',
-                'hover:shadow-warm-md hover:-translate-y-0.5',
-                collapsed ? 'h-8 w-8' : 'w-full'
-              )}
-            >
-              {createNote.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Plus className="h-3.5 w-3.5" />
-              )}
-              {!collapsed && (
-                <span className="ml-1.5 text-xs">
-                  {createNote.isPending ? 'Creating...' : 'New Note'}
-                </span>
-              )}
-            </Button>
-          </TooltipTrigger>
-          {collapsed && <TooltipContent side="right">New Note</TooltipContent>}
-        </Tooltip>
-      </div>
+      {/* New Note Button — hidden for guests */}
+      {canCreateContent && (
+        <div
+          className={cn('border-t border-sidebar-border p-2', collapsed && 'flex justify-center')}
+        >
+          <Tooltip delayDuration={collapsed ? 0 : 1000}>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size={collapsed ? 'icon' : 'sm'}
+                data-testid="new-note-button"
+                onClick={handleNewNote}
+                disabled={createNote.isPending}
+                className={cn(
+                  'shadow-warm-sm transition-all duration-200',
+                  'hover:shadow-warm-md hover:-translate-y-0.5',
+                  collapsed ? 'h-8 w-8' : 'w-full'
+                )}
+              >
+                {createNote.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+                {!collapsed && (
+                  <span className="ml-1.5 text-xs">
+                    {createNote.isPending ? 'Creating...' : 'New Note'}
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            {collapsed && <TooltipContent side="right">New Note</TooltipContent>}
+          </Tooltip>
+        </div>
+      )}
 
       {/* Notification + User Controls */}
       <SidebarUserControls

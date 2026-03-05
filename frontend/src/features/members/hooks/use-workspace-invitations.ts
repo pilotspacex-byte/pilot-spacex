@@ -23,11 +23,11 @@ export const workspaceInvitationsKeys = {
   all: (workspaceId: string) => ['workspaces', workspaceId, 'invitations'] as const,
 };
 
-export function useWorkspaceInvitations(workspaceId: string) {
+export function useWorkspaceInvitations(workspaceId: string, enabled = true) {
   return useQuery<WorkspaceInvitation[]>({
     queryKey: workspaceInvitationsKeys.all(workspaceId),
     queryFn: () => apiClient.get<WorkspaceInvitation[]>(`/workspaces/${workspaceId}/invitations`),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && enabled,
     staleTime: 60_000,
   });
 }
