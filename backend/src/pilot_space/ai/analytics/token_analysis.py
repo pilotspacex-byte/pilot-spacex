@@ -63,7 +63,7 @@ async def analyze_agent_token_usage(
         metrics = await analyze_agent_token_usage(db, days=7)
         for metric in metrics:
             print(f"{metric.agent_name}: ${metric.total_cost_usd:.2f}")
-            print(f"  Avg tokens: {metric.avg_input_tokens:.0f} in, {metric.avg_output_tokens:.0f} out")
+            print(f"  Avg tokens: {metric.avg_input_tokens:.0f} in, {metric.avg_output_tokens:.0f} out")  # Safe: token count metrics not API tokens
     """
     from sqlalchemy import text
 

@@ -155,6 +155,9 @@ jobs:
 
       - name: Build frontend
         run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
 
       - name: Run E2E test suite (Features 015 + 016 + 017)
         run: |

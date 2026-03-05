@@ -9,6 +9,7 @@ Provides fixtures for RLS and rate limiting tests including:
 
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
@@ -84,21 +85,26 @@ class SecurityTestContext:
 # =============================================================================
 
 
+_DB_URL = os.environ.get(
+    "DATABASE_URL",
+    "sqlite+aiosqlite:///:memory:",
+)
+
+
 @pytest.fixture
 async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create test database engine.
 
-    Uses SQLite for fast testing without PostgreSQL dependency.
-    Note: RLS policies are PostgreSQL-specific, so some tests
-    will be marked as integration tests requiring real PostgreSQL.
+    Uses DATABASE_URL when set (PostgreSQL in CI/Nightly), falls back to
+    SQLite for local unit runs. RLS policies require real PostgreSQL;
+    tests that depend on them are skipped under SQLite.
     """
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
+    engine = create_async_engine(_DB_URL, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
 
 
@@ -385,11 +391,13 @@ def mock_redis() -> AsyncMock:
                 deleted += 1
         return deleted
 
-    redis.incr = mock_incr
-    redis.expire = mock_expire
-    redis.get = mock_get
-    redis.set = mock_set
-    redis.delete = mock_delete
+    # Wrap as AsyncMock(side_effect=...) so mock assertion methods
+    # (assert_not_called, assert_called_once_with, etc.) remain available.
+    redis.incr = AsyncMock(side_effect=mock_incr)
+    redis.expire = AsyncMock(side_effect=mock_expire)
+    redis.get = AsyncMock(side_effect=mock_get)
+    redis.set = AsyncMock(side_effect=mock_set)
+    redis.delete = AsyncMock(side_effect=mock_delete)
     redis._call_counts = call_counts  # Expose for test assertions
 
     return redis

@@ -54,14 +54,14 @@ class MockMCPServer:
         query = args.get("query", "")
 
         # Sanitize: Remove SQL injection patterns
-        dangerous_patterns = ["';", "--", "DROP", "SELECT *", "UNION"]
+        dangerous_patterns = ["';", "--", "DROP", "DELETE", "FROM", "SELECT *", "UNION"]
         sanitized_query = query
 
         for pattern in dangerous_patterns:
-            if pattern.lower() in query.lower():
+            if pattern.lower() in sanitized_query.lower():
                 # In production, this would log the attempt
                 # For testing, we just sanitize
-                sanitized_query = query.replace(pattern, "")
+                sanitized_query = sanitized_query.replace(pattern, "")
 
         # Simulate database call with sanitized query
         # In production, parameterized queries would be used

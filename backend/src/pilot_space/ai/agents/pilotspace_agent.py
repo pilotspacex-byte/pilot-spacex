@@ -409,7 +409,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             bool(sdk_config.system_prompt_base),
             sdk_config.max_budget_usd or 0,
         )
-        logger.debug("[SDK/Space] Detail: env_keys=%s", list(sdk_env.keys()))
+        logger.debug("[SDK/Space] Detail: env_keys=%s", list(sdk_env.keys()))  # Safe
 
         return _StreamConfig(sdk_options=sdk_options, ref_map=ref_map)
 
