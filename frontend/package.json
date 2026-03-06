@@ -119,7 +119,7 @@
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
-    "jsdom": "^26.1.0",
+    "jsdom": "^28.1.0",
     "msw": "^2.9.0",
     "prettier": "^3.8.1",
     "tailwindcss": "^4",
