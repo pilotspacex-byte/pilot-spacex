@@ -3,184 +3,55 @@
 **Plan**: `specs/018-mvp-note-first-complete/plan.md`
 **Branch**: `018-mvp-note-first-complete`
 **Created**: 2026-02-20
-**Updated**: 2026-02-20 (v2 — debug/wire/polish tasks, not greenfield)
+**Updated**: 2026-03-06 (v3 — SDLC phase-driven tasks with gap closure)
 
 ---
 
-## Key Context: Codebase is 95% Complete
+## Summary
 
-200+ frontend components, 51 backend routers, 41 DB models, 13 TipTap extensions already built. All bugs are shallow: URL mismatches, missing data loading calls, null checks, field name mismatches.
+| Phase | Tasks | Status | Effort |
+|---|---|---|---|
+| 0: Bug Fixes (P0) | T-001 to T-007 | COMPLETED | — |
+| 1: Note-First Core Loop (P1) | T-008 to T-017 | Pending | 3 days |
+| 2: Wire Dead Features (P2) | T-018 to T-022 | Pending | 2 days |
+| 3: SDLC Testing Phase (P2) | T-023 to T-025 | Pending | 2 days |
+| 4: SDLC Deployment Phase (P2) | T-026 to T-028 | Pending | 2 days |
+| 5: SDLC Maintenance Phase (P2) | T-029 to T-032 | Pending | 3 days |
+| 6: Settings & Polish (P3) | T-033 to T-034 | Pending | 1 day |
 
-## Task Summary
-
-| Phase | Tasks | Type | Effort |
-|-------|-------|------|--------|
-| 1: Bug Fixes | T-001 to T-007 | Fix routing, URL paths, data binding, null checks | 2 days |
-| 2: Wiring | T-008 to T-014 | Connect existing components, verify data flow | 3 days |
-| 3: Polish | T-015 to T-019 | UX improvements to existing flows | 2 days |
-
-**Total**: 19 tasks, ~7 days. All Phase 1 tasks are independent and parallelizable.
-
----
-
-## Phase 1: Bug Fixes (all independent, parallelizable)
-
-### T-001: Fix Issues Kanban state mapping (FR-001)
-
-**Type**: Data binding fix | **Scope**: Frontend
-
-**Symptom**: All 50 issues in Backlog column; other columns show 0.
-**Root cause**: Frontend Kanban column IDs don't match backend `state` field values (likely casing or field name mismatch).
-
-**Steps**:
-1. Call `GET /api/v1/workspaces/{id}/issues` — note exact `state` values (e.g., `"backlog"`, `"todo"`, `"in_progress"`)
-2. Find Kanban column definitions in `frontend/src/features/issues/components/`
-3. Align column IDs with backend state values
-4. Unit test: grouping logic
-
-**Files**:
-- `frontend/src/features/issues/components/` — board/kanban component (column defs)
-- `frontend/src/features/issues/hooks/` — issue list query hook (response mapping)
-
-**Acceptance**: Issues distributed across all 6 Kanban columns matching their actual state.
+**Total**: 34 tasks. 7 completed, 27 pending. ~13 days remaining.
 
 ---
 
-### T-002: Fix AI Chat 404 error (FR-002)
+## Phase 0: Bug Fixes (P0) — COMPLETED
 
-**Type**: Runtime error fix | **Scope**: Frontend
-
-**Symptom**: AI Chat 404 at `/pilot-space-demo/ai-chat`.
-**Root cause**: Sidebar correctly links to `/chat` (sidebar.tsx:62). Route page exists. Most likely a runtime error in `getAIStore()` or `PilotSpaceStore` initialization that crashes the page component, causing Next.js error boundary to show 404.
-
-**Steps**:
-1. Read `frontend/src/stores/ai/AIStore.ts` — check `getAIStore()` for null/undefined returns
-2. Read `frontend/src/app/(workspace)/[workspaceSlug]/chat/page.tsx` — check error handling
-3. Add null guard or loading state for store initialization
-4. Verify page renders
-
-**Files**:
-- `frontend/src/stores/ai/AIStore.ts`
-- `frontend/src/app/(workspace)/[workspaceSlug]/chat/page.tsx`
-- `frontend/src/features/ai/ChatView/ChatView.tsx`
-
-**Acceptance**: Clicking "AI Chat" in sidebar loads chat page without errors.
+### T-001: Fix Issues Kanban state mapping (FR-001) — DONE
+### T-002: Fix AI Chat 404 error (FR-002) — DONE
+### T-003: Fix Approvals "Bad Request" (FR-003) — DONE
+### T-004: Fix Costs "Not Found" (FR-004) — DONE
+### T-005: Fix Homepage note word counts (FR-005) — DONE
+### T-006: Fix Issue Detail "null pts" / "No priority" (FR-006) — DONE
+### T-007: Fix Sidebar PINNED/RECENT empty (FR-007) — DONE
 
 ---
 
-### T-003: Fix Approvals "Bad Request" (FR-003)
-
-**Type**: URL path mismatch | **Scope**: Frontend API client
-
-**Symptom**: Approvals page shows "Bad Request" on load.
-**Root cause (confirmed)**: Frontend calls `/workspaces/${workspaceId}/approvals/pending` (approvals.ts:21) but backend is at `/api/v1/approvals/...` — not workspace-scoped in URL path. Router mounted at `API_V1_PREFIX` (main.py:242), workspace passed via `X-Workspace-Id` header.
-
-**Fix**: Change frontend URLs from `/workspaces/${id}/approvals/...` to `/approvals/...`.
-
-**Files**:
-- `frontend/src/services/api/approvals.ts` — Fix 7 URL paths (lines 21, 36, 44, 50, 57, 66, 74)
-
-**Acceptance**: Approvals page loads. Shows empty state or approval list.
-
----
-
-### T-004: Fix Costs "Not Found" (FR-004)
-
-**Type**: URL path mismatch | **Scope**: Frontend API client
-
-**Symptom**: "Failed to load cost data - Not Found".
-**Root cause (confirmed)**: Frontend calls `/workspaces/${workspaceId}/ai/costs/summary` (ai.ts:224) but backend is at `/api/v1/costs/summary`. Extra `/workspaces/{id}/ai/` prefix doesn't exist.
-
-**Fix**: Change frontend URLs from `/workspaces/${id}/ai/costs/...` to `/costs/...`.
-
-**Files**:
-- `frontend/src/services/api/ai.ts` — Fix cost endpoint URLs
-
-**Acceptance**: Costs page loads. Shows cost dashboard or empty state.
-
----
-
-### T-005: Fix Homepage note word counts (FR-005)
-
-**Type**: Missing data / field mapping | **Scope**: Frontend + Backend
-
-**Symptom**: Note cards show "0 words".
-**Root cause**: Either `word_count` not computed/stored server-side, not in API response, or frontend reads wrong field name.
-
-**Steps**:
-1. Check homepage note card component — what field name is rendered
-2. Check backend notes response schema — verify `word_count` / `wordCount` field
-3. If missing: compute word count from TipTap JSON content (server-side on save, or client-side)
-4. If field name mismatch: fix frontend to use correct name
-
-**Files**:
-- `frontend/src/features/homepage/components/` — note card
-- `backend/src/pilot_space/api/v1/routers/homepage.py`
-- `backend/src/pilot_space/api/v1/routers/workspace_notes.py`
-
-**Acceptance**: Note cards display accurate word counts.
-
----
-
-### T-006: Fix Issue Detail "null pts" / "No priority" (FR-006)
-
-**Type**: Null-check fix | **Scope**: Frontend
-
-**Symptom**: "null pts" and "No priority" shown even with seeded data.
-**Root cause**: `${estimate_points} pts` without null guard → `"null pts"`. Priority not mapped to display label.
-
-**Steps**:
-1. Read `issue-properties-panel.tsx` and `issue-header.tsx`
-2. Fix estimate: null check → show "No estimate" instead of "null pts"
-3. Fix priority: map backend value to display label
-4. Verify backend returns these fields populated
-
-**Files**:
-- `frontend/src/features/issues/components/issue-properties-panel.tsx`
-- `frontend/src/features/issues/components/issue-header.tsx`
-
-**Acceptance**: Shows actual values. Null → "No estimate" / "No priority".
-
----
-
-### T-007: Fix Sidebar PINNED/RECENT empty (FR-007)
-
-**Type**: Data loading fix | **Scope**: Frontend
-
-**Symptom**: PINNED and RECENT sections always empty.
-**Root cause (confirmed)**: `noteStore.pinnedNotes` and `recentNotes` derive from `noteStore.notesList` which is empty — `loadNotes()` never called on workspace mount.
-
-**Steps**:
-1. Add `useEffect` in sidebar or workspace layout that calls `noteStore.loadNotes()` on workspace change
-2. OR use TanStack Query `useQuery` directly in sidebar
-3. Verify backend returns `is_pinned` field mapped to frontend `isPinned`
-
-**Files**:
-- `frontend/src/components/layout/sidebar.tsx` (around line 270)
-- `frontend/src/stores/features/notes/NoteStore.ts`
-
-**Acceptance**: PINNED shows up to 5 pinned notes. RECENT shows last 10.
-
----
-
-## Phase 2: Wire Existing Components
+## Phase 1: Note-First Core Loop (P1)
 
 ### T-008: Wire homepage activity feed with date grouping (FR-008, FR-021)
 
 **Type**: Wiring | **Scope**: Frontend + Backend verification
-**Depends on**: T-005
-
-**What exists**: `ActivityFeed/` directory. Backend `homepage_router`.
+**Depends on**: None
 
 **Steps**:
 1. Read `frontend/src/features/homepage/components/ActivityFeed/` — check existing components
 2. Verify ActivityFeed fetches from homepage endpoint
-3. Wire date grouping (Today/Yesterday/This Week/Earlier) if not wired
+3. Wire date grouping (Today/Yesterday/This Week/Earlier) if not connected
 4. Wire note content previews (first 2 lines TipTap → plaintext) on cards
 
 **Files**:
 - `frontend/src/features/homepage/components/ActivityFeed/`
 - `frontend/src/app/(workspace)/[workspaceSlug]/page.tsx`
+- `backend/src/pilot_space/api/v1/routers/homepage.py`
 
 **Acceptance**: Activity grouped by date. Note cards show 2-line previews.
 
@@ -191,8 +62,6 @@
 **Type**: Wiring | **Scope**: Frontend + Backend verification
 **Depends on**: T-008
 
-**What exists**: `DigestPanel/` component. Backend `DigestWorker`. `homepage_router`.
-
 **Steps**:
 1. Read `DigestPanel/` — check expected data shape
 2. Verify backend digest endpoint returns data
@@ -202,40 +71,51 @@
 - `frontend/src/features/homepage/components/DigestPanel/`
 - `backend/src/pilot_space/api/v1/routers/homepage.py`
 
-**Acceptance**: Insights panel shows workspace health metrics.
+**Acceptance**: Insights panel shows workspace health metrics or fallback stats.
 
 ---
 
-### T-010: Verify slash commands and floating toolbar (FR-010, FR-011)
+### T-010: Verify slash commands — 8+ block types (FR-010)
 
 **Type**: Verification | **Scope**: Frontend
 
-**What exists**: `SlashCommandExtension.ts`, `slash-command-items.ts`, `slash-command-menu.ts`. 13 TipTap extensions.
-
 **Steps**:
-1. Read `slash-command-items.ts` — verify 8 block types (Heading 1-3, Bullet/Numbered/Task List, Code, Quote, Table, Divider)
+1. Read `slash-command-items.ts` — verify 8 types: Heading 1-3, Bullet/Numbered/Task List, Code Block, Quote, Table, Divider
 2. Read `createEditorExtensions.ts` — verify SlashCommand included
-3. Check BubbleMenu for floating toolbar (Bold, Italic, Strikethrough, Code, Link, Highlight)
-4. Add any missing items
+3. Add any missing items
 
 **Files**:
 - `frontend/src/features/notes/editor/extensions/slash-command-items.ts`
 - `frontend/src/features/notes/editor/extensions/createEditorExtensions.ts`
-- `frontend/src/components/editor/` — BubbleMenu / toolbar
 
-**Acceptance**: "/" shows 8+ block types. Text selection shows 6 formatting options.
+**Acceptance**: "/" shows 8+ block types. All insert correctly.
 
 ---
 
-### T-011: Verify auto-save and save indicator (FR-012)
+### T-011: Verify floating toolbar on text selection (FR-011)
 
 **Type**: Verification | **Scope**: Frontend
 
-**What exists**: NoteStore with `isSaving`, `lastSavedAt`, `hasUnsavedChanges`, 2s debounce.
+**Steps**:
+1. Check BubbleMenu / FloatingToolbar component
+2. Verify 6 options: Bold, Italic, Strikethrough, Code, Link, Highlight
+3. Add missing options if needed
+
+**Files**:
+- `frontend/src/components/editor/` — BubbleMenu or toolbar
+- `frontend/src/features/notes/editor/`
+
+**Acceptance**: Text selection shows 6 formatting options in floating toolbar.
+
+---
+
+### T-012: Verify auto-save and save indicator (FR-012)
+
+**Type**: Verification | **Scope**: Frontend
 
 **Steps**:
-1. Read NoteStore auto-save reaction
-2. Find SaveStatus component — verify wired to editor header
+1. Read NoteStore auto-save reaction — confirm 2s debounce
+2. Find SaveStatus component — verify rendered in editor header
 3. Fix disconnected wiring if needed
 
 **Files**:
@@ -246,32 +126,29 @@
 
 ---
 
-### T-012: Wire intent extraction UI (FR-013, FR-014)
+### T-013: Wire intent extraction UI (FR-013, FR-014)
 
 **Type**: Wiring | **Scope**: Frontend + Backend verification
 
-**What exists**: Backend `ai_extraction_router`, `intents_router`, `workspace_note_issue_links_router`. Frontend `InlineIssueExtension.ts`, `InlineIssueComponent.tsx`.
-
 **Steps**:
 1. Read extraction endpoint schema — request/response format
-2. Verify "Extract issues" trigger exists in editor UI (if not, add toolbar button)
+2. Verify "Extract issues" trigger exists in editor UI (add toolbar button if missing)
 3. Wire flow: extract → display categorized intents → approve → create issue + NoteIssueLink
 
 **Files**:
 - `backend/src/pilot_space/api/v1/routers/ai_extraction.py`
 - `backend/src/pilot_space/api/v1/routers/intents.py`
+- `backend/src/pilot_space/api/v1/routers/workspace_note_issue_links.py`
 - `frontend/src/features/notes/` — editor toolbar, extraction panel
 
 **Acceptance**: Extract → categorized intents → approve → issue created with NoteIssueLink.
 
 ---
 
-### T-013: Wire inline issue badges after extraction (FR-015)
+### T-014: Wire inline issue badges after extraction (FR-015)
 
 **Type**: Wiring | **Scope**: Frontend
-**Depends on**: T-012
-
-**What exists**: `IssueLinkExtension.ts`, `InlineIssueExtension.ts`, `InlineIssueComponent.tsx`.
+**Depends on**: T-013
 
 **Steps**:
 1. Read InlineIssueExtension — how badges render
@@ -286,33 +163,9 @@
 
 ---
 
-### T-014: Verify version history panel (FR-022)
+### T-015: Verify AI Context tab renders 5+ sections (FR-016, FR-017)
 
 **Type**: Verification | **Scope**: Frontend + Backend
-
-**What exists**: `VersionHistoryPanel.tsx`, `useNoteVersions.ts`, `versionApi.ts` (all modified in git status). Backend `note_versions_router`.
-
-**Steps**:
-1. Read modified files — understand current state
-2. Verify list → view → restore flow
-3. Fix issues in modified files
-
-**Files**:
-- `frontend/src/components/editor/VersionHistoryPanel.tsx`
-- `frontend/src/hooks/useNoteVersions.ts`
-- `frontend/src/features/notes/services/versionApi.ts`
-
-**Acceptance**: Version list shows. Restore replaces content.
-
----
-
-## Phase 3: UX Polish
-
-### T-015: Verify AI Context and "Copy for Claude Code" (FR-016, FR-017)
-
-**Type**: Verification | **Scope**: Frontend + Backend
-
-**What exists**: `ai-context-panel.tsx`, `ai-context-tab.tsx`, `claude-code-prompt-card.tsx`, `copy-context.ts`. Backend context endpoints.
 
 **Steps**:
 1. Verify AI Context tab renders 5 sections (description, criteria, requirements, notes, dependencies)
@@ -328,33 +181,27 @@
 
 ---
 
-### T-016: Polish Kanban drag-drop and issue cards (FR-018, FR-019)
+### T-016: Verify Kanban drag-drop and issue card display (FR-018, FR-019)
 
-**Type**: Polish | **Scope**: Frontend
-**Depends on**: T-001
-
-**What exists**: Issue components. IssueStore with viewMode.
+**Type**: Verification | **Scope**: Frontend
 
 **Steps**:
 1. Check `package.json` for dnd-kit or similar
-2. Verify drag-and-drop works between columns
+2. Verify drag-and-drop works between columns → state update
 3. Verify cards show: identifier, title, priority color, assignee avatar
 4. Fix missing elements
 
 **Files**:
-- `frontend/src/features/issues/components/`
+- `frontend/src/features/issues/components/` — board component
 - `frontend/package.json`
 
-**Acceptance**: Drag-and-drop moves issues. Cards show all info.
+**Acceptance**: Drag-and-drop moves issues between states. Cards show all info.
 
 ---
 
-### T-017: Verify List and Table views (FR-020)
+### T-017: Verify List and Table views work (FR-020)
 
 **Type**: Verification | **Scope**: Frontend
-**Depends on**: T-001
-
-**What exists**: IssueStore `viewMode` ('board'|'list'|'table').
 
 **Steps**:
 1. Find view mode toggle and list/table components
@@ -362,75 +209,391 @@
 3. Fix rendering issues
 
 **Files**:
-- `frontend/src/features/issues/components/`
+- `frontend/src/features/issues/components/` — list, table views
 - `frontend/src/app/(workspace)/[workspaceSlug]/issues/page.tsx`
 
 **Acceptance**: Three view modes work. Table has sortable columns.
 
 ---
 
-### T-018: Fix workspace invitation and AI providers (FR-023, FR-024)
+## Phase 2: Wire Dead Features (P2)
 
-**Type**: Bug fix | **Scope**: Frontend
+### T-018: Mount TemplatePicker in "New Note" flow (FR-023)
 
-**Known bugs**:
-- "Invite Members" dispatches unhandled CustomEvent
-- AI Providers shows `[object Object]` error
+**Type**: Wiring | **Scope**: Frontend
 
 **Steps**:
-1. Fix invite: replace CustomEvent with direct API call
-2. Fix AI Providers: serialize error object to readable string
-3. Verify flows work
+1. Find "New Note" trigger (sidebar button, notes page button)
+2. Intercept with TemplatePicker modal before creating blank note
+3. Pass selected template content to new note editor
+4. Verify 4 system templates + blank option render
 
 **Files**:
-- `frontend/src/app/(workspace)/[workspaceSlug]/settings/members/page.tsx`
-- `frontend/src/app/(workspace)/[workspaceSlug]/settings/ai-providers/page.tsx`
+- `frontend/src/features/notes/components/` — TemplatePicker
+- Sidebar or notes page — "New Note" handler
 
-**Acceptance**: Invite shows modal. AI Providers shows readable errors.
+**Acceptance**: "New Note" shows TemplatePicker with 4 SDLC templates + blank.
 
 ---
 
-### T-019: Wire Command+K palette (FR-025, MAY)
+### T-019: Build Cmd+K global search modal (FR-024)
 
-**Type**: Polish — optional | **Scope**: Frontend
-
-**What exists**: UIStore `commandPaletteOpen` state.
+**Type**: Build | **Scope**: Frontend
 
 **Steps**:
-1. Check if command palette component exists
-2. Wire Cmd+K shortcut
-3. Implement search if needed
+1. Create SearchModal component (cmdk-based)
+2. Wire Cmd+K keyboard shortcut to toggle UIStore `commandPaletteOpen`
+3. Connect to Meilisearch for note body + issue identifier/title search
+4. Navigate to selected result
+5. Fallback to client-side title search if Meilisearch unavailable
 
 **Files**:
 - `frontend/src/stores/UIStore.ts`
-- `frontend/src/components/`
+- `frontend/src/components/` — new SearchModal
+- Meilisearch client configuration
 
-**Acceptance**: Cmd+K opens searchable palette.
+**Acceptance**: Cmd+K opens palette. Search notes by body content + issues by ID/title. Selection navigates.
+
+---
+
+### T-020: Fix issue filter dropdowns — Assignee and Label (FR-025)
+
+**Type**: Bug fix | **Scope**: Frontend
+
+**Steps**:
+1. Find filter components in issues feature
+2. Wire Assignee dropdown to fetch workspace members API
+3. Wire Label dropdown to fetch project labels API
+4. Verify filter produces correct query params
+
+**Files**:
+- `frontend/src/features/issues/components/` — filter components
+- `frontend/src/services/api/` — members, labels endpoints
+
+**Acceptance**: Assignee dropdown shows workspace members. Label dropdown shows project labels.
+
+---
+
+### T-021: Verify version history panel (FR-022)
+
+**Type**: Verification | **Scope**: Frontend + Backend
+
+**Steps**:
+1. Read VersionHistoryPanel, useNoteVersions, versionApi
+2. Verify list → view → restore flow
+3. Fix data binding issues
+
+**Files**:
+- `frontend/src/components/editor/VersionHistoryPanel.tsx`
+- `frontend/src/hooks/useNoteVersions.ts`
+- `frontend/src/features/notes/services/versionApi.ts`
+
+**Acceptance**: Version list shows timestamps. Restore replaces editor content.
+
+---
+
+### T-022: Connect note body search to Meilisearch (FR-024)
+
+**Type**: Wiring | **Scope**: Frontend
+**Depends on**: T-019 (shares Meilisearch client)
+
+**Steps**:
+1. Find notes list search input
+2. Replace client-side title-only filter with Meilisearch query
+3. Show "Limited search" indicator if Meilisearch unavailable
+
+**Files**:
+- `frontend/src/features/notes/` — notes list page, search input
+- Meilisearch client
+
+**Acceptance**: Notes page search queries Meilisearch for body content, not just title.
+
+---
+
+## Phase 3: SDLC Testing Phase (P2)
+
+### T-023: Display CI check status on issues with linked PRs (FR-026)
+
+**Type**: Build | **Scope**: Backend + Frontend
+
+**Steps**:
+1. Check GitHub webhook handler for `check_suite` / `check_run` events
+2. Store latest CI status (pass/fail/pending) on `IssueGitHubPRLink` or new column
+3. Enrich `GET /issues/{id}/github-links` response with CI status
+4. Display CI badge (green check / red X / yellow dot) next to PR link in issue detail
+
+**Files**:
+- `backend/src/pilot_space/services/github/` — webhook handler
+- `backend/src/pilot_space/api/v1/routers/github_links.py`
+- `backend/src/pilot_space/models/` — PR link model (add ci_status column if needed)
+- `frontend/src/features/issues/components/` — PR link display
+- Migration: add `ci_status` column to `issue_github_pr_links`
+
+**Acceptance**: Issue detail shows CI badge next to linked PR. Updates on webhook.
+
+---
+
+### T-024: Surface PR review findings in issue activity timeline (FR-027)
+
+**Type**: Wiring | **Scope**: Backend + Frontend
+**Depends on**: T-023
+
+**Steps**:
+1. Find PR review completion hook in `PRReviewSubagent`
+2. On completion, create activity entry on linked issue with severity summary
+3. Display in issue timeline as card with: "AI Review: 2 Critical, 3 Warning, 5 Info"
+4. Link to full PR on GitHub
+
+**Files**:
+- `backend/src/pilot_space/ai/agents/` — PR review subagent
+- `backend/src/pilot_space/api/v1/routers/` — issue activity
+- `frontend/src/features/issues/components/` — activity timeline
+
+**Acceptance**: PR review findings appear in issue activity. Severity badge + GitHub link.
+
+---
+
+### T-025: Build project quality dashboard (FR-028) — OPTIONAL
+
+**Type**: Build | **Scope**: Frontend + Backend
+**Depends on**: T-023, T-024
+
+**Steps**:
+1. Create aggregate endpoint: open PRs with review status, recent CI failures
+2. Display on project overview or dashboard page
+3. Show: PR review pass rate, CI success rate, issues by state
+
+**Acceptance**: Project page shows quality metrics section.
+
+---
+
+## Phase 4: SDLC Deployment Phase (P2)
+
+### T-026: Wire release notes tab on cycle detail page (FR-029)
+
+**Type**: Wiring | **Scope**: Frontend
+
+**Steps**:
+1. Read `pm_release_notes_router` — verify endpoint works
+2. Add "Release Notes" tab to cycle detail page
+3. Fetch auto-categorized completed issues
+4. Display grouped by category (Features, Bug Fixes, Improvements, Internal)
+
+**Files**:
+- `backend/src/pilot_space/api/v1/routers/pm_release_notes.py`
+- `frontend/src/features/cycles/` — cycle detail page
+- New: release notes tab component
+
+**Acceptance**: Cycle detail shows "Release Notes" tab with categorized issues.
+
+---
+
+### T-027: Add release notes markdown export (FR-030)
+
+**Type**: Build | **Scope**: Frontend
+**Depends on**: T-026
+
+**Steps**:
+1. Add "Export as Markdown" button to release notes tab
+2. Format as GitHub Release-compatible markdown:
+   ```
+   ## v{version} — {cycle_name}
+   ### Features
+   - {issue_ref}: {title}
+   ### Bug Fixes
+   - {issue_ref}: {title}
+   ```
+3. Copy to clipboard and/or download as `.md`
+
+**Acceptance**: Export produces clean markdown. Clipboard copy works.
+
+---
+
+### T-028: Show deployment activity in issue timeline (FR-031) — OPTIONAL
+
+**Type**: Wiring | **Scope**: Backend + Frontend
+
+**Steps**:
+1. On PR merge webhook, create activity entry on linked issue
+2. Display: "Merged to main" with commit SHA and branch
+
+**Acceptance**: PR merge appears in issue timeline.
+
+---
+
+## Phase 5: SDLC Maintenance Phase (P2)
+
+### T-029: Create notification model and migration
+
+**Type**: Build | **Scope**: Backend
+
+**Steps**:
+1. Create `Notification` SQLAlchemy model:
+   - `id`, `user_id`, `workspace_id`, `type` (enum: pr_review, assignment, sprint_deadline, mention, general)
+   - `title`, `body`, `entity_type`, `entity_id`
+   - `priority` (enum: low, medium, high, urgent)
+   - `read_at` (nullable), `created_at`
+2. Create Alembic migration
+3. Add RLS policy: users see only their own notifications
+4. Create notification CRUD service
+
+**Files**:
+- `backend/src/pilot_space/models/` — new notification model
+- `backend/alembic/versions/` — new migration
+- `backend/src/pilot_space/services/` — notification service
+
+**Acceptance**: Migration runs. CRUD service passes unit tests.
+
+---
+
+### T-030: Build notification worker and router (FR-032)
+
+**Type**: Build | **Scope**: Backend
+**Depends on**: T-029
+
+**Steps**:
+1. Create notification worker consuming from `QueueName.NOTIFICATIONS` pgmq queue
+2. Worker creates `Notification` records from queue messages
+3. Create REST router: `GET /notifications` (paginated), `PATCH /notifications/{id}/read`, `POST /notifications/read-all`
+4. Emit notifications for:
+   - PR review complete → PR author + issue assignee
+   - Issue assignment change → new assignee
+   - Sprint deadline warning (2 days remaining) → assignees of incomplete issues
+
+**Files**:
+- `backend/src/pilot_space/workers/` — notification worker
+- `backend/src/pilot_space/api/v1/routers/` — notification router
+- Integration points in PR review, issue assignment, sprint check
+
+**Acceptance**: Notifications created from queue. REST API returns paginated notifications.
+
+---
+
+### T-031: Wire notification center frontend (FR-033)
+
+**Type**: Wiring | **Scope**: Frontend
+**Depends on**: T-030
+
+**Steps**:
+1. Connect existing `NotificationStore` to backend notification endpoint
+2. Fetch notifications on mount
+3. Wire SSE or polling for real-time updates
+4. Group notifications by type with priority badges
+5. Mark-as-read on click, bulk mark-all-read
+
+**Files**:
+- `frontend/src/stores/` — NotificationStore
+- `frontend/src/components/` — notification bell, panel
+
+**Acceptance**: Bell icon shows unread count. Panel shows grouped notifications. Mark-as-read works.
+
+---
+
+### T-032: Add notification preferences (FR-034) — OPTIONAL
+
+**Type**: Build | **Scope**: Frontend + Backend
+**Depends on**: T-031
+
+**Steps**:
+1. Add preferences model (per-user, per-notification-type enable/disable)
+2. Add preferences section to Settings page
+3. Notification worker checks preferences before creating
+
+**Acceptance**: User can disable notification types. Disabled types not created.
+
+---
+
+## Phase 6: Settings & Polish (P3)
+
+### T-033: Fix workspace invitation flow (FR-035)
+
+**Type**: Bug fix | **Scope**: Frontend
+
+**Steps**:
+1. Find "Invite Members" button — replace CustomEvent with direct API call
+2. Wire to invitation API endpoint
+3. Show modal with email input + role selection
+
+**Files**:
+- `frontend/src/app/(workspace)/[workspaceSlug]/settings/members/page.tsx`
+
+**Acceptance**: "Invite Member" shows modal. Submitting calls API. Appears in pending list.
+
+---
+
+### T-034: Fix AI Providers error display (FR-036)
+
+**Type**: Bug fix | **Scope**: Frontend
+
+**Steps**:
+1. Find error rendering in AI Providers page
+2. Replace `[object Object]` with `error.message` or JSON.stringify
+3. Show meaningful validation errors
+
+**Files**:
+- `frontend/src/app/(workspace)/[workspaceSlug]/settings/ai-providers/page.tsx`
+
+**Acceptance**: Error messages readable. Shows specific validation failure.
 
 ---
 
 ## Dependencies Graph
 
 ```
-Phase 1 (all independent — can all run in parallel):
-  T-001  T-002  T-003  T-004  T-005  T-006  T-007
+Phase 0: COMPLETED (T-001 to T-007)
 
-Phase 2:
-  T-005 ─── T-008 ─── T-009
-  T-001 ─── T-016, T-017
-  T-010, T-011, T-014 (independent)
-  T-012 ─── T-013
+Phase 1 (P1 — mostly parallel):
+  T-008 → T-009
+  T-010, T-011, T-012 (independent)
+  T-013 → T-014
+  T-015, T-016, T-017 (independent)
 
-Phase 3:
-  T-015, T-018, T-019 (independent)
+Phase 2 (P2 — mostly parallel):
+  T-018, T-020, T-021 (independent)
+  T-019 → T-022
+
+Phase 3 (P2 — sequential):
+  T-023 → T-024 → T-025 (optional)
+
+Phase 4 (P2 — sequential):
+  T-026 → T-027
+  T-028 (optional, independent)
+
+Phase 5 (P2 — sequential):
+  T-029 → T-030 → T-031 → T-032 (optional)
+
+Phase 6 (P3 — independent):
+  T-033, T-034
 ```
 
 ## Execution Plan
 
 ```
-Day 1: T-001 to T-007 (all parallel — 7 bug fixes)
-Day 2: T-008, T-010, T-011, T-014 (parallel — homepage, editor, versions)
-Day 3: T-009, T-012 (parallel — digest panel, extraction wiring)
-Day 4: T-013, T-015, T-016 (parallel — badges, AI context, kanban)
-Day 5: T-017, T-018, T-019 (parallel — views, settings, palette)
+Week 1 (P1):
+  Day 1: T-008, T-010, T-011, T-012, T-033, T-034 (parallel — homepage, editor, settings)
+  Day 2: T-009, T-013, T-015, T-016 (parallel — digest, extraction, AI context, kanban)
+  Day 3: T-014, T-017, T-018 (parallel — badges, views, templates)
+
+Week 2 (P2 — Dead Features + Testing):
+  Day 4: T-019, T-020, T-021 (parallel — Cmd+K, filters, versions)
+  Day 5: T-022, T-023 (parallel — Meilisearch, CI status)
+  Day 6: T-024, T-026 (parallel — PR findings, release notes)
+
+Week 3 (P2 — Deployment + Maintenance):
+  Day 7: T-027, T-029 (parallel — export, notification model)
+  Day 8: T-030 (notification worker + router)
+  Day 9: T-031 (notification frontend)
+  Day 10+: T-025, T-028, T-032 (optional stretch tasks)
 ```
+
+## SDLC Coverage Impact
+
+| Phase | Before | After | Tasks Driving Change |
+|---|---|---|---|
+| Planning | 75% | 75% | — |
+| Requirements | 85% | 85% | — |
+| Design | 80% | 80% | — |
+| Implementation | 85% | 90% | T-018 (templates), T-019 (Cmd+K), T-022 (search) |
+| Testing | 60% | 70% | T-023 (CI status), T-024 (PR findings) |
+| Deployment | 40% | 65% | T-026 (release notes), T-027 (export) |
+| Maintenance | 65% | 80% | T-029–T-031 (notifications pipeline) |

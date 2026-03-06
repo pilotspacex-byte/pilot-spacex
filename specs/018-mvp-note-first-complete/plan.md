@@ -3,314 +3,405 @@
 **Spec**: `specs/018-mvp-note-first-complete/spec.md`
 **Branch**: `018-mvp-note-first-complete`
 **Created**: 2026-02-20
-**Updated**: 2026-02-20 (v2 — debugging/wiring/polish plan, not greenfield)
+**Updated**: 2026-03-06 (v3 — SDLC phase-driven plan with gap closure)
 
 ---
 
-## Key Finding: Codebase is 95% Complete
+## Key Context
 
-Component tracer reveals the codebase has 200+ frontend components, 51 backend routers (150+ endpoints), 41 DB models with full RLS, 13 TipTap extensions, and full AI chat with 20+ rendering components. The bugs are **shallow routing, data-binding, and null-check issues** — not missing features.
+### What's Changed Since v2
 
-**This plan focuses on: (1) bug fixes, (2) wiring existing components, (3) UX polish.**
+- **P0 bug fixes completed** (7/7 critical bugs resolved, commit `11f0d2fd`)
+- **Members page migrated** to sidebar with role-based write guards (commit `c48e82a7`)
+- **Responsive layout fixed** across all sidebar pages (commit `82c40faa`)
+- **CI/security fixes** — nightly tests, conftest PostgreSQL support, tool injection sanitization (commit `48034105`)
+- **SDLC coverage analysis** completed — identified gaps in Testing (60%), Deployment (40%), Maintenance (65%)
+
+### Codebase Maturity
+
+200+ frontend components, 51 backend routers (150+ endpoints), 41 DB models, 24 AI skills, 33 MCP tools, 13 TipTap extensions. The platform is feature-rich but has **wiring gaps** (dead code) and **SDLC phase gaps** (Testing, Deployment, Maintenance).
 
 ---
 
 ## Phase Overview
 
-| Phase | Priority | FRs | Type | Effort |
-|-------|----------|-----|------|--------|
-| 1: Stabilize | P1 | FR-001 to FR-007 | Bug fixes — routing, data binding, null checks | 2 days |
-| 2: Wire | P1 | FR-008 to FR-015, FR-021, FR-022 | Connect existing components that aren't hooked up | 3 days |
-| 3: Polish | P2-P3 | FR-016 to FR-025 | UX improvements to existing flows | 2 days |
+| Phase | Priority | Focus | FRs | Effort |
+|---|---|---|---|---|
+| 1: Note-First Core Loop | P1 | Wire the core note → issue → AI context pipeline | FR-008 to FR-020 | 3 days |
+| 2: Wire Dead Features | P2 | Connect TemplatePicker, Cmd+K, filters, notifications | FR-021 to FR-025 | 2 days |
+| 3: SDLC Testing Phase | P2 | CI status on issues, PR review findings in timeline | FR-026 to FR-028 | 2 days |
+| 4: SDLC Deployment Phase | P2 | Release notes, export, deployment activity | FR-029 to FR-031 | 2 days |
+| 5: SDLC Maintenance Phase | P2 | Notification pipeline, notification center | FR-032 to FR-034 | 3 days |
+| 6: Settings & Polish | P3 | Invite flow, AI providers, edge cases | FR-035 to FR-036 | 1 day |
+
+**Total**: ~13 days across 6 phases.
 
 ---
 
-## Phase 1: Bug Fixes — Routing, Data Binding, Null Checks (P1)
+## Phase 1: Note-First Core Loop (P1)
 
-All 7 bugs are independent and can be fixed in parallel.
+The core differentiator pipeline. All pieces exist — this is wiring + verification.
 
-### FR-001: Issues Kanban state mapping
+### 1.1 Homepage Activity Feed + AI Digest (FR-008, FR-009, FR-021)
 
-**Symptom**: All 50 issues in Backlog column; other columns show 0.
-**Type**: Data binding bug — state field mapping mismatch.
+**Existing**: `ActivityFeed/` directory, `DigestPanel/` component, backend `homepage_router`, `DigestWorker`.
 
-**Root Cause**: Frontend Kanban column IDs likely don't match backend state values. The backend stores issue state as a string (e.g., `"backlog"`, `"todo"`, `"in_progress"`). The frontend column definitions may expect different values or use the wrong field name.
-
-**Fix**: Align frontend column IDs with backend state values. This is a one-line-per-column mapping fix.
-
-**Files**:
-- `frontend/src/features/issues/components/` — Kanban board component (column definitions)
-- `frontend/src/features/issues/hooks/` — Issue query hook (verify `state` field in response mapping)
-
----
-
-### FR-002: AI Chat 404 error
-
-**Symptom**: Navigating to AI Chat shows 404 at `/pilot-space-demo/ai-chat`.
-**Type**: Routing bug — URL path mismatch.
-
-**Root Cause**: Sidebar defines `{ name: 'AI Chat', path: 'chat' }` (line 62, sidebar.tsx) which resolves to `/${slug}/chat`. The page exists at `frontend/src/app/(workspace)/[workspaceSlug]/chat/page.tsx`. The 404 was observed at `/pilot-space-demo/ai-chat` — the actual route is `/pilot-space-demo/chat`. Either the user navigated to the wrong URL, or there's a runtime error in `getAIStore()` / `PilotSpaceStore` initialization that renders as 404.
-
-**Fix**: Verify sidebar URL construction OR fix runtime error in ChatView mount (likely `getAIStore()` returns undefined before store initialization).
-
-**Files**:
-- `frontend/src/app/(workspace)/[workspaceSlug]/chat/page.tsx` — Check mount error
-- `frontend/src/stores/ai/AIStore.ts` — `getAIStore()` initialization
-
----
-
-### FR-003: Approvals "Bad Request" error
-
-**Symptom**: Approvals page shows "Bad Request" error on load.
-**Type**: URL path mismatch between frontend API client and backend router.
-
-**Root Cause (confirmed)**: Frontend calls `/workspaces/${workspaceId}/approvals/pending` (approvals.ts:21) but backend router is mounted at `/api/v1/approvals` (main.py:242 — `ai_approvals_router` at `API_V1_PREFIX`). The backend expects `/api/v1/approvals/...` not `/api/v1/workspaces/{id}/approvals/...`. The workspace ID is passed via `X-Workspace-Id` header, not URL path.
-
-**Fix**: Update frontend API client URL from `/workspaces/${workspaceId}/approvals/...` to `/approvals/...`. OR update backend router mounting to use workspace prefix.
-
-**Files**:
-- `frontend/src/services/api/approvals.ts` — Fix URL paths (lines 21, 36, 44, 50, 57, 66, 74)
-- `backend/src/pilot_space/main.py` — Alternatively, mount at workspace prefix
-
----
-
-### FR-004: Costs page "Not Found" error
-
-**Symptom**: Costs page shows "Failed to load cost data - Not Found".
-**Type**: URL path mismatch between frontend API client and backend router.
-
-**Root Cause (confirmed)**: Frontend calls `/workspaces/${workspaceId}/ai/costs/summary` (ai.ts:224) but backend router has `prefix="/costs"` mounted at `/api/v1` (main.py:245). The actual backend path is `/api/v1/costs/summary`. Frontend uses a workspace-scoped URL with an extra `/ai/` segment that doesn't exist.
-
-**Fix**: Update frontend API client URL from `/workspaces/${workspaceId}/ai/costs/summary` to `/costs/summary`. OR update backend mounting.
-
-**Files**:
-- `frontend/src/services/api/ai.ts` — Fix cost endpoint URL (line 224 and related)
-- `backend/src/pilot_space/main.py` — Alternatively, mount at workspace prefix
-
----
-
-### FR-005: Homepage note cards show "0 words"
-
-**Symptom**: Note cards display "0 words" instead of actual word count.
-**Type**: Missing data — API response field not populated.
-
-**Root Cause**: Either (a) `word_count` field is not computed/stored in backend, or (b) backend returns it as 0/null, or (c) frontend reads wrong field name.
-
-**Fix**: Ensure backend computes word count from TipTap JSON content on save and returns it in the notes list response. OR compute client-side from content.
-
-**Files**:
-- `frontend/src/features/homepage/components/` — Note card (check field name used)
-- `backend/src/pilot_space/api/v1/routers/homepage.py` — Check response schema
-- `backend/src/pilot_space/api/v1/routers/workspace_notes.py` — Check word_count field
-
----
-
-### FR-006: Issue Detail shows "null pts" and "No priority"
-
-**Symptom**: Issue detail shows literal "null pts" and "No priority" even with seeded data.
-**Type**: Null-check / rendering bug.
-
-**Root Cause**: Frontend renders `${estimate_points} pts` without null check, producing `"null pts"`. Priority field may not be mapped from backend response to frontend display label.
-
-**Fix**: Add null-safe rendering: `estimate_points ? \`${estimate_points} pts\` : "No estimate"`. Fix priority display to map value to label.
-
-**Files**:
-- `frontend/src/features/issues/components/issue-properties-panel.tsx`
-- `frontend/src/features/issues/components/issue-header.tsx`
-
----
-
-### FR-007: Sidebar PINNED and RECENT always empty
-
-**Symptom**: Sidebar sections show no notes.
-**Type**: Data loading — notes never loaded into MobX store.
-
-**Root Cause (confirmed)**: Sidebar reads `noteStore.pinnedNotes` and `noteStore.recentNotes` which are computed from `noteStore.notesList`. But `notesList` is derived from the internal `notes: Map` which is never populated because no component calls `noteStore.loadNotes()` on workspace mount.
-
-**Fix**: Either (a) trigger `noteStore.loadNotes()` when workspace changes (e.g., in sidebar useEffect), or (b) replace MobX-dependent logic with TanStack Query `useQuery` hook directly in sidebar.
-
-**Files**:
-- `frontend/src/components/layout/sidebar.tsx` — Add note loading trigger
-- `frontend/src/stores/features/notes/NoteStore.ts` — Verify `loadNotes()` populates map
-
----
-
-## Phase 2: Wire Existing Components (P1)
-
-These features have existing backend endpoints and frontend components. The work is connecting them and ensuring data flows correctly.
-
-### FR-008 + FR-021: Homepage activity feed with date grouping and previews
-
-**Existing**: `frontend/src/features/homepage/components/ActivityFeed/` directory exists. Backend `homepage_router` is mounted. `DigestPanel/` exists.
-
-**Wire**: Verify ActivityFeed component fetches from homepage endpoint and groups by date (Today/Yesterday/This Week). Ensure note cards include content preview (first 2 lines from TipTap JSON). This may just need the query hook wired correctly.
+**Wire**:
+- Verify ActivityFeed fetches from homepage endpoint and groups by date (Today/Yesterday/This Week)
+- Wire note content previews (first 2 lines from TipTap JSON → plaintext) on cards
+- Verify DigestPanel fetches digest data and renders workspace health metrics
+- Add fallback stats when no AI digest available
 
 **Files**:
 - `frontend/src/features/homepage/components/ActivityFeed/`
-- `frontend/src/features/homepage/hooks/` or `api/`
-- `backend/src/pilot_space/api/v1/routers/homepage.py`
-
----
-
-### FR-009: AI workspace insights on homepage
-
-**Existing**: `DigestPanel/` component exists. Backend has `DigestWorker` (main.py:121-124). `homepage_router` is mounted.
-
-**Wire**: Verify DigestPanel fetches digest data and renders. Add fallback stats view when no AI digest available (show basic counts from existing data).
-
-**Files**:
 - `frontend/src/features/homepage/components/DigestPanel/`
+- `frontend/src/app/(workspace)/[workspaceSlug]/page.tsx`
 - `backend/src/pilot_space/api/v1/routers/homepage.py`
 
 ---
 
-### FR-010: Slash command menu
+### 1.2 Note Editor — Slash Commands, Toolbar, Auto-save (FR-010, FR-011, FR-012)
 
-**Existing**: `SlashCommandExtension.ts` exists. `slash-command-items.ts` and `slash-command-menu.ts` exist. `createEditorExtensions.ts` factory exists.
+**Existing**: `SlashCommandExtension.ts`, `slash-command-items.ts`, 13 TipTap extensions, NoteStore with `isSaving`/`lastSavedAt`/`hasUnsavedChanges`.
 
-**Wire**: Verify SlashCommandExtension is included in `createEditorExtensions()`. Verify it includes all 8 block types: Heading 1-3, Bullet List, Numbered List, Task List, Code Block, Quote, Table, Divider. Add any missing items to `slash-command-items.ts`.
+**Verify**:
+- SlashCommand included in `createEditorExtensions()` with 8+ block types
+- BubbleMenu configured with Bold, Italic, Strikethrough, Code, Link, Highlight
+- Auto-save reaction fires at 2s debounce
+- SaveStatus component rendered in editor header
 
 **Files**:
-- `frontend/src/features/notes/editor/extensions/SlashCommandExtension.ts`
 - `frontend/src/features/notes/editor/extensions/slash-command-items.ts`
 - `frontend/src/features/notes/editor/extensions/createEditorExtensions.ts`
-
----
-
-### FR-011: Floating toolbar on text selection
-
-**Existing**: TipTap BubbleMenu is a standard TipTap feature. Editor components exist in `frontend/src/components/editor/`.
-
-**Wire**: Verify BubbleMenu is configured in the editor with: Bold, Italic, Strikethrough, Code, Link, Highlight options.
-
-**Files**:
-- `frontend/src/components/editor/` — Check for BubbleMenu/FloatingToolbar
-- `frontend/src/features/notes/editor/extensions/createEditorExtensions.ts`
-
----
-
-### FR-012: Auto-save with save indicator
-
-**Existing**: NoteStore has `isSaving`, `lastSavedAt`, `hasUnsavedChanges`. Auto-save with 2s debounce is documented.
-
-**Wire**: Verify the MobX reaction fires. Verify SaveStatus component exists and is rendered in editor header.
-
-**Files**:
+- `frontend/src/components/editor/` — BubbleMenu/FloatingToolbar, SaveStatus
 - `frontend/src/stores/features/notes/NoteStore.ts`
-- `frontend/src/components/editor/` (SaveStatus component)
 
 ---
 
-### FR-013 + FR-014: Intent extraction and issue creation
+### 1.3 Intent Extraction + Issue Creation (FR-013, FR-014, FR-015)
 
-**Existing**: Backend `ai_extraction_router` and `intents_router` exist. `workspace_note_issue_links_router` exists. Frontend has IssueLinkExtension and InlineIssueExtension.
+**Existing**: Backend `ai_extraction_router`, `intents_router`, `workspace_note_issue_links_router`. Frontend `InlineIssueExtension.ts`, `InlineIssueComponent.tsx`.
 
-**Wire**: Verify extraction endpoint works (call with note content, get categorized intents). Verify the frontend has an "Extract issues" trigger in the editor. Wire the approval flow: user reviews intents → approves → creates issue + NoteIssueLink.
+**Wire**:
+- Verify extraction endpoint works (note content → categorized intents)
+- Verify "Extract issues" trigger exists in editor UI (add toolbar button if missing)
+- Wire approval flow: extract → display categorized intents → approve → create issue + NoteIssueLink
+- After extraction approval, insert inline badges at extraction points
+- Verify clicking badge navigates to issue detail
 
 **Files**:
 - `backend/src/pilot_space/api/v1/routers/ai_extraction.py`
 - `backend/src/pilot_space/api/v1/routers/intents.py`
-- `backend/src/pilot_space/api/v1/routers/workspace_note_issue_links.py`
-- `frontend/src/features/notes/editor/extensions/InlineIssueExtension.ts`
-
----
-
-### FR-015: Inline issue badges
-
-**Existing**: `IssueLinkExtension.ts` and `InlineIssueExtension.ts` both exist. `InlineIssueComponent.tsx` exists.
-
-**Wire**: Verify after extraction, inline badges are inserted in TipTap content at the right position. Verify clicking badge navigates to issue detail.
-
-**Files**:
-- `frontend/src/features/notes/editor/extensions/IssueLinkExtension.ts`
 - `frontend/src/features/notes/editor/extensions/InlineIssueExtension.ts`
 - `frontend/src/features/notes/editor/extensions/InlineIssueComponent.tsx`
 
 ---
 
-### FR-022: Version history with restore
+### 1.4 AI Context + Copy for Claude Code (FR-016, FR-017)
 
-**Existing**: `VersionHistoryPanel.tsx`, `useNoteVersions.ts`, `versionApi.ts` all exist (modified in git status). Backend `note_versions_router` exists.
+**Existing**: `ai-context-panel.tsx`, `ai-context-tab.tsx`, `claude-code-prompt-card.tsx`, `copy-context.ts`. Backend `issues_ai_context_router`.
 
-**Wire**: Verify the version history panel lists versions and restore works. Fix any data binding issues in the modified files.
+**Verify**:
+- Context includes 5 sections (description, criteria, requirements, notes, dependencies)
+- "Copy for Claude Code" formats correctly and copies to clipboard
+- Fix rendering/data issues
+
+**Files**:
+- `frontend/src/features/issues/components/ai-context-panel.tsx`
+- `frontend/src/features/issues/components/claude-code-prompt-card.tsx`
+- `frontend/src/lib/copy-context.ts`
+- `backend/src/pilot_space/api/v1/routers/issues_ai_context.py`
+
+---
+
+### 1.5 Kanban Polish — Drag-Drop, Cards, Views (FR-018, FR-019, FR-020)
+
+**Existing**: Issue components, IssueStore with `viewMode`, dnd-kit likely in package.json.
+
+**Verify/Fix**:
+- Drag-and-drop works between Kanban columns → state update
+- Issue cards show: identifier, title, priority color indicator, assignee avatar
+- List and Table views render and function
+- Table has sortable columns
+
+**Files**:
+- `frontend/src/features/issues/components/` — board, list, table components
+- `frontend/src/app/(workspace)/[workspaceSlug]/issues/page.tsx`
+
+---
+
+## Phase 2: Wire Dead Features (P2)
+
+### 2.1 TemplatePicker in New Note Flow (FR-023)
+
+**Existing**: `TemplatePicker` component 100% built with keyboard navigation + TanStack Query. 4 system SDLC templates in backend `note_templates_router`.
+
+**Fix**: Mount TemplatePicker in the "New Note" creation flow. When user clicks "New Note", show TemplatePicker instead of creating blank note directly.
+
+**Files**:
+- Find "New Note" trigger (sidebar or notes page)
+- `frontend/src/features/notes/components/TemplatePicker.tsx` (or similar)
+- `backend/src/pilot_space/api/v1/routers/note_templates.py`
+
+---
+
+### 2.2 Cmd+K Global Search (FR-024)
+
+**Existing**: UIStore `commandPaletteOpen` state, Meilisearch indexes notes + issues.
+
+**Build**:
+- Create SearchModal component (or find existing)
+- Wire Cmd+K shortcut to toggle `commandPaletteOpen`
+- Connect to Meilisearch for note body + issue search
+- Navigate to result on selection
+
+**Files**:
+- `frontend/src/stores/UIStore.ts`
+- `frontend/src/components/` — new or existing SearchModal
+- Meilisearch client config
+
+---
+
+### 2.3 Issue Filter Dropdowns (FR-025)
+
+**Existing**: Assignee/Label filter dropdowns exist but render empty arrays.
+
+**Fix**: Wire dropdown options to fetch actual workspace members and project labels.
+
+**Files**:
+- `frontend/src/features/issues/components/` — filter components
+- `frontend/src/services/api/` — members and labels API calls
+
+---
+
+### 2.4 Version History (FR-022)
+
+**Existing**: `VersionHistoryPanel.tsx`, `useNoteVersions.ts`, `versionApi.ts`. Backend `note_versions_router`.
+
+**Verify**: List → view → restore flow works. Fix data binding issues.
 
 **Files**:
 - `frontend/src/components/editor/VersionHistoryPanel.tsx`
 - `frontend/src/hooks/useNoteVersions.ts`
 - `frontend/src/features/notes/services/versionApi.ts`
-- `backend/src/pilot_space/api/v1/routers/note_versions.py`
 
 ---
 
-## Phase 3: UX Polish (P2-P3)
+## Phase 3: SDLC Testing Phase Gap (P2)
 
-### FR-016 + FR-017: AI Context + Copy for Claude Code
+Target: 60% → 70% coverage.
 
-**Existing**: `ai-context-panel.tsx`, `ai-context-tab.tsx`, `ai-context-streaming.tsx`, `claude-code-prompt-card.tsx`, `copy-context.ts` all exist. Backend `issues_ai_context_router` and `issues_ai_context_streaming_router` both exist.
+### 3.1 CI Status on Issues (FR-026)
 
-**Polish**: Verify context includes 5 sections (description, criteria, requirements, notes, dependencies). Verify "Copy for Claude Code" formats correctly and copies to clipboard.
+**Existing**: GitHub webhook receives PR events. `IssueGitHubPRLink` tracks PR-to-issue links. PR data stored in backend.
+
+**Build**:
+- Extract CI check status from GitHub webhook `check_suite` / `check_run` events
+- Store latest CI status per PR link
+- Display CI badge (pass/fail/pending) on issue detail next to linked PR
+- Expose via `GET /issues/{id}/github-links` response enrichment
+
+**Files**:
+- `backend/src/pilot_space/api/v1/routers/github_links.py`
+- `backend/src/pilot_space/services/github/` — webhook handler
+- `frontend/src/features/issues/components/` — PR link display
 
 ---
 
-### FR-018 + FR-019 + FR-020: Kanban drag-drop, cards, List/Table views
+### 3.2 PR Review Findings in Issue Timeline (FR-027)
 
-**Existing**: Issue components exist. IssueStore has `viewMode` ('board'|'list'|'table'). Check for dnd-kit or similar in package.json.
+**Existing**: `PRReviewSubagent` posts comments to GitHub PR. Issue activity timeline exists.
 
-**Polish**: Verify drag-and-drop works. Verify issue cards show identifier, title, priority, assignee. Verify List/Table view alternatives render.
+**Wire**:
+- When PR review completes, create activity entry on linked issue
+- Show severity summary (Critical: N, Warning: N, Info: N) in timeline card
+- Link to full PR review on GitHub
+
+**Files**:
+- `backend/src/pilot_space/ai/agents/` — PR review completion hook
+- `backend/src/pilot_space/api/v1/routers/` — issue activity router
+- `frontend/src/features/issues/components/` — activity timeline card
 
 ---
 
-### FR-023: Workspace invitation
+### 3.3 Project Quality Dashboard (FR-028) — MAY
 
-**Existing**: Backend `workspace_invitations_router` exists. Frontend members page exists.
+**Build** (if time permits):
+- Aggregate: open PRs with review status, recent CI failures, linked issues by state
+- Display on project overview page
+- Pull data from existing GitHub link + PR review tables
+
+---
+
+## Phase 4: SDLC Deployment Phase Gap (P2)
+
+Target: 40% → 65% coverage.
+
+### 4.1 Release Notes per Cycle (FR-029)
+
+**Existing**: Backend `pm_release_notes_router` with heuristic classifier (categorizes issues as features/bug_fixes/improvements/internal). `ReleaseNotesResponse` schema exists.
+
+**Wire**:
+- Add "Release Notes" tab to cycle detail page
+- Fetch auto-categorized completed issues via existing endpoint
+- Display grouped by category with human-edit capability
+
+**Files**:
+- `backend/src/pilot_space/api/v1/routers/pm_release_notes.py`
+- `frontend/src/features/cycles/` — cycle detail page
+- New: release notes tab component
+
+---
+
+### 4.2 Release Notes Export (FR-030)
+
+**Build**:
+- Add "Export as Markdown" button to release notes tab
+- Format as GitHub Release-compatible markdown
+- Copy to clipboard or download as `.md` file
+
+---
+
+### 4.3 Deployment Activity in Issue Timeline (FR-031) — MAY
+
+**Wire** (if time permits):
+- On PR merge webhook event, create activity entry showing merge commit + target branch
+- Display in issue timeline as "Deployed to main" or similar
+
+---
+
+## Phase 5: SDLC Maintenance Phase Gap (P2)
+
+Target: 65% → 80% coverage.
+
+### 5.1 Notification Backend Pipeline (FR-032)
+
+**Existing**: `QueueName.NOTIFICATIONS` queue, `enqueue_notification()` function, `NotificationStore` UI.
+
+**Build**:
+- Create `notifications` table migration (user_id, workspace_id, type, title, body, entity_type, entity_id, read_at, priority, created_at)
+- Create notification service with CRUD operations
+- Create notification worker consuming from pgmq queue
+- Emit notifications for: PR review complete, issue assignment change, sprint deadline warning
+
+**Files**:
+- `backend/src/pilot_space/models/` — new notification model
+- `backend/src/pilot_space/services/` — notification service
+- `backend/src/pilot_space/workers/` — notification worker
+- `backend/src/pilot_space/api/v1/routers/` — notification router
+
+---
+
+### 5.2 Notification Center Frontend (FR-033)
+
+**Existing**: `NotificationStore` with bell icon, priority badges, mark-as-read UI.
+
+**Wire**:
+- Connect NotificationStore to backend notification endpoint
+- Fetch notifications on mount + SSE for real-time updates
+- Group by type, show priority badges
+- Mark-as-read on click
+
+**Files**:
+- `frontend/src/stores/` — NotificationStore
+- `frontend/src/components/` — notification bell, notification panel
+
+---
+
+### 5.3 Notification Preferences (FR-034) — MAY
+
+**Build** (if time permits):
+- Per-user notification preferences: enable/disable per type, in-app only
+- Settings page section for notification preferences
+
+---
+
+## Phase 6: Settings & Polish (P3)
+
+### 6.1 Fix Invitation Flow (FR-035)
+
 **Known bug**: "Invite Members" dispatches CustomEvent with no listener.
 
-**Polish**: Fix invite button to call API directly instead of CustomEvent.
+**Fix**: Replace CustomEvent with direct API call to invitation endpoint.
+
+**Files**:
+- `frontend/src/app/(workspace)/[workspaceSlug]/settings/members/page.tsx`
+- `backend/src/pilot_space/api/v1/routers/workspace_invitations.py`
 
 ---
 
-### FR-024: AI Providers
+### 6.2 Fix AI Providers Error Display (FR-036)
 
-**Existing**: AI providers page and backend `ai_configuration_router` exist.
-**Known bug**: Shows `[object Object]` error.
+**Known bug**: Shows `[object Object]` error instead of meaningful message.
 
-**Polish**: Fix error serialization to display meaningful messages.
+**Fix**: Serialize error object to readable string.
 
----
-
-### FR-025: Command palette (MAY)
-
-**Existing**: UIStore has `commandPaletteOpen`. Likely a component exists.
-
-**Polish**: Wire Cmd+K shortcut and verify search works. Low priority — implement only if time permits.
+**Files**:
+- `frontend/src/app/(workspace)/[workspaceSlug]/settings/ai-providers/page.tsx`
 
 ---
 
 ## Cross-Cutting Notes
 
-### Backend Router Mounting Reference (from main.py)
+### SDLC Coverage Targets After Plan Execution
 
-| Router | Mount Prefix | Actual Path |
-|--------|-------------|-------------|
-| `ai_approvals_router` | `/api/v1` | `/api/v1/approvals/...` |
-| `ai_costs_router` | `/api/v1` | `/api/v1/costs/...` |
-| `ai_chat_router` | `/api/v1/ai` | `/api/v1/ai/chat/...` |
-| `workspace_notes_router` | `/api/v1/workspaces` | `/api/v1/workspaces/{id}/notes/...` |
-| `workspace_issues_router` | `/api/v1/workspaces` | `/api/v1/workspaces/{id}/issues/...` |
+| Phase | Before | After | Delta |
+|---|---|---|---|
+| Planning | 75% | 75% | — (no changes needed) |
+| Requirements | 85% | 85% | — (already strong) |
+| Design | 80% | 80% | — (KG viz deferred to v2.1) |
+| Implementation | 85% | 90% | +5% (dead code wired) |
+| Testing | 60% | 70% | +10% (CI status, PR findings) |
+| Deployment | 40% | 65% | +25% (release notes, export) |
+| Maintenance | 65% | 80% | +15% (notifications pipeline) |
 
-### Fix Strategy: Frontend vs Backend
+### Dependencies Graph
 
-For URL mismatches (FR-003, FR-004), prefer fixing the **frontend API client** to match existing backend routes rather than changing backend mounting. Backend routes are stable and tested; frontend client URLs are isolated changes.
+```
+Phase 1 (P1 — all can run in parallel):
+  1.1 Homepage Feed + Digest
+  1.2 Editor Verification
+  1.3 Intent Extraction Pipeline
+  1.4 AI Context Verification
+  1.5 Kanban Polish
+
+Phase 2 (P2 — independent of Phase 1):
+  2.1 TemplatePicker
+  2.2 Cmd+K Search
+  2.3 Issue Filters
+  2.4 Version History
+
+Phase 3 (P2 — depends on GitHub integration):
+  3.1 CI Status on Issues
+  3.2 PR Review in Timeline ← depends on 3.1
+  3.3 Quality Dashboard ← depends on 3.1, 3.2
+
+Phase 4 (P2 — independent):
+  4.1 Release Notes Tab
+  4.2 Release Notes Export ← depends on 4.1
+  4.3 Deployment Activity
+
+Phase 5 (P2 — sequential):
+  5.1 Notification Backend ← blocks 5.2
+  5.2 Notification Center ← depends on 5.1
+  5.3 Notification Preferences ← depends on 5.2
+
+Phase 6 (P3 — independent):
+  6.1 Invitation Flow Fix
+  6.2 AI Providers Fix
+```
+
+### Execution Strategy
+
+```
+Week 1: Phase 1 (all 5 items parallel) + Phase 6 (quick fixes)
+Week 2: Phase 2 (all 4 items parallel) + Phase 3 (3.1 → 3.2)
+Week 3: Phase 4 (4.1 → 4.2) + Phase 5 (5.1 → 5.2)
+```
 
 ### Testing Strategy
 
-- Unit tests for each bug fix (especially state mapping and null checks)
-- Smoke test: Login → Homepage (word counts) → Issues (Kanban columns) → AI Chat → Approvals → Costs
-- Verify sidebar PINNED/RECENT after workspace load
-
-### Known Issues from Previous Work (MEMORY.md)
-
-These may still apply:
-- RLS policies use UPPERCASE enum but DB stores lowercase → check if this affects issue state queries
-- Alembic migration chain was broken in previous branch → verify before running migrations
-- `_is_demo_workspace` undefined → may affect homepage endpoint
+- Unit tests for each new feature/fix
+- Integration tests for notification pipeline (backend)
+- Smoke test per phase: verify core flow end-to-end
+- Quality gates before each commit: `make quality-gates-backend` + `make quality-gates-frontend`
