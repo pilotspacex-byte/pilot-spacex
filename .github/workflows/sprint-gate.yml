@@ -80,7 +80,7 @@ jobs:
             -v --tb=short --no-header
 
       - name: Upload load test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: crdt-gate-results
@@ -119,7 +119,7 @@ jobs:
             -v --tb=short --no-header
 
       - name: Upload results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: memory-search-gate-results
@@ -158,7 +158,7 @@ jobs:
             -v --tb=short --no-header
 
       - name: Upload results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: version-pm-gate-results
