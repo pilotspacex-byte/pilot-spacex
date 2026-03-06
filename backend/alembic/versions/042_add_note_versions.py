@@ -5,7 +5,7 @@ Supports auto/manual/ai_before/ai_after triggers with RLS workspace isolation.
 Includes pg_cron function fn_auto_version_active_notes() scheduled every 5 min.
 
 Revision ID: 042_add_note_versions
-Revises: 041_add_skill_approval_expiry_cron
+Revises: 041_add_skill_approval_expiry
 Create Date: 2026-02-19
 
 Feature 017: Note Versioning + PM Blocks — Sprint 1 (T-201, T-202)
@@ -18,7 +18,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "042_add_note_versions"
-down_revision = "041_add_skill_approval_expiry_cron"
+down_revision = "041_add_skill_approval_expiry"
 branch_labels = None
 depends_on = None
 
@@ -145,7 +145,8 @@ def upgrade() -> None:
     op.execute("ALTER TABLE note_versions ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE note_versions FORCE ROW LEVEL SECURITY")
 
-    op.execute("""
+    op.execute(
+        """
         CREATE POLICY "note_versions_workspace_isolation"
         ON note_versions FOR ALL
         USING (
@@ -164,13 +165,15 @@ def upgrade() -> None:
                 AND wm.is_deleted = false
             )
         )
-    """)
+    """
+    )
 
     # 4. T-202: Auto-version pg_cron function
     # Finds notes with last_edit_at in the past 5 minutes that have no version
     # created in the past 5 minutes → enqueues an auto-snapshot job.
     # Falls back gracefully if notes table has no last_edit_at column (uses updated_at).
-    op.execute("""
+    op.execute(
+        """
         CREATE OR REPLACE FUNCTION fn_auto_version_active_notes()
         RETURNS void
         LANGUAGE plpgsql
@@ -220,11 +223,13 @@ def upgrade() -> None:
             END LOOP;
         END;
         $$
-    """)
+    """
+    )
 
     # Schedule pg_cron job every 5 minutes (FR-034).
     # Wrapped in DO block to skip gracefully if pg_cron not installed.
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
@@ -236,13 +241,15 @@ def upgrade() -> None:
             END IF;
         END;
         $$
-    """)
+    """
+    )
 
 
 def downgrade() -> None:
     """Remove note_versions table and auto-version pg_cron job."""
     # Remove pg_cron job
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
@@ -250,13 +257,18 @@ def downgrade() -> None:
             END IF;
         END;
         $$
-    """)
+    """
+    )
     op.execute("DROP FUNCTION IF EXISTS fn_auto_version_active_notes()")
 
     # Drop note_versions
-    op.execute('DROP POLICY IF EXISTS "note_versions_workspace_isolation" ON note_versions')
+    op.execute(
+        'DROP POLICY IF EXISTS "note_versions_workspace_isolation" ON note_versions'
+    )
     op.execute("ALTER TABLE note_versions DISABLE ROW LEVEL SECURITY")
-    op.drop_constraint("uq_note_versions_note_version_number", "note_versions", type_="unique")
+    op.drop_constraint(
+        "uq_note_versions_note_version_number", "note_versions", type_="unique"
+    )
     op.drop_index("ix_note_versions_created_by", table_name="note_versions")
     op.drop_index("ix_note_versions_pinned", table_name="note_versions")
     op.drop_index("ix_note_versions_trigger", table_name="note_versions")

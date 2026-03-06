@@ -1,6 +1,6 @@
 """Add service_role bypass policy for pilot_api_keys.
 
-Revision ID: 054_add_pilot_api_keys_service_role_policy
+Revision ID: 054_add_pilot_api_keys
 Revises: 053_fix_pilot_api_keys_rls
 Create Date: 2026-03-01
 
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from alembic import op
 
-revision: str = "054_add_pilot_api_keys_service_role_policy"
+revision: str = "054_add_pilot_api_keys"
 down_revision: str | None = "053_fix_pilot_api_keys_rls"
 branch_labels: tuple[str, ...] | None = None
 depends_on: tuple[str, ...] | None = None
@@ -28,14 +28,16 @@ depends_on: tuple[str, ...] | None = None
 
 def upgrade() -> None:
     """Add service_role bypass policy for admin/background operations."""
-    op.execute("""
+    op.execute(
+        """
         CREATE POLICY "pilot_api_keys_service_role"
         ON pilot_api_keys
         FOR ALL
         TO service_role
         USING (true)
         WITH CHECK (true)
-    """)
+    """
+    )
 
 
 def downgrade() -> None:

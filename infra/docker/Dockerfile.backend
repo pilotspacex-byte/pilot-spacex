@@ -21,15 +21,17 @@ ARG PYTHON_VERSION=3.12
 # =============================================================================
 FROM python:${PYTHON_VERSION}-slim AS base
 
+# Venv lives at a fixed path so every stage can reference it consistently
+ENV VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
+
 # Prevent Python from writing bytecode and buffering stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONHASHSEED=random \
     # pip settings
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # uv settings
-    UV_SYSTEM_PYTHON=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
@@ -47,6 +49,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv package manager (faster than pip)
 RUN pip install --no-cache-dir uv
 
+# Pre-create the venv so uv always installs into it
+RUN uv venv /app/.venv
+
 # Copy dependency files first (for better layer caching)
 COPY pyproject.toml uv.lock ./
 
@@ -55,13 +60,17 @@ COPY pyproject.toml uv.lock ./
 # =============================================================================
 FROM base AS development
 
-# Install all dependencies including dev
-RUN uv sync --frozen
+# Install all dependencies (excluding the project itself — src/ not copied yet)
+RUN uv sync --frozen --no-install-project
 
 # Copy source code
 COPY src/ ./src/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
+COPY README.md ./
+
+# Install the project itself now that src/ is present
+RUN uv sync --frozen
 
 # Set Python path for source code
 ENV PYTHONPATH=/app/src
@@ -76,21 +85,25 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
-# Development command with hot reload
-CMD ["uv", "run", "uvicorn", "pilot_space.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app/src"]
+# Development command with hot reload — uvicorn is on PATH via /app/.venv/bin
+CMD ["uvicorn", "pilot_space.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app/src"]
 
 # =============================================================================
 # BUILDER STAGE - Build production artifacts
 # =============================================================================
 FROM base AS builder
 
-# Install production dependencies only (no dev)
-RUN uv sync --frozen --no-dev
+# Install production dependencies (excluding the project itself — src/ not copied yet)
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy source code
 COPY src/ ./src/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
+COPY README.md ./
+
+# Install the project itself now that src/ is present
+RUN uv sync --frozen --no-dev
 
 # =============================================================================
 # PRODUCTION STAGE - Minimal production image
@@ -104,7 +117,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     # Application settings
     APP_ENV=production \
     HOST=0.0.0.0 \
-    PORT=8000
+    PORT=8000 \
+    # Use the venv from builder
+    VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
 
@@ -119,14 +135,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd --gid 1000 appgroup \
     && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy the entire venv from builder (all packages + scripts already installed)
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/alembic ./alembic
 COPY --from=builder /app/alembic.ini ./
+COPY --from=builder /app/README.md ./
 
 # Set Python path
 ENV PYTHONPATH=/app/src
@@ -143,5 +159,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Production command with multiple workers
-CMD ["python", "-m", "uvicorn", "pilot_space.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--loop", "uvloop", "--http", "httptools"]
+# Production command — uvicorn is on PATH via /app/.venv/bin
+CMD ["uvicorn", "pilot_space.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--loop", "uvloop", "--http", "httptools"]

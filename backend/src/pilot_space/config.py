@@ -5,10 +5,10 @@ Uses Pydantic Settings for environment variable loading and validation.
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import DirectoryPath, Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 DEFAULT_FOLDER = "/tmp/pilot-space/spaces"
 
@@ -129,7 +129,7 @@ class Settings(BaseSettings):
     rate_limit_ai_per_minute: int = Field(default=100, ge=10)
 
     # CORS
-    cors_origins: list[str] = Field(
+    cors_origins: Annotated[list[str], NoDecode] = Field(
         default=["*"],
         description="Allowed CORS origins",
     )

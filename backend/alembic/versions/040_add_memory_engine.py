@@ -22,25 +22,7 @@ depends_on = None
 
 def upgrade() -> None:
     """Create memory engine tables with RLS, indexes, and vector support."""
-    # 1. Create enums
-    op.execute("""
-        CREATE TYPE memory_source_type_enum AS ENUM (
-            'intent',
-            'skill_outcome',
-            'user_feedback',
-            'constitution'
-        )
-    """)
-
-    op.execute("""
-        CREATE TYPE constitution_severity_enum AS ENUM (
-            'must',
-            'should',
-            'may'
-        )
-    """)
-
-    # 2. Create memory_entries table
+    # 1. Create memory_entries table
     op.create_table(
         "memory_entries",
         sa.Column(
@@ -66,7 +48,7 @@ def upgrade() -> None:
                 "user_feedback",
                 "constitution",
                 name="memory_source_type_enum",
-                create_type=False,
+                create_type=True,
             ),
             nullable=False,
         ),
@@ -112,7 +94,7 @@ def upgrade() -> None:
         USING to_tsvector('english', coalesce(keywords, ''))
     """)
 
-    # 3. Indexes for memory_entries
+    # 2. Indexes for memory_entries
     op.create_index(
         "ix_memory_entries_workspace_id",
         "memory_entries",
@@ -149,7 +131,7 @@ def upgrade() -> None:
         USING gin (keywords)
     """)
 
-    # 4. RLS for memory_entries
+    # 3. RLS for memory_entries
     op.execute("ALTER TABLE memory_entries ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE memory_entries FORCE ROW LEVEL SECURITY")
 
@@ -174,7 +156,7 @@ def upgrade() -> None:
         )
     """)
 
-    # 5. Create constitution_rules table
+    # 4. Create constitution_rules table
     op.create_table(
         "constitution_rules",
         sa.Column(
@@ -197,7 +179,7 @@ def upgrade() -> None:
                 "should",
                 "may",
                 name="constitution_severity_enum",
-                create_type=False,
+                create_type=True,
             ),
             nullable=False,
         ),
@@ -236,7 +218,7 @@ def upgrade() -> None:
         ),
     )
 
-    # 6. Indexes for constitution_rules
+    # 5. Indexes for constitution_rules
     op.create_index(
         "ix_constitution_rules_workspace_version",
         "constitution_rules",
@@ -248,7 +230,7 @@ def upgrade() -> None:
         ["workspace_id", "active"],
     )
 
-    # 7. RLS for constitution_rules
+    # 6. RLS for constitution_rules
     op.execute("ALTER TABLE constitution_rules ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE constitution_rules FORCE ROW LEVEL SECURITY")
 
@@ -273,7 +255,7 @@ def upgrade() -> None:
         )
     """)
 
-    # 8. Create memory_dlq table (dead letter queue — no RLS bypass needed, service-only)
+    # 7. Create memory_dlq table (dead letter queue — no RLS bypass needed, service-only)
     op.create_table(
         "memory_dlq",
         sa.Column(

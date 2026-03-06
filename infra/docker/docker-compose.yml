@@ -14,46 +14,9 @@
 #   - backend:         FastAPI application (port 8000)
 #   - frontend:        Next.js application (port 3000)
 
+name: pilot-space
+
 services:
-  # ============================================================================
-  # DATABASE SERVICES
-  # ============================================================================
-
-  postgres:
-    image: supabase/postgres:15.8.1.076
-    container_name: pilot-space-postgres
-    restart: unless-stopped
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-pilot_space}
-      # Enable pgvector and other extensions
-      POSTGRES_INITDB_ARGS: "--data-checksums"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-scripts:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-pilot_space}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - pilot-space-network
-    # Security: Limit resource usage
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-        reservations:
-          memory: 512M
-
-  # ============================================================================
-  # CACHE SERVICES
-  # ============================================================================
-
   redis:
     image: redis:7-alpine
     container_name: pilot-space-redis
@@ -83,10 +46,6 @@ services:
           memory: 512M
         reservations:
           memory: 128M
-
-  # ============================================================================
-  # SEARCH SERVICES
-  # ============================================================================
 
   meilisearch:
     image: getmeili/meilisearch:v1.6
@@ -119,37 +78,22 @@ services:
         reservations:
           memory: 256M
 
-  # ============================================================================
-  # SUPABASE SERVICES (Optional - use `supabase start` for full local dev)
-  # ============================================================================
-
-  supabase-studio:
-    image: supabase/studio:20240422-5cf8f30
-    container_name: pilot-space-supabase-studio
-    restart: unless-stopped
-    profiles:
-      - supabase
-      - dev-tools
-    ports:
-      - "${SUPABASE_STUDIO_PORT:-54323}:3000"
+  migration:
+    build:
+      context: ../../backend
+      dockerfile: ../infra/docker/Dockerfile.migration
+      args:
+        PYTHON_VERSION: "3.12"
+        RUN_SEED: ${RUN_SEED:-true}
+    container_name: pilot-space-migration
+    restart: "no"
     environment:
-      STUDIO_PG_META_URL: http://postgres:5432
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      DEFAULT_ORGANIZATION_NAME: Pilot Space
-      DEFAULT_PROJECT_NAME: pilot-space-local
-      SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
-      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://localhost:54321}
-      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      # env.py converts postgresql+asyncpg:// -> postgresql:// for psycopg2
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:your-super-secret-password@db:5432/pilot_space}
+      SUPABASE_URL: ${MIGRATION_SUPABASE_URL:-}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - pilot-space-network
-
-  # ============================================================================
-  # APPLICATION SERVICES
-  # ============================================================================
 
   backend:
     build:
@@ -175,7 +119,7 @@ services:
       WORKERS: ${BACKEND_WORKERS:-1}
 
       # Database (connects to local postgres container)
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-pilot_space}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:your-super-secret-password@db:5432/pilot_space}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
       DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}
 
@@ -184,9 +128,10 @@ services:
       REDIS_MAX_CONNECTIONS: ${REDIS_MAX_CONNECTIONS:-10}
 
       # Supabase (when using external Supabase)
-      SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
+      SUPABASE_URL: ${SUPABASE_URL:-http://kong:8000}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
-      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
+      # SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
 
       # Meilisearch
       MEILISEARCH_URL: http://meilisearch:7700
@@ -202,6 +147,11 @@ services:
       AI_MAX_RETRIES: ${AI_MAX_RETRIES:-3}
       AI_GHOST_TEXT_DEBOUNCE_MS: ${AI_GHOST_TEXT_DEBOUNCE_MS:-500}
       AI_GHOST_TEXT_MAX_TOKENS: ${AI_GHOST_TEXT_MAX_TOKENS:-50}
+
+      PILOTSPACE_MODEL_SONNET_DEFAULT: ${PILOTSPACE_MODEL_SONNET_DEFAULT:-}
+      PILOTSPACE_MODEL_HAIKU_DEFAULT: ${PILOTSPACE_MODEL_HAIKU_DEFAULT:-}
+      PILOTSPACE_MODEL_OPUS_DEFAULT: ${PILOTSPACE_MODEL_OPUS_DEFAULT:-}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
 
       # Rate Limiting
       RATE_LIMIT_STANDARD_PER_MINUTE: ${RATE_LIMIT_STANDARD_PER_MINUTE:-1000}
@@ -219,12 +169,10 @@ services:
       - ../../backend/src:/app/src:ro
       - ../../backend/alembic:/app/alembic:ro
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
-      meilisearch:
-        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -247,6 +195,9 @@ services:
       target: ${FRONTEND_BUILD_TARGET:-development}
       args:
         NODE_VERSION: "20"
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
     container_name: pilot-space-frontend
     restart: unless-stopped
     ports:
@@ -268,10 +219,10 @@ services:
 
       # Telemetry (disable in dev)
       NEXT_TELEMETRY_DISABLED: "1"
-    volumes:
-      # Hot reload in development (read-only for security)
-      - ../../frontend/src:/app/src:ro
-      - ../../frontend/public:/app/public:ro
+    # volumes:
+    #   # Hot reload in development (read-only for security)
+    #   - ../../frontend/src:/app/src:ro
+    #   - ../../frontend/public:/app/public:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -302,15 +253,7 @@ networks:
       config:
         - subnet: 172.28.0.0/16
 
-# ==============================================================================
-# VOLUMES
-# ==============================================================================
-
 volumes:
-  postgres_data:
-    name: pilot-space-postgres-data
-    driver: local
-
   redis_data:
     name: pilot-space-redis-data
     driver: local

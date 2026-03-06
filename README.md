@@ -16,10 +16,11 @@ Pilot Space embeds an AI agent directly into your software development lifecycle
 - [Tech Stack](#tech-stack)
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
-  - [1. Infrastructure Services](#1-infrastructure-services)
-  - [2. Supabase (Auth + Database)](#2-supabase-auth--database)
-  - [3. Backend](#3-backend)
-  - [4. Frontend](#4-frontend)
+  - [1. Copy environment files](#1-copy-environment-files)
+  - [2. Generate Supabase secrets](#2-generate-supabase-secrets)
+  - [3. Start Supabase services](#3-start-supabase-services)
+  - [4. Start application services](#4-start-application-services)
+  - [5. Verify](#5-verify)
 - [Environment Variables](#environment-variables)
 - [Development Commands](#development-commands)
 - [Project Structure](#project-structure)
@@ -169,122 +170,135 @@ Backend (FastAPI, port 8000)
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| Python | 3.12+ | Backend runtime |
-| Node.js | 20+ | Frontend runtime |
-| pnpm | 9+ | Frontend package manager |
-| Docker | 24+ | Redis + Meilisearch |
-| Supabase CLI | latest | Local Supabase stack |
-| uv | latest | Python package manager |
-
-Install `uv`: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-
-Install Supabase CLI: `brew install supabase/tap/supabase`
+| Docker | 24+ | All services run in containers |
+| Docker Compose | v2+ | Bundled with Docker Desktop |
+| Python | 3.12+ | Local backend dev (optional) |
+| Node.js | 20+ | Local frontend dev (optional) |
+| pnpm | 9+ | Frontend package manager (optional) |
+| uv | latest | Python package manager (optional) |
 
 ---
 
 ## Setup
 
-### 1. Infrastructure Services
+The stack runs in two phases: Supabase infrastructure first, then the application services. No local Supabase CLI or `supabase start` needed.
 
-Start Redis and Meilisearch via Docker Compose:
+### 1. Copy environment files
 
 ```bash
+# Docker / application env
+cp infra/docker/.env.example infra/docker/.env
+
+# Supabase services env
+cp infra/supabase/.env.example infra/supabase/.env
+```
+
+### 2. Generate Supabase secrets
+
+Run the key generation script to produce fresh JWT secrets, tokens, and passwords:
+
+```bash
+cd infra/supabase
+sh scripts/generate-keys.sh
+```
+
+The script prints all generated values. Copy them into `infra/supabase/.env` (the script will offer to do this automatically if you run it interactively and answer `y`).
+
+Then update the matching keys in `infra/docker/.env`:
+
+```env
+SUPABASE_ANON_KEY=<ANON_KEY from infra/supabase/.env>
+SUPABASE_JWT_SECRET=<JWT_SECRET from infra/supabase/.env>
+```
+
+Edit any remaining values in `infra/docker/.env` as needed (see [Environment Variables](#environment-variables) below).
+
+### 3. Start Supabase services
+
+```bash
+cd infra/supabase
 docker compose up -d
 ```
 
-Services started:
-- Redis — `localhost:6379`
-- Meilisearch — `localhost:7700`
-
-### 2. Supabase (Auth + Database)
+Wait until all Supabase containers are healthy before proceeding:
 
 ```bash
-# Start local Supabase stack (PostgreSQL, Auth, Realtime, Storage)
-supabase start
-
-# Apply database migrations
-cd backend && alembic upgrade head
+docker compose ps   # all services should show "healthy" or "running"
 ```
 
-Supabase services:
-- API: `http://localhost:54321`
-- Database: `postgresql://postgres:postgres@localhost:54322/postgres`
-- Studio: `http://localhost:54323`
+### 4. Start application services
 
-Get your anon/service keys from `supabase status`.
-
-### 3. Backend
+Once Supabase is healthy:
 
 ```bash
-cd backend
-
-# Create virtual environment and install dependencies
-uv venv && source .venv/bin/activate
-uv sync
-
-# Install pre-commit hooks
-pre-commit install
-
-# Copy and configure environment
-cp .env.example .env   # Edit with your values (see Environment Variables)
-
-# Start development server
-uvicorn pilot_space.main:app --reload --host 0.0.0.0 --port 8000
+cd infra/docker
+docker compose up -d
 ```
 
-API docs available at `http://localhost:8000/docs`.
+Docker Compose will:
+1. Run database migrations (`migration` service — runs once and exits)
+2. Start Redis and Meilisearch
+3. Start the FastAPI backend
+4. Start the Next.js frontend
 
-### 4. Frontend
+**Services after startup:**
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000/docs |
+| Supabase Studio | http://localhost:54323 |
+| PostgreSQL | localhost:5432 |
+| Redis | localhost:6379 |
+| Meilisearch | localhost:7700 |
+
+### 5. Verify
 
 ```bash
-cd frontend
+# Check Supabase containers
+cd infra/supabase && docker compose ps
 
-# Install dependencies
-pnpm install
+# Check application containers
+cd infra/docker && docker compose ps
 
-# Copy and configure environment
-cp .env.local.example .env.local   # Edit with your values
-
-# Start development server
-pnpm dev
+# Tail logs for a specific service
+docker compose logs -f backend
 ```
-
-App available at `http://localhost:3000`.
 
 ---
 
 ## Environment Variables
 
-### Backend (`backend/.env`)
+All environment configuration lives under `infra/`:
+
+| File | Purpose |
+|------|---------|
+| `infra/docker/.env` | Application settings (backend, frontend, AI keys, ports) |
+| `infra/supabase/.env` | Supabase service secrets (JWT, DB passwords, keys) |
+
+### `infra/docker/.env` (key variables)
 
 ```env
 # Application
 APP_ENV=development
 DEBUG=true
 
-# Database (Supabase local)
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:54322/postgres
+# Database — connects to the Supabase postgres container
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/pilot_space
 
-# Redis
-REDIS_URL=redis://localhost:6379/0
+# Redis / Meilisearch
+REDIS_URL=redis://redis:6379/0
+MEILISEARCH_API_KEY=meilisearch-dev-key
 
-# Supabase
+# Supabase — copy from infra/supabase/.env after first start
 SUPABASE_URL=http://localhost:54321
-SUPABASE_ANON_KEY=<from supabase status>
-SUPABASE_SERVICE_KEY=<from supabase status>
-SUPABASE_JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long
-
-# Meilisearch
-MEILISEARCH_URL=http://localhost:7700
-MEILISEARCH_API_KEY=masterKey
+SUPABASE_ANON_KEY=<see infra/supabase/.env ANON_KEY>
+SUPABASE_JWT_SECRET=<see infra/supabase/.env JWT_SECRET>
 
 # AI Providers (BYOK — workspace keys stored encrypted; these are deployment fallbacks)
 ANTHROPIC_API_KEY=sk-ant-...       # Required for AI features
 GOOGLE_API_KEY=AIza...             # Required for ghost text (Gemini Flash) + embeddings
-OPENAI_API_KEY=sk-...              # Required for semantic search embeddings
-
-# Security
-ENCRYPTION_KEY=<32-byte base64-encoded Fernet key>
+OPENAI_API_KEY=sk-...              # Optional — for OpenAI-based embeddings
 
 # GitHub Integration (optional)
 GITHUB_CLIENT_ID=
@@ -292,19 +306,17 @@ GITHUB_CLIENT_SECRET=
 GITHUB_WEBHOOK_SECRET=
 ```
 
-Generate an encryption key:
-```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
+**Development shortcut**: Set `AI_FAKE_MODE=true` in `infra/docker/.env` to use fake AI responses without external API keys.
 
-**Development shortcut**: Set `AI_FAKE_MODE=true` to use fake AI responses without external API keys.
+### `infra/supabase/.env` (key variables)
 
-### Frontend (`frontend/.env.local`)
+The example file ships with safe local defaults. The main values you may want to change:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<from supabase status>
-NEXT_PUBLIC_API_URL=http://localhost:8000
+POSTGRES_PASSWORD=postgres
+JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long
+ANON_KEY=<pre-generated in .env.example>
+SERVICE_ROLE_KEY=<pre-generated in .env.example>
 ```
 
 ---
@@ -386,12 +398,22 @@ pilot-space/
 │       ├── stores/              # MobX: RootStore, PilotSpaceStore, GhostTextStore, …
 │       ├── components/          # Shared UI (shadcn/ui primitives + editor components)
 │       └── services/api/        # Typed API clients
+├── infra/
+│   ├── docker/                  # Docker Compose (full stack) + Dockerfiles
+│   │   ├── docker-compose.yml   # Main compose file (backend, frontend, migration)
+│   │   ├── compose.override.yaml # Dev overrides (port exposure, env wiring)
+│   │   ├── .env.example         # Application env template → copy to .env
+│   │   ├── Dockerfile.backend
+│   │   ├── Dockerfile.frontend
+│   │   └── Dockerfile.migration
+│   └── supabase/                # Supabase service stack
+│       ├── docker-compose.yml   # PostgreSQL, Auth, Realtime, Storage, Studio, Kong
+│       └── .env.example         # Supabase secrets template → copy to .env
 ├── docs/
 │   ├── wiki/                    # 19 feature wiki docs
 │   ├── architect/               # Architecture decision records
 │   └── dev-pattern/             # 45 dev patterns
 ├── specs/                       # Product specs (MVP, data model, UI/UX)
-├── docker-compose.yml           # Redis + Meilisearch
 └── CLAUDE.md                    # AI agent and developer conventions
 ```
 

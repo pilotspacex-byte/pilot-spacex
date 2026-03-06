@@ -1,7 +1,7 @@
 """Fix graph_nodes node_type and graph_edges edge_type CHECK constraints.
 
 Revision ID: 058_fix_graph_check_constraints
-Revises: 057_resize_graph_nodes_embedding_768
+Revises: 057_resize_graph_embedding
 Create Date: 2026-03-04
 
 Migration 055 created CHECK constraints with an obsolete set of node_type
@@ -23,12 +23,11 @@ EdgeType values removed: blocked_by, child_of, mentions, created_by,
 
 from __future__ import annotations
 
+from alembic import op
 from sqlalchemy import text
 
-from alembic import op
-
 revision: str = "058_fix_graph_check_constraints"
-down_revision: str | None = "057_resize_graph_nodes_embedding_768"
+down_revision: str | None = "057_resize_graph_embedding"
 branch_labels: tuple[str, ...] | None = None
 depends_on: tuple[str, ...] | None = None
 
@@ -40,7 +39,9 @@ def upgrade() -> None:
     # graph_nodes — node_type constraint
     # ------------------------------------------------------------------
     op.execute(
-        text("ALTER TABLE graph_nodes DROP CONSTRAINT IF EXISTS graph_nodes_node_type_check")
+        text(
+            "ALTER TABLE graph_nodes DROP CONSTRAINT IF EXISTS graph_nodes_node_type_check"
+        )
     )
     op.execute(
         text(
@@ -61,7 +62,8 @@ def upgrade() -> None:
     # auto-names it. Drop by searching pg_constraint.
     # ------------------------------------------------------------------
     op.execute(
-        text("""
+        text(
+            """
         DO $$
         DECLARE
             con_name text;
@@ -76,7 +78,8 @@ def upgrade() -> None:
             END IF;
         END
         $$
-        """)
+        """
+        )
     )
     op.execute(
         text(
@@ -93,7 +96,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Restore original (wrong) constraints — only for rollback to 057."""
     op.execute(
-        text("ALTER TABLE graph_nodes DROP CONSTRAINT IF EXISTS graph_nodes_node_type_check")
+        text(
+            "ALTER TABLE graph_nodes DROP CONSTRAINT IF EXISTS graph_nodes_node_type_check"
+        )
     )
     op.execute(
         text(
@@ -106,7 +111,11 @@ def downgrade() -> None:
         )
     )
 
-    op.execute(text("ALTER TABLE graph_edges DROP CONSTRAINT IF EXISTS chk_graph_edges_edge_type"))
+    op.execute(
+        text(
+            "ALTER TABLE graph_edges DROP CONSTRAINT IF EXISTS chk_graph_edges_edge_type"
+        )
+    )
     op.execute(
         text(
             "ALTER TABLE graph_edges ADD CONSTRAINT graph_edges_edge_type_check "

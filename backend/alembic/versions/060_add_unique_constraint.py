@@ -1,6 +1,6 @@
 """Add UNIQUE partial index on graph_nodes(workspace_id, content_hash).
 
-Revision ID: 060_add_unique_constraint_content_hash
+Revision ID: 060_add_unique_constraint
 Revises: 059_add_graph_nodes_content_hash
 Create Date: 2026-03-05
 
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from alembic import op
 
-revision = "060_add_unique_constraint_content_hash"
+revision = "060_add_unique_constraint"
 down_revision = "059_add_graph_nodes_content_hash"
 branch_labels = None
 depends_on = None
