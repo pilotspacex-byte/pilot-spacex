@@ -3,9 +3,10 @@
  *
  * Spec: ui-design-spec.md S12 "AI-Prioritized Notification Center"
  * - Priority-based display: urgent (red), important (amber), fyi (gray)
- * - Max 5 notifications preview
  * - Mark as read, mark all as read
  * - Unread indicator with subtle background tint
+ * - Load more pagination
+ * - Empty / loading / error states
  */
 
 'use client';
@@ -17,9 +18,9 @@ import {
   Bell,
   Check,
   CheckCheck,
+  Loader2,
   MessageSquare,
   Star,
-  Trash2,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -144,15 +145,47 @@ function NotificationItem({
 
 interface NotificationPanelProps {
   store: NotificationStore;
+  /** Workspace ID used for API calls. When provided, panel uses async API actions. */
+  workspaceId?: string;
   collapsed?: boolean;
 }
 
 export const NotificationPanel = observer(function NotificationPanel({
   store,
+  workspaceId,
   collapsed = false,
 }: NotificationPanelProps) {
   const hasUnread = store.unreadCount > 0;
-  const notifications = store.sortedNotifications.slice(0, 5);
+  const notifications = store.sortedNotifications;
+  const canLoadMore = store.currentPage < store.totalPages;
+
+  function handleOpenChange(open: boolean) {
+    if (open && workspaceId) {
+      void store.fetchNotifications(workspaceId, 1);
+    }
+  }
+
+  function handleMarkRead(id: string) {
+    if (workspaceId) {
+      void store.markRead(workspaceId, id);
+    } else {
+      store.markAsRead(id);
+    }
+  }
+
+  function handleMarkAllRead() {
+    if (workspaceId) {
+      void store.markAllRead(workspaceId);
+    } else {
+      store.markAllAsRead();
+    }
+  }
+
+  function handleLoadMore() {
+    if (workspaceId) {
+      void store.fetchNotifications(workspaceId, store.currentPage + 1);
+    }
+  }
 
   const bellButton = (
     <Button
@@ -174,7 +207,7 @@ export const NotificationPanel = observer(function NotificationPanel({
   );
 
   return (
-    <Popover>
+    <Popover onOpenChange={handleOpenChange}>
       <Tooltip delayDuration={collapsed ? 0 : 1000}>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>{bellButton}</PopoverTrigger>
@@ -206,7 +239,7 @@ export const NotificationPanel = observer(function NotificationPanel({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => store.markAllAsRead()}
+                    onClick={handleMarkAllRead}
                     aria-label="Mark all as read"
                   >
                     <CheckCheck className="h-3.5 w-3.5" />
@@ -215,32 +248,22 @@ export const NotificationPanel = observer(function NotificationPanel({
                 <TooltipContent>Mark all as read</TooltipContent>
               </Tooltip>
             )}
-            {notifications.length > 0 && (
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => store.clearAll()}
-                    aria-label="Clear all notifications"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Clear all</TooltipContent>
-              </Tooltip>
-            )}
           </div>
         </div>
 
-        {/* Notification List */}
-        {notifications.length === 0 ? (
+        {/* Loading state */}
+        {store.isLoading && notifications.length === 0 ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
+            <span className="sr-only">Loading notifications</span>
+          </div>
+        ) : notifications.length === 0 ? (
+          /* Empty state */
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <Bell className="h-8 w-8 text-muted-foreground/40" aria-hidden="true" />
             <div>
-              <p className="text-sm font-medium text-foreground">No notifications</p>
-              <p className="text-xs text-muted-foreground">You&apos;re all caught up.</p>
+              <p className="text-sm font-medium text-foreground">All caught up</p>
+              <p className="text-xs text-muted-foreground">No notifications to show.</p>
             </div>
           </div>
         ) : (
@@ -250,12 +273,35 @@ export const NotificationPanel = observer(function NotificationPanel({
                 <NotificationItem
                   key={notification.id}
                   notification={notification}
-                  onMarkRead={(id) => store.markAsRead(id)}
+                  onMarkRead={handleMarkRead}
                   onRemove={(id) => store.removeNotification(id)}
                 />
               ))}
             </div>
+
+            {/* Pagination: load more */}
+            {canLoadMore && (
+              <div className="border-t px-3 py-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground"
+                  onClick={handleLoadMore}
+                  disabled={store.isLoading}
+                >
+                  {store.isLoading ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
+                  Load more
+                </Button>
+              </div>
+            )}
           </ScrollArea>
+        )}
+
+        {/* Error state */}
+        {store.error && (
+          <p className="px-3 pb-2 text-[10px] text-destructive" role="alert">
+            {store.error}
+          </p>
         )}
       </PopoverContent>
     </Popover>

@@ -1,6 +1,14 @@
 'use client';
 
-import { GitPullRequest, ExternalLink } from 'lucide-react';
+import {
+  GitPullRequest,
+  ExternalLink,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  type LucideProps,
+} from 'lucide-react';
+import type { ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import type { IntegrationLink } from '@/types';
 
@@ -27,9 +35,53 @@ const statusConfig: Record<
   },
 };
 
+type CIStatus = NonNullable<IntegrationLink['ciStatus']>;
+
+const ciStatusConfig: Record<
+  CIStatus,
+  { icon: ComponentType<LucideProps>; className: string; label: string }
+> = {
+  success: {
+    icon: CheckCircle2,
+    className: 'text-green-600 dark:text-green-400',
+    label: 'CI passed',
+  },
+  failure: {
+    icon: XCircle,
+    className: 'text-red-600 dark:text-red-400',
+    label: 'CI failed',
+  },
+  pending: {
+    icon: Clock,
+    className: 'text-yellow-500 dark:text-yellow-400',
+    label: 'CI pending',
+  },
+  neutral: {
+    icon: Clock,
+    className: 'text-muted-foreground',
+    label: 'CI neutral',
+  },
+};
+
+function CIStatusIcon({ ciStatus }: { ciStatus: CIStatus }) {
+  const ci = ciStatusConfig[ciStatus];
+  const Icon = ci.icon as ComponentType<{
+    className?: string;
+    'aria-label'?: string;
+    title?: string;
+  }>;
+  return (
+    <Icon
+      className={cn('ml-1 size-3.5 shrink-0', ci.className)}
+      aria-label={ci.label}
+      title={ci.label}
+    />
+  );
+}
+
 /**
  * LinkedPRsList displays GitHub pull requests linked to an issue.
- * Shows PR number, title, status badge, and external link.
+ * Shows PR number, title, status badge, CI check status, and external link.
  *
  * @example
  * ```tsx
@@ -85,6 +137,9 @@ export function LinkedPRsList({ links, className }: LinkedPRsListProps) {
                 >
                   {status.label}
                 </span>
+              )}
+              {link.ciStatus != null && link.ciStatus in ciStatusConfig && (
+                <CIStatusIcon ciStatus={link.ciStatus as CIStatus} />
               )}
               <ExternalLink className="ml-auto size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-50" />
             </a>

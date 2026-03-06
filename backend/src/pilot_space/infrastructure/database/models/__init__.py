@@ -80,6 +80,11 @@ from pilot_space.infrastructure.database.models.note_note_link import (
     NoteNoteLinkType,
 )
 from pilot_space.infrastructure.database.models.note_version import NoteVersion, VersionTrigger
+from pilot_space.infrastructure.database.models.notification import (
+    Notification,
+    NotificationPriority,
+    NotificationType,
+)
 from pilot_space.infrastructure.database.models.onboarding import WorkspaceOnboarding
 from pilot_space.infrastructure.database.models.pilot_api_key import PilotAPIKey
 from pilot_space.infrastructure.database.models.pm_block_insight import PMBlockInsight
@@ -175,6 +180,9 @@ __all__ = [
     "NoteNoteLink",
     "NoteNoteLinkType",
     "NoteVersion",
+    "Notification",
+    "NotificationPriority",
+    "NotificationType",
     "PMBlockInsight",
     "PilotAPIKey",
     "Project",

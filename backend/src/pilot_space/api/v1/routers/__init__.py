@@ -55,6 +55,7 @@ from pilot_space.api.v1.routers.memory import router as memory_router
 from pilot_space.api.v1.routers.note_templates import router as note_templates_router
 from pilot_space.api.v1.routers.note_versions import router as note_versions_router
 from pilot_space.api.v1.routers.note_yjs_state import router as note_yjs_state_router
+from pilot_space.api.v1.routers.notifications import router as notifications_router
 from pilot_space.api.v1.routers.onboarding import router as onboarding_router
 from pilot_space.api.v1.routers.pm_blocks import router as pm_blocks_router
 from pilot_space.api.v1.routers.pm_capacity import router as pm_capacity_router
@@ -165,6 +166,7 @@ __all__ = [
     "note_versions_router",
     "note_yjs_state_router",
     "notes_ai_router",
+    "notifications_router",
     "onboarding_router",
     "pm_blocks_router",
     "pm_capacity_router",

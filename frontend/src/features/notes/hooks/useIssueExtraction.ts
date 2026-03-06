@@ -10,7 +10,6 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { SSEClient } from '@/lib/sse-client';
 import type { SSEEvent } from '@/lib/sse-client';
-import { aiApi } from '@/services/api/ai';
 import type { ExtractedIssue } from '../components/ExtractionPreviewModal';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
@@ -24,6 +23,8 @@ interface ExtractionState {
   error: string | null;
   /** Whether the preview modal is open (always false — auto-approve mode) */
   isModalOpen: boolean;
+  /** Whether the slide-over review panel is open (opened after extraction completes) */
+  isReviewPanelOpen: boolean;
 }
 
 interface ExtractionActions {
@@ -31,6 +32,8 @@ interface ExtractionActions {
   startExtraction: (params: StartExtractionParams) => void;
   /** Close the modal and reset state */
   closeModal: () => void;
+  /** Close the review panel (does not reset issues — allows re-open) */
+  closeReviewPanel: () => void;
   /** Abort in-progress extraction */
   abort: () => void;
 }
@@ -61,6 +64,7 @@ export function useIssueExtraction(): [ExtractionState, ExtractionActions] {
   const [issues, setIssues] = useState<ExtractedIssue[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(false);
   const clientRef = useRef<SSEClient | null>(null);
   // Ref to collect issues during streaming (avoids stale closure in SSE callback)
   const collectedIssuesRef = useRef<ExtractedIssue[]>([]);
@@ -82,7 +86,12 @@ export function useIssueExtraction(): [ExtractionState, ExtractionActions] {
     abort();
     setIssues([]);
     setError(null);
+    setIsReviewPanelOpen(false);
   }, [abort]);
+
+  const closeReviewPanel = useCallback(() => {
+    setIsReviewPanelOpen(false);
+  }, []);
 
   const startExtraction = useCallback(
     (params: StartExtractionParams) => {
@@ -127,39 +136,11 @@ export function useIssueExtraction(): [ExtractionState, ExtractionActions] {
                 return;
               }
 
-              if (!params.projectId) {
-                toast.warning(
-                  `${collected.length} issue${collected.length !== 1 ? 's' : ''} found`,
-                  { description: 'Open a project note to auto-create issues.' }
-                );
-                return;
-              }
-
-              // Auto-create all extracted issues (DD-003 non-destructive)
-              const issuesToCreate = collected.map((i) => ({
-                title: i.title,
-                description: i.description || null,
-                priority: i.priority,
-                source_block_id: i.sourceBlockIds[0] ?? null,
-              }));
-
-              aiApi
-                .createExtractedIssues(
-                  params.workspaceId,
-                  params.noteId,
-                  issuesToCreate,
-                  params.projectId
-                )
-                .then((result) => {
-                  const count = result.created_issues.length;
-                  params.onCreated?.(result.created_issues);
-                  toast.success(`${count} issue${count !== 1 ? 's' : ''} created`, {
-                    description: 'View them in the Issues board.',
-                  });
-                })
-                .catch((err: Error) => {
-                  toast.error('Failed to create issues', { description: err.message });
-                });
+              // Open the review panel so the user can approve/skip items
+              // before creation. When projectId is absent the panel still
+              // opens; createExtractedIssues will return a "project_id required"
+              // message from the backend.
+              setIsReviewPanelOpen(true);
 
               break;
             }
@@ -192,7 +173,7 @@ export function useIssueExtraction(): [ExtractionState, ExtractionActions] {
   );
 
   return [
-    { issues, isExtracting, error, isModalOpen: false },
-    { startExtraction, closeModal, abort },
+    { issues, isExtracting, error, isModalOpen: false, isReviewPanelOpen },
+    { startExtraction, closeModal, closeReviewPanel, abort },
   ];
 }

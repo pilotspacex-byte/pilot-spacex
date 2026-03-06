@@ -153,6 +153,8 @@ export interface IntegrationLink {
   authorAvatarUrl?: string | null;
   /** ISO timestamp of the commit. Only present when link_type === 'commit'. */
   commitTimestamp?: string;
+  /** CI check suite status from GitHub. Set by check_suite webhook events. */
+  ciStatus?: 'pending' | 'success' | 'failure' | 'neutral' | null;
 }
 
 // Note Issue Link (matches backend NoteIssueLinkBriefSchema)

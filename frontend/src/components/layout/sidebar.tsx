@@ -105,12 +105,14 @@ const THEME_OPTIONS = [
 export const SidebarUserControls = observer(function SidebarUserControls({
   collapsed,
   workspaceSlug,
+  workspaceId,
   authStore,
   notificationStore,
   uiStore,
 }: {
   collapsed: boolean;
   workspaceSlug: string;
+  workspaceId: string;
   authStore: AuthStore;
   notificationStore: NotificationStore;
   uiStore: UIStore;
@@ -189,7 +191,7 @@ export const SidebarUserControls = observer(function SidebarUserControls({
   if (collapsed) {
     return (
       <div className="flex items-center justify-center gap-1 border-t border-sidebar-border p-1.5">
-        <NotificationPanel store={notificationStore} collapsed />
+        <NotificationPanel store={notificationStore} workspaceId={workspaceId} collapsed />
         <DropdownMenu>
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
@@ -219,7 +221,7 @@ export const SidebarUserControls = observer(function SidebarUserControls({
 
   return (
     <div className="flex items-center gap-1 border-t border-sidebar-border px-2 py-2">
-      <NotificationPanel store={notificationStore} />
+      <NotificationPanel store={notificationStore} workspaceId={workspaceId} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -302,6 +304,16 @@ export const Sidebar = observer(function Sidebar() {
       noteStore.loadNotes(workspaceId);
     }
   }, [workspaceId, isAuthenticated, noteStore]);
+
+  // Start polling unread count when workspace is active; stop on unmount or workspace change.
+  useEffect(() => {
+    if (workspaceId && isAuthenticated) {
+      notificationStore.startPolling(workspaceId);
+    }
+    return () => {
+      notificationStore.stopPolling();
+    };
+  }, [workspaceId, isAuthenticated, notificationStore]);
 
   const createNote = useCreateNote({
     workspaceId,
@@ -555,6 +567,7 @@ export const Sidebar = observer(function Sidebar() {
       <SidebarUserControls
         collapsed={collapsed}
         workspaceSlug={workspaceSlug}
+        workspaceId={workspaceId}
         authStore={authStore}
         notificationStore={notificationStore}
         uiStore={uiStore}

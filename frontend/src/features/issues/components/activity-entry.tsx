@@ -11,6 +11,7 @@
 'use client';
 
 import {
+  CheckCircle2,
   ExternalLink,
   GitCommitHorizontal,
   GitMerge,
@@ -260,6 +261,79 @@ function PRLinkedContent({ activity }: PRLinkedContentProps) {
 }
 
 // ---------------------------------------------------------------------------
+// AI Review sub-component
+// ---------------------------------------------------------------------------
+
+/** Returns true when the activity is an AI PR review result. */
+function isAIReview(activity: Activity): boolean {
+  return activity.activityType === 'ai_review';
+}
+
+interface AIReviewContentProps {
+  activity: Activity;
+}
+
+function AIReviewContent({ activity }: AIReviewContentProps) {
+  const meta = activity.metadata ?? {};
+  const critical = typeof meta.critical === 'number' ? meta.critical : 0;
+  const warning = typeof meta.warning === 'number' ? meta.warning : 0;
+  const info = typeof meta.info === 'number' ? meta.info : 0;
+  const prUrl = typeof meta.pr_url === 'string' ? meta.pr_url : undefined;
+  const approved = meta.approved === true;
+
+  // Badge color: red if any critical, yellow if any warning, green otherwise.
+  const badgeClass =
+    critical > 0
+      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+      : warning > 0
+        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+        : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+
+  const severityParts: string[] = [];
+  if (critical > 0) severityParts.push(`${critical} Critical`);
+  if (warning > 0) severityParts.push(`${warning} Warning`);
+  if (info > 0) severityParts.push(`${info} Info`);
+  const severitySummary = severityParts.length > 0 ? severityParts.join(' · ') : 'No findings';
+
+  return (
+    <div className="flex flex-col gap-1.5 min-h-[32px]">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm font-medium text-foreground">AI Code Review</span>
+        <span
+          className={cn(
+            'inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium leading-none',
+            badgeClass
+          )}
+        >
+          {approved ? 'Approved' : 'Changes Requested'}
+        </span>
+        <time
+          dateTime={activity.createdAt}
+          className="text-xs text-muted-foreground flex-shrink-0 ml-auto"
+        >
+          {formatRelativeTime(activity.createdAt)}
+        </time>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm text-muted-foreground">{severitySummary}</span>
+        {prUrl && (
+          <a
+            href={prUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded ml-auto"
+            aria-label="View pull request on GitHub"
+          >
+            View on GitHub
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Avatar icon resolution
 // ---------------------------------------------------------------------------
 
@@ -277,6 +351,21 @@ function resolveAvatarConfig(
     return {
       wrapperClass: 'bg-muted text-muted-foreground border border-border',
       content: <GitCommitHorizontal className="h-3.5 w-3.5" />,
+    };
+  }
+
+  if (isAIReview(activity)) {
+    const meta = activity.metadata ?? {};
+    const approved = meta.approved === true;
+    return {
+      wrapperClass: approved
+        ? 'bg-green-100 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'
+        : 'bg-[#6B8FAD]/15 text-[#6B8FAD] border border-[#6B8FAD]/30',
+      content: approved ? (
+        <CheckCircle2 className="h-3.5 w-3.5" />
+      ) : (
+        <Sparkles className="h-3.5 w-3.5" />
+      ),
     };
   }
 
@@ -335,6 +424,7 @@ export function ActivityEntry({ activity, isLast = false }: ActivityEntryProps) 
   const actor = activity.actor;
   const isAI = isAIGenerated(activity);
   const isGitHubEvent = isCommitLinked(activity) || isPRLinked(activity);
+  const isReview = isAIReview(activity);
 
   const { wrapperClass, content } = resolveAvatarConfig(activity, isAI, actor);
 
@@ -374,6 +464,10 @@ export function ActivityEntry({ activity, isLast = false }: ActivityEntryProps) 
             <p className="text-sm text-foreground whitespace-pre-wrap break-words">
               {activity.comment}
             </p>
+          </div>
+        ) : isReview ? (
+          <div className="flex-1 min-w-0">
+            <AIReviewContent activity={activity} />
           </div>
         ) : isGitHubEvent ? (
           <div className="flex-1 min-w-0">

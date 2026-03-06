@@ -49,6 +49,7 @@ from pilot_space.api.v1.routers import (
     note_versions_router,
     note_yjs_state_router,
     notes_ai_router,
+    notifications_router,
     onboarding_router,
     pm_blocks_router,
     projects_router,
@@ -123,6 +124,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # T-069: Start memory worker for memory engine jobs (intent_dedup, embedding, DLQ)
     memory_worker_task: asyncio.Task[None] | None = None
     memory_worker = None
+    # T-030: Start notification worker for persisting queued notifications
+    notification_worker_task: asyncio.Task[None] | None = None
+    notification_worker = None
     queue_client = app.state.container.queue_client()
     if queue_client and redis_client:
         from pilot_space.infrastructure.queue.models import QueueName
@@ -147,6 +151,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             google_api_key=_google_api_key,
         )
         memory_worker_task = asyncio.create_task(memory_worker.start())
+
+        await queue_client.create_queue(QueueName.NOTIFICATIONS)
+
+        from pilot_space.ai.workers.notification_worker import NotificationWorker
+
+        notification_worker = NotificationWorker(
+            queue=queue_client,
+            session_factory=session_factory,
+        )
+        notification_worker_task = asyncio.create_task(notification_worker.start())
 
     # Start question adapter cleanup task (FR-015: 5-min timeout enforcement)
     from pilot_space.ai.sdk.question_adapter import get_question_adapter
@@ -176,6 +190,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("memory_worker_stopped")
     if memory_worker_task:
         memory_worker_task.cancel()
+    if notification_worker:
+        await notification_worker.stop()
+        logger.info("notification_worker_stopped")
+    if notification_worker_task:
+        notification_worker_task.cancel()
     if redis_client is not None:
         await redis_client.disconnect()
         logger.info("redis_disconnected")
@@ -286,5 +305,6 @@ app.include_router(role_templates_router, prefix=API_V1_PREFIX)
 app.include_router(role_skills_router, prefix=API_V1_PREFIX)
 app.include_router(skills_router, prefix=API_V1_PREFIX)
 app.include_router(skill_approvals_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(notifications_router, prefix=f"{API_V1_PREFIX}/workspaces")
 if debug_router:
     app.include_router(debug_router, prefix=API_V1_PREFIX)

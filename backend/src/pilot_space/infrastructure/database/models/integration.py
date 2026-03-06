@@ -258,6 +258,13 @@ class IntegrationLink(WorkspaceScopedModel):
         nullable=True,
     )
 
+    # CI check status from GitHub check_suite webhook events.
+    # Values: "pending" | "success" | "failure" | "neutral" | None
+    ci_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
     # Additional metadata from external system
     # Python attribute is `link_metadata`; DB column is `metadata` (from migration 009).
     link_metadata: Mapped[dict[str, Any] | None] = mapped_column(

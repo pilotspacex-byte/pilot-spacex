@@ -85,10 +85,21 @@ function createMockNotificationStore(
   return {
     unreadCount: 0,
     sortedNotifications: [],
+    notifications: [],
+    totalPages: 0,
+    currentPage: 1,
+    isLoading: false,
+    error: null,
     markAllAsRead: vi.fn(),
     markAsRead: vi.fn(),
+    markRead: vi.fn(),
+    markAllRead: vi.fn(),
     removeNotification: vi.fn(),
     clearAll: vi.fn(),
+    fetchNotifications: vi.fn(),
+    fetchUnreadCount: vi.fn(),
+    startPolling: vi.fn(),
+    stopPolling: vi.fn(),
     ...overrides,
   } as unknown as NotificationStore;
 }
@@ -106,12 +117,14 @@ function createMockUIStore(overrides: Partial<UIStore> = {}): UIStore {
 function renderControls({
   collapsed = false,
   workspaceSlug = 'test-ws',
+  workspaceId = 'test-ws',
   authStore,
   notificationStore,
   uiStore,
 }: {
   collapsed?: boolean;
   workspaceSlug?: string;
+  workspaceId?: string;
   authStore?: AuthStore;
   notificationStore?: NotificationStore;
   uiStore?: UIStore;
@@ -125,6 +138,7 @@ function renderControls({
       <SidebarUserControls
         collapsed={collapsed}
         workspaceSlug={workspaceSlug}
+        workspaceId={workspaceId}
         authStore={auth}
         notificationStore={notifications}
         uiStore={ui}

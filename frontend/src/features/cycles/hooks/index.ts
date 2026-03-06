@@ -55,3 +55,6 @@ export {
   type UseAddIssueToCycleOptions,
   type UseRemoveIssueFromCycleOptions,
 } from './useRolloverCycle';
+
+// Release notes hooks
+export { useReleaseNotes, type UseReleaseNotesOptions } from './useReleaseNotes';
