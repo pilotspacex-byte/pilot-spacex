@@ -51,6 +51,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
 import { useInfiniteNotes, notesKeys } from '@/features/notes/hooks';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
+import { TemplatePicker } from '@/features/notes/components';
+import type { NoteTemplate } from '@/services/api/templates';
 import { useWorkspaceStore } from '@/stores/RootStore';
 import { projectsApi } from '@/services/api/projects';
 import { notesApi } from '@/services/api';
@@ -410,9 +412,26 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
   );
 
   // Handle create note
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+
   const handleCreateNote = useCallback(() => {
-    createNote.mutate(createNoteDefaults());
-  }, [createNote]);
+    setShowTemplatePicker(true);
+  }, []);
+
+  const handleTemplateConfirm = useCallback(
+    (template: NoteTemplate | null) => {
+      setShowTemplatePicker(false);
+      if (template) {
+        createNote.mutate({
+          title: `New ${template.name} Note`,
+          content: template.content,
+        });
+      } else {
+        createNote.mutate(createNoteDefaults());
+      }
+    },
+    [createNote]
+  );
 
   // Handle infinite scroll
   const handleLoadMore = useCallback(() => {
@@ -423,6 +442,15 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Template Picker Modal */}
+      {showTemplatePicker && (
+        <TemplatePicker
+          workspaceId={workspaceId}
+          isAdmin={workspaceStore.isAdmin}
+          onConfirm={handleTemplateConfirm}
+          onClose={() => setShowTemplatePicker(false)}
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4">
         <div>

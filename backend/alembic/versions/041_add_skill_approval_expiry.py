@@ -1,6 +1,6 @@
 """Add pg_cron job for skill_executions approval expiry (T-070).
 
-Revision ID: 041_add_skill_approval_expiry_cron
+Revision ID: 041_add_skill_approval_expiry
 Revises: 040_add_memory_engine
 Create Date: 2026-02-19
 
@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "041_add_skill_approval_expiry_cron"
+revision: str = "041_add_skill_approval_expiry"
 down_revision: str = "040_add_memory_engine"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -28,7 +28,8 @@ def upgrade() -> None:
     # Create the expiry function
     # Uses SECURITY DEFINER so it runs with owner privileges and can UPDATE
     # skill_executions regardless of RLS (internal cleanup function).
-    op.execute("""
+    op.execute(
+        """
         CREATE OR REPLACE FUNCTION fn_expire_pending_skill_approvals()
         RETURNS integer
         LANGUAGE plpgsql
@@ -51,13 +52,15 @@ def upgrade() -> None:
             RETURN expired_count;
         END;
         $$;
-    """)
+    """
+    )
 
     # Schedule: run every 30 minutes to expire stale approvals
     # Supabase includes pg_cron — schedule runs as cron superuser
     # If pg_cron is not available, this is a no-op and the application-level
     # ApprovalService.expire_stale_requests() fallback handles expiry.
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             IF EXISTS (
@@ -79,13 +82,15 @@ def upgrade() -> None:
             END IF;
         END;
         $$;
-    """)
+    """
+    )
 
 
 def downgrade() -> None:
     """Remove skill approval expiry cron job and function."""
     # Unschedule cron job if pg_cron is available
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             IF EXISTS (
@@ -100,7 +105,8 @@ def downgrade() -> None:
             END IF;
         END;
         $$;
-    """)
+    """
+    )
 
     # Drop the function
     op.execute("DROP FUNCTION IF EXISTS fn_expire_pending_skill_approvals();")

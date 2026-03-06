@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import type { Editor } from '@tiptap/react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bold, Italic, Link2, MessageSquare, Wand2, TicketPlus } from 'lucide-react';
+import { Bold, Italic, Strikethrough, Code, Highlighter, Link2, MessageSquare, Wand2, TicketPlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -131,6 +131,18 @@ export function SelectionToolbar({
     editor?.chain().focus().toggleItalic().run();
   }, [editor]);
 
+  const toggleStrikethrough = useCallback(() => {
+    editor?.chain().focus().toggleStrike().run();
+  }, [editor]);
+
+  const toggleCode = useCallback(() => {
+    editor?.chain().focus().toggleCode().run();
+  }, [editor]);
+
+  const toggleHighlight = useCallback(() => {
+    editor?.chain().focus().toggleHighlight().run();
+  }, [editor]);
+
   const addLink = useCallback(() => {
     const url = window.prompt('Enter URL:');
     if (url) {
@@ -246,6 +258,48 @@ export function SelectionToolbar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
+                variant={editor.isActive('strike') ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={toggleStrikethrough}
+                aria-label="Strikethrough"
+              >
+                <Strikethrough className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Strikethrough</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={editor.isActive('code') ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={toggleCode}
+                aria-label="Inline code"
+              >
+                <Code className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Code (Cmd+E)</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={editor.isActive('highlight') ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={toggleHighlight}
+                aria-label="Highlight"
+              >
+                <Highlighter className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Highlight</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
                 variant={editor.isActive('link') ? 'secondary' : 'ghost'}
                 size="icon-sm"
                 onClick={addLink}
@@ -255,20 +309,6 @@ export function SelectionToolbar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>Add link (Cmd+K)</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled
-                aria-label="Add comment (coming soon)"
-              >
-                <MessageSquare className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Coming soon</TooltipContent>
           </Tooltip>
 
           <Separator orientation="vertical" className="mx-1 h-6" />

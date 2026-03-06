@@ -9,6 +9,7 @@ import { useResponsive } from '@/hooks/useMediaQuery';
 import { Sidebar } from './sidebar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { CommandPaletteModal } from '@/components/CommandPaletteModal';
 import type { ReactNode } from 'react';
 
 interface AppShellProps {
@@ -34,6 +35,8 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
+      {/* Global Command Palette — Cmd+K / Ctrl+K */}
+      <CommandPaletteModal />
       {/* Skip to main content - accessibility */}
       <a
         href="#main-content"

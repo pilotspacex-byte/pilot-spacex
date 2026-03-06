@@ -1,6 +1,6 @@
 """Migrate memory_entries data to graph_nodes.
 
-Revision ID: 056_migrate_memory_entries_to_graph
+Revision ID: 056_migrate_memory_to_graph
 Revises: 055_add_knowledge_graph_tables
 Create Date: 2026-03-03
 
@@ -15,11 +15,10 @@ absent from the constraint defined in migration 055.
 
 from __future__ import annotations
 
+from alembic import op
 from sqlalchemy import text
 
-from alembic import op
-
-revision: str = "056_migrate_memory_entries_to_graph"
+revision: str = "056_migrate_memory_to_graph"
 down_revision: str | None = "055_add_knowledge_graph_tables"
 branch_labels: tuple[str, ...] | None = None
 depends_on: tuple[str, ...] | None = None
@@ -35,14 +34,17 @@ def upgrade() -> None:
     # must drop it by name and recreate it with the full value set.
     # ------------------------------------------------------------------
     op.execute(
-        text("""
+        text(
+            """
         ALTER TABLE graph_nodes
         DROP CONSTRAINT IF EXISTS graph_nodes_node_type_check
-    """)
+    """
+        )
     )
 
     op.execute(
-        text("""
+        text(
+            """
         ALTER TABLE graph_nodes
         ADD CONSTRAINT graph_nodes_node_type_check
         CHECK (node_type IN (
@@ -53,7 +55,8 @@ def upgrade() -> None:
             'constitution_rule', 'pull_request', 'code_reference',
             'decision', 'conversation_summary', 'user_preference'
         ))
-    """)
+    """
+        )
     )
 
     # ------------------------------------------------------------------
@@ -75,18 +78,21 @@ def upgrade() -> None:
         # Only migrate if memory_entries table exists (it was created by
         # migration 040_add_memory_engine which may not be in every environment).
         table_exists = bind.execute(
-            text("""
+            text(
+                """
             SELECT EXISTS (
                 SELECT 1 FROM information_schema.tables
                 WHERE table_schema = 'public'
                 AND table_name = 'memory_entries'
             )
-        """)
+        """
+            )
         ).scalar()
 
         if table_exists:
             op.execute(
-                text("""
+                text(
+                    """
                 INSERT INTO graph_nodes (
                     id,
                     workspace_id,
@@ -126,7 +132,8 @@ def upgrade() -> None:
                 WHERE
                     me.is_deleted = FALSE
                     AND (me.expires_at IS NULL OR me.expires_at > NOW())
-            """)
+            """
+                )
             )
 
 
@@ -135,22 +142,27 @@ def downgrade() -> None:
 
     # Remove all rows that were inserted by this migration
     op.execute(
-        text("""
+        text(
+            """
         DELETE FROM graph_nodes
         WHERE properties->>'migrated_from' = 'memory_entries'
-    """)
+    """
+        )
     )
 
     # Restore the narrower CHECK constraint from migration 055
     op.execute(
-        text("""
+        text(
+            """
         ALTER TABLE graph_nodes
         DROP CONSTRAINT IF EXISTS graph_nodes_node_type_check
-    """)
+    """
+        )
     )
 
     op.execute(
-        text("""
+        text(
+            """
         ALTER TABLE graph_nodes
         ADD CONSTRAINT graph_nodes_node_type_check
         CHECK (node_type IN (
@@ -158,5 +170,6 @@ def downgrade() -> None:
             'workspace', 'project', 'cycle', 'label',
             'comment', 'document', 'task', 'sprint', 'epic'
         ))
-    """)
+    """
+        )
     )

@@ -1,7 +1,7 @@
 """Resize graph_nodes embedding column from vector(1536) to vector(768).
 
-Revision ID: 057_resize_graph_nodes_embedding_768
-Revises: 056_migrate_memory_entries_to_graph
+Revision ID: 057_resize_graph_embedding
+Revises: 056_migrate_memory_to_graph
 Create Date: 2026-03-03
 
 Motivation: the initial schema used 1536-dim (OpenAI text-embedding-3-large).
@@ -21,12 +21,11 @@ environment graph_nodes.embedding is always NULL, so this is a no-op.
 
 from __future__ import annotations
 
+from alembic import op
 from sqlalchemy import text
 
-from alembic import op
-
-revision: str = "057_resize_graph_nodes_embedding_768"
-down_revision: str | None = "056_migrate_memory_entries_to_graph"
+revision: str = "057_resize_graph_embedding"
+down_revision: str | None = "056_migrate_memory_to_graph"
 branch_labels: tuple[str, ...] | None = None
 depends_on: tuple[str, ...] | None = None
 
@@ -43,7 +42,9 @@ def upgrade() -> None:
     op.execute(text("DROP INDEX IF EXISTS ix_graph_nodes_embedding"))
 
     # 2. Null-out any rows with stale 1536-dim embeddings so they get re-embedded
-    op.execute(text("UPDATE graph_nodes SET embedding = NULL WHERE embedding IS NOT NULL"))
+    op.execute(
+        text("UPDATE graph_nodes SET embedding = NULL WHERE embedding IS NOT NULL")
+    )
 
     # 3. Change column type from vector(1536) → vector(768)
     op.execute(
@@ -70,7 +71,9 @@ def downgrade() -> None:
         return
 
     op.execute(text("DROP INDEX IF EXISTS ix_graph_nodes_embedding"))
-    op.execute(text("UPDATE graph_nodes SET embedding = NULL WHERE embedding IS NOT NULL"))
+    op.execute(
+        text("UPDATE graph_nodes SET embedding = NULL WHERE embedding IS NOT NULL")
+    )
     op.execute(
         text(
             f"ALTER TABLE graph_nodes "

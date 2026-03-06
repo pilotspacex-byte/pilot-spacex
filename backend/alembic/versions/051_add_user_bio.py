@@ -1,7 +1,7 @@
 """Add bio column to users table.
 
 Revision ID: 051_add_user_bio
-Revises: 050_add_chat_attachments_cleanup_cron
+Revises: 050_add_chat_cleanup_cron
 Create Date: 2026-02-28
 
 Changes:
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "051_add_user_bio"
-down_revision = "050_add_chat_attachments_cleanup_cron"
+down_revision = "050_add_chat_cleanup_cron"
 branch_labels = None
 depends_on = None
 

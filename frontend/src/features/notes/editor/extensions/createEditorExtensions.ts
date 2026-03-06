@@ -52,6 +52,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
 import TaskList from '@tiptap/extension-task-list';
+import Highlight from '@tiptap/extension-highlight';
 import { TaskItemEnhanced } from './pm-blocks/TaskItemEnhanced';
 import { ProgressBarDecoration } from './pm-blocks/ProgressBarDecoration';
 import { PMBlockExtension } from './pm-blocks/PMBlockExtension';
@@ -303,6 +304,9 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
       },
     })
   );
+
+  // Highlight extension for text marking (FR-011 selection toolbar)
+  extensions.push(Highlight.configure({ multicolor: false }));
 
   // TaskItemEnhanced replaces default TaskItem — adds assignee, dueDate,
   // priority, isOptional, estimatedEffort, conditionalParentId attrs (FR-013 to FR-018)

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/stores';
+import { useWorkspaceMembers } from '../../hooks/use-workspace-members';
+import { useWorkspaceLabels } from '../../hooks/use-workspace-labels';
 import { IssueToolbar } from './IssueToolbar';
 import { BoardView } from './board/BoardView';
 import { ListView } from './list/ListView';
@@ -33,6 +35,29 @@ export const IssueViewsRoot = observer(function IssueViewsRoot({
   const workspace = workspaceStore.currentWorkspace;
   const workspaceId = workspace?.id ?? workspaceSlug;
   const canCreateContent = workspaceStore.currentUserRole !== 'guest';
+
+  // Fetch filter option data
+  const { data: membersData } = useWorkspaceMembers(workspaceId);
+  const { data: labelsData } = useWorkspaceLabels(workspaceId);
+
+  const assigneeOptions = React.useMemo(
+    () =>
+      (membersData ?? []).map((m) => ({
+        value: m.userId,
+        label: m.fullName || m.email,
+      })),
+    [membersData]
+  );
+
+  const labelOptions = React.useMemo(
+    () =>
+      (labelsData ?? []).map((l) => ({
+        value: l.id,
+        label: l.name,
+        color: l.color,
+      })),
+    [labelsData]
+  );
 
   // Hydrate view store from localStorage on mount
   React.useEffect(() => {
@@ -167,7 +192,11 @@ export const IssueViewsRoot = observer(function IssueViewsRoot({
 
   return (
     <div className={cn('flex h-full flex-col', className)}>
-      <IssueToolbar hideProjectFilter={!!projectId} />
+      <IssueToolbar
+        hideProjectFilter={!!projectId}
+        assigneeOptions={assigneeOptions}
+        labelOptions={labelOptions}
+      />
 
       <div className="flex-1 overflow-hidden">
         {viewMode === 'board' && (

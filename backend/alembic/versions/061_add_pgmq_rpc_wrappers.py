@@ -1,7 +1,7 @@
 """Add public wrapper functions for pgmq RPC operations.
 
 Revision ID: 061_add_pgmq_rpc_wrappers
-Revises: 060_add_unique_constraint_content_hash
+Revises: 060_add_unique_constraint
 Create Date: 2026-03-06
 
 SupabaseQueueClient uses the Supabase REST API /rpc/{function_name} endpoint
@@ -26,12 +26,11 @@ Wrappers:
 
 from __future__ import annotations
 
+from alembic import op
 from sqlalchemy import text
 
-from alembic import op
-
 revision = "061_add_pgmq_rpc_wrappers"
-down_revision = "060_add_unique_constraint_content_hash"
+down_revision = "060_add_unique_constraint"
 branch_labels = None
 depends_on = None
 

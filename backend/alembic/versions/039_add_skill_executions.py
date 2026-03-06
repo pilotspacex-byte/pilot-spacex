@@ -27,26 +27,7 @@ depends_on = None
 
 def upgrade() -> None:
     """Create skill_executions table with approval workflow."""
-    # 1. Create approval_status enum
-    op.execute("""
-        CREATE TYPE skill_approval_status_enum AS ENUM (
-            'auto_approved',
-            'pending_approval',
-            'approved',
-            'rejected',
-            'expired'
-        )
-    """)
-
-    # 2. Create required_approval_role enum (C-7)
-    op.execute("""
-        CREATE TYPE skill_approval_role_enum AS ENUM (
-            'admin',
-            'member'
-        )
-    """)
-
-    # 3. Create skill_executions table
+    # 1. Create skill_executions table
     op.create_table(
         "skill_executions",
         sa.Column(
@@ -71,7 +52,7 @@ def upgrade() -> None:
                 "rejected",
                 "expired",
                 name="skill_approval_status_enum",
-                create_type=False,
+                create_type=True,
             ),
             nullable=False,
             server_default="auto_approved",
@@ -83,7 +64,7 @@ def upgrade() -> None:
                 "admin",
                 "member",
                 name="skill_approval_role_enum",
-                create_type=False,
+                create_type=True,
             ),
             nullable=True,
         ),
@@ -105,7 +86,7 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
     )
 
-    # 4. Indexes
+    # 2. Indexes
     op.create_index(
         "ix_skill_executions_intent_id",
         "skill_executions",
@@ -122,7 +103,7 @@ def upgrade() -> None:
         ["created_at"],
     )
 
-    # 5. RLS — workspace isolation via join to work_intents
+    # 3. RLS — workspace isolation via join to work_intents
     op.execute("ALTER TABLE skill_executions ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE skill_executions FORCE ROW LEVEL SECURITY")
 
@@ -149,7 +130,7 @@ def upgrade() -> None:
         )
     """)
 
-    # 6. T-070: fn_expire_pending_approvals() pg_cron function
+    # 4. T-070: fn_expire_pending_approvals() pg_cron function
     # Sets approval_status='expired' on pending_approval rows older than 24h
     op.execute("""
         CREATE OR REPLACE FUNCTION fn_expire_pending_approvals()

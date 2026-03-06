@@ -1,68 +1,93 @@
-/**
- * Pilot Space - Edge Functions Main Entry Point
- *
- * This is the main service worker that routes requests to individual functions.
- * Each function is loaded dynamically based on the request path.
- */
+import * as jose from 'https://deno.land/x/jose@v4.14.4/index.ts'
 
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+console.log('main function started')
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const JWT_SECRET = Deno.env.get('JWT_SECRET')
+const VERIFY_JWT = Deno.env.get('VERIFY_JWT') === 'true'
+
+function getAuthToken(req: Request) {
+  const authHeader = req.headers.get('authorization')
+  if (!authHeader) {
+    throw new Error('Missing authorization header')
+  }
+  const [bearer, token] = authHeader.split(' ')
+  if (bearer !== 'Bearer') {
+    throw new Error(`Auth header is not 'Bearer {token}'`)
+  }
+  return token
 }
 
-serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+async function verifyJWT(jwt: string): Promise<boolean> {
+  const encoder = new TextEncoder()
+  const secretKey = encoder.encode(JWT_SECRET)
+  try {
+    await jose.jwtVerify(jwt, secretKey)
+  } catch (err) {
+    console.error(err)
+    return false
+  }
+  return true
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method !== 'OPTIONS' && VERIFY_JWT) {
+    try {
+      const token = getAuthToken(req)
+      const isValidJWT = await verifyJWT(token)
+
+      if (!isValidJWT) {
+        return new Response(JSON.stringify({ msg: 'Invalid JWT' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    } catch (e) {
+      console.error(e)
+      return new Response(JSON.stringify({ msg: e.toString() }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
   }
 
   const url = new URL(req.url)
-  const pathParts = url.pathname.split('/').filter(Boolean)
+  const { pathname } = url
+  const path_parts = pathname.split('/')
+  const service_name = path_parts[1]
 
-  // Extract function name from path
-  const functionName = pathParts[0] || 'health'
+  if (!service_name || service_name === '') {
+    const error = { msg: 'missing function name in request' }
+    return new Response(JSON.stringify(error), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  const servicePath = `/home/deno/functions/${service_name}`
+  console.error(`serving the request with ${servicePath}`)
+
+  const memoryLimitMb = 150
+  const workerTimeoutMs = 1 * 60 * 1000
+  const noModuleCache = false
+  const importMapPath = null
+  const envVarsObj = Deno.env.toObject()
+  const envVars = Object.keys(envVarsObj).map((k) => [k, envVarsObj[k]])
 
   try {
-    // Dynamic function routing
-    switch (functionName) {
-      case 'health':
-        return new Response(
-          JSON.stringify({
-            status: 'ok',
-            timestamp: new Date().toISOString(),
-            version: '1.0.0',
-          }),
-          {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-
-      case 'embed':
-        // Import and execute embed function
-        const embedModule = await import('../embed/index.ts')
-        return embedModule.default(req)
-
-      default:
-        return new Response(
-          JSON.stringify({ error: `Function '${functionName}' not found` }),
-          {
-            status: 404,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-    }
-  } catch (error) {
-    console.error(`Error in function '${functionName}':`, error)
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Internal server error',
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    )
+    const worker = await EdgeRuntime.userWorkers.create({
+      servicePath,
+      memoryLimitMb,
+      workerTimeoutMs,
+      noModuleCache,
+      importMapPath,
+      envVars,
+    })
+    return await worker.fetch(req)
+  } catch (e) {
+    const error = { msg: e.toString() }
+    return new Response(JSON.stringify(error), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 })

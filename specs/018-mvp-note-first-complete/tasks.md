@@ -12,12 +12,12 @@
 | Phase | Tasks | Status | Effort |
 |---|---|---|---|
 | 0: Bug Fixes (P0) | T-001 to T-007 | COMPLETED | — |
-| 1: Note-First Core Loop (P1) | T-008 to T-017 | Pending | 3 days |
-| 2: Wire Dead Features (P2) | T-018 to T-022 | Pending | 2 days |
+| 1: Note-First Core Loop (P1) | T-008 to T-017 | Partially Done | — |
+| 2: Wire Dead Features (P2) | T-018 to T-022 | Partially Done | — |
 | 3: SDLC Testing Phase (P2) | T-023 to T-025 | Pending | 2 days |
 | 4: SDLC Deployment Phase (P2) | T-026 to T-028 | Pending | 2 days |
 | 5: SDLC Maintenance Phase (P2) | T-029 to T-032 | Pending | 3 days |
-| 6: Settings & Polish (P3) | T-033 to T-034 | Pending | 1 day |
+| 6: Settings & Polish (P3) | T-033 to T-034 | COMPLETED | — |
 
 **Total**: 34 tasks. 7 completed, 27 pending. ~13 days remaining.
 
@@ -75,109 +75,15 @@
 
 ---
 
-### T-010: Verify slash commands — 8+ block types (FR-010)
-
-**Type**: Verification | **Scope**: Frontend
-
-**Steps**:
-1. Read `slash-command-items.ts` — verify 8 types: Heading 1-3, Bullet/Numbered/Task List, Code Block, Quote, Table, Divider
-2. Read `createEditorExtensions.ts` — verify SlashCommand included
-3. Add any missing items
-
-**Files**:
-- `frontend/src/features/notes/editor/extensions/slash-command-items.ts`
-- `frontend/src/features/notes/editor/extensions/createEditorExtensions.ts`
-
-**Acceptance**: "/" shows 8+ block types. All insert correctly.
+### T-010: Verify slash commands — 8+ block types (FR-010) — DONE
+### T-011: Verify floating toolbar on text selection (FR-011) — DONE (added Strikethrough, Code, Highlight)
+### T-012: Verify auto-save and save indicator (FR-012) — DONE (wired in NoteCanvasLayout)
+### T-013: Wire intent extraction UI (FR-013, FR-014) — DONE (ExtractionPreviewModal in NoteCanvasLayout)
+### T-014: Wire inline issue badges after extraction (FR-015) — DONE (NoteIssueLink invalidation on created)
 
 ---
 
-### T-011: Verify floating toolbar on text selection (FR-011)
-
-**Type**: Verification | **Scope**: Frontend
-
-**Steps**:
-1. Check BubbleMenu / FloatingToolbar component
-2. Verify 6 options: Bold, Italic, Strikethrough, Code, Link, Highlight
-3. Add missing options if needed
-
-**Files**:
-- `frontend/src/components/editor/` — BubbleMenu or toolbar
-- `frontend/src/features/notes/editor/`
-
-**Acceptance**: Text selection shows 6 formatting options in floating toolbar.
-
----
-
-### T-012: Verify auto-save and save indicator (FR-012)
-
-**Type**: Verification | **Scope**: Frontend
-
-**Steps**:
-1. Read NoteStore auto-save reaction — confirm 2s debounce
-2. Find SaveStatus component — verify rendered in editor header
-3. Fix disconnected wiring if needed
-
-**Files**:
-- `frontend/src/stores/features/notes/NoteStore.ts`
-- `frontend/src/components/editor/`
-
-**Acceptance**: Edit triggers auto-save after 2s. Indicator shows status.
-
----
-
-### T-013: Wire intent extraction UI (FR-013, FR-014)
-
-**Type**: Wiring | **Scope**: Frontend + Backend verification
-
-**Steps**:
-1. Read extraction endpoint schema — request/response format
-2. Verify "Extract issues" trigger exists in editor UI (add toolbar button if missing)
-3. Wire flow: extract → display categorized intents → approve → create issue + NoteIssueLink
-
-**Files**:
-- `backend/src/pilot_space/api/v1/routers/ai_extraction.py`
-- `backend/src/pilot_space/api/v1/routers/intents.py`
-- `backend/src/pilot_space/api/v1/routers/workspace_note_issue_links.py`
-- `frontend/src/features/notes/` — editor toolbar, extraction panel
-
-**Acceptance**: Extract → categorized intents → approve → issue created with NoteIssueLink.
-
----
-
-### T-014: Wire inline issue badges after extraction (FR-015)
-
-**Type**: Wiring | **Scope**: Frontend
-**Depends on**: T-013
-
-**Steps**:
-1. Read InlineIssueExtension — how badges render
-2. After extraction approval, verify badge inserted at extraction point
-3. Verify click navigates to issue detail
-
-**Files**:
-- `frontend/src/features/notes/editor/extensions/InlineIssueExtension.ts`
-- `frontend/src/features/notes/editor/extensions/InlineIssueComponent.tsx`
-
-**Acceptance**: Inline badges appear after extraction. Click navigates to issue.
-
----
-
-### T-015: Verify AI Context tab renders 5+ sections (FR-016, FR-017)
-
-**Type**: Verification | **Scope**: Frontend + Backend
-
-**Steps**:
-1. Verify AI Context tab renders 5 sections (description, criteria, requirements, notes, dependencies)
-2. Verify "Copy for Claude Code" formats and copies markdown prompt
-3. Fix rendering/data issues
-
-**Files**:
-- `frontend/src/features/issues/components/ai-context-panel.tsx`
-- `frontend/src/features/issues/components/claude-code-prompt-card.tsx`
-- `frontend/src/lib/copy-context.ts`
-
-**Acceptance**: 5 context sections render. Copy produces AI-optimized markdown.
+### T-015: Verify AI Context tab renders 5+ sections (FR-016, FR-017) — DONE (CloneContextPanel exports 5 sections)
 
 ---
 
@@ -218,59 +124,15 @@
 
 ## Phase 2: Wire Dead Features (P2)
 
-### T-018: Mount TemplatePicker in "New Note" flow (FR-023)
-
-**Type**: Wiring | **Scope**: Frontend
-
-**Steps**:
-1. Find "New Note" trigger (sidebar button, notes page button)
-2. Intercept with TemplatePicker modal before creating blank note
-3. Pass selected template content to new note editor
-4. Verify 4 system templates + blank option render
-
-**Files**:
-- `frontend/src/features/notes/components/` — TemplatePicker
-- Sidebar or notes page — "New Note" handler
-
-**Acceptance**: "New Note" shows TemplatePicker with 4 SDLC templates + blank.
+### T-018: Mount TemplatePicker in "New Note" flow (FR-023) — DONE (wired in sidebar.tsx + notes/page.tsx)
 
 ---
 
-### T-019: Build Cmd+K global search modal (FR-024)
-
-**Type**: Build | **Scope**: Frontend
-
-**Steps**:
-1. Create SearchModal component (cmdk-based)
-2. Wire Cmd+K keyboard shortcut to toggle UIStore `commandPaletteOpen`
-3. Connect to Meilisearch for note body + issue identifier/title search
-4. Navigate to selected result
-5. Fallback to client-side title search if Meilisearch unavailable
-
-**Files**:
-- `frontend/src/stores/UIStore.ts`
-- `frontend/src/components/` — new SearchModal
-- Meilisearch client configuration
-
-**Acceptance**: Cmd+K opens palette. Search notes by body content + issues by ID/title. Selection navigates.
+### T-019: Build Cmd+K global search modal (FR-024) — DONE (CommandPaletteModal in AppShell)
 
 ---
 
-### T-020: Fix issue filter dropdowns — Assignee and Label (FR-025)
-
-**Type**: Bug fix | **Scope**: Frontend
-
-**Steps**:
-1. Find filter components in issues feature
-2. Wire Assignee dropdown to fetch workspace members API
-3. Wire Label dropdown to fetch project labels API
-4. Verify filter produces correct query params
-
-**Files**:
-- `frontend/src/features/issues/components/` — filter components
-- `frontend/src/services/api/` — members, labels endpoints
-
-**Acceptance**: Assignee dropdown shows workspace members. Label dropdown shows project labels.
+### T-020: Fix issue filter dropdowns — Assignee and Label (FR-025) — DONE (useWorkspaceMembers/useWorkspaceLabels wired)
 
 ---
 
@@ -505,35 +367,11 @@
 
 ## Phase 6: Settings & Polish (P3)
 
-### T-033: Fix workspace invitation flow (FR-035)
-
-**Type**: Bug fix | **Scope**: Frontend
-
-**Steps**:
-1. Find "Invite Members" button — replace CustomEvent with direct API call
-2. Wire to invitation API endpoint
-3. Show modal with email input + role selection
-
-**Files**:
-- `frontend/src/app/(workspace)/[workspaceSlug]/settings/members/page.tsx`
-
-**Acceptance**: "Invite Member" shows modal. Submitting calls API. Appears in pending list.
+### T-033: Fix workspace invitation flow (FR-035) — DONE (members page redirects to /members which has InviteMemberDialog)
 
 ---
 
-### T-034: Fix AI Providers error display (FR-036)
-
-**Type**: Bug fix | **Scope**: Frontend
-
-**Steps**:
-1. Find error rendering in AI Providers page
-2. Replace `[object Object]` with `error.message` or JSON.stringify
-3. Show meaningful validation errors
-
-**Files**:
-- `frontend/src/app/(workspace)/[workspaceSlug]/settings/ai-providers/page.tsx`
-
-**Acceptance**: Error messages readable. Shows specific validation failure.
+### T-034: Fix AI Providers error display (FR-036) — DONE (ai-settings-page.tsx properly renders error.message)
 
 ---
 

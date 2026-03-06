@@ -4,7 +4,7 @@ import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Home,
   FileText,
@@ -39,6 +39,8 @@ import {
   useWorkspaceStore,
 } from '@/stores';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
+import { TemplatePicker } from '@/features/notes/components';
+import type { NoteTemplate } from '@/services/api/templates';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -310,6 +312,28 @@ export const Sidebar = observer(function Sidebar() {
     },
   });
 
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+
+  const handleNewNote = useCallback(() => {
+    setShowTemplatePicker(true);
+  }, []);
+
+  const handleTemplateConfirm = useCallback(
+    (template: NoteTemplate | null) => {
+      setShowTemplatePicker(false);
+      if (template) {
+        createNote.mutate({
+          title: `New ${template.name} Note`,
+          content: template.content,
+        });
+      } else {
+        // Blank note
+        createNote.mutate(createNoteDefaults());
+      }
+    },
+    [createNote]
+  );
+
   const navigation = useMemo(() => {
     return navigationSections.map((section) => ({
       label: section.label,
@@ -340,12 +364,17 @@ export const Sidebar = observer(function Sidebar() {
       }));
   }, [noteStore.recentNotes, noteStore.pinnedNotes, workspaceSlug]);
 
-  const handleNewNote = useCallback(() => {
-    createNote.mutate(createNoteDefaults());
-  }, [createNote]);
-
   return (
     <div className="flex h-full flex-col">
+      {/* Template Picker Modal */}
+      {showTemplatePicker && (
+        <TemplatePicker
+          workspaceId={workspaceId}
+          isAdmin={workspaceStore.isAdmin}
+          onConfirm={handleTemplateConfirm}
+          onClose={() => setShowTemplatePicker(false)}
+        />
+      )}
       {/* Logo & Workspace */}
       <div
         className={cn(
