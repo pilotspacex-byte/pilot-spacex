@@ -481,5 +481,3 @@ For full AI architecture documentation: `backend/src/pilot_space/ai/README.md` a
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
-
-Author: Tin Dang `<tin@pilotspace.dev>`
