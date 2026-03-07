@@ -16,15 +16,15 @@ import { apiClient } from './client';
 // Response types (matching backend NotificationResponse schema)
 // ---------------------------------------------------------------------------
 
-export type BackendNotificationPriority = 'urgent' | 'important' | 'fyi';
+// Values match backend NotificationType enum (notification.py)
+export type BackendNotificationPriority = 'low' | 'medium' | 'high' | 'urgent';
+// Values match backend NotificationPriority enum (notification.py)
 export type BackendNotificationType =
-  | 'issue_assigned'
-  | 'issue_mentioned'
-  | 'issue_comment'
-  | 'pr_review_requested'
-  | 'pr_comment'
-  | 'pr_merged'
-  | 'system';
+  | 'pr_review'
+  | 'assignment'
+  | 'sprint_deadline'
+  | 'mention'
+  | 'general';
 
 export interface NotificationResponse {
   id: string;

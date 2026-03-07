@@ -17,11 +17,16 @@ import { useUIStore } from '@/stores';
 
 export function useCommandPaletteShortcut(): void {
   // Must use the RootStore-scoped UIStore, not the standalone singleton.
+  // store is the RootStore UIStore — a stable singleton that never changes reference.
   const store = useUIStore();
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      // navigator.platform is deprecated; prefer userAgentData with platform fallback.
+      const platform =
+        (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
+          ?.platform ?? navigator.platform;
+      const isMac = /mac/i.test(platform);
       const modifier = isMac ? event.metaKey : event.ctrlKey;
 
       if (modifier && event.key === 'k') {
@@ -43,5 +48,6 @@ export function useCommandPaletteShortcut(): void {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+    // store is a stable RootStore singleton — safe to include in deps without causing re-registration.
   }, [store]);
 }

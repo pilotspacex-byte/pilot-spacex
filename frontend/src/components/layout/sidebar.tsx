@@ -309,8 +309,9 @@ export const Sidebar = observer(function Sidebar() {
   }, [workspaceId, isAuthenticated, noteStore]);
 
   // Start polling unread count when workspace is active; stop on unmount or workspace change.
+  // Only poll when workspaceId is a UUID (contains '-') to prevent spurious calls with slugs.
   useEffect(() => {
-    if (workspaceId && isAuthenticated) {
+    if (workspaceId && isAuthenticated && workspaceId.includes('-')) {
       notificationStore.startPolling(workspaceId);
     }
     return () => {

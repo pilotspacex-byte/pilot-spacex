@@ -29,20 +29,23 @@ export interface Notification {
 // Mapping helpers
 // ---------------------------------------------------------------------------
 
+// Maps backend NotificationPriority enum values → UI priority labels.
+// Backend values: 'low' | 'medium' | 'high' | 'urgent'
 const PRIORITY_MAP: Record<string, NotificationPriority> = {
+  low: 'fyi',
+  medium: 'fyi',
+  high: 'important',
   urgent: 'urgent',
-  important: 'important',
-  fyi: 'fyi',
 };
 
+// Maps backend NotificationType enum values → UI type groups.
+// Backend values: 'pr_review' | 'assignment' | 'sprint_deadline' | 'mention' | 'general'
 const TYPE_MAP: Record<string, NotificationType> = {
-  issue_assigned: 'issue',
-  issue_mentioned: 'mention',
-  issue_comment: 'comment',
-  pr_review_requested: 'pr',
-  pr_comment: 'pr',
-  pr_merged: 'pr',
-  system: 'system',
+  pr_review: 'pr',
+  assignment: 'issue',
+  sprint_deadline: 'issue',
+  mention: 'mention',
+  general: 'system',
 };
 
 function mapNotification(raw: NotificationResponse): Notification {

@@ -4,11 +4,8 @@
  * CommandPalette - Global Cmd+K search modal (T-019)
  *
  * Opens via uiStore.commandPaletteOpen. Searches notes and issues
- * with a 5-result cap per group. Keyboard-navigable with cmdk.
- *
- * NOT wrapped in observer() — opened/closed state is read once on
- * mount via useUIStore() which is a stable MobX store. The Dialog
- * open prop is controlled by an effect that watches the store.
+ * with a 5-result cap per group via server-side search query.
+ * Keyboard-navigable with cmdk.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -112,10 +109,10 @@ export const CommandPalette = observer(function CommandPalette() {
     [uiStore]
   );
 
-  const workspaceSlug = params?.workspaceSlug ?? '';
+  const workspaceSlug = params?.workspaceSlug;
   const workspaceId =
     workspaceStore.currentWorkspace?.id ??
-    (workspaceSlug ? workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id : null) ??
+    (workspaceSlug ? workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id : undefined) ??
     workspaceStore.currentWorkspaceId;
 
   // Debounced search
@@ -135,26 +132,17 @@ export const CommandPalette = observer(function CommandPalette() {
 
     const timer = setTimeout(async () => {
       try {
+        // Pass query to backend for server-side filtering so results are not
+        // limited to the first page of items.
         const [notesRes, issuesRes] = await Promise.all([
-          notesApi.list(workspaceId, {}, 1, MAX_RESULTS_PER_GROUP),
-          issuesApi.list(workspaceId, {}, 1, MAX_RESULTS_PER_GROUP),
+          notesApi.list(workspaceId, { search: query }, 1, MAX_RESULTS_PER_GROUP),
+          issuesApi.list(workspaceId, { search: query }, 1, MAX_RESULTS_PER_GROUP),
         ]);
 
-        const lowerQuery = query.toLowerCase();
-
-        const filteredNotes = notesRes.items
-          .filter((n) => n.title.toLowerCase().includes(lowerQuery))
-          .slice(0, MAX_RESULTS_PER_GROUP);
-
-        const filteredIssues = issuesRes.items
-          .filter(
-            (i) =>
-              (i.name ?? i.title ?? '').toLowerCase().includes(lowerQuery) ||
-              i.identifier.toLowerCase().includes(lowerQuery)
-          )
-          .slice(0, MAX_RESULTS_PER_GROUP);
-
-        setResults({ notes: filteredNotes, issues: filteredIssues });
+        setResults({
+          notes: notesRes.items.slice(0, MAX_RESULTS_PER_GROUP),
+          issues: issuesRes.items.slice(0, MAX_RESULTS_PER_GROUP),
+        });
       } catch {
         setFetchError('Search failed. Try again.');
       } finally {
@@ -167,7 +155,7 @@ export const CommandPalette = observer(function CommandPalette() {
 
   const handleSelectNote = useCallback(
     (noteId: string) => {
-      router.push(`/${workspaceSlug}/notes/${noteId}`);
+      if (workspaceSlug) router.push(`/${workspaceSlug}/notes/${noteId}`);
       handleOpenChange(false);
     },
     [router, workspaceSlug, handleOpenChange]
@@ -175,7 +163,7 @@ export const CommandPalette = observer(function CommandPalette() {
 
   const handleSelectIssue = useCallback(
     (issueId: string) => {
-      router.push(`/${workspaceSlug}/issues/${issueId}`);
+      if (workspaceSlug) router.push(`/${workspaceSlug}/issues/${issueId}`);
       handleOpenChange(false);
     },
     [router, workspaceSlug, handleOpenChange]
