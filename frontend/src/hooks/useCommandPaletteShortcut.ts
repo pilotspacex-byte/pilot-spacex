@@ -7,12 +7,18 @@
  * Prevents default browser behaviour (Ctrl+K focuses address bar in some browsers,
  * Cmd+K is TipTap's link shortcut — this runs at the window level so the editor
  * listener on the element should fire first; the global listener handles the global case).
+ *
+ * IMPORTANT: uses useUIStore() (RootStore instance) — NOT the standalone uiStore singleton
+ * from UIStore.ts — so it targets the same observable that CommandPalette observes.
  */
 
 import { useEffect } from 'react';
-import { uiStore } from '@/stores/UIStore';
+import { useUIStore } from '@/stores';
 
 export function useCommandPaletteShortcut(): void {
+  // Must use the RootStore-scoped UIStore, not the standalone singleton.
+  const store = useUIStore();
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const isMac = navigator.platform.toUpperCase().includes('MAC');
@@ -31,11 +37,11 @@ export function useCommandPaletteShortcut(): void {
         if (isEditorFocused) return;
 
         event.preventDefault();
-        uiStore.toggleCommandPalette();
+        store.toggleCommandPalette();
       }
     }
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, []);
+  }, [store]);
 }

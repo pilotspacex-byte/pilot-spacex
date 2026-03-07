@@ -281,8 +281,11 @@ export const Sidebar = observer(function Sidebar() {
 
   // Get workspace slug from URL pathname (not from store)
   const workspaceSlug = getWorkspaceSlugFromPathname(pathname);
-  // Use slug as workspaceId for API calls (backend accepts both UUID and slug)
-  const workspaceId = workspaceSlug;
+  // Resolve workspace UUID from slug. Notifications and other APIs require a UUID, not a slug.
+  const workspaceId =
+    workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id ??
+    workspaceStore.currentWorkspaceId ??
+    workspaceSlug;
 
   // Store workspace slug in localStorage for redirect on root URL
   useEffect(() => {
