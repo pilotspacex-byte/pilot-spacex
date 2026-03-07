@@ -30,6 +30,7 @@ from pilot_space.api.v1.routers.ai_tasks import router as ai_tasks_router
 from pilot_space.api.v1.routers.auth import router as auth_router
 from pilot_space.api.v1.routers.auth_sso import router as auth_sso_router
 from pilot_space.api.v1.routers.block_ownership import router as block_ownership_router
+from pilot_space.api.v1.routers.custom_roles import router as custom_roles_router
 from pilot_space.api.v1.routers.cycles import router as cycles_router
 from pilot_space.api.v1.routers.dependency_graph import router as dependency_graph_router
 from pilot_space.api.v1.routers.ghost_text import router as ghost_text_router
@@ -69,6 +70,7 @@ from pilot_space.api.v1.routers.role_skills import (
     router as role_skills_router,
 )
 from pilot_space.api.v1.routers.scim import router as scim_router
+from pilot_space.api.v1.routers.sessions import router as workspace_sessions_router
 from pilot_space.api.v1.routers.skill_approvals import router as skill_approvals_router
 from pilot_space.api.v1.routers.skills import router as skills_router
 from pilot_space.api.v1.routers.webhooks import router as webhooks_router
@@ -88,7 +90,6 @@ from pilot_space.api.v1.routers.workspace_note_links import (
 )
 from pilot_space.api.v1.routers.workspace_notes import router as workspace_notes_router
 from pilot_space.api.v1.routers.workspace_notes_ai import router as workspace_notes_ai_router
-from pilot_space.api.v1.routers.sessions import router as workspace_sessions_router
 from pilot_space.api.v1.routers.workspace_tasks import router as workspace_tasks_router
 from pilot_space.api.v1.routers.workspaces import router as workspaces_router
 from pilot_space.infrastructure.logging import get_logger
@@ -148,6 +149,7 @@ __all__ = [
     "auth_router",
     "auth_sso_router",
     "block_ownership_router",
+    "custom_roles_router",
     "cycles_router",
     "debug_router",
     "dependency_graph_router",

@@ -77,6 +77,7 @@ from pilot_space.application.services.onboarding import (
     UpdateOnboardingService,
 )
 from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
+from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.role_skill import (
     CreateRoleSkillService,
     DeleteRoleSkillService,
@@ -86,7 +87,6 @@ from pilot_space.application.services.role_skill import (
 )
 from pilot_space.application.services.skill.concurrency_manager import SkillConcurrencyManager
 from pilot_space.application.services.skill.skill_execution_service import SkillExecutionService
-from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.sso_service import SsoService
 from pilot_space.application.services.task_service import TaskService
 from pilot_space.application.services.version.diff_service import VersionDiffService
@@ -116,6 +116,12 @@ from pilot_space.container._factories import (
     get_default_redirect_origin,
 )
 from pilot_space.dependencies.auth import get_current_session
+from pilot_space.infrastructure.database.repositories.custom_role_repository import (
+    CustomRoleRepository,
+)
+from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
+    WorkspaceMemberRepository as WorkspaceMemberRbacRepository,
+)
 
 
 class Container(InfraContainer):
@@ -663,6 +669,23 @@ class Container(InfraContainer):
         SsoService,
         workspace_repo=InfraContainer.workspace_repository,
         supabase_admin_client=InfraContainer.supabase_auth,
+    )
+
+    # RBAC repositories and service (AUTH-05)
+    custom_role_repository = providers.Factory(
+        CustomRoleRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    workspace_member_rbac_repository = providers.Factory(
+        WorkspaceMemberRbacRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    rbac_service = providers.Factory(
+        RbacService,
+        custom_role_repo=custom_role_repository,
+        workspace_member_repo=workspace_member_rbac_repository,
     )
 
 

@@ -43,30 +43,43 @@ class SessionRecordingMiddleware(BaseHTTPMiddleware):
     Runs on every request. Checks if the session token has been revoked
     (blocking) and schedules a session recording task (non-blocking).
 
+    Lazily resolves RedisClient and session_factory from
+    ``request.app.state.container`` on the first request so that the
+    middleware can be registered at app-creation time (before lifespan startup).
+
     Args:
         app: ASGI application.
-        redis: RedisClient instance for key checks.
-        session_factory: SQLAlchemy session factory for DB writes.
-        workspace_repo: WorkspaceRepository factory for slug lookup.
     """
 
     def __init__(
         self,
         app,  # type: ignore[no-untyped-def]
-        *,
-        redis: RedisClient,
-        session_factory: object,
     ) -> None:
         """Initialize middleware.
 
         Args:
             app: ASGI application.
-            redis: Redis client for throttle and revocation key checks.
-            session_factory: SQLAlchemy async session factory for DB writes.
         """
         super().__init__(app)
-        self._redis = redis
-        self._session_factory = session_factory
+        self._redis: RedisClient | None = None
+        self._session_factory: object | None = None
+
+    def _resolve_dependencies(self, request: Request) -> None:
+        """Lazily resolve redis and session_factory from app container.
+
+        Called on each dispatch to ensure dependencies are available after
+        lifespan startup. No-op if already resolved or container unavailable.
+
+        Args:
+            request: Incoming request with access to app.state.container.
+        """
+        if self._redis is None or self._session_factory is None:
+            try:
+                container = request.app.state.container
+                self._redis = container.redis_client()
+                self._session_factory = container.session_factory()
+            except Exception:
+                logger.debug("SessionRecordingMiddleware: container not yet available")
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Process request: check revocation, schedule session recording.
@@ -78,6 +91,9 @@ class SessionRecordingMiddleware(BaseHTTPMiddleware):
         Returns:
             Response — 401 if session revoked, otherwise pass-through.
         """
+        # Lazily resolve container dependencies (noop after first success)
+        self._resolve_dependencies(request)
+
         # Extract Bearer token — skip session logic if not present
         token = _extract_bearer_token(request)
         if token is None:
@@ -89,7 +105,7 @@ class SessionRecordingMiddleware(BaseHTTPMiddleware):
         workspace_id = _extract_workspace_id_from_state(request)
 
         # ── Revocation check (blocking — must 401 before handler runs) ──────
-        if workspace_id is not None:
+        if workspace_id is not None and self._redis is not None:
             revoked_key = _REVOKED_KEY_TEMPLATE.format(
                 workspace_id=workspace_id,
                 token_hash=token_hash,
@@ -107,7 +123,7 @@ class SessionRecordingMiddleware(BaseHTTPMiddleware):
 
         # ── Deprovisioned member check (blocking — SCIM is_active=False) ─────
         user_id = _extract_user_id(request)
-        if user_id is not None and workspace_id is not None:
+        if user_id is not None and workspace_id is not None and self._session_factory is not None:
             try:
                 is_deprovisioned = await _check_member_deprovisioned(
                     session_factory=self._session_factory,
@@ -127,7 +143,12 @@ class SessionRecordingMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
 
         # ── Session recording (fire-and-forget, never blocks) ─────────────────
-        if user_id is not None and workspace_id is not None:
+        if (
+            user_id is not None
+            and workspace_id is not None
+            and self._redis is not None
+            and self._session_factory is not None
+        ):
             ip_address = _extract_ip(request)
             user_agent = request.headers.get("User-Agent")
 

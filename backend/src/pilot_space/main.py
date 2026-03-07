@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from pilot_space.api.middleware.cors import configure_cors
 from pilot_space.api.middleware.error_handler import register_exception_handlers
 from pilot_space.api.middleware.request_context import RequestContextMiddleware
+from pilot_space.api.v1.middleware.session_recording import SessionRecordingMiddleware
 from pilot_space.api.v1.routers import (
     ai_annotations_router,
     ai_approvals_router,
@@ -223,6 +224,9 @@ register_exception_handlers(app)
 
 # Request context middleware (must be first for header extraction)
 app.add_middleware(RequestContextMiddleware)
+
+# Session recording middleware: throttled session upsert + revocation check (AUTH-06)
+app.add_middleware(SessionRecordingMiddleware)
 
 configure_cors(app)
 

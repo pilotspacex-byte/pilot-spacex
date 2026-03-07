@@ -39,10 +39,10 @@ def _get_session_service(request: Request, session: Any) -> SessionService:
     Returns:
         SessionService instance.
     """
+    from pilot_space.infrastructure.auth.supabase_auth import SupabaseAuth
     from pilot_space.infrastructure.database.repositories.workspace_session_repository import (
         WorkspaceSessionRepository,
     )
-    from pilot_space.infrastructure.auth.supabase_auth import SupabaseAuth
 
     redis = None
     try:
