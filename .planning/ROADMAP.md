@@ -55,7 +55,14 @@ Plans:
   4. Admin can export filtered audit log results as JSON or CSV and open the file in a spreadsheet tool
   5. Admin can set a retention window (e.g., 90 days) and confirm that entries older than the window are purged on schedule
   6. No user — including a workspace owner — can modify or delete any audit log entry via the API or admin UI
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — AuditLog model + migration 065 (table, trigger, RLS, pg_cron) + test scaffolds (AUDIT-01 through AUDIT-06)
+- [ ] 02-02-PLAN.md — AuditLogRepository + service instrumentation: issues, notes, cycles, members, settings, custom roles (AUDIT-01)
+- [ ] 02-03-PLAN.md — AI hook upgrade: AuditLogHook writes DB rows with full AI action metadata (AUDIT-02)
+- [ ] 02-04-PLAN.md — Audit API: GET list (filtered, cursor-paged), GET export (streaming CSV/JSON), PATCH retention, immutability tests (AUDIT-03, AUDIT-04, AUDIT-05, AUDIT-06)
+- [ ] 02-05-PLAN.md — Audit settings page: filter UI, read-only table, row expansion, export buttons, settings nav entry + human verification (AUDIT-03, AUDIT-04, AUDIT-05, AUDIT-06)
 
 ### Phase 3: Multi-Tenant Isolation
 **Goal**: Workspace data is verifiably isolated at every layer, operators can configure encryption and quotas, and the self-hosted operator has a dashboard to monitor workspace health
@@ -104,7 +111,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Identity & Access | 9/9 | Complete   | 2026-03-07 |
-| 2. Compliance & Audit | 0/TBD | Not started | - |
+| 2. Compliance & Audit | 0/5 | Not started | - |
 | 3. Multi-Tenant Isolation | 0/TBD | Not started | - |
 | 4. AI Governance | 0/TBD | Not started | - |
 | 5. Operational Readiness | 0/TBD | Not started | - |
@@ -113,3 +120,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 *Roadmap created: 2026-03-07*
 *Coverage: 30/30 v1 requirements mapped*
 *Phase 1 planned: 2026-03-07 — 9 plans across 5 waves*
+*Phase 2 planned: 2026-03-08 — 5 plans across 4 waves*
