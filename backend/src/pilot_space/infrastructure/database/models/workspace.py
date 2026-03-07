@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     )
     from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
     from pilot_space.infrastructure.database.models.ai_session import AISession
+    from pilot_space.infrastructure.database.models.custom_role import CustomRole
     from pilot_space.infrastructure.database.models.project import Project
     from pilot_space.infrastructure.database.models.user import User
     from pilot_space.infrastructure.database.models.workspace_api_key import (
@@ -130,6 +131,12 @@ class Workspace(BaseModel):
         back_populates="workspace",
         cascade="all, delete-orphan",
         lazy="selectin",
+    )
+    custom_roles: Mapped[list[CustomRole]] = relationship(
+        "CustomRole",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        lazy="select",
     )
 
     # Indexes and constraints

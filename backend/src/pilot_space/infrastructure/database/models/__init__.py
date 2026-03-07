@@ -40,6 +40,7 @@ from pilot_space.infrastructure.database.models.ai_session import AISession
 from pilot_space.infrastructure.database.models.ai_task import AITask, TaskStatus
 from pilot_space.infrastructure.database.models.ai_tool_call import AIToolCall, ToolCallStatus
 from pilot_space.infrastructure.database.models.chat_attachment import ChatAttachment
+from pilot_space.infrastructure.database.models.custom_role import CustomRole
 from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
 from pilot_space.infrastructure.database.models.digest_dismissal import DigestDismissal
 from pilot_space.infrastructure.database.models.discussion_comment import (
@@ -125,6 +126,7 @@ from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
 )
+from pilot_space.infrastructure.database.models.workspace_session import WorkspaceSession
 
 __all__ = [
     "DEFAULT_STATES",
@@ -145,6 +147,7 @@ __all__ = [
     "BaseModel",
     "ChatAttachment",
     "ConstitutionRule",
+    "CustomRole",
     "Cycle",
     "CycleStatus",
     "DigestDismissal",
@@ -213,5 +216,6 @@ __all__ = [
     "WorkspaceRole",
     "WorkspaceScopedMixin",
     "WorkspaceScopedModel",
+    "WorkspaceSession",
     "issue_labels",
 ]
