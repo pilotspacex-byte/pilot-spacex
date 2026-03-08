@@ -1,0 +1,144 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pilot-space.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    # Rate limiting (global)
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+    # Proxy settings — SSE streaming requires buffering off
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    {{- if .Values.ingress.tls.certManagerClusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.certManagerClusterIssuer | quote }}
+    {{- end }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+        {{- if .Values.ingress.apiHost }}
+        - {{ .Values.ingress.apiHost }}
+        {{- end }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    # Main domain: /api and /health route to backend, everything else to frontend
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          # API routes to backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pilot-space.backendName" . }}
+                port:
+                  number: {{ .Values.backend.service.port }}
+          # Health check routes to backend (Kubernetes probes reach via ingress too)
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pilot-space.backendName" . }}
+                port:
+                  number: {{ .Values.backend.service.port }}
+          # All other routes to frontend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pilot-space.frontendName" . }}
+                port:
+                  number: {{ .Values.frontend.service.port }}
+    {{- if .Values.ingress.apiHost }}
+    # Dedicated API subdomain routes entirely to backend
+    - host: {{ .Values.ingress.apiHost }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pilot-space.backendName" . }}
+                port:
+                  number: {{ .Values.backend.service.port }}
+    {{- end }}
+---
+# AI-specific ingress with stricter rate limits and longer timeouts for SSE streaming
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pilot-space.fullname" . }}-ai
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ai
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    # Stricter rate limiting for AI endpoints (DD-003)
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+    # Longer timeouts for AI processing and SSE streaming
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/chunked-transfer-encoding: "on"
+    {{- if .Values.ingress.tls.certManagerClusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.certManagerClusterIssuer | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api/v1/ai
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pilot-space.backendName" . }}
+                port:
+                  number: {{ .Values.backend.service.port }}
+          - path: /api/v1/notes
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pilot-space.backendName" . }}
+                port:
+                  number: {{ .Values.backend.service.port }}
+          - path: /api/v1/issues
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pilot-space.backendName" . }}
+                port:
+                  number: {{ .Values.backend.service.port }}
+{{- end }}

@@ -1,0 +1,27 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pilot-space.backendName" . }}-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.backendLabels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.backend.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pilot-space.backendSelectorLabels" . | nindent 6 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pilot-space.frontendName" . }}-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.frontendLabels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.frontend.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pilot-space.frontendSelectorLabels" . | nindent 6 }}
+{{- end }}
