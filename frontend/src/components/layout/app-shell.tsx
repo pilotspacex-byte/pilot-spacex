@@ -93,8 +93,8 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
         </motion.aside>
       )}
 
-      {/* Main content area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Main content area — min-w-0 prevents flex children from overflowing viewport */}
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         {/* Mobile hamburger toggle */}
         {isSmallScreen && !sidebarOpen && (
           <div className="flex h-10 items-center border-b border-border px-2">
