@@ -361,6 +361,7 @@ class PermissionAwareHookExecutor:
         file_hook_executor: FileBasedHookExecutor | None = None,
         event_queue: Any | None = None,
         max_budget_usd: float | None = None,
+        session_factory: Any | None = None,
     ) -> None:
         """Initialize executor.
 
@@ -372,6 +373,7 @@ class PermissionAwareHookExecutor:
             file_hook_executor: Optional file-based hooks to compose with
             event_queue: Optional asyncio.Queue for SSE approval events
             max_budget_usd: Per-request budget ceiling for BudgetStopHook
+            session_factory: Optional async_sessionmaker for AuditLogHook DB writes
         """
         self._permission_hook = PermissionCheckHook(permission_handler)
         self._workspace_id = workspace_id
@@ -380,6 +382,7 @@ class PermissionAwareHookExecutor:
         self._file_hook_executor = file_hook_executor
         self._event_queue = event_queue
         self._max_budget_usd = max_budget_usd
+        self._session_factory = session_factory
 
     def to_sdk_hooks(self) -> dict[str, list[dict[str, Any]]]:
         """Convert to SDK-compatible hooks format.
@@ -420,7 +423,12 @@ class PermissionAwareHookExecutor:
             | SubagentProgressHook
         ] = [
             subagent_hook,
-            AuditLogHook(event_queue=self._event_queue),
+            AuditLogHook(
+                event_queue=self._event_queue,
+                session_factory=self._session_factory,
+                actor_id=self._user_id,
+                workspace_id=self._workspace_id,
+            ),
             InputValidationHook(),
             ContextPreservationHook(),
         ]

@@ -76,6 +76,12 @@ class Workspace(BaseModel):
         default=dict,
     )
 
+    # Audit log retention period in days (NULL means use system default of 90 days)
+    # Added by migration 065_add_audit_log_table
+    audit_retention_days: Mapped[int | None] = mapped_column(
+        nullable=True,
+    )
+
     # Owner (creator of workspace)
     # M-3 fix: type annotation matches nullable=True (owner can be NULL if deleted)
     owner_id: Mapped[uuid.UUID | None] = mapped_column(

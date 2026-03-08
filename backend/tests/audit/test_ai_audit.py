@@ -21,7 +21,6 @@ import pytest
 class TestAuditLogHookPostToolUse:
     """Tests for AuditLogHook.on_post_tool_use() writing audit rows."""
 
-    @pytest.mark.xfail(strict=False, reason="AuditLogHook implementation pending")
     @pytest.mark.asyncio
     async def test_writes_row_with_ai_actor_type(self) -> None:
         """After PostToolUse, AuditLogHook must write a row with actor_type=AI."""
@@ -56,7 +55,6 @@ class TestAuditLogHookPostToolUse:
         assert call_kwargs["actor_id"] == user_id
         assert call_kwargs["workspace_id"] == workspace_id
 
-    @pytest.mark.xfail(strict=False, reason="AuditLogHook implementation pending")
     @pytest.mark.asyncio
     async def test_populates_ai_fields_from_tool_use_result(self) -> None:
         """AuditLogHook must populate ai_model, ai_token_cost, ai_rationale."""
@@ -89,7 +87,6 @@ class TestAuditLogHookPostToolUse:
         assert call_kwargs["ai_input"] is not None
         assert call_kwargs["ai_output"] is not None
 
-    @pytest.mark.xfail(strict=False, reason="AuditLogHook implementation pending")
     @pytest.mark.asyncio
     async def test_hook_is_non_fatal_on_db_error(self) -> None:
         """AuditLogHook must not propagate exceptions — audit failures are non-fatal."""

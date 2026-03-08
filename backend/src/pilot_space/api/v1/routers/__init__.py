@@ -27,6 +27,7 @@ from pilot_space.api.v1.routers.ai_drive import router as ai_drive_router
 from pilot_space.api.v1.routers.ai_extraction import router as ai_extraction_router
 from pilot_space.api.v1.routers.ai_sessions import router as ai_sessions_router
 from pilot_space.api.v1.routers.ai_tasks import router as ai_tasks_router
+from pilot_space.api.v1.routers.audit import router as audit_router
 from pilot_space.api.v1.routers.auth import router as auth_router
 from pilot_space.api.v1.routers.auth_sso import router as auth_sso_router
 from pilot_space.api.v1.routers.block_ownership import router as block_ownership_router
@@ -146,6 +147,7 @@ __all__ = [
     "ai_router",
     "ai_sessions_router",
     "ai_tasks_router",
+    "audit_router",
     "auth_router",
     "auth_sso_router",
     "block_ownership_router",

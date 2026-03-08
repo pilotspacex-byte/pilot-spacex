@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, delete, or_, select
 
 from pilot_space.infrastructure.database.models.audit_log import ActorType, AuditLog
 
@@ -269,6 +269,86 @@ class AuditLogRepository:
             next_cursor=next_cursor,
         )
 
+    async def list_for_export(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        actor_id: uuid.UUID | None = None,
+        action: str | None = None,
+        resource_type: str | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[AuditLog]:
+        """Return all AuditLog rows for export, respecting filters.
+
+        Loads rows in batches of 100 via yield_per to avoid OOM on large exports.
+        No pagination cursor — returns full result set matching filters.
+
+        Args:
+            workspace_id: Workspace to query (required — tenant isolation).
+            actor_id: Optional filter by actor UUID.
+            action: Optional filter by exact action string.
+            resource_type: Optional filter by resource category.
+            start_date: Optional inclusive lower bound for created_at.
+            end_date: Optional inclusive upper bound for created_at.
+
+        Returns:
+            List of AuditLog rows matching the filters, ordered by created_at DESC.
+        """
+        stmt = select(AuditLog).where(AuditLog.workspace_id == workspace_id)
+
+        if actor_id is not None:
+            stmt = stmt.where(AuditLog.actor_id == actor_id)
+        if action is not None:
+            stmt = stmt.where(AuditLog.action == action)
+        if resource_type is not None:
+            stmt = stmt.where(AuditLog.resource_type == resource_type)
+        if start_date is not None:
+            stmt = stmt.where(AuditLog.created_at >= start_date)
+        if end_date is not None:
+            stmt = stmt.where(AuditLog.created_at <= end_date)
+
+        stmt = stmt.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).execution_options(
+            yield_per=100
+        )
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def purge_expired(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        retention_days: int | None,
+        now: datetime | None = None,
+    ) -> int:
+        """Delete audit log rows older than retention_days for a workspace.
+
+        Used by the pg_cron retention job (or test harness). The SQL trigger
+        bypass (app.audit_purge session variable) must be set by the caller
+        when running against PostgreSQL.
+
+        Args:
+            workspace_id: Workspace whose rows to purge.
+            retention_days: Number of days to retain. Defaults to 90 if None.
+            now: Reference timestamp (defaults to UTC now). Useful for tests.
+
+        Returns:
+            Number of rows deleted.
+        """
+        from datetime import UTC, timedelta
+
+        effective_days = retention_days if retention_days is not None else 90
+        reference_time = now or datetime.now(UTC)
+        cutoff = reference_time - timedelta(days=effective_days)
+
+        stmt = delete(AuditLog).where(
+            AuditLog.workspace_id == workspace_id,
+            AuditLog.created_at < cutoff,
+        )
+        result = await self.session.execute(stmt)
+        return result.rowcount  # type: ignore[return-value]
+
 
 async def write_audit_nonfatal(
     audit_repo: AuditLogRepository | None,
@@ -318,6 +398,8 @@ async def write_audit_nonfatal(
 __all__ = [
     "AuditLogPage",
     "AuditLogRepository",
+    "_decode_cursor",
+    "_encode_cursor",
     "compute_diff",
     "write_audit_nonfatal",
 ]
