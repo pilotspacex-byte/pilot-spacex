@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-08T01:53:57.603Z"
-last_activity: "2026-03-07 — Completed plan 01-08 (SecuritySettingsPage: sessions table + SCIM token UI)"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-08T02:03:38Z"
+last_activity: "2026-03-08 — Completed plan 02-02 (AuditLogRepository + service instrumentation)"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 14
-  completed_plans: 10
-  percent: 17
+  completed_plans: 11
+  percent: 21
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 
 ## Current Position
 
-Phase: 1 of 5 (Identity & Access)
-Plan: 8 of 9 in current phase
+Phase: 2 of 5 (Compliance & Audit)
+Plan: 2 of 5 in current phase
 Status: In progress
-Last activity: 2026-03-07 — Completed plan 01-08 (SecuritySettingsPage: sessions table + SCIM token UI)
+Last activity: 2026-03-08 — Completed plan 02-02 (AuditLogRepository + service instrumentation)
 
-Progress: [███░░░░░░░] 17%
+Progress: [██░░░░░░░░] 21%
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [███░░░░░░░] 17%
 | Phase 01-identity-and-access P08 | 12 | 1 task | 7 files |
 | Phase 01-identity-and-access P09 | 7 | 2 tasks | 9 files |
 | Phase 02-compliance-and-audit P01 | 27 | 2 tasks | 12 files |
+| Phase 02-compliance-and-audit P02 | 90 | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,10 @@ Recent decisions affecting current work:
 - [Phase 02-compliance-and-audit]: AuditLog uses Base+TimestampMixin+WorkspaceScopedMixin (not WorkspaceScopedModel) to exclude SoftDeleteMixin — audit records are immutable
 - [Phase 02-compliance-and-audit]: pg_cron bypass via app.audit_purge session variable — BEFORE trigger checks current_setting, purge function sets/resets it around DELETE
 - [Phase 02-compliance-and-audit]: Migration dollar-quoting: DO $outer$ with single-quoted cron command — nested $$ inside DO $$ causes PostgreSQL SyntaxError
+- [Phase 02-compliance-and-audit]: AuditLogRepository is standalone (not extending BaseRepository) — avoids inheriting soft-delete methods on immutable records
+- [Phase 02-compliance-and-audit]: Cursor pagination uses base64(JSON{ts,id}) keyset for O(1) page seeks on (created_at DESC, id DESC) index
+- [Phase 02-compliance-and-audit]: All service audit writes non-fatal (try/except) — audit failures never interrupt primary write paths; write_audit_nonfatal() helper reduces boilerplate
+- [Phase 02-compliance-and-audit]: delete_note_service.py drops Activity tracking — Activity.issue_id is a non-nullable FK; notes structurally incompatible with Activity model
 
 ### Pending Todos
 
@@ -108,6 +113,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T01:53:57.601Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-08T02:03:38Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
