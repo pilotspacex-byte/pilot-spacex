@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-ai-governance-01-PLAN.md
-last_updated: "2026-03-08T09:42:22.368Z"
+stopped_at: Completed 04-ai-governance-02-PLAN.md
+last_updated: "2026-03-08T09:57:41.561Z"
 last_activity: 2026-03-08 — Completed plan 03-04 (super-admin operator dashboard backend)
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 30
-  completed_plans: 23
+  completed_plans: 24
   percent: 71
 ---
 
@@ -69,6 +69,7 @@ Progress: [███████░░░] 71%
 | Phase 03-multi-tenant-isolation P07 | 18 | 2 tasks | 5 files |
 | Phase 03-multi-tenant-isolation P08 | 1 | 1 tasks | 1 files |
 | Phase 04-ai-governance P01 | 7 | 2 tasks | 13 files |
+| Phase 04-ai-governance P02 | 11 | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -145,6 +146,9 @@ Recent decisions affecting current work:
 - [Phase 04-ai-governance]: Migration 069 uses ADD COLUMN IF NOT EXISTS — operation_type was already present in dev DB from outside alembic; idempotent migration avoids DuplicateColumn error
 - [Phase 04-ai-governance]: workspace_ai_policy RLS: OWNER+ADMIN read (settings visible to admins), OWNER-only write (policy changes require owner authority)
 - [Phase 04-ai-governance]: xfail stubs use empty bodies (not pass) per ruff PIE790 — async functions with only docstrings are valid Python and pass trivially as xpass
+- [Phase 04-ai-governance]: async ApprovalService with four-tier priority: ALWAYS_REQUIRE → OWNER shortcut → DB policy row → level fallback
+- [Phase 04-ai-governance]: AINotConfiguredError in ai/exceptions.py with 503 http_status — workspace calls raise immediately, no env fallback
+- [Phase 04-ai-governance]: cost_tracker changed from providers.Callable(lambda:None) to providers.Factory(CostTracker) — must be positioned before referencing services in container class body
 
 ### Pending Todos
 
@@ -160,6 +164,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T09:42:22.366Z
-Stopped at: Completed 04-ai-governance-01-PLAN.md
+Last session: 2026-03-08T09:57:41.559Z
+Stopped at: Completed 04-ai-governance-02-PLAN.md
 Resume file: None
