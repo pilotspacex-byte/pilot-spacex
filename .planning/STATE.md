@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-stopped_at: Completed 05-01-PLAN — Two-tier health check endpoints; /health/live liveness + /health/ready readiness with DB/Redis/Supabase checks
-last_updated: "2026-03-08T16:49:00.000Z"
-last_activity: 2026-03-08 — Implemented health check endpoints (OPS-03); liveness probe + deep readiness probe
+status: completed
+stopped_at: Completed 05-05-PLAN.md — pilot backup create/restore CLI with AES-256-GCM encryption and pg_dump integration
+last_updated: "2026-03-08T16:53:38.981Z"
+last_activity: 2026-03-08 — Implemented /health/live and /health/ready endpoints (05-01)
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 32
-  completed_plans: 32
+  total_plans: 38
+  completed_plans: 34
   percent: 100
 ---
 
@@ -79,6 +79,7 @@ Progress: [██████████] 100%
 | Phase 04-ai-governance P09 | ~120 | 2 tasks + 1 fix | 6 files |
 | Phase 04-ai-governance P10 | 8 | 2 tasks | 4 files |
 | Phase 05-operational-readiness P01 | 4 | 2 tasks | 6 files |
+| Phase 05-operational-readiness P05 | 28 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -190,6 +191,9 @@ Recent decisions affecting current work:
 - [Phase 05-operational-readiness]: CRITICAL_CHECKS = {database, redis} — Supabase failure yields degraded not unhealthy; supabase outage must not stop traffic routing
 - [Phase 05-operational-readiness]: check_redis creates short-lived RedisClient for probe — isolates health check connectivity from app connection pool
 - [Phase 05-operational-readiness]: Dual @router.get decorators on readiness() for /health/ready and /health — avoids code duplication while maintaining backward compat
+- [Phase 05-operational-readiness]: PGPASSWORD env + URL password-stripping: pg_dump strips password from URL before subprocess call; password set only via PGPASSWORD env to prevent ps aux exposure
+- [Phase 05-operational-readiness]: PSBC magic bytes header on .tar.gz.enc files enables early file-type validation before AES-GCM decryption attempt
+- [Phase 05-operational-readiness]: AES-256-GCM + PBKDF2-SHA256 (260k iterations) for backup encryption: authenticated encryption catches both wrong passphrase and tampering
 
 ### Pending Todos
 
@@ -205,6 +209,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T14:31:27Z
-Stopped at: Completed 04-09-PLAN — DB-backed approval routing wired into all 4 MCP servers; check_approval_from_db() helper + ToolContext.user_role
+Last session: 2026-03-08T16:53:38.979Z
+Stopped at: Completed 05-05-PLAN.md — pilot backup create/restore CLI with AES-256-GCM encryption and pg_dump integration
 Resume file: None
