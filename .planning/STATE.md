@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-ai-governance-03-PLAN.md
-last_updated: "2026-03-08T10:07:16.610Z"
+stopped_at: Completed 04-ai-governance-04-PLAN.md
+last_updated: "2026-03-08T10:19:49.373Z"
 last_activity: 2026-03-08 — Completed plan 03-04 (super-admin operator dashboard backend)
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 30
-  completed_plans: 25
+  completed_plans: 26
   percent: 71
 ---
 
@@ -71,6 +71,7 @@ Progress: [███████░░░] 71%
 | Phase 04-ai-governance P01 | 7 | 2 tasks | 13 files |
 | Phase 04-ai-governance P02 | 11 | 2 tasks | 12 files |
 | Phase 04-ai-governance P03 | 7 | 2 tasks | 5 files |
+| Phase 04-ai-governance P04 | 8 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -152,6 +153,10 @@ Recent decisions affecting current work:
 - [Phase 04-ai-governance]: cost_tracker changed from providers.Callable(lambda:None) to providers.Factory(CostTracker) — must be positioned before referencing services in container class body
 - [Phase 04-ai-governance]: actor_type=None default in list_filtered/list_for_export — preserves backward compatibility while enabling AI-specific audit filtering (AIGOV-03)
 - [Phase 04-ai-governance]: Scoped test engine fixture creates only audit_log table — avoids SQLite failures from PostgreSQL-specific server_defaults in chat_attachments table
+- [Phase 04-ai-governance]: ai_governance.py uses _resolve_workspace + check_permission (audit.py pattern) — verify_workspace_admin from ai_approvals.py uses WorkspaceId header context incompatible with slug-based routing
+- [Phase 04-ai-governance]: ai_governance.py uses _resolve_workspace + check_permission (audit.py pattern) not verify_workspace_admin from ai_approvals.py
+- [Phase 04-ai-governance]: Rollback dispatch stubs 501 pending 04-05 — plan referenced non-existent monolithic IssueService/NoteService; CQRS split services need payload mapping
+- [Phase 04-ai-governance]: group_by query param uses Query(pattern=...) regex for 422 validation — by_feature field declared as None default on CostSummaryResponse
 
 ### Pending Todos
 
@@ -167,6 +172,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T10:07:16.608Z
-Stopped at: Completed 04-ai-governance-03-PLAN.md
+Last session: 2026-03-08T10:19:49.371Z
+Stopped at: Completed 04-ai-governance-04-PLAN.md
 Resume file: None
