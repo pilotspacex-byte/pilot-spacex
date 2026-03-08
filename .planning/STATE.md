@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: checkpoint
-stopped_at: Completed 04-ai-governance-08-PLAN.md task 1; awaiting human verification (task 2)
-last_updated: "2026-03-08T18:55:00.000Z"
-last_activity: 2026-03-08 — Completed plan 04-08 task 1 (quality gates); pending human browser verification AIGOV-01..07
+status: active
+stopped_at: Completed 04-ai-governance Phase 4 complete (all 8 plans done, AIGOV-01..07 verified)
+last_updated: "2026-03-08T20:30:00.000Z"
+last_activity: 2026-03-08 — Phase 4 AI Governance complete; 4 browser verification bugs fixed
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 30
-  completed_plans: 29
-  percent: 97
+  completed_plans: 30
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 
 ## Current Position
 
-Phase: 4 of 5 (AI Governance) — CHECKPOINT (awaiting human browser verification)
-Plan: 8 of 8 in current phase (04-08 task 1 complete; task 2 = human verify)
-Status: Quality gates run, all Phase 4 AI tests pass; AIGOV-01..07 pending human browser verification
-Last activity: 2026-03-08 — Completed plan 04-08 task 1 (quality gates + test fixes)
+Phase: 4 of 5 (AI Governance) — COMPLETE
+Plan: 8 of 8 in current phase (all plans complete)
+Status: Phase 4 complete — all AIGOV-01..07 browser-verified; 4 regression bugs fixed post human-verify
+Last activity: 2026-03-08 — Fixed 4 browser-verification bugs (enum labels, actor_type filter, cost UUID, layout overflow)
 
-Progress: [█████████░] 97%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -75,7 +75,7 @@ Progress: [█████████░] 97%
 | Phase 04-ai-governance P05 | 25 | 2 tasks | 10 files |
 | Phase 04-ai-governance P06 | 18 | 2 tasks | 4 files |
 | Phase 04-ai-governance P07 | 21 | 2 tasks | 8 files |
-| Phase 04-ai-governance P08 | 90 | 1 task complete + human verify | 16 files |
+| Phase 04-ai-governance P08 | 130 | 2 tasks complete (4 bugs fixed) | 21 files |
 
 ## Accumulated Context
 
@@ -171,6 +171,10 @@ Recent decisions affecting current work:
 - [Phase 04-ai-governance]: AiNotConfiguredBanner queries ai-status only when isOwner=true — avoids unnecessary endpoint calls for non-owners
 - [Phase 04-ai-governance]: PRReviewPanel byokConfigured prop defaults to true for backward compatibility — existing callers unaffected
 - [Phase 04-ai-governance]: Pre-existing test failures (199 backend, 134 frontend) out of scope for Phase 4 — Phase 4 AI unit tests 1637/1637 pass; coverage at 59% (was 58% pre-Phase 4; pre-existing gate failure)
+- [Phase 04-ai-governance]: actor_type.value used in SQLAlchemy WHERE clause (not enum object) — str(ActorType.AI) = "ActorType.AI" not "AI"; String(10) column comparison fails without .value
+- [Phase 04-ai-governance]: audit-labels.ts utility extracted from audit-settings-page.tsx to avoid 700-line limit
+- [Phase 04-ai-governance]: Cost dashboard resolves workspace UUID via workspaceStore.currentWorkspace?.id — costs/page.tsx passed slug as workspaceId prop
+- [Phase 04-ai-governance]: min-w-0 required on AppShell content flex item to prevent horizontal overflow beyond viewport
 - [Phase 04-ai-governance]: chat_attachment server_default removed — Python-level default added for SQLite test compatibility; production uses Alembic migration not create_all
 
 ### Pending Todos
@@ -187,6 +191,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T18:55:00.000Z
-Stopped at: Completed 04-ai-governance-08-PLAN.md task 1; awaiting human verification task 2
+Last session: 2026-03-08T20:30:00.000Z
+Stopped at: Completed 04-ai-governance Phase 4 — all plans done, AIGOV-01..07 verified, 4 regression bugs fixed
 Resume file: None

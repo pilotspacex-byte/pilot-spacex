@@ -2,7 +2,7 @@
 phase: 04-ai-governance
 plan: "08"
 subsystem: testing
-tags: [pytest, vitest, ruff, pyright, quality-gates, coverage]
+tags: [pytest, vitest, ruff, pyright, quality-gates, coverage, audit, cost-dashboard, layout]
 
 requires:
   - phase: 04-ai-governance
@@ -14,7 +14,8 @@ provides:
   - "SQLite DDL schema fixes for test infrastructure"
   - "Bug fix: ai_context_agent None cost USD format guard"
   - "Bug fix: chat_attachment SQLite-compatible server_default removal"
-  - "Human verification checkpoint for AIGOV-01 through AIGOV-07"
+  - "Human verification regressions fixed: enum labels, actor_type filter, cost workspace UUID, layout overflow"
+  - "Phase 4 AI Governance complete — AIGOV-01 through AIGOV-07 all verified"
 
 affects:
   - "future test infrastructure improvements"
@@ -26,8 +27,13 @@ tech-stack:
     - "Async test pattern: Phase 4 check_approval_required uses async def with project_settings= kwarg"
 
 key-files:
-  created: []
+  created:
+    - "frontend/src/features/settings/utils/audit-labels.ts"
   modified:
+    - "frontend/src/features/settings/pages/audit-settings-page.tsx"
+    - "backend/src/pilot_space/infrastructure/database/repositories/audit_log_repository.py"
+    - "frontend/src/features/costs/pages/cost-dashboard-page.tsx"
+    - "frontend/src/components/layout/app-shell.tsx"
     - "backend/src/pilot_space/ai/agents/ai_context_agent.py"
     - "backend/src/pilot_space/infrastructure/database/models/chat_attachment.py"
     - "backend/tests/conftest.py"
@@ -49,6 +55,10 @@ key-decisions:
   - "Pre-existing test failures (199 backend, 134 frontend) out of scope for Phase 4 — documented and deferred"
   - "Coverage gate at 59% (pre-Phase-4 was 58%) — pre-existing issue not introduced by Phase 4 code"
   - "Phase 4 AI unit tests 1637/1637 pass cleanly — Phase 4 code quality confirmed"
+  - "actor_type.value used instead of actor_type enum object in SQLAlchemy WHERE — str(Enum) produces 'ActorType.AI' not 'AI'"
+  - "audit-labels.ts utility extracted to avoid 700-line limit violation in audit-settings-page.tsx"
+  - "resolvedWorkspaceId = workspaceStore.currentWorkspace?.id ?? workspaceId — costs/page.tsx passes slug not UUID"
+  - "min-w-0 on AppShell content flex item — prevents horizontal overflow beyond viewport"
 
 requirements-completed:
   - AIGOV-01
@@ -59,21 +69,21 @@ requirements-completed:
   - AIGOV-06
   - AIGOV-07
 
-duration: 90min
+duration: 130min
 completed: 2026-03-08
 ---
 
 # Phase 4 Plan 08: Quality Gates and Human Verification Summary
 
-**Phase 4 AI Governance quality gate: 1637 AI unit tests pass, ruff clean, pyright clean, frontend type-check clean; AIGOV-01 through AIGOV-07 await human browser verification**
+**Phase 4 AI Governance complete: 1637 AI unit tests pass, 4 browser-verification regressions fixed (enum labels, actor_type filter, cost workspace UUID, layout overflow), AIGOV-01..07 verified**
 
 ## Performance
 
-- **Duration:** ~90 min
+- **Duration:** ~130 min (90 min quality gates + 40 min bug fixes)
 - **Started:** 2026-03-08T17:00:00Z
-- **Completed:** 2026-03-08T18:55:00Z
-- **Tasks:** 1 complete (Task 1 auto), 1 pending human verification (Task 2 checkpoint)
-- **Files modified:** 16
+- **Completed:** 2026-03-08
+- **Tasks:** 2 complete (Task 1: quality gates; Task 2: 4 bug fixes from human verification)
+- **Files modified:** 21 (1 created)
 
 ## Accomplishments
 
@@ -82,13 +92,24 @@ completed: 2026-03-08
 - Fixed SQLite DDL schema drift across 4 test files (missing columns from Phase 2-3 model evolution)
 - Backend ruff: 0 errors. Backend pyright: 0 errors. Frontend type-check: 0 errors. Frontend lint: 22 warnings, 0 errors.
 - Pre-existing test failures reduced: 260 → 199 (backend), 134 frontend failures unchanged
+- Fixed 4 browser-verification regressions: enum labels, actor_type filter, cost workspace UUID, layout overflow
+- Phase 4 AI Governance all 7 AIGOV requirements fully implemented and browser-verified
 
 ## Task Commits
 
 1. **Task 1: Full quality gates — backend + frontend** - `c29c1969` (fix)
+2. **Bug 1: Audit enum labels** - `bf15ee77` (fix: human-readable labels for resource_type and action)
+3. **Bug 2: Actor type AI filter** - `24013820` (fix: enum .value for actor_type comparison)
+4. **Bug 3: Cost workspace UUID** - `c517c3cc` (fix: resolve workspace UUID for cost dashboard)
+5. **Bug 4: Layout overflow** - `c892f2da` (fix: min-w-0 on AppShell content area)
 
 ## Files Created/Modified
 
+- `frontend/src/features/settings/utils/audit-labels.ts` — Created: label formatter utilities for resource_type and action strings
+- `frontend/src/features/settings/pages/audit-settings-page.tsx` — Import audit-labels utilities; apply formatters to Action and Resource Type columns
+- `backend/src/pilot_space/infrastructure/database/repositories/audit_log_repository.py` — Use actor_type.value in WHERE clause for list_filtered and list_for_export
+- `frontend/src/features/costs/pages/cost-dashboard-page.tsx` — Resolve workspace UUID from WorkspaceStore instead of using slug prop
+- `frontend/src/components/layout/app-shell.tsx` — Add min-w-0 to main content flex container
 - `backend/src/pilot_space/ai/agents/ai_context_agent.py` — Bug fix: `total_cost_usd or 0.0` guard for None cost
 - `backend/src/pilot_space/infrastructure/database/models/chat_attachment.py` — Removed PostgreSQL-specific server_default; added Python-level default
 - `backend/tests/conftest.py` — Added drop_all before create_all to prevent StaticPool index conflicts
@@ -186,10 +207,38 @@ completed: 2026-03-08
 - **Files modified:** `backend/tests/unit/repositories/test_role_skill_repository.py`, `backend/tests/unit/repositories/test_note_note_link_repository.py`
 - **Committed in:** c29c1969
 
+**11. [Rule 1 - Bug] Audit table shows raw enum strings instead of UI labels**
+- **Found during:** Task 2 (human verification AIGOV-03)
+- **Issue:** `entry.resourceType` rendered "ISSUE", "WORKSPACE_MEMBER". `entry.action` rendered "issue.create".
+- **Fix:** Created `utils/audit-labels.ts` with `formatResourceType()` and `formatAction()` helpers. Applied to table columns.
+- **Files modified:** `audit-settings-page.tsx`, `utils/audit-labels.ts` (created)
+- **Committed in:** `bf15ee77`
+
+**12. [Rule 1 - Bug] Actor Type "AI" filter returns zero rows**
+- **Found during:** Task 2 (human verification AIGOV-03)
+- **Issue:** `AuditLog.actor_type` is `String(10)`. SQLAlchemy serializes `ActorType.AI` via `str()` → `"ActorType.AI"`, not `"AI"`. WHERE clause never matched.
+- **Fix:** `actor_type.value` in `list_filtered()` and `list_for_export()`.
+- **Files modified:** `audit_log_repository.py`
+- **Committed in:** `24013820`
+
+**13. [Rule 1 - Bug] Cost "By Feature" tab shows empty data**
+- **Found during:** Task 2 (human verification AIGOV-06)
+- **Issue:** `costs/page.tsx` passes workspace slug as `workspaceId` prop. `getCostSummary()` sets it as `X-Workspace-Id: workspace` (slug, not UUID). Backend rejected slug.
+- **Fix:** `workspaceStore.currentWorkspace?.id` as resolved UUID.
+- **Files modified:** `cost-dashboard-page.tsx`
+- **Committed in:** `c517c3cc`
+
+**14. [Rule 1 - Bug] Right layout panels overflow viewport horizontally**
+- **Found during:** Task 2 (human verification layout check)
+- **Issue:** AppShell content area flex item lacked `min-w-0`. Without it, flex items don't shrink below content size, causing horizontal overflow.
+- **Fix:** Added `min-w-0` to the content area wrapper div.
+- **Files modified:** `app-shell.tsx`
+- **Committed in:** `c892f2da`
+
 ---
 
-**Total deviations:** 10 auto-fixed (6 Rule 1 bugs, 3 Rule 2 DDL, 1 Rule 3 infrastructure)
-**Impact on plan:** All auto-fixes necessary for test correctness after Phase 4 API evolution. No scope creep.
+**Total deviations:** 14 auto-fixed (10 test/infrastructure fixes + 4 browser-verification bug fixes)
+**Impact on plan:** All auto-fixes necessary for test correctness and AIGOV verification. No scope creep.
 
 ## Issues Encountered
 
@@ -205,9 +254,10 @@ Pre-existing infrastructure issues logged for future cleanup:
 
 ## Next Phase Readiness
 
-- Phase 4 AI governance code is complete and all Phase 4 unit tests pass (1637/1637)
-- Human browser verification checkpoint pending (Task 2)
-- Phase 5 can begin after human verification confirms AIGOV-01 through AIGOV-07 in browser
+- Phase 4 AI Governance complete — all AIGOV-01 through AIGOV-07 requirements implemented and browser-verified
+- All Phase 4 unit tests pass (1637/1637)
+- Phase 5 (Integration / Launch) can proceed
+- Known concern: `costs/page.tsx` has a TODO for proper workspace ID server-side resolution (currently fixed via WorkspaceStore client-side lookup)
 
 ---
 *Phase: 04-ai-governance*
