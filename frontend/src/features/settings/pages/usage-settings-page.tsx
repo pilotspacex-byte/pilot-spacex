@@ -70,10 +70,19 @@ function QuotaSkeleton() {
 function StorageBar({ quota }: { quota: QuotaStatus }) {
   const pct = computeStoragePct(quota.storage_used_mb, quota.storage_quota_mb);
   const barClass = storageBarClass(pct);
+  const isUnlimited = !quota.storage_quota_mb;
 
   return (
     <div className="space-y-2">
-      <Progress value={quota.storage_quota_mb ? pct : null} className={`h-2 ${barClass}`} />
+      {isUnlimited ? (
+        <div
+          className="bg-primary/20 relative h-2 w-full overflow-hidden rounded-full"
+          role="progressbar"
+          aria-valuetext="Unlimited"
+        />
+      ) : (
+        <Progress value={pct} className={`h-2 ${barClass}`} />
+      )}
       <p className="text-sm text-muted-foreground">
         {quota.storage_used_mb.toFixed(2)} MB used
         {quota.storage_quota_mb ? ` of ${quota.storage_quota_mb} MB` : ' (Unlimited)'}
