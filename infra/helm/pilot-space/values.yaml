@@ -1,0 +1,182 @@
+# Pilot Space Helm Chart Values
+# Bitnami-style conventions: sections per component, existingSecret for credentials.
+#
+# Usage:
+#   helm install pilot-space infra/helm/pilot-space/ -n pilot-space -f values.override.yaml
+#
+# SECURITY: All sensitive credentials MUST be provided via existingSecret references.
+# Never set database passwords, API keys, or JWT secrets directly in values files.
+
+## @section Global parameters
+nameOverride: ""
+fullnameOverride: ""
+
+## @section Backend service
+backend:
+  ## @param backend.replicaCount Number of backend pod replicas
+  replicaCount: 3
+
+  image:
+    ## @param backend.image.repository Backend container image repository
+    repository: pilot-space/backend
+    ## @param backend.image.tag Backend container image tag
+    tag: latest
+    ## @param backend.image.pullPolicy Image pull policy
+    pullPolicy: Always
+
+  ## @param backend.resources Resource requests and limits for backend pods
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  ## @param backend.env Extra environment variables as a key/value map (non-sensitive)
+  env: {}
+  # LOG_LEVEL: INFO
+  # WORKERS: "4"
+
+  service:
+    ## @param backend.service.type Kubernetes service type
+    type: ClusterIP
+    ## @param backend.service.port Service port
+    port: 8000
+
+## @section Frontend service
+frontend:
+  ## @param frontend.replicaCount Number of frontend pod replicas
+  replicaCount: 2
+
+  image:
+    ## @param frontend.image.repository Frontend container image repository
+    repository: pilot-space/frontend
+    ## @param frontend.image.tag Frontend container image tag
+    tag: latest
+    ## @param frontend.image.pullPolicy Image pull policy
+    pullPolicy: Always
+
+  ## @param frontend.resources Resource requests and limits for frontend pods
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+  ## @param frontend.env Extra environment variables as a key/value map
+  env: {}
+
+  service:
+    ## @param frontend.service.type Kubernetes service type
+    type: ClusterIP
+    ## @param frontend.service.port Service port
+    port: 3000
+
+## @section Ingress configuration
+ingress:
+  ## @param ingress.enabled Enable ingress controller
+  enabled: true
+  ## @param ingress.className Ingress class name
+  className: nginx
+  ## @param ingress.host Primary hostname for the application
+  host: pilot-space.example.com
+  ## @param ingress.apiHost Optional dedicated API subdomain (leave empty to use host/api path)
+  apiHost: ""
+  tls:
+    ## @param ingress.tls.enabled Enable TLS for ingress
+    enabled: true
+    ## @param ingress.tls.secretName TLS secret name (managed by cert-manager or pre-created)
+    secretName: pilot-space-tls
+    ## @param ingress.tls.certManagerClusterIssuer cert-manager ClusterIssuer name (empty disables annotation)
+    certManagerClusterIssuer: letsencrypt-prod
+  annotations: {}
+  # nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+## @section External PostgreSQL
+## Pilot Space uses an externally-managed PostgreSQL instance (managed DB / self-hosted).
+externalDatabase:
+  ## @param externalDatabase.host PostgreSQL host
+  host: ""
+  ## @param externalDatabase.port PostgreSQL port
+  port: 5432
+  ## @param externalDatabase.name Database name
+  name: pilot_space
+  ## @param externalDatabase.existingSecret Name of existing Secret with database-url key
+  ## Secret MUST exist before helm install. Create with:
+  ##   kubectl create secret generic pilot-space-db \
+  ##     --from-literal=database-url='postgresql+asyncpg://user:pass@host/db' \
+  ##     -n pilot-space
+  existingSecret: ""
+  ## @param externalDatabase.existingSecretKey Key in the secret containing the database URL
+  existingSecretKey: database-url
+
+## @section External Redis
+## Pilot Space uses an externally-managed Redis instance.
+externalRedis:
+  ## @param externalRedis.host Redis host
+  host: ""
+  ## @param externalRedis.port Redis port
+  port: 6379
+  ## @param externalRedis.existingSecret Name of existing Secret with redis-url key
+  ## Secret MUST exist before helm install. Create with:
+  ##   kubectl create secret generic pilot-space-redis \
+  ##     --from-literal=redis-url='redis://:pass@host:6379/0' \
+  ##     -n pilot-space
+  existingSecret: ""
+  ## @param externalRedis.existingSecretKey Key in the secret containing the Redis URL
+  existingSecretKey: redis-url
+
+## @section External Supabase
+## Pilot Space uses Supabase for authentication and realtime (self-hosted or cloud).
+externalSupabase:
+  ## @param externalSupabase.url Supabase project URL (non-sensitive, used in configmap)
+  url: ""
+  ## @param externalSupabase.existingSecret Name of existing Secret with Supabase keys
+  ## Secret MUST exist before helm install. Create with:
+  ##   kubectl create secret generic pilot-space-supabase \
+  ##     --from-literal=anon-key='eyJ...' \
+  ##     --from-literal=service-key='eyJ...' \
+  ##     --from-literal=jwt-secret='your-jwt-secret' \
+  ##     -n pilot-space
+  existingSecret: ""
+  ## @param externalSupabase.existingSecretAnonKey Key for the Supabase anon key
+  existingSecretAnonKey: anon-key
+  ## @param externalSupabase.existingSecretServiceKey Key for the Supabase service role key
+  existingSecretServiceKey: service-key
+  ## @param externalSupabase.existingSecretJwtSecret Key for the Supabase JWT secret
+  existingSecretJwtSecret: jwt-secret
+
+## @section Autoscaling (HPA)
+autoscaling:
+  ## @param autoscaling.enabled Enable Horizontal Pod Autoscaler
+  enabled: true
+  backend:
+    ## @param autoscaling.backend.minReplicas Minimum backend replicas
+    minReplicas: 2
+    ## @param autoscaling.backend.maxReplicas Maximum backend replicas
+    maxReplicas: 10
+    ## @param autoscaling.backend.targetCPUUtilizationPercentage Target CPU utilization %
+    targetCPUUtilizationPercentage: 70
+    ## @param autoscaling.backend.targetMemoryUtilizationPercentage Target memory utilization %
+    targetMemoryUtilizationPercentage: 80
+  frontend:
+    ## @param autoscaling.frontend.minReplicas Minimum frontend replicas
+    minReplicas: 2
+    ## @param autoscaling.frontend.maxReplicas Maximum frontend replicas
+    maxReplicas: 8
+    ## @param autoscaling.frontend.targetCPUUtilizationPercentage Target CPU utilization %
+    targetCPUUtilizationPercentage: 70
+
+## @section Pod Disruption Budget
+podDisruptionBudget:
+  ## @param podDisruptionBudget.enabled Enable PodDisruptionBudget for high availability
+  enabled: true
+  backend:
+    ## @param podDisruptionBudget.backend.minAvailable Minimum available backend pods during disruption
+    minAvailable: 2
+  frontend:
+    ## @param podDisruptionBudget.frontend.minAvailable Minimum available frontend pods during disruption
+    minAvailable: 1
