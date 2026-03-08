@@ -236,7 +236,9 @@ class AuditLogRepository:
         if actor_id is not None:
             stmt = stmt.where(AuditLog.actor_id == actor_id)
         if actor_type is not None:
-            stmt = stmt.where(AuditLog.actor_type == actor_type)
+            # Use .value to compare the string value directly against the String(10) column,
+            # avoiding SQLAlchemy serializing ActorType enum as "ActorType.AI" instead of "AI".
+            stmt = stmt.where(AuditLog.actor_type == actor_type.value)
         if action is not None:
             stmt = stmt.where(AuditLog.action == action)
         if resource_type is not None:
@@ -314,7 +316,7 @@ class AuditLogRepository:
         if actor_id is not None:
             stmt = stmt.where(AuditLog.actor_id == actor_id)
         if actor_type is not None:
-            stmt = stmt.where(AuditLog.actor_type == actor_type)
+            stmt = stmt.where(AuditLog.actor_type == actor_type.value)
         if action is not None:
             stmt = stmt.where(AuditLog.action == action)
         if resource_type is not None:
