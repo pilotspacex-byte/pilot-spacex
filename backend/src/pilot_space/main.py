@@ -26,6 +26,7 @@ from pilot_space.api.v1.routers import (
     ai_router,
     ai_sessions_router,
     ai_tasks_router,
+    audit_router,
     auth_router,
     auth_sso_router,
     block_ownership_router,
@@ -259,6 +260,7 @@ async def readiness_check() -> dict[str, str]:
 API_V1_PREFIX = "/api/v1"
 
 app.include_router(scim_router, prefix=API_V1_PREFIX)
+app.include_router(audit_router, prefix=API_V1_PREFIX)
 app.include_router(auth_router, prefix=API_V1_PREFIX)
 app.include_router(auth_sso_router, prefix=API_V1_PREFIX)
 app.include_router(custom_roles_router, prefix=API_V1_PREFIX)
