@@ -75,18 +75,10 @@ function StorageBar({ quota }: { quota: QuotaStatus }) {
 
   return (
     <div className="space-y-2">
-      {isUnlimited ? (
-        <div
-          className="bg-primary/20 relative h-2 w-full overflow-hidden rounded-full"
-          role="progressbar"
-          aria-valuetext="Unlimited"
-        />
-      ) : (
-        <Progress value={pct} className={`h-2 ${barClass}`} />
-      )}
+      {!isUnlimited && <Progress value={pct} className={`h-2 ${barClass}`} />}
       <p className="text-sm text-muted-foreground">
         {quota.storage_used_mb.toFixed(2)} MB used
-        {quota.storage_quota_mb ? ` of ${quota.storage_quota_mb} MB` : ' (Unlimited)'}
+        {quota.storage_quota_mb ? ` of ${quota.storage_quota_mb} MB` : ' — no storage limit set'}
         {pct >= 80 && pct < 100 && (
           <span className="ml-2 text-amber-600 dark:text-amber-400 font-medium">
             ({pct.toFixed(0)}% — approaching limit)
