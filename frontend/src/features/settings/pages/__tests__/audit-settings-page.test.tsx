@@ -159,7 +159,9 @@ describe('AuditSettingsPage', () => {
     // Click first row to expand
     const rows = screen.getAllByRole('row');
     // rows[0] is header, rows[1] is first data row
-    await user.click(rows[1]);
+    const firstDataRow = rows[1];
+    expect(firstDataRow).toBeDefined();
+    await user.click(firstDataRow!);
 
     // Payload should be visible after expansion
     await waitFor(() => {
@@ -173,7 +175,9 @@ describe('AuditSettingsPage', () => {
 
     // Click second row (AI actor)
     const rows = screen.getAllByRole('row');
-    await user.click(rows[2]);
+    const secondDataRow = rows[2];
+    expect(secondDataRow).toBeDefined();
+    await user.click(secondDataRow!);
 
     await waitFor(() => {
       expect(screen.getByText(/claude-3-sonnet/i)).toBeInTheDocument();
