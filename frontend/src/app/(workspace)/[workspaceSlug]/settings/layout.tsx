@@ -14,6 +14,7 @@ import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useWorkspaceStore } from '@/stores/RootStore';
 import {
+  BarChart3,
   Building2,
   ClipboardList,
   CreditCard,
@@ -90,6 +91,12 @@ const settingsNavSections: NavSection[] = [
         label: 'Custom Roles',
         icon: Users,
         href: (slug: string) => `/${slug}/settings/roles`,
+      },
+      {
+        id: 'usage',
+        label: 'Usage',
+        icon: BarChart3,
+        href: (slug: string) => `/${slug}/settings/usage`,
       },
       {
         id: 'billing',
