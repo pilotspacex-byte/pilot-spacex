@@ -87,6 +87,14 @@ class AICostRecord(WorkspaceScopedModel):
         nullable=False,
     )
 
+    # Feature/operation category for cost breakdown (AIGOV-06)
+    # Examples: 'ghost_text', 'issue_extraction', 'pr_review', 'chat'
+    operation_type: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        default=None,
+    )
+
     # Relationships
     user: Mapped[User] = relationship(
         "User",

@@ -117,6 +117,7 @@ from pilot_space.infrastructure.database.models.work_intent import (
     WorkIntent,
 )
 from pilot_space.infrastructure.database.models.workspace import Workspace
+from pilot_space.infrastructure.database.models.workspace_ai_policy import WorkspaceAIPolicy
 from pilot_space.infrastructure.database.models.workspace_api_key import WorkspaceAPIKey
 from pilot_space.infrastructure.database.models.workspace_digest import WorkspaceDigest
 from pilot_space.infrastructure.database.models.workspace_encryption_key import (
@@ -214,6 +215,7 @@ __all__ = [
     "VersionTrigger",
     "WorkIntent",
     "Workspace",
+    "WorkspaceAIPolicy",
     "WorkspaceAPIKey",
     "WorkspaceDigest",
     "WorkspaceEncryptionKey",
