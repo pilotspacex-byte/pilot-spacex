@@ -97,7 +97,7 @@ Plans:
   5. If no valid BYOK API key is configured for a workspace, all AI features are disabled with a clear message — no fallback to platform-controlled keys occurs
   6. Admin can view a cost dashboard showing token usage broken down by model, feature, and time period for their workspace
   7. Users can click any AI-generated suggestion, extracted issue, or review comment and read the AI's stated rationale for it
-**Plans**: 8 plans
+**Plans**: 10 plans
 
 Plans:
 - [ ] 04-01-PLAN.md — Migrations 068/069 (workspace_ai_policy table + operation_type column) + WorkspaceAIPolicy model + Phase 4 test scaffolds (AIGOV-01/02/03/04/05/06)
@@ -108,6 +108,8 @@ Plans:
 - [ ] 04-06-PLAN.md — Frontend: Audit settings actor_type filter + AI row expansion + cost dashboard By Feature tab (AIGOV-03/06)
 - [ ] 04-07-PLAN.md — Frontend: Rationale popovers (ExtractionReviewPanel + PR review) + AiNotConfiguredBanner + disabled AI controls (AIGOV-05/07)
 - [ ] 04-08-PLAN.md — Full quality gates + human verification checkpoint for all 7 AIGOV requirements (AIGOV-01/02/03/04/05/06/07)
+- [ ] 04-09-PLAN.md — Gap closure: wire ApprovalService.check_approval_required() into MCP server pipeline (AIGOV-01)
+- [ ] 04-10-PLAN.md — Gap closure: implement _dispatch_rollback() for issue/note + frontend rollback button (AIGOV-04)
 
 ### Phase 5: Operational Readiness
 **Goal**: A new enterprise customer can deploy, monitor, back up, and upgrade Pilot Space without help from Pilot Space engineers — the platform operates as a self-contained system
@@ -133,7 +135,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Identity & Access | 9/9 | Complete   | 2026-03-07 |
 | 2. Compliance & Audit | 5/5 | Complete   | 2026-03-08 |
 | 3. Multi-Tenant Isolation | 8/8 | Complete   | 2026-03-08 |
-| 4. AI Governance | 7/8 | In Progress|  |
+| 4. AI Governance | 8/10 | In Progress (2 gap closure plans pending) |  |
 | 5. Operational Readiness | 0/TBD | Not started | - |
 
 ---
@@ -144,3 +146,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 *Phase 3 planned: 2026-03-08 — 7 plans across 3 waves*
 *Phase 3 gap closure: 2026-03-08 — 03-08-PLAN.md (TENANT-01 RLS integration tests)*
 *Phase 4 planned: 2026-03-08 — 8 plans across 5 waves*
+*Phase 4 gap closure: 2026-03-08 — 04-09-PLAN.md (AIGOV-01 MCP wiring) + 04-10-PLAN.md (AIGOV-04 rollback)*
