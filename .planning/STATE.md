@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 05-05-PLAN.md — pilot backup create/restore CLI with AES-256-GCM encryption and pg_dump integration
-last_updated: "2026-03-08T16:53:38.981Z"
+stopped_at: Completed 05-02-PLAN.md — trace_id/actor/action ContextVars in structlog, actor wired in AuthMiddleware (OPS-04)
+last_updated: "2026-03-08T16:54:17.768Z"
 last_activity: 2026-03-08 — Implemented /health/live and /health/ready endpoints (05-01)
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 38
-  completed_plans: 34
+  completed_plans: 35
   percent: 100
 ---
 
@@ -194,6 +194,9 @@ Recent decisions affecting current work:
 - [Phase 05-operational-readiness]: PGPASSWORD env + URL password-stripping: pg_dump strips password from URL before subprocess call; password set only via PGPASSWORD env to prevent ps aux exposure
 - [Phase 05-operational-readiness]: PSBC magic bytes header on .tar.gz.enc files enables early file-type validation before AES-GCM decryption attempt
 - [Phase 05-operational-readiness]: AES-256-GCM + PBKDF2-SHA256 (260k iterations) for backup encryption: authenticated encryption catches both wrong passphrase and tampering
+- [Phase 05-operational-readiness]: trace_id aliases request_id from RequestContextMiddleware — single source of truth, backward compatible with monitoring tools
+- [Phase 05-operational-readiness]: actor uses 'user:{uuid}' convention in AuthMiddleware — filterable with glob patterns in Datadog/Loki
+- [Phase 05-operational-readiness]: set_action() is standalone helper not a param of set_request_context — action changes mid-request, decoupled from request setup
 
 ### Pending Todos
 
@@ -209,6 +212,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T16:53:38.979Z
-Stopped at: Completed 05-05-PLAN.md — pilot backup create/restore CLI with AES-256-GCM encryption and pg_dump integration
+Last session: 2026-03-08T16:54:17.766Z
+Stopped at: Completed 05-02-PLAN.md — trace_id/actor/action ContextVars in structlog, actor wired in AuthMiddleware (OPS-04)
 Resume file: None
