@@ -54,6 +54,7 @@ import {
   type AuditFilters,
   type AuditLogEntry,
 } from '../hooks/use-audit-log';
+import { formatAction, formatResourceType } from '../utils/audit-labels';
 
 // ---- Constants ----
 
@@ -557,12 +558,14 @@ export function AuditSettingsPage() {
 
                             {/* Action */}
                             <TableCell>
-                              <span className="font-mono text-xs">{entry.action}</span>
+                              <span className="text-sm">{formatAction(entry.action)}</span>
                             </TableCell>
 
                             {/* Resource Type */}
                             <TableCell>
-                              <span className="text-sm">{entry.resourceType}</span>
+                              <span className="text-sm">
+                                {formatResourceType(entry.resourceType)}
+                              </span>
                             </TableCell>
 
                             {/* Resource ID (first 8 chars) */}
