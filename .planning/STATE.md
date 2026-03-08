@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-03-08T08:27:27.000Z"
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-03-08T05:34:10.006Z"
 last_activity: 2026-03-08 — Completed plan 03-04 (super-admin operator dashboard backend)
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 21
-  completed_plans: 17
+  completed_plans: 19
   percent: 71
 ---
 
@@ -64,6 +64,7 @@ Progress: [███████░░░] 71%
 | Phase 03-multi-tenant-isolation P02 | 20 | 2 tasks | 11 files |
 | Phase 03-multi-tenant-isolation PP03 | 35 | 2 tasks | 7 files |
 | Phase 03-multi-tenant-isolation P04 | 9 | 2 tasks | 6 files |
+| Phase 03-multi-tenant-isolation P05 | 3 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -127,6 +128,9 @@ Recent decisions affecting current work:
 - [Phase 03-multi-tenant-isolation]: Admin router uses class-based _AdminSessionFactory (not global) — avoids PLW0603, maintains test patchability via patch()
 - [Phase 03-multi-tenant-isolation]: HTTPBearer(auto_error=False) on admin routes — returns 401 with WWW-Authenticate header, not 403 (RFC 6750 compliant)
 - [Phase 03-multi-tenant-isolation]: PILOT_SPACE_SUPER_ADMIN_TOKEN is SecretStr — masks in repr/logs/model_dump without custom filter; None disables super-admin access
+- [Phase 03-multi-tenant-isolation]: EncryptionSettingsPage is plain React (no observer()) — consistent with all settings pages; TanStack Query handles all data
+- [Phase 03-multi-tenant-isolation]: Non-owner members see read-only status card; Configure Key card hidden (not disabled) — cleaner UX, avoids confusion
+- [Phase 03-multi-tenant-isolation]: Encryption verify result shown inline below input (not toast) — allows user to see result while key is still in the field
 
 ### Pending Todos
 
@@ -142,6 +146,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T08:27:27.000Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-03-08T05:34:10.003Z
+Stopped at: Completed 03-05-PLAN.md
 Resume file: None
