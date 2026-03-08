@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-08T04:32:59.723Z"
+status: completed
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-08T04:56:45.988Z"
 last_activity: 2026-03-08 — Completed plan 03-01 (RLS enum fix + Phase 3 test scaffold)
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 21
-  completed_plans: 15
+  completed_plans: 16
   percent: 71
 ---
 
@@ -61,6 +61,7 @@ Progress: [███████░░░] 71%
 | Phase 02-compliance-and-audit P04 | 10 | 2 tasks | 6 files |
 | Phase 02-compliance-and-audit P05 | 7 | 2 tasks | 6 files |
 | Phase 03-multi-tenant-isolation P01 | 11 | 2 tasks | 6 files |
+| Phase 03-multi-tenant-isolation P02 | 20 | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,9 @@ Recent decisions affecting current work:
 - [Phase 03-multi-tenant-isolation]: Migration 066 downgrade() is a no-op — RLS policies always required UPPERCASE; reverting to lowercase would break isolation
 - [Phase 03-multi-tenant-isolation]: Isolation tests use pytestmark skipif(sqlite in DB_URL) at module level — cleaner than per-test decorators, matches PostgreSQL-only RLS pattern
 - [Phase 03-multi-tenant-isolation]: test_isolation.py uses existing populated_db fixture — already provisions workspace_a and workspace_b with outsider cross-membership
+- [Phase 03-multi-tenant-isolation]: Workspace encryption is opt-in: get_workspace_content_key() returns None for unconfigured workspaces; callers check before encrypting/decrypting
+- [Phase 03-multi-tenant-isolation]: workspace_encryption_keys RLS intentionally omits user SELECT policy — encrypted key must never reach client via any API path
+- [Phase 03-multi-tenant-isolation]: workspace_encryption router mounted at /api/v1/workspaces with full {workspace_slug}/encryption/* paths — FastAPI does not support path params in include_router prefix
 
 ### Pending Todos
 
@@ -130,6 +134,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T04:32:59.721Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-08T04:56:45.986Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None

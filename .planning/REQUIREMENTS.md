@@ -29,7 +29,7 @@ Requirements for the enterprise milestone. Goal: first enterprise customer (50-5
 ### Multi-Tenant Isolation (TENANT)
 
 - [x] **TENANT-01**: Each workspace operates with complete data isolation — no cross-workspace data leakage at any API layer
-- [ ] **TENANT-02**: Admin can configure workspace-level encryption for stored data (bring your own encryption key)
+- [x] **TENANT-02**: Admin can configure workspace-level encryption for stored data (bring your own encryption key)
 - [ ] **TENANT-03**: Admin can set per-workspace API rate limits and storage quotas
 - [ ] **TENANT-04**: Super-admin (self-hosted operator) can view workspace health, usage metrics, and member activity across all workspaces
 
@@ -109,7 +109,7 @@ Updated during roadmap creation: 2026-03-07
 | AUDIT-05 | Phase 2 | Complete |
 | AUDIT-06 | Phase 2 | Complete |
 | TENANT-01 | Phase 3 | Complete |
-| TENANT-02 | Phase 3 | Pending |
+| TENANT-02 | Phase 3 | Complete |
 | TENANT-03 | Phase 3 | Pending |
 | TENANT-04 | Phase 3 | Pending |
 | AIGOV-01 | Phase 4 | Pending |
