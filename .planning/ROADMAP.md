@@ -97,7 +97,17 @@ Plans:
   5. If no valid BYOK API key is configured for a workspace, all AI features are disabled with a clear message — no fallback to platform-controlled keys occurs
   6. Admin can view a cost dashboard showing token usage broken down by model, feature, and time period for their workspace
   7. Users can click any AI-generated suggestion, extracted issue, or review comment and read the AI's stated rationale for it
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Migrations 068/069 (workspace_ai_policy table + operation_type column) + WorkspaceAIPolicy model + Phase 4 test scaffolds (AIGOV-01/02/03/04/05/06)
+- [ ] 04-02-PLAN.md — Service layer: async ApprovalService (role-aware policy lookup) + WorkspaceAIPolicyRepository + CostTracker Factory fix + BYOK enforcement + AINotConfiguredError (AIGOV-01/05/06)
+- [ ] 04-03-PLAN.md — Audit repository + router: actor_type filter on list_filtered() + list_for_export() + audit GET endpoints (AIGOV-03)
+- [ ] 04-04-PLAN.md — API layer: ai_governance.py router (policy CRUD + AI status + rollback) + ai_costs.py group_by=operation_type (AIGOV-01/02/04/05/06)
+- [ ] 04-05-PLAN.md — Frontend: Approvals page + sidebar badge + AI Governance settings page policy matrix (AIGOV-01/02)
+- [ ] 04-06-PLAN.md — Frontend: Audit settings actor_type filter + AI row expansion + cost dashboard By Feature tab (AIGOV-03/06)
+- [ ] 04-07-PLAN.md — Frontend: Rationale popovers (ExtractionReviewPanel + PR review) + AiNotConfiguredBanner + disabled AI controls (AIGOV-05/07)
+- [ ] 04-08-PLAN.md — Full quality gates + human verification checkpoint for all 7 AIGOV requirements (AIGOV-01/02/03/04/05/06/07)
 
 ### Phase 5: Operational Readiness
 **Goal**: A new enterprise customer can deploy, monitor, back up, and upgrade Pilot Space without help from Pilot Space engineers — the platform operates as a self-contained system
@@ -123,7 +133,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Identity & Access | 9/9 | Complete   | 2026-03-07 |
 | 2. Compliance & Audit | 5/5 | Complete   | 2026-03-08 |
 | 3. Multi-Tenant Isolation | 8/8 | Complete   | 2026-03-08 |
-| 4. AI Governance | 0/TBD | Not started | - |
+| 4. AI Governance | 0/8 | Not started | - |
 | 5. Operational Readiness | 0/TBD | Not started | - |
 
 ---
@@ -133,3 +143,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 *Phase 2 planned: 2026-03-08 — 5 plans across 4 waves*
 *Phase 3 planned: 2026-03-08 — 7 plans across 3 waves*
 *Phase 3 gap closure: 2026-03-08 — 03-08-PLAN.md (TENANT-01 RLS integration tests)*
+*Phase 4 planned: 2026-03-08 — 8 plans across 5 waves*
