@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 05-06-PLAN.md — Zero-downtime upgrade runbook and CI upgrade simulation workflow
-last_updated: "2026-03-08T17:03:45.619Z"
+stopped_at: Completed 05-04-PLAN.md — Helm chart for Kubernetes with existingSecret pattern, dual-ingress, HPA/PDB
+last_updated: "2026-03-08T17:06:29.966Z"
 last_activity: 2026-03-08 — Implemented /health/live and /health/ready endpoints (05-01)
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 38
-  completed_plans: 37
+  completed_plans: 38
   percent: 100
 ---
 
@@ -82,6 +82,7 @@ Progress: [██████████] 100%
 | Phase 05-operational-readiness P05 | 28 | 2 tasks | 10 files |
 | Phase 05-operational-readiness P03 | 11 | 2 tasks | 4 files |
 | Phase 05-operational-readiness P06 | 3 | 2 tasks | 2 files |
+| Phase 05-operational-readiness P04 | 6 | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -204,6 +205,9 @@ Recent decisions affecting current work:
 - [Phase 05-operational-readiness]: BACKEND_IMAGE/FRONTEND_IMAGE vars with build: fallback — CI can override without rebuild
 - [Phase 05-operational-readiness]: CI upgrade simulation accepts 'degraded' as valid health/ready outcome — Supabase non-critical in GHA; database+redis up = can serve traffic
 - [Phase 05-operational-readiness]: supabase/postgres:15.8.1.076 in CI service container — matches production stack for accurate Alembic migration testing (pgmq, pgvector, RLS)
+- [Phase 05-operational-readiness]: required() for existingSecret fields — helm install fails immediately with clear error if secrets not pre-created
+- [Phase 05-operational-readiness]: Dual-ingress: main ingress (100 rps) + AI ingress (10 rps, 600s timeout) for SSE streaming — mirrors infra/k8s/ingress.yaml pattern
+- [Phase 05-operational-readiness]: check-yaml pre-commit hook excludes infra/helm/*/templates/ — Go template syntax is not valid YAML
 
 ### Pending Todos
 
@@ -219,6 +223,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T17:03:45.617Z
-Stopped at: Completed 05-06-PLAN.md — Zero-downtime upgrade runbook and CI upgrade simulation workflow
+Last session: 2026-03-08T17:06:29.964Z
+Stopped at: Completed 05-04-PLAN.md — Helm chart for Kubernetes with existingSecret pattern, dual-ingress, HPA/PDB
 Resume file: None

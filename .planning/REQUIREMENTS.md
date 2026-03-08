@@ -46,7 +46,7 @@ Requirements for the enterprise milestone. Goal: first enterprise customer (50-5
 ### Operational Readiness (OPS)
 
 - [x] **OPS-01**: Deployment guide provides Docker Compose configuration for all components (backend, frontend, Supabase, Redis)
-- [ ] **OPS-02**: Deployment guide provides Kubernetes Helm chart for production-grade deployment
+- [x] **OPS-02**: Deployment guide provides Kubernetes Helm chart for production-grade deployment
 - [x] **OPS-03**: All services expose structured JSON health check endpoints consumable by monitoring tools
 - [x] **OPS-04**: Application logs are structured JSON with consistent schema (level, timestamp, trace_id, actor, action)
 - [x] **OPS-05**: Admin can run backup of all workspace data (PostgreSQL + Supabase Storage) via provided CLI tooling
@@ -120,7 +120,7 @@ Updated during roadmap creation: 2026-03-07
 | AIGOV-06 | Phase 4 | Complete |
 | AIGOV-07 | Phase 4 | Complete |
 | OPS-01 | Phase 5 | Complete |
-| OPS-02 | Phase 5 | Pending |
+| OPS-02 | Phase 5 | Complete |
 | OPS-03 | Phase 5 | Complete |
 | OPS-04 | Phase 5 | Complete |
 | OPS-05 | Phase 5 | Complete |
