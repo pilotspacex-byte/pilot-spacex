@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-ai-governance-04-PLAN.md
-last_updated: "2026-03-08T10:19:49.373Z"
+stopped_at: Completed 04-ai-governance-05-PLAN.md
+last_updated: "2026-03-08T10:32:30.435Z"
 last_activity: 2026-03-08 — Completed plan 03-04 (super-admin operator dashboard backend)
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 30
-  completed_plans: 26
+  completed_plans: 27
   percent: 71
 ---
 
@@ -72,6 +72,7 @@ Progress: [███████░░░] 71%
 | Phase 04-ai-governance P02 | 11 | 2 tasks | 12 files |
 | Phase 04-ai-governance P03 | 7 | 2 tasks | 5 files |
 | Phase 04-ai-governance P04 | 8 | 2 tasks | 8 files |
+| Phase 04-ai-governance P05 | 25 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -157,6 +158,9 @@ Recent decisions affecting current work:
 - [Phase 04-ai-governance]: ai_governance.py uses _resolve_workspace + check_permission (audit.py pattern) not verify_workspace_admin from ai_approvals.py
 - [Phase 04-ai-governance]: Rollback dispatch stubs 501 pending 04-05 — plan referenced non-existent monolithic IssueService/NoteService; CQRS split services need payload mapping
 - [Phase 04-ai-governance]: group_by query param uses Query(pattern=...) regex for 422 validation — by_feature field declared as None default on CostSummaryResponse
+- [Phase 04-ai-governance]: useResolveApproval delegates to approvalsApi.approve/reject (not raw apiClient) — existing service maps backend flat format to PendingApproval interface
+- [Phase 04-ai-governance]: Sidebar Approvals item uses badgeKey indirection — static nav constant, dynamic badge injection via badgeValues map at render time in observer Sidebar
+- [Phase 04-ai-governance]: AI policy matrix optimistic updates: onMutate flips cell immediately, onError rolls back — avoids loading spinner flicker on Switch toggles
 
 ### Pending Todos
 
@@ -172,6 +176,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T10:19:49.371Z
-Stopped at: Completed 04-ai-governance-04-PLAN.md
+Last session: 2026-03-08T10:32:30.433Z
+Stopped at: Completed 04-ai-governance-05-PLAN.md
 Resume file: None
