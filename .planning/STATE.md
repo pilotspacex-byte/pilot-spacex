@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 03-06-PLAN.md
-last_updated: "2026-03-08T05:40:31.932Z"
+stopped_at: Completed 03-08-PLAN.md
+last_updated: "2026-03-08T07:15:38.877Z"
 last_activity: 2026-03-08 — Completed plan 03-04 (super-admin operator dashboard backend)
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 21
-  completed_plans: 20
+  completed_phases: 3
+  total_plans: 22
+  completed_plans: 22
   percent: 71
 ---
 
@@ -66,6 +66,8 @@ Progress: [███████░░░] 71%
 | Phase 03-multi-tenant-isolation P04 | 9 | 2 tasks | 6 files |
 | Phase 03-multi-tenant-isolation P05 | 3 | 2 tasks | 5 files |
 | Phase 03-multi-tenant-isolation P06 | 4 | 2 tasks | 5 files |
+| Phase 03-multi-tenant-isolation P07 | 18 | 2 tasks | 5 files |
+| Phase 03-multi-tenant-isolation P08 | 1 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -134,6 +136,11 @@ Recent decisions affecting current work:
 - [Phase 03-multi-tenant-isolation]: Encryption verify result shown inline below input (not toast) — allows user to see result while key is still in the field
 - [Phase 03-multi-tenant-isolation]: UsageSettingsPage is plain React (no observer()) — TanStack Query handles all quota data, consistent with all settings pages pattern
 - [Phase 03-multi-tenant-isolation]: Storage bar color at 80%+/100% via CSS slot class override on Progress indicator — avoids custom progress component, stays within shadcn/ui primitives
+- [Phase 03-multi-tenant-isolation]: AdminLayout is a plain div wrapper — root layout already provides html/body; nesting html inside html would produce invalid HTML
+- [Phase 03-multi-tenant-isolation]: AdminDashboardPage is plain React (no observer()) — no MobX; consistent with all settings pages pattern
+- [Phase 03-multi-tenant-isolation]: Admin token passed as explicit hook parameter — token state change triggers query key change and re-fetch automatically
+- [Phase 03-multi-tenant-isolation]: flush() not commit() for test data — visible in same transaction, rolls back after test
+- [Phase 03-multi-tenant-isolation]: Three primary isolation tests use module-level pytestmark skipif (not xfail) — clean skip signaling on SQLite
 
 ### Pending Todos
 
@@ -149,6 +156,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T05:40:31.929Z
-Stopped at: Completed 03-06-PLAN.md
+Last session: 2026-03-08T07:15:38.875Z
+Stopped at: Completed 03-08-PLAN.md
 Resume file: None
