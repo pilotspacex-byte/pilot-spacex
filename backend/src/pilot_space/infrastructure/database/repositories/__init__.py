@@ -16,6 +16,7 @@ from pilot_space.infrastructure.database.repositories.audit_log_repository impor
     AuditLogPage,
     AuditLogRepository,
     compute_diff,
+    write_audit_nonfatal,
 )
 from pilot_space.infrastructure.database.repositories.base import (
     BaseRepository,
@@ -147,4 +148,5 @@ __all__ = [
     "WorkIntentRepository",
     "WorkspaceRepository",
     "compute_diff",
+    "write_audit_nonfatal",
 ]

@@ -27,6 +27,9 @@ if TYPE_CHECKING:
         IssueRepository,
         LabelRepository,
     )
+    from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+        AuditLogRepository,
+    )
     from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
 
 logger = get_logger(__name__)
@@ -85,6 +88,7 @@ class CreateIssueService:
     - Label attachment
     - Activity logging
     - AI metadata storage
+    - Audit log writes (AUDIT-01)
     """
 
     def __init__(
@@ -94,6 +98,7 @@ class CreateIssueService:
         activity_repository: ActivityRepository,
         label_repository: LabelRepository,
         queue: SupabaseQueueClient | None = None,
+        audit_log_repository: AuditLogRepository | None = None,
     ) -> None:
         """Initialize service.
 
@@ -103,12 +108,14 @@ class CreateIssueService:
             activity_repository: Activity repository.
             label_repository: Label repository.
             queue: Optional queue client for KG populate jobs.
+            audit_log_repository: Optional audit log repository for compliance writes.
         """
         self._session = session
         self._issue_repo = issue_repository
         self._activity_repo = activity_repository
         self._label_repo = label_repository
         self._queue = queue
+        self._audit_repo = audit_log_repository
 
     async def execute(self, payload: CreateIssuePayload) -> CreateIssueResult:
         """Create a new issue.
@@ -206,6 +213,32 @@ class CreateIssueService:
                 "identifier": issue.identifier if issue else None,
             },
         )
+
+        # Write audit log entry (non-fatal -- audit must not break primary flow)
+        if self._audit_repo is not None and issue is not None:
+            try:
+                from pilot_space.infrastructure.database.models.audit_log import ActorType
+
+                await self._audit_repo.create(
+                    workspace_id=payload.workspace_id,
+                    actor_id=payload.reporter_id,
+                    actor_type=ActorType.USER,
+                    action="issue.create",
+                    resource_type="issue",
+                    resource_id=issue.id,
+                    payload={
+                        "before": {},
+                        "after": {
+                            "name": issue.name,
+                            "priority": issue.priority.value if issue.priority else None,
+                            "state_id": str(issue.state_id) if issue.state_id else None,
+                            "assignee_id": (str(issue.assignee_id) if issue.assignee_id else None),
+                        },
+                    },
+                    ip_address=None,
+                )
+            except Exception as exc:
+                logger.warning("CreateIssueService: failed to write audit log: %s", exc)
 
         # Enqueue KG populate job (non-fatal)
         if self._queue is not None and issue is not None:

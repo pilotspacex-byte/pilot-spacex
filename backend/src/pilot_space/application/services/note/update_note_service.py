@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from pilot_space.infrastructure.database.models.note import Note
+    from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+        AuditLogRepository,
+    )
     from pilot_space.infrastructure.database.repositories.note_repository import (
         NoteRepository,
     )
@@ -49,6 +52,7 @@ class UpdateNotePayload:
     """
 
     note_id: UUID
+    actor_id: UUID | None = None
     title: str | None = None
     content: dict[str, Any] | None = None
     summary: str | None = None
@@ -86,6 +90,7 @@ class UpdateNoteService:
         session: AsyncSession,
         note_repository: NoteRepository,
         queue: SupabaseQueueClient | None = None,
+        audit_log_repository: AuditLogRepository | None = None,
     ) -> None:
         """Initialize UpdateNoteService.
 
@@ -93,10 +98,12 @@ class UpdateNoteService:
             session: The async database session.
             note_repository: Repository for note operations.
             queue: Optional queue client for KG populate jobs.
+            audit_log_repository: Optional audit log repository for compliance writes.
         """
         self._session = session
         self._note_repo = note_repository
         self._queue = queue
+        self._audit_repo = audit_log_repository
 
     async def execute(self, payload: UpdateNotePayload) -> UpdateNoteResult:
         """Execute note update.
@@ -163,6 +170,24 @@ class UpdateNoteService:
             updated_note = await self._note_repo.update(note)
         else:
             updated_note = note
+
+        # Write audit log entry (non-fatal)
+        if self._audit_repo is not None and fields_updated:
+            try:
+                from pilot_space.infrastructure.database.models.audit_log import ActorType
+
+                await self._audit_repo.create(
+                    workspace_id=updated_note.workspace_id,
+                    actor_id=payload.actor_id,
+                    actor_type=ActorType.USER,
+                    action="note.update",
+                    resource_type="note",
+                    resource_id=updated_note.id,
+                    payload={"changed_fields": fields_updated},
+                    ip_address=None,
+                )
+            except Exception as exc:
+                logger.warning("UpdateNoteService: failed to write audit log: %s", exc)
 
         # Enqueue KG populate job if content changed and note belongs to a project (non-fatal)
         if (

@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from pilot_space.infrastructure.database.models.workspace_member import WorkspaceMember
+    from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+        AuditLogRepository,
+    )
     from pilot_space.infrastructure.database.repositories.custom_role_repository import (
         CustomRoleRepository,
     )
@@ -91,9 +94,11 @@ class RbacService:
         self,
         custom_role_repo: CustomRoleRepository,
         workspace_member_repo: WorkspaceMemberRepository,
+        audit_log_repository: AuditLogRepository | None = None,
     ) -> None:
         self.custom_role_repo = custom_role_repo
         self.workspace_member_repo = workspace_member_repo
+        self._audit_repo = audit_log_repository
 
     async def create_role(
         self,
@@ -102,6 +107,7 @@ class RbacService:
         description: str | None,
         permissions: list[str],
         session: AsyncSession,
+        actor_id: UUID | None = None,
     ) -> CustomRole:
         """Create a new custom role in the workspace.
 
@@ -133,7 +139,37 @@ class RbacService:
             description=description,
             permissions=permissions,
         )
-        return await self.custom_role_repo.create(role)
+        created = await self.custom_role_repo.create(role)
+
+        # Write audit log entry (non-fatal)
+        if self._audit_repo is not None:
+            try:
+                from pilot_space.infrastructure.database.models.audit_log import ActorType
+
+                await self._audit_repo.create(
+                    workspace_id=workspace_id,
+                    actor_id=actor_id,
+                    actor_type=ActorType.USER,
+                    action="custom_role.create",
+                    resource_type="custom_role",
+                    resource_id=created.id,
+                    payload={
+                        "before": {},
+                        "after": {
+                            "name": created.name,
+                            "permissions": created.permissions or [],
+                        },
+                    },
+                    ip_address=None,
+                )
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "RbacService.create_role: failed to write audit log: %s", exc
+                )
+
+        return created
 
     async def list_roles(
         self,
@@ -177,6 +213,7 @@ class RbacService:
         description: str | None,
         permissions: list[str] | None,
         session: AsyncSession,
+        actor_id: UUID | None = None,
     ) -> CustomRole:
         """Partially update a custom role (only update provided fields).
 
@@ -217,13 +254,48 @@ class RbacService:
             _validate_permissions(permissions)
             role.permissions = permissions
 
-        return await self.custom_role_repo.update(role)
+        updated = await self.custom_role_repo.update(role)
+
+        # Write audit log entry (non-fatal)
+        if self._audit_repo is not None:
+            try:
+                from pilot_space.infrastructure.database.models.audit_log import ActorType
+
+                await self._audit_repo.create(
+                    workspace_id=workspace_id,
+                    actor_id=actor_id,
+                    actor_type=ActorType.USER,
+                    action="custom_role.update",
+                    resource_type="custom_role",
+                    resource_id=role_id,
+                    payload={
+                        "changed_fields": [
+                            k
+                            for k, v in [
+                                ("name", name),
+                                ("description", description),
+                                ("permissions", permissions),
+                            ]
+                            if v is not None
+                        ]
+                    },
+                    ip_address=None,
+                )
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "RbacService.update_role: failed to write audit log: %s", exc
+                )
+
+        return updated
 
     async def delete_role(
         self,
         role_id: UUID,
         workspace_id: UUID,
         session: AsyncSession,
+        actor_id: UUID | None = None,
     ) -> None:
         """Soft-delete a custom role.
 
@@ -247,7 +319,32 @@ class RbacService:
             role_id=role_id, session=session
         )
 
+        # Capture name before deletion for audit payload
+        role_name = role.name
+
         await self.custom_role_repo.soft_delete(role_id, workspace_id)
+
+        # Write audit log entry (non-fatal)
+        if self._audit_repo is not None:
+            try:
+                from pilot_space.infrastructure.database.models.audit_log import ActorType
+
+                await self._audit_repo.create(
+                    workspace_id=workspace_id,
+                    actor_id=actor_id,
+                    actor_type=ActorType.USER,
+                    action="custom_role.delete",
+                    resource_type="custom_role",
+                    resource_id=role_id,
+                    payload={"before": {"name": role_name}, "after": {}},
+                    ip_address=None,
+                )
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "RbacService.delete_role: failed to write audit log: %s", exc
+                )
 
     async def assign_role_to_member(
         self,

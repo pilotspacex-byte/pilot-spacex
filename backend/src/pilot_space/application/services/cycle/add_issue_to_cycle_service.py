@@ -21,6 +21,9 @@ if TYPE_CHECKING:
         CycleRepository,
         IssueRepository,
     )
+    from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+        AuditLogRepository,
+    )
 
 logger = get_logger(__name__)
 
@@ -90,6 +93,7 @@ class AddIssueToCycleService:
         cycle_repository: CycleRepository,
         issue_repository: IssueRepository,
         activity_repository: ActivityRepository,
+        audit_log_repository: AuditLogRepository | None = None,
     ) -> None:
         """Initialize service.
 
@@ -98,11 +102,13 @@ class AddIssueToCycleService:
             cycle_repository: Cycle repository.
             issue_repository: Issue repository.
             activity_repository: Activity repository.
+            audit_log_repository: Optional audit log repository for compliance writes.
         """
         self._session = session
         self._cycle_repo = cycle_repository
         self._issue_repo = issue_repository
         self._activity_repo = activity_repository
+        self._audit_repo = audit_log_repository
 
     async def add_issue(self, payload: AddIssueToCyclePayload) -> AddIssueToCycleResult:
         """Add an issue to a cycle.
@@ -162,6 +168,27 @@ class AddIssueToCycleService:
                 "cycle_id": str(payload.cycle_id),
             },
         )
+
+        # Write audit log entry (non-fatal)
+        if self._audit_repo is not None and issue is not None:
+            try:
+                from pilot_space.infrastructure.database.models.audit_log import ActorType
+
+                await self._audit_repo.create(
+                    workspace_id=payload.workspace_id,
+                    actor_id=payload.actor_id,
+                    actor_type=ActorType.USER,
+                    action="cycle.issue_added",
+                    resource_type="cycle",
+                    resource_id=payload.cycle_id,
+                    payload={
+                        "before": {},
+                        "after": {"issue_id": str(payload.issue_id)},
+                    },
+                    ip_address=None,
+                )
+            except Exception as exc:
+                logger.warning("AddIssueToCycleService: failed to write audit log (add): %s", exc)
 
         return AddIssueToCycleResult(
             issue=issue,  # type: ignore[arg-type]
@@ -225,6 +252,29 @@ class AddIssueToCycleService:
                 "cycle_id": str(payload.cycle_id),
             },
         )
+
+        # Write audit log entry (non-fatal)
+        if self._audit_repo is not None and issue is not None:
+            try:
+                from pilot_space.infrastructure.database.models.audit_log import ActorType
+
+                await self._audit_repo.create(
+                    workspace_id=payload.workspace_id,
+                    actor_id=payload.actor_id,
+                    actor_type=ActorType.USER,
+                    action="cycle.issue_removed",
+                    resource_type="cycle",
+                    resource_id=payload.cycle_id,
+                    payload={
+                        "before": {"issue_id": str(payload.issue_id)},
+                        "after": {},
+                    },
+                    ip_address=None,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "AddIssueToCycleService: failed to write audit log (remove): %s", exc
+                )
 
         return RemoveIssueFromCycleResult(
             issue=issue,  # type: ignore[arg-type]

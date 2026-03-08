@@ -270,8 +270,54 @@ class AuditLogRepository:
         )
 
 
+async def write_audit_nonfatal(
+    audit_repo: AuditLogRepository | None,
+    *,
+    workspace_id: uuid.UUID,
+    actor_id: uuid.UUID | None,
+    action: str,
+    resource_type: str,
+    resource_id: uuid.UUID | None = None,
+    payload: dict[str, Any] | None = None,
+    ip_address: str | None = None,
+) -> None:
+    """Write an audit log entry non-fatally (swallows all exceptions).
+
+    Convenience wrapper for service-layer audit writes where the primary
+    write path must not be interrupted by audit failures.
+
+    Args:
+        audit_repo: AuditLogRepository instance, or None to skip.
+        workspace_id: Owning workspace UUID.
+        actor_id: Actor UUID (or None for system actions).
+        action: Dot-notation action string e.g. "issue.create".
+        resource_type: Resource category string.
+        resource_id: Affected resource UUID or None.
+        payload: JSONB diff payload.
+        ip_address: Client IP or None.
+    """
+    if audit_repo is None:
+        return
+    try:
+        await audit_repo.create(
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+            actor_type=ActorType.USER,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            payload=payload,
+            ip_address=ip_address,
+        )
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("write_audit_nonfatal: failed to write %s", action)
+
+
 __all__ = [
     "AuditLogPage",
     "AuditLogRepository",
     "compute_diff",
+    "write_audit_nonfatal",
 ]
