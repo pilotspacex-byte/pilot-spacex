@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-03-08T02:13:47Z"
-last_activity: "2026-03-08 — Completed plan 02-03 (AuditLogHook DB write upgrade)"
+stopped_at: Completed 02-04-PLAN.md
+last_updated: "2026-03-08T02:19:12.351Z"
+last_activity: 2026-03-08 — Completed plan 02-03 (AuditLogHook DB write upgrade)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 13
   percent: 21
 ---
 
@@ -58,6 +58,7 @@ Progress: [██░░░░░░░░] 21%
 | Phase 02-compliance-and-audit P01 | 27 | 2 tasks | 12 files |
 | Phase 02-compliance-and-audit P02 | 90 | 2 tasks | 14 files |
 | Phase 02-compliance-and-audit P03 | 10 | 1 task | 5 files |
+| Phase 02-compliance-and-audit P04 | 10 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions affecting current work:
 - [Phase 02-compliance-and-audit]: AuditLogHook dual-mode injection: audit_repo for request-scoped use, session_factory for SDK lifecycle callbacks — keeps unit tests simple while enabling out-of-request writes
 - [Phase 02-compliance-and-audit]: Private state captured as local closure vars to satisfy SLF001 ruff rule — avoids hook_self._xxx access from nested closures
 - [Phase 02-compliance-and-audit]: list_for_export added to AuditLogRepository — full chronological export without cursor pagination for streaming CSV/JSON export
+- [Phase 02-compliance-and-audit]: audit_router prefix /api/v1 not /api/v1/workspaces — routes already include /workspaces/{slug}/audit path, avoids double-prefix
+- [Phase 02-compliance-and-audit]: Retention PATCH requires settings:manage (OWNER only) — data retention config is higher-privilege than settings:read (ADMIN+OWNER)
+- [Phase 02-compliance-and-audit]: Streaming generators use Sequence[object] not list[object] — list is invariant in Python typing, Sequence is covariant, prevents pyright error on AuditLog assignment
 
 ### Pending Todos
 
@@ -117,6 +121,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T02:13:47Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-03-08T02:19:12.349Z
+Stopped at: Completed 02-04-PLAN.md
 Resume file: None
