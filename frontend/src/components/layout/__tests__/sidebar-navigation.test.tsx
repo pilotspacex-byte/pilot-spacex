@@ -40,6 +40,10 @@ vi.mock('@/stores', () => ({
     getWorkspaceBySlug: () => mockWorkspace,
     fetchWorkspaces: vi.fn(),
     isLoading: false,
+    currentUserRole: 'owner' as const,
+    currentWorkspaceId: 'test-ws',
+    isOwner: true,
+    isAdmin: false,
   }),
   useNoteStore: () => ({
     pinnedNotes: [],
@@ -101,6 +105,11 @@ vi.mock('@/lib/supabase', () => ({
 // Mock useResponsive
 vi.mock('@/hooks/useMediaQuery', () => ({
   useResponsive: () => ({ isSmallScreen: false }),
+}));
+
+// Mock approvals hook — sidebar calls usePendingApprovalCount for badge
+vi.mock('@/features/approvals/hooks/use-approvals', () => ({
+  usePendingApprovalCount: () => 0,
 }));
 
 function renderSidebar() {
