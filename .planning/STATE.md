@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: active
-stopped_at: Completed 04-ai-governance Phase 4 complete (all 8 plans done, AIGOV-01..07 verified)
-last_updated: "2026-03-08T20:30:00.000Z"
-last_activity: 2026-03-08 — Phase 4 AI Governance complete; 4 browser verification bugs fixed
+status: verifying
+stopped_at: Completed 04-ai-governance Phase 4 — all plans done, AIGOV-01..07 verified, 4 regression bugs fixed
+last_updated: "2026-03-08T14:18:00.014Z"
+last_activity: 2026-03-08 — Fixed 4 browser-verification bugs (enum labels, actor_type filter, cost UUID, layout overflow)
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 30
-  completed_plans: 30
+  completed_phases: 3
+  total_plans: 32
+  completed_plans: 31
   percent: 100
 ---
 
@@ -76,6 +76,7 @@ Progress: [██████████] 100%
 | Phase 04-ai-governance P06 | 18 | 2 tasks | 4 files |
 | Phase 04-ai-governance P07 | 21 | 2 tasks | 8 files |
 | Phase 04-ai-governance P08 | 130 | 2 tasks complete (4 bugs fixed) | 21 files |
+| Phase 04-ai-governance P10 | 8 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -176,6 +177,9 @@ Recent decisions affecting current work:
 - [Phase 04-ai-governance]: Cost dashboard resolves workspace UUID via workspaceStore.currentWorkspace?.id — costs/page.tsx passed slug as workspaceId prop
 - [Phase 04-ai-governance]: min-w-0 required on AppShell content flex item to prevent horizontal overflow beyond viewport
 - [Phase 04-ai-governance]: chat_attachment server_default removed — Python-level default added for SQLite test compatibility; production uses Alembic migration not create_all
+- [Phase 04-ai-governance]: Module-level imports for UpdateIssueService/NoteService/repositories in ai_governance.py — enables patch()-based mocking without local import tricks
+- [Phase 04-ai-governance]: UNCHANGED sentinel for absent before_state fields — prevents rollback from nullifying fields not captured in the audit entry
+- [Phase 04-ai-governance]: isRollingBack gated on rollbackMutation.variables === entry.id — only the clicked row shows loading state when rollback is in flight
 
 ### Pending Todos
 

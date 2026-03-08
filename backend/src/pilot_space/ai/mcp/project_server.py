@@ -23,9 +23,13 @@ from typing import Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 
+from pilot_space.ai.infrastructure.approval import ActionType
 from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.ai.tools.entity_resolver import resolve_entity_id
-from pilot_space.ai.tools.mcp_server import ToolContext, get_tool_approval_level
+from pilot_space.ai.tools.mcp_server import (
+    ToolContext,
+    check_approval_from_db,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -339,7 +343,9 @@ def create_project_tools_server(
             )
 
         # Build approval payload
-        approval_level = get_tool_approval_level("create_project")
+        approval_level = await check_approval_from_db(
+            "create_project", ActionType.CREATE_PROJECT, tool_context
+        )
         status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         event_data = {
             "operation": "create_project",
@@ -454,7 +460,9 @@ def create_project_tools_server(
             return _text_result("No changes detected. Provide at least one field to update.")
 
         # Build approval payload
-        approval_level = get_tool_approval_level("update_project")
+        approval_level = await check_approval_from_db(
+            "update_project", ActionType.UPDATE_PROJECT, tool_context
+        )
         status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         event_data = {
             "operation": "update_project",
@@ -531,7 +539,9 @@ def create_project_tools_server(
         merged_settings = {**existing_settings, **new_settings}
 
         # Build approval payload
-        approval_level = get_tool_approval_level("update_project_settings")
+        approval_level = await check_approval_from_db(
+            "update_project_settings", ActionType.UPDATE_PROJECT_SETTINGS, tool_context
+        )
         status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
         event_data = {
             "operation": "update_project_settings",
