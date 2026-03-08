@@ -346,3 +346,34 @@ class TestPricingTable:
                 assert len(pricing) == 2
                 assert isinstance(pricing[0], Decimal)
                 assert isinstance(pricing[1], Decimal)
+
+
+# ============================================================================
+# Phase 4 AIGOV-06 xfail stubs — implemented in plan 04-06
+# ============================================================================
+
+
+@pytest.mark.asyncio
+@pytest.mark.xfail(
+    strict=False,
+    reason="Phase 4 AIGOV-06: CostTracker.track() persists operation_type — implemented in 04-06",
+)
+async def test_track_persists_operation_type() -> None:
+    """CostTracker.track(operation_type='ghost_text') saves operation_type to DB.
+
+    When operation_type is provided, the saved AICostRecord.operation_type
+    must equal the passed value.
+    """
+
+
+@pytest.mark.asyncio
+@pytest.mark.xfail(
+    strict=False,
+    reason="Phase 4 AIGOV-06: CostTracker.track() operation_type nullable — implemented in 04-06",
+)
+async def test_track_operation_type_nullable() -> None:
+    """track() with no operation_type saves NULL to DB.
+
+    When operation_type is omitted, AICostRecord.operation_type must be None.
+    Ensures backward compatibility with existing callers that don't pass operation_type.
+    """
