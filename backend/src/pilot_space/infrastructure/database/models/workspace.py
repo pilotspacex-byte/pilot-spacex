@@ -31,6 +31,9 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.workspace_api_key import (
         WorkspaceAPIKey,
     )
+    from pilot_space.infrastructure.database.models.workspace_encryption_key import (
+        WorkspaceEncryptionKey,
+    )
     from pilot_space.infrastructure.database.models.workspace_member import (
         WorkspaceMember,
     )
@@ -143,6 +146,13 @@ class Workspace(BaseModel):
         back_populates="workspace",
         cascade="all, delete-orphan",
         lazy="select",
+    )
+    encryption_key: Mapped[WorkspaceEncryptionKey | None] = relationship(
+        "WorkspaceEncryptionKey",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        uselist=False,
+        lazy="selectin",
     )
 
     # Indexes and constraints

@@ -119,6 +119,9 @@ from pilot_space.infrastructure.database.models.work_intent import (
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_api_key import WorkspaceAPIKey
 from pilot_space.infrastructure.database.models.workspace_digest import WorkspaceDigest
+from pilot_space.infrastructure.database.models.workspace_encryption_key import (
+    WorkspaceEncryptionKey,
+)
 from pilot_space.infrastructure.database.models.workspace_invitation import (
     InvitationStatus,
     WorkspaceInvitation,
@@ -213,6 +216,7 @@ __all__ = [
     "Workspace",
     "WorkspaceAPIKey",
     "WorkspaceDigest",
+    "WorkspaceEncryptionKey",
     "WorkspaceInvitation",
     "WorkspaceMember",
     "WorkspaceOnboarding",
