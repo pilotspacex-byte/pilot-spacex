@@ -50,7 +50,7 @@ Requirements for the enterprise milestone. Goal: first enterprise customer (50-5
 - [x] **OPS-03**: All services expose structured JSON health check endpoints consumable by monitoring tools
 - [x] **OPS-04**: Application logs are structured JSON with consistent schema (level, timestamp, trace_id, actor, action)
 - [x] **OPS-05**: Admin can run backup of all workspace data (PostgreSQL + Supabase Storage) via provided CLI tooling
-- [ ] **OPS-06**: Zero-downtime migration path documented and tested from prior MVP version to enterprise release
+- [x] **OPS-06**: Zero-downtime migration path documented and tested from prior MVP version to enterprise release
 
 ## v2 Requirements
 
@@ -124,7 +124,7 @@ Updated during roadmap creation: 2026-03-07
 | OPS-03 | Phase 5 | Complete |
 | OPS-04 | Phase 5 | Complete |
 | OPS-05 | Phase 5 | Complete |
-| OPS-06 | Phase 5 | Pending |
+| OPS-06 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 30 total

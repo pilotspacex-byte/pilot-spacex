@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 05-03-PLAN.md — Unified docker-compose.yml with all services, nginx production profile, deployment guide
-last_updated: "2026-03-08T16:58:02.763Z"
+stopped_at: Completed 05-06-PLAN.md — Zero-downtime upgrade runbook and CI upgrade simulation workflow
+last_updated: "2026-03-08T17:03:45.619Z"
 last_activity: 2026-03-08 — Implemented /health/live and /health/ready endpoints (05-01)
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 38
-  completed_plans: 36
+  completed_plans: 37
   percent: 100
 ---
 
@@ -81,6 +81,7 @@ Progress: [██████████] 100%
 | Phase 05-operational-readiness P01 | 4 | 2 tasks | 6 files |
 | Phase 05-operational-readiness P05 | 28 | 2 tasks | 10 files |
 | Phase 05-operational-readiness P03 | 11 | 2 tasks | 4 files |
+| Phase 05-operational-readiness P06 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -201,6 +202,8 @@ Recent decisions affecting current work:
 - [Phase 05-operational-readiness]: Supabase services merged inline (no include:) — single-file guarantee for docker compose up
 - [Phase 05-operational-readiness]: nginx under --profile production only — direct service port access in dev
 - [Phase 05-operational-readiness]: BACKEND_IMAGE/FRONTEND_IMAGE vars with build: fallback — CI can override without rebuild
+- [Phase 05-operational-readiness]: CI upgrade simulation accepts 'degraded' as valid health/ready outcome — Supabase non-critical in GHA; database+redis up = can serve traffic
+- [Phase 05-operational-readiness]: supabase/postgres:15.8.1.076 in CI service container — matches production stack for accurate Alembic migration testing (pgmq, pgvector, RLS)
 
 ### Pending Todos
 
@@ -216,6 +219,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T16:58:02.761Z
-Stopped at: Completed 05-03-PLAN.md — Unified docker-compose.yml with all services, nginx production profile, deployment guide
+Last session: 2026-03-08T17:03:45.617Z
+Stopped at: Completed 05-06-PLAN.md — Zero-downtime upgrade runbook and CI upgrade simulation workflow
 Resume file: None
