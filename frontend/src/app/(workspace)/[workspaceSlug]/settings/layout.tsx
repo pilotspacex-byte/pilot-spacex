@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useWorkspaceStore } from '@/stores/RootStore';
 import {
   Building2,
+  ClipboardList,
   CreditCard,
   Menu,
   Plug,
@@ -70,6 +71,12 @@ const settingsNavSections: NavSection[] = [
         label: 'SSO',
         icon: Shield,
         href: (slug: string) => `/${slug}/settings/sso`,
+      },
+      {
+        id: 'audit',
+        label: 'Audit',
+        icon: ClipboardList,
+        href: (slug: string) => `/${slug}/settings/audit`,
       },
       {
         id: 'roles',
