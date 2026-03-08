@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-03-08T05:16:24.390Z"
-last_activity: 2026-03-08 — Completed plan 03-01 (RLS enum fix + Phase 3 test scaffold)
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-03-08T08:27:27.000Z"
+last_activity: 2026-03-08 — Completed plan 03-04 (super-admin operator dashboard backend)
 progress:
   total_phases: 5
   completed_phases: 2
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 
 Phase: 3 of 5 (Multi-Tenant Isolation) — IN PROGRESS
 Plan: 1 of 7 in current phase (03-01 complete)
-Status: Plan 03-01 complete — ready for 03-02 (TENANT-01 isolation tests implementation)
-Last activity: 2026-03-08 — Completed plan 03-01 (RLS enum fix + Phase 3 test scaffold)
+Status: Plan 03-04 complete — ready for 03-05
+Last activity: 2026-03-08 — Completed plan 03-04 (super-admin operator dashboard backend)
 
 Progress: [███████░░░] 71%
 
@@ -63,6 +63,7 @@ Progress: [███████░░░] 71%
 | Phase 03-multi-tenant-isolation P01 | 11 | 2 tasks | 6 files |
 | Phase 03-multi-tenant-isolation P02 | 20 | 2 tasks | 11 files |
 | Phase 03-multi-tenant-isolation PP03 | 35 | 2 tasks | 7 files |
+| Phase 03-multi-tenant-isolation P04 | 9 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,9 @@ Recent decisions affecting current work:
 - [Phase Phase 03-multi-tenant-isolation]: RateLimitMiddleware uses async_sessionmaker (not DI container) for DB fallback — avoids wiring complexity in middleware context, same SCIM pattern
 - [Phase Phase 03-multi-tenant-isolation]: Workspace quota router extracted to workspace_quota.py — keeps both workspaces.py and workspace_quota.py under 700-line limit
 - [Phase Phase 03-multi-tenant-isolation]: PATCH /settings/quota uses RedisDep for cache invalidation — consistent with ghost_text and issues_ai_context patterns
+- [Phase 03-multi-tenant-isolation]: Admin router uses class-based _AdminSessionFactory (not global) — avoids PLW0603, maintains test patchability via patch()
+- [Phase 03-multi-tenant-isolation]: HTTPBearer(auto_error=False) on admin routes — returns 401 with WWW-Authenticate header, not 403 (RFC 6750 compliant)
+- [Phase 03-multi-tenant-isolation]: PILOT_SPACE_SUPER_ADMIN_TOKEN is SecretStr — masks in repr/logs/model_dump without custom filter; None disables super-admin access
 
 ### Pending Todos
 
@@ -138,6 +142,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T05:16:24.388Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-03-08T08:27:27.000Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None

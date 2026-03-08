@@ -31,7 +31,7 @@ Requirements for the enterprise milestone. Goal: first enterprise customer (50-5
 - [x] **TENANT-01**: Each workspace operates with complete data isolation — no cross-workspace data leakage at any API layer
 - [x] **TENANT-02**: Admin can configure workspace-level encryption for stored data (bring your own encryption key)
 - [x] **TENANT-03**: Admin can set per-workspace API rate limits and storage quotas
-- [ ] **TENANT-04**: Super-admin (self-hosted operator) can view workspace health, usage metrics, and member activity across all workspaces
+- [x] **TENANT-04**: Super-admin (self-hosted operator) can view workspace health, usage metrics, and member activity across all workspaces
 
 ### AI Governance (AIGOV)
 
@@ -111,7 +111,7 @@ Updated during roadmap creation: 2026-03-07
 | TENANT-01 | Phase 3 | Complete |
 | TENANT-02 | Phase 3 | Complete |
 | TENANT-03 | Phase 3 | Complete |
-| TENANT-04 | Phase 3 | Pending |
+| TENANT-04 | Phase 3 | Complete |
 | AIGOV-01 | Phase 4 | Pending |
 | AIGOV-02 | Phase 4 | Pending |
 | AIGOV-03 | Phase 4 | Pending |
