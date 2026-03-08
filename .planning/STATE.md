@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 04-ai-governance-07-PLAN.md
-last_updated: "2026-03-08T10:56:13.378Z"
-last_activity: 2026-03-08 — Completed plan 03-04 (super-admin operator dashboard backend)
+status: checkpoint
+stopped_at: Completed 04-ai-governance-08-PLAN.md task 1; awaiting human verification (task 2)
+last_updated: "2026-03-08T18:55:00.000Z"
+last_activity: 2026-03-08 — Completed plan 04-08 task 1 (quality gates); pending human browser verification AIGOV-01..07
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 30
   completed_plans: 29
-  percent: 71
+  percent: 97
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 
 ## Current Position
 
-Phase: 3 of 5 (Multi-Tenant Isolation) — IN PROGRESS
-Plan: 1 of 7 in current phase (03-01 complete)
-Status: Plan 03-04 complete — ready for 03-05
-Last activity: 2026-03-08 — Completed plan 03-04 (super-admin operator dashboard backend)
+Phase: 4 of 5 (AI Governance) — CHECKPOINT (awaiting human browser verification)
+Plan: 8 of 8 in current phase (04-08 task 1 complete; task 2 = human verify)
+Status: Quality gates run, all Phase 4 AI tests pass; AIGOV-01..07 pending human browser verification
+Last activity: 2026-03-08 — Completed plan 04-08 task 1 (quality gates + test fixes)
 
-Progress: [███████░░░] 71%
+Progress: [█████████░] 97%
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [███████░░░] 71%
 | Phase 04-ai-governance P05 | 25 | 2 tasks | 10 files |
 | Phase 04-ai-governance P06 | 18 | 2 tasks | 4 files |
 | Phase 04-ai-governance P07 | 21 | 2 tasks | 8 files |
+| Phase 04-ai-governance P08 | 90 | 1 task complete + human verify | 16 files |
 
 ## Accumulated Context
 
@@ -169,6 +170,8 @@ Recent decisions affecting current work:
 - [Phase 04-ai-governance]: ExtractionReviewPanel rationale popover uses noteId as resource_id (not issue.id — issues not yet persisted at review stage)
 - [Phase 04-ai-governance]: AiNotConfiguredBanner queries ai-status only when isOwner=true — avoids unnecessary endpoint calls for non-owners
 - [Phase 04-ai-governance]: PRReviewPanel byokConfigured prop defaults to true for backward compatibility — existing callers unaffected
+- [Phase 04-ai-governance]: Pre-existing test failures (199 backend, 134 frontend) out of scope for Phase 4 — Phase 4 AI unit tests 1637/1637 pass; coverage at 59% (was 58% pre-Phase 4; pre-existing gate failure)
+- [Phase 04-ai-governance]: chat_attachment server_default removed — Python-level default added for SQLite test compatibility; production uses Alembic migration not create_all
 
 ### Pending Todos
 
@@ -184,6 +187,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-08T10:56:13.376Z
-Stopped at: Completed 04-ai-governance-07-PLAN.md
+Last session: 2026-03-08T18:55:00.000Z
+Stopped at: Completed 04-ai-governance-08-PLAN.md task 1; awaiting human verification task 2
 Resume file: None
