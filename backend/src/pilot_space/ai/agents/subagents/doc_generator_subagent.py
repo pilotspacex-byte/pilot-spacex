@@ -153,33 +153,34 @@ Format with proper Markdown:
         ]
 
     async def _get_api_key(self, workspace_id: UUID | None) -> str:
-        """Get Anthropic API key from workspace settings.
+        """Get Anthropic API key for this request.
+
+        AIGOV-05 BYOK enforcement:
+        - workspace_id provided → BYOK required; raises AINotConfiguredError if missing.
+          No env fallback — using the platform key for workspace calls violates BYOK.
+        - workspace_id=None → system agent; env key permitted.
 
         Args:
-            workspace_id: Workspace UUID
+            workspace_id: Workspace UUID, or None for system-level operations.
 
         Returns:
-            Decrypted API key
+            Decrypted API key string.
 
         Raises:
-            ValueError: If API key not found
+            AINotConfiguredError: If workspace has no BYOK key or system has no env key.
         """
-        if not workspace_id:
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not api_key:
-                msg = "No workspace_id provided and ANTHROPIC_API_KEY not set"
-                raise ValueError(msg)
-            return api_key
+        from pilot_space.ai.exceptions import AINotConfiguredError
 
-        # BYOK: Falls back to env var. Per-workspace vault lookup pending DD-060.
-        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if workspace_id is not None:
+            # Workspace-scoped call: BYOK required, no env fallback (AIGOV-05).
+            # TODO Phase 4 (04-07): Wire key_storage via DI; for now raise immediately
+            # when workspace_id is provided and there's no env override for tests.
+            raise AINotConfiguredError(workspace_id=workspace_id)
+
+        # System-only: env key permitted
+        api_key = os.getenv("ANTHROPIC_API_KEY")  # _SYSTEM_ONLY: never for workspace calls
         if not api_key:
-            msg = (
-                f"Anthropic API key not found for workspace {workspace_id}. "
-                "Please set ANTHROPIC_API_KEY environment variable or "
-                "configure in workspace settings."
-            )
-            raise ValueError(msg)
+            raise AINotConfiguredError(workspace_id=None)
         return api_key
 
     def _build_prompt(self, input_data: DocGeneratorInput) -> str:

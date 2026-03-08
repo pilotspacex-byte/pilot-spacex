@@ -154,22 +154,22 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         return build_subagent_definitions()
 
     async def _get_api_key(self, workspace_id: UUID | None) -> str:
-        if workspace_id and self._key_storage:
-            try:
+        """Get API key. AIGOV-05 BYOK: workspace calls require WorkspaceAPIKey row; no env fallback.
+        workspace_id=None (system/background agents) is the only permitted env-key path.
+        """
+        from pilot_space.ai.exceptions import AINotConfiguredError
+
+        if workspace_id is not None:
+            # Workspace-scoped: BYOK required, no env fallback
+            if self._key_storage:
                 key = await self._key_storage.get_api_key(workspace_id, "anthropic")
                 if key:
                     return key
-            except Exception as e:
-                logger.warning(
-                    "Vault lookup failed for workspace %s: %s. Falling back to env var",
-                    workspace_id,
-                    str(e),
-                    exc_info=True,
-                )
-
-        api_key = os.getenv("ANTHROPIC_API_KEY")
+            raise AINotConfiguredError(workspace_id=workspace_id)
+        # System-only path: env key permitted
+        api_key = os.getenv("ANTHROPIC_API_KEY")  # _SYSTEM_ONLY: never for workspace calls
         if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY not set and no workspace key configured.")
+            raise AINotConfiguredError(workspace_id=None)
         return api_key
 
     async def interrupt_session(self, session_id: str) -> bool:

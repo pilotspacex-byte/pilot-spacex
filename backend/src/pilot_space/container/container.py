@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dependency_injector import containers, providers
 
+from pilot_space.ai.infrastructure.cost_tracker import CostTracker
 from pilot_space.application.services.ai import (
     AttachmentContentService,
     AttachmentUploadService,
@@ -119,6 +120,9 @@ from pilot_space.dependencies.auth import get_current_session
 from pilot_space.infrastructure.database.repositories.custom_role_repository import (
     CustomRoleRepository,
 )
+from pilot_space.infrastructure.database.repositories.workspace_ai_policy_repository import (
+    WorkspaceAIPolicyRepository,
+)
 from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
     WorkspaceMemberRepository as WorkspaceMemberRbacRepository,
 )
@@ -173,6 +177,18 @@ class Container(InfraContainer):
         session_manager=session_manager,
         space_manager=space_manager,
         queue_client=InfraContainer.queue_client,
+    )
+
+    # AI Cost Tracker (AIGOV-06) — Factory so each request gets a session-bound instance
+    cost_tracker = providers.Factory(
+        CostTracker,
+        session=providers.Callable(get_current_session),
+    )
+
+    # AI Policy Repository (AIGOV-01) — Factory per request
+    workspace_ai_policy_repository = providers.Factory(
+        WorkspaceAIPolicyRepository,
+        session=providers.Callable(get_current_session),
     )
 
     # ===== Service Factories =====
@@ -338,9 +354,7 @@ class Container(InfraContainer):
         pilotspace_agent=pilotspace_agent,
         tool_registry=tool_registry,
         provider_selector=provider_selector,
-        cost_tracker=providers.Callable(
-            lambda: None
-        ),  # Cost tracker requires request-scoped session
+        cost_tracker=cost_tracker,
         resilient_executor=resilient_executor,
     )
 
@@ -352,7 +366,7 @@ class Container(InfraContainer):
         pilotspace_agent=pilotspace_agent,
         tool_registry=tool_registry,
         provider_selector=provider_selector,
-        cost_tracker=providers.Callable(lambda: None),
+        cost_tracker=cost_tracker,
         resilient_executor=resilient_executor,
     )
 

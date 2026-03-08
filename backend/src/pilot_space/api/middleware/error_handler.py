@@ -194,12 +194,48 @@ async def generic_exception_handler(
     )
 
 
+async def ai_not_configured_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Handle AINotConfiguredError with 503 Problem Details response.
+
+    AIGOV-05: Workspace AI calls without a configured BYOK key return 503
+    with error_code AI_BYOK_REQUIRED so the frontend can prompt for key setup.
+
+    Args:
+        request: The incoming request.
+        exc: The AINotConfiguredError exception.
+
+    Returns:
+        Problem Details JSON response (503).
+    """
+    from pilot_space.ai.exceptions import AINotConfiguredError
+
+    if isinstance(exc, AINotConfiguredError):
+        return JSONResponse(
+            status_code=503,
+            content={
+                "type": "about:blank",
+                "title": "AI Not Configured",
+                "status": 503,
+                "detail": "No BYOK API key configured for this workspace. Configure a key in Settings > API Keys.",
+                "error_code": "AI_BYOK_REQUIRED",
+            },
+            media_type="application/problem+json",
+        )
+    return await generic_exception_handler(request, exc)
+
+
 def register_exception_handlers(app: Any) -> None:
     """Register all exception handlers with the app.
 
     Args:
         app: FastAPI application instance.
     """
+    from pilot_space.ai.exceptions import AINotConfiguredError
+
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(AINotConfiguredError, ai_not_configured_handler)
     app.add_exception_handler(Exception, generic_exception_handler)

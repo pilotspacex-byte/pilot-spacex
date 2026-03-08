@@ -8,6 +8,7 @@ T091a: AI error types for the AI layer.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 
@@ -242,6 +243,40 @@ class AITimeoutError(AIError):
         self.provider = provider
 
 
+class AINotConfiguredError(AIError):
+    """Raised when a workspace AI call is made without a valid BYOK API key.
+
+    Per AIGOV-05: every workspace-scoped AI call requires a WorkspaceAPIKey row.
+    The platform env key (ANTHROPIC_API_KEY) must not be used as fallback for
+    workspace calls — that would violate the BYOK billing model.
+
+    System-only operations (workspace_id=None) may still use the env key.
+    """
+
+    error_code = "ai_byok_required"
+    http_status = 503
+
+    def __init__(self, workspace_id: uuid.UUID | None = None) -> None:
+        """Initialize BYOK configuration error.
+
+        Args:
+            workspace_id: Workspace that is missing a BYOK key, or None for
+                          system-level operations with no env key configured.
+        """
+        self.workspace_id = workspace_id
+        if workspace_id is not None:
+            msg = (
+                f"No BYOK API key configured for workspace {workspace_id}. "
+                "Configure a key in Settings > API Keys."
+            )
+        else:
+            msg = "No AI provider API key configured. Set ANTHROPIC_API_KEY for system operations."
+        super().__init__(
+            msg,
+            details={"workspace_id": str(workspace_id) if workspace_id else None},
+        )
+
+
 class AIConfigurationError(AIError):
     """Raised when AI configuration is invalid or missing.
 
@@ -351,6 +386,7 @@ class AgentExecutionError(AIError):
 __all__ = [
     "AIConfigurationError",
     "AIError",
+    "AINotConfiguredError",
     "AITimeoutError",
     "AgentExecutionError",
     "ContextTooLargeError",
