@@ -82,6 +82,7 @@ from pilot_space.api.v1.routers import (
     workspace_tasks_router,
     workspaces_router,
 )
+from pilot_space.api.v1.routers.workspace_scim_settings import workspace_scim_settings_router
 
 dotenv.load_dotenv()
 
@@ -128,6 +129,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     redis_client = app.state.container.redis_client()
     if redis_client is not None:
         await redis_client.connect()
+        # Register RateLimitMiddleware after Redis connects (TENANT-03).
+        # Must be inside lifespan — redis_client.client is None until connect() completes.
+        from pilot_space.api.middleware.rate_limiter import RateLimitMiddleware
+
+        app.add_middleware(
+            RateLimitMiddleware,
+            redis_client=redis_client.client,
+            enabled=True,
+            db_url=settings.database_url.get_secret_value(),
+        )
 
     # Start digest worker for homepage digest generation
     digest_worker_task: asyncio.Task[None] | None = None
@@ -248,6 +259,7 @@ API_V1_PREFIX = "/api/v1"
 app.include_router(admin_router, prefix=f"{API_V1_PREFIX}/admin")
 
 app.include_router(scim_router, prefix=API_V1_PREFIX)
+app.include_router(workspace_scim_settings_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(audit_router, prefix=API_V1_PREFIX)
 app.include_router(ai_governance_router, prefix=API_V1_PREFIX)
 app.include_router(auth_router, prefix=API_V1_PREFIX)
