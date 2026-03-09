@@ -4,13 +4,15 @@ Config stored at ~/.pilot/config.toml:
     api_url = "https://api.pilotspace.io"
     api_key = "ps_..."
     workspace_slug = "acme"
+    database_url = "postgresql://user:pw@host:5432/db"  # for pg_dump/pg_restore
+    supabase_url = "https://<project>.supabase.co"      # for Storage API
 """
 
 from __future__ import annotations
 
 import os as _os
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
@@ -27,6 +29,8 @@ class PilotConfig:
     api_url: str
     api_key: str
     workspace_slug: str
+    database_url: str = field(default="")  # postgresql:// connection string for pg_dump/pg_restore
+    supabase_url: str = field(default="")  # Supabase project URL for Storage API
 
     DEFAULT_API_URL: ClassVar[str] = "https://api.pilotspace.io"
 
@@ -44,10 +48,14 @@ class PilotConfig:
             )
         with CONFIG_FILE.open("rb") as f:
             data = tomllib.load(f)
+        database_url = data.get("database_url") or _os.environ.get("DATABASE_URL") or ""
+        supabase_url = data.get("supabase_url") or _os.environ.get("SUPABASE_URL") or ""
         return cls(
             api_url=data["api_url"],
             api_key=data["api_key"],
             workspace_slug=data["workspace_slug"],
+            database_url=database_url,
+            supabase_url=supabase_url,
         )
 
     def save(self) -> None:
@@ -64,6 +72,8 @@ class PilotConfig:
                     "api_url": self.api_url,
                     "api_key": self.api_key,
                     "workspace_slug": self.workspace_slug,
+                    "database_url": self.database_url,
+                    "supabase_url": self.supabase_url,
                 },
                 f,
             )
