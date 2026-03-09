@@ -138,7 +138,7 @@ Plans:
 | 9. Login Audit Events | v1.0 | 1/1 | Complete | 2026-03-09 |
 | 10. Wire Audit Trail | v1.0 | 1/1 | Complete | 2026-03-09 |
 | 11. Fix Rate Limiting Architecture | v1.0 | 1/1 | Complete | 2026-03-09 |
-| 12. Onboarding & First-Run UX | 1/3 | In Progress|  | - |
+| 12. Onboarding & First-Run UX | 2/3 | In Progress|  | - |
 | 13. AI Provider Registry + Model Selection | v1.0-alpha | 0/TBD | Not started | - |
 | 14. Remote MCP Server Management | v1.0-alpha | 0/TBD | Not started | - |
 | 15. Related Issues | v1.0-alpha | 0/TBD | Not started | - |

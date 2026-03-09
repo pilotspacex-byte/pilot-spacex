@@ -10,9 +10,9 @@
 
 - [x] **ONBD-01**: New user's first sign-in auto-creates a workspace (name derived from email/display name — no extra step)
 - [x] **ONBD-02**: After workspace creation, user lands on onboarding checklist — never an empty page
-- [ ] **ONBD-03**: API key setup step includes inline guidance (where to get key, format hint, test connection button)
-- [ ] **ONBD-04**: Role + skill generation step shows clear success confirmation when skill is saved and active
-- [ ] **ONBD-05**: Each onboarding step links directly to the relevant settings action
+- [x] **ONBD-03**: API key setup step includes inline guidance (where to get key, format hint, test connection button)
+- [x] **ONBD-04**: Role + skill generation step shows clear success confirmation when skill is saved and active
+- [x] **ONBD-05**: Each onboarding step links directly to the relevant settings action
 
 ### Bug Fixes
 
@@ -106,9 +106,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | ONBD-01 | Phase 12 | Complete |
 | ONBD-02 | Phase 12 | Complete |
-| ONBD-03 | Phase 12 | Pending |
-| ONBD-04 | Phase 12 | Pending |
-| ONBD-05 | Phase 12 | Pending |
+| ONBD-03 | Phase 12 | Complete |
+| ONBD-04 | Phase 12 | Complete |
+| ONBD-05 | Phase 12 | Complete |
 | BUG-01 | Phase 12 | Complete |
 | BUG-02 | Phase 12 | Complete |
 | WS-01 | Phase 12 | Pending |

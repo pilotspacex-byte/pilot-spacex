@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 12-01-PLAN.md — BUG-01 + ONBD-01/BUG-02 fixed
-last_updated: "2026-03-09T15:32:36.975Z"
-last_activity: 2026-03-09 — Roadmap created (7 phases, 39/39 requirements mapped)
+stopped_at: Completed 12-02-PLAN.md — ONBD-03/04/05 inline API key guidance + settings links + skill save toast
+last_updated: "2026-03-09T15:43:00.000Z"
+last_activity: 2026-03-09 — 12-02 complete — 64 tests GREEN
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: Phase 12 — Onboarding & First-Run UX (not started)
-Plan: —
-Status: Roadmap created, awaiting phase planning
-Last activity: 2026-03-09 — Roadmap created (7 phases, 39/39 requirements mapped)
+Phase: Phase 12 — Onboarding & First-Run UX (in progress)
+Plan: 2/3
+Status: 2 of 3 plans complete
+Last activity: 2026-03-09 — 12-02 complete: inline API key guidance, skill save toast, settings links
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 20%
 
 ## Milestone: v1.0-alpha
 
@@ -102,6 +102,9 @@ Recent decisions affecting current work:
 - [Phase 12-onboarding-first-run-ux]: WorkspaceContext is authoritative workspaceId source — WorkspaceGuard resolves workspace from API before rendering, UUID always available via context
 - [Phase 12-onboarding-first-run-ux]: Auto-create workspace uses email prefix + 4-char random suffix slug; retries once on 409, falls back to manual form on double failure
 - [Phase 12-onboarding-first-run-ux]: supabase.auth.getUser() used directly in app/page.tsx (not via AuthProvider) to avoid expanding AuthProvider interface
+- [Phase 12-onboarding-first-run-ux]: ApiKeySetupStep renders inline (no navigation) — removes context switch from onboarding flow; onNavigateToSettings fallback available for users who need full settings
+- [Phase 12-onboarding-first-run-ux]: STEP_SETTINGS_PATH map in OnboardingChecklist — avoids threading workspaceSlug through OnboardingStepItem just for href construction; checklist owns the href composition
+- [Phase 12-onboarding-first-run-ux]: vitest.config.ts env stubs for NEXT_PUBLIC_SUPABASE_URL — all unit tests were blocked without the var; stubs avoid requiring a live Supabase in CI
 
 ### Pending Todos
 
@@ -115,7 +118,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09T15:32:36.973Z
-Stopped at: Completed 12-01-PLAN.md — BUG-01 + ONBD-01/BUG-02 fixed
+Last session: 2026-03-09T15:43:00.000Z
+Stopped at: Completed 12-02-PLAN.md — ONBD-03/04/05 inline API key + settings links + skill save toast
 Resume file: None
 Next action: `/gsd:plan-phase 12`
