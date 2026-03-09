@@ -155,6 +155,7 @@ def create_pilotspace_agent(
     session_manager: Any,
     space_manager: Any,
     queue_client: Any = None,
+    session_factory: Any = None,
 ) -> Any:
     """Create PilotSpaceAgent with all dependencies.
 
@@ -165,6 +166,7 @@ def create_pilotspace_agent(
         session_manager: Session manager (None if Redis not configured).
         space_manager: Space management service.
         queue_client: Queue client for graph embedding jobs (optional).
+        session_factory: Async sessionmaker for AuditLogHook out-of-request DB writes.
 
     Returns:
         Fully initialized PilotSpaceAgent.
@@ -199,6 +201,7 @@ def create_pilotspace_agent(
         session_handler=session_handler,
         space_manager=space_manager,
         graph_queue_client=queue_client,
+        session_factory=session_factory,
     )
 
 

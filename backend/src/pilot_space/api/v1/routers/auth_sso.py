@@ -46,6 +46,7 @@ from pilot_space.infrastructure.database.repositories.audit_log_repository impor
 from pilot_space.infrastructure.database.repositories.workspace_repository import (
     WorkspaceRepository,
 )
+from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -311,6 +312,7 @@ async def saml_callback(
         ) from exc
     _ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or None
     try:
+        await set_rls_context(session, UUID(str(user_info["user_id"])), workspace_id)
         await write_audit_nonfatal(
             AuditLogRepository(session),
             workspace_id=workspace_id,

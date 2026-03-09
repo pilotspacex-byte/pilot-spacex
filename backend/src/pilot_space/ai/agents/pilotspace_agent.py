@@ -60,15 +60,9 @@ if TYPE_CHECKING:
     from pilot_space.ai.sdk.permission_handler import PermissionHandler
     from pilot_space.ai.sdk.session_handler import SessionHandler
     from pilot_space.ai.tools.mcp_server import ToolRegistry
-    from pilot_space.application.services.intent.detection_service import (
-        IntentDetectionService,
-    )
-    from pilot_space.application.services.memory.memory_save_service import (
-        MemorySaveService,
-    )
-    from pilot_space.application.services.memory.memory_search_service import (
-        MemorySearchService,
-    )
+    from pilot_space.application.services.intent.detection_service import IntentDetectionService
+    from pilot_space.application.services.memory.memory_save_service import MemorySaveService
+    from pilot_space.application.services.memory.memory_search_service import MemorySearchService
     from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
     from pilot_space.spaces.base import SpaceContext
 
@@ -132,6 +126,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         memory_search_service: MemorySearchService | None = None,
         memory_save_service: MemorySaveService | None = None,
         graph_queue_client: SupabaseQueueClient | None = None,
+        session_factory: Any | None = None,
     ) -> None:
         super().__init__(
             provider_selector=provider_selector,
@@ -147,6 +142,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._memory_search_service = memory_search_service
         self._memory_save_service = memory_save_service
         self._graph_queue_client = graph_queue_client
+        self._session_factory = session_factory
         self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
         self._active_clients: dict[str, ClaudeSDKClient] = {}
 
@@ -479,6 +475,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 user_id=context.user_id,
                 file_hook_executor=file_hook_executor,
                 event_queue=tool_event_queue,
+                session_factory=self._session_factory,
             )
 
             from pilot_space.infrastructure.database import get_db_session

@@ -180,6 +180,7 @@ class Container(InfraContainer):
         session_manager=session_manager,
         space_manager=space_manager,
         queue_client=InfraContainer.queue_client,
+        session_factory=InfraContainer.session_factory,
     )
 
     # AI Cost Tracker (AIGOV-06) — Factory so each request gets a session-bound instance
