@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -29,6 +29,10 @@ from pilot_space.api.v1.dependencies import (
     WorkspaceRepositoryDep,
 )
 from pilot_space.api.v1.repository_deps import IssueLinkRepositoryDep
+from pilot_space.api.v1.routers.workspace_quota import (
+    _check_storage_quota,  # pyright: ignore[reportPrivateUsage]
+    _update_storage_usage,  # pyright: ignore[reportPrivateUsage]
+)
 from pilot_space.api.v1.schemas.base import DeleteResponse, PaginatedResponse
 from pilot_space.api.v1.schemas.issue import (
     IssueBriefResponse,
@@ -316,12 +320,21 @@ async def create_workspace_issue(
     session: DbSession,
     create_service: CreateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    response: Response = Response(),
 ) -> IssueResponse:
     """Create a new issue in the workspace."""
     from pilot_space.application.services.issue import CreateIssuePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
+
+    delta_bytes = len((issue_data.description or "").encode("utf-8"))
+    _quota_ok, _warning_pct = await _check_storage_quota(session, workspace.id, delta_bytes)
+    if not _quota_ok:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail="Storage quota exceeded",
+        )
 
     if not issue_data.project_id:
         raise HTTPException(
@@ -371,6 +384,13 @@ async def create_workspace_issue(
 
     result = await create_service.execute(payload)
 
+    try:
+        await _update_storage_usage(session, workspace.id, delta_bytes)
+    except Exception:
+        logger.warning("storage_usage_update_failed", workspace_id=str(workspace.id))
+    if _warning_pct is not None:
+        response.headers["X-Storage-Warning"] = str(round(_warning_pct, 4))
+
     logger.info(
         "Issue created",
         extra={"issue_id": str(result.issue.id), "workspace_id": str(workspace.id)},
@@ -393,6 +413,7 @@ async def update_workspace_issue(
     update_service: UpdateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
     session: SessionDep,
+    response: Response = Response(),
 ) -> IssueResponse:
     """Update an existing issue."""
     from pilot_space.application.services.issue.update_issue_service import (
@@ -402,6 +423,16 @@ async def update_workspace_issue(
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
+
+    # Conservative delta: charge full new description size when description is being updated.
+    # Avoids an extra round-trip to fetch the old description.
+    delta_bytes = len((issue_data.description or "").encode("utf-8"))
+    _quota_ok, _warning_pct = await _check_storage_quota(session, workspace.id, delta_bytes)
+    if not _quota_ok:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail="Storage quota exceeded",
+        )
 
     issue_ws_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
     issue_workspace_id = issue_ws_row.scalar_one_or_none()
@@ -488,6 +519,13 @@ async def update_workspace_issue(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         ) from e
+
+    try:
+        await _update_storage_usage(session, workspace.id, delta_bytes)
+    except Exception:
+        logger.warning("storage_usage_update_failed", workspace_id=str(workspace.id))
+    if _warning_pct is not None:
+        response.headers["X-Storage-Warning"] = str(round(_warning_pct, 4))
 
     logger.info(
         "Issue updated",
