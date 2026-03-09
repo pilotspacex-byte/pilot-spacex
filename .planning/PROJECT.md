@@ -56,15 +56,64 @@ Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data 
 - ✓ Backup/restore CLI: pg_dump + Storage + AES-256-GCM encryption — v1.0
 - ✓ Zero-downtime migration path from earlier versions — v1.0
 
+## Current Milestone: v1.0-alpha Pre-Production Launch
+
+**Goal:** Make the product usable from first sign-in through productive daily use — fixing onboarding gaps, adding remote MCP extensibility, related issues, workspace role skills, custom skill buttons, model selection, and multi-provider AI support.
+
+**Target features:**
+- Auto-workspace creation on sign-up + guided onboarding (ONBD)
+- Bug fixes: empty page + skill save 422 (BUG)
+- Remote MCP server management with Bearer + OAuth auth (MCP)
+- Related issues via semantic lookup + manual linking (RELISS)
+- Workspace-level role skills admin-configured (WRSKL)
+- Custom skill action buttons on issue page (SKBTN)
+- AI model selector per chat session (CHAT)
+- Multi-provider registry: built-ins + custom OpenAI-compatible (AIPR)
+- Tech debt closure: OIDC E2E, MCP approval wiring, xfail tests, key rotation (DEBT)
+
 ### Active
 
-<!-- Next milestone: post-beta customer hardening -->
+<!-- v1.0-alpha: pre-production launch milestone -->
 
-- [ ] OIDC login flow browser-verified end-to-end (AUTH-02 human verification pending)
-- [ ] MCP servers `issue_relation_server` + `note_content_server` wired to `check_approval_from_db()` (10 tools, AIGOV-01 partial)
-- [ ] xfail API test fixtures: missing async HTTP `client` fixture in audit API tests (Phase 02 tech debt)
-- [ ] Key rotation re-encryption: `test_key_rotation_re_encrypts_existing_content` is xfail stub (Phase 03 tech debt)
-- [ ] Live environment smoke tests: Docker Compose full stack + Helm chart install on real cluster
+- [ ] ONBD-01: New user sign-in auto-creates workspace (name from email/display name)
+- [ ] ONBD-02: Onboarding checklist shown after workspace creation — never empty page
+- [ ] ONBD-03: API key step has inline guidance + test connection button
+- [ ] ONBD-04: Skill generation step shows success confirmation
+- [ ] ONBD-05: Each onboarding step links to relevant settings action
+- [ ] BUG-01: Skill wizard workspaceId always UUID before API call
+- [ ] BUG-02: New account signup never lands on blank screen
+- [ ] WS-01: Workspace switcher shows name + member count
+- [ ] WS-02: Workspace switch lands on last visited page
+- [ ] RELISS-01: Issue detail shows auto-suggested related issues (semantic similarity)
+- [ ] RELISS-02: User can manually link/unlink related issues
+- [ ] RELISS-03: Relations surface notes, project, and semantic similarity
+- [ ] RELISS-04: User can dismiss AI suggestions permanently
+- [ ] WRSKL-01: Admin writes role description; AI generates workspace-level skill
+- [ ] WRSKL-02: Admin reviews and approves AI-generated skill before activation
+- [ ] WRSKL-03: Members inherit workspace skill for their role
+- [ ] WRSKL-04: Personal skill overrides workspace skill for same role
+- [ ] SKBTN-01: Admin defines custom action buttons for issue detail page
+- [ ] SKBTN-02: Button bound to skill or remote MCP tool
+- [ ] SKBTN-03: Button triggers ChatAI with issue context + bound skill/tool
+- [ ] SKBTN-04: Button execution respects AI approval policy
+- [ ] MCP-01: Admin registers remote MCP server by URL + name
+- [ ] MCP-02: Bearer token auth for remote MCP server
+- [ ] MCP-03: OAuth 2.0 redirect auth for remote MCP server
+- [ ] MCP-04: Registered servers dynamically available to PilotSpaceAgent
+- [ ] MCP-05: Connection status visible per server
+- [ ] MCP-06: Admin can remove a remote MCP server
+- [ ] CHAT-01: User selects AI model from workspace-available models
+- [ ] CHAT-02: Selected model persists per workspace session
+- [ ] CHAT-03: Model selector disabled when no valid API key configured
+- [ ] AIPR-01: Admin configures keys for pre-defined providers (Anthropic, OpenAI, Kimi, GLM, Gemini)
+- [ ] AIPR-02: Admin registers custom provider by name + base URL + API key
+- [ ] AIPR-03: All configured providers/models surfaced in model selector
+- [ ] AIPR-04: PilotSpaceAgent routes to selected provider/model
+- [ ] AIPR-05: Provider status shows connected/invalid/unreachable
+- [ ] DEBT-01: OIDC login flow browser-verified E2E
+- [ ] DEBT-02: issue_relation_server + note_content_server use check_approval_from_db()
+- [ ] DEBT-03: Async HTTP client fixture — 2 xfail audit tests passing
+- [ ] DEBT-04: Key rotation re-encryption implemented
 
 ### Out of Scope
 
@@ -114,4 +163,4 @@ Shipped v1.0 Enterprise on 2026-03-09. Codebase: ~782K lines (Python + TypeScrip
 | `AuditLog` uses `Base+TimestampMixin+WorkspaceScopedMixin` (not `WorkspaceScopedModel`) | Exclude `SoftDeleteMixin` — audit records are immutable and must not support soft-delete | ✓ Good |
 
 ---
-*Last updated: 2026-03-09 after v1.0 Enterprise milestone*
+*Last updated: 2026-03-09 after v1.0-alpha milestone start*

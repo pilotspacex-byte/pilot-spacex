@@ -114,6 +114,10 @@ None - no external service configuration required.
 - Operators must re-run `pilot login` or set `DATABASE_URL`/`SUPABASE_URL` env vars to use backup commands
 - All 106 CLI tests pass, no regressions
 
+## Self-Check: PASSED
+
+All 7 files verified present. Commits 80a777ff and e3167dcc confirmed in git log.
+
 ---
 *Phase: 05-operational-readiness*
 *Completed: 2026-03-09*

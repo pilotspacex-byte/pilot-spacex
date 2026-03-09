@@ -130,6 +130,17 @@ None - no external service configuration required.
 - Plan 12-02 (OnboardingChecklist enrichment) can proceed: `workspaceId` prop is now reliably UUID
 - Plan 12-03 (auto-create flow polish/testing) can proceed: baseline auto-create logic is implemented
 
+## Self-Check: PASSED
+
+- FOUND: `frontend/src/app/(workspace)/[workspaceSlug]/page.tsx`
+- FOUND: `frontend/src/app/page.tsx`
+- FOUND: `frontend/src/app/__tests__/page.test.tsx`
+- FOUND: `frontend/src/app/(workspace)/[workspaceSlug]/__tests__/page.test.tsx`
+- FOUND: `.planning/phases/12-onboarding-first-run-ux/12-01-SUMMARY.md`
+- FOUND: commit `67ff3597` (test scaffolds)
+- FOUND: commit `5d0b7844` (BUG-01 fix)
+- FOUND: commit `b3cc7ed8` (ONBD-01/BUG-02 fix)
+
 ---
 *Phase: 12-onboarding-first-run-ux*
 *Completed: 2026-03-09*
