@@ -8,9 +8,12 @@
  */
 
 import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
+import { usePathname } from 'next/navigation';
 import { useWorkspace } from '@/components/workspace-guard';
 import { useWorkspaceStore } from '@/stores';
+import { saveLastWorkspacePath } from '@/lib/workspace-nav';
 import { AiNotConfiguredBanner } from '@/components/workspace/ai-not-configured-banner';
 
 interface WorkspaceSlugLayoutProps {
@@ -23,6 +26,11 @@ const WorkspaceSlugLayout = observer(function WorkspaceSlugLayout({
   const { workspaceSlug } = useWorkspace();
   const workspaceStore = useWorkspaceStore();
   const isOwner = workspaceStore.isOwner;
+  const pathname = usePathname();
+
+  useEffect(() => {
+    saveLastWorkspacePath(workspaceSlug, pathname);
+  }, [pathname, workspaceSlug]);
 
   return (
     <>
