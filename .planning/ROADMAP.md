@@ -149,12 +149,11 @@ Plans:
 **Depends on**: Phase 3 (quota helpers already implemented)
 **Requirements**: TENANT-03 (storage quota gap closure)
 **Gap Closure:** Closes storage quota integration gap from v1.0 audit
+**Plans**: 2 plans
 
-Tasks:
-1. Call `_check_storage_quota()` before issue/note create/update in service layers
-2. Call `_update_storage_usage()` after successful write (media upload included)
-3. Unit tests: 507 response when quota exceeded
-4. Unit tests: `X-Storage-Warning` header at 80% usage
+Plans:
+- [ ] 07-01-PLAN.md — Test scaffold: 7 failing stubs for 507 + X-Storage-Warning behaviors across issue/note/attachment write paths (TENANT-03)
+- [ ] 07-02-PLAN.md — Wire _check_storage_quota + _update_storage_usage into workspace_issues.py, workspace_notes.py, ai_attachments.py (TENANT-03)
 
 ## Progress
 
@@ -170,7 +169,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. AI Governance | 10/10 | Complete | 2026-03-08 |
 | 5. Operational Readiness | 7/7 | Complete   | 2026-03-09 |
 | 6. Wire Rate Limiting + SCIM Token | 1/1 | Complete   | 2026-03-09 |
-| 7. Wire Storage Quota Enforcement | 0/1 | Pending | — |
+| 7. Wire Storage Quota Enforcement | 0/2 | Pending | — |
 
 ---
 *Roadmap created: 2026-03-07*
@@ -183,3 +182,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 *Phase 4 gap closure: 2026-03-08 — 04-09-PLAN.md (AIGOV-01 MCP wiring) + 04-10-PLAN.md (AIGOV-04 rollback)*
 *Phase 5 planned: 2026-03-08 — 6 plans across 2 waves*
 *Phase 6 planned: 2026-03-09 — 1 plan (gap closure: AUTH-07 + TENANT-03)*
+*Phase 7 planned: 2026-03-09 — 2 plans across 2 waves (gap closure: TENANT-03 storage quota)*
