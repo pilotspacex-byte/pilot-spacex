@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 09-01-PLAN.md — login audit events (AUDIT-01 SAML coverage)
-last_updated: "2026-03-09T08:41:58.066Z"
-last_activity: 2026-03-08 — Implemented /health/live and /health/ready endpoints (05-01)
+stopped_at: Completed 11-01-PLAN.md — RateLimitMiddleware lazy Redis accessor + module-level registration (TENANT-03)
+last_updated: "2026-03-09T09:30:00.000Z"
+last_activity: 2026-03-09 — Fixed TENANT-03 rate limiting architecture (11-01)
 progress:
   total_phases: 9
   completed_phases: 9
@@ -89,6 +89,7 @@ Progress: [██████████] 100%
 | Phase 07-wire-storage-quota-enforcement P02 | 18 | 2 tasks | 3 files |
 | Phase 08-fix-sso-integration P01 | 11 | 3 tasks | 6 files |
 | Phase 09-login-audit-events P01 | 7 | 3 tasks | 2 files |
+| Phase 11-fix-rate-limiting-architecture P01 | 45 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -216,7 +217,9 @@ Recent decisions affecting current work:
 - [Phase 05-operational-readiness]: check-yaml pre-commit hook excludes infra/helm/*/templates/ — Go template syntax is not valid YAML
 - [Phase 05-operational-readiness]: database_url/supabase_url default to empty string (not KeyError) — backup command validates at use time with clearer message
 - [Phase 05-operational-readiness]: supabase_url or api_url fallback in storage download — safe degradation for single-deployment setups
-- [Phase 06-wire-rate-limiting-scim-token]: RateLimitMiddleware registered inside lifespan after redis_client.connect() — redis_client.client is None at module scope
+- [Phase 11-fix-rate-limiting-architecture]: RateLimitMiddleware lazy _resolve_redis(request) reads container.redis_client().client on first dispatch — module-level registration with no-arg constructor, resolves lazily (SessionRecordingMiddleware pattern)
+- [Phase 11-fix-rate-limiting-architecture]: BaseHTTPMiddleware.dispatch() must return Response not raise HTTPException — Starlette collapse_excgroups converts raised exceptions to 500; use JSONResponse(429) directly
+- [Phase 06-wire-rate-limiting-scim-token]: RateLimitMiddleware registered inside lifespan after redis_client.connect() — redis_client.client is None at module scope (superseded by phase 11 fix)
 - [Phase 06-wire-rate-limiting-scim-token]: workspace_scim_settings_router prefix is /api/v1/workspaces, not /scim/v2/ — SCIM prefix is JWT-exempt via is_public_route()
 - [Phase 07-wire-storage-quota-enforcement]: Tests patch at router module paths (not workspace_quota.py) — wiring contract is about router imports, not helpers themselves
 - [Phase 07-wire-storage-quota-enforcement]: pytest.raises() merged into outer multi-context with-statement to satisfy SIM117 while retaining AttributeError-as-failure semantics
@@ -244,6 +247,6 @@ None — all known pending todos resolved as of phase 06-01.
 
 ## Session Continuity
 
-Last session: 2026-03-09T08:39:25.634Z
-Stopped at: Completed 09-01-PLAN.md — login audit events (AUDIT-01 SAML coverage)
+Last session: 2026-03-09T09:30:00.000Z
+Stopped at: Completed 11-01-PLAN.md — RateLimitMiddleware lazy Redis accessor + module-level registration (TENANT-03)
 Resume file: None

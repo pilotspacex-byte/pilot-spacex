@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Fix SSO Integration** - Normalize backend SSO endpoints to workspace_slug, complete SAML JWT issuance, add frontend saml_provisioned handler (Gap Closure) (completed 2026-03-09)
 - [x] **Phase 9: Login Audit Events** - Write user.login audit events in SAML and password auth paths (Gap Closure) (completed 2026-03-09)
 - [ ] **Phase 10: Wire Audit Trail** - Wire audit_log_repository into 10 DI service factories, fix SAML audit RLS context, and pass session_factory to PermissionAwareHookExecutor to fully satisfy AUDIT-01, AUDIT-02, and AIGOV-03 (Gap Closure)
-- [ ] **Phase 11: Fix Rate Limiting Architecture** - Move RateLimitMiddleware registration to module level with lazy Redis accessor so TENANT-03 rate limiting is active at runtime (Gap Closure)
+- [x] **Phase 11: Fix Rate Limiting Architecture** - Move RateLimitMiddleware registration to module level with lazy Redis accessor so TENANT-03 rate limiting is active at runtime (Gap Closure) (completed 2026-03-09)
 
 ## Phase Details
 
@@ -217,7 +217,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 8. Fix SSO Integration | 1/1 | Complete   | 2026-03-09 |
 | 9. Login Audit Events | 1/1 | Complete   | 2026-03-09 |
 | 10. Wire Audit Trail | 0/1 | Pending | — |
-| 11. Fix Rate Limiting Architecture | 0/1 | Pending | — |
+| 11. Fix Rate Limiting Architecture | 1/1 | Complete   | 2026-03-09 |
 
 ---
 *Roadmap created: 2026-03-07*
