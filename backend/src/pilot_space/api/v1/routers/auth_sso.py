@@ -39,6 +39,10 @@ from pilot_space.dependencies import CurrentUser
 from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.auth.saml_auth import SamlAuthProvider, SamlValidationError
 from pilot_space.infrastructure.database.permissions import check_permission
+from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+    AuditLogRepository,
+    write_audit_nonfatal,
+)
 from pilot_space.infrastructure.database.repositories.workspace_repository import (
     WorkspaceRepository,
 )
@@ -263,15 +267,12 @@ async def saml_callback(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
         )
-
     idp_config = await sso_service.get_saml_config(workspace_id)
     if not idp_config:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="SAML not configured for this workspace"
         )
-
     post_data = {"SAMLResponse": SAMLResponse, "RelayState": RelayState}
-
     try:
         provider = _get_saml_provider()
         result = provider.process_response(request, post_data, idp_config)
@@ -281,7 +282,6 @@ async def saml_callback(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"SAML assertion validation failed: {exc}",
         ) from exc
-
     # Extract email from SAML attributes or name_id
     name_id: str = result.get("name_id") or ""
     attributes: dict[str, list[str]] = result.get("attributes") or {}
@@ -293,12 +293,10 @@ async def saml_callback(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="SAML assertion missing email attribute"
         )
-
     display_name_attrs = (
         attributes.get("displayName") or attributes.get("name") or attributes.get("cn") or []
     )
     display_name = display_name_attrs[0] if display_name_attrs else email.split("@")[0]
-
     try:
         user_info = await sso_service.provision_saml_user(
             email=email,
@@ -311,14 +309,20 @@ async def saml_callback(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to provision user"
         ) from exc
-
-    logger.info(
-        "saml_login_success",
-        user_id=user_info["user_id"],
-        workspace_id=str(workspace_id),
-        is_new=user_info.get("is_new"),
-    )
-
+    _ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or None
+    try:
+        await write_audit_nonfatal(
+            AuditLogRepository(session),
+            workspace_id=workspace_id,
+            actor_id=UUID(str(user_info["user_id"])),
+            action="user.login",
+            resource_type="user",
+            resource_id=UUID(str(user_info["user_id"])),
+            payload={"method": "saml", "is_new": user_info.get("is_new", False)},
+            ip_address=_ip,
+        )
+    except Exception:
+        logger.warning("saml_callback: audit write failed for user %s", user_info["user_id"])
     # Redirect browser to frontend SAML callback page with token_hash for verifyOtp
     settings = get_settings()
     frontend_url = settings.frontend_url.rstrip("/")
