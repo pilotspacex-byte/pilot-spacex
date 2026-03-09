@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-stopped_at: Completed 13-03-PLAN.md — generalized ProviderStatusCard + CustomProviderForm + 5-provider grid
-last_updated: "2026-03-09T23:42:00.000Z"
+status: completed
+stopped_at: Completed 13-02-PLAN.md — per-session model override routing (AIPR-04)
+last_updated: "2026-03-09T16:59:24.408Z"
 last_activity: "2026-03-09 — 13-03 complete: generalized ProviderStatusCard, CustomProviderForm, AISettingsStore.loadModels (AIPR-01, AIPR-02, AIPR-05)"
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 7
+  completed_plans: 5
   percent: 23
 ---
 
@@ -69,6 +69,7 @@ Progress: [██░░░░░░░░] 23%
 
 *Updated after each plan completion*
 | Phase 12-onboarding-first-run-ux P01 | 25 | 3 tasks | 4 files |
+| Phase 13-ai-provider-registry-model-selection P02 | 26 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,9 @@ Recent decisions affecting current work:
 - [Phase 13-ai-provider-registry-model-selection]: BUILT_IN_PROVIDERS const array in ai-settings-page — 5 provider cards rendered via map(), no per-provider JSX duplication
 - [Phase 13-ai-provider-registry-model-selection]: ProviderModelItem exported from AISettingsStore — plan 04 model picker imports from single canonical location
 - [Phase 13-ai-provider-registry-model-selection]: loadModels() uses apiClient.get directly (not aiApi) — models endpoint is a different resource class than workspace AI settings
+- [Phase 13-ai-provider-registry-model-selection]: resolve_model_override uses lazy imports to avoid circular dependency with AIConfigurationRepository
+- [Phase 13-ai-provider-registry-model-selection]: self._resolved_model set on agent instance in stream() before _get_api_key — no signature change to _get_api_key needed
+- [Phase 13-ai-provider-registry-model-selection]: Model override fallback is always None on any error — BYOK invariant preserved for workspace requests
 
 ### Pending Todos
 
@@ -125,7 +129,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09T23:42:00.000Z
-Stopped at: Completed 13-03-PLAN.md — generalized ProviderStatusCard, CustomProviderForm, AISettingsStore.loadModels
+Last session: 2026-03-09T16:59:24.405Z
+Stopped at: Completed 13-02-PLAN.md — per-session model override routing (AIPR-04)
 Resume file: None
 Next action: Phase 13 in progress. Continue with 13-04 (model picker chat UI).

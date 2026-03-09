@@ -65,7 +65,7 @@
 - [x] **AIPR-01**: Workspace admin can configure API keys for pre-defined providers (Anthropic, OpenAI, Kimi, GLM, Gemini, and others with known base URLs)
 - [x] **AIPR-02**: Workspace admin can register a custom provider by name + OpenAI-compatible base URL + API key
 - [ ] **AIPR-03**: All configured providers and their available models are surfaced in the model selector
-- [ ] **AIPR-04**: PilotSpaceAgent routes requests to the selected provider/model via Claude Agent SDK-compatible interface
+- [x] **AIPR-04**: PilotSpaceAgent routes requests to the selected provider/model via Claude Agent SDK-compatible interface
 - [x] **AIPR-05**: Provider status shows connected / invalid key / unreachable per configured provider
 
 ### Tech Debt
@@ -116,7 +116,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AIPR-01 | Phase 13 | Complete |
 | AIPR-02 | Phase 13 | Complete |
 | AIPR-03 | Phase 13 | Pending |
-| AIPR-04 | Phase 13 | Pending |
+| AIPR-04 | Phase 13 | Complete |
 | AIPR-05 | Phase 13 | Complete |
 | CHAT-01 | Phase 13 | Pending |
 | CHAT-02 | Phase 13 | Pending |
