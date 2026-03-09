@@ -24,6 +24,7 @@ from fastapi import HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import JSONResponse
 
 from pilot_space.infrastructure.logging import get_logger
 
@@ -369,10 +370,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         current_count, remaining, reset_time = rate_limit_result
 
-        # Limit exceeded - increment violation counter and raise 429
+        # Limit exceeded - increment violation counter and return 429
         if current_count > effective_limit:
             await self._increment_violation_counter(workspace_id)
-            self._raise_rate_limit_exceeded(effective_limit, reset_time)
+            return self._rate_limit_exceeded_response(effective_limit, reset_time)
 
         # Process request and add rate limit headers
         response = await call_next(request)
@@ -432,7 +433,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return current_count, remaining, reset_time
 
     def _raise_rate_limit_exceeded(self, limit: int, reset_time: int) -> None:
-        """Raise HTTPException for rate limit exceeded.
+        """Raise HTTPException for rate limit exceeded (used by unit tests).
 
         Args:
             limit: Maximum requests per minute.
@@ -445,6 +446,34 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Rate limit exceeded. Retry after {retry_after} seconds.",
+            headers={
+                "Retry-After": str(retry_after),
+                "X-RateLimit-Limit": str(limit),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(reset_time),
+            },
+        )
+
+    def _rate_limit_exceeded_response(self, limit: int, reset_time: int) -> JSONResponse:
+        """Return a 429 JSONResponse for rate limit exceeded.
+
+        Used by dispatch() — BaseHTTPMiddleware must return a Response, not
+        raise HTTPException, so that Starlette's ExceptionMiddleware does not
+        convert the 429 to a 500 via the collapse_excgroups mechanism.
+
+        Args:
+            limit: Maximum requests per minute.
+            reset_time: Unix timestamp when rate limit resets.
+
+        Returns:
+            JSONResponse with status 429 and Retry-After header.
+        """
+        retry_after = reset_time - int(time.time())
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "detail": f"Rate limit exceeded. Retry after {retry_after} seconds.",
+            },
             headers={
                 "Retry-After": str(retry_after),
                 "X-RateLimit-Limit": str(limit),

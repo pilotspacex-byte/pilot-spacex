@@ -343,13 +343,12 @@ class TestAIEndpointRateLimiting:
             headers={"X-Workspace-ID": workspace_id},
         )
 
-        with pytest.raises(HTTPException) as exc_info:
-            await middleware.dispatch(request, mock_call_next)
+        response = await middleware.dispatch(request, mock_call_next)
 
-        assert exc_info.value.status_code == status.HTTP_429_TOO_MANY_REQUESTS
-        assert "Retry-After" in exc_info.value.headers
-        assert "X-RateLimit-Remaining" in exc_info.value.headers
-        assert exc_info.value.headers["X-RateLimit-Remaining"] == "0"
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert "Retry-After" in response.headers
+        assert "X-RateLimit-Remaining" in response.headers
+        assert response.headers["X-RateLimit-Remaining"] == "0"
 
     @pytest.mark.asyncio
     async def test_ai_endpoint_different_paths_share_limit(
@@ -1025,3 +1024,65 @@ class TestPerWorkspaceRateLimits:
         today = datetime.now(UTC).strftime("%Y%m%d")
         violation_key = f"rl_violations:{workspace_id}:{today}"
         assert mock_redis._call_counts.get(violation_key, 0) >= 1
+
+
+# =============================================================================
+# Main App Registration Tests (TENANT-03)
+# =============================================================================
+
+
+class TestRateLimitMiddlewareMainRegistration:
+    """Verify RateLimitMiddleware is registered in main.app and returns 429."""
+
+    def test_middleware_active_returns_429_via_testclient(self) -> None:
+        """RateLimitMiddleware in main.app returns 429 when Redis INCR exceeds limit.
+
+        Uses TestClient (not dispatch()) so the full middleware stack is built.
+        Patches _resolve_redis to inject a mock Redis that always returns count > limit.
+        Does not require a running Redis instance.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from starlette.testclient import TestClient
+
+        from pilot_space.api.middleware.rate_limiter import RateLimitMiddleware
+        from pilot_space.main import app
+
+        # Build a mock Redis where INCR always returns 9999 (exceeds all limits)
+        mock_redis_raw = AsyncMock()
+        mock_redis_raw.incr = AsyncMock(return_value=9999)
+        mock_redis_raw.expire = AsyncMock(return_value=True)
+        mock_redis_raw.get = AsyncMock(return_value=None)
+        mock_redis_raw.set = AsyncMock(return_value=True)
+
+        def fake_resolve_redis(self_mw: RateLimitMiddleware, request: object) -> None:
+            # Inject mock Redis directly, skip container lookup
+            self_mw.redis = mock_redis_raw
+            self_mw._redis_resolved = True
+
+        with (
+            patch.object(RateLimitMiddleware, "_resolve_redis", fake_resolve_redis),
+            TestClient(app, raise_server_exceptions=False) as client,
+        ):
+            # Verify middleware is in the stack
+            stack = app.middleware_stack
+            found = False
+            for _ in range(20):
+                if "RateLimitMiddleware" in type(stack).__name__:
+                    found = True
+                    break
+                stack = getattr(stack, "app", None)
+                if stack is None:
+                    break
+            assert found, "RateLimitMiddleware not found in app.middleware_stack"
+
+            # Verify 429 is returned — ExceptionMiddleware converts HTTPException(429)
+            # to a real 429 HTTP response through the Starlette exception handler chain.
+            response = client.get(
+                "/api/v1/workspaces",
+                headers={"X-Workspace-ID": "test-workspace-id"},
+            )
+            assert response.status_code == 429, (
+                f"Expected 429 from rate limit, got {response.status_code}"
+            )
+            assert "Retry-After" in response.headers

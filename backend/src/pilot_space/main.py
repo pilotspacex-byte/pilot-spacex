@@ -11,6 +11,7 @@ from fastapi import FastAPI
 
 from pilot_space.api.middleware.cors import configure_cors
 from pilot_space.api.middleware.error_handler import register_exception_handlers
+from pilot_space.api.middleware.rate_limiter import RateLimitMiddleware
 from pilot_space.api.middleware.request_context import RequestContextMiddleware
 from pilot_space.api.routers.health import router as health_router
 from pilot_space.api.v1.middleware.session_recording import SessionRecordingMiddleware
@@ -127,18 +128,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Connect to Redis for session management
     redis_client = app.state.container.redis_client()
-    if redis_client is not None:
-        await redis_client.connect()
-        # Register RateLimitMiddleware after Redis connects (TENANT-03).
-        # Must be inside lifespan — redis_client.client is None until connect() completes.
-        from pilot_space.api.middleware.rate_limiter import RateLimitMiddleware
-
-        app.add_middleware(
-            RateLimitMiddleware,
-            redis_client=redis_client.client,
-            enabled=True,
-            db_url=settings.database_url.get_secret_value(),
-        )
 
     # Start digest worker for homepage digest generation
     digest_worker_task: asyncio.Task[None] | None = None
@@ -245,6 +234,10 @@ app.add_middleware(RequestContextMiddleware)
 
 # Session recording middleware: throttled session upsert + revocation check (AUTH-06)
 app.add_middleware(SessionRecordingMiddleware)
+
+# Rate limiting middleware: per-workspace + per-IP limits (TENANT-03)
+# Lazy Redis accessor — resolves redis_client.client on first request from app.state.container
+app.add_middleware(RateLimitMiddleware)
 
 configure_cors(app)
 

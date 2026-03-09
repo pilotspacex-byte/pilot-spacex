@@ -117,6 +117,9 @@ from pilot_space.container._factories import (
     get_default_redirect_origin,
 )
 from pilot_space.dependencies.auth import get_current_session
+from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+    AuditLogRepository,
+)
 from pilot_space.infrastructure.database.repositories.custom_role_repository import (
     CustomRoleRepository,
 )
@@ -191,6 +194,12 @@ class Container(InfraContainer):
         session=providers.Callable(get_current_session),
     )
 
+    # Audit Log Repository (AUDIT-01) — Factory per request
+    audit_log_repository = providers.Factory(
+        AuditLogRepository,
+        session=providers.Callable(get_current_session),
+    )
+
     # ===== Service Factories =====
 
     # Issue Services
@@ -201,6 +210,7 @@ class Container(InfraContainer):
         activity_repository=InfraContainer.activity_repository,
         label_repository=InfraContainer.label_repository,
         queue=InfraContainer.queue_client,
+        audit_log_repository=audit_log_repository,
     )
 
     update_issue_service = providers.Factory(
@@ -209,6 +219,7 @@ class Container(InfraContainer):
         issue_repository=InfraContainer.issue_repository,
         activity_repository=InfraContainer.activity_repository,
         label_repository=InfraContainer.label_repository,
+        audit_log_repository=audit_log_repository,
     )
 
     get_issue_service = providers.Factory(
@@ -233,6 +244,7 @@ class Container(InfraContainer):
         note_repository=InfraContainer.note_repository,
         template_repository=InfraContainer.template_repository,
         queue=InfraContainer.queue_client,
+        audit_log_repository=audit_log_repository,
     )
 
     update_note_service = providers.Factory(
@@ -240,6 +252,7 @@ class Container(InfraContainer):
         session=providers.Callable(get_current_session),
         note_repository=InfraContainer.note_repository,
         queue=InfraContainer.queue_client,
+        audit_log_repository=audit_log_repository,
     )
 
     get_note_service = providers.Factory(
@@ -271,7 +284,7 @@ class Container(InfraContainer):
         DeleteNoteService,
         session=providers.Callable(get_current_session),
         note_repository=InfraContainer.note_repository,
-        activity_repository=InfraContainer.activity_repository,
+        audit_log_repository=audit_log_repository,
     )
 
     pin_note_service = providers.Factory(
@@ -298,6 +311,7 @@ class Container(InfraContainer):
         session=providers.Callable(get_current_session),
         issue_repository=InfraContainer.issue_repository,
         activity_repository=InfraContainer.activity_repository,
+        audit_log_repository=audit_log_repository,
     )
 
     # Issue Implement Context Service
@@ -315,12 +329,14 @@ class Container(InfraContainer):
         CreateCycleService,
         session=providers.Callable(get_current_session),
         cycle_repository=InfraContainer.cycle_repository,
+        audit_log_repository=audit_log_repository,
     )
 
     update_cycle_service = providers.Factory(
         UpdateCycleService,
         session=providers.Callable(get_current_session),
         cycle_repository=InfraContainer.cycle_repository,
+        audit_log_repository=audit_log_repository,
     )
 
     get_cycle_service = providers.Factory(
@@ -334,6 +350,8 @@ class Container(InfraContainer):
         session=providers.Callable(get_current_session),
         issue_repository=InfraContainer.issue_repository,
         cycle_repository=InfraContainer.cycle_repository,
+        activity_repository=InfraContainer.activity_repository,
+        audit_log_repository=audit_log_repository,
     )
 
     rollover_cycle_service = providers.Factory(
@@ -700,6 +718,7 @@ class Container(InfraContainer):
         RbacService,
         custom_role_repo=custom_role_repository,
         workspace_member_repo=workspace_member_rbac_repository,
+        audit_log_repository=audit_log_repository,
     )
 
 

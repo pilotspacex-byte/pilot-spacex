@@ -636,17 +636,15 @@ class TestAuditLogRepositoryWiring:
         assert hasattr(container, "audit_log_repository")
         assert isinstance(container.audit_log_repository, providers.Factory)
 
-    def test_audit_log_repository_resolves_to_correct_type(
-        self,
-        db_session: AsyncSession,
-    ) -> None:
+    def test_audit_log_repository_resolves_to_correct_type(self) -> None:
         """audit_log_repository() must return an AuditLogRepository instance."""
         from pilot_space.infrastructure.database.repositories.audit_log_repository import (
             AuditLogRepository,
         )
 
         container = create_container()
-        token = _request_session_ctx.set(db_session)
+        mock_session = MagicMock()
+        token = _request_session_ctx.set(mock_session)
         try:
             repo = container.audit_log_repository()
             assert repo is not None
@@ -654,17 +652,15 @@ class TestAuditLogRepositoryWiring:
         finally:
             _request_session_ctx.reset(token)
 
-    def test_create_issue_service_receives_audit_repo(
-        self,
-        db_session: AsyncSession,
-    ) -> None:
+    def test_create_issue_service_receives_audit_repo(self) -> None:
         """create_issue_service must receive a non-None audit_log_repository."""
         from pilot_space.infrastructure.database.repositories.audit_log_repository import (
             AuditLogRepository,
         )
 
         container = create_container()
-        token = _request_session_ctx.set(db_session)
+        mock_session = MagicMock()
+        token = _request_session_ctx.set(mock_session)
         try:
             service = container.create_issue_service()
             assert service._audit_repo is not None
@@ -672,17 +668,15 @@ class TestAuditLogRepositoryWiring:
         finally:
             _request_session_ctx.reset(token)
 
-    def test_all_crud_services_receive_audit_repo(
-        self,
-        db_session: AsyncSession,
-    ) -> None:
+    def test_all_crud_services_receive_audit_repo(self) -> None:
         """All 10 CRUD services must receive a non-None audit_log_repository."""
         from pilot_space.infrastructure.database.repositories.audit_log_repository import (
             AuditLogRepository,
         )
 
         container = create_container()
-        token = _request_session_ctx.set(db_session)
+        mock_session = MagicMock()
+        token = _request_session_ctx.set(mock_session)
         try:
             services_and_attr = [
                 (container.create_issue_service(), "_audit_repo"),
