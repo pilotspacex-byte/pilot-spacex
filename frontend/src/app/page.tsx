@@ -13,6 +13,7 @@ import { getAuthProvider } from '@/services/auth/providers';
 import { workspacesApi } from '@/services/api/workspaces';
 import { ApiError } from '@/services/api/client';
 import { toSlug } from '@/lib/slug';
+import { supabase } from '@/lib/supabase';
 
 const WORKSPACE_STORAGE_KEY = 'pilot-space:last-workspace';
 
@@ -92,11 +93,63 @@ export default function HomePage() {
         return;
       }
 
-      // 3. No workspaces found → clear stale stored slug and show creation form
+      // 3. No workspaces found → clear stale stored slug, auto-create from email
       localStorage.removeItem(WORKSPACE_STORAGE_KEY);
       if (!cancelled) {
-        setHasWorkspaces(false);
-        setIsLoading(false);
+        await autoCreateWorkspace();
+      }
+
+      async function autoCreateWorkspace(): Promise<void> {
+        // Derive display name from auth metadata or email prefix
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        const email = user?.email ?? '';
+        const displayName =
+          (user?.user_metadata?.name as string | undefined) ||
+          (user?.user_metadata?.full_name as string | undefined) ||
+          email.split('@')[0] ||
+          'my-workspace';
+
+        const baseSlug = toSlug(displayName) || 'my-workspace';
+
+        const tryCreate = async (suffix: string): Promise<void> => {
+          const slug = `${baseSlug}-${suffix}`;
+          try {
+            const workspace = await workspacesApi.create({ name: displayName, slug });
+            addRecentWorkspace(workspace.slug);
+            if (!cancelled) router.replace(`/${workspace.slug}`);
+          } catch (err) {
+            if (err instanceof ApiError && err.status === 409) {
+              // Retry exactly once with a new 4-char suffix
+              const newSuffix = Math.random().toString(36).slice(2, 6);
+              try {
+                const workspace2 = await workspacesApi.create({
+                  name: displayName,
+                  slug: `${baseSlug}-${newSuffix}`,
+                });
+                addRecentWorkspace(workspace2.slug);
+                if (!cancelled) router.replace(`/${workspace2.slug}`);
+              } catch {
+                // Both attempts failed — fall back to manual form
+                if (!cancelled) {
+                  setHasWorkspaces(false);
+                  setIsLoading(false);
+                }
+              }
+            } else {
+              // Non-conflict error — fall back to manual form
+              if (!cancelled) {
+                setHasWorkspaces(false);
+                setIsLoading(false);
+              }
+            }
+          }
+        };
+
+        const initialSuffix = Math.random().toString(36).slice(2, 6);
+        await tryCreate(initialSuffix);
       }
     }
 

@@ -134,6 +134,7 @@ vi.mock('@/services/api/client', () => {
 import HomePage from '../page';
 import { ApiError } from '@/services/api/client';
 import { getAuthProvider } from '@/services/auth/providers';
+import { supabase } from '@/lib/supabase';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -142,6 +143,20 @@ import { getAuthProvider } from '@/services/auth/providers';
 describe('HomePage — auto-workspace creation (ONBD-01 / BUG-02)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Restore supabase user mock (vi.clearAllMocks clears call history only,
+    // but implementations set inline in vi.mock factories need re-assertion
+    // if afterEach called vi.restoreAllMocks())
+    vi.mocked(supabase.auth.getUser).mockResolvedValue({
+      data: {
+        user: {
+          id: 'user-123',
+          email: 'alice@example.com',
+          user_metadata: {},
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+      },
+      error: null,
+    });
     mockGetAuthProviderGetToken.mockResolvedValue('mock-token');
     vi.mocked(getAuthProvider).mockResolvedValue({
       getToken: () => mockGetAuthProviderGetToken(),
@@ -156,7 +171,8 @@ describe('HomePage — auto-workspace creation (ONBD-01 / BUG-02)', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    // Do not call vi.restoreAllMocks() — it removes mock implementations set
+    // via vi.mock() factories, which are re-established in beforeEach.
   });
 
   it('auto-creates workspace from email prefix when no workspaces exist', async () => {
