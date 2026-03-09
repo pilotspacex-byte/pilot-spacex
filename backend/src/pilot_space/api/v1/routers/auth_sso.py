@@ -16,11 +16,11 @@ All HTTP errors use RFC 7807 problem+json format.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request, status
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 
 from pilot_space.api.v1.schemas.sso import (
     OidcConfigRequest,
@@ -36,9 +36,16 @@ from pilot_space.api.v1.schemas.sso import (
 )
 from pilot_space.config import get_settings
 from pilot_space.dependencies import CurrentUser
-from pilot_space.dependencies.auth import SessionDep, require_workspace_admin
+from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.auth.saml_auth import SamlAuthProvider, SamlValidationError
+from pilot_space.infrastructure.database.permissions import check_permission
+from pilot_space.infrastructure.database.repositories.workspace_repository import (
+    WorkspaceRepository,
+)
 from pilot_space.infrastructure.logging import get_logger
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -70,6 +77,38 @@ def _get_saml_provider() -> SamlAuthProvider:
     )
 
 
+async def _resolve_workspace(workspace_slug: str, session: AsyncSession) -> UUID:
+    """Resolve workspace slug (or UUID string) to workspace.id."""
+    workspace_repo = WorkspaceRepository(session)
+    try:
+        as_uuid = UUID(workspace_slug)
+        workspace = await workspace_repo.get_by_id_scalar(as_uuid)
+    except ValueError:
+        workspace = await workspace_repo.get_by_slug_scalar(workspace_slug)
+    if workspace is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+    return workspace.id
+
+
+async def _resolve_and_authorize(
+    workspace_slug: str,
+    session: AsyncSession,
+    user_id: UUID,
+) -> UUID:
+    """Resolve workspace slug → UUID and verify settings:manage permission.
+
+    Raises:
+        HTTPException 404: If workspace not found.
+        HTTPException 403: If user lacks settings:manage permission.
+    """
+    workspace_id = await _resolve_workspace(workspace_slug, session)
+    if not await check_permission(session, user_id, workspace_id, "settings", "manage"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
+    return workspace_id
+
+
 def _saml_config_response(workspace_id: UUID, entity_id: str, sso_url: str) -> SamlConfigResponse:
     """Build SamlConfigResponse with computed metadata and ACS URLs."""
     settings = get_settings()
@@ -94,23 +133,14 @@ def _saml_config_response(workspace_id: UUID, entity_id: str, sso_url: str) -> S
     summary="Configure SAML 2.0 IdP for a workspace",
 )
 async def configure_saml(
-    workspace_id: UUID,
+    workspace_slug: str,
     body: SamlConfigRequest,
     session: SessionDep,
-    _admin: UUID = require_workspace_admin,  # type: ignore[assignment]
-    current_user: CurrentUser = None,  # type: ignore[assignment]
+    current_user: CurrentUser,
 ) -> SamlConfigResponse:
-    """Store SAML IdP configuration for a workspace.
+    """Store SAML IdP config. Returns SP metadata and ACS URLs for this workspace."""
+    workspace_id = await _resolve_and_authorize(workspace_slug, session, current_user.user_id)
 
-    Args:
-        workspace_id: Target workspace UUID (query param).
-        body: SAML IdP settings.
-        session: DB session.
-        _admin: Requires workspace ADMIN or OWNER role.
-
-    Returns:
-        Computed SP metadata and ACS URLs for this workspace.
-    """
     sso_service = _get_sso_service()
     if sso_service is None:
         raise HTTPException(
@@ -144,15 +174,13 @@ async def configure_saml(
     summary="Get SAML IdP configuration for a workspace",
 )
 async def get_saml_config(
-    workspace_id: UUID,
+    workspace_slug: str,
     session: SessionDep,
-    _admin: UUID = require_workspace_admin,  # type: ignore[assignment]
-    current_user: CurrentUser = None,  # type: ignore[assignment]
+    current_user: CurrentUser,
 ) -> SamlConfigResponse:
-    """Return the stored SAML IdP configuration for a workspace.
+    """Return stored SAML IdP config. Certificate is NOT returned (key exfiltration guard)."""
+    workspace_id = await _resolve_and_authorize(workspace_slug, session, current_user.user_id)
 
-    Note: Certificate is NOT returned in the response to prevent key exfiltration.
-    """
     sso_service = _get_sso_service()
     if sso_service is None:
         raise HTTPException(
@@ -224,18 +252,8 @@ async def saml_callback(
     session: SessionDep,
     SAMLResponse: str = Form(...),
     RelayState: str = Form(default=""),
-) -> dict[str, str]:
-    """Validate SAML assertion and provision/login the user.
-
-    Called by the IdP after the user authenticates. Returns a Supabase JWT.
-
-    Args:
-        workspace_id: Workspace that initiated the SAML login.
-        SAMLResponse: Base64-encoded SAML response (from IdP form POST).
-        RelayState: Relay state (return_to URL) from initiation.
-
-    Returns:
-        access_token, token_type for the provisioned user.
+) -> Response:
+    """Validate SAML assertion from IdP, provision user, redirect to frontend with token_hash.
 
     Raises:
         401: If assertion is invalid or expired.
@@ -301,13 +319,14 @@ async def saml_callback(
         is_new=user_info.get("is_new"),
     )
 
-    # Return a success indicator — actual JWT is issued via Supabase magic link / admin signIn
-    # For now return user info so the frontend can request a Supabase session
-    return {
-        "user_id": user_info["user_id"],
-        "email": user_info["email"],
-        "token_type": "saml_provisioned",
-    }
+    # Redirect browser to frontend SAML callback page with token_hash for verifyOtp
+    settings = get_settings()
+    frontend_url = settings.frontend_url.rstrip("/")
+    token_hash = user_info.get("token_hash", "")
+    return RedirectResponse(
+        url=f"{frontend_url}/auth/saml-callback?token_hash={token_hash}&workspace_id={workspace_id}",
+        status_code=302,
+    )
 
 
 @router.get(
@@ -358,13 +377,14 @@ async def get_sp_metadata(
     summary="Configure OIDC provider for a workspace",
 )
 async def configure_oidc(
-    workspace_id: UUID,
+    workspace_slug: str,
     body: OidcConfigRequest,
     session: SessionDep,
-    _admin: UUID = require_workspace_admin,  # type: ignore[assignment]
-    current_user: CurrentUser = None,  # type: ignore[assignment]
+    current_user: CurrentUser,
 ) -> OidcConfigResponse:
     """Store OIDC provider configuration for a workspace."""
+    workspace_id = await _resolve_and_authorize(workspace_slug, session, current_user.user_id)
+
     sso_service = _get_sso_service()
     if sso_service is None:
         raise HTTPException(
@@ -398,12 +418,13 @@ async def configure_oidc(
     summary="Get OIDC provider configuration for a workspace",
 )
 async def get_oidc_config(
-    workspace_id: UUID,
+    workspace_slug: str,
     session: SessionDep,
-    _admin: UUID = require_workspace_admin,  # type: ignore[assignment]
-    current_user: CurrentUser = None,  # type: ignore[assignment]
+    current_user: CurrentUser,
 ) -> OidcConfigResponse:
-    """Return the stored OIDC configuration — client_secret is NOT returned."""
+    """Return stored OIDC config — client_secret is NOT returned."""
+    workspace_id = await _resolve_and_authorize(workspace_slug, session, current_user.user_id)
+
     sso_service = _get_sso_service()
     if sso_service is None:
         raise HTTPException(
@@ -435,16 +456,14 @@ async def get_oidc_config(
     summary="Toggle SSO-only enforcement for a workspace",
 )
 async def set_sso_enforcement(
-    workspace_id: UUID,
+    workspace_slug: str,
     body: SsoEnforcementRequest,
     session: SessionDep,
-    _admin: UUID = require_workspace_admin,  # type: ignore[assignment]
-    current_user: CurrentUser = None,  # type: ignore[assignment]
+    current_user: CurrentUser,
 ) -> None:
-    """Enable or disable SSO-only enforcement.
+    """Enable or disable SSO-only enforcement (AUTH-04)."""
+    workspace_id = await _resolve_and_authorize(workspace_slug, session, current_user.user_id)
 
-    When enabled, email/password login is rejected for this workspace (AUTH-04).
-    """
     sso_service = _get_sso_service()
     if sso_service is None:
         raise HTTPException(
@@ -562,26 +581,14 @@ async def check_sso_login_allowed(
     summary="Configure IdP role-claim → workspace role mapping (admin-only)",
 )
 async def configure_role_claim_mapping(
-    workspace_id: UUID,
+    workspace_slug: str,
     body: RoleClaimMappingConfig,
     session: SessionDep,
-    _admin: UUID = require_workspace_admin,  # type: ignore[assignment]
-    current_user: CurrentUser = None,  # type: ignore[assignment]
+    current_user: CurrentUser,
 ) -> dict[str, str]:
-    """Store or update the role claim mapping configuration for a workspace.
+    """Store or update IdP role-claim → workspace role mapping."""
+    workspace_id = await _resolve_and_authorize(workspace_slug, session, current_user.user_id)
 
-    When a user logs in via OIDC/SAML, their IdP group claim is mapped to a
-    workspace role using this configuration.
-
-    Args:
-        workspace_id: Target workspace UUID (query param).
-        body: Claim key and list of claim_value → role mappings.
-        session: DB session.
-        _admin: Requires workspace ADMIN or OWNER role.
-
-    Returns:
-        Confirmation message.
-    """
     sso_service = _get_sso_service()
     if sso_service is None:
         raise HTTPException(
@@ -606,21 +613,13 @@ async def configure_role_claim_mapping(
     summary="Get the current role claim mapping configuration (admin-only)",
 )
 async def get_role_claim_mapping(
-    workspace_id: UUID,
+    workspace_slug: str,
     session: SessionDep,
-    _admin: UUID = require_workspace_admin,  # type: ignore[assignment]
-    current_user: CurrentUser = None,  # type: ignore[assignment]
+    current_user: CurrentUser,
 ) -> RoleClaimMappingConfig | None:
-    """Return the current role claim mapping configuration for a workspace.
+    """Return current role claim mapping config, or None if not configured."""
+    workspace_id = await _resolve_and_authorize(workspace_slug, session, current_user.user_id)
 
-    Args:
-        workspace_id: Target workspace UUID.
-        session: DB session.
-        _admin: Requires workspace ADMIN or OWNER role.
-
-    Returns:
-        Mapping config or None if not configured.
-    """
     sso_service = _get_sso_service()
     if sso_service is None:
         raise HTTPException(

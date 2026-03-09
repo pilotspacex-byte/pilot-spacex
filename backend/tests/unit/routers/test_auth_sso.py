@@ -466,7 +466,6 @@ async def test_configure_saml_accepts_workspace_slug() -> None:
         entity_id="https://idp.example.com/saml",
         sso_url="https://idp.example.com/saml/sso",  # type: ignore[arg-type]
         certificate="MIID...",
-        name_id_format=None,
     )
 
     with (

@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.config import get_settings
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -309,7 +310,24 @@ class SsoService:
         # Ensure WorkspaceMember row exists for this workspace
         await self._ensure_workspace_member(user_id=user_id, workspace_id=workspace_id)
 
-        return {"user_id": user_id, "email": email, "is_new": is_new}
+        # Generate a magic link so the frontend can exchange token_hash for a real JWT session
+        try:
+            settings = get_settings()
+            link_result = await admin.generate_link(
+                {
+                    "type": "magiclink",
+                    "email": email,
+                    "options": {
+                        "redirect_to": f"{settings.frontend_url.rstrip('/')}/auth/saml-callback",
+                    },
+                }
+            )
+            token_hash = link_result.properties.hashed_token
+        except Exception as exc:
+            logger.exception("saml_generate_link_failed", email=email, error=str(exc))
+            raise RuntimeError(f"Failed to generate magic link for SAML user: {exc}") from exc
+
+        return {"user_id": user_id, "email": email, "is_new": is_new, "token_hash": token_hash}
 
     # ------------------------------------------------------------------
     # Role claim mapping (AUTH-03)
