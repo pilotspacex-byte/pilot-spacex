@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Operational Readiness** - Docker Compose guide, Helm chart, health checks, structured logging, backup tooling, and migration path (completed 2026-03-08)
 - [x] **Phase 6: Wire Rate Limiting + SCIM Token** - Register RateLimitMiddleware and add SCIM token generation endpoint to close AUTH-07 and TENANT-03 rate limiting gaps (Gap Closure) (completed 2026-03-09)
 - [x] **Phase 7: Wire Storage Quota Enforcement** - Call _check_storage_quota/_update_storage_usage on write paths to complete TENANT-03 storage quota gap (Gap Closure) (completed 2026-03-09)
-- [ ] **Phase 8: Fix SSO Integration** - Normalize backend SSO endpoints to workspace_slug, complete SAML JWT issuance, add frontend saml_provisioned handler (Gap Closure)
+- [x] **Phase 8: Fix SSO Integration** - Normalize backend SSO endpoints to workspace_slug, complete SAML JWT issuance, add frontend saml_provisioned handler (Gap Closure) (completed 2026-03-09)
 - [ ] **Phase 9: Login Audit Events** - Write user.login audit events in SAML and password auth paths (Gap Closure)
 
 ## Phase Details
@@ -192,7 +192,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Operational Readiness | 7/7 | Complete   | 2026-03-09 |
 | 6. Wire Rate Limiting + SCIM Token | 1/1 | Complete   | 2026-03-09 |
 | 7. Wire Storage Quota Enforcement | 2/2 | Complete   | 2026-03-09 |
-| 8. Fix SSO Integration | 0/1 | Pending    | — |
+| 8. Fix SSO Integration | 1/1 | Complete   | 2026-03-09 |
 | 9. Login Audit Events | 0/1 | Pending    | — |
 
 ---

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 07-02-PLAN.md — wire storage quota enforcement into all write paths
-last_updated: "2026-03-09T06:50:58.945Z"
+stopped_at: Completed 08-01-PLAN.md — fix SSO integration
+last_updated: "2026-03-09T08:01:25.023Z"
 last_activity: 2026-03-08 — Implemented /health/live and /health/ready endpoints (05-01)
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 42
-  completed_plans: 42
+  total_phases: 9
+  completed_phases: 8
+  total_plans: 43
+  completed_plans: 43
   percent: 100
 ---
 
@@ -87,6 +87,7 @@ Progress: [██████████] 100%
 | Phase 06-wire-rate-limiting-scim-token P01 | 12 | 2 tasks | 5 files |
 | Phase 07-wire-storage-quota-enforcement P01 | 10 | 1 tasks | 1 files |
 | Phase 07-wire-storage-quota-enforcement P02 | 18 | 2 tasks | 3 files |
+| Phase 08-fix-sso-integration P01 | 11 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -221,6 +222,10 @@ Recent decisions affecting current work:
 - [Phase 07-wire-storage-quota-enforcement]: Conservative delta for issue/note update quota check: len(new_content.encode()) avoids extra DB round-trip and AsyncMock compatibility issue
 - [Phase 07-wire-storage-quota-enforcement]: pyright: ignore[reportPrivateUsage] per import line — __all__ in workspace_quota.py insufficient for pyright private-symbol analysis
 - [Phase 07-wire-storage-quota-enforcement]: response: Response = Response() default in router functions — allows direct unit test calls without FastAPI DI while preserving real injection at runtime
+- [Phase 08-fix-sso-integration]: _resolve_and_authorize helper consolidates slug-resolution + settings:manage permission check — reduces 7 admin endpoint boilerplate from 5 lines to 1 line
+- [Phase 08-fix-sso-integration]: saml_callback workspace_id stays UUID — IdP posts UUID from initiate flow; changing would break IdP integration
+- [Phase 08-fix-sso-integration]: provision_saml_user raises RuntimeError on generate_link failure — token_hash required for JWT session; silent failure would lock user out
+- [Phase 08-fix-sso-integration]: SamlCallbackPage is plain component (not observer()) — no MobX observables; consistent with all existing auth pages
 
 ### Pending Todos
 
@@ -236,6 +241,6 @@ None — all known pending todos resolved as of phase 06-01.
 
 ## Session Continuity
 
-Last session: 2026-03-09T06:47:29.858Z
-Stopped at: Completed 07-02-PLAN.md — wire storage quota enforcement into all write paths
+Last session: 2026-03-09T08:01:16.902Z
+Stopped at: Completed 08-01-PLAN.md — fix SSO integration
 Resume file: None

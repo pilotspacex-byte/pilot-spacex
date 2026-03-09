@@ -9,10 +9,10 @@ Requirements for the enterprise milestone. Goal: first enterprise customer (50-5
 
 ### Identity & Access (AUTH)
 
-- [ ] **AUTH-01**: Admin can configure SAML 2.0 SSO with an external identity provider (Okta, Azure AD)
-- [ ] **AUTH-02**: Admin can configure OIDC SSO with Google Workspace or compatible provider
-- [ ] **AUTH-03**: Users can log in via SSO and receive workspace roles from identity provider claims
-- [ ] **AUTH-04**: Admin can force SSO-only login (disable password auth) for the workspace
+- [x] **AUTH-01**: Admin can configure SAML 2.0 SSO with an external identity provider (Okta, Azure AD)
+- [x] **AUTH-02**: Admin can configure OIDC SSO with Google Workspace or compatible provider
+- [x] **AUTH-03**: Users can log in via SSO and receive workspace roles from identity provider claims
+- [x] **AUTH-04**: Admin can force SSO-only login (disable password auth) for the workspace
 - [x] **AUTH-05**: Admin can define custom RBAC roles with per-resource permission grants (beyond Owner/Admin/Member/Guest)
 - [x] **AUTH-06**: Admin can view all active sessions and force-terminate any session
 - [x] **AUTH-07**: Admin can configure SCIM 2.0 to auto-provision/deprovision users from their identity provider
@@ -95,10 +95,10 @@ Updated during roadmap creation: 2026-03-07
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 8 | Pending |
-| AUTH-02 | Phase 8 | Pending |
-| AUTH-03 | Phase 8 | Pending |
-| AUTH-04 | Phase 8 | Pending |
+| AUTH-01 | Phase 8 | Complete |
+| AUTH-02 | Phase 8 | Complete |
+| AUTH-03 | Phase 8 | Complete |
+| AUTH-04 | Phase 8 | Complete |
 | AUTH-05 | Phase 1 | Complete |
 | AUTH-06 | Phase 1 | Complete |
 | AUTH-07 | Phase 6 | Complete |
