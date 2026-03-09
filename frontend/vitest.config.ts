@@ -8,6 +8,14 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.tsx'],
+    env: {
+      // Required by src/lib/supabase.ts during test imports.
+      // These are the local dev placeholder values (no real Supabase instance needed in unit tests —
+      // all supabase-dependent modules are mocked at the test level).
+      NEXT_PUBLIC_SUPABASE_URL: 'http://localhost:18000',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.placeholder',
+    },
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['node_modules', '.next', 'e2e'],
     pool: 'forks',
