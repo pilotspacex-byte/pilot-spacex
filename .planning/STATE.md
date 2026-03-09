@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 12-02-PLAN.md — ONBD-03/04/05 inline API key guidance + settings links + skill save toast
-last_updated: "2026-03-09T15:43:00.000Z"
-last_activity: 2026-03-09 — 12-02 complete — 64 tests GREEN
+stopped_at: Completed 12-03-PLAN.md — WS-01 member count + WS-02 last-path workspace navigation
+last_updated: "2026-03-09T22:51:00.000Z"
+last_activity: 2026-03-09 — 12-03 complete — 12 tests GREEN, WS-01+WS-02 done
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: Phase 12 — Onboarding & First-Run UX (in progress)
-Plan: 2/3
-Status: 2 of 3 plans complete
-Last activity: 2026-03-09 — 12-02 complete: inline API key guidance, skill save toast, settings links
+Phase: Phase 12 — Onboarding & First-Run UX (complete)
+Plan: 3/3
+Status: 3 of 3 plans complete
+Last activity: 2026-03-09 — 12-03 complete: member count in workspace switcher, per-workspace last-path navigation (WS-01, WS-02)
 
 Progress: [██░░░░░░░░] 20%
 
@@ -105,6 +105,9 @@ Recent decisions affecting current work:
 - [Phase 12-onboarding-first-run-ux]: ApiKeySetupStep renders inline (no navigation) — removes context switch from onboarding flow; onNavigateToSettings fallback available for users who need full settings
 - [Phase 12-onboarding-first-run-ux]: STEP_SETTINGS_PATH map in OnboardingChecklist — avoids threading workspaceSlug through OnboardingStepItem just for href construction; checklist owns the href composition
 - [Phase 12-onboarding-first-run-ux]: vitest.config.ts env stubs for NEXT_PUBLIC_SUPABASE_URL — all unit tests were blocked without the var; stubs avoid requiring a live Supabase in CI
+- [Phase 12-onboarding-first-run-ux]: saveLastWorkspacePath filters /settings/ paths — workspace switch lands on last non-settings page, not inside another workspace's settings
+- [Phase 12-onboarding-first-run-ux]: getLastWorkspacePath returns null on failure; callers use ?? to fall back to workspace root without branching on empty string
+- [Phase 12-onboarding-first-run-ux]: Pathname tracking in WorkspaceSlugLayout useEffect (client-side, co-located with workspace context) rather than middleware
 
 ### Pending Todos
 
@@ -118,7 +121,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09T15:43:00.000Z
-Stopped at: Completed 12-02-PLAN.md — ONBD-03/04/05 inline API key + settings links + skill save toast
+Last session: 2026-03-09T22:51:00.000Z
+Stopped at: Completed 12-03-PLAN.md — WS-01 member count + WS-02 last-path workspace navigation
 Resume file: None
-Next action: `/gsd:plan-phase 12`
+Next action: Phase 12 complete. Ready for Phase 13 (AI Provider Registry + Model Selection).

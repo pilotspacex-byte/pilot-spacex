@@ -21,8 +21,8 @@
 
 ### Workspace
 
-- [ ] **WS-01**: Workspace switcher shows workspace metadata (name, member count)
-- [ ] **WS-02**: Workspace switch lands user on last visited page within that workspace
+- [x] **WS-01**: Workspace switcher shows workspace metadata (name, member count)
+- [x] **WS-02**: Workspace switch lands user on last visited page within that workspace
 
 ### Related Issues
 
@@ -111,8 +111,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ONBD-05 | Phase 12 | Complete |
 | BUG-01 | Phase 12 | Complete |
 | BUG-02 | Phase 12 | Complete |
-| WS-01 | Phase 12 | Pending |
-| WS-02 | Phase 12 | Pending |
+| WS-01 | Phase 12 | Complete |
+| WS-02 | Phase 12 | Complete |
 | AIPR-01 | Phase 13 | Pending |
 | AIPR-02 | Phase 13 | Pending |
 | AIPR-03 | Phase 13 | Pending |
