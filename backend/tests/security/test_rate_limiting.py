@@ -17,7 +17,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import HTTPException, status
+from fastapi import status
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -337,7 +337,7 @@ class TestAIEndpointRateLimiting:
             )
             await middleware.dispatch(request, mock_call_next)
 
-        # 101st request should be rate limited
+        # 101st request should be rate limited — returns JSONResponse(429)
         request = create_mock_request(
             "/api/v1/ai/ghost-text",
             headers={"X-Workspace-ID": workspace_id},
@@ -541,17 +541,17 @@ class TestRateLimitHeaders:
             )
             await middleware.dispatch(request, mock_call_next)
 
-        # Next request should trigger 429
+        # Next request should trigger 429 — dispatch returns JSONResponse(429)
         request = create_mock_request(
             "/api/v1/ai/chat",
             headers={"X-Workspace-ID": workspace_id},
         )
 
-        with pytest.raises(HTTPException) as exc_info:
-            await middleware.dispatch(request, mock_call_next)
+        response = await middleware.dispatch(request, mock_call_next)
 
         # Verify Retry-After header
-        retry_after = int(exc_info.value.headers["Retry-After"])
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        retry_after = int(response.headers["Retry-After"])
         assert retry_after >= 0
         assert retry_after <= 60  # At most 60 seconds
 
@@ -641,14 +641,13 @@ class TestWorkspaceIsolationForRateLimits:
             )
             await middleware.dispatch(request, mock_call_next)
 
-        # Workspace A should be limited
+        # Workspace A should be limited — dispatch returns JSONResponse(429)
         request = create_mock_request(
             "/api/v1/ai/chat",
             headers={"X-Workspace-ID": workspace_a},
         )
-        with pytest.raises(HTTPException) as exc_info:
-            await middleware.dispatch(request, mock_call_next)
-        assert exc_info.value.status_code == 429
+        response_a = await middleware.dispatch(request, mock_call_next)
+        assert response_a.status_code == 429
 
         # Workspace B should still have quota
         request = create_mock_request(
@@ -802,7 +801,7 @@ class TestRateLimitMiddlewareWiring:
 
         Two assertions:
         1. Middleware stack inspection confirms RateLimitMiddleware is registered.
-        2. Direct dispatch() call confirms 429 + Retry-After when INCR > limit.
+        2. Direct dispatch() call confirms 429 Response when INCR > limit.
         """
         from fastapi import FastAPI
         from fastapi.responses import PlainTextResponse
@@ -833,9 +832,9 @@ class TestRateLimitMiddlewareWiring:
                     break
         assert found_rate_limit, "RateLimitMiddleware not found in FastAPI middleware stack"
 
-        # Part 2: direct dispatch() call proves 429 + Retry-After header are raised.
-        # BaseHTTPMiddleware wraps HTTPException as 500 in TestClient, so we use
-        # pytest.raises(HTTPException) — the same pattern as existing tests in this file.
+        # Part 2: direct dispatch() call proves 429 Response is returned.
+        # dispatch() now returns JSONResponse(429) instead of raising HTTPException,
+        # so we assert on the response status code directly.
         mock_redis.incr.side_effect = None
         mock_redis.incr.return_value = 9999  # exceeds all standard/workspace limits
         middleware_instance = RateLimitMiddleware(
@@ -846,10 +845,9 @@ class TestRateLimitMiddlewareWiring:
             "/api/v1/issues",
             headers={"X-Workspace-ID": str(uuid.uuid4())},
         )
-        with pytest.raises(HTTPException) as exc_info:
-            await middleware_instance.dispatch(request, mock_call_next)
-        assert exc_info.value.status_code == status.HTTP_429_TOO_MANY_REQUESTS
-        assert "Retry-After" in exc_info.value.headers
+        response = await middleware_instance.dispatch(request, mock_call_next)
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert "Retry-After" in response.headers
 
 
 @pytest.mark.integration
@@ -1010,15 +1008,14 @@ class TestPerWorkspaceRateLimits:
             )
             await middleware.dispatch(request, mock_call_next)
 
-        # 101st request triggers 429
+        # 101st request triggers 429 — dispatch returns JSONResponse(429)
         request = create_mock_request(
             "/api/v1/ai/ghost-text",
             headers={"X-Workspace-ID": workspace_id},
         )
-        with pytest.raises(HTTPException) as exc_info:
-            await middleware.dispatch(request, mock_call_next)
+        response = await middleware.dispatch(request, mock_call_next)
 
-        assert exc_info.value.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
         # Verify violation counter was incremented
         today = datetime.now(UTC).strftime("%Y%m%d")
@@ -1076,8 +1073,8 @@ class TestRateLimitMiddlewareMainRegistration:
                     break
             assert found, "RateLimitMiddleware not found in app.middleware_stack"
 
-            # Verify 429 is returned — ExceptionMiddleware converts HTTPException(429)
-            # to a real 429 HTTP response through the Starlette exception handler chain.
+            # Verify 429 is returned — dispatch() returns JSONResponse(429) directly,
+            # which propagates through Starlette's middleware chain as a real 429 response.
             response = client.get(
                 "/api/v1/workspaces",
                 headers={"X-Workspace-ID": "test-workspace-id"},
