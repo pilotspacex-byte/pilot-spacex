@@ -129,15 +129,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         Args:
             app: ASGI application.
-            redis_client: Redis async client. If None, rate limiting is disabled.
-            enabled: Whether rate limiting is enabled.
+            redis_client: Redis async client. When provided (unit test path),
+                          rate limiting is enabled immediately without lazy
+                          resolution. When None (runtime path), the middleware
+                          resolves the Redis client lazily from
+                          ``request.app.state.container`` on the first request.
+            enabled: Whether rate limiting is enabled. Set to False to disable
+                     entirely (e.g. tests that explicitly opt out).
             db_url: Optional database URL for per-workspace limit lookups.
-                    When None, the DB fallback path is disabled and system
-                    defaults are used on cache miss.
+                    When None and no container is available, the DB fallback
+                    path is disabled and system defaults are used on cache miss.
+                    Ignored when ``redis_client`` is None — db_url is then read
+                    lazily from the DI container settings.
         """
         super().__init__(app)  # type: ignore[arg-type]
         self.redis = redis_client
-        self.enabled = enabled and redis_client is not None
+        self.enabled = enabled
         self._db_url = db_url
         self._session_factory: async_sessionmaker[AsyncSession] | None = None
         if db_url:
@@ -147,6 +154,43 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 class_=AsyncSession,
                 expire_on_commit=False,
             )
+        # Lazy-resolution state (used when redis_client is not provided at init time)
+        self._redis_resolved: bool = redis_client is not None
+
+    # -------------------------------------------------------------------------
+    # Lazy Redis resolver
+    # -------------------------------------------------------------------------
+
+    def _resolve_redis(self, request: Request) -> None:
+        """Lazily resolve Redis client from app container on first request.
+
+        Follows the same pattern as ``SessionRecordingMiddleware._resolve_dependencies``.
+        No-op after the first successful resolution. Fails open (rate limiting
+        disabled) when the container is not yet available or Redis is not
+        configured.
+
+        Args:
+            request: Incoming request with access to ``request.app.state.container``.
+        """
+        if self._redis_resolved:
+            return
+        try:
+            container = request.app.state.container
+            redis_client_wrapper = container.redis_client()
+            if redis_client_wrapper is not None:
+                self.redis = redis_client_wrapper.client  # raw redis.asyncio.Redis instance
+            settings = container.settings()
+            db_url: str | None = settings.database_url.get_secret_value()
+            if db_url and self._session_factory is None:
+                engine = create_async_engine(db_url, pool_pre_ping=True)
+                self._session_factory = async_sessionmaker(
+                    engine,
+                    class_=AsyncSession,
+                    expire_on_commit=False,
+                )
+            self._redis_resolved = True
+        except Exception:
+            logger.debug("RateLimitMiddleware: container not yet available, rate limiting disabled")
 
     # -------------------------------------------------------------------------
     # Per-workspace limit helpers
@@ -291,6 +335,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         Raises:
             HTTPException: 429 if rate limit exceeded.
         """
+        self._resolve_redis(request)
         if not self.enabled or self.redis is None:
             return await call_next(request)
 
