@@ -21,6 +21,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Wire Storage Quota Enforcement** - Call _check_storage_quota/_update_storage_usage on write paths to complete TENANT-03 storage quota gap (Gap Closure) (completed 2026-03-09)
 - [x] **Phase 8: Fix SSO Integration** - Normalize backend SSO endpoints to workspace_slug, complete SAML JWT issuance, add frontend saml_provisioned handler (Gap Closure) (completed 2026-03-09)
 - [x] **Phase 9: Login Audit Events** - Write user.login audit events in SAML and password auth paths (Gap Closure) (completed 2026-03-09)
+- [ ] **Phase 10: Wire Audit Trail** - Wire audit_log_repository into 10 DI service factories, fix SAML audit RLS context, and pass session_factory to PermissionAwareHookExecutor to fully satisfy AUDIT-01, AUDIT-02, and AIGOV-03 (Gap Closure)
+- [ ] **Phase 11: Fix Rate Limiting Architecture** - Move RateLimitMiddleware registration to module level with lazy Redis accessor so TENANT-03 rate limiting is active at runtime (Gap Closure)
 
 ## Phase Details
 
@@ -177,11 +179,31 @@ Plans:
 Plans:
 - [ ] 09-01-PLAN.md — Add write_audit_nonfatal(user.login) to SAML callback + base auth router successful login path + tests (AUDIT-01)
 
+### Phase 10: Wire Audit Trail
+**Goal:** Fully activate the audit log at runtime by wiring audit_log_repository into all 10 CRUD service DI factories, fixing the SAML RLS context gap, and passing session_factory to PermissionAwareHookExecutor so AI audit writes actually reach the database
+**Depends on**: Phase 2 (AuditLog infrastructure), Phase 4 (AI hook infrastructure)
+**Requirements**: AUDIT-01, AUDIT-02, AIGOV-03
+**Gap Closure:** Closes audit DI gap (container.py), SAML RLS gap (auth_sso.py:314), and AI session_factory gap (pilotspace_agent.py) from v1.0 audit
+**Plans**: 1 plan
+
+Plans:
+- [ ] 10-01-PLAN.md — Add audit_log_repository injection to 10 service factories in container.py + set_rls_context() in saml_callback + session_factory in PermissionAwareHookExecutor + tests (AUDIT-01, AUDIT-02, AIGOV-03)
+
+### Phase 11: Fix Rate Limiting Architecture
+**Goal:** Make rate limiting active at runtime by moving RateLimitMiddleware registration from inside the lifespan (where the stack is already frozen) to module level with a lazy Redis accessor
+**Depends on**: Phase 3 (RateLimitMiddleware implementation), Phase 6 (wiring attempt)
+**Requirements**: TENANT-03
+**Gap Closure:** Closes rate limiting architectural gap from v1.0 audit — middleware commented out in main.py lifespan
+**Plans**: 1 plan
+
+Plans:
+- [ ] 11-01-PLAN.md — Move RateLimitMiddleware to module-level registration with lazy Redis accessor + integration test verifying 429 response during lifespan startup (TENANT-03)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
-(Note: Phase 4 depends on Phase 1 only, so it can begin once Phase 1 is complete. Phases 6–7 are gap closure phases and can run independently. Phase 8 depends on Phase 1. Phase 9 depends on Phases 2 and 8.)
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
+(Note: Phase 4 depends on Phase 1 only. Phases 6–7 are gap closure phases and can run independently. Phase 8 depends on Phase 1. Phase 9 depends on Phases 2 and 8. Phase 10 depends on Phases 2 and 4. Phase 11 depends on Phase 3.)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -194,6 +216,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Wire Storage Quota Enforcement | 2/2 | Complete   | 2026-03-09 |
 | 8. Fix SSO Integration | 1/1 | Complete   | 2026-03-09 |
 | 9. Login Audit Events | 1/1 | Complete   | 2026-03-09 |
+| 10. Wire Audit Trail | 0/1 | Pending | — |
+| 11. Fix Rate Limiting Architecture | 0/1 | Pending | — |
 
 ---
 *Roadmap created: 2026-03-07*
@@ -209,3 +233,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 *Phase 7 planned: 2026-03-09 — 2 plans across 2 waves (gap closure: TENANT-03 storage quota)*
 *Phase 8 planned: 2026-03-09 — 1 plan (gap closure: AUTH-01/02/03/04 SSO integration)*
 *Phase 9 planned: 2026-03-09 — 1 plan (gap closure: AUDIT-01 login events)*
+*Phase 10 planned: 2026-03-09 — 1 plan (gap closure: AUDIT-01 DI + SAML RLS + AUDIT-02 + AIGOV-03 session_factory)*
+*Phase 11 planned: 2026-03-09 — 1 plan (gap closure: TENANT-03 rate limiting architecture)*

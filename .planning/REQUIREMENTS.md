@@ -19,8 +19,8 @@ Requirements for the enterprise milestone. Goal: first enterprise customer (50-5
 
 ### Compliance & Audit (AUDIT)
 
-- [x] **AUDIT-01**: Every user action (create/update/delete on any resource) is recorded in an immutable audit log with actor, timestamp, and payload diff
-- [x] **AUDIT-02**: Every AI action is recorded in the audit log with input, output, model used, token cost, and AI rationale
+- [ ] **AUDIT-01**: Every user action (create/update/delete on any resource) is recorded in an immutable audit log with actor, timestamp, and payload diff
+- [ ] **AUDIT-02**: Every AI action is recorded in the audit log with input, output, model used, token cost, and AI rationale
 - [x] **AUDIT-03**: Admin can query and filter the audit log by actor, action type, resource, and date range
 - [x] **AUDIT-04**: Admin can export audit log as JSON or CSV for compliance review
 - [x] **AUDIT-05**: Admin can configure data retention policies (auto-purge data older than N days)
@@ -30,14 +30,14 @@ Requirements for the enterprise milestone. Goal: first enterprise customer (50-5
 
 - [x] **TENANT-01**: Each workspace operates with complete data isolation — no cross-workspace data leakage at any API layer
 - [x] **TENANT-02**: Admin can configure workspace-level encryption for stored data (bring your own encryption key)
-- [x] **TENANT-03**: Admin can set per-workspace API rate limits and storage quotas
+- [ ] **TENANT-03**: Admin can set per-workspace API rate limits and storage quotas
 - [x] **TENANT-04**: Super-admin (self-hosted operator) can view workspace health, usage metrics, and member activity across all workspaces
 
 ### AI Governance (AIGOV)
 
 - [x] **AIGOV-01**: Admin can configure AI action policies: which action types auto-execute vs. require human approval, per role
 - [x] **AIGOV-02**: When an AI action requires approval, it is queued and presented to an authorized human reviewer before execution
-- [x] **AIGOV-03**: Admin can view a full AI audit trail: all AI actions with input, output, rationale, model, cost, and approval chain
+- [ ] **AIGOV-03**: Admin can view a full AI audit trail: all AI actions with input, output, rationale, model, cost, and approval chain
 - [x] **AIGOV-04**: Admin can rollback any AI-created or AI-modified artifact to its pre-AI state
 - [x] **AIGOV-05**: AI features are fully disabled for a workspace if no valid BYOK API key is configured — no fallback to Pilot Space keys
 - [x] **AIGOV-06**: Admin can view per-workspace AI cost dashboard: token usage by model, by feature, by time period
@@ -102,19 +102,19 @@ Updated during roadmap creation: 2026-03-07
 | AUTH-05 | Phase 1 | Complete |
 | AUTH-06 | Phase 1 | Complete |
 | AUTH-07 | Phase 6 | Complete |
-| AUDIT-01 | Phase 2, Phase 9 (login events) | Pending |
-| AUDIT-02 | Phase 2 | Complete |
+| AUDIT-01 | Phase 10 (gap closure: DI + RLS context) | Pending |
+| AUDIT-02 | Phase 10 (gap closure: session_factory) | Pending |
 | AUDIT-03 | Phase 2 | Complete |
 | AUDIT-04 | Phase 2 | Complete |
 | AUDIT-05 | Phase 2 | Complete |
 | AUDIT-06 | Phase 2 | Complete |
 | TENANT-01 | Phase 3 | Complete |
 | TENANT-02 | Phase 3 | Complete |
-| TENANT-03 | Phase 6 (rate limiting), Phase 7 (storage quota) | Complete |
+| TENANT-03 | Phase 11 (gap closure: rate limiting architecture) | Pending |
 | TENANT-04 | Phase 3 | Complete |
 | AIGOV-01 | Phase 4 | Complete |
 | AIGOV-02 | Phase 4 | Complete |
-| AIGOV-03 | Phase 4 | Complete |
+| AIGOV-03 | Phase 10 (gap closure: session_factory) | Pending |
 | AIGOV-04 | Phase 4 | Complete |
 | AIGOV-05 | Phase 4 | Complete |
 | AIGOV-06 | Phase 4 | Complete |
@@ -130,8 +130,8 @@ Updated during roadmap creation: 2026-03-07
 - v1 requirements: 30 total
 - Mapped to phases: 30
 - Unmapped: 0
-- Pending (gap closure): 5 (AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUDIT-01)
+- Pending (gap closure): 4 (AUDIT-01, AUDIT-02, AIGOV-03, TENANT-03)
 
 ---
 *Requirements defined: 2026-03-07*
-*Last updated: 2026-03-09 — AUTH-01/02/03/04 and AUDIT-01 reset to Pending; gap closure phases 8–9 added*
+*Last updated: 2026-03-09 — AUDIT-01/02, AIGOV-03, TENANT-03 reset to Pending; gap closure phases 10–11 added*
