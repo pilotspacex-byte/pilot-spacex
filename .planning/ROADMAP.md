@@ -65,7 +65,13 @@ Plans:
   3. The model selector in the chat UI lists all models from all configured providers (and only those with valid keys are selectable)
   4. A chat session started with a specific model continues to use that model throughout the session without resetting on navigation
   5. PilotSpaceAgent dispatches the request to the correct provider/model based on the user's selection
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 13-01-PLAN.md — Backend provider expansion: migration 070 + ModelListingService + /models endpoint (AIPR-01, AIPR-02, AIPR-03, AIPR-05)
+- [ ] 13-02-PLAN.md — Backend model routing: ai_chat_model_routing.py + ChatRequest.model_override + agent wiring (AIPR-04)
+- [ ] 13-03-PLAN.md — Frontend settings expansion: generalize ProviderStatusCard + custom provider form + AISettingsStore model listing (AIPR-01, AIPR-02, AIPR-05)
+- [ ] 13-04-PLAN.md — Frontend model selector: ModelSelector component + PilotSpaceStore.selectedModel + sendMessage wiring (CHAT-01, CHAT-02, CHAT-03)
 
 ### Phase 14: Remote MCP Server Management
 **Goal**: Workspace admins can register external MCP servers and PilotSpaceAgent can dynamically call their tools
@@ -138,8 +144,8 @@ Plans:
 | 9. Login Audit Events | v1.0 | 1/1 | Complete | 2026-03-09 |
 | 10. Wire Audit Trail | v1.0 | 1/1 | Complete | 2026-03-09 |
 | 11. Fix Rate Limiting Architecture | v1.0 | 1/1 | Complete | 2026-03-09 |
-| 12. Onboarding & First-Run UX | 3/3 | Complete   | 2026-03-09 | - |
-| 13. AI Provider Registry + Model Selection | v1.0-alpha | 0/TBD | Not started | - |
+| 12. Onboarding & First-Run UX | v1.0-alpha | 3/3 | Complete | 2026-03-09 |
+| 13. AI Provider Registry + Model Selection | v1.0-alpha | 0/4 | Not started | - |
 | 14. Remote MCP Server Management | v1.0-alpha | 0/TBD | Not started | - |
 | 15. Related Issues | v1.0-alpha | 0/TBD | Not started | - |
 | 16. Workspace Role Skills | v1.0-alpha | 0/TBD | Not started | - |
