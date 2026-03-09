@@ -15,7 +15,7 @@ Requirements for the enterprise milestone. Goal: first enterprise customer (50-5
 - [x] **AUTH-04**: Admin can force SSO-only login (disable password auth) for the workspace
 - [x] **AUTH-05**: Admin can define custom RBAC roles with per-resource permission grants (beyond Owner/Admin/Member/Guest)
 - [x] **AUTH-06**: Admin can view all active sessions and force-terminate any session
-- [ ] **AUTH-07**: Admin can configure SCIM 2.0 to auto-provision/deprovision users from their identity provider
+- [x] **AUTH-07**: Admin can configure SCIM 2.0 to auto-provision/deprovision users from their identity provider
 
 ### Compliance & Audit (AUDIT)
 
@@ -30,7 +30,7 @@ Requirements for the enterprise milestone. Goal: first enterprise customer (50-5
 
 - [x] **TENANT-01**: Each workspace operates with complete data isolation — no cross-workspace data leakage at any API layer
 - [x] **TENANT-02**: Admin can configure workspace-level encryption for stored data (bring your own encryption key)
-- [ ] **TENANT-03**: Admin can set per-workspace API rate limits and storage quotas
+- [x] **TENANT-03**: Admin can set per-workspace API rate limits and storage quotas
 - [x] **TENANT-04**: Super-admin (self-hosted operator) can view workspace health, usage metrics, and member activity across all workspaces
 
 ### AI Governance (AIGOV)
@@ -101,7 +101,7 @@ Updated during roadmap creation: 2026-03-07
 | AUTH-04 | Phase 1 | Complete |
 | AUTH-05 | Phase 1 | Complete |
 | AUTH-06 | Phase 1 | Complete |
-| AUTH-07 | Phase 6 | Pending |
+| AUTH-07 | Phase 6 | Complete |
 | AUDIT-01 | Phase 2 | Complete |
 | AUDIT-02 | Phase 2 | Complete |
 | AUDIT-03 | Phase 2 | Complete |
@@ -110,7 +110,7 @@ Updated during roadmap creation: 2026-03-07
 | AUDIT-06 | Phase 2 | Complete |
 | TENANT-01 | Phase 3 | Complete |
 | TENANT-02 | Phase 3 | Complete |
-| TENANT-03 | Phase 6 (rate limiting), Phase 7 (storage quota) | Pending |
+| TENANT-03 | Phase 6 (rate limiting), Phase 7 (storage quota) | Complete |
 | TENANT-04 | Phase 3 | Complete |
 | AIGOV-01 | Phase 4 | Complete |
 | AIGOV-02 | Phase 4 | Complete |
