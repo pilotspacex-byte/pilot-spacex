@@ -717,3 +717,215 @@ class TestRbacServiceAudit:
         call_kwargs = audit_repo.create.call_args.kwargs
         assert call_kwargs["action"] == "custom_role.delete"
         assert call_kwargs["resource_type"] == "custom_role"
+
+
+# ---------------------------------------------------------------------------
+# AuditLogHook session_factory wiring tests (AUDIT-02 / AIGOV-03)
+# ---------------------------------------------------------------------------
+
+
+class TestAuditLogHookSessionFactoryWiring:
+    """Verify AuditLogHook DB write path is reached when session_factory is set."""
+
+    @pytest.mark.asyncio
+    async def test_audit_log_hook_with_session_factory_enters_db_path(self) -> None:
+        """AuditLogHook with non-None session_factory calls session_factory on PostToolUse."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from pilot_space.ai.sdk.hooks_lifecycle import AuditLogHook
+
+        workspace_id = uuid.uuid4()
+        actor_id = uuid.uuid4()
+
+        # Build a mock audit repo that records calls
+        mock_repo = AsyncMock()
+        mock_repo.create = AsyncMock(return_value=MagicMock())
+
+        # Mock session returned by session_factory() — supports async context manager
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session.commit = AsyncMock()
+
+        # Mock session_factory as an async context manager factory
+        mock_session_factory = MagicMock()
+        mock_session_factory.return_value = mock_session
+
+        # Patch AuditLogRepository inside the lazy-import closure via sys.modules
+        import sys
+
+        fake_module = MagicMock()
+        fake_module.AuditLogRepository = MagicMock(return_value=mock_repo)
+
+        # Inject into sys.modules so the lazy import inside _create_audit_callback resolves
+        orig = sys.modules.get(
+            "pilot_space.infrastructure.database.repositories.audit_log_repository"
+        )
+        sys.modules["pilot_space.infrastructure.database.repositories.audit_log_repository"] = (
+            fake_module
+        )
+        try:
+            hook = AuditLogHook(
+                event_queue=None,
+                session_factory=mock_session_factory,
+                actor_id=actor_id,
+                workspace_id=workspace_id,
+            )
+
+            # Simulate a PostToolUse result
+            mock_result = MagicMock()
+            mock_result.tool_name = "create_issue"
+            mock_result.tool_input = {"name": "Test"}
+            mock_result.output = "done"
+            mock_result.model = "claude-sonnet-4-5"
+            mock_result.token_usage = MagicMock()
+            mock_result.token_usage.total_tokens = 100
+            mock_result.rationale = "test"
+
+            await hook.on_post_tool_use(mock_result, context=None)
+        finally:
+            if orig is None:
+                del sys.modules[
+                    "pilot_space.infrastructure.database.repositories.audit_log_repository"
+                ]
+            else:
+                sys.modules[
+                    "pilot_space.infrastructure.database.repositories.audit_log_repository"
+                ] = orig
+
+        # session_factory must be called → DB write path entered
+        mock_session_factory.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_saml_callback_calls_set_rls_context_before_audit(self) -> None:
+        """saml_callback must call set_rls_context before write_audit_nonfatal."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        call_order: list[str] = []
+
+        async def fake_set_rls_context(
+            session: object, user_id: object, workspace_id: object
+        ) -> None:
+            call_order.append("set_rls_context")
+
+        async def fake_write_audit_nonfatal(*args: object, **kwargs: object) -> None:
+            call_order.append("write_audit_nonfatal")
+
+        user_info = {
+            "user_id": str(uuid.uuid4()),
+            "token_hash": "abc123",
+            "is_new": False,
+        }
+        mock_sso_service = AsyncMock()
+        mock_sso_service.get_saml_config = AsyncMock(
+            return_value={
+                "entity_id": "https://idp.example.com",
+                "sso_url": "https://idp.example.com/sso",
+                "certificate": "cert",
+                "name_id_format": "email",
+            }
+        )
+        mock_sso_service.provision_saml_user = AsyncMock(return_value=user_info)
+
+        mock_session = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        mock_request = MagicMock()
+        mock_request.headers = {"X-Forwarded-For": "127.0.0.1"}
+
+        mock_provider = MagicMock()
+        mock_provider.process_response = MagicMock(
+            return_value={
+                "name_id": "user@example.com",
+                "attributes": {"email": ["user@example.com"]},
+            }
+        )
+
+        workspace_id = uuid.uuid4()
+
+        with (
+            patch(
+                "pilot_space.api.v1.routers.auth_sso._get_sso_service",
+                return_value=mock_sso_service,
+            ),
+            patch(
+                "pilot_space.api.v1.routers.auth_sso._get_saml_provider",
+                return_value=mock_provider,
+            ),
+            patch(
+                "pilot_space.api.v1.routers.auth_sso.set_rls_context",
+                side_effect=fake_set_rls_context,
+            ),
+            patch(
+                "pilot_space.api.v1.routers.auth_sso.write_audit_nonfatal",
+                side_effect=fake_write_audit_nonfatal,
+            ),
+        ):
+            from pilot_space.api.v1.routers.auth_sso import saml_callback
+
+            await saml_callback(
+                request=mock_request,
+                workspace_id=workspace_id,
+                session=mock_session,
+                SAMLResponse="<saml>...</saml>",
+                RelayState="",
+            )
+
+        assert "set_rls_context" in call_order, "set_rls_context was never called"
+        assert "write_audit_nonfatal" in call_order, "write_audit_nonfatal was never called"
+        rls_idx = call_order.index("set_rls_context")
+        audit_idx = call_order.index("write_audit_nonfatal")
+        assert rls_idx < audit_idx, (
+            f"set_rls_context (idx {rls_idx}) must be called before "
+            f"write_audit_nonfatal (idx {audit_idx})"
+        )
+
+
+# ---------------------------------------------------------------------------
+# PermissionAwareHookExecutor session_factory wiring tests (AIGOV-03)
+# ---------------------------------------------------------------------------
+
+
+class TestPermissionAwareHookExecutorSessionFactory:
+    """Verify PermissionAwareHookExecutor passes session_factory to AuditLogHook."""
+
+    def test_executor_passes_session_factory_to_audit_hook(self) -> None:
+        """PermissionAwareHookExecutor must pass session_factory to AuditLogHook in to_sdk_hooks()."""
+        from unittest.mock import MagicMock, patch
+
+        from pilot_space.ai.sdk.hooks import PermissionAwareHookExecutor
+
+        mock_permission_handler = MagicMock()
+        mock_session_factory = MagicMock()
+        workspace_id = uuid.uuid4()
+        user_id = uuid.uuid4()
+
+        captured_hooks: list[object] = []
+
+        original_audit_init = None
+
+        class _CaptureAuditHook:
+            def __init__(self, **kwargs: object) -> None:
+                captured_hooks.append(kwargs)
+                self._session_factory = kwargs.get("session_factory")
+                self._event_queue = kwargs.get("event_queue")
+                self._actor_id = kwargs.get("actor_id")
+                self._workspace_id = kwargs.get("workspace_id")
+                self._tool_start_times: dict = {}
+
+            def to_sdk_hooks(self) -> dict:
+                return {}
+
+        with patch("pilot_space.ai.sdk.hooks.AuditLogHook", _CaptureAuditHook):
+            executor = PermissionAwareHookExecutor(
+                permission_handler=mock_permission_handler,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                session_factory=mock_session_factory,
+            )
+            executor.to_sdk_hooks()
+
+        assert len(captured_hooks) == 1
+        assert captured_hooks[0]["session_factory"] is mock_session_factory, (
+            "AuditLogHook must receive the session_factory from PermissionAwareHookExecutor"
+        )
