@@ -79,6 +79,7 @@ class ChatInput:
     context: dict[str, Any] = field(default_factory=dict)
     user_id: UUID | None = None
     workspace_id: UUID | None = None
+    resolved_model: Any | None = None  # ResolvedModelConfig when model_override set (AIPR-04)
 
 
 @dataclass
@@ -153,6 +154,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         """Get API key. AIGOV-05 BYOK: workspace calls require WorkspaceAPIKey row; no env fallback.
         workspace_id=None (system/background agents) is the only permitted env-key path.
         """
+        if getattr(self, "_resolved_model", None) is not None:
+            return self._resolved_model.api_key  # type: ignore[union-attr]
         from pilot_space.ai.exceptions import AINotConfiguredError
 
         if workspace_id is not None:
@@ -215,11 +218,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         action: str = "confirmed",
     ) -> bool:
         """Signal the intent pipeline for session_id (T-018)."""
-        return ConfirmationBus.signal(
-            session_id,
-            intent_id=intent_id,
-            action=action,
-        )
+        return ConfirmationBus.signal(session_id, intent_id=intent_id, action=action)
 
     async def _detect_and_emit_intents(
         self,
@@ -373,8 +372,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         can_use_tool_cb = create_can_use_tool_callback(tool_event_queue, context.user_id)
 
+        _r = getattr(self, "_resolved_model", None)  # AIPR-04 model override
         sdk_options = ClaudeAgentOptions(
-            model=sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
+            model=_r.model if _r else sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
             cwd=sdk_params.get("cwd"),
             setting_sources=sdk_params.get("setting_sources", ["project"]),
             allowed_tools=sdk_params.get("allowed_tools", []),
@@ -415,6 +415,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         context: AgentContext,
     ) -> AsyncIterator[str]:
         try:
+            self._resolved_model = input_data.resolved_model  # AIPR-04
             api_key = await self._get_api_key(context.workspace_id)
             subagent_definitions = self._build_subagent_definitions()
             session_id_str = str(input_data.session_id) if input_data.session_id else None

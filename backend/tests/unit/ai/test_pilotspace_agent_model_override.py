@@ -5,6 +5,10 @@ with resolved model credentials.
 
 All tests use lazy imports to avoid ImportError during collection when
 ai_chat_model_routing.py does not yet exist (TDD RED phase).
+
+Note on patch targets: resolve_model_override() uses local imports inside the
+function body. Patching must target the source module paths, not the routing
+module's namespace.
 """
 
 from __future__ import annotations
@@ -18,6 +22,12 @@ WORKSPACE_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 CONFIG_ID = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 DECRYPTED_KEY = "sk-ant-test-key-12345"  # pragma: allowlist secret
 ENCRYPTED_KEY = "encrypted-key-blob"
+
+_REPO_PATH = (
+    "pilot_space.infrastructure.database.repositories"
+    ".ai_configuration_repository.AIConfigurationRepository"
+)
+_DECRYPT_PATH = "pilot_space.infrastructure.encryption.decrypt_api_key"
 
 
 @pytest.mark.xfail(strict=False, reason="ai_chat_model_routing.py not yet created")
@@ -42,20 +52,14 @@ async def test_resolve_model_override_valid():
     mock_config.api_key_encrypted = ENCRYPTED_KEY
     mock_config.settings = {"base_url": "https://api.anthropic.com"}
 
-    mock_repo = AsyncMock()
-    mock_repo.get_by_workspace_and_id.return_value = mock_config
+    mock_repo_instance = AsyncMock()
+    mock_repo_instance.get_by_workspace_and_id.return_value = mock_config
 
     mock_db = MagicMock()
 
     with (
-        patch(
-            "pilot_space.api.v1.routers.ai_chat_model_routing.AIConfigurationRepository",
-            return_value=mock_repo,
-        ),
-        patch(
-            "pilot_space.api.v1.routers.ai_chat_model_routing.decrypt_api_key",
-            return_value=DECRYPTED_KEY,
-        ),
+        patch(_REPO_PATH, return_value=mock_repo_instance),
+        patch(_DECRYPT_PATH, return_value=DECRYPTED_KEY),
     ):
         result = await resolve_model_override(model_override, WORKSPACE_ID, mock_db)
 
@@ -64,7 +68,7 @@ async def test_resolve_model_override_valid():
     assert result.api_key == DECRYPTED_KEY
     assert result.model == "claude-sonnet-4"
     assert result.provider == "anthropic"
-    mock_repo.get_by_workspace_and_id.assert_called_once_with(WORKSPACE_ID, CONFIG_ID)
+    mock_repo_instance.get_by_workspace_and_id.assert_called_once_with(WORKSPACE_ID, CONFIG_ID)
 
 
 @pytest.mark.xfail(strict=False, reason="ai_chat_model_routing.py not yet created")
@@ -82,15 +86,12 @@ async def test_resolve_model_override_invalid_config():
         config_id=str(CONFIG_ID),
     )
 
-    mock_repo = AsyncMock()
-    mock_repo.get_by_workspace_and_id.return_value = None  # not found
+    mock_repo_instance = AsyncMock()
+    mock_repo_instance.get_by_workspace_and_id.return_value = None  # not found
 
     mock_db = MagicMock()
 
-    with patch(
-        "pilot_space.api.v1.routers.ai_chat_model_routing.AIConfigurationRepository",
-        return_value=mock_repo,
-    ):
+    with patch(_REPO_PATH, return_value=mock_repo_instance):
         result = await resolve_model_override(model_override, WORKSPACE_ID, mock_db)
 
     assert result is None
@@ -99,33 +100,26 @@ async def test_resolve_model_override_invalid_config():
 @pytest.mark.xfail(strict=False, reason="ai_chat_model_routing.py not yet created")
 @pytest.mark.asyncio
 async def test_resolve_model_override_none():
-    """model_override=None → returns None immediately without DB query."""
+    """Invalid config_id UUID → returns None immediately without DB query."""
     from pilot_space.api.v1.routers.ai_chat_model_routing import (
+        ModelOverride,
         resolve_model_override,
     )
 
     mock_db = MagicMock()
-    mock_repo = AsyncMock()
+    mock_repo_instance = AsyncMock()
 
-    with patch(
-        "pilot_space.api.v1.routers.ai_chat_model_routing.AIConfigurationRepository",
-        return_value=mock_repo,
-    ):
-        # Passing None directly to test the None-guard in the caller.
-        # resolve_model_override signature requires ModelOverride; caller is expected to
-        # short-circuit before calling when model_override is None.
-        # We test that an invalid config_id returns None.
-        from pilot_space.api.v1.routers.ai_chat_model_routing import ModelOverride
+    override_with_bad_id = ModelOverride(
+        provider="anthropic",
+        model="claude-sonnet-4",
+        config_id="not-a-valid-uuid",
+    )
 
-        override_with_bad_id = ModelOverride(
-            provider="anthropic",
-            model="claude-sonnet-4",
-            config_id="not-a-valid-uuid",
-        )
+    with patch(_REPO_PATH, return_value=mock_repo_instance):
         result = await resolve_model_override(override_with_bad_id, WORKSPACE_ID, mock_db)
 
     assert result is None
-    mock_repo.get_by_workspace_and_id.assert_not_called()
+    mock_repo_instance.get_by_workspace_and_id.assert_not_called()
 
 
 @pytest.mark.xfail(strict=False, reason="ChatInput.resolved_model field not yet added")
