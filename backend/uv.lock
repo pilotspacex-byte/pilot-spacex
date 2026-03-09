@@ -1764,7 +1764,7 @@ wheels = [
 
 [[package]]
 name = "pilot-space"
-version = "0.1.0a2"
+version = "1.0.0b0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },

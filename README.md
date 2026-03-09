@@ -4,7 +4,7 @@
 
 Pilot Space embeds an AI agent directly into your software development lifecycle. Write freely in a block-based note canvas — AI provides inline completions, extracts issues from prose, annotates ambiguous requirements, and reviews PRs. Human-in-the-loop on all consequential actions. No AI cost pass-through: bring your own API keys.
 
-**Status**: `v0.1.0-alpha.1` · MIT License
+**Status**: `v1.0.0-beta` · MIT License
 
 ---
 
@@ -92,6 +92,20 @@ Scale: 5–100 members per workspace. BYOK model: Anthropic Claude, Google Gemin
 - Four roles: owner, admin, member, guest
 - Agent filesystem sandboxed per `user_id` + `workspace_id`
 - BYOK keys: PBKDF2-HMAC-SHA256 (600K iterations) + Fernet AES-128-CBC
+
+### Enterprise (v1.0)
+- **SSO**: SAML 2.0 + OIDC (Okta, Azure AD, Google Workspace) with role-claim mapping
+- **SCIM 2.0**: automatic user provisioning/deprovisioning from IdP
+- **Custom RBAC**: per-resource permission grants, custom role assignment
+- **Session control**: force-terminate sessions, session listing, SSO-only enforcement
+- **Immutable audit log**: every user + AI action recorded; JSON/CSV export; configurable retention
+- **AI governance**: per-role approval thresholds, AI approval queue, AI artifact rollback
+- **BYOK enforcement**: AI features disabled without a valid workspace key (no platform key fallback)
+- **AI cost dashboard**: token usage by model and feature
+- **Workspace encryption**: BYOK AES-256-GCM key management
+- **Rate limiting + quota**: per-workspace API rate limits (429) + storage quota enforcement (507)
+- **Operator dashboard**: super-admin workspace health, usage, and member activity
+- **Operational**: Docker Compose + Kubernetes Helm chart, two-tier health endpoints, structured JSON logs, backup/restore CLI, zero-downtime upgrade CI
 
 ---
 
