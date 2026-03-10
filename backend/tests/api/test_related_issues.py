@@ -162,7 +162,7 @@ async def test_suggestions_exclude_self(
 
     assert response.status_code == 200
     data = response.json()
-    issue_ids_in_result = [item["issue_id"] for item in data]
+    issue_ids_in_result = [item["id"] for item in data]
     assert str(issue_id) not in issue_ids_in_result
 
 
@@ -424,5 +424,5 @@ async def test_dismissed_not_returned(
 
     assert response.status_code == 200
     data = response.json()
-    issue_ids_in_result = [item["issue_id"] for item in data]
+    issue_ids_in_result = [item["id"] for item in data]
     assert str(target_id) not in issue_ids_in_result
