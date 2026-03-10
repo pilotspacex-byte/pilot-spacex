@@ -131,6 +131,7 @@ from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
 )
+from pilot_space.infrastructure.database.models.workspace_role_skill import WorkspaceRoleSkill
 from pilot_space.infrastructure.database.models.workspace_session import WorkspaceSession
 
 __all__ = [
@@ -223,6 +224,7 @@ __all__ = [
     "WorkspaceMember",
     "WorkspaceOnboarding",
     "WorkspaceRole",
+    "WorkspaceRoleSkill",
     "WorkspaceScopedMixin",
     "WorkspaceScopedModel",
     "WorkspaceSession",
