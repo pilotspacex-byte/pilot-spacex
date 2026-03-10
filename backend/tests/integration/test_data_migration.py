@@ -198,9 +198,7 @@ async def test_skill_outcome_migrates_to_graph_node(
     await _run_migration_sql(db_session_committed)
     await db_session_committed.commit()
 
-    count = await _count_graph_nodes(
-        db_session_committed, migration_workspace, "skill_outcome"
-    )
+    count = await _count_graph_nodes(db_session_committed, migration_workspace, "skill_outcome")
     assert count == 1
 
     result = await db_session_committed.execute(
@@ -245,9 +243,7 @@ async def test_intent_migrates_to_work_intent_node(
     await _run_migration_sql(db_session_committed)
     await db_session_committed.commit()
 
-    count = await _count_graph_nodes(
-        db_session_committed, migration_workspace, "work_intent"
-    )
+    count = await _count_graph_nodes(db_session_committed, migration_workspace, "work_intent")
     assert count == 1
 
 
@@ -268,9 +264,7 @@ async def test_user_feedback_migrates_to_learned_pattern(
     await _run_migration_sql(db_session_committed)
     await db_session_committed.commit()
 
-    count = await _count_graph_nodes(
-        db_session_committed, migration_workspace, "learned_pattern"
-    )
+    count = await _count_graph_nodes(db_session_committed, migration_workspace, "learned_pattern")
     assert count == 1
 
 
@@ -291,9 +285,7 @@ async def test_constitution_migrates_to_constitution_rule(
     await _run_migration_sql(db_session_committed)
     await db_session_committed.commit()
 
-    count = await _count_graph_nodes(
-        db_session_committed, migration_workspace, "constitution_rule"
-    )
+    count = await _count_graph_nodes(db_session_committed, migration_workspace, "constitution_rule")
     assert count == 1
 
 
@@ -324,9 +316,7 @@ async def test_expired_entries_not_migrated(
     await _run_migration_sql(db_session_committed)
     await db_session_committed.commit()
 
-    count = await _count_graph_nodes(
-        db_session_committed, migration_workspace, "skill_outcome"
-    )
+    count = await _count_graph_nodes(db_session_committed, migration_workspace, "skill_outcome")
     assert count == 1  # only the non-expired row
 
 
@@ -348,9 +338,7 @@ async def test_deleted_entries_not_migrated(
     await _run_migration_sql(db_session_committed)
     await db_session_committed.commit()
 
-    count = await _count_graph_nodes(
-        db_session_committed, migration_workspace, "skill_outcome"
-    )
+    count = await _count_graph_nodes(db_session_committed, migration_workspace, "skill_outcome")
     assert count == 0
 
 
@@ -440,9 +428,7 @@ async def test_migration_downgrade_cleans_up(
     await db_session_committed.commit()
 
     # Confirm row exists before downgrade
-    pre_count = await _count_graph_nodes(
-        db_session_committed, migration_workspace, "skill_outcome"
-    )
+    pre_count = await _count_graph_nodes(db_session_committed, migration_workspace, "skill_outcome")
     assert pre_count == 1
 
     await _run_downgrade_sql(db_session_committed)
