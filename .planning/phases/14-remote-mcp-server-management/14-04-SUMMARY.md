@@ -37,11 +37,11 @@ decisions:
   - onRegister callback pattern in MCPServerForm — store interaction stays in page observer, form remains pure/testable
   - StatusBadge uses connected=green/failed=red/unknown=gray — matches ProviderStatusCard color semantics
 metrics:
-  duration_minutes: 35
+  duration_minutes: 40
   completed_date: "2026-03-10"
-  tasks_completed: 2
+  tasks_completed: 3
   files_created: 7
-  files_modified: 3
+  files_modified: 4
 ---
 
 # Phase 14 Plan 04: MCP Server Frontend UI Summary
@@ -85,14 +85,40 @@ MCPServersStore (6 tests)
   ✓ refreshStatus() calls GET .../status and updates matching server status field in servers observable
 ```
 
+## Deviations from Plan (Post-Verification Fixes)
+
+### Auto-fixed Issues (Rule 1 - Bug)
+
+**1. [Rule 1 - Bug] Migration 071: duplicate CREATE TYPE and duplicate index**
+- **Found during:** Task 3 (human verification - browser testing)
+- **Issue:** Migration 071 contained a duplicate `CREATE TYPE mcp_auth_type` and duplicate index definition, causing migration to fail on a clean database.
+- **Fix:** Removed the duplicate statements in migration 071.
+- **Commit:** 477603b1
+
+**2. [Rule 1 - Bug] SQLAlchemy StrEnum values_callable missing for MCP auth type**
+- **Found during:** Task 3 (human verification - browser testing)
+- **Issue:** SQLAlchemy `StrEnum` needed `values_callable=lambda x: [e.value for e in x]` to store enum values (not names) in the database. Without it, the column stored `"bearer"` as `"BEARER"`, breaking the backend schema validation.
+- **Fix:** Added `values_callable` to the `auth_type` column definition in the `WorkspaceMcpServer` model.
+- **Commit:** 477603b1
+
 ## Self-Check: PASSED
 
 All 7 files confirmed to exist on disk. Task commits verified:
 - `e9c3a12b`: feat(14-04): add MCPServersStore, mcp-servers API client, and store tests
 - `5be53fd1`: feat(14-04): add MCP server settings UI components, page, and route
+- `477603b1`: fix(14-04): resolve migration enum and SQLAlchemy StrEnum mismatch
 
 `pnpm type-check` exits 0. `pnpm lint` on new files: 0 errors. `pnpm test src/stores/ai/__tests__/MCPServersStore.test.ts`: 6/6 pass.
 
-## Checkpoint 3: Human Verification Required
+## Checkpoint 3: Human Verification - APPROVED
 
-The checkpoint requires navigating to `/workspace/settings/mcp-servers` and performing end-to-end verification of the registration, status refresh, and delete flows. See plan Task 3 for the 9-step verification checklist.
+All 9 verification steps passed:
+1. Navigated to `/workspace/settings/mcp-servers` — page renders
+2. "MCP Servers" link visible in settings sidebar
+3. Empty state with "Register New MCP Server" collapsible form
+4. Registered "Test MCP" with URL `https://example.com/sse` and bearer token
+5. Server card appeared with name, URL, Bearer badge, Unknown status
+6. Refresh status — badge updated to "Failed" (correct for unreachable example.com)
+7. Delete — confirmation dialog — server removed, empty state restored
+8. OAuth 2.0 radio — shows Client ID, Auth URL, Token URL fields
+9. Backend logs showed clean `mcp_server_registered`/`probed`/`deleted` events, no errors
