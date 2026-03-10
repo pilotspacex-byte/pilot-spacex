@@ -146,28 +146,24 @@ Plans:
   4. Key rotation re-encrypts all workspace content keys to the new key without data loss (xfail stub replaced with real implementation)
 **Plans**: TBD
 
-## Progress
+### Phase 19: Skill Registry and Plugin System
 
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1. Identity & Access | v1.0 | 9/9 | Complete | 2026-03-07 |
-| 2. Compliance & Audit | v1.0 | 5/5 | Complete | 2026-03-08 |
-| 3. Multi-Tenant Isolation | v1.0 | 8/8 | Complete | 2026-03-08 |
-| 4. AI Governance | v1.0 | 10/10 | Complete | 2026-03-08 |
-| 5. Operational Readiness | v1.0 | 7/7 | Complete | 2026-03-09 |
-| 6. Wire Rate Limiting + SCIM Token | v1.0 | 1/1 | Complete | 2026-03-09 |
-| 7. Wire Storage Quota Enforcement | v1.0 | 2/2 | Complete | 2026-03-09 |
-| 8. Fix SSO Integration | v1.0 | 1/1 | Complete | 2026-03-09 |
-| 9. Login Audit Events | v1.0 | 1/1 | Complete | 2026-03-09 |
-| 10. Wire Audit Trail | v1.0 | 1/1 | Complete | 2026-03-09 |
-| 11. Fix Rate Limiting Architecture | v1.0 | 1/1 | Complete | 2026-03-09 |
-| 12. Onboarding & First-Run UX | v1.0-alpha | 3/3 | Complete | 2026-03-09 |
-| 13. AI Provider Registry + Model Selection | v1.0-alpha | 4/4 | Complete | 2026-03-10 |
-| 14. Remote MCP Server Management | v1.0-alpha | 4/4 | Complete | 2026-03-10 |
-| 15. Related Issues | v1.0-alpha | 2/3 | In Progress | - |
-| 16. Workspace Role Skills | v1.0-alpha | 2/4 | In progress | 016-02 complete (model + repo + migration 073) |
-| 17. Skill Action Buttons | v1.0-alpha | 0/TBD | Not started | - |
-| 18. Tech Debt Closure | v1.0-alpha | 0/TBD | Not started | - |
+**Goal:** Workspace admins browse a marketplace of official Pilot Space plugins (each plugin = skill + MCP tools + action buttons, versioned), install them into their workspace, and receive "Update available" notifications when new plugin versions ship — replacing static hard-coded built-ins with a curated marketplace model
+**Depends on:** Phase 16 (workspace role skills), Phase 17 (skill action buttons), Phase 14 (MCP tools)
+**Requirements**: SKRG-01, SKRG-02, SKRG-03, SKRG-04, SKRG-05
+**Success Criteria** (what must be TRUE):
+  1. A new workspace is seeded with default official plugins at creation time — no manual setup required
+  2. Admins can browse the Pilot Space plugin marketplace, preview each plugin's SKILL.md + references, and install with one click
+  3. Plugins are versioned; when an official plugin gets a new version, installed workspaces see an "Update available" badge and apply updates explicitly (no silent auto-update)
+  4. A plugin bundles skill content (SKILL.md + references/) + MCP tool bindings + action button definitions — installing wires all three automatically
+  5. Workspace admins can publish private plugins to their own workspace registry for internal distribution
+**Plans:** 4 plans
+
+Plans:
+- [ ] 019-01-PLAN.md — Wave 0: xfail backend stubs + frontend it.todo() stubs (SKRG-01..05)
+- [ ] 019-02-PLAN.md — Persistence: WorkspacePlugin + WorkspaceGithubCredential models + migration 074 + repositories (SKRG-01..05)
+- [ ] 019-03-PLAN.md — Backend: GitHubPluginService + InstallPluginService + SeedPluginsService + REST router + agent materializer extension (SKRG-01..05)
+- [ ] 019-04-PLAN.md — Frontend: PluginsStore + API client + plugin cards + detail sheet + Skills settings page Plugins tab (SKRG-01..05)
 
 ---
 *v1.0 shipped: 2026-03-09 — 11 phases, 46 plans, 30/30 requirements satisfied*
