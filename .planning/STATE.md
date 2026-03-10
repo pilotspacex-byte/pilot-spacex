@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 14-04-PLAN.md - MCP server frontend UI (human verify approved - all 9 steps passed)
-last_updated: "2026-03-10T04:45:28.343Z"
+stopped_at: Completed 015-01-PLAN.md - Related Issues Wave 0 scaffolding
+last_updated: "2026-03-10T05:17:22.522Z"
 last_activity: "2026-03-09 — 13-03 complete: generalized ProviderStatusCard, CustomProviderForm, AISettingsStore.loadModels (AIPR-01, AIPR-02, AIPR-05)"
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 14
+  completed_plans: 12
   percent: 23
 ---
 
@@ -75,6 +75,7 @@ Progress: [██░░░░░░░░] 23%
 | Phase 14-remote-mcp-server-management P02 | 18 | 2 tasks | 4 files |
 | Phase 14-remote-mcp-server-management P03 | 12 | 2 tasks | 6 files |
 | Phase 14-remote-mcp-server-management P04 | 35 | 2 tasks | 10 files |
+| Phase 015 P01 | 6 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -137,6 +138,9 @@ Recent decisions affecting current work:
 - [Phase 14-remote-mcp-server-management]: _load_remote_mcp_servers uses pyright ignore[reportUnusedFunction] + caller type: ignore[reportPrivateUsage] - underscore prefix is intentional shared-internal convention
 - [Phase 14-remote-mcp-server-management]: MCPServersStore added to AIStore.mcpServers — consistent with settings, cost, approval store singleton pattern
 - [Phase 14-remote-mcp-server-management]: MCPServerForm uses collapsible expand/collapse pattern — avoids permanently visible large form, matches CustomProviderForm UX intent
+- [Phase Phase 15-related-issues]: pytest.fail() instead of assert False for xfail stubs — satisfies PT015 and B011 ruff rules without changing xfail semantics
+- [Phase Phase 15-related-issues]: IssueSuggestionDismissalRepository uses direct instantiation (not DI) — lightweight per-request helper, consistent with KnowledgeGraphRepository/SCIM pattern
+- [Phase Phase 15-related-issues]: UNIQUE constraint (user_id, source_issue_id, target_issue_id) as idempotency guard for dismissal upserts — callers catch IntegrityError and treat as no-op
 
 ### Pending Todos
 
@@ -150,7 +154,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T04:40:57.896Z
-Stopped at: Completed 14-04-PLAN.md - MCP server frontend UI (human verify approved - all 9 steps passed)
+Last session: 2026-03-10T05:17:22.519Z
+Stopped at: Completed 015-01-PLAN.md - Related Issues Wave 0 scaffolding
 Resume file: None
 Next action: Phase 14 complete (all 4 plans verified). Continue with Phase 15 (Related Issues) or remaining Phase 13 plans.

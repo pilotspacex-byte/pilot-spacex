@@ -26,10 +26,10 @@
 
 ### Related Issues
 
-- [ ] **RELISS-01**: Issue detail shows auto-suggested related issues (semantic similarity via knowledge graph)
-- [ ] **RELISS-02**: User can manually link/unlink issues as related from the issue detail page
-- [ ] **RELISS-03**: Related issues surface connections via shared notes, same project, and semantic similarity score
-- [ ] **RELISS-04**: User can dismiss AI suggestions (dismissed suggestions don't re-appear)
+- [x] **RELISS-01**: Issue detail shows auto-suggested related issues (semantic similarity via knowledge graph)
+- [x] **RELISS-02**: User can manually link/unlink issues as related from the issue detail page
+- [x] **RELISS-03**: Related issues surface connections via shared notes, same project, and semantic similarity score
+- [x] **RELISS-04**: User can dismiss AI suggestions (dismissed suggestions don't re-appear)
 
 ### Workspace Role Skills
 
@@ -127,10 +127,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCP-04 | Phase 14 | Complete |
 | MCP-05 | Phase 14 | Complete |
 | MCP-06 | Phase 14 | Complete |
-| RELISS-01 | Phase 15 | Pending |
-| RELISS-02 | Phase 15 | Pending |
-| RELISS-03 | Phase 15 | Pending |
-| RELISS-04 | Phase 15 | Pending |
+| RELISS-01 | Phase 15 | Complete |
+| RELISS-02 | Phase 15 | Complete |
+| RELISS-03 | Phase 15 | Complete |
+| RELISS-04 | Phase 15 | Complete |
 | WRSKL-01 | Phase 16 | Pending |
 | WRSKL-02 | Phase 16 | Pending |
 | WRSKL-03 | Phase 16 | Pending |

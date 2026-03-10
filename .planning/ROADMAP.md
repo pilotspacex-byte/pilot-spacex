@@ -103,7 +103,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 015-01-PLAN.md — Wave 0: xfail test stubs + dismissal model + repository + migration 072 (RELISS-01..04)
+- [x] 015-01-PLAN.md — Wave 0: xfail test stubs + dismissal model + repository + migration 072 (RELISS-01..04)
 - [ ] 015-02-PLAN.md — Backend API: suggestion endpoint + reason enrichment + POST/DELETE relations + dismiss endpoint (RELISS-01..04)
 - [ ] 015-03-PLAN.md — Frontend: RelatedSuggestion type + API client + hooks + RelatedIssuesPanel + IssuePropertiesPanel wire-up (RELISS-01..04)
 
