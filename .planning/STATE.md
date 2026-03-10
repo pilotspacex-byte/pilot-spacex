@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: completed
 stopped_at: Completed 13-04-PLAN.md — chat model selector + model_override wiring (CHAT-01, CHAT-02, CHAT-03)
-last_updated: "2026-03-10T00:58:18.897Z"
+last_updated: "2026-03-10T01:04:46.266Z"
 last_activity: "2026-03-09 — 13-03 complete: generalized ProviderStatusCard, CustomProviderForm, AISettingsStore.loadModels (AIPR-01, AIPR-02, AIPR-05)"
 progress:
   total_phases: 7
