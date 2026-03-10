@@ -10,8 +10,10 @@ import {
   Settings,
   FolderKanban,
 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types';
+import { ProjectNotesPanel } from './ProjectNotesPanel';
 
 interface ProjectSidebarProps {
   project: Project;
@@ -86,6 +88,13 @@ export function ProjectSidebar({ project, workspaceSlug }: ProjectSidebarProps) 
             })}
           </ul>
         </nav>
+
+        <Separator className="mx-2 my-1" />
+        <ProjectNotesPanel
+          project={project}
+          workspaceSlug={workspaceSlug}
+          workspaceId={project.workspaceId}
+        />
       </aside>
 
       {/* Mobile tab bar */}
