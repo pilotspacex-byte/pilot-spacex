@@ -42,10 +42,11 @@ jobs:
 
     services:
       postgres:
-        # Use supabase/postgres to match production Supabase stack as closely as
-        # possible. This ensures pgmq, pgvector, and RLS behaviour in migrations
-        # are tested against a compatible PostgreSQL build.
-        image: supabase/postgres:15.8.1.076
+        # Use pgvector/pgvector to get pgvector support (required by migrations)
+        # while keeping standard PostgreSQL initialization (no Supabase-specific
+        # roles needed). pgmq is not available here — migration steps that need
+        # it are skipped or handled via graceful degradation.
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_PASSWORD: testpassword
           POSTGRES_USER: postgres
