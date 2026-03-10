@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Bot, X, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ModelSelector } from './ModelSelector';
 
 interface ChatHeaderProps {
   title?: string;
@@ -46,8 +47,10 @@ export const ChatHeader = observer<ChatHeaderProps>(
             </span>
           </div>
 
-          {/* Spacer */}
-          <div className="flex-1 min-w-2" />
+          {/* Spacer with model selector */}
+          <div className="flex-1 min-w-2 flex justify-center">
+            <ModelSelector />
+          </div>
 
           {/* Action buttons */}
           <div className="flex items-center gap-0 sm:gap-0.5">
