@@ -17,6 +17,7 @@ interface NoteFilters {
   projectId?: string;
   isPinned?: boolean;
   authorId?: string;
+  search?: string;
 }
 
 export const notesApi = {
@@ -34,6 +35,7 @@ export const notesApi = {
     if (filters?.projectId) params.projectId = filters.projectId;
     if (filters?.isPinned !== undefined) params.isPinned = String(filters.isPinned);
     if (filters?.authorId) params.authorId = filters.authorId;
+    if (filters?.search) params.search = filters.search;
 
     return apiClient.get<PaginatedResponse<Note>>(`/workspaces/${workspaceId}/notes`, { params });
   },

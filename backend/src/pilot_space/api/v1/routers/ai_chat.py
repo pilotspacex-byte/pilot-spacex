@@ -23,6 +23,7 @@ from pydantic import Field
 
 from pilot_space.ai.sdk.question_adapter import Question, get_question_adapter
 from pilot_space.ai.session.session_manager import AIMessage
+from pilot_space.api.v1.routers.ai_chat_model_routing import ModelOverride, resolve_model_override
 from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.dependencies import (
     CurrentUserId,
@@ -68,6 +69,7 @@ class ChatRequest(BaseSchema):
         description="Session ID to fork from (creates a branch for what-if exploration)",
     )
     context: ChatContext | None = Field(None, description="Context for AI response")
+    model_override: ModelOverride | None = Field(None, description="User-selected model (AIPR-04)")
 
 
 async def _recover_question_from_session(
@@ -146,6 +148,7 @@ async def _recover_question_from_session(
                 session_id=chat_request.session_id,
                 fork_session_id=chat_request.fork_session_id,
                 context=chat_request.context,
+                model_override=chat_request.model_override,
             )
 
     except Exception:
@@ -246,6 +249,7 @@ async def chat(
                     session_id=chat_request.session_id,
                     fork_session_id=chat_request.fork_session_id,
                     context=chat_request.context,
+                    model_override=chat_request.model_override,
                 )
 
                 # Persist question_data on last assistant message for session resume
@@ -411,10 +415,12 @@ async def chat(
         chat_request.session_id,
     )
 
-    # Direct SSE streaming
-    # session_id: tracking ID for all conversations (new or resumed)
-    # resume_session_id: only set when resuming an existing session (triggers
-    # --resume in Claude SDK CLI to restore conversation history)
+    # Resolve user-selected model override (AIPR-04)
+    resolved_model = (
+        await resolve_model_override(chat_request.model_override, ctx_workspace_id, session)
+        if chat_request.model_override and ctx_workspace_id is not None
+        else None
+    )
     agent_input = {
         "message": chat_request.message,
         "context": ai_context,
@@ -424,6 +430,7 @@ async def chat(
         ),
         "user_id": str(user_id),
         "workspace_id": str(ctx_workspace_id) if ctx_workspace_id else None,
+        "resolved_model": resolved_model,
         "attachment_content_blocks": attachment_content_blocks,
         "attachment_metadata": [
             {
@@ -668,14 +675,7 @@ async def _execute_agent_stream(
     """Execute PilotSpaceAgent with streaming output.
 
     Bridges the FastAPI endpoint to PilotSpaceAgent.stream() method.
-
-    Args:
-        agent: PilotSpaceAgent instance.
-        input_data: Dict with message, context, session_id, user_id, workspace_id.
-        context: AI context dict (included for compatibility).
-
-    Yields:
-        SSE-formatted strings from PilotSpaceAgent.
+    Yields SSE-formatted strings from PilotSpaceAgent.
     """
     from pilot_space.ai.agents.agent_base import AgentContext
     from pilot_space.ai.agents.pilotspace_agent import ChatInput
@@ -687,6 +687,7 @@ async def _execute_agent_stream(
         context=input_data.get("context", {}),
         user_id=UUID(input_data["user_id"]) if input_data.get("user_id") else None,
         workspace_id=UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None,
+        resolved_model=input_data.get("resolved_model"),
     )
 
     ws_id = input_data.get("workspace_id")

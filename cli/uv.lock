@@ -605,6 +605,7 @@ name = "pilot-cli"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "gitpython" },
     { name = "httpx" },
     { name = "jinja2" },
@@ -626,6 +627,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=46.0.5" },
     { name = "gitpython", specifier = ">=3.1.40" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jinja2", specifier = ">=3.1.0" },

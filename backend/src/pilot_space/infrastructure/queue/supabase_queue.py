@@ -151,6 +151,9 @@ class SupabaseQueueClient:
                 content=orjson.dumps(params),
             )
             response.raise_for_status()
+            # pgmq functions that return void send 204 No Content — guard against empty body
+            if not response.content:
+                return None
             return response.json()
         except httpx.ConnectError as e:
             logger.exception("Failed to connect to Supabase")

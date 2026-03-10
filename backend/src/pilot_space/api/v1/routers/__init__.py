@@ -18,6 +18,7 @@ Available routers:
 
 from __future__ import annotations
 
+from pilot_space.api.v1.routers.admin import router as admin_router
 from pilot_space.api.v1.routers.ai_approvals import router as ai_approvals_router
 from pilot_space.api.v1.routers.ai_attachments import router as ai_attachments_router
 from pilot_space.api.v1.routers.ai_chat import router as ai_chat_router
@@ -25,10 +26,14 @@ from pilot_space.api.v1.routers.ai_configuration import router as ai_configurati
 from pilot_space.api.v1.routers.ai_costs import router as ai_costs_router
 from pilot_space.api.v1.routers.ai_drive import router as ai_drive_router
 from pilot_space.api.v1.routers.ai_extraction import router as ai_extraction_router
+from pilot_space.api.v1.routers.ai_governance import router as ai_governance_router
 from pilot_space.api.v1.routers.ai_sessions import router as ai_sessions_router
 from pilot_space.api.v1.routers.ai_tasks import router as ai_tasks_router
+from pilot_space.api.v1.routers.audit import router as audit_router
 from pilot_space.api.v1.routers.auth import router as auth_router
+from pilot_space.api.v1.routers.auth_sso import router as auth_sso_router
 from pilot_space.api.v1.routers.block_ownership import router as block_ownership_router
+from pilot_space.api.v1.routers.custom_roles import router as custom_roles_router
 from pilot_space.api.v1.routers.cycles import router as cycles_router
 from pilot_space.api.v1.routers.dependency_graph import router as dependency_graph_router
 from pilot_space.api.v1.routers.ghost_text import router as ghost_text_router
@@ -55,6 +60,7 @@ from pilot_space.api.v1.routers.memory import router as memory_router
 from pilot_space.api.v1.routers.note_templates import router as note_templates_router
 from pilot_space.api.v1.routers.note_versions import router as note_versions_router
 from pilot_space.api.v1.routers.note_yjs_state import router as note_yjs_state_router
+from pilot_space.api.v1.routers.notifications import router as notifications_router
 from pilot_space.api.v1.routers.onboarding import router as onboarding_router
 from pilot_space.api.v1.routers.pm_blocks import router as pm_blocks_router
 from pilot_space.api.v1.routers.pm_capacity import router as pm_capacity_router
@@ -66,16 +72,23 @@ from pilot_space.api.v1.routers.role_skills import (
     role_templates_router,
     router as role_skills_router,
 )
+from pilot_space.api.v1.routers.scim import router as scim_router
+from pilot_space.api.v1.routers.sessions import router as workspace_sessions_router
 from pilot_space.api.v1.routers.skill_approvals import router as skill_approvals_router
 from pilot_space.api.v1.routers.skills import router as skills_router
 from pilot_space.api.v1.routers.webhooks import router as webhooks_router
 from pilot_space.api.v1.routers.workspace_ai_settings import router as workspace_ai_settings_router
 from pilot_space.api.v1.routers.workspace_cycles import router as workspace_cycles_router
+from pilot_space.api.v1.routers.workspace_encryption import router as workspace_encryption_router
 from pilot_space.api.v1.routers.workspace_invitations import router as workspace_invitations_router
 from pilot_space.api.v1.routers.workspace_issue_branches import (
     router as workspace_issue_branches_router,
 )
 from pilot_space.api.v1.routers.workspace_issues import router as workspace_issues_router
+from pilot_space.api.v1.routers.workspace_mcp_servers import (
+    mcp_oauth_callback_router,
+    router as workspace_mcp_servers_router,
+)
 from pilot_space.api.v1.routers.workspace_members import router as workspace_members_router
 from pilot_space.api.v1.routers.workspace_note_issue_links import (
     router as workspace_note_issue_links_router,
@@ -85,6 +98,7 @@ from pilot_space.api.v1.routers.workspace_note_links import (
 )
 from pilot_space.api.v1.routers.workspace_notes import router as workspace_notes_router
 from pilot_space.api.v1.routers.workspace_notes_ai import router as workspace_notes_ai_router
+from pilot_space.api.v1.routers.workspace_quota import router as workspace_quota_router
 from pilot_space.api.v1.routers.workspace_tasks import router as workspace_tasks_router
 from pilot_space.api.v1.routers.workspaces import router as workspaces_router
 from pilot_space.infrastructure.logging import get_logger
@@ -129,6 +143,7 @@ except ImportError:
 debug_router = None
 
 __all__ = [
+    "admin_router",
     "ai_annotations_router",
     "ai_approvals_router",
     "ai_attachments_router",
@@ -137,12 +152,16 @@ __all__ = [
     "ai_costs_router",
     "ai_drive_router",
     "ai_extraction_router",
+    "ai_governance_router",
     "ai_pr_review_router",
     "ai_router",
     "ai_sessions_router",
     "ai_tasks_router",
+    "audit_router",
     "auth_router",
+    "auth_sso_router",
     "block_ownership_router",
+    "custom_roles_router",
     "cycles_router",
     "debug_router",
     "dependency_graph_router",
@@ -159,12 +178,14 @@ __all__ = [
     "issues_router",
     "knowledge_graph_issues_router",
     "knowledge_graph_router",
+    "mcp_oauth_callback_router",
     "mcp_tools_router",
     "memory_router",
     "note_templates_router",
     "note_versions_router",
     "note_yjs_state_router",
     "notes_ai_router",
+    "notifications_router",
     "onboarding_router",
     "pm_blocks_router",
     "pm_capacity_router",
@@ -174,19 +195,24 @@ __all__ = [
     "projects_router",
     "role_skills_router",
     "role_templates_router",
+    "scim_router",
     "skill_approvals_router",
     "skills_router",
     "webhooks_router",
     "workspace_ai_settings_router",
     "workspace_cycles_router",
+    "workspace_encryption_router",
     "workspace_invitations_router",
     "workspace_issue_branches_router",
     "workspace_issues_router",
+    "workspace_mcp_servers_router",
     "workspace_members_router",
     "workspace_note_issue_links_router",
     "workspace_note_links_router",
     "workspace_notes_ai_router",
     "workspace_notes_router",
+    "workspace_quota_router",
+    "workspace_sessions_router",
     "workspace_tasks_router",
     "workspaces_router",
 ]

@@ -236,19 +236,20 @@ class TestUpdateNote:
     """
 
     @pytest.mark.asyncio
-    async def test_update_note_partial_update(self) -> None:
+    async def test_update_note_partial_update(self, mock_tool_context: ToolContext) -> None:
         """Verify update_note applies partial updates."""
         queue = asyncio.Queue()
-        tools = _capture_note_tools(queue)
+        tools = _capture_note_tools(queue, tool_context=mock_tool_context)
         update_tool = tools["update_note"]
 
         note_id = str(uuid4())
-        result = await update_tool.handler(
-            {
-                "note_id": note_id,
-                "title": "Updated Title",
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await update_tool.handler(
+                {
+                    "note_id": note_id,
+                    "title": "Updated Title",
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["operation"] == "update_note"
@@ -257,35 +258,37 @@ class TestUpdateNote:
         assert "is_pinned" not in data["payload"]["changes"]
 
     @pytest.mark.asyncio
-    async def test_update_note_pin_toggle(self) -> None:
+    async def test_update_note_pin_toggle(self, mock_tool_context: ToolContext) -> None:
         """Verify update_note can toggle pinned status."""
         queue = asyncio.Queue()
-        tools = _capture_note_tools(queue)
+        tools = _capture_note_tools(queue, tool_context=mock_tool_context)
         update_tool = tools["update_note"]
 
-        result = await update_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "is_pinned": True,
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await update_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "is_pinned": True,
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["payload"]["changes"]["is_pinned"] is True
 
     @pytest.mark.asyncio
-    async def test_update_note_project_association(self) -> None:
+    async def test_update_note_project_association(self, mock_tool_context: ToolContext) -> None:
         """Verify update_note can set project_id to null."""
         queue = asyncio.Queue()
-        tools = _capture_note_tools(queue)
+        tools = _capture_note_tools(queue, tool_context=mock_tool_context)
         update_tool = tools["update_note"]
 
-        result = await update_tool.handler(
-            {
-                "note_id": str(uuid4()),
-                "project_id": None,
-            }
-        )
+        with _mock_note_repo(mock_tool_context.workspace_id):
+            result = await update_tool.handler(
+                {
+                    "note_id": str(uuid4()),
+                    "project_id": None,
+                }
+            )
 
         data = json.loads(result["content"][0]["text"])
         assert data["payload"]["changes"]["project_id"] is None
@@ -344,8 +347,8 @@ class TestInsertBlock:
         assert "inserted" in result["content"][0]["text"].lower()
         data = _drain_content_update(queue)
         assert data["operation"] == "insert_blocks"
-        assert data["after_block_id"] == "block-123"
-        assert data["before_block_id"] is None
+        assert data["afterBlockId"] == "block-123"
+        assert data["beforeBlockId"] is None
 
     @pytest.mark.asyncio
     async def test_insert_block_before_position(self, mock_tool_context: ToolContext) -> None:
@@ -365,8 +368,8 @@ class TestInsertBlock:
 
         assert "inserted" in result["content"][0]["text"].lower()
         data = _drain_content_update(queue)
-        assert data["before_block_id"] == "block-456"
-        assert data["after_block_id"] is None
+        assert data["beforeBlockId"] == "block-456"
+        assert data["afterBlockId"] is None
 
     @pytest.mark.asyncio
     async def test_insert_block_append(self, mock_tool_context: ToolContext) -> None:
@@ -385,8 +388,8 @@ class TestInsertBlock:
 
         assert "inserted" in result["content"][0]["text"].lower()
         data = _drain_content_update(queue)
-        assert data["after_block_id"] is None
-        assert data["before_block_id"] is None
+        assert data["afterBlockId"] is None
+        assert data["beforeBlockId"] is None
 
 
 class TestRemoveBlock:
@@ -410,7 +413,7 @@ class TestRemoveBlock:
         assert "removed" in result["content"][0]["text"].lower()
         data = _drain_content_update(queue)
         assert data["operation"] == "remove_block"
-        assert data["block_id"] == "block-789"
+        assert data["blockId"] == "block-789"
 
     @pytest.mark.asyncio
     async def test_remove_block_invalid_block(self, mock_tool_context: ToolContext) -> None:
@@ -470,7 +473,7 @@ class TestRemoveContent:
             )
 
         data = _drain_content_update(queue)
-        assert data["block_ids"] == ["block-1", "block-2"]
+        assert data["blockIds"] == ["block-1", "block-2"]
 
 
 class TestReplaceContent:
@@ -495,8 +498,8 @@ class TestReplaceContent:
         assert "replaced" in result["content"][0]["text"].lower()
         data = _drain_content_update(queue)
         assert data["operation"] == "replace_content"
-        assert data["old_pattern"] == "foo"
-        assert data["new_content"] == "bar"
+        assert data["oldPattern"] == "foo"
+        assert data["newContent"] == "bar"
 
     @pytest.mark.asyncio
     async def test_replace_content_regex_with_capture_groups(
@@ -538,7 +541,7 @@ class TestReplaceContent:
             )
 
         data = _drain_content_update(queue)
-        assert data["replace_all"] is False
+        assert data["replaceAll"] is False
 
 
 class TestToolNamesConstant:

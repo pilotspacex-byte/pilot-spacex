@@ -28,7 +28,6 @@ def mock_deps() -> dict[str, Any]:
         "resilient_executor": MagicMock(),
         "permission_handler": MagicMock(),
         "session_handler": None,
-        "skill_registry": MagicMock(),
         "space_manager": None,
     }
 

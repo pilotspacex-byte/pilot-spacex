@@ -140,6 +140,8 @@ class IntegrationLinkResponse(BaseModel):
     # validation_alias reads the correct ORM attribute; serialization keeps
     # the `metadata` key that the frontend IntegrationLinkRaw expects.
     metadata: dict[str, Any] | None = Field(default=None, validation_alias="link_metadata")
+    # CI check status set by GitHub check_suite webhook. Values: pending | success | failure | neutral | null.
+    ci_status: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)

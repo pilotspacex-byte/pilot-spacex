@@ -60,7 +60,7 @@ class SecureKeyStorage:
         key = await storage.get_api_key(workspace_id, "anthropic")
     """
 
-    VALID_PROVIDERS = frozenset({"anthropic", "openai", "google"})
+    VALID_PROVIDERS = frozenset({"anthropic", "openai", "google", "kimi", "glm", "custom"})
 
     def __init__(
         self,

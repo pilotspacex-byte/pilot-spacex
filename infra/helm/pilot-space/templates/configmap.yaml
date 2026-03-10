@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pilot-space.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.labels" . | nindent 4 }}
+data:
+  # Application
+  APP_NAME: "Pilot Space"
+  APP_ENV: "production"
+  DEBUG: "false"
+  LOG_LEVEL: "INFO"
+
+  # Server
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  WORKERS: "4"
+
+  # Database connection pool (credentials come from secret)
+  DATABASE_POOL_SIZE: "10"
+  DATABASE_MAX_OVERFLOW: "20"
+  DATABASE_POOL_TIMEOUT: "30"
+
+  # Redis (credentials come from secret)
+  REDIS_MAX_CONNECTIONS: "20"
+
+  # Supabase URL (non-sensitive endpoint)
+  SUPABASE_URL: {{ .Values.externalSupabase.url | quote }}
+
+  # AI configuration
+  AI_TIMEOUT_SECONDS: "300"
+  AI_MAX_RETRIES: "3"
+  AI_GHOST_TEXT_DEBOUNCE_MS: "500"
+  AI_GHOST_TEXT_MAX_TOKENS: "50"
+
+  # Rate limiting
+  RATE_LIMIT_STANDARD_PER_MINUTE: "1000"
+  RATE_LIMIT_AI_PER_MINUTE: "100"
+
+  # CORS (production origins)
+  CORS_ORIGINS: {{ printf "https://%s" .Values.ingress.host | quote }}
+
+  # Security
+  JWT_ALGORITHM: "HS256"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+  REFRESH_TOKEN_EXPIRE_DAYS: "7"
+
+  # Feature flags
+  ENABLE_AI_FEATURES: "true"
+  ENABLE_REALTIME: "true"
+  ENABLE_GITHUB_INTEGRATION: "true"
+  ENABLE_SLACK_INTEGRATION: "false"
+
+  {{- range $key, $value := .Values.backend.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

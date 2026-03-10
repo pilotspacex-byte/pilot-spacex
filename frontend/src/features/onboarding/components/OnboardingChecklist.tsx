@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import React from 'react';
 import { Sparkles, Check } from 'lucide-react';
 import {
   useOnboardingState,
@@ -27,6 +28,7 @@ import {
 import { useOnboardingActions } from '../hooks/useOnboardingActions';
 import { useRoleTemplates, useRoleSkills } from '../hooks/useRoleSkillActions';
 import { useOnboardingStore, useRoleSkillStore } from '@/stores/RootStore';
+import { ApiKeySetupStep } from './ApiKeySetupStep';
 import { OnboardingStepItem } from './OnboardingStepItem';
 import { OnboardingCelebration } from './OnboardingCelebration';
 import { RoleSelectorStep } from './RoleSelectorStep';
@@ -84,6 +86,17 @@ type RoleSetupView = 'checklist' | 'role_grid' | 'custom_role' | 'skill_wizard';
 
 /** Ordered step display */
 const STEP_ORDER: OnboardingStep[] = ['ai_providers', 'invite_members', 'role_setup', 'first_note'];
+
+/**
+ * Maps each onboarding step to its corresponding settings page path segment.
+ * Used to render a secondary "Go to settings" link per step (ONBD-05).
+ * first_note has no settings page so it is intentionally omitted.
+ */
+const STEP_SETTINGS_PATH: Partial<Record<OnboardingStep, string>> = {
+  ai_providers: 'settings/ai-providers',
+  invite_members: 'settings/members',
+  role_setup: 'settings/skills',
+};
 
 /**
  * OnboardingChecklist - modal dialog for 4-step onboarding
@@ -171,8 +184,7 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
     } else if (step === 'first_note') {
       createNote.mutate();
     } else if (step === 'ai_providers') {
-      onboardingStore.closeModal();
-      router.push(`/${workspaceSlug}/settings/ai-providers`);
+      // No navigation — ApiKeySetupStep renders inline below the step item (ONBD-03)
     } else if (step === 'invite_members') {
       onboardingStore.setInviteDialogFromOnboarding(true);
       onboardingStore.closeModal();
@@ -306,18 +318,36 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
             </DialogHeader>
 
             <div className="space-y-3">
-              {STEP_ORDER.map((step) => (
-                <OnboardingStepItem
-                  key={step}
-                  step={step}
-                  config={STEP_CONFIG[step]}
-                  completed={data.steps[step]}
-                  isActive={onboardingStore.activeStep === step}
-                  isNext={nextStep === step}
-                  onAction={() => handleStepAction(step)}
-                  disabled={isActionLoading}
-                />
-              ))}
+              {STEP_ORDER.map((step) => {
+                const settingsPath = STEP_SETTINGS_PATH[step];
+                const settingsHref = settingsPath ? `/${workspaceSlug}/${settingsPath}` : undefined;
+                return (
+                  <React.Fragment key={step}>
+                    <OnboardingStepItem
+                      step={step}
+                      config={STEP_CONFIG[step]}
+                      completed={data.steps[step]}
+                      isActive={onboardingStore.activeStep === step}
+                      isNext={nextStep === step}
+                      onAction={() => handleStepAction(step)}
+                      disabled={isActionLoading}
+                      settingsHref={settingsHref}
+                    />
+                    {step === 'ai_providers' &&
+                      onboardingStore.activeStep === 'ai_providers' &&
+                      !data.steps[step] && (
+                        <ApiKeySetupStep
+                          workspaceId={workspaceId}
+                          workspaceSlug={workspaceSlug}
+                          onNavigateToSettings={() => {
+                            onboardingStore.closeModal();
+                            router.push(`/${workspaceSlug}/settings/ai-providers`);
+                          }}
+                        />
+                      )}
+                  </React.Fragment>
+                );
+              })}
 
               {isComplete && (
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 text-primary">

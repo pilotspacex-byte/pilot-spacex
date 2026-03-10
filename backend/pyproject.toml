@@ -1,6 +1,6 @@
 [project]
 name = "pilot-space"
-version = "0.1.0-alpha.2"
+version = "1.0.0-beta"
 description = "AI-Augmented SDLC Platform with Note-First Workflow"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -62,6 +62,10 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     # Markdown parsing
     "markdown-it-py>=3.0.0",
+    # User-agent parsing (session service)
+    "ua-parser>=0.18.0",
+    "python3-saml>=1.16.0",
+    "scim2-models>=0.6.4",
 ]
 
 [project.optional-dependencies]

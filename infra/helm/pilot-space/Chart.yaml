@@ -1,0 +1,15 @@
+apiVersion: v2
+name: pilot-space
+description: Pilot Space AI-Augmented SDLC Platform
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - sdlc
+  - ai
+  - issue-tracking
+  - note-first
+home: https://github.com/pilot-space/pilot-space
+maintainers:
+  - name: Tin Dang
+    email: tin@pilotspace.dev

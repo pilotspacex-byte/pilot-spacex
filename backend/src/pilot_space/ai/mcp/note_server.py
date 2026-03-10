@@ -4,7 +4,6 @@ Mutation tools emit SSE events directly via EventPublisher and return
 short text confirmations to avoid echoing content back as LLM input tokens.
 Note IDs are overridden from agent context (not model args) to prevent
 LLM UUID corruption.
-
 Read-only search tools (search_notes) live in note_query_server.py (CQRS-lite split).
 """
 
@@ -15,8 +14,9 @@ from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 
+from pilot_space.ai.infrastructure.approval import ActionType as AT
 from pilot_space.ai.mcp.event_publisher import EventPublisher
-from pilot_space.ai.tools.mcp_server import get_tool_approval_level
+from pilot_space.ai.tools.mcp_server import check_approval_from_db
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -56,6 +56,7 @@ def create_note_tools_server(
         tool_context: ToolContext for DB access and RLS enforcement.
         block_ref_map: ¶N block reference map for human-readable references.
     """
+    _chk = check_approval_from_db
 
     def _resolve_note_id(args: dict[str, Any]) -> str:
         """Use context note_id if available, fall back to model-provided."""
@@ -125,8 +126,8 @@ def create_note_tools_server(
         logger.info(
             "mcp_tool_invoked", tool="update_note_block", operation=ai_op, block_id=block_id
         )
-        approval_level = get_tool_approval_level("update_note_block")
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        lvl = await _chk("update_note_block", AT.REPLACE_CONTENT, tool_context)
+        status = "approval_required" if lvl.value != "auto_execute" else "pending_apply"
         await publisher.publish_focus_and_content(
             note_id,
             block_id,
@@ -164,8 +165,8 @@ def create_note_tools_server(
         if ws_err:
             return _text_result(f"Error: {ws_err}")
         logger.info("mcp_tool_invoked", tool="enhance_text", block_id=block_id)
-        approval_level = get_tool_approval_level("enhance_text")
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        lvl = await _chk("enhance_text", None, tool_context)
+        status = "approval_required" if lvl.value != "auto_execute" else "pending_apply"
         await publisher.publish_focus_and_content(
             note_id,
             block_id,
@@ -207,8 +208,8 @@ def create_note_tools_server(
         if ws_err:
             return _text_result(f"Error: {ws_err}")
         logger.info("mcp_tool_invoked", tool="write_to_note", note_id=note_id)
-        approval_level = get_tool_approval_level("write_to_note")
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        lvl = await _chk("write_to_note", AT.REPLACE_CONTENT, tool_context)
+        status = "approval_required" if lvl.value != "auto_execute" else "pending_apply"
         await publisher.publish_focus_and_content(
             note_id,
             None,
@@ -287,8 +288,8 @@ def create_note_tools_server(
 
         count = len(issues)
         logger.info("mcp_tool_invoked", tool="extract_issues", issue_count=count, note_id=note_id)
-        approval_level = get_tool_approval_level("extract_issues")
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        lvl = await _chk("extract_issues", AT.EXTRACT_ISSUES, tool_context)
+        status = "approval_required" if lvl.value != "auto_execute" else "pending_apply"
         await publisher.publish_focus_and_content(
             note_id,
             block_ids[0] if block_ids else None,
@@ -347,8 +348,8 @@ def create_note_tools_server(
             title=args["title"][:80],
             block_id=block_id,
         )
-        approval_level = get_tool_approval_level("create_issue_from_note")
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        lvl = await _chk("create_issue_from_note", AT.CREATE_ISSUE, tool_context)
+        status = "approval_required" if lvl.value != "auto_execute" else "pending_apply"
         await publisher.publish_focus_and_content(
             note_id,
             block_id,
@@ -558,8 +559,8 @@ def create_note_tools_server(
             block_type=block_type,
             note_id=note_id,
         )
-        approval_level = get_tool_approval_level("insert_pm_block")
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        lvl = await _chk("insert_pm_block", AT.INSERT_BLOCK, tool_context)
+        status = "approval_required" if lvl.value != "auto_execute" else "pending_apply"
         await publisher.publish_focus_and_content(
             note_id,
             after_block_id,
@@ -607,8 +608,8 @@ def create_note_tools_server(
             payload["project_id"] = args["project_id"]
 
         logger.info("mcp_tool_invoked", tool="create_note", title=title[:80])
-        approval_level = get_tool_approval_level("create_note")
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        lvl = await _chk("create_note", AT.CREATE_NOTE, tool_context)
+        status = "approval_required" if lvl.value != "auto_execute" else "pending_apply"
         return _text_result(
             json.dumps(
                 {
@@ -665,8 +666,8 @@ def create_note_tools_server(
             return _text_result("Error: no changes specified")
 
         logger.info("mcp_tool_invoked", tool="update_note", note_id=note_id, changes=changes)
-        approval_level = get_tool_approval_level("update_note")
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
+        lvl = await _chk("update_note", AT.UPDATE_NOTE, tool_context)
+        status = "approval_required" if lvl.value != "auto_execute" else "pending_apply"
         return _text_result(
             json.dumps(
                 {

@@ -166,6 +166,8 @@ class ProcessGitHubWebhookService:
                 await self._handle_pull_request(webhook.raw_payload, result)
             elif webhook.event_type == GitHubEventType.PULL_REQUEST_REVIEW:
                 await self._handle_pr_review(webhook.raw_payload, result)
+            elif webhook.event_type == GitHubEventType.CHECK_SUITE:
+                await self._handle_check_suite(webhook.raw_payload, result)
             else:
                 result.processed = False
                 result.error = f"Unhandled event type: {webhook.event_type}"
@@ -374,6 +376,92 @@ class ProcessGitHubWebhookService:
                 await self._session.flush()
 
                 result.auto_transitioned.append(ref.identifier)
+
+    async def _handle_check_suite(
+        self,
+        payload: dict[str, Any],
+        result: ProcessWebhookResult,
+    ) -> None:
+        """Handle check_suite completed event for CI status updates.
+
+        Matches the check suite to IntegrationLink records by PR URL or head SHA,
+        then updates ci_status on all matching links.
+
+        Args:
+            payload: check_suite event payload.
+            result: Result to update.
+        """
+        check_suite = self._webhook_handler.parse_check_suite_event(payload)
+
+        # Only process completed events; others are handled as pending implicitly.
+        if check_suite.action != "completed" and check_suite.ci_status == "pending":
+            # For non-completed actions we still set pending on matching links so the
+            # UI can show a spinner while the suite is running.
+            pass
+
+        installation_id = str(payload.get("installation", {}).get("id", ""))
+        repo_owner = check_suite.repository.split("/")[0] if "/" in check_suite.repository else ""
+
+        from pilot_space.infrastructure.database.models import IntegrationProvider
+
+        integrations = await self._integration_repo.get_by_external_account(
+            provider=IntegrationProvider.GITHUB,
+            external_account_id=installation_id or repo_owner,
+        )
+
+        if not integrations:
+            # Not an error — the check may belong to a repo not connected to any workspace.
+            result.processed = True
+            return
+
+        new_ci_status = check_suite.ci_status
+
+        from sqlalchemy import and_, or_, select
+
+        from pilot_space.infrastructure.database.models import IntegrationLink, IntegrationLinkType
+
+        updated_count = 0
+        for integration in integrations:
+            # Build conditions to match links:
+            # 1. PR links whose external_url matches any PR URL from the check suite.
+            # 2. PR links whose external_id matches the head SHA.
+            url_conditions = []
+            if check_suite.pr_urls:
+                url_conditions.append(IntegrationLink.external_url.in_(check_suite.pr_urls))
+            if check_suite.head_sha:
+                url_conditions.append(IntegrationLink.external_id == check_suite.head_sha)
+
+            if not url_conditions:
+                continue
+
+            query = select(IntegrationLink).where(
+                and_(
+                    IntegrationLink.integration_id == integration.id,
+                    IntegrationLink.link_type == IntegrationLinkType.PULL_REQUEST,
+                    IntegrationLink.is_deleted == False,  # noqa: E712
+                    or_(*url_conditions),
+                )
+            )
+
+            rows = await self._session.execute(query)
+            links = rows.scalars().all()
+
+            for link in links:
+                link.ci_status = new_ci_status
+                updated_count += 1
+
+        if updated_count:
+            await self._session.flush()
+            logger.info(
+                "Updated CI status on integration links",
+                extra={
+                    "ci_status": new_ci_status,
+                    "links_updated": updated_count,
+                    "head_sha": check_suite.head_sha,
+                },
+            )
+
+        result.processed = True
 
     async def _handle_pr_review(
         self,

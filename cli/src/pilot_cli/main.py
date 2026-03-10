@@ -7,6 +7,7 @@ Usage:
 
 import typer
 
+from pilot_cli.commands.backup import backup_app
 from pilot_cli.commands.implement import implement_command
 from pilot_cli.commands.login import login_command
 
@@ -18,6 +19,7 @@ app = typer.Typer(
 
 app.command("login")(login_command)
 app.command("implement")(implement_command)
+app.add_typer(backup_app, name="backup")
 
 
 if __name__ == "__main__":

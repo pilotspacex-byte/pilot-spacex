@@ -18,11 +18,12 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from pilot_space.domain.pm_block_insight import InsightSeverity, PMBlockType
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 
 class PMBlockInsight(WorkspaceScopedModel):
@@ -69,12 +70,12 @@ class PMBlockInsight(WorkspaceScopedModel):
     analysis: Mapped[str] = mapped_column(Text, nullable=False)
 
     references: Mapped[list[Any]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         server_default="[]",
     )
     suggested_actions: Mapped[list[Any]] = mapped_column(
-        JSONB,
+        JSONBCompat,
         nullable=False,
         server_default="[]",
     )

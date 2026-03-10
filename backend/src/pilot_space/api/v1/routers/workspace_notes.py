@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 
 from pilot_space.api.v1.dependencies import (
     CreateNoteServiceDep,
@@ -17,6 +18,10 @@ from pilot_space.api.v1.dependencies import (
     UpdateAnnotationServiceDep,
     UpdateNoteServiceDep,
     WorkspaceRepositoryDep,
+)
+from pilot_space.api.v1.routers.workspace_quota import (
+    _check_storage_quota,  # pyright: ignore[reportPrivateUsage]
+    _update_storage_usage,  # pyright: ignore[reportPrivateUsage]
 )
 from pilot_space.api.v1.schemas.annotation import (
     AnnotationResponse,
@@ -231,6 +236,7 @@ async def create_workspace_note(
     session: SessionDep,
     create_service: CreateNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    response: Response = Response(),
 ) -> NoteResponse:
     """Create a new note in the workspace.
 
@@ -241,6 +247,7 @@ async def create_workspace_note(
         session: Database session.
         create_service: Create note service.
         workspace_repo: Workspace repository.
+        response: FastAPI response for header injection.
 
     Returns:
         Created note.
@@ -254,6 +261,14 @@ async def create_workspace_note(
     if note_data.content:
         content_dict = {"type": note_data.content.type, "content": note_data.content.content}
 
+    delta_bytes = len(json.dumps(content_dict or {}).encode("utf-8"))
+    _quota_ok, _warning_pct = await _check_storage_quota(session, workspace.id, delta_bytes)
+    if not _quota_ok:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail="Storage quota exceeded",
+        )
+
     # Execute service
     payload = CreateNotePayload(
         workspace_id=workspace.id,
@@ -264,6 +279,13 @@ async def create_workspace_note(
         is_pinned=note_data.is_pinned,
     )
     result = await create_service.execute(payload)
+
+    try:
+        await _update_storage_usage(session, workspace.id, delta_bytes)
+    except Exception:
+        logger.warning("storage_usage_update_failed", workspace_id=str(workspace.id))
+    if _warning_pct is not None:
+        response.headers["X-Storage-Warning"] = str(round(_warning_pct, 4))
 
     logger.info(
         "Note created",
@@ -287,6 +309,7 @@ async def update_workspace_note(
     session: SessionDep,
     update_service: UpdateNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    response: Response = Response(),
 ) -> NoteResponse:
     """Update an existing note.
 
@@ -298,6 +321,7 @@ async def update_workspace_note(
         session: Database session.
         update_service: Update note service.
         workspace_repo: Workspace repository.
+        response: FastAPI response for header injection.
 
     Returns:
         Updated note.
@@ -317,6 +341,14 @@ async def update_workspace_note(
             "content": content.get("content", []),
         }
 
+    delta_bytes = len(json.dumps(content_dict or {}).encode("utf-8"))
+    _quota_ok, _warning_pct = await _check_storage_quota(session, workspace.id, delta_bytes)
+    if not _quota_ok:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail="Storage quota exceeded",
+        )
+
     # Execute service
     payload = UpdateNotePayload(
         note_id=note_id,
@@ -327,6 +359,13 @@ async def update_workspace_note(
         project_id=update_data.get("project_id"),
     )
     result = await update_service.execute(payload)
+
+    try:
+        await _update_storage_usage(session, workspace.id, delta_bytes)
+    except Exception:
+        logger.warning("storage_usage_update_failed", workspace_id=str(workspace.id))
+    if _warning_pct is not None:
+        response.headers["X-Storage-Warning"] = str(round(_warning_pct, 4))
 
     logger.info(
         "Note updated",

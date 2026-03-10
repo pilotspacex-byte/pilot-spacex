@@ -20,6 +20,7 @@ import {
   BarChart3,
   LayoutGrid,
   List,
+  FileText,
   Settings,
   MoreHorizontal,
   AlertCircle,
@@ -38,7 +39,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useStore } from '@/stores';
-import { CycleBoard, VelocityChart, BurndownChart, CycleRolloverModal } from '@/components/cycles';
+import {
+  CycleBoard,
+  VelocityChart,
+  BurndownChart,
+  CycleRolloverModal,
+  ReleaseNotesTab,
+} from '@/components/cycles';
 import {
   useCycle,
   useCycleIssues,
@@ -48,6 +55,7 @@ import {
   useCompleteCycle,
   useRolloverCycle,
   useCycles,
+  useReleaseNotes,
   selectAllCycles,
 } from '@/features/cycles/hooks';
 import type { Issue, IssueState, RolloverCycleData } from '@/types';
@@ -58,7 +66,7 @@ import { getIssueStateKey } from '@/lib/issue-helpers';
 // Types
 // ============================================================================
 
-type TabValue = 'board' | 'metrics' | 'issues';
+type TabValue = 'board' | 'metrics' | 'issues' | 'release-notes';
 
 // ============================================================================
 // Helper Functions
@@ -216,6 +224,12 @@ const CycleDetailPage = observer(function CycleDetailPage() {
     workspaceId,
     projectId,
     enabled: !!workspaceId && !!projectId && activeTab === 'metrics',
+  });
+
+  const { data: releaseNotesData, isLoading: isLoadingReleaseNotes } = useReleaseNotes({
+    workspaceId,
+    cycleId,
+    enabled: !!workspaceId && !!cycleId && activeTab === 'release-notes',
   });
 
   const { data: cyclesData } = useCycles({
@@ -428,6 +442,10 @@ const CycleDetailPage = observer(function CycleDetailPage() {
               <List className="size-4" />
               Issues
             </TabsTrigger>
+            <TabsTrigger value="release-notes" className="gap-2">
+              <FileText className="size-4" />
+              Release Notes
+            </TabsTrigger>
           </TabsList>
 
           {activeTab === 'board' && (
@@ -552,6 +570,17 @@ const CycleDetailPage = observer(function CycleDetailPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Release Notes Tab */}
+        <TabsContent value="release-notes" className="flex-1 m-0 overflow-auto">
+          <ReleaseNotesTab
+            workspaceId={workspaceId}
+            cycleId={cycleId}
+            cycleName={cycle.name}
+            data={releaseNotesData}
+            isLoading={isLoadingReleaseNotes}
+          />
         </TabsContent>
       </Tabs>
 

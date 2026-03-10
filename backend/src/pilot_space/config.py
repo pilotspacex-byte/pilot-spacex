@@ -143,6 +143,24 @@ class Settings(BaseSettings):
         description="Fernet encryption key for API key storage (32-byte base64-encoded)",
     )
 
+    # SAML 2.0 SSO (AUTH-01) — SP credential settings
+    saml_sp_entity_id: str = Field(
+        default="https://app.pilotspace.dev/api/v1/auth/sso/saml/metadata",
+        description="SAML SP entity ID URI registered with IdPs",
+    )
+    saml_sp_private_key: SecretStr = Field(
+        default=SecretStr(""),
+        description="SP private key in PEM format (server-side only, never log)",
+    )
+    saml_sp_cert_pem: str = Field(
+        default="",
+        description="SP certificate in PEM format (shared with IdPs in metadata)",
+    )
+    backend_url: str = Field(
+        default="http://localhost:8000",
+        description="Backend base URL (used to construct SAML ACS / metadata URLs)",
+    )
+
     # Auth Provider (supabase | authcore)
     auth_provider: str = Field(
         default="supabase",
@@ -165,6 +183,15 @@ class Settings(BaseSettings):
     system_templates_dir: DirectoryPath = Field(
         default=Path(__file__).parent / "ai" / "templates",
         description="Directory containing system-provided .claude templates",
+    )
+
+    # Super-admin operator dashboard token (TENANT-04)
+    pilot_space_super_admin_token: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Opaque bearer token for super-admin operator dashboard access. "
+            "Set at deployment time. Never log or expose this value."
+        ),
     )
 
     # GitHub OAuth Integration

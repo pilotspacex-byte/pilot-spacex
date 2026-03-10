@@ -12,11 +12,26 @@
  * ```
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { observer } from 'mobx-react-lite';
+import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { format } from 'date-fns';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { useStore } from '@/stores';
+import { aiApi } from '@/services/api/ai';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CostSummaryCard } from '../components/cost-summary-card';
 import { DateRangeSelector } from '../components/date-range-selector';
 import { CostByAgentChart } from '../components/cost-by-agent-chart';
@@ -63,21 +78,65 @@ function formatTokens(tokens: number): string {
 // Component
 // ============================================================================
 
+// Feature chart color palette (accessible, consistent with chart-* CSS vars)
+const FEATURE_COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+  '#8884d8',
+  '#82ca9d',
+  '#ffc658',
+];
+
+/** Convert snake_case operation_type label to Title Case for display. */
+function formatFeatureName(name: string): string {
+  return name
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 export const CostDashboardPage = observer(function CostDashboardPage({
   workspaceId,
 }: CostDashboardPageProps) {
   const { ai, workspaceStore } = useStore();
   const { cost } = ai;
 
+  const [activeTab, setActiveTab] = useState<'by_agent' | 'by_feature'>('by_agent');
+
+  // Resolve the actual workspace UUID from the store.
+  // The page prop `workspaceId` may be the slug (see costs/page.tsx); the store
+  // holds the authoritative UUID required for X-Workspace-Id header lookups.
+  const resolvedWorkspaceId = workspaceStore.currentWorkspace?.id ?? workspaceId;
+
   // Load cost summary on mount
   useEffect(() => {
-    cost.loadSummary(workspaceId);
-  }, [cost, workspaceId]);
+    cost.loadSummary(resolvedWorkspaceId);
+  }, [cost, resolvedWorkspaceId]);
 
   // Handle date range change
   const handleDateRangeChange = async (range: { start: Date; end: Date }) => {
-    await cost.setDateRange(range, workspaceId);
+    await cost.setDateRange(range, resolvedWorkspaceId);
   };
+
+  // Lazy-load feature breakdown only when tab is active
+  const startDate = format(cost.dateRange.start, 'yyyy-MM-dd');
+  const endDate = format(cost.dateRange.end, 'yyyy-MM-dd');
+
+  const { data: featureSummary, isLoading: isFeatureLoading } = useQuery({
+    queryKey: ['costs-by-feature', resolvedWorkspaceId, startDate, endDate],
+    queryFn: () => aiApi.getCostSummary(resolvedWorkspaceId, startDate, endDate, 'operation_type'),
+    enabled: activeTab === 'by_feature' && !!resolvedWorkspaceId,
+    staleTime: 60_000,
+  });
+
+  const featureChartData = featureSummary?.by_feature
+    ? Object.entries(featureSummary.by_feature)
+        .map(([name, value]) => ({ name, value: Number(value) }))
+        .sort((a, b) => b.value - a.value)
+    : [];
 
   // Admin guard
   if (!workspaceStore.isAdmin) {
@@ -126,7 +185,7 @@ export const CostDashboardPage = observer(function CostDashboardPage({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => cost.loadSummary(workspaceId)}
+          onClick={() => cost.loadSummary(resolvedWorkspaceId)}
           className="flex items-center gap-2"
           aria-label="Retry loading cost data"
         >
@@ -174,16 +233,89 @@ export const CostDashboardPage = observer(function CostDashboardPage({
         />
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CostByAgentChart
-          data={cost.costByAgent}
-          onAgentClick={(_agentName) => {
-            // Filter by agent is not yet implemented
-          }}
-        />
-        <CostTrendsChart data={cost.costTrends} />
-      </div>
+      {/* Charts Grid with By Agent / By Feature tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'by_agent' | 'by_feature')}>
+        <TabsList>
+          <TabsTrigger value="by_agent">By Agent</TabsTrigger>
+          <TabsTrigger value="by_feature">By Feature</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="by_agent" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <CostByAgentChart
+              data={cost.costByAgent}
+              onAgentClick={(_agentName) => {
+                // Filter by agent is not yet implemented
+              }}
+            />
+            <CostTrendsChart data={cost.costTrends} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="by_feature" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Cost by Feature</CardTitle>
+              <CardDescription>
+                Token cost breakdown by operation type for this period
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isFeatureLoading ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <Skeleton className="h-full w-full" />
+                </div>
+              ) : featureChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  <p className="text-sm">No feature cost data available for this period</p>
+                </div>
+              ) : (
+                <ResponsiveContainer
+                  width="100%"
+                  height={Math.max(300, featureChartData.length * 48)}
+                >
+                  <BarChart
+                    data={featureChartData}
+                    layout="vertical"
+                    margin={{ top: 4, right: 24, bottom: 4, left: 120 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tickFormatter={(v: number) => (v < 0.01 ? '<$0.01' : `$${v.toFixed(2)}`)}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      tickFormatter={formatFeatureName}
+                      width={116}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip
+                      formatter={(value: number | undefined) => {
+                        if (value == null) return '—';
+                        return value < 0.01 ? '<$0.01' : `$${value.toFixed(4)}`;
+                      }}
+                      labelFormatter={(label: unknown) =>
+                        typeof label === 'string' ? formatFeatureName(label) : String(label)
+                      }
+                    />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                      {featureChartData.map((_entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={FEATURE_COLORS[index % FEATURE_COLORS.length]}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* User Cost Table */}
       <CostTableView data={cost.costPerUser} />

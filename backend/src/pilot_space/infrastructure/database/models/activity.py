@@ -85,6 +85,7 @@ class ActivityType(str, Enum):
     AI_SUGGESTION_REJECTED = "ai_suggestion_rejected"
     DUPLICATE_DETECTED = "duplicate_detected"
     DUPLICATE_MARKED = "duplicate_marked"
+    AI_REVIEW = "ai_review"
 
 
 class Activity(WorkspaceScopedModel):

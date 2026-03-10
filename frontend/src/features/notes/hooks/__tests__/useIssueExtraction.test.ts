@@ -59,7 +59,7 @@ describe('useIssueExtraction', () => {
     expect(state.isModalOpen).toBe(false);
   });
 
-  it('opens modal and starts extraction on startExtraction', () => {
+  it('starts extraction and sets isExtracting on startExtraction', () => {
     const { result } = renderHook(() => useIssueExtraction());
 
     act(() => {
@@ -72,7 +72,8 @@ describe('useIssueExtraction', () => {
     });
 
     const [state] = result.current;
-    expect(state.isModalOpen).toBe(true);
+    // isModalOpen is always false (auto-approve mode replaced by review panel)
+    expect(state.isModalOpen).toBe(false);
     expect(state.isExtracting).toBe(true);
     expect(mockConnect).toHaveBeenCalled();
   });
@@ -156,7 +157,7 @@ describe('useIssueExtraction', () => {
     expect(result.current[0].issues[0]!.title).toBe('Test Issue');
   });
 
-  it('handles complete event', () => {
+  it('handles complete event and stops extracting', () => {
     const { result } = renderHook(() => useIssueExtraction());
 
     act(() => {
@@ -175,6 +176,86 @@ describe('useIssueExtraction', () => {
     });
 
     expect(result.current[0].isExtracting).toBe(false);
+  });
+
+  it('opens review panel after complete when issues were collected', () => {
+    const { result } = renderHook(() => useIssueExtraction());
+
+    act(() => {
+      result.current[1].startExtraction({
+        noteId: 'note-1',
+        noteTitle: 'Test Note',
+        noteContent: { type: 'doc', content: [] },
+        workspaceId: 'ws-1',
+        projectId: 'proj-1',
+      });
+    });
+
+    act(() => {
+      storedSSEOptions!.onMessage({
+        type: 'issue',
+        data: {
+          index: 0,
+          title: 'Test Issue',
+          description: 'Description',
+          priority: 2,
+          labels: [],
+          confidenceScore: 0.8,
+          confidenceTag: 'explicit',
+          sourceBlockIds: [],
+          rationale: 'Test',
+        },
+      });
+    });
+
+    act(() => {
+      storedSSEOptions!.onMessage({ type: 'complete', data: { total_count: 1 } });
+    });
+
+    expect(result.current[0].isReviewPanelOpen).toBe(true);
+  });
+
+  it('closeReviewPanel closes review panel without resetting issues', () => {
+    const { result } = renderHook(() => useIssueExtraction());
+
+    act(() => {
+      result.current[1].startExtraction({
+        noteId: 'note-1',
+        noteTitle: 'Test Note',
+        noteContent: { type: 'doc', content: [] },
+        workspaceId: 'ws-1',
+        projectId: 'proj-1',
+      });
+    });
+
+    act(() => {
+      storedSSEOptions!.onMessage({
+        type: 'issue',
+        data: {
+          index: 0,
+          title: 'Test Issue',
+          description: '',
+          priority: 2,
+          labels: [],
+          confidenceScore: 0.8,
+          confidenceTag: 'explicit',
+          sourceBlockIds: [],
+          rationale: '',
+        },
+      });
+    });
+
+    act(() => {
+      storedSSEOptions!.onMessage({ type: 'complete', data: { total_count: 1 } });
+    });
+
+    act(() => {
+      result.current[1].closeReviewPanel();
+    });
+
+    expect(result.current[0].isReviewPanelOpen).toBe(false);
+    // Issues are preserved after panel close
+    expect(result.current[0].issues).toHaveLength(1);
   });
 
   it('handles error event', () => {

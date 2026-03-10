@@ -17,6 +17,7 @@ from pilot_space.dependencies.jwt_providers import (
     get_jwt_provider,
 )
 from pilot_space.infrastructure.auth import TokenPayload
+from pilot_space.infrastructure.logging import set_request_context
 
 if TYPE_CHECKING:
     from starlette.responses import Response
@@ -26,6 +27,8 @@ if TYPE_CHECKING:
 PUBLIC_ROUTES: set[str] = {
     "/",
     "/health",
+    "/health/live",
+    "/health/ready",
     "/docs",
     "/openapi.json",
     "/redoc",
@@ -39,13 +42,16 @@ PUBLIC_ROUTES: set[str] = {
 def is_public_route(path: str) -> bool:
     """Check if path is a public route.
 
+    SCIM routes (/api/v1/scim/v2/*) use their own bearer token auth
+    (workspace SCIM token, not Supabase JWT) and must bypass JWT middleware.
+
     Args:
         path: Request path.
 
     Returns:
-        True if route is public.
+        True if route is public (no JWT auth required).
     """
-    return path in PUBLIC_ROUTES or path.startswith("/static")
+    return path in PUBLIC_ROUTES or path.startswith(("/static", "/api/v1/scim/v2/"))
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -117,6 +123,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.user = payload
             request.state.user_id = payload.user_id
             request.state.token = token
+            # OPS-04: bind trace_id (= request_id from RequestContextMiddleware)
+            # and actor to logging context for every downstream log line.
+            request_id: str | None = getattr(request.state, "request_id", None)
+            set_request_context(
+                trace_id=request_id,
+                actor=f"user:{payload.user_id}",
+            )
         except JWTExpiredError as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

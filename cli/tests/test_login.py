@@ -19,6 +19,11 @@ runner = CliRunner()
 _API_URL = "https://api.example.io"
 _API_KEY = "ps_test_key"
 _WORKSPACE_SLUG = "acme"
+_DATABASE_URL = "postgresql://user:pw@localhost:5432/db"
+_SUPABASE_URL = "https://proj.supabase.co"
+
+# All 4 prompt answers in order: api_url, api_key, database_url, supabase_url
+_ALL_PROMPTS = [_API_URL, _API_KEY, _DATABASE_URL, _SUPABASE_URL]
 
 
 def _make_validate_result(slug: str = _WORKSPACE_SLUG) -> dict[str, str]:
@@ -36,7 +41,7 @@ class TestLoginHappyPath:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, _API_KEY],
+                side_effect=list(_ALL_PROMPTS),
             ),
             patch(
                 "pilot_cli.commands.login._validate",
@@ -58,7 +63,7 @@ class TestLoginHappyPath:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, _API_KEY],
+                side_effect=list(_ALL_PROMPTS),
             ),
             patch(
                 "pilot_cli.commands.login._validate",
@@ -79,7 +84,7 @@ class TestLoginHappyPath:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, _API_KEY],
+                side_effect=list(_ALL_PROMPTS),
             ),
             patch(
                 "pilot_cli.commands.login._validate",
@@ -95,6 +100,34 @@ class TestLoginHappyPath:
         assert result.exit_code == 0, result.output
         assert "config.toml" in result.output
 
+    def test_login_passes_database_url_and_supabase_url_to_config(self) -> None:
+        """login_command passes database_url and supabase_url to PilotConfig constructor."""
+        with (
+            patch(
+                "pilot_cli.commands.login.Prompt.ask",
+                side_effect=list(_ALL_PROMPTS),
+            ),
+            patch(
+                "pilot_cli.commands.login._validate",
+                new=AsyncMock(return_value=_make_validate_result()),
+            ),
+            patch("pilot_cli.commands.login.PilotConfig") as mock_config_cls,
+        ):
+            mock_config_cls.DEFAULT_API_URL = _API_URL
+            mock_config_cls.return_value = MagicMock()
+
+            result = runner.invoke(app, ["login"])
+
+        assert result.exit_code == 0, result.output
+        # Verify PilotConfig was constructed with database_url and supabase_url
+        mock_config_cls.assert_called_once_with(
+            api_url=_API_URL,
+            api_key=_API_KEY,
+            workspace_slug=_WORKSPACE_SLUG,
+            database_url=_DATABASE_URL,
+            supabase_url=_SUPABASE_URL,
+        )
+
 
 # ---------------------------------------------------------------------------
 # TestLoginPilotAPIError
@@ -107,7 +140,7 @@ class TestLoginPilotAPIError:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, "ps_bad_key"],
+                side_effect=[_API_URL, "ps_bad_key", _DATABASE_URL, _SUPABASE_URL],
             ),
             patch(
                 "pilot_cli.commands.login._validate",
@@ -124,7 +157,7 @@ class TestLoginPilotAPIError:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, _API_KEY],
+                side_effect=list(_ALL_PROMPTS),
             ),
             patch(
                 "pilot_cli.commands.login._validate",
@@ -140,7 +173,7 @@ class TestLoginPilotAPIError:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, _API_KEY],
+                side_effect=list(_ALL_PROMPTS),
             ),
             patch(
                 "pilot_cli.commands.login._validate",
@@ -163,7 +196,7 @@ class TestLoginConnectionError:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, _API_KEY],
+                side_effect=list(_ALL_PROMPTS),
             ),
             patch(
                 "pilot_cli.commands.login._validate",
@@ -180,7 +213,7 @@ class TestLoginConnectionError:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, _API_KEY],
+                side_effect=list(_ALL_PROMPTS),
             ),
             patch(
                 "pilot_cli.commands.login._validate",
@@ -197,7 +230,7 @@ class TestLoginConnectionError:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, _API_KEY],
+                side_effect=list(_ALL_PROMPTS),
             ),
             patch(
                 "pilot_cli.commands.login._validate",
@@ -214,7 +247,7 @@ class TestLoginConnectionError:
         with (
             patch(
                 "pilot_cli.commands.login.Prompt.ask",
-                side_effect=[_API_URL, _API_KEY],
+                side_effect=list(_ALL_PROMPTS),
             ),
             patch(
                 "pilot_cli.commands.login._validate",

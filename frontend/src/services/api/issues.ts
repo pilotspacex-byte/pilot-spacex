@@ -15,6 +15,7 @@ interface IssueFilters {
   priority?: string;
   assigneeId?: string;
   labels?: string[];
+  search?: string;
 }
 
 export interface ImplementContextResponse {
@@ -110,6 +111,7 @@ export const issuesApi = {
     if (filters?.priority) params.priority = filters.priority;
     if (filters?.assigneeId) params.assigneeId = filters.assigneeId;
     if (filters?.labels?.length) params.labels = filters.labels.join(',');
+    if (filters?.search) params.search = filters.search;
 
     return apiClient.get<PaginatedResponse<Issue>>(`/workspaces/${workspaceId}/issues`, { params });
   },

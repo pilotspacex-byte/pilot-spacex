@@ -22,11 +22,15 @@ from uuid import UUID
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
 
+from pilot_space.ai.infrastructure.approval import ActionType
 from pilot_space.ai.tools.entity_resolver import (
     EntityResolutionError,
     resolve_entity_id_strict,
 )
-from pilot_space.ai.tools.mcp_server import ToolContext, get_tool_approval_level
+from pilot_space.ai.tools.mcp_server import (
+    ToolContext,
+    check_approval_from_db,
+)
 
 if TYPE_CHECKING:
     from pilot_space.ai.mcp.event_publisher import EventPublisher
@@ -456,7 +460,9 @@ def create_issue_tools_server(
         if args.get("target_date"):
             payload["target_date"] = args["target_date"]
 
-        approval_level = get_tool_approval_level("create_issue")
+        approval_level = await check_approval_from_db(
+            "create_issue", ActionType.CREATE_ISSUE, tool_context
+        )
         status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
 
         logger.info("[IssueTools] create_issue: '%s'", args["title"])

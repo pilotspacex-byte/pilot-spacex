@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pilot_space.infrastructure.database.models.ai_configuration import LLMProvider
 
@@ -59,6 +59,22 @@ class AIConfigurationCreate(AIConfigurationBase):
             examples=[{"daily_tokens": 1000000, "monthly_budget_usd": 100}],
         ),
     ]
+    base_url: Annotated[
+        str | None,
+        Field(
+            default=None,
+            max_length=512,
+            description="OpenAI-compatible API base URL. Required when provider=custom.",
+        ),
+    ]
+    display_name: Annotated[
+        str | None,
+        Field(
+            default=None,
+            max_length=128,
+            description="Human-readable provider name shown in UI.",
+        ),
+    ]
 
     @field_validator("api_key")
     @classmethod
@@ -76,6 +92,13 @@ class AIConfigurationCreate(AIConfigurationBase):
         if v is not None and len(v) == 0:
             return None
         return v
+
+    @model_validator(mode="after")
+    def validate_custom_provider_requires_base_url(self) -> AIConfigurationCreate:
+        """Require base_url when provider is CUSTOM."""
+        if self.provider == LLMProvider.CUSTOM and not self.base_url:
+            raise ValueError("base_url is required when provider is 'custom'")
+        return self
 
 
 class AIConfigurationUpdate(AIConfigurationBase):
@@ -148,6 +171,14 @@ class AIConfigurationResponse(AIConfigurationBase):
         dict[str, Any] | None,
         Field(description="Usage limits and quotas"),
     ]
+    base_url: Annotated[
+        str | None,
+        Field(description="OpenAI-compatible API base URL (custom providers)"),
+    ]
+    display_name: Annotated[
+        str | None,
+        Field(description="Human-readable provider name"),
+    ]
     created_at: Annotated[datetime, Field(description="Creation timestamp")]
     updated_at: Annotated[datetime, Field(description="Last update timestamp")]
 
@@ -187,6 +218,37 @@ class AIConfigurationListResponse(AIConfigurationBase):
     total: Annotated[int, Field(ge=0, description="Total count of configurations")]
 
 
+class ProviderModelItem(AIConfigurationBase):
+    """A single model available from a configured provider."""
+
+    provider_config_id: Annotated[
+        str,
+        Field(description="ID of the AIConfiguration that provides this model"),
+    ]
+    provider: Annotated[str, Field(description="Provider name (anthropic, openai, etc.)")]
+    model_id: Annotated[str, Field(description="Provider-assigned model identifier")]
+    display_name: Annotated[str, Field(description="Human-readable model name")]
+    is_selectable: Annotated[
+        bool,
+        Field(
+            description=(
+                "True when live API confirmed availability. "
+                "False when provider was unreachable and fallback list is used."
+            )
+        ),
+    ]
+
+
+class ModelListResponse(AIConfigurationBase):
+    """Response schema for listing models across all active providers."""
+
+    items: Annotated[
+        list[ProviderModelItem],
+        Field(description="Models from all active, reachable providers"),
+    ]
+    total: Annotated[int, Field(ge=0, description="Total model count")]
+
+
 __all__ = [
     "AIConfigurationCreate",
     "AIConfigurationListResponse",
@@ -195,4 +257,6 @@ __all__ = [
     "AIConfigurationTestResponse",
     "AIConfigurationUpdate",
     "LLMProvider",
+    "ModelListResponse",
+    "ProviderModelItem",
 ]

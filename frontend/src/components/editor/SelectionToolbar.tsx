@@ -12,7 +12,17 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import type { Editor } from '@tiptap/react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bold, Italic, Link2, MessageSquare, Wand2, TicketPlus } from 'lucide-react';
+import {
+  Bold,
+  Italic,
+  Link2,
+  MessageSquare,
+  Wand2,
+  TicketPlus,
+  Strikethrough,
+  Code,
+  Highlighter,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -145,6 +155,18 @@ export function SelectionToolbar({
     }
   }, [editor]);
 
+  const toggleStrike = useCallback(() => {
+    editor?.chain().focus().toggleStrike().run();
+  }, [editor]);
+
+  const toggleCode = useCallback(() => {
+    editor?.chain().focus().toggleCode().run();
+  }, [editor]);
+
+  const toggleHighlight = useCallback(() => {
+    editor?.chain().focus().toggleHighlight().run();
+  }, [editor]);
+
   // AI actions - Wire to new hooks
   const handleAskPilot = useCallback(async () => {
     await askPilot();
@@ -255,6 +277,48 @@ export function SelectionToolbar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>Add link (Cmd+K)</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={editor.isActive('strike') ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={toggleStrike}
+                aria-label="Strikethrough"
+              >
+                <Strikethrough className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Strikethrough</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={editor.isActive('code') ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={toggleCode}
+                aria-label="Inline code"
+              >
+                <Code className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Inline code</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={editor.isActive('highlight') ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={toggleHighlight}
+                aria-label="Highlight"
+              >
+                <Highlighter className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Highlight</TooltipContent>
           </Tooltip>
 
           <Tooltip>

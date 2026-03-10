@@ -8,10 +8,20 @@ Source: 011-role-based-skills, T007
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import uuid as _uuid_mod
+from collections.abc import AsyncGenerator
+from typing import Any
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import event, text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import StaticPool
 
 from pilot_space.infrastructure.database.models import (
     User,
@@ -26,11 +36,125 @@ from pilot_space.infrastructure.database.repositories.role_skill_repository impo
     RoleTemplateRepository,
 )
 
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-
 pytestmark = pytest.mark.asyncio
+
+# ---------------------------------------------------------------------------
+# Local SQLite schema (avoids PostgreSQL-specific syntax in shared conftest)
+# ---------------------------------------------------------------------------
+
+_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    full_name TEXT,
+    avatar_url TEXT,
+    default_sdlc_role TEXT,
+    bio TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS workspaces (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    description TEXT,
+    settings TEXT DEFAULT '{}',
+    audit_retention_days INTEGER,
+    rate_limit_standard_rpm INTEGER,
+    rate_limit_ai_rpm INTEGER,
+    storage_quota_mb INTEGER,
+    storage_used_bytes INTEGER DEFAULT 0 NOT NULL,
+    owner_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS workspace_members (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'MEMBER',
+    weekly_available_hours INTEGER,
+    custom_role_id TEXT,
+    is_active BOOLEAN DEFAULT 1 NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME,
+    UNIQUE (user_id, workspace_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_role_skills (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    role_type TEXT NOT NULL,
+    role_name TEXT NOT NULL,
+    skill_content TEXT NOT NULL,
+    experience_description TEXT,
+    is_primary BOOLEAN DEFAULT 0 NOT NULL,
+    template_version INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME,
+    UNIQUE (user_id, workspace_id, role_type)
+);
+
+CREATE TABLE IF NOT EXISTS role_templates (
+    id TEXT PRIMARY KEY,
+    role_type TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    default_skill_content TEXT NOT NULL DEFAULT '',
+    icon TEXT NOT NULL DEFAULT 'code',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+"""
+
+
+def _register_sqlite_fns(dbapi_conn: Any, connection_record: Any) -> None:
+    dbapi_conn.create_function("gen_random_uuid", 0, lambda: str(_uuid_mod.uuid4()))
+
+
+@pytest.fixture
+async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        echo=False,
+    )
+    event.listen(engine.sync_engine, "connect", _register_sqlite_fns)
+    async with engine.begin() as conn:
+        for stmt in _SCHEMA_SQL.strip().split(";"):
+            cleaned = stmt.strip()
+            if cleaned:
+                await conn.execute(text(cleaned))
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture
+async def db_session(test_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    factory = async_sessionmaker(
+        test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+    async with factory() as session, session.begin():
+        yield session
 
 
 # ============================================================================

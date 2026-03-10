@@ -99,6 +99,7 @@ class CostRecord:
         output_tokens: Output token count.
         cost_usd: Calculated cost in USD.
         created_at: Timestamp of the request.
+        operation_type: Optional feature/operation category (AIGOV-06).
     """
 
     id: UUID
@@ -111,6 +112,7 @@ class CostRecord:
     output_tokens: int
     cost_usd: float
     created_at: datetime
+    operation_type: str | None = None
 
 
 class CostTracker:
@@ -185,6 +187,7 @@ class CostTracker:
         model: str,
         input_tokens: int,
         output_tokens: int,
+        operation_type: str | None = None,
     ) -> CostRecord:
         """Track AI usage cost to database.
 
@@ -196,6 +199,9 @@ class CostTracker:
             model: Model identifier.
             input_tokens: Number of input tokens.
             output_tokens: Number of output tokens.
+            operation_type: Optional feature/operation category for cost breakdown
+                            (AIGOV-06). Examples: 'ghost_text', 'issue_extraction',
+                            'pr_review', 'chat'. None for legacy callers.
 
         Returns:
             Created CostRecord with calculated cost.
@@ -214,6 +220,7 @@ class CostTracker:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,
+            operation_type=operation_type,
         )
 
         self.session.add(record)
@@ -243,6 +250,7 @@ class CostTracker:
             output_tokens=record.output_tokens,
             cost_usd=float(record.cost_usd),
             created_at=record.created_at,
+            operation_type=record.operation_type,
         )
 
     async def get_workspace_summary(

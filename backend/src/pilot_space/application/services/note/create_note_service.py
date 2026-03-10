@@ -20,6 +20,9 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from pilot_space.infrastructure.database.models.note import Note
+    from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+        AuditLogRepository,
+    )
     from pilot_space.infrastructure.database.repositories.note_repository import (
         NoteRepository,
     )
@@ -84,6 +87,7 @@ class CreateNoteService:
         note_repository: NoteRepository,
         template_repository: TemplateRepository,
         queue: SupabaseQueueClient | None = None,
+        audit_log_repository: AuditLogRepository | None = None,
     ) -> None:
         """Initialize CreateNoteService.
 
@@ -92,11 +96,13 @@ class CreateNoteService:
             note_repository: Repository for note operations.
             template_repository: Repository for template operations.
             queue: Optional queue client for KG populate jobs.
+            audit_log_repository: Optional audit log repository for compliance writes.
         """
         self._session = session
         self._note_repo = note_repository
         self._template_repo = template_repository
         self._queue = queue
+        self._audit_repo = audit_log_repository
 
     async def execute(self, payload: CreateNotePayload) -> CreateNoteResult:
         """Execute note creation.
@@ -146,6 +152,30 @@ class CreateNoteService:
         )
 
         created_note = await self._note_repo.create(note)
+
+        # Write audit log entry (non-fatal)
+        if self._audit_repo is not None:
+            try:
+                from pilot_space.infrastructure.database.models.audit_log import ActorType
+
+                await self._audit_repo.create(
+                    workspace_id=payload.workspace_id,
+                    actor_id=payload.owner_id,
+                    actor_type=ActorType.USER,
+                    action="note.create",
+                    resource_type="note",
+                    resource_id=created_note.id,
+                    payload={
+                        "before": {},
+                        "after": {
+                            "title": created_note.title,
+                            "project_id": (str(payload.project_id) if payload.project_id else None),
+                        },
+                    },
+                    ip_address=None,
+                )
+            except Exception as exc:
+                logger.warning("CreateNoteService: failed to write audit log: %s", exc)
 
         # Enqueue KG populate job if note belongs to a project (non-fatal)
         if self._queue is not None and payload.project_id is not None:

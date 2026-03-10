@@ -144,6 +144,11 @@ class RedisClient:
         """Check if client has an active connection pool."""
         return self._client is not None
 
+    @property
+    def client(self) -> Redis | None:  # type: ignore[type-arg]
+        """Raw asyncio Redis for middleware requiring direct access (None before connect)."""
+        return self._client
+
     async def ping(self) -> bool:
         """Check Redis connectivity.
 

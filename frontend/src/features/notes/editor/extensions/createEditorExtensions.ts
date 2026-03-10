@@ -107,6 +107,7 @@ import {
 import { AIBlockProcessingExtension } from './AIBlockProcessingExtension';
 import { OwnershipExtension, type OwnershipOptions, type BlockOwner } from './OwnershipExtension';
 import { DensityExtension, type DensityOptions } from './DensityExtension';
+import Highlight from '@tiptap/extension-highlight';
 
 export interface EditorExtensionsOptions {
   /** Placeholder text for empty editor */
@@ -410,6 +411,9 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
       ...annotation,
     })
   );
+
+  // Text highlight (yellow background mark — used by SelectionToolbar)
+  extensions.push(Highlight.configure({ multicolor: false }));
 
   // Margin annotation indicators
   extensions.push(

@@ -67,6 +67,15 @@ export {
 export { noteYjsStateApi } from './note-yjs-state';
 export { attachmentsApi } from './attachments';
 export {
+  notificationsApi,
+  type NotificationResponse,
+  type NotificationListResponse,
+  type UnreadCountResponse,
+  type ListNotificationsParams,
+  type BackendNotificationPriority,
+  type BackendNotificationType,
+} from './notifications';
+export {
   roleSkillsApi,
   type SDLCRoleType,
   type RoleTemplate,

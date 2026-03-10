@@ -1,0 +1,192 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "pilot-space.backendName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.backendLabels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pilot-space.backendName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.backendLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "pilot-space.backendSelectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "pilot-space.backendLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "pilot-space.backendName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: {{ include "pilot-space.fullname" . }}-config
+
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # Database URL from existing secret (never stored in values.yaml)
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "externalDatabase.existingSecret is required" .Values.externalDatabase.existingSecret }}
+                  key: {{ .Values.externalDatabase.existingSecretKey }}
+            # Redis URL from existing secret
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "externalRedis.existingSecret is required" .Values.externalRedis.existingSecret }}
+                  key: {{ .Values.externalRedis.existingSecretKey }}
+            # Supabase anon key from existing secret
+            - name: SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "externalSupabase.existingSecret is required" .Values.externalSupabase.existingSecret }}
+                  key: {{ .Values.externalSupabase.existingSecretAnonKey }}
+            # Supabase service role key from existing secret
+            - name: SUPABASE_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSupabase.existingSecret }}
+                  key: {{ .Values.externalSupabase.existingSecretServiceKey }}
+            # Supabase JWT secret from existing secret
+            - name: SUPABASE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSupabase.existingSecret }}
+                  key: {{ .Values.externalSupabase.existingSecretJwtSecret }}
+
+          # Readiness probe: checks database + redis connectivity.
+          # Pod receives traffic only when dependencies are healthy. (OPS-03)
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Liveness probe: confirms process is alive and not stuck.
+          # Pod is restarted if this fails 3 consecutive times. (OPS-03)
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Startup probe: gives extra time for slow first-start (DB migrations etc.)
+          # Disables liveness + readiness until it succeeds.
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
+
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /app/.cache
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "pilot-space.backendSelectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "pilot-space.backendSelectorLabels" . | nindent 14 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pilot-space.backendName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.backendLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.backend.service.type }}
+  selector:
+    {{- include "pilot-space.backendSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.backend.service.port }}
+      targetPort: 8000
+      protocol: TCP

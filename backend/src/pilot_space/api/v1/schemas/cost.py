@@ -60,6 +60,14 @@ class CostSummaryResponse(BaseModel):
     by_agent: list[CostByAgent] = Field(description="Cost breakdown by agent")
     by_user: list[CostByUser] = Field(description="Cost breakdown by user")
     by_day: list[CostByDay] = Field(description="Daily cost breakdown")
+    by_feature: dict[str, float] | None = Field(
+        default=None,
+        description=(
+            "Cost breakdown by operation_type (feature category). "
+            "Only present when group_by=operation_type is requested. "
+            "NULL operation_type rows are grouped under 'unknown'."
+        ),
+    )
 
 
 class CostByUserResponse(BaseModel):

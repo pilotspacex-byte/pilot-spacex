@@ -13,7 +13,21 @@ import * as React from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useWorkspaceStore } from '@/stores/RootStore';
-import { Building2, CreditCard, Menu, Plug, Settings, Sparkles, User } from 'lucide-react';
+import {
+  BarChart3,
+  Building2,
+  ClipboardList,
+  CreditCard,
+  KeyRound,
+  Menu,
+  Plug,
+  Settings,
+  Shield,
+  ShieldCheck,
+  Sparkles,
+  User,
+  Users,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -54,6 +68,42 @@ const settingsNavSections: NavSection[] = [
         label: 'Integrations',
         icon: Plug,
         href: (slug: string) => `/${slug}/settings/integrations`,
+      },
+      {
+        id: 'sso',
+        label: 'SSO',
+        icon: Shield,
+        href: (slug: string) => `/${slug}/settings/sso`,
+      },
+      {
+        id: 'encryption',
+        label: 'Encryption',
+        icon: KeyRound,
+        href: (slug: string) => `/${slug}/settings/encryption`,
+      },
+      {
+        id: 'ai-governance',
+        label: 'AI Governance',
+        icon: ShieldCheck,
+        href: (slug: string) => `/${slug}/settings/ai-governance`,
+      },
+      {
+        id: 'audit',
+        label: 'Audit',
+        icon: ClipboardList,
+        href: (slug: string) => `/${slug}/settings/audit`,
+      },
+      {
+        id: 'roles',
+        label: 'Custom Roles',
+        icon: Users,
+        href: (slug: string) => `/${slug}/settings/roles`,
+      },
+      {
+        id: 'usage',
+        label: 'Usage',
+        icon: BarChart3,
+        href: (slug: string) => `/${slug}/settings/usage`,
       },
       {
         id: 'billing',

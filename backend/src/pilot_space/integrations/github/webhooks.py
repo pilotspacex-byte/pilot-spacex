@@ -29,6 +29,7 @@ class GitHubEventType(str, Enum):
     PULL_REQUEST = "pull_request"
     PULL_REQUEST_REVIEW = "pull_request_review"
     ISSUE_COMMENT = "issue_comment"
+    CHECK_SUITE = "check_suite"
 
 
 class GitHubPRAction(str, Enum):
@@ -109,6 +110,33 @@ class ParsedPREvent:
     html_url: str
     author_login: str
     repository: str
+
+
+@dataclass
+class ParsedCheckSuiteEvent:
+    """Parsed check_suite event data."""
+
+    action: str  # "completed" | "requested" | "rerequested"
+    conclusion: (
+        str | None
+    )  # "success" | "failure" | "neutral" | "cancelled" | "timed_out" | "action_required" | "skipped"
+    head_sha: str
+    head_branch: str | None
+    repository: str
+    pr_urls: list[str]  # URLs of related PRs from pull_requests array
+
+    @property
+    def ci_status(self) -> str:
+        """Map GitHub conclusion to our internal ci_status."""
+        if self.action != "completed":
+            return "pending"
+        if self.conclusion == "success":
+            return "success"
+        if self.conclusion in ("failure", "timed_out", "action_required", "cancelled"):
+            return "failure"
+        if self.conclusion in ("neutral", "skipped"):
+            return "neutral"
+        return "pending"
 
 
 class GitHubWebhookHandler:
@@ -285,6 +313,31 @@ class GitHubWebhookHandler:
             repository=payload.get("repository", {}).get("full_name", ""),
         )
 
+    def parse_check_suite_event(self, payload: dict[str, Any]) -> ParsedCheckSuiteEvent:
+        """Parse check_suite event payload.
+
+        Args:
+            payload: Raw check_suite event payload.
+
+        Returns:
+            ParsedCheckSuiteEvent with CI status data.
+        """
+        check_suite = payload.get("check_suite", {})
+        # Build PR URLs from embedded pull_requests array (may be empty for non-PR pushes)
+        pr_urls = [
+            pr.get("html_url", "")
+            for pr in check_suite.get("pull_requests", [])
+            if pr.get("html_url")
+        ]
+        return ParsedCheckSuiteEvent(
+            action=payload.get("action", ""),
+            conclusion=check_suite.get("conclusion"),
+            head_sha=check_suite.get("head_sha", ""),
+            head_branch=check_suite.get("head_branch"),
+            repository=payload.get("repository", {}).get("full_name", ""),
+            pr_urls=pr_urls,
+        )
+
     async def enqueue_for_processing(
         self,
         workspace_id: UUID,
@@ -325,6 +378,7 @@ __all__ = [
     "GitHubEventType",
     "GitHubPRAction",
     "GitHubWebhookHandler",
+    "ParsedCheckSuiteEvent",
     "ParsedPREvent",
     "ParsedPushEvent",
     "WebhookPayload",

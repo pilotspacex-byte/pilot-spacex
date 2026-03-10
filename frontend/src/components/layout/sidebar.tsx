@@ -29,6 +29,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  CheckCircle2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -63,11 +64,23 @@ import type { UIStore } from '@/stores/UIStore';
 import { NotificationPanel } from '@/components/layout/notification-panel';
 import { addRecentWorkspace } from '@/components/workspace-selector';
 import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
+import { usePendingApprovalCount } from '@/features/approvals/hooks/use-approvals';
+
+interface NavItem {
+  name: string;
+  path: string;
+  icon: LucideIcon;
+  testId: string;
+  /** Show a numeric badge when value > 0. Value is injected at render time for dynamic counts. */
+  badgeKey?: string;
+  /** When true, hidden from non-Owner/Admin members. */
+  adminOnly?: boolean;
+}
 
 interface NavSection {
   label: string;
   icon?: LucideIcon;
-  items: { name: string; path: string; icon: LucideIcon; testId: string }[];
+  items: NavItem[];
 }
 
 const navigationSections: NavSection[] = [
@@ -88,6 +101,14 @@ const navigationSections: NavSection[] = [
       { name: 'Chat', path: 'chat', icon: MessageSquare, testId: 'nav-chat' },
       { name: 'Roles', path: 'roles', icon: UserCog, testId: 'nav-roles' },
       { name: 'Costs', path: 'costs', icon: DollarSign, testId: 'nav-costs' },
+      {
+        name: 'Approvals',
+        path: 'approvals',
+        icon: CheckCircle2,
+        testId: 'nav-approvals',
+        badgeKey: 'pendingApprovals',
+        adminOnly: true,
+      },
     ],
   },
 ];
@@ -105,12 +126,14 @@ const THEME_OPTIONS = [
 export const SidebarUserControls = observer(function SidebarUserControls({
   collapsed,
   workspaceSlug,
+  workspaceId,
   authStore,
   notificationStore,
   uiStore,
 }: {
   collapsed: boolean;
   workspaceSlug: string;
+  workspaceId: string;
   authStore: AuthStore;
   notificationStore: NotificationStore;
   uiStore: UIStore;
@@ -189,7 +212,7 @@ export const SidebarUserControls = observer(function SidebarUserControls({
   if (collapsed) {
     return (
       <div className="flex items-center justify-center gap-1 border-t border-sidebar-border p-1.5">
-        <NotificationPanel store={notificationStore} collapsed />
+        <NotificationPanel store={notificationStore} workspaceId={workspaceId} collapsed />
         <DropdownMenu>
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
@@ -219,7 +242,7 @@ export const SidebarUserControls = observer(function SidebarUserControls({
 
   return (
     <div className="flex items-center gap-1 border-t border-sidebar-border px-2 py-2">
-      <NotificationPanel store={notificationStore} />
+      <NotificationPanel store={notificationStore} workspaceId={workspaceId} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -279,8 +302,11 @@ export const Sidebar = observer(function Sidebar() {
 
   // Get workspace slug from URL pathname (not from store)
   const workspaceSlug = getWorkspaceSlugFromPathname(pathname);
-  // Use slug as workspaceId for API calls (backend accepts both UUID and slug)
-  const workspaceId = workspaceSlug;
+  // Resolve workspace UUID from slug. Notifications and other APIs require a UUID, not a slug.
+  const workspaceId =
+    workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id ??
+    workspaceStore.currentWorkspaceId ??
+    workspaceSlug;
 
   // Store workspace slug in localStorage for redirect on root URL
   useEffect(() => {
@@ -303,12 +329,34 @@ export const Sidebar = observer(function Sidebar() {
     }
   }, [workspaceId, isAuthenticated, noteStore]);
 
+  // Start polling unread count when workspace is active; stop on unmount or workspace change.
+  // Only poll when workspaceId is a UUID (contains '-') to prevent spurious calls with slugs.
+  useEffect(() => {
+    if (workspaceId && isAuthenticated && workspaceId.includes('-')) {
+      notificationStore.startPolling(workspaceId);
+    }
+    return () => {
+      notificationStore.stopPolling();
+    };
+  }, [workspaceId, isAuthenticated, notificationStore]);
+
   const createNote = useCreateNote({
     workspaceId,
     onSuccess: (note) => {
       router.push(`/${workspaceSlug}/notes/${note.id}`);
     },
   });
+
+  // Pending approval count for sidebar badge (Owner/Admin only).
+  // usePendingApprovalCount returns 0 when not authenticated or no data.
+  const isAdminOrOwner =
+    workspaceStore.currentUserRole === 'owner' || workspaceStore.currentUserRole === 'admin';
+  const pendingApprovalCount = usePendingApprovalCount(isAdminOrOwner ? workspaceId : '');
+
+  // Map badgeKey → dynamic badge value
+  const badgeValues: Record<string, number> = {
+    pendingApprovals: pendingApprovalCount,
+  };
 
   const navigation = useMemo(() => {
     return navigationSections.map((section) => ({
@@ -399,9 +447,16 @@ export const Sidebar = observer(function Sidebar() {
               )
             )}
             {section.items.map((item) => {
+              // Hide adminOnly items from non-Owner/Admin members
+              if (item.adminOnly && !isAdminOrOwner) return null;
+
               const isActive = item.path
                 ? pathname === item.href || pathname.startsWith(`${item.href}/`)
                 : pathname === item.href;
+
+              const badgeCount =
+                item.badgeKey !== undefined ? (badgeValues[item.badgeKey] ?? 0) : 0;
+
               return (
                 <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
                   <TooltipTrigger asChild>
@@ -410,7 +465,7 @@ export const Sidebar = observer(function Sidebar() {
                       data-testid={item.testId}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'group flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200',
+                        'group relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200',
                         isActive
                           ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
                           : 'text-sidebar-foreground hover:bg-sidebar-accent/50',
@@ -430,15 +485,33 @@ export const Sidebar = observer(function Sidebar() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
+                          className="flex flex-1 items-center justify-between"
                         >
                           {item.name}
+                          {badgeCount > 0 && (
+                            <span
+                              className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+                              aria-label={`${badgeCount} pending`}
+                              data-testid={`${item.testId}-badge`}
+                            >
+                              {badgeCount}
+                            </span>
+                          )}
                         </motion.span>
+                      )}
+                      {/* Collapsed badge dot */}
+                      {collapsed && badgeCount > 0 && (
+                        <span
+                          className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary"
+                          aria-hidden
+                        />
                       )}
                     </Link>
                   </TooltipTrigger>
                   {collapsed && (
                     <TooltipContent side="right" className="font-medium">
                       {item.name}
+                      {badgeCount > 0 && ` (${badgeCount} pending)`}
                     </TooltipContent>
                   )}
                 </Tooltip>
@@ -555,6 +628,7 @@ export const Sidebar = observer(function Sidebar() {
       <SidebarUserControls
         collapsed={collapsed}
         workspaceSlug={workspaceSlug}
+        workspaceId={workspaceId}
         authStore={authStore}
         notificationStore={notificationStore}
         uiStore={uiStore}

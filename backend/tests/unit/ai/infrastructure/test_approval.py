@@ -68,7 +68,8 @@ def user_id() -> uuid.UUID:
 class TestActionClassification:
     """Test action classification logic."""
 
-    def test_always_require_actions_never_auto_execute(
+    @pytest.mark.asyncio
+    async def test_always_require_actions_never_auto_execute(
         self,
         approval_service: ApprovalService,
     ) -> None:
@@ -86,11 +87,12 @@ class TestActionClassification:
         for level in ApprovalLevel:
             settings = ProjectSettings(level=level)
             for action in always_require_actions:
-                assert approval_service.check_approval_required(action, settings), (
-                    f"{action.value} should always require approval"
-                )
+                assert await approval_service.check_approval_required(
+                    action, project_settings=settings
+                ), f"{action.value} should always require approval"
 
-    def test_default_require_balanced_level(
+    @pytest.mark.asyncio
+    async def test_default_require_balanced_level(
         self,
         approval_service: ApprovalService,
     ) -> None:
@@ -98,12 +100,21 @@ class TestActionClassification:
         settings = ProjectSettings(level=ApprovalLevel.BALANCED)
 
         # Should require approval by default
-        assert approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, settings)
-        assert approval_service.check_approval_required(ActionType.EXTRACT_ISSUES, settings)
-        assert approval_service.check_approval_required(ActionType.PUBLISH_DOCS, settings)
-        assert approval_service.check_approval_required(ActionType.POST_PR_COMMENTS, settings)
+        assert await approval_service.check_approval_required(
+            ActionType.CREATE_SUB_ISSUES, project_settings=settings
+        )
+        assert await approval_service.check_approval_required(
+            ActionType.EXTRACT_ISSUES, project_settings=settings
+        )
+        assert await approval_service.check_approval_required(
+            ActionType.PUBLISH_DOCS, project_settings=settings
+        )
+        assert await approval_service.check_approval_required(
+            ActionType.POST_PR_COMMENTS, project_settings=settings
+        )
 
-    def test_default_require_autonomous_level(
+    @pytest.mark.asyncio
+    async def test_default_require_autonomous_level(
         self,
         approval_service: ApprovalService,
     ) -> None:
@@ -111,10 +122,15 @@ class TestActionClassification:
         settings = ProjectSettings(level=ApprovalLevel.AUTONOMOUS)
 
         # Should auto-execute with autonomous level
-        assert not approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, settings)
-        assert not approval_service.check_approval_required(ActionType.EXTRACT_ISSUES, settings)
+        assert not await approval_service.check_approval_required(
+            ActionType.CREATE_SUB_ISSUES, project_settings=settings
+        )
+        assert not await approval_service.check_approval_required(
+            ActionType.EXTRACT_ISSUES, project_settings=settings
+        )
 
-    def test_auto_execute_balanced_level(
+    @pytest.mark.asyncio
+    async def test_auto_execute_balanced_level(
         self,
         approval_service: ApprovalService,
     ) -> None:
@@ -122,14 +138,21 @@ class TestActionClassification:
         settings = ProjectSettings(level=ApprovalLevel.BALANCED)
 
         # Should auto-execute
-        assert not approval_service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
-        assert not approval_service.check_approval_required(ActionType.SUGGEST_PRIORITY, settings)
-        assert not approval_service.check_approval_required(
-            ActionType.AUTO_TRANSITION_STATE, settings
+        assert not await approval_service.check_approval_required(
+            ActionType.SUGGEST_LABELS, project_settings=settings
         )
-        assert not approval_service.check_approval_required(ActionType.CREATE_ANNOTATION, settings)
+        assert not await approval_service.check_approval_required(
+            ActionType.SUGGEST_PRIORITY, project_settings=settings
+        )
+        assert not await approval_service.check_approval_required(
+            ActionType.AUTO_TRANSITION_STATE, project_settings=settings
+        )
+        assert not await approval_service.check_approval_required(
+            ActionType.CREATE_ANNOTATION, project_settings=settings
+        )
 
-    def test_auto_execute_conservative_level(
+    @pytest.mark.asyncio
+    async def test_auto_execute_conservative_level(
         self,
         approval_service: ApprovalService,
     ) -> None:
@@ -137,10 +160,15 @@ class TestActionClassification:
         settings = ProjectSettings(level=ApprovalLevel.CONSERVATIVE)
 
         # Should require approval with conservative level
-        assert approval_service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
-        assert approval_service.check_approval_required(ActionType.SUGGEST_PRIORITY, settings)
+        assert await approval_service.check_approval_required(
+            ActionType.SUGGEST_LABELS, project_settings=settings
+        )
+        assert await approval_service.check_approval_required(
+            ActionType.SUGGEST_PRIORITY, project_settings=settings
+        )
 
-    def test_override_allows_auto_execute(
+    @pytest.mark.asyncio
+    async def test_override_allows_auto_execute(
         self,
         approval_service: ApprovalService,
     ) -> None:
@@ -151,12 +179,17 @@ class TestActionClassification:
         )
 
         # Override should allow auto-execute
-        assert not approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, settings)
+        assert not await approval_service.check_approval_required(
+            ActionType.CREATE_SUB_ISSUES, project_settings=settings
+        )
 
         # Other DEFAULT_REQUIRE actions still need approval
-        assert approval_service.check_approval_required(ActionType.EXTRACT_ISSUES, settings)
+        assert await approval_service.check_approval_required(
+            ActionType.EXTRACT_ISSUES, project_settings=settings
+        )
 
-    def test_override_requires_approval(
+    @pytest.mark.asyncio
+    async def test_override_requires_approval(
         self,
         approval_service: ApprovalService,
     ) -> None:
@@ -167,21 +200,26 @@ class TestActionClassification:
         )
 
         # Override should require approval
-        assert approval_service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
+        assert await approval_service.check_approval_required(
+            ActionType.SUGGEST_LABELS, project_settings=settings
+        )
 
         # Other AUTO_EXECUTE actions still auto-execute
-        assert not approval_service.check_approval_required(ActionType.SUGGEST_PRIORITY, settings)
+        assert not await approval_service.check_approval_required(
+            ActionType.SUGGEST_PRIORITY, project_settings=settings
+        )
 
-    def test_no_settings_defaults_to_balanced(
+    @pytest.mark.asyncio
+    async def test_no_settings_defaults_to_balanced(
         self,
         approval_service: ApprovalService,
     ) -> None:
         """Verify behavior when no settings provided defaults to balanced."""
         # DEFAULT_REQUIRE should require approval
-        assert approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, None)
+        assert await approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES)
 
         # AUTO_EXECUTE should auto-execute
-        assert not approval_service.check_approval_required(ActionType.SUGGEST_LABELS, None)
+        assert not await approval_service.check_approval_required(ActionType.SUGGEST_LABELS)
 
 
 class TestApprovalRequestCreation:

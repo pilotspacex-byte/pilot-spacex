@@ -1,87 +1,479 @@
-version: "3.8"
+# =============================================================================
+# Pilot Space - Unified Docker Compose Configuration
+# =============================================================================
+# One-command startup: cp .env.example .env && docker compose up -d
+#
+# Profiles:
+#   (default)             All core services
+#   --profile dev         Adds supabase-studio (admin dashboard)
+#   --profile production  Adds nginx reverse proxy with TLS termination
+#
+# Services (default):
+#   postgres        PostgreSQL 16 with pgvector  (port 5432)
+#   redis           Redis 7                       (port 6379)
+#   meilisearch     Full-text search              (port 7700)
+#   supabase-auth   GoTrue auth service           (port 9999)
+#   supabase-kong   Supabase API gateway          (port 18000)
+#   backend         FastAPI application           (port 8000)
+#   frontend        Next.js application           (port 3000)
+#
+# After starting, run migrations:
+#   docker compose exec backend alembic upgrade head
+# =============================================================================
+
+name: pilot-space
 
 services:
+
+  # ============================================================================
+  # DATABASE - PostgreSQL 16 with pgvector, pgmq, pg_cron
+  # ============================================================================
+
+  postgres:
+    image: supabase/postgres:15.8.1.076
+    container_name: pilot-space-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-pilot_space}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXP: ${JWT_EXPIRY:-3600}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/init-scripts:/docker-entrypoint-initdb.d:ro
+    command:
+      - postgres
+      - -c
+      - listen_addresses=*
+      - -c
+      - wal_level=logical
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_buffers=8MB
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - work_mem=16MB
+      - -c
+      - huge_pages=off
+      - -c
+      - min_wal_size=1GB
+      - -c
+      - max_wal_size=4GB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-pilot_space}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - pilot-space-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+  # ============================================================================
+  # CACHE - Redis 7
+  # ============================================================================
+
   redis:
     image: redis:7-alpine
     container_name: pilot-space-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
     restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory ${REDIS_MAX_MEMORY:-256mb}
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 0
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    networks:
+      - pilot-space-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  # ============================================================================
+  # SEARCH - Meilisearch v1.6
+  # ============================================================================
 
   meilisearch:
     image: getmeili/meilisearch:v1.6
-    container_name: pilot-space-search
-    ports:
-      - "7700:7700"
-    environment:
-      - MEILI_MASTER_KEY=masterKey
-      - MEILI_NO_ANALYTICS=true
-    volumes:
-      - meilisearch-data:/meili_data
+    container_name: pilot-space-meilisearch
     restart: unless-stopped
+    ports:
+      - "${MEILISEARCH_PORT:-7700}:7700"
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY is required}
+      MEILI_ENV: ${MEILI_ENV:-development}
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_LOG_LEVEL: ${MEILI_LOG_LEVEL:-INFO}
+      MEILI_MAX_INDEXING_MEMORY: ${MEILI_MAX_INDEXING_MEMORY:-512Mb}
+      MEILI_MAX_INDEXING_THREADS: ${MEILI_MAX_INDEXING_THREADS:-2}
+    volumes:
+      - meilisearch_data:/meili_data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:7700/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - pilot-space-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # ============================================================================
+  # SUPABASE AUTH - GoTrue v2 (self-hosted auth service)
+  # ============================================================================
+
+  supabase-auth:
+    image: supabase/gotrue:v2.164.0
+    container_name: pilot-space-auth
+    restart: unless-stopped
+    ports:
+      - "${GOTRUE_PORT:-9999}:9999"
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${SUPABASE_URL:-http://localhost:18000}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-pilot_space}?search_path=auth
+      GOTRUE_SITE_URL: ${GOTRUE_SITE_URL:-http://localhost:3000}
+      GOTRUE_URI_ALLOW_LIST: ${GOTRUE_URI_ALLOW_LIST:-}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: ${JWT_EXPIRY:-3600}
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_DISABLE_SIGNUP: ${GOTRUE_DISABLE_SIGNUP:-false}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: ${GOTRUE_ENABLE_EMAIL_SIGNUP:-true}
+      GOTRUE_EXTERNAL_PHONE_ENABLED: ${GOTRUE_ENABLE_PHONE_AUTH:-false}
+      GOTRUE_EXTERNAL_GITHUB_ENABLED: ${GOTRUE_ENABLE_GITHUB_AUTH:-false}
+      GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GITHUB_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOTRUE_ENABLE_GOOGLE_AUTH:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOTRUE_SMTP_HOST: ${GOTRUE_SMTP_HOST:-}
+      GOTRUE_SMTP_PORT: ${GOTRUE_SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${GOTRUE_SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${GOTRUE_SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${GOTRUE_SMTP_ADMIN_EMAIL:-admin@pilot-space.local}
+      GOTRUE_SMTP_SENDER_NAME: ${GOTRUE_SMTP_SENDER_NAME:-Pilot Space}
+      GOTRUE_MAILER_AUTOCONFIRM: ${GOTRUE_MAILER_AUTOCONFIRM:-false}
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
+      GOTRUE_RATE_LIMIT_HEADER: X-Forwarded-For
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: "10"
+      GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION: "false"
+      GOTRUE_MFA_ENABLED: ${GOTRUE_ENABLE_MFA:-true}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # AuthCore — standalone auth service (opt-in via AUTH_PROVIDER=authcore)
-  authcore:
-    build:
-      context: ./authcore
-      dockerfile: Dockerfile
-    container_name: pilot-space-authcore
-    ports:
-      - "8001:8000"
-    environment:
-      DATABASE_URL: postgresql+asyncpg://authcore:authcore_password@authcore-postgres:5432/authcore
-      REDIS_URL: redis://redis:6379/1
-      JWT_PRIVATE_KEY: ${AUTHCORE_JWT_PRIVATE_KEY:-}
-      JWT_PUBLIC_KEY: ${AUTHCORE_JWT_PUBLIC_KEY:-}
-      ENVIRONMENT: development
-      DEBUG: "true"
+      start_period: 30s
     depends_on:
-      authcore-postgres:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pilot-space-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  # ============================================================================
+  # SUPABASE KONG - API Gateway (routes /auth/v1 to supabase-auth)
+  # ============================================================================
+
+  supabase-kong:
+    image: kong:2.8.1
+    container_name: pilot-space-kong
+    restart: unless-stopped
+    ports:
+      - "${SUPABASE_KONG_PORT:-18000}:8000/tcp"
+      - "${SUPABASE_KONG_HTTPS_PORT:-18443}:8443/tcp"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth,request-size-limiting
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+    volumes:
+      - ./infra/supabase/kong/kong-processed.yml:/var/lib/kong/kong.yml:ro
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      supabase-auth:
+        condition: service_healthy
+    networks:
+      - pilot-space-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  # ============================================================================
+  # BACKEND - FastAPI application
+  # CI override: BACKEND_IMAGE=registry/backend:sha docker compose up -d
+  # ============================================================================
+
+  backend:
+    image: ${BACKEND_IMAGE:-pilot-space/backend:latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: ${BACKEND_BUILD_TARGET:-production}
+      args:
+        PYTHON_VERSION: "3.12"
+    container_name: pilot-space-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      APP_NAME: ${APP_NAME:-Pilot Space}
+      APP_ENV: ${APP_ENV:-production}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      WORKERS: ${BACKEND_WORKERS:-4}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-pilot_space}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-20}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_MAX_CONNECTIONS: ${REDIS_MAX_CONNECTIONS:-20}
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:?SUPABASE_SERVICE_KEY is required}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-300}
+      AI_MAX_RETRIES: ${AI_MAX_RETRIES:-3}
+      AI_GHOST_TEXT_DEBOUNCE_MS: ${AI_GHOST_TEXT_DEBOUNCE_MS:-500}
+      AI_GHOST_TEXT_MAX_TOKENS: ${AI_GHOST_TEXT_MAX_TOKENS:-50}
+      RATE_LIMIT_STANDARD_PER_MINUTE: ${RATE_LIMIT_STANDARD_PER_MINUTE:-1000}
+      RATE_LIMIT_AI_PER_MINUTE: ${RATE_LIMIT_AI_PER_MINUTE:-100}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      PILOT_SPACE_SUPER_ADMIN_TOKEN: ${PILOT_SPACE_SUPER_ADMIN_TOKEN:-}
+    depends_on:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      supabase-auth:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
-      timeout: 5s
-      start_period: 15s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
       retries: 3
-    restart: unless-stopped
-    profiles:
-      - authcore
+      start_period: 40s
+    networks:
+      - pilot-space-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
 
-  # Dedicated Postgres for AuthCore (separate from Supabase's Postgres)
-  authcore-postgres:
-    image: postgres:16-alpine
-    container_name: pilot-space-authcore-postgres
+  # ============================================================================
+  # FRONTEND - Next.js application
+  # CI override: FRONTEND_IMAGE=registry/frontend:sha docker compose up -d
+  # ============================================================================
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-pilot-space/frontend:latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: ${FRONTEND_BUILD_TARGET:-production}
+      args:
+        NODE_VERSION: "20"
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:18000}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+    container_name: pilot-space-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      POSTGRES_DB: authcore
-      POSTGRES_USER: authcore
-      POSTGRES_PASSWORD: authcore_password
-    volumes:
-      - authcore-postgres-data:/var/lib/postgresql/data
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: "3000"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:18000}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      NEXT_PUBLIC_ENABLE_AI_FEATURES: ${NEXT_PUBLIC_ENABLE_AI_FEATURES:-true}
+      NEXT_PUBLIC_ENABLE_REALTIME: ${NEXT_PUBLIC_ENABLE_REALTIME:-true}
+    depends_on:
+      backend:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U authcore -d authcore"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - pilot-space-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # ============================================================================
+  # SUPABASE STUDIO - Admin dashboard (--profile dev)
+  # ============================================================================
+
+  supabase-studio:
+    image: supabase/studio:20240422-5cf8f30
+    container_name: pilot-space-studio
     restart: unless-stopped
     profiles:
-      - authcore
+      - dev
+    ports:
+      - "${STUDIO_PORT:-54323}:3000"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORG:-Pilot Space}
+      DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT:-pilot-space}
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_PUBLIC_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:18000}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
+    depends_on:
+      supabase-kong:
+        condition: service_healthy
+    networks:
+      - pilot-space-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # ============================================================================
+  # NGINX - Reverse proxy + TLS termination (--profile production)
+  # TLS certs: infra/nginx/certs/server.crt and server.key
+  # ============================================================================
+
+  nginx:
+    image: nginx:alpine
+    container_name: pilot-space-nginx
+    restart: unless-stopped
+    profiles:
+      - production
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - pilot-space-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 32M
+
+# ==============================================================================
+# NETWORKS
+# ==============================================================================
+
+networks:
+  pilot-space-network:
+    name: pilot-space-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ==============================================================================
+# VOLUMES
+# ==============================================================================
 
 volumes:
-  redis-data:
-  meilisearch-data:
-  authcore-postgres-data:
+  postgres_data:
+    name: pilot-space-postgres-data
+    driver: local
+
+  redis_data:
+    name: pilot-space-redis-data
+    driver: local
+
+  meilisearch_data:
+    name: pilot-space-meilisearch-data
+    driver: local

@@ -27,12 +27,18 @@ from pilot_space.infrastructure.database.models.integration import IntegrationLi
 from pilot_space.infrastructure.database.models.issue import Issue
 from pilot_space.infrastructure.database.models.state import State, StateGroup
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
+from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+    write_audit_nonfatal,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.workspace import Workspace
     from pilot_space.infrastructure.database.models.workspace_member import (
         WorkspaceMember,
+    )
+    from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+        AuditLogRepository,
     )
     from pilot_space.infrastructure.database.repositories.workspace_repository import (
         WorkspaceRepository,
@@ -139,25 +145,16 @@ class WorkspaceMemberService:
     def __init__(
         self,
         workspace_repo: WorkspaceRepository,
+        audit_log_repository: AuditLogRepository | None = None,
     ) -> None:
         self.workspace_repo = workspace_repo
+        self._audit_repo = audit_log_repository
 
     async def list_members(
         self,
         payload: ListMembersPayload,
     ) -> ListMembersResult:
-        """List workspace members with role info.
-
-        Args:
-            payload: List members payload.
-
-        Returns:
-            List of workspace members.
-
-        Raises:
-            WorkspaceNotFoundError: If workspace not found.
-            UnauthorizedError: If user not a member.
-        """
+        """List workspace members with role info."""
         workspace = await self.workspace_repo.get_with_members(payload.workspace_id)
         if not workspace:
             raise WorkspaceNotFoundError("Workspace not found")
@@ -255,6 +252,16 @@ class WorkspaceMemberService:
             },
         )
 
+        await write_audit_nonfatal(
+            self._audit_repo,
+            workspace_id=payload.workspace_id,
+            actor_id=payload.actor_id,
+            action="member.role_changed",
+            resource_type="member",
+            resource_id=payload.target_user_id,
+            payload={"before": {"role": old_role}, "after": {"role": payload.new_role}},
+        )
+
         return UpdateMemberRoleResult(
             updated_member=updated_member,
             old_role=old_role,
@@ -327,6 +334,16 @@ class WorkspaceMemberService:
             },
         )
 
+        await write_audit_nonfatal(
+            self._audit_repo,
+            workspace_id=payload.workspace_id,
+            actor_id=payload.actor_id,
+            action="member.removed",
+            resource_type="member",
+            resource_id=payload.target_user_id,
+            payload={"before": {"user_id": str(payload.target_user_id)}, "after": {}},
+        )
+
         return RemoveMemberResult(
             removed_user_id=payload.target_user_id,
             workspace_id=payload.workspace_id,
@@ -338,20 +355,7 @@ class WorkspaceMemberService:
         payload: UpdateMemberAvailabilityPayload,
         session: AsyncSession,
     ) -> UpdateMemberAvailabilityResult:
-        """Update weekly available hours. Self or admin only.
-
-        Args:
-            payload: Availability update payload.
-            session: Database session.
-
-        Returns:
-            Updated member.
-
-        Raises:
-            WorkspaceNotFoundError: If workspace not found.
-            MemberNotFoundError: If member not found in workspace.
-            UnauthorizedError: If actor is neither self nor admin.
-        """
+        """Update weekly available hours. Self or admin only."""
         from pilot_space.infrastructure.database.models.workspace_member import (
             WorkspaceMember as WMModel,
         )

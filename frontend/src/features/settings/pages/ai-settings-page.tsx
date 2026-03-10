@@ -2,6 +2,7 @@
  * AISettingsPage - Workspace AI configuration.
  *
  * T178: Main settings page with API keys, feature toggles, provider status.
+ * 13-03: Expanded to show all 5 built-in providers + custom provider registration.
  */
 
 'use client';
@@ -16,7 +17,11 @@ import { Separator } from '@/components/ui/separator';
 import { APIKeyForm } from '../components/api-key-form';
 import { AIFeatureToggles } from '../components/ai-feature-toggles';
 import { ProviderStatusCard } from '../components/provider-status-card';
+import { CustomProviderForm } from '../components/custom-provider-form';
 import { useStore } from '@/stores';
+import type { WorkspaceAISettingsProvider } from '@/services/api/ai';
+
+const BUILT_IN_PROVIDERS = ['anthropic', 'openai', 'kimi', 'glm', 'google'] as const;
 
 function LoadingSkeleton() {
   return (
@@ -44,6 +49,17 @@ export const AISettingsPage = observer(function AISettingsPage() {
       settings.loadSettings(workspaceId);
     }
   }, [workspaceId, settings]);
+
+  const getProviderStatus = (provider: string): WorkspaceAISettingsProvider | undefined =>
+    settings.settings?.providers?.find((p) => p.provider === provider);
+
+  const customProviders =
+    settings.settings?.providers?.filter((p) => p.provider === 'custom') ?? [];
+
+  const handleCustomProviderSuccess = () => {
+    settings.loadSettings(workspaceId);
+    settings.loadModels(workspaceId);
+  };
 
   if (settings.isLoading) {
     return (
@@ -76,35 +92,22 @@ export const AISettingsPage = observer(function AISettingsPage() {
           </p>
         </div>
 
-        {/* Provider Status Cards */}
+        {/* Provider Status Cards — all 5 built-in providers */}
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Provider Status</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <ProviderStatusCard
-              provider="anthropic"
-              isKeySet={settings.anthropicKeySet}
-              lastValidated={
-                settings.settings?.providers?.find((p) => p.provider === 'anthropic')
-                  ?.lastValidatedAt
-              }
-              status={
-                settings.settings?.providers?.find((p) => p.provider === 'anthropic')?.isValid
-                  ? 'connected'
-                  : 'unknown'
-              }
-            />
-            <ProviderStatusCard
-              provider="openai"
-              isKeySet={settings.openaiKeySet}
-              lastValidated={
-                settings.settings?.providers?.find((p) => p.provider === 'openai')?.lastValidatedAt
-              }
-              status={
-                settings.settings?.providers?.find((p) => p.provider === 'openai')?.isValid
-                  ? 'connected'
-                  : 'unknown'
-              }
-            />
+            {BUILT_IN_PROVIDERS.map((provider) => {
+              const providerData = getProviderStatus(provider);
+              return (
+                <ProviderStatusCard
+                  key={provider}
+                  provider={provider}
+                  isKeySet={providerData?.isConfigured ?? false}
+                  lastValidated={providerData?.lastValidatedAt}
+                  status={providerData?.isValid ? 'connected' : 'unknown'}
+                />
+              );
+            })}
           </div>
         </div>
 
@@ -117,6 +120,33 @@ export const AISettingsPage = observer(function AISettingsPage() {
 
         {/* Feature Toggles */}
         <AIFeatureToggles />
+
+        <Separator />
+
+        {/* Custom Providers Section */}
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Custom Providers</h2>
+          <p className="text-sm text-muted-foreground">
+            Add OpenAI-compatible API endpoints to use with Pilot Space.
+          </p>
+
+          {/* Existing custom provider cards */}
+          {customProviders.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {customProviders.map((p, idx) => (
+                <ProviderStatusCard
+                  key={`${p.provider}-${idx}`}
+                  provider="custom"
+                  isKeySet={p.isConfigured}
+                  lastValidated={p.lastValidatedAt}
+                  status={p.isValid ? 'connected' : 'unknown'}
+                />
+              ))}
+            </div>
+          )}
+
+          <CustomProviderForm workspaceId={workspaceId} onSuccess={handleCustomProviderSuccess} />
+        </div>
 
         {/* Info Alert */}
         <Alert>

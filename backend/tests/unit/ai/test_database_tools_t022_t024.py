@@ -102,9 +102,9 @@ class TestGetWorkspaceMembers:
         assert result["count"] == 2
         assert len(result["members"]) == 2
         assert result["members"][0]["email"] == "user1@example.com"
-        assert result["members"][0]["role"] == "admin"
+        assert result["members"][0]["role"] == "ADMIN"
         assert result["members"][1]["email"] == "user2@example.com"
-        assert result["members"][1]["role"] == "member"
+        assert result["members"][1]["role"] == "MEMBER"
 
     @pytest.mark.asyncio
     async def test_get_workspace_members_empty(

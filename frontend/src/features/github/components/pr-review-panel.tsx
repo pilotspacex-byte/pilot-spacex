@@ -34,6 +34,12 @@ export interface PRReviewPanelProps {
   prNumber: number;
   /** Additional class name */
   className?: string;
+  /**
+   * Whether workspace BYOK is configured (AIGOV-05).
+   * When false, Request Review / Re-review buttons are disabled.
+   * Defaults to true (enabled) when not provided, for backward compatibility.
+   */
+  byokConfigured?: boolean;
 }
 
 // ============================================================================
@@ -44,6 +50,7 @@ export const PRReviewPanel = observer(function PRReviewPanel({
   repoId,
   prNumber,
   className,
+  byokConfigured = true,
 }: PRReviewPanelProps) {
   const rootStore = useStores();
   const prReviewStore = rootStore.ai.prReview;
@@ -81,7 +88,12 @@ export const PRReviewPanel = observer(function PRReviewPanel({
                 variant="outline"
                 size="sm"
                 onClick={handleReReview}
-                disabled={isLoading}
+                disabled={isLoading || !byokConfigured}
+                title={
+                  !byokConfigured
+                    ? 'AI not available — configure an API key in Settings'
+                    : undefined
+                }
                 className="gap-1.5"
               >
                 <RefreshCw className="size-4" />
@@ -91,7 +103,16 @@ export const PRReviewPanel = observer(function PRReviewPanel({
 
             {/* Request Review button (only show when no result and not loading) */}
             {!result && !isLoading && (
-              <Button onClick={handleRequestReview} disabled={isLoading} className="gap-1.5">
+              <Button
+                onClick={handleRequestReview}
+                disabled={isLoading || !byokConfigured}
+                title={
+                  !byokConfigured
+                    ? 'AI not available — configure an API key in Settings'
+                    : undefined
+                }
+                className="gap-1.5"
+              >
                 <Sparkles className="size-4" />
                 Request Review
               </Button>
@@ -160,7 +181,14 @@ export const PRReviewPanel = observer(function PRReviewPanel({
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Sparkles className="size-12 text-muted-foreground/50 mb-4" />
             <p className="text-muted-foreground mb-4">No review has been run for this PR yet.</p>
-            <Button onClick={handleRequestReview} className="gap-1.5">
+            <Button
+              onClick={handleRequestReview}
+              disabled={!byokConfigured}
+              title={
+                !byokConfigured ? 'AI not available — configure an API key in Settings' : undefined
+              }
+              className="gap-1.5"
+            >
               <Sparkles className="size-4" />
               Request AI Review
             </Button>

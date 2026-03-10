@@ -20,6 +20,8 @@ from pilot_space.api.v1.schemas.ai_configuration import (
     AIConfigurationResponse,
     AIConfigurationTestResponse,
     AIConfigurationUpdate,
+    ModelListResponse,
+    ProviderModelItem,
 )
 from pilot_space.api.v1.schemas.base import DeleteResponse
 from pilot_space.dependencies import CurrentUser, DbSession
@@ -43,7 +45,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/ai/configurations", tags=["ai-configuration"])
 
 # Lock to protect genai.configure() global state mutation from race conditions
-_google_api_lock = asyncio.Lock()
+google_api_lock = asyncio.Lock()
 
 
 def get_ai_config_repository(session: DbSession) -> AIConfigurationRepository:
@@ -116,6 +118,8 @@ def _config_to_response(config: AIConfiguration) -> AIConfigurationResponse:
         has_api_key=bool(config.api_key_encrypted),
         settings=config.settings,
         usage_limits=config.usage_limits,
+        base_url=config.base_url,
+        display_name=config.display_name,
         created_at=config.created_at,
         updated_at=config.updated_at,
     )
@@ -213,6 +217,8 @@ async def create_ai_configuration(
         is_active=True,
         settings=request.settings,
         usage_limits=request.usage_limits,
+        base_url=request.base_url,
+        display_name=request.display_name,
     )
     config = await ai_config_repo.create(config)
     await session.commit()
@@ -227,6 +233,59 @@ async def create_ai_configuration(
     )
 
     return _config_to_response(config)
+
+
+@router.get(
+    "/models",
+    response_model=ModelListResponse,
+    summary="List available models",
+    description=(
+        "List models from all active, configured providers. "
+        "Unreachable providers return fallback models with is_selectable=False. "
+        "Requires workspace membership."
+    ),
+)
+async def list_available_models(
+    workspace_id: UUID,
+    current_user: CurrentUser,
+    workspace_repo: WorkspaceRepositoryDep,
+    session: DbSession,
+) -> ModelListResponse:
+    """List all models available from active provider configurations.
+
+    Each provider's models are fetched independently. If a provider is
+    unreachable, it returns fallback (hardcoded) models marked is_selectable=False
+    so the UI can still display the provider while indicating degraded status.
+
+    Args:
+        workspace_id: Workspace identifier.
+        current_user: Authenticated user.
+        workspace_repo: Workspace repository for membership verification.
+        session: Database session for fetching configurations.
+
+    Returns:
+        ModelListResponse with items from all active, configured providers.
+    """
+    await _verify_workspace_membership(workspace_id, current_user.user_id, workspace_repo)
+
+    from pilot_space.ai.providers.model_listing import ModelListingService
+
+    service = ModelListingService()
+    models = await service.list_models_for_workspace(workspace_id, session)
+
+    return ModelListResponse(
+        items=[
+            ProviderModelItem(
+                provider_config_id=m.provider_config_id,
+                provider=m.provider,
+                model_id=m.model_id,
+                display_name=m.display_name,
+                is_selectable=m.is_selectable,
+            )
+            for m in models
+        ],
+        total=len(models),
+    )
 
 
 @router.get(
@@ -560,7 +619,7 @@ async def _test_google_key(api_key: str) -> tuple[bool, str]:
 
     try:
         # Lock protects genai.configure() global state from concurrent access
-        async with _google_api_lock:
+        async with google_api_lock:
             genai.configure(api_key=api_key)  # pyright: ignore[reportPrivateImportUsage,reportUnknownMemberType]
             # List models is a lightweight call to validate the key
             list(genai.list_models())  # pyright: ignore[reportPrivateImportUsage,reportUnknownMemberType,reportUnknownArgumentType]

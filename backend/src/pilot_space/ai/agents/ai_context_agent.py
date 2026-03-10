@@ -350,9 +350,10 @@ class AIContextAgent:
                             text_parts.append(block.text)
                 # ResultMessage has cost/usage info
                 elif isinstance(message, claude_agent_sdk.ResultMessage):
+                    cost = message.total_cost_usd or 0.0
                     logger.info(
                         "[AIContext] query() result: cost=$%.4f, turns=%s",
-                        message.total_cost_usd,
+                        cost,
                         message.num_turns,
                     )
         except Exception:

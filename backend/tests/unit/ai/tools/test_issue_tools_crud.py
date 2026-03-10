@@ -39,7 +39,7 @@ def user_id() -> str:
 def mock_tool_context(workspace_id: str, user_id: str) -> ToolContext:
     from pilot_space.ai.tools.mcp_server import ToolContext
 
-    return ToolContext(db_session=MagicMock(), workspace_id=workspace_id, user_id=user_id)
+    return ToolContext(db_session=AsyncMock(), workspace_id=workspace_id, user_id=user_id)
 
 
 @pytest.fixture
@@ -295,6 +295,7 @@ class TestUpdateIssueTool:
 
     @pytest.mark.asyncio
     async def test_returns_operation_payload(self, mock_tool_context: ToolContext) -> None:
+        """update_issue applies changes to DB and returns plain text confirmation."""
         tools = _capture_issue_tools(asyncio.Queue(), mock_tool_context)
         issue_uuid = uuid4()
 
@@ -317,14 +318,13 @@ class TestUpdateIssueTool:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
-        assert data["status"] == "approval_required"
-        assert data["operation"] == "update_issue"
-        assert data["payload"]["title"] == "Updated Title"
-        assert data["payload"]["issue_id"] == str(issue_uuid)
+        text = result["content"][0]["text"]
+        assert "PILOT-1" in text
+        assert "updated" in text.lower()
 
     @pytest.mark.asyncio
     async def test_tracks_changes(self, mock_tool_context: ToolContext) -> None:
+        """update_issue confirms all changed fields in the response text."""
         tools = _capture_issue_tools(asyncio.Queue(), mock_tool_context)
         issue_uuid = uuid4()
 
@@ -349,13 +349,13 @@ class TestUpdateIssueTool:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
-        assert len(data["preview"]["changes"]) == 3
-        assert data["payload"]["priority"] == "urgent"
-        assert data["payload"]["estimate_points"] == 8
+        text = result["content"][0]["text"]
+        assert "updated" in text.lower()
+        assert "priority" in text.lower()
 
     @pytest.mark.asyncio
     async def test_label_ids(self, mock_tool_context: ToolContext) -> None:
+        """update_issue with add_label_ids processes labels without error."""
         tools = _capture_issue_tools(asyncio.Queue(), mock_tool_context)
         issue_uuid, label_id = uuid4(), str(uuid4())
 
@@ -363,6 +363,11 @@ class TestUpdateIssueTool:
         mock_issue.workspace_id = UUID(mock_tool_context.workspace_id)
         repo = AsyncMock()
         repo.get_by_id.return_value = mock_issue
+
+        # Mock db_session.execute() to return a result with empty fetchall()
+        mock_execute_result = MagicMock()
+        mock_execute_result.fetchall.return_value = []
+        mock_tool_context.db_session.execute = AsyncMock(return_value=mock_execute_result)
 
         with (
             patch(
@@ -378,5 +383,5 @@ class TestUpdateIssueTool:
                 }
             )
 
-        data = json.loads(result["content"][0]["text"])
-        assert label_id in data["payload"]["add_label_ids"]
+        text = result["content"][0]["text"]
+        assert "updated" in text.lower()

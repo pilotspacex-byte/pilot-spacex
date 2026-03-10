@@ -47,6 +47,8 @@ export interface ReviewComment {
   message: string;
   /** Optional code suggestion */
   suggestion?: string;
+  /** AI reasoning for this comment (AIGOV-07). Present when backend includes audit rationale. */
+  ai_rationale?: string;
 }
 
 export interface ReviewCommentCardProps {
@@ -123,6 +125,7 @@ export function ReviewCommentCard({
   className,
 }: ReviewCommentCardProps) {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [isRationaleOpen, setIsRationaleOpen] = React.useState(false);
   const severity = severityConfig[comment.severity];
   const category = categoryConfig[comment.category];
   const SeverityIcon = severity.icon;
@@ -170,6 +173,30 @@ export function ReviewCommentCard({
               <pre className="bg-muted rounded-md p-3 text-xs overflow-x-auto font-mono">
                 <code>{comment.suggestion}</code>
               </pre>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* AI Reasoning (collapsible — AIGOV-07). Conditionally rendered when backend provides rationale. */}
+        {comment.ai_rationale && (
+          <Collapsible open={isRationaleOpen} onOpenChange={setIsRationaleOpen} className="mt-2">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {isRationaleOpen ? (
+                  <ChevronDown className="size-3" />
+                ) : (
+                  <ChevronRight className="size-3" />
+                )}
+                AI reasoning
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <p className="text-xs text-muted-foreground p-2 bg-muted/50 rounded mt-1">
+                {comment.ai_rationale}
+              </p>
             </CollapsibleContent>
           </Collapsible>
         )}

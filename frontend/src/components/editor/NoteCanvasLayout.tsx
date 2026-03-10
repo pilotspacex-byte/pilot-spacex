@@ -44,6 +44,7 @@ import { VersionPanel } from '@/features/notes/components/VersionPanel';
 import { VersionStore } from '@/features/notes/stores/VersionStore';
 import { useIssueExtraction } from '@/features/notes/hooks/useIssueExtraction';
 import { ExtractionPreviewModal } from '@/features/notes/components/ExtractionPreviewModal';
+import { ExtractionReviewPanel } from '@/features/notes/components/ExtractionReviewPanel';
 
 import { NoteHealthBadges } from './NoteHealthBadges';
 import { ProjectContextHeader } from './ProjectContextHeader';
@@ -391,7 +392,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
         {sidebarContent}
       </SidebarPanel>
 
-      {/* Issue Extraction Preview Modal (Feature 009) */}
+      {/* Issue Extraction Preview Modal (Feature 009 — legacy, isModalOpen always false) */}
       {workspaceId && (
         <ExtractionPreviewModal
           open={extractionState.isModalOpen}
@@ -403,6 +404,29 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
           error={extractionState.error}
           workspaceId={workspaceId}
           noteId={noteId}
+        />
+      )}
+
+      {/* Extraction Review Panel (T-013/T-014) — slide-over with per-item approve/skip */}
+      {workspaceId && (
+        <ExtractionReviewPanel
+          open={extractionState.isReviewPanelOpen}
+          onOpenChange={(open) => {
+            if (!open) extractionActions.closeReviewPanel();
+          }}
+          issues={extractionState.issues}
+          isExtracting={extractionState.isExtracting}
+          error={extractionState.error}
+          workspaceId={workspaceId}
+          workspaceSlug={workspaceSlug}
+          noteId={noteId}
+          projectId={projectId}
+          onCreated={(_createdIds) => {
+            void queryClient.invalidateQueries({
+              queryKey: notesKeys.detail(workspaceId, noteId),
+            });
+            extractionActions.closeModal();
+          }}
         />
       )}
     </div>

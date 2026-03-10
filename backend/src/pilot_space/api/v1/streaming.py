@@ -13,8 +13,11 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
+import structlog
 from fastapi import Request
 from fastapi.responses import StreamingResponse
+
+_logger = structlog.get_logger(__name__)
 
 
 def format_sse_event(event: str, data: dict[str, Any]) -> str:
@@ -76,13 +79,13 @@ async def sse_stream_generator(
         if not disconnected:
             yield format_sse_event("done", {"status": "complete"})
 
-    except Exception as e:
-        # Emit error event
+    except Exception:
+        _logger.exception("sse_stream_error")
         yield format_sse_event(
             "error",
             {
-                "message": str(e),
-                "type": type(e).__name__,
+                "message": "An internal error occurred. Please try again.",
+                "type": "internal_error",
             },
         )
 
@@ -152,12 +155,13 @@ async def sse_json_stream_generator(
         if not disconnected:
             yield format_sse_event("done", {"status": "complete"})
 
-    except Exception as e:
+    except Exception:
+        _logger.exception("sse_json_stream_error")
         yield format_sse_event(
             "error",
             {
-                "message": str(e),
-                "type": type(e).__name__,
+                "message": "An internal error occurred. Please try again.",
+                "type": "internal_error",
             },
         )
 

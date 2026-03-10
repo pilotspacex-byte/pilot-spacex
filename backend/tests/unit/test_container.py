@@ -619,3 +619,83 @@ class TestErrorCases:
         # Attempting to resolve service should fail when dependencies need session
         with pytest.raises(RuntimeError, match="No session in current context"):
             container.create_issue_service()
+
+
+# ============================================================================
+# Audit Log Repository Wiring Tests (AUDIT-01)
+# ============================================================================
+
+
+class TestAuditLogRepositoryWiring:
+    """Tests verifying audit_log_repository is wired into CRUD service factories."""
+
+    def test_audit_log_repository_provider_exists(self) -> None:
+        """audit_log_repository Factory provider must exist on container."""
+        container = create_container()
+
+        assert hasattr(container, "audit_log_repository")
+        assert isinstance(container.audit_log_repository, providers.Factory)
+
+    def test_audit_log_repository_resolves_to_correct_type(self) -> None:
+        """audit_log_repository() must return an AuditLogRepository instance."""
+        from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+            AuditLogRepository,
+        )
+
+        container = create_container()
+        mock_session = MagicMock()
+        token = _request_session_ctx.set(mock_session)
+        try:
+            repo = container.audit_log_repository()
+            assert repo is not None
+            assert isinstance(repo, AuditLogRepository)
+        finally:
+            _request_session_ctx.reset(token)
+
+    def test_create_issue_service_receives_audit_repo(self) -> None:
+        """create_issue_service must receive a non-None audit_log_repository."""
+        from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+            AuditLogRepository,
+        )
+
+        container = create_container()
+        mock_session = MagicMock()
+        token = _request_session_ctx.set(mock_session)
+        try:
+            service = container.create_issue_service()
+            assert service._audit_repo is not None
+            assert isinstance(service._audit_repo, AuditLogRepository)
+        finally:
+            _request_session_ctx.reset(token)
+
+    def test_all_crud_services_receive_audit_repo(self) -> None:
+        """All 10 CRUD services must receive a non-None audit_log_repository."""
+        from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+            AuditLogRepository,
+        )
+
+        container = create_container()
+        mock_session = MagicMock()
+        token = _request_session_ctx.set(mock_session)
+        try:
+            services_and_attr = [
+                (container.create_issue_service(), "_audit_repo"),
+                (container.update_issue_service(), "_audit_repo"),
+                (container.delete_issue_service(), "_audit_repo"),
+                (container.create_note_service(), "_audit_repo"),
+                (container.update_note_service(), "_audit_repo"),
+                (container.delete_note_service(), "_audit_repo"),
+                (container.create_cycle_service(), "_audit_repo"),
+                (container.update_cycle_service(), "_audit_repo"),
+                (container.add_issue_to_cycle_service(), "_audit_repo"),
+                (container.rbac_service(), "_audit_repo"),
+            ]
+            for service, attr in services_and_attr:
+                repo = getattr(service, attr, None)
+                service_name = type(service).__name__
+                assert repo is not None, f"{service_name}.{attr} is None — audit wiring missing"
+                assert isinstance(repo, AuditLogRepository), (
+                    f"{service_name}.{attr} is not AuditLogRepository"
+                )
+        finally:
+            _request_session_ctx.reset(token)

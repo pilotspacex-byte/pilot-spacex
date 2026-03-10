@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS work_intents (
     confidence REAL NOT NULL DEFAULT 0.5,
     parent_intent_id TEXT REFERENCES work_intents(id) ON DELETE SET NULL,
     source_block_id TEXT,
+    embedding TEXT,
     dedup_hash TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,

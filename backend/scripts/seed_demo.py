@@ -114,7 +114,7 @@ async def create_or_get_auth_user() -> uuid.UUID:
                 user_id = uuid.UUID(user_data["id"])
                 print(f"✅ Created auth user: {user_id}")
                 print(f"   Email: {DEMO_EMAIL}")
-                print(f"   Password: {DEMO_PASSWORD}")
+                print("   Password: [redacted]")
                 return user_id
 
             print(f"\n❌ ERROR: Failed to create auth user (status {response.status_code})")
@@ -1080,7 +1080,7 @@ async def main() -> None:
         print("   - States: 18 (6 per project)")
         print("\n📝 Login credentials:")
         print(f"   - Email: {DEMO_EMAIL}")
-        print(f"   - Password: {DEMO_PASSWORD}")
+        print("   - Password: [redacted — see DEMO_PASSWORD env var]")
         print("\n🌐 URLs:")
         print("   - Frontend: http://localhost:3000/pilot-space-demo")
         print("   - Login: http://localhost:3000/login")

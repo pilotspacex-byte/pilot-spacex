@@ -9,6 +9,8 @@ import { useResponsive } from '@/hooks/useMediaQuery';
 import { Sidebar } from './sidebar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { CommandPalette } from '@/components/search/CommandPalette';
+import { useCommandPaletteShortcut } from '@/hooks/useCommandPaletteShortcut';
 import type { ReactNode } from 'react';
 
 interface AppShellProps {
@@ -24,6 +26,9 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
     uiStore.hydrate();
   }, [uiStore]);
 
+  // Register global Cmd+K / Ctrl+K shortcut
+  useCommandPaletteShortcut();
+
   // Auto-collapse sidebar on small screens (mobile/tablet)
   useEffect(() => {
     if (isSmallScreen) {
@@ -34,6 +39,9 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
+      {/* Global Cmd+K search palette */}
+      <CommandPalette />
+
       {/* Skip to main content - accessibility */}
       <a
         href="#main-content"
@@ -85,8 +93,8 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
         </motion.aside>
       )}
 
-      {/* Main content area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Main content area — min-w-0 prevents flex children from overflowing viewport */}
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         {/* Mobile hamburger toggle */}
         {isSmallScreen && !sidebarOpen && (
           <div className="flex h-10 items-center border-b border-border px-2">

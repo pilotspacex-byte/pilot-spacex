@@ -508,12 +508,12 @@ async def stream_ai_context_generation(
             # Final: signal all sections complete
             yield format_sse_event("context_complete", {})
 
-        except ValueError as e:
-            logger.warning("Validation error in AI context generation: %s", e)
+        except ValueError:
+            logger.warning("Validation error in AI context generation")
             yield format_sse_event(
                 "error",
                 {
-                    "message": str(e),
+                    "message": "Invalid request parameters. Please check your input.",
                     "type": "validation_error",
                 },
             )

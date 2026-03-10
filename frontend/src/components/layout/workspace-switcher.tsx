@@ -22,6 +22,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { toSlug } from '@/lib/slug';
+import { getLastWorkspacePath } from '@/lib/workspace-nav';
 import { ApiError } from '@/services/api/client';
 import type { Workspace } from '@/types';
 
@@ -315,7 +316,8 @@ export const WorkspaceSwitcher = observer(function WorkspaceSwitcher({
       workspaceStore.selectWorkspace(ws.id);
       addRecentWorkspace(ws.slug);
       setPopoverOpen(false);
-      router.push(`/${ws.slug}`);
+      const lastPath = getLastWorkspacePath(ws.slug);
+      router.push(lastPath ?? `/${ws.slug}`);
     },
     [workspaceStore, router]
   );
@@ -352,7 +354,14 @@ export const WorkspaceSwitcher = observer(function WorkspaceSwitcher({
                 )}
                 aria-hidden="true"
               />
-              <span className="flex-1 truncate text-left">{ws.name}</span>
+              <div className="flex flex-col items-start flex-1 min-w-0">
+                <span className="truncate text-left text-xs font-medium leading-tight">
+                  {ws.name}
+                </span>
+                <span className="text-[10px] text-muted-foreground leading-tight">
+                  {ws.memberCount} member{ws.memberCount !== 1 ? 's' : ''}
+                </span>
+              </div>
               {isActive && <Check className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />}
             </button>
           );

@@ -11,8 +11,12 @@ from fastapi import FastAPI
 
 from pilot_space.api.middleware.cors import configure_cors
 from pilot_space.api.middleware.error_handler import register_exception_handlers
+from pilot_space.api.middleware.rate_limiter import RateLimitMiddleware
 from pilot_space.api.middleware.request_context import RequestContextMiddleware
+from pilot_space.api.routers.health import router as health_router
+from pilot_space.api.v1.middleware.session_recording import SessionRecordingMiddleware
 from pilot_space.api.v1.routers import (
+    admin_router,
     ai_annotations_router,
     ai_approvals_router,
     ai_attachments_router,
@@ -21,12 +25,16 @@ from pilot_space.api.v1.routers import (
     ai_costs_router,
     ai_drive_router,
     ai_extraction_router,
+    ai_governance_router,
     ai_pr_review_router,
     ai_router,
     ai_sessions_router,
     ai_tasks_router,
+    audit_router,
     auth_router,
+    auth_sso_router,
     block_ownership_router,
+    custom_roles_router,
     cycles_router,
     debug_router,
     dependency_graph_router,
@@ -43,33 +51,41 @@ from pilot_space.api.v1.routers import (
     issues_router,
     knowledge_graph_issues_router,
     knowledge_graph_router,
+    mcp_oauth_callback_router,
     mcp_tools_router,
     memory_router,
     note_templates_router,
     note_versions_router,
     note_yjs_state_router,
     notes_ai_router,
+    notifications_router,
     onboarding_router,
     pm_blocks_router,
     projects_router,
     role_skills_router,
     role_templates_router,
+    scim_router,
     skill_approvals_router,
     skills_router,
     webhooks_router,
     workspace_ai_settings_router,
     workspace_cycles_router,
+    workspace_encryption_router,
     workspace_invitations_router,
     workspace_issue_branches_router,
     workspace_issues_router,
+    workspace_mcp_servers_router,
     workspace_members_router,
     workspace_note_issue_links_router,
     workspace_note_links_router,
     workspace_notes_ai_router,
     workspace_notes_router,
+    workspace_quota_router,
+    workspace_sessions_router,
     workspace_tasks_router,
     workspaces_router,
 )
+from pilot_space.api.v1.routers.workspace_scim_settings import workspace_scim_settings_router
 
 dotenv.load_dotenv()
 
@@ -114,8 +130,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Connect to Redis for session management
     redis_client = app.state.container.redis_client()
-    if redis_client is not None:
-        await redis_client.connect()
 
     # Start digest worker for homepage digest generation
     digest_worker_task: asyncio.Task[None] | None = None
@@ -123,6 +137,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # T-069: Start memory worker for memory engine jobs (intent_dedup, embedding, DLQ)
     memory_worker_task: asyncio.Task[None] | None = None
     memory_worker = None
+    # T-030: Start notification worker for persisting queued notifications
+    notification_worker_task: asyncio.Task[None] | None = None
+    notification_worker = None
     queue_client = app.state.container.queue_client()
     if queue_client and redis_client:
         from pilot_space.infrastructure.queue.models import QueueName
@@ -147,6 +164,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             google_api_key=_google_api_key,
         )
         memory_worker_task = asyncio.create_task(memory_worker.start())
+
+        await queue_client.create_queue(QueueName.NOTIFICATIONS)
+
+        from pilot_space.ai.workers.notification_worker import NotificationWorker
+
+        notification_worker = NotificationWorker(
+            queue=queue_client,
+            session_factory=session_factory,
+        )
+        notification_worker_task = asyncio.create_task(notification_worker.start())
 
     # Start question adapter cleanup task (FR-015: 5-min timeout enforcement)
     from pilot_space.ai.sdk.question_adapter import get_question_adapter
@@ -176,6 +203,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("memory_worker_stopped")
     if memory_worker_task:
         memory_worker_task.cancel()
+    if notification_worker:
+        await notification_worker.stop()
+        logger.info("notification_worker_stopped")
+    if notification_worker_task:
+        notification_worker_task.cancel()
     if redis_client is not None:
         await redis_client.disconnect()
         logger.info("redis_disconnected")
@@ -202,36 +234,32 @@ register_exception_handlers(app)
 # Request context middleware (must be first for header extraction)
 app.add_middleware(RequestContextMiddleware)
 
+# Session recording middleware: throttled session upsert + revocation check (AUTH-06)
+app.add_middleware(SessionRecordingMiddleware)
+
+# Rate limiting middleware: per-workspace + per-IP limits (TENANT-03)
+# Lazy Redis accessor — resolves redis_client.client on first request from app.state.container
+app.add_middleware(RateLimitMiddleware)
+
 configure_cors(app)
 
 
-@app.get("/health", tags=["Health"])
-async def health_check() -> dict[str, str]:
-    """Health check endpoint for load balancers and monitoring.
-
-    Returns:
-        dict with status "healthy"
-    """
-    return {"status": "healthy"}
-
-
-@app.get("/ready", tags=["Health"])
-async def readiness_check() -> dict[str, str]:
-    """Readiness check endpoint for Kubernetes probes.
-
-    Verifies that the application is ready to receive traffic.
-    In Phase 2, this will check database and cache connectivity.
-
-    Returns:
-        dict with status "ready"
-    """
-    return {"status": "ready"}
-
+# Health check router (OPS-03) — mounted at root level, no /api/v1 prefix
+app.include_router(health_router)
 
 # Mount all routers under /api/v1
 API_V1_PREFIX = "/api/v1"
 
+# Super-admin operator dashboard (TENANT-04) — separate from workspace JWT auth
+app.include_router(admin_router, prefix=f"{API_V1_PREFIX}/admin")
+
+app.include_router(scim_router, prefix=API_V1_PREFIX)
+app.include_router(workspace_scim_settings_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(audit_router, prefix=API_V1_PREFIX)
+app.include_router(ai_governance_router, prefix=API_V1_PREFIX)
 app.include_router(auth_router, prefix=API_V1_PREFIX)
+app.include_router(auth_sso_router, prefix=API_V1_PREFIX)
+app.include_router(custom_roles_router, prefix=API_V1_PREFIX)
 app.include_router(workspaces_router, prefix=API_V1_PREFIX)
 app.include_router(projects_router, prefix=API_V1_PREFIX)
 app.include_router(issues_router, prefix=API_V1_PREFIX)
@@ -259,11 +287,16 @@ app.include_router(integrations_router, prefix=API_V1_PREFIX)
 app.include_router(github_links_router, prefix=API_V1_PREFIX)
 app.include_router(webhooks_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_ai_settings_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(workspace_mcp_servers_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(mcp_oauth_callback_router, prefix=API_V1_PREFIX)
+app.include_router(workspace_encryption_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(workspace_quota_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_cycles_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_issue_branches_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_invitations_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_members_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(workspace_sessions_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_note_issue_links_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_note_links_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_notes_router, prefix=f"{API_V1_PREFIX}/workspaces")
@@ -286,5 +319,6 @@ app.include_router(role_templates_router, prefix=API_V1_PREFIX)
 app.include_router(role_skills_router, prefix=API_V1_PREFIX)
 app.include_router(skills_router, prefix=API_V1_PREFIX)
 app.include_router(skill_approvals_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(notifications_router, prefix=f"{API_V1_PREFIX}/workspaces")
 if debug_router:
     app.include_router(debug_router, prefix=API_V1_PREFIX)

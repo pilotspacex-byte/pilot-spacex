@@ -271,12 +271,21 @@ class TestApprovalActionExecutor:
         """update_issue with valid payload returns executed status."""
         executor = ApprovalActionExecutor(AsyncMock())
         issue_id = uuid4()
+        mock_issue = MagicMock()
 
-        result = await executor.execute(
-            action_type="update_issue",
-            payload={"issue_id": str(issue_id)},
-            user_id=uuid4(),
-        )
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_issue
+        mock_repo.update = AsyncMock()
+
+        with patch(
+            "pilot_space.infrastructure.database.repositories.issue_repository.IssueRepository",
+            return_value=mock_repo,
+        ):
+            result = await executor.execute(
+                action_type="update_issue",
+                payload={"issue_id": str(issue_id), "title": "Updated title"},
+                user_id=uuid4(),
+            )
 
         assert result["status"] == "executed"
         assert result["issue_id"] == str(issue_id)

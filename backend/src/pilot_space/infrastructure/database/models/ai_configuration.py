@@ -24,6 +24,9 @@ class LLMProvider(StrEnum):
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
     GOOGLE = "google"
+    KIMI = "kimi"
+    GLM = "glm"
+    CUSTOM = "custom"
 
 
 class AIConfiguration(WorkspaceScopedModel):
@@ -75,6 +78,18 @@ class AIConfiguration(WorkspaceScopedModel):
         JSONBCompat,
         nullable=True,
         doc="Optional usage limits (daily_tokens, monthly_budget, etc.)",
+    )
+
+    # Custom/OpenAI-compatible provider fields
+    base_url: Mapped[str | None] = mapped_column(
+        String(512),
+        nullable=True,
+        doc="OpenAI-compatible API base URL (required for custom, optional for kimi/glm)",
+    )
+    display_name: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        doc="Human-readable provider label shown in UI (optional for all providers)",
     )
 
     # Relationships

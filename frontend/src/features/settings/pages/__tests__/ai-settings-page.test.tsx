@@ -20,17 +20,31 @@ const mockSettings = {
   isSaving: false,
   error: null as string | null,
   settings: {
-    anthropic_key_set: true,
-    openai_key_set: false,
-    ghost_text_enabled: true,
-    margin_annotations_enabled: false,
-    ai_context_enabled: true,
-    issue_extraction_enabled: false,
-    pr_review_enabled: false,
-    provider_status: [
-      { provider: 'anthropic', status: 'connected', last_validated_at: '2026-01-01T00:00:00Z' },
-      { provider: 'openai', status: 'unknown', last_validated_at: null },
+    workspaceId: 'ws-1',
+    providers: [
+      {
+        provider: 'anthropic',
+        isConfigured: true,
+        isValid: true,
+        lastValidatedAt: '2026-01-01T00:00:00Z',
+      },
+      {
+        provider: 'openai',
+        isConfigured: false,
+        isValid: null,
+        lastValidatedAt: null,
+      },
     ],
+    features: {
+      ghostTextEnabled: true,
+      marginAnnotationsEnabled: false,
+      aiContextEnabled: true,
+      issueExtractionEnabled: false,
+      prReviewEnabled: false,
+      autoApproveNonDestructive: false,
+    },
+    defaultProvider: 'anthropic',
+    costLimitUsd: null,
   } as Record<string, unknown> | null,
   anthropicKeySet: true,
   openaiKeySet: false,
@@ -38,6 +52,7 @@ const mockSettings = {
   marginAnnotationsEnabled: false,
   aiContextEnabled: true,
   loadSettings: vi.fn(),
+  loadModels: vi.fn(),
   saveSettings: vi.fn(),
   validateKey: vi.fn().mockReturnValue(true),
   validationErrors: {} as Record<string, string>,
@@ -78,6 +93,14 @@ vi.mock('@/features/settings/components/provider-status-card', () => ({
   ),
 }));
 
+vi.mock('@/features/settings/components/custom-provider-form', () => ({
+  CustomProviderForm: ({ workspaceId }: { workspaceId: string; onSuccess: () => void }) => (
+    <div data-testid="custom-provider-form" data-workspace-id={workspaceId}>
+      CustomProviderForm
+    </div>
+  ),
+}));
+
 import { AISettingsPage } from '@/features/settings/pages/ai-settings-page';
 
 describe('AISettingsPage', () => {
@@ -86,17 +109,31 @@ describe('AISettingsPage', () => {
     mockSettings.isLoading = false;
     mockSettings.error = null;
     mockSettings.settings = {
-      anthropic_key_set: true,
-      openai_key_set: false,
-      ghost_text_enabled: true,
-      margin_annotations_enabled: false,
-      ai_context_enabled: true,
-      issue_extraction_enabled: false,
-      pr_review_enabled: false,
-      provider_status: [
-        { provider: 'anthropic', status: 'connected', last_validated_at: '2026-01-01T00:00:00Z' },
-        { provider: 'openai', status: 'unknown', last_validated_at: null },
+      workspaceId: 'ws-1',
+      providers: [
+        {
+          provider: 'anthropic',
+          isConfigured: true,
+          isValid: true,
+          lastValidatedAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          provider: 'openai',
+          isConfigured: false,
+          isValid: null,
+          lastValidatedAt: null,
+        },
       ],
+      features: {
+        ghostTextEnabled: true,
+        marginAnnotationsEnabled: false,
+        aiContextEnabled: true,
+        issueExtractionEnabled: false,
+        prReviewEnabled: false,
+        autoApproveNonDestructive: false,
+      },
+      defaultProvider: 'anthropic',
+      costLimitUsd: null,
     };
   });
 
@@ -159,5 +196,32 @@ describe('AISettingsPage', () => {
     expect(mainDiv.className).toContain('px-4');
     expect(mainDiv.className).toContain('sm:px-6');
     expect(mainDiv.className).toContain('lg:px-8');
+  });
+
+  // 13-03: All 5 built-in provider cards must be rendered
+  it('renders provider status cards for all 5 built-in providers', () => {
+    render(<AISettingsPage />);
+
+    expect(screen.getByTestId('provider-status-anthropic')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-status-openai')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-status-kimi')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-status-glm')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-status-google')).toBeInTheDocument();
+  });
+
+  // 13-03: CustomProviderForm must be rendered below built-in providers
+  it('renders CustomProviderForm under Custom Providers heading', () => {
+    render(<AISettingsPage />);
+
+    expect(screen.getByText('Custom Providers')).toBeInTheDocument();
+    expect(screen.getByTestId('custom-provider-form')).toBeInTheDocument();
+  });
+
+  // 13-03: CustomProviderForm receives workspace ID
+  it('passes workspaceId to CustomProviderForm', () => {
+    render(<AISettingsPage />);
+
+    const form = screen.getByTestId('custom-provider-form');
+    expect(form).toHaveAttribute('data-workspace-id', 'ws-1');
   });
 });

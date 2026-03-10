@@ -94,6 +94,7 @@ export function useCreateRoleSkill({ workspaceId }: UseRoleSkillMutationsOptions
     mutationFn: (payload: CreateRoleSkillPayload) =>
       roleSkillsApi.createRoleSkill(workspaceId, payload),
     onSuccess: () => {
+      toast.success('Skill saved and active');
       queryClient.invalidateQueries({ queryKey: roleSkillKeys.skills(workspaceId) });
       queryClient.invalidateQueries({ queryKey: onboardingKeys.detail(workspaceId) });
     },

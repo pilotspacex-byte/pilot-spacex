@@ -10,6 +10,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     Enum as SQLEnum,
     ForeignKey,
     Index,
@@ -22,6 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pilot_space.infrastructure.database.base import BaseModel
 
 if TYPE_CHECKING:
+    from pilot_space.infrastructure.database.models.custom_role import CustomRole
     from pilot_space.infrastructure.database.models.user import User
     from pilot_space.infrastructure.database.models.workspace import Workspace
 
@@ -80,6 +82,22 @@ class WorkspaceMember(BaseModel):
         server_default="40",
     )
 
+    # AUTH-05: Custom RBAC — optional custom role assignment
+    custom_role_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("custom_roles.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # AUTH-07: SCIM provisioning — track active/deactivated members
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+
     # Relationships — use lazy="select" to avoid implicit JOINs;
     # repositories should use joinedload() explicitly when needed.
     user: Mapped[User] = relationship(
@@ -89,6 +107,11 @@ class WorkspaceMember(BaseModel):
     )
     workspace: Mapped[Workspace] = relationship(
         "Workspace",
+        back_populates="members",
+        lazy="select",
+    )
+    custom_role: Mapped[CustomRole | None] = relationship(
+        "CustomRole",
         back_populates="members",
         lazy="select",
     )

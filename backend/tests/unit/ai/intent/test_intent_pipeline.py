@@ -167,10 +167,10 @@ async def test_wait_for_confirmation_deregisters_after_timeout() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_emit_intent_detected_events_format() -> None:
+def test_emit_intent_detected_events_format() -> None:
     """emit_intent_detected_events() produces correct SSE strings."""
     intent = _make_mock_intent(what="Create auth module", confidence=0.9)
-    events = await emit_intent_detected_events([intent])
+    events = emit_intent_detected_events([intent])
 
     assert len(events) == 1
     event_type, data = _parse_sse(events[0])
@@ -181,32 +181,32 @@ async def test_emit_intent_detected_events_format() -> None:
     assert "intent_id" in data
 
 
-async def test_emit_intent_detected_events_multiple() -> None:
+def test_emit_intent_detected_events_multiple() -> None:
     """emit_intent_detected_events() emits one event per intent."""
     intents = [_make_mock_intent(what=f"Task {i}") for i in range(3)]
-    events = await emit_intent_detected_events(intents)
+    events = emit_intent_detected_events(intents)
     assert len(events) == 3
 
 
-async def test_emit_intent_detected_events_empty_list() -> None:
+def test_emit_intent_detected_events_empty_list() -> None:
     """emit_intent_detected_events() returns empty list for no intents."""
-    events = await emit_intent_detected_events([])
+    events = emit_intent_detected_events([])
     assert events == []
 
 
-async def test_emit_intent_detected_includes_source_block_id() -> None:
+def test_emit_intent_detected_includes_source_block_id() -> None:
     """source_block_id is serialised in SSE payload when set."""
     block_id = uuid4()
     intent = _make_mock_intent(source_block_id=block_id)
-    events = await emit_intent_detected_events([intent])
+    events = emit_intent_detected_events([intent])
     _, data = _parse_sse(events[0])
     assert data["source_block_id"] == str(block_id)
 
 
-async def test_emit_intent_detected_null_source_block_id() -> None:
+def test_emit_intent_detected_null_source_block_id() -> None:
     """source_block_id is None in SSE payload when not set."""
     intent = _make_mock_intent(source_block_id=None)
-    events = await emit_intent_detected_events([intent])
+    events = emit_intent_detected_events([intent])
     _, data = _parse_sse(events[0])
     assert data["source_block_id"] is None
 

@@ -96,6 +96,9 @@ export class PilotSpaceStore {
   workspaceId: string | null = null;
   error: string | null = null;
 
+  /** Per-session model selection — persisted to localStorage per workspace (13-04) */
+  selectedModel: { provider: string; modelId: string; configId: string } | null = null;
+
   /** Block IDs targeted by pending AI tool calls (set on tool_use, cleared on content_update) */
   pendingAIBlockIds: string[] = [];
 
@@ -259,19 +262,13 @@ export class PilotSpaceStore {
     this.messages = [...messages, ...this.messages];
   }
 
-  /**
-   * Update pagination state after loading messages.
-   * @param hasMore - Whether more older messages exist
-   * @param total - Total message count in the session
-   */
+  /** Update pagination state after loading messages. */
   setMessagePaginationState(hasMore: boolean, total: number): void {
     this.hasMoreMessages = hasMore;
     this.totalMessages = total;
   }
 
-  /**
-   * Set loading state for fetching older messages.
-   */
+  /** Set loading state for fetching older messages. */
   setIsLoadingMoreMessages(loading: boolean): void {
     this.isLoadingMoreMessages = loading;
   }
@@ -284,11 +281,7 @@ export class PilotSpaceStore {
     this.sessionId = sessionId;
   }
 
-  /**
-   * Set fork session ID for "what-if" exploration.
-   * The next sendMessage will include this in the request body.
-   * @param forkSessionId - Source session to fork from
-   */
+  /** Set fork session ID for "what-if" exploration (consumed on next sendMessage). */
   setForkSessionId(forkSessionId: string | null): void {
     this.forkSessionId = forkSessionId;
   }
@@ -394,25 +387,17 @@ export class PilotSpaceStore {
 
   // Actions - Pending Tool Call Buffer (T63)
 
-  /**
-   * Buffer a tool call during streaming.
-   * Tool calls arrive before message_stop, so they must be buffered
-   * and attached to the assistant message on finalization.
-   */
+  /** Buffer a tool call during streaming (attached to assistant message on message_stop). */
   addPendingToolCall(tc: ToolCall): void {
     this._pendingToolCalls.push(tc);
   }
 
-  /**
-   * Find a pending tool call by ID (for tool_input_delta and tool_result during streaming).
-   */
+  /** Find a pending tool call by ID. */
   findPendingToolCall(toolUseId: string): ToolCall | undefined {
     return this._pendingToolCalls.find((tc) => tc.id === toolUseId);
   }
 
-  /**
-   * Consume and clear all pending tool calls (called on message_stop).
-   */
+  /** Consume and clear all pending tool calls (called on message_stop). */
   consumePendingToolCalls(): ToolCall[] | undefined {
     if (this._pendingToolCalls.length === 0) return undefined;
     const calls = [...this._pendingToolCalls];
@@ -422,17 +407,12 @@ export class PilotSpaceStore {
 
   // Actions - Pending Citation Buffer (T64)
 
-  /**
-   * Buffer citations during streaming.
-   * Citation events arrive before message_stop.
-   */
+  /** Buffer citations during streaming (citations arrive before message_stop). */
   addPendingCitations(citations: NonNullable<ChatMessage['citations']>): void {
     this._pendingCitations = [...(this._pendingCitations ?? []), ...citations];
   }
 
-  /**
-   * Consume and clear all pending citations (called on message_stop).
-   */
+  /** Consume and clear all pending citations (called on message_stop). */
   consumePendingCitations(): ChatMessage['citations'] | undefined {
     if (!this._pendingCitations || this._pendingCitations.length === 0) return undefined;
     const citations = this._pendingCitations;
@@ -549,6 +529,43 @@ export class PilotSpaceStore {
 
   setWorkspaceId(workspaceId: string | null): void {
     this.workspaceId = workspaceId;
+    if (workspaceId) {
+      this.loadSelectedModel(workspaceId);
+    }
+  }
+
+  /** Persist model selection to localStorage key chat_model_{workspaceId}. (13-04) */
+  setSelectedModel(provider: string, modelId: string, configId: string): void {
+    this.selectedModel = { provider, modelId, configId };
+    const wsId = this.workspaceId;
+    if (wsId) {
+      try {
+        localStorage.setItem(`chat_model_${wsId}`, JSON.stringify({ provider, modelId, configId }));
+      } catch {
+        /* quota / private browsing */
+      }
+    }
+  }
+
+  /** Restore persisted model selection on workspace switch. (13-04) */
+  loadSelectedModel(workspaceId: string): void {
+    try {
+      const raw = localStorage.getItem(`chat_model_${workspaceId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed.provider && parsed.modelId && parsed.configId) {
+          this.selectedModel = {
+            provider: parsed.provider as string,
+            modelId: parsed.modelId as string,
+            configId: parsed.configId as string,
+          };
+          return;
+        }
+      }
+    } catch {
+      /* invalid JSON */
+    }
+    this.selectedModel = null;
   }
 
   setNoteContext(context: NoteContext | null): void {

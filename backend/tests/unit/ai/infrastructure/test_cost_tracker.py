@@ -346,3 +346,108 @@ class TestPricingTable:
                 assert len(pricing) == 2
                 assert isinstance(pricing[0], Decimal)
                 assert isinstance(pricing[1], Decimal)
+
+
+# ============================================================================
+# Phase 4 AIGOV-06 — operation_type tests (implemented in plan 04-02)
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_track_persists_operation_type() -> None:
+    """CostTracker.track(operation_type='ghost_text') saves operation_type to DB.
+
+    When operation_type is provided, the saved AICostRecord.operation_type
+    must equal the passed value.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    workspace_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+
+    # Set up mock session
+    session = MagicMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+
+    captured_record: list[AICostRecord] = []
+
+    def capture_add(record: AICostRecord) -> None:
+        captured_record.append(record)
+
+    session.add.side_effect = capture_add
+
+    async def mock_refresh(record: AICostRecord) -> None:
+        # Simulate DB assigning id and created_at after flush
+        record.id = uuid.uuid4()
+        from datetime import UTC, datetime
+
+        record.created_at = datetime.now(UTC)
+
+    session.refresh = mock_refresh
+
+    tracker = CostTracker(session)
+
+    result = await tracker.track(
+        workspace_id=workspace_id,
+        user_id=user_id,
+        agent_name="ghost_text_agent",
+        provider="anthropic",
+        model="claude-sonnet-4-20250514",
+        input_tokens=500,
+        output_tokens=100,
+        operation_type="ghost_text",
+    )
+
+    assert len(captured_record) == 1
+    saved = captured_record[0]
+    assert saved.operation_type == "ghost_text"
+
+
+@pytest.mark.asyncio
+async def test_track_operation_type_nullable() -> None:
+    """track() with no operation_type saves NULL to DB.
+
+    When operation_type is omitted, AICostRecord.operation_type must be None.
+    Ensures backward compatibility with existing callers that don't pass operation_type.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    workspace_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+
+    session = MagicMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+
+    captured_record: list[AICostRecord] = []
+
+    def capture_add(record: AICostRecord) -> None:
+        captured_record.append(record)
+
+    session.add.side_effect = capture_add
+
+    async def mock_refresh(record: AICostRecord) -> None:
+        record.id = uuid.uuid4()
+        from datetime import UTC, datetime
+
+        record.created_at = datetime.now(UTC)
+
+    session.refresh = mock_refresh
+
+    tracker = CostTracker(session)
+
+    await tracker.track(
+        workspace_id=workspace_id,
+        user_id=user_id,
+        agent_name="some_agent",
+        provider="anthropic",
+        model="claude-sonnet-4-20250514",
+        input_tokens=100,
+        output_tokens=50,
+        # operation_type not passed — should default to None
+    )
+
+    assert len(captured_record) == 1
+    saved = captured_record[0]
+    assert saved.operation_type is None

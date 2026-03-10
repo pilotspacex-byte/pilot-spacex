@@ -1,30 +1,40 @@
 /**
  * ProviderStatusCard - Display AI provider connection status.
  *
- * T182: Show provider status (Anthropic, OpenAI), connection indicator, last validated.
+ * T182: Show provider status (any provider), connection indicator, last validated.
+ * 13-03: Generalized to accept any string provider.
  */
 
 import { formatDistanceToNow } from 'date-fns';
-import { CheckCircle2, XCircle, Circle } from 'lucide-react';
+import { CheckCircle2, XCircle, Circle, Cpu } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 export interface ProviderStatus {
-  provider: 'anthropic' | 'openai';
+  provider: string;
   is_key_set: boolean;
   last_validated_at?: string | null;
   status?: 'connected' | 'disconnected' | 'unknown';
 }
 
 export interface ProviderStatusCardProps {
-  provider: 'anthropic' | 'openai';
+  provider: string;
   isKeySet: boolean;
   lastValidated?: string | null;
   status?: 'connected' | 'disconnected' | 'unknown';
 }
 
-const ProviderIcon = ({ provider }: { provider: 'anthropic' | 'openai' }) => {
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  kimi: 'Kimi (Moonshot)',
+  glm: 'GLM (Zhipu)',
+  google: 'Google Gemini',
+  custom: 'Custom Provider',
+};
+
+const ProviderIcon = ({ provider }: { provider: string }) => {
   if (provider === 'anthropic') {
     return (
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10 text-orange-600">
@@ -35,11 +45,19 @@ const ProviderIcon = ({ provider }: { provider: 'anthropic' | 'openai' }) => {
     );
   }
 
+  if (provider === 'openai') {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10 text-green-600">
+        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="12" r="10" />
+        </svg>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10 text-green-600">
-      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-        <circle cx="12" cy="12" r="10" />
-      </svg>
+    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+      <Cpu className="h-5 w-5" />
     </div>
   );
 };
@@ -50,7 +68,7 @@ export function ProviderStatusCard({
   lastValidated,
   status = 'unknown',
 }: ProviderStatusCardProps) {
-  const providerName = provider === 'anthropic' ? 'Anthropic' : 'OpenAI';
+  const providerName = PROVIDER_DISPLAY_NAMES[provider] ?? provider;
 
   const getStatusBadge = () => {
     if (!isKeySet) {

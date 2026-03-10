@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from pilot_space.api.v1.schemas.pr_review import ReviewComment
     from pilot_space.infrastructure.database.repositories import (
         AIConfigurationRepository,
+        IntegrationLinkRepository,
         IntegrationRepository,
     )
     from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
@@ -180,6 +181,7 @@ class PRReviewJobHandler:
         provider_selector: ProviderSelector,
         cost_tracker: CostTracker,
         resilient_executor: ResilientExecutor,
+        integration_link_repo: IntegrationLinkRepository | None = None,
     ) -> None:
         """Initialize handler.
 
@@ -191,11 +193,13 @@ class PRReviewJobHandler:
             provider_selector: Provider/model selection service.
             cost_tracker: Cost tracking service.
             resilient_executor: Retry and circuit breaker service.
+            integration_link_repo: IntegrationLink repository for activity creation.
         """
         self._session = session
         self._queue = queue_client
         self._integration_repo = integration_repo
         self._ai_config_repo = ai_config_repo
+        self._integration_link_repo = integration_link_repo
         self._agent = PRReviewSubagent(
             provider_selector=provider_selector,
             cost_tracker=cost_tracker,
@@ -287,6 +291,18 @@ class PRReviewJobHandler:
 
             await github_client.close()
 
+            # Persist AI review activity on the linked issue (non-fatal).
+            try:
+                await self._create_review_activity(
+                    payload=payload,
+                    review_output=review_output,
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to create AI review activity — continuing",
+                    extra={"job_id": payload.job_id},
+                )
+
             return PRReviewJobResult(
                 job_id=payload.job_id,
                 status=PRReviewJobStatus.COMPLETED,
@@ -309,6 +325,79 @@ class PRReviewJobHandler:
                 status=PRReviewJobStatus.FAILED,
                 error=str(e),
             )
+
+    async def _create_review_activity(
+        self,
+        payload: PRReviewJobPayload,
+        review_output: PRReviewOutput,
+    ) -> None:
+        """Create an AI_REVIEW activity entry on the issue linked to the PR.
+
+        Looks up the IntegrationLink for this PR to determine the issue_id, then
+        writes an Activity record with review severity counts and approval status.
+
+        Args:
+            payload: PR review job payload (contains integration_id, pr_number).
+            review_output: Completed review output.
+        """
+        if not self._integration_link_repo:
+            return
+
+        from pilot_space.infrastructure.database.models import (
+            Activity,
+            ActivityType,
+            IntegrationLinkType,
+        )
+
+        # Find the PR link to get the issue_id.
+        link = await self._integration_link_repo.get_by_external_id(
+            integration_id=UUID(payload.integration_id),
+            external_id=str(payload.pr_number),
+            link_type=IntegrationLinkType.PULL_REQUEST,
+        )
+        if not link:
+            logger.debug(
+                "No IntegrationLink found for PR — skipping AI review activity",
+                extra={"integration_id": payload.integration_id, "pr_number": payload.pr_number},
+            )
+            return
+
+        # Build the PR URL from the link's external_url (may be None for older links).
+        pr_url = (
+            link.external_url or f"https://github.com/{payload.repository}/pull/{payload.pr_number}"
+        )
+
+        approved = review_output.approval_status == "APPROVED"
+
+        activity = Activity(
+            workspace_id=link.workspace_id,
+            issue_id=link.issue_id,
+            actor_id=None,  # AI action
+            activity_type=ActivityType.AI_REVIEW,
+            activity_metadata={
+                "review_type": "pr_review",
+                "critical": review_output.critical_count,
+                "warning": review_output.warning_count,
+                "info": review_output.info_count,
+                "pr_url": pr_url,
+                "pr_number": payload.pr_number,
+                "approved": approved,
+                "approval_status": review_output.approval_status,
+            },
+        )
+        self._session.add(activity)
+        await self._session.flush()
+        await self._session.commit()
+
+        logger.info(
+            "Created AI review activity on issue",
+            extra={
+                "issue_id": str(link.issue_id),
+                "pr_number": payload.pr_number,
+                "critical": review_output.critical_count,
+                "approved": approved,
+            },
+        )
 
     async def _get_github_client(self, integration_id: UUID) -> GitHubClient:
         """Get authenticated GitHub client for integration.
@@ -457,18 +546,7 @@ class PRReviewJobHandler:
         pr_number: int,
         comments: list[ReviewComment],
     ) -> int:
-        """Post inline review comments to GitHub.
-
-        Args:
-            client: GitHub client.
-            owner: Repository owner.
-            repo: Repository name.
-            pr_number: PR number.
-            comments: Review comments to post.
-
-        Returns:
-            Number of comments successfully posted.
-        """
+        """Post critical/warning inline review comments to GitHub (max 25)."""
         posted = 0
 
         # Group critical and warning comments for inline posting
@@ -515,31 +593,11 @@ class PRReviewJobHandler:
         line: int,
         body: str,
     ) -> dict[str, Any]:
-        """Post a single review comment on a PR.
-
-        Args:
-            client: GitHub client.
-            owner: Repository owner.
-            repo: Repository name.
-            pr_number: PR number.
-            path: File path.
-            line: Line number.
-            body: Comment body.
-
-        Returns:
-            Created comment data.
-        """
+        """Post a single inline review comment on a PR."""
         return await client.post_review_comment(owner, repo, pr_number, path, line, body)
 
     def _format_inline_comment(self, comment: ReviewComment) -> str:
-        """Format a review comment for inline display.
-
-        Args:
-            comment: Review comment.
-
-        Returns:
-            Formatted markdown string.
-        """
+        """Format a review comment as GitHub markdown for inline display."""
         from pilot_space.api.v1.schemas.pr_review import ReviewSeverity
 
         severity_icons = {
@@ -568,18 +626,7 @@ class PRReviewJobHandler:
         pr_number: int,
         output: PRReviewOutput,
     ) -> tuple[bool, int | None]:
-        """Post summary comment to PR.
-
-        Args:
-            client: GitHub client.
-            owner: Repository owner.
-            repo: Repository name.
-            pr_number: PR number.
-            output: Review output.
-
-        Returns:
-            Tuple of (success, comment_id).
-        """
+        """Post formatted review summary as a PR comment. Returns (success, comment_id)."""
         try:
             summary_markdown = format_review_as_markdown(output)
             result = await client.post_comment(owner, repo, pr_number, summary_markdown)
@@ -601,6 +648,7 @@ async def handle_pr_review_job(
     cost_tracker: CostTracker,
     resilient_executor: ResilientExecutor,
     payload: PRReviewJobPayload,
+    integration_link_repo: IntegrationLinkRepository | None = None,
 ) -> PRReviewJobResult:
     """Process a single PR review job from the queue.
 
@@ -609,12 +657,11 @@ async def handle_pr_review_job(
         queue_client: Queue client.
         integration_repo: Integration repository.
         ai_config_repo: AI configuration repository.
-        tool_registry: Registry for MCP tool access.
         provider_selector: Provider/model selection service.
         cost_tracker: Cost tracking service.
         resilient_executor: Retry and circuit breaker service.
-        key_storage: Secure API key storage service.
         payload: Job payload.
+        integration_link_repo: Optional link repo for AI review activity creation.
 
     Returns:
         Job result.
@@ -627,6 +674,7 @@ async def handle_pr_review_job(
         provider_selector=provider_selector,
         cost_tracker=cost_tracker,
         resilient_executor=resilient_executor,
+        integration_link_repo=integration_link_repo,
     )
     return await handler.execute(payload)
 

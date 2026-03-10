@@ -241,6 +241,8 @@ class TestCreateComment:
 
     async def test_create_on_existing_discussion(self) -> None:
         """Create a comment when discussion already exists for target."""
+        from pilot_space.ai.tools.mcp_server import ToolApprovalLevel
+
         ctx = _make_mock_context()
         queue: asyncio.Queue[str] = asyncio.Queue()
         tools = _capture_comment_tools(queue, tool_context=ctx)
@@ -252,13 +254,17 @@ class TestCreateComment:
         mock_result.scalar_one_or_none.return_value = discussion
         ctx.db_session.execute = AsyncMock(return_value=mock_result)
 
-        result = await tool.handler(
-            {  # type: ignore[attr-defined]
-                "target_type": "issue",
-                "target_id": str(discussion.target_id),
-                "content": "Follow-up on this issue",
-            }
-        )
+        with patch(
+            "pilot_space.ai.mcp.comment_server.check_approval_from_db",
+            new=AsyncMock(return_value=ToolApprovalLevel.AUTO_EXECUTE),
+        ):
+            result = await tool.handler(
+                {  # type: ignore[attr-defined]
+                    "target_type": "issue",
+                    "target_id": str(discussion.target_id),
+                    "content": "Follow-up on this issue",
+                }
+            )
 
         text = result["content"][0]["text"]
         # CM-001: create_comment is AUTO_EXECUTE (non-destructive)

@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.repositories.activity_repository import (
         ActivityRepository,
     )
+    from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+        AuditLogRepository,
+    )
     from pilot_space.infrastructure.database.repositories.issue_repository import (
         IssueRepository,
     )
@@ -55,6 +58,7 @@ class DeleteIssueService:
         session: AsyncSession,
         issue_repository: IssueRepository,
         activity_repository: ActivityRepository,
+        audit_log_repository: AuditLogRepository | None = None,
     ) -> None:
         """Initialize DeleteIssueService.
 
@@ -62,10 +66,12 @@ class DeleteIssueService:
             session: The async database session.
             issue_repository: Repository for issue operations.
             activity_repository: Repository for activity tracking.
+            audit_log_repository: Optional audit log repository for compliance writes.
         """
         self._session = session
         self._issue_repo = issue_repository
         self._activity_repo = activity_repository
+        self._audit_repo = audit_log_repository
 
     async def execute(self, payload: DeleteIssuePayload) -> DeleteIssueResult:
         """Execute issue deletion.
@@ -92,13 +98,37 @@ class DeleteIssueService:
 
         activity = Activity(
             workspace_id=issue.workspace_id,
+            issue_id=issue.id,
             actor_id=payload.actor_id,
-            verb=ActivityType.DELETED,
-            object_type="issue",
-            object_id=issue.id,
-            metadata={"name": issue.name, "identifier": issue.identifier},
+            activity_type=ActivityType.DELETED,
+            activity_metadata={"name": issue.name, "identifier": issue.identifier},
         )
         await self._activity_repo.create(activity)
+
+        # Write audit log entry (non-fatal)
+        if self._audit_repo is not None:
+            try:
+                from pilot_space.infrastructure.database.models.audit_log import ActorType
+
+                await self._audit_repo.create(
+                    workspace_id=issue.workspace_id,
+                    actor_id=payload.actor_id,
+                    actor_type=ActorType.USER,
+                    action="issue.delete",
+                    resource_type="issue",
+                    resource_id=issue.id,
+                    payload={
+                        "before": {"name": issue.name, "identifier": issue.identifier},
+                        "after": {},
+                    },
+                    ip_address=None,
+                )
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "DeleteIssueService: failed to write audit log: %s", exc
+                )
 
         await self._session.commit()
 

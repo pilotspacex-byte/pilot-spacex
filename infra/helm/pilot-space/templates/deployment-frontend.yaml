@@ -1,0 +1,163 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "pilot-space.frontendName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.frontendLabels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pilot-space.frontendName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.frontendLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "pilot-space.frontendSelectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "pilot-space.frontendLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "pilot-space.frontendName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+            # Backend API URL (constructed from ingress host)
+            - name: NEXT_PUBLIC_API_URL
+              value: {{ printf "https://%s/api/v1" .Values.ingress.host | quote }}
+            # Supabase URL from configmap (non-sensitive)
+            - name: NEXT_PUBLIC_SUPABASE_URL
+              value: {{ .Values.externalSupabase.url | quote }}
+            # Supabase anon key from existing secret
+            - name: NEXT_PUBLIC_SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "externalSupabase.existingSecret is required" .Values.externalSupabase.existingSecret }}
+                  key: {{ .Values.externalSupabase.existingSecretAnonKey }}
+            {{- range $key, $value := .Values.frontend.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+
+          # Readiness probe: Next.js must respond before receiving traffic
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Liveness probe: restart pod if Next.js server hangs
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Startup probe: allow extra time for Next.js cold start
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
+
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "pilot-space.frontendSelectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "pilot-space.frontendSelectorLabels" . | nindent 14 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pilot-space.frontendName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pilot-space.frontendLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.frontend.service.type }}
+  selector:
+    {{- include "pilot-space.frontendSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.frontend.service.port }}
+      targetPort: 3000
+      protocol: TCP

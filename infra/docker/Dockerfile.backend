@@ -37,10 +37,14 @@ WORKDIR /app
 # - curl: health checks
 # - build-essential: compile native extensions
 # - libpq-dev: PostgreSQL client library
+# - libxml2-dev, libxmlsec1-dev, libxmlsec1: required by python3-saml (SAML 2.0 SSO)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     libpq-dev \
+    libxml2-dev \
+    libxmlsec1-dev \
+    libxmlsec1 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -109,9 +113,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install minimal runtime dependencies
+# - libxmlsec1: runtime shared library required by python3-saml (SAML 2.0 SSO)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libpq5 \
+    libxmlsec1 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

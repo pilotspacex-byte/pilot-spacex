@@ -11,7 +11,7 @@ Source: FR-001, FR-004, FR-008, US-1, US-2
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import (
     BigInteger,
@@ -116,7 +116,7 @@ class ChatAttachment(Base, TimestampMixin):
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=text("NOW() + INTERVAL '24 hours'"),
+        default=lambda: datetime.now(UTC) + timedelta(hours=24),
     )
 
     def __new__(cls, **kw: object) -> ChatAttachment:  # noqa: ARG004

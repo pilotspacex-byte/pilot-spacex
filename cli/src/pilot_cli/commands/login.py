@@ -27,6 +27,14 @@ def login_command() -> None:
         default=PilotConfig.DEFAULT_API_URL,
     )
     api_key = Prompt.ask("API Key (from Settings → API Keys)", password=True)
+    database_url = Prompt.ask(
+        "PostgreSQL database URL",
+        default="",
+    )
+    supabase_url = Prompt.ask(
+        "Supabase project URL",
+        default="",
+    )
 
     console.print("Validating credentials...", end=" ")
 
@@ -46,6 +54,8 @@ def login_command() -> None:
         api_url=api_url,
         api_key=api_key,
         workspace_slug=workspace_slug,
+        database_url=database_url,
+        supabase_url=supabase_url,
     )
     config.save()
 

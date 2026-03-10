@@ -55,6 +55,10 @@ from pilot_space.ai.mcp.project_server import (
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
     from pilot_space.ai.agents.pilotspace_agent import ChatInput
     from pilot_space.ai.mcp.block_ref_map import BlockRefMap
     from pilot_space.ai.tools.mcp_server import ToolContext
@@ -616,3 +620,62 @@ async def get_workspace_openai_key(db_session: Any, workspace_id: Any) -> str | 
         return await storage.get_api_key(workspace_id, "openai")
     except Exception:
         return None
+
+
+async def _load_remote_mcp_servers(  # pyright: ignore[reportUnusedFunction]
+    workspace_id: UUID | None,
+    db_session: AsyncSession | None,
+) -> dict[str, McpServerConfig]:
+    """Load registered remote MCP servers for workspace (MCP-04).
+
+    Called from PilotSpaceAgent.stream() before build_mcp_servers() to fetch
+    workspace-registered remote servers and construct McpSSEServerConfig entries.
+    Uses lazy imports to avoid circular dependencies.
+
+    Returns empty dict if workspace_id or db_session is None.
+    Silently skips servers with corrupt/undecodable tokens (logs WARNING).
+
+    Args:
+        workspace_id: Workspace UUID, or None for non-workspace (CLI/anonymous) requests.
+        db_session: Active async DB session, or None if not available.
+
+    Returns:
+        Dict keyed by "remote_{server.id}" with McpSSEServerConfig values.
+    """
+    if workspace_id is None or db_session is None:
+        return {}
+
+    from pilot_space.infrastructure.database.repositories.workspace_mcp_server_repository import (
+        WorkspaceMcpServerRepository,
+    )
+    from pilot_space.infrastructure.encryption import decrypt_api_key
+
+    repo = WorkspaceMcpServerRepository(session=db_session)
+    registered = await repo.get_active_by_workspace(workspace_id)
+    remote: dict[str, McpServerConfig] = {}
+
+    for server in registered:
+        token: str | None = None
+        if server.auth_token_encrypted:
+            try:
+                token = decrypt_api_key(server.auth_token_encrypted)
+            except Exception:
+                logger.warning(
+                    "mcp_token_decrypt_failed",
+                    server_id=str(server.id),
+                    workspace_id=str(workspace_id),
+                )
+                continue
+
+        if token:
+            config: McpServerConfig = {  # type: ignore[typeddict-item]
+                "type": "sse",
+                "url": server.url,
+                "headers": {"Authorization": f"Bearer {token}"},
+            }
+        else:
+            config = {"type": "sse", "url": server.url}  # type: ignore[typeddict-item]
+
+        remote[f"remote_{server.id}"] = config
+
+    return remote

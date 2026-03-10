@@ -136,6 +136,8 @@ interface IntegrationLinkRaw {
   author_avatar_url: string | null;
   /** Serialized as `metadata` by the backend Pydantic schema (DB column alias). */
   metadata?: PRLinkMetadata | CommitLinkMetadata | BranchLinkMetadata | null;
+  /** CI check suite status. Set by GitHub check_suite webhook. */
+  ci_status?: 'pending' | 'success' | 'failure' | 'neutral' | null;
 }
 
 interface IntegrationLinksResponse {
@@ -348,6 +350,8 @@ export const integrationsApi = {
             prStatus: mapPRStatus(prMeta?.state),
             // Commit timestamp from metadata (used by stale issue detection).
             commitTimestamp: commitMeta?.timestamp ?? undefined,
+            // CI status from GitHub check_suite webhook.
+            ciStatus: raw.ci_status ?? null,
           };
         })
       );

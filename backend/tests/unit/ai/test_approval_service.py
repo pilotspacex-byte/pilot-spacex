@@ -85,45 +85,74 @@ def test_approval(
 class TestApprovalClassification:
     """Tests for action classification logic."""
 
-    def test_always_require_actions(self, approval_service: ApprovalService) -> None:
+    @pytest.mark.asyncio
+    async def test_always_require_actions(self, approval_service: ApprovalService) -> None:
         """Verify critical actions always require approval."""
         settings = ProjectSettings(level=ApprovalLevel.AUTONOMOUS)
 
         # All critical actions should require approval regardless of settings
-        assert approval_service.check_approval_required(ActionType.DELETE_WORKSPACE, settings)
-        assert approval_service.check_approval_required(ActionType.DELETE_PROJECT, settings)
-        assert approval_service.check_approval_required(ActionType.DELETE_ISSUE, settings)
-        assert approval_service.check_approval_required(ActionType.MERGE_PR, settings)
+        assert await approval_service.check_approval_required(
+            ActionType.DELETE_WORKSPACE, project_settings=settings
+        )
+        assert await approval_service.check_approval_required(
+            ActionType.DELETE_PROJECT, project_settings=settings
+        )
+        assert await approval_service.check_approval_required(
+            ActionType.DELETE_ISSUE, project_settings=settings
+        )
+        assert await approval_service.check_approval_required(
+            ActionType.MERGE_PR, project_settings=settings
+        )
 
-    def test_auto_execute_actions(self, approval_service: ApprovalService) -> None:
+    @pytest.mark.asyncio
+    async def test_auto_execute_actions(self, approval_service: ApprovalService) -> None:
         """Verify safe actions auto-execute in balanced mode."""
         settings = ProjectSettings(level=ApprovalLevel.BALANCED)
 
         # Safe actions should auto-execute in balanced mode
-        assert not approval_service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
-        assert not approval_service.check_approval_required(ActionType.SUGGEST_PRIORITY, settings)
-        assert not approval_service.check_approval_required(ActionType.CREATE_ANNOTATION, settings)
+        assert not await approval_service.check_approval_required(
+            ActionType.SUGGEST_LABELS, project_settings=settings
+        )
+        assert not await approval_service.check_approval_required(
+            ActionType.SUGGEST_PRIORITY, project_settings=settings
+        )
+        assert not await approval_service.check_approval_required(
+            ActionType.CREATE_ANNOTATION, project_settings=settings
+        )
 
-    def test_conservative_requires_all(self, approval_service: ApprovalService) -> None:
+    @pytest.mark.asyncio
+    async def test_conservative_requires_all(self, approval_service: ApprovalService) -> None:
         """Verify conservative mode requires approval for all non-critical actions."""
         settings = ProjectSettings(level=ApprovalLevel.CONSERVATIVE)
 
         # Conservative mode should require approval even for safe actions
-        assert approval_service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
-        assert approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, settings)
+        assert await approval_service.check_approval_required(
+            ActionType.SUGGEST_LABELS, project_settings=settings
+        )
+        assert await approval_service.check_approval_required(
+            ActionType.CREATE_SUB_ISSUES, project_settings=settings
+        )
 
-    def test_autonomous_auto_executes_more(self, approval_service: ApprovalService) -> None:
+    @pytest.mark.asyncio
+    async def test_autonomous_auto_executes_more(self, approval_service: ApprovalService) -> None:
         """Verify autonomous mode auto-executes more actions."""
         settings = ProjectSettings(level=ApprovalLevel.AUTONOMOUS)
 
         # Autonomous should auto-execute DEFAULT_REQUIRE actions
-        assert not approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, settings)
-        assert not approval_service.check_approval_required(ActionType.EXTRACT_ISSUES, settings)
+        assert not await approval_service.check_approval_required(
+            ActionType.CREATE_SUB_ISSUES, project_settings=settings
+        )
+        assert not await approval_service.check_approval_required(
+            ActionType.EXTRACT_ISSUES, project_settings=settings
+        )
 
         # But still require approval for critical
-        assert approval_service.check_approval_required(ActionType.DELETE_WORKSPACE, settings)
+        assert await approval_service.check_approval_required(
+            ActionType.DELETE_WORKSPACE, project_settings=settings
+        )
 
-    def test_override_settings(self, approval_service: ApprovalService) -> None:
+    @pytest.mark.asyncio
+    async def test_override_settings(self, approval_service: ApprovalService) -> None:
         """Verify action-specific overrides work."""
         settings = ProjectSettings(
             level=ApprovalLevel.BALANCED,
@@ -134,10 +163,14 @@ class TestApprovalClassification:
         )
 
         # Override should force approval for normally safe action
-        assert approval_service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
+        assert await approval_service.check_approval_required(
+            ActionType.SUGGEST_LABELS, project_settings=settings
+        )
 
         # Override should allow auto-execute for normally approved action
-        assert not approval_service.check_approval_required(ActionType.CREATE_SUB_ISSUES, settings)
+        assert not await approval_service.check_approval_required(
+            ActionType.CREATE_SUB_ISSUES, project_settings=settings
+        )
 
 
 class TestApprovalService:

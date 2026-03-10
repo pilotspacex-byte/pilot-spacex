@@ -30,6 +30,7 @@ from pilot_space.ai.agents.pilotspace_intent_pipeline import (
     run_intent_pipeline_step,
 )
 from pilot_space.ai.agents.pilotspace_stream_utils import (
+    _load_remote_mcp_servers,  # type: ignore[reportPrivateUsage]
     build_graph_search_service_for_session,
     build_graph_write_service_for_session,
     build_mcp_servers,
@@ -60,15 +61,9 @@ if TYPE_CHECKING:
     from pilot_space.ai.sdk.permission_handler import PermissionHandler
     from pilot_space.ai.sdk.session_handler import SessionHandler
     from pilot_space.ai.tools.mcp_server import ToolRegistry
-    from pilot_space.application.services.intent.detection_service import (
-        IntentDetectionService,
-    )
-    from pilot_space.application.services.memory.memory_save_service import (
-        MemorySaveService,
-    )
-    from pilot_space.application.services.memory.memory_search_service import (
-        MemorySearchService,
-    )
+    from pilot_space.application.services.intent.detection_service import IntentDetectionService
+    from pilot_space.application.services.memory.memory_save_service import MemorySaveService
+    from pilot_space.application.services.memory.memory_search_service import MemorySearchService
     from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
     from pilot_space.spaces.base import SpaceContext
 
@@ -85,6 +80,7 @@ class ChatInput:
     context: dict[str, Any] = field(default_factory=dict)
     user_id: UUID | None = None
     workspace_id: UUID | None = None
+    resolved_model: Any | None = None  # ResolvedModelConfig when model_override set (AIPR-04)
 
 
 @dataclass
@@ -132,6 +128,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         memory_search_service: MemorySearchService | None = None,
         memory_save_service: MemorySaveService | None = None,
         graph_queue_client: SupabaseQueueClient | None = None,
+        session_factory: Any | None = None,
     ) -> None:
         super().__init__(
             provider_selector=provider_selector,
@@ -147,6 +144,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._memory_search_service = memory_search_service
         self._memory_save_service = memory_save_service
         self._graph_queue_client = graph_queue_client
+        self._session_factory = session_factory
         self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
         self._active_clients: dict[str, ClaudeSDKClient] = {}
 
@@ -154,22 +152,24 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         return build_subagent_definitions()
 
     async def _get_api_key(self, workspace_id: UUID | None) -> str:
-        if workspace_id and self._key_storage:
-            try:
+        """Get API key. AIGOV-05 BYOK: workspace calls require WorkspaceAPIKey row; no env fallback.
+        workspace_id=None (system/background agents) is the only permitted env-key path.
+        """
+        if getattr(self, "_resolved_model", None) is not None:
+            return self._resolved_model.api_key  # type: ignore[union-attr]
+        from pilot_space.ai.exceptions import AINotConfiguredError
+
+        if workspace_id is not None:
+            # Workspace-scoped: BYOK required, no env fallback
+            if self._key_storage:
                 key = await self._key_storage.get_api_key(workspace_id, "anthropic")
                 if key:
                     return key
-            except Exception as e:
-                logger.warning(
-                    "Vault lookup failed for workspace %s: %s. Falling back to env var",
-                    workspace_id,
-                    str(e),
-                    exc_info=True,
-                )
-
-        api_key = os.getenv("ANTHROPIC_API_KEY")
+            raise AINotConfiguredError(workspace_id=workspace_id)
+        # System-only path: env key permitted
+        api_key = os.getenv("ANTHROPIC_API_KEY")  # _SYSTEM_ONLY: never for workspace calls
         if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY not set and no workspace key configured.")
+            raise AINotConfiguredError(workspace_id=None)
         return api_key
 
     async def interrupt_session(self, session_id: str) -> bool:
@@ -219,11 +219,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         action: str = "confirmed",
     ) -> bool:
         """Signal the intent pipeline for session_id (T-018)."""
-        return ConfirmationBus.signal(
-            session_id,
-            intent_id=intent_id,
-            action=action,
-        )
+        return ConfirmationBus.signal(session_id, intent_id=intent_id, action=action)
 
     async def _detect_and_emit_intents(
         self,
@@ -318,11 +314,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             user_id=str(context.user_id) if context.user_id else None,
         )
 
-        mcp_servers, ref_map = build_mcp_servers(
-            tool_event_queue,
-            tool_context,
-            input_data,
-        )
+        # MCP-04: pre-fetch async before sync build_mcp_servers, then merge
+        remote_servers = await _load_remote_mcp_servers(context.workspace_id, db_session)
+        mcp_servers, ref_map = build_mcp_servers(tool_event_queue, tool_context, input_data)
+        mcp_servers.update(remote_servers)
 
         skill_name = detect_skill_from_message(input_data.message)
         output_format = get_skill_output_format(skill_name) if skill_name else None
@@ -377,8 +372,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         can_use_tool_cb = create_can_use_tool_callback(tool_event_queue, context.user_id)
 
+        _r = getattr(self, "_resolved_model", None)  # AIPR-04 model override
         sdk_options = ClaudeAgentOptions(
-            model=sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
+            model=_r.model if _r else sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
             cwd=sdk_params.get("cwd"),
             setting_sources=sdk_params.get("setting_sources", ["project"]),
             allowed_tools=sdk_params.get("allowed_tools", []),
@@ -419,6 +415,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         context: AgentContext,
     ) -> AsyncIterator[str]:
         try:
+            self._resolved_model = input_data.resolved_model  # AIPR-04
             api_key = await self._get_api_key(context.workspace_id)
             subagent_definitions = self._build_subagent_definitions()
             session_id_str = str(input_data.session_id) if input_data.session_id else None
@@ -479,6 +476,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 user_id=context.user_id,
                 file_hook_executor=file_hook_executor,
                 event_queue=tool_event_queue,
+                session_factory=self._session_factory,
             )
 
             from pilot_space.infrastructure.database import get_db_session

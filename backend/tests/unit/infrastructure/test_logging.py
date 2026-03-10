@@ -6,10 +6,12 @@ import pytest
 
 from pilot_space.config import Settings
 from pilot_space.infrastructure.logging import (
+    add_request_context,
     clear_request_context,
     configure_structlog,
     get_logger,
     log_performance,
+    set_action,
     set_request_context,
 )
 
@@ -166,3 +168,72 @@ def test_log_levels(dev_settings: Settings) -> None:
     logger.warning("warning_message", level="warning")
     logger.error("error_message", level="error")
     logger.critical("critical_message", level="critical")
+
+
+# ---------------------------------------------------------------------------
+# OPS-04: trace_id / actor / action ContextVar tests
+# ---------------------------------------------------------------------------
+
+
+def test_new_context_vars() -> None:
+    """set_request_context injects trace_id, actor, action into event_dict."""
+    clear_request_context()
+    set_request_context(trace_id="t1", actor="user:abc")
+    set_action("issue.create")
+
+    event_dict: dict[str, object] = {"event": "test"}
+    result = add_request_context(None, "info", event_dict)  # type: ignore[arg-type]
+
+    assert result["trace_id"] == "t1"
+    assert result["actor"] == "user:abc"
+    assert result["action"] == "issue.create"
+    clear_request_context()
+
+
+def test_clear_clears_new_fields() -> None:
+    """clear_request_context() resets trace_id, actor, action to None."""
+    set_request_context(trace_id="t1", actor="user:abc")
+    set_action("issue.create")
+    clear_request_context()
+
+    event_dict: dict[str, object] = {"event": "test"}
+    result = add_request_context(None, "info", event_dict)  # type: ignore[arg-type]
+
+    assert "trace_id" not in result
+    assert "actor" not in result
+    assert "action" not in result
+
+
+def test_trace_id_emitted_with_request_id() -> None:
+    """When both request_id and trace_id are set, event_dict contains both fields."""
+    clear_request_context()
+    set_request_context(request_id="req-111", trace_id="trace-222")
+
+    event_dict: dict[str, object] = {"event": "test"}
+    result = add_request_context(None, "info", event_dict)  # type: ignore[arg-type]
+
+    assert result["request_id"] == "req-111"
+    assert result["trace_id"] == "trace-222"
+    clear_request_context()
+
+
+def test_action_none_by_default() -> None:
+    """Without calling set_action(), action key is absent from event_dict."""
+    clear_request_context()
+
+    event_dict: dict[str, object] = {"event": "test"}
+    result = add_request_context(None, "info", event_dict)  # type: ignore[arg-type]
+
+    assert "action" not in result
+
+
+def test_set_action_helper() -> None:
+    """set_action() sets the action ContextVar; add_request_context includes action."""
+    clear_request_context()
+    set_action("note.update")
+
+    event_dict: dict[str, object] = {"event": "test"}
+    result = add_request_context(None, "info", event_dict)  # type: ignore[arg-type]
+
+    assert result["action"] == "note.update"
+    clear_request_context()

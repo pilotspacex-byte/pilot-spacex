@@ -5,15 +5,37 @@ import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Compass, Github, Mail, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Compass, Github, Mail, Loader2, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { authStore, isAuthCoreMode } from '@/stores/AuthStore';
+import { useWorkspaceSsoStatus, useSsoLogin } from '@/features/auth/hooks/use-sso-login';
 
 type AuthMode = 'login' | 'signup';
+
+/** Label shown on the SSO button based on OIDC provider name. */
+function getSsoButtonLabel(
+  hasSaml: boolean,
+  hasOidc: boolean,
+  oidcProvider: string | null
+): string {
+  if (hasOidc && oidcProvider) {
+    const names: Record<string, string> = {
+      google: 'Google',
+      azure: 'Microsoft',
+      okta: 'Okta',
+    };
+    const name = names[oidcProvider] ?? oidcProvider;
+    return `Continue with ${name}`;
+  }
+  if (hasSaml) {
+    return 'Continue with SSO';
+  }
+  return 'Continue with SSO';
+}
 
 const LoginPage = observer(function LoginPage() {
   const router = useRouter();
@@ -25,6 +47,10 @@ const LoginPage = observer(function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState(false);
+
+  // workspace_id may be passed via query param (e.g. when redirected from a workspace login page)
+  const workspaceId = searchParams.get('workspace_id');
 
   // Allowlist of known session error codes — prevents phishing via arbitrary query params
   const KNOWN_SESSION_ERRORS: Record<string, string> = {
@@ -53,6 +79,13 @@ const LoginPage = observer(function LoginPage() {
   const isAuthLoading = mounted && authStore.isLoading;
 
   const showNameField = mode === 'signup' && !isAuthCoreMode;
+
+  // SSO status — only fetched when workspace_id is present in URL
+  const { data: ssoStatus } = useWorkspaceSsoStatus(workspaceId);
+  const initiateSsoLogin = useSsoLogin();
+
+  const hasSso = !!(ssoStatus?.has_saml || ssoStatus?.has_oidc);
+  const ssoRequired = !!ssoStatus?.sso_required;
 
   const handleEmailAuth = async (e: FormEvent) => {
     e.preventDefault();
@@ -84,6 +117,20 @@ const LoginPage = observer(function LoginPage() {
     await authStore.loginWithOAuth('github');
   };
 
+  const handleSsoLogin = async () => {
+    if (!workspaceId) return;
+    setSsoLoading(true);
+    try {
+      const method = ssoStatus?.has_oidc ? 'oidc' : 'saml';
+      const oidcProvider = ssoStatus?.oidc_provider ?? undefined;
+      await initiateSsoLogin(workspaceId, method, oidcProvider);
+    } catch {
+      setLocalError('SSO login failed. Please try again or contact your administrator.');
+    } finally {
+      setSsoLoading(false);
+    }
+  };
+
   const toggleMode = () => {
     setMode(mode === 'login' ? 'signup' : 'login');
     setLocalError(null);
@@ -91,6 +138,14 @@ const LoginPage = observer(function LoginPage() {
   };
 
   const error = sessionError || localError || authStore.error;
+
+  const ssoButtonLabel = ssoStatus
+    ? getSsoButtonLabel(ssoStatus.has_saml, ssoStatus.has_oidc, ssoStatus.oidc_provider)
+    : 'Continue with SSO';
+
+  // When sso_required=true, only render the SSO button (hide email/password form)
+  const showEmailForm = !ssoRequired;
+  const showSsoButton = hasSso && mode === 'login';
 
   return (
     <motion.div
@@ -111,100 +166,152 @@ const LoginPage = observer(function LoginPage() {
             {mode === 'login' ? 'Welcome to Pilot Space' : 'Create your account'}
           </CardTitle>
           <CardDescription>
-            {mode === 'login'
-              ? 'Sign in to start collaborating with AI'
-              : 'Join Pilot Space to start collaborating'}
+            {ssoRequired
+              ? 'This workspace requires SSO login.'
+              : mode === 'login'
+                ? 'Sign in to start collaborating with AI'
+                : 'Join Pilot Space to start collaborating'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleEmailAuth} className="space-y-4">
-            {showNameField && (
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Your name"
-                  className="h-11"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={isAuthLoading}
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Email address"
-                className="h-11"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isAuthLoading}
-                aria-describedby={error ? 'auth-error' : undefined}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Password"
-                  className="h-11 pr-10"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isAuthLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  tabIndex={-1}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {mode === 'login' && !isAuthCoreMode && (
-                <div className="flex justify-end">
-                  <Link
-                    href="/forgot-password"
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    Forgot password?
-                  </Link>
+          {/* SSO button — shown above email form when SSO is available but not required */}
+          {showSsoButton && (
+            <>
+              <Button
+                type="button"
+                variant={ssoRequired ? 'default' : 'outline'}
+                className="w-full h-11"
+                onClick={handleSsoLogin}
+                disabled={ssoLoading || isAuthLoading}
+                aria-label={ssoButtonLabel}
+                data-testid="sso-login-button"
+              >
+                {ssoLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <KeyRound className="mr-2 h-4 w-4" />
+                )}
+                {ssoButtonLabel}
+              </Button>
+
+              {/* Divider between SSO and email/password — only when both are shown */}
+              {showEmailForm && (
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <Separator className="w-full" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      Or sign in with email
+                    </span>
+                  </div>
                 </div>
               )}
-            </div>
+            </>
+          )}
 
-            {error && (
-              <div
-                id="auth-error"
-                className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
-                role="alert"
-              >
-                {error}
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full h-11 shadow-warm-sm"
-              disabled={isAuthLoading}
-              aria-busy={isAuthLoading}
-            >
-              {isAuthLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Mail className="mr-2 h-4 w-4" />
+          {/* Email/password form — hidden when sso_required=true */}
+          {showEmailForm && (
+            <form onSubmit={handleEmailAuth} className="space-y-4">
+              {showNameField && (
+                <div className="space-y-2">
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Your name"
+                    className="h-11"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={isAuthLoading}
+                  />
+                </div>
               )}
-              {mode === 'login' ? 'Sign In' : 'Create Account'}
-            </Button>
-          </form>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Email address"
+                  className="h-11"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isAuthLoading}
+                  aria-describedby={error ? 'auth-error' : undefined}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Password"
+                    className="h-11 pr-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isAuthLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {mode === 'login' && !isAuthCoreMode && (
+                  <div className="flex justify-end">
+                    <Link
+                      href="/forgot-password"
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                )}
+              </div>
 
-          {!isAuthCoreMode && (
+              {error && (
+                <div
+                  id="auth-error"
+                  className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+                  role="alert"
+                >
+                  {error}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full h-11 shadow-warm-sm"
+                disabled={isAuthLoading}
+                aria-busy={isAuthLoading}
+              >
+                {isAuthLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="mr-2 h-4 w-4" />
+                )}
+                {mode === 'login' ? 'Sign In' : 'Create Account'}
+              </Button>
+            </form>
+          )}
+
+          {/* SSO-required error message when sso_required=true */}
+          {ssoRequired && error && (
+            <div
+              id="auth-error"
+              className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+
+          {!isAuthCoreMode && showEmailForm && (
             <>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -229,31 +336,33 @@ const LoginPage = observer(function LoginPage() {
             </>
           )}
 
-          <div className="text-center text-sm">
-            {mode === 'login' ? (
-              <span className="text-muted-foreground">
-                Don&apos;t have an account?{' '}
-                <button
-                  type="button"
-                  onClick={toggleMode}
-                  className="font-medium text-primary hover:underline"
-                >
-                  Sign up
-                </button>
-              </span>
-            ) : (
-              <span className="text-muted-foreground">
-                Already have an account?{' '}
-                <button
-                  type="button"
-                  onClick={toggleMode}
-                  className="font-medium text-primary hover:underline"
-                >
-                  Sign in
-                </button>
-              </span>
-            )}
-          </div>
+          {showEmailForm && (
+            <div className="text-center text-sm">
+              {mode === 'login' ? (
+                <span className="text-muted-foreground">
+                  Don&apos;t have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={toggleMode}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Sign up
+                  </button>
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={toggleMode}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Sign in
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
 
           <p className="text-center text-xs text-muted-foreground">
             By continuing, you agree to our Terms of Service and Privacy Policy.

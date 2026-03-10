@@ -25,6 +25,7 @@ import type { WorkspaceMember } from '@/features/issues/hooks/use-workspace-memb
 import type { WorkspaceRole } from '@/stores/WorkspaceStore';
 import { getInitials, formatJoinDate } from '@/features/members/utils/member-utils';
 import { cn } from '@/lib/utils';
+import { MemberRoleBadge } from './member-role-badge';
 
 interface MemberCardProps {
   member: WorkspaceMember;
@@ -42,13 +43,6 @@ interface MemberCardProps {
 const ROLE_ICON: Record<string, React.ReactNode> = {
   owner: <Crown className="h-3 w-3" aria-hidden="true" />,
   admin: <ShieldAlert className="h-3 w-3" aria-hidden="true" />,
-};
-
-const ROLE_BADGE_STYLES: Record<string, string> = {
-  owner: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  admin: 'bg-primary/10 text-primary',
-  member: 'border border-border text-foreground',
-  guest: 'border border-border/60 text-muted-foreground',
 };
 
 export function MemberCard({
@@ -99,16 +93,10 @@ export function MemberCard({
     >
       {/* Top row: role badge + actions */}
       <div className="flex items-start justify-between mb-3">
-        <span
-          className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium capitalize',
-            ROLE_BADGE_STYLES[member.role] ?? ROLE_BADGE_STYLES.member
-          )}
-          data-testid={`role-badge-${member.role}`}
-        >
-          {ROLE_ICON[member.role]}
-          {member.role}
-        </span>
+        <div className="inline-flex items-center gap-1">
+          {!member.custom_role && ROLE_ICON[member.role]}
+          <MemberRoleBadge role={member.role} customRole={member.custom_role ?? null} />
+        </div>
 
         {showActions && (
           <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>

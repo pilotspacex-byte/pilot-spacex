@@ -25,10 +25,14 @@ if TYPE_CHECKING:
     )
     from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
     from pilot_space.infrastructure.database.models.ai_session import AISession
+    from pilot_space.infrastructure.database.models.custom_role import CustomRole
     from pilot_space.infrastructure.database.models.project import Project
     from pilot_space.infrastructure.database.models.user import User
     from pilot_space.infrastructure.database.models.workspace_api_key import (
         WorkspaceAPIKey,
+    )
+    from pilot_space.infrastructure.database.models.workspace_encryption_key import (
+        WorkspaceEncryptionKey,
     )
     from pilot_space.infrastructure.database.models.workspace_member import (
         WorkspaceMember,
@@ -73,6 +77,32 @@ class Workspace(BaseModel):
         JSONBCompat,
         nullable=True,
         default=dict,
+    )
+
+    # Audit log retention period in days (NULL means use system default of 90 days)
+    # Added by migration 065_add_audit_log_table
+    audit_retention_days: Mapped[int | None] = mapped_column(
+        nullable=True,
+    )
+
+    # Per-workspace rate limit overrides (NULL = use system default)
+    # Added by migration 067_workspace_encryption_and_quota
+    rate_limit_standard_rpm: Mapped[int | None] = mapped_column(
+        nullable=True,
+    )
+    rate_limit_ai_rpm: Mapped[int | None] = mapped_column(
+        nullable=True,
+    )
+
+    # Storage quota (NULL = unlimited)
+    # Added by migration 067_workspace_encryption_and_quota
+    storage_quota_mb: Mapped[int | None] = mapped_column(
+        nullable=True,
+    )
+    storage_used_bytes: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
     )
 
     # Owner (creator of workspace)
@@ -129,6 +159,19 @@ class Workspace(BaseModel):
         "AISession",
         back_populates="workspace",
         cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    custom_roles: Mapped[list[CustomRole]] = relationship(
+        "CustomRole",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        lazy="select",
+    )
+    encryption_key: Mapped[WorkspaceEncryptionKey | None] = relationship(
+        "WorkspaceEncryptionKey",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        uselist=False,
         lazy="selectin",
     )
 

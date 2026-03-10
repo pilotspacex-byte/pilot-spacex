@@ -31,6 +31,8 @@ export interface OnboardingStepItemProps {
   onAction: () => void;
   /** Whether actions are disabled */
   disabled?: boolean;
+  /** Optional link to the relevant settings page (ONBD-05) */
+  settingsHref?: string;
 }
 
 const ICON_MAP = {
@@ -53,6 +55,7 @@ export function OnboardingStepItem({
   isNext,
   onAction,
   disabled,
+  settingsHref,
 }: OnboardingStepItemProps) {
   const Icon = ICON_MAP[config.icon];
 
@@ -90,6 +93,14 @@ export function OnboardingStepItem({
           {config.title}
         </div>
         <div className="text-xs text-muted-foreground truncate">{config.description}</div>
+        {!completed && settingsHref && (
+          <a
+            href={settingsHref}
+            className="mt-0.5 text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+          >
+            Go to settings
+          </a>
+        )}
       </div>
 
       {/* Action */}

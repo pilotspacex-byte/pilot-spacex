@@ -282,4 +282,13 @@ export class UIStore {
   }
 }
 
+/**
+ * @deprecated Do NOT import this standalone instance in application code.
+ * Use `useUIStore()` from `@/stores` to get the RootStore-scoped UIStore.
+ * This singleton is a separate instance and does NOT share state with the
+ * instance rendered by React components. Importing it for component logic
+ * will cause subtle reactivity bugs (commands won't open dialogs, etc.).
+ *
+ * Kept only for use in non-React contexts (e.g. legacy scripts).
+ */
 export const uiStore = new UIStore();

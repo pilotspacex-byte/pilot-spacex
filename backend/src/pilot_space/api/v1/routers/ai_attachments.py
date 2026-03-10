@@ -17,9 +17,13 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy import select
 
+from pilot_space.api.v1.routers.workspace_quota import (
+    _check_storage_quota,  # pyright: ignore[reportPrivateUsage]
+    _update_storage_usage,  # pyright: ignore[reportPrivateUsage]
+)
 from pilot_space.api.v1.schemas.attachments import AttachmentUploadResponse
 from pilot_space.dependencies.auth import CurrentUserId, DbSession
 from pilot_space.dependencies.services import AttachmentUploadServiceDep
@@ -72,6 +76,7 @@ async def upload_attachment(
     workspace_id: Annotated[UUID, Form(...)],
     file: Annotated[UploadFile, File(...)],
     session_id: Annotated[str | None, Form()] = None,
+    response: Response = Response(),
 ) -> AttachmentUploadResponse:
     """Upload a local file as a chat context attachment.
 
@@ -111,13 +116,21 @@ async def upload_attachment(
     file_data = await file.read()
     filename = file.filename or "upload"
     content_type = file.content_type or "application/octet-stream"
+    _file_bytes = len(file_data)
+
+    _quota_ok, _warning_pct = await _check_storage_quota(db, workspace_id, _file_bytes)
+    if not _quota_ok:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail="Storage quota exceeded",
+        )
 
     logger.info(
         "attachment_upload_request",
         workspace_id=str(workspace_id),
         filename=filename,
         content_type=content_type,
-        size_bytes=len(file_data),
+        size_bytes=_file_bytes,
         user_id=str(user_id),
     )
 
@@ -129,6 +142,13 @@ async def upload_attachment(
         user_id=user_id,
         session_id=session_id,
     )
+
+    try:
+        await _update_storage_usage(db, workspace_id, _file_bytes)
+    except Exception:
+        logger.warning("storage_usage_update_failed", workspace_id=str(workspace_id))
+    if _warning_pct is not None:
+        response.headers["X-Storage-Warning"] = str(round(_warning_pct, 4))
 
     return _build_upload_response(record)
 

@@ -8,7 +8,6 @@
 
 import { Loader2, MoreHorizontal, Shield, ShieldAlert, Trash2, Crown } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -25,12 +24,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { WorkspaceMember } from '@/features/issues/hooks/use-workspace-members';
 import type { WorkspaceRole } from '@/stores/WorkspaceStore';
-import {
-  ROLE_HIERARCHY,
-  ROLE_BADGE_VARIANT,
-  getInitials,
-  formatJoinDate,
-} from '@/features/members/utils/member-utils';
+import { ROLE_HIERARCHY, getInitials, formatJoinDate } from '@/features/members/utils/member-utils';
+import { MemberRoleBadge } from '@/features/members/components/member-role-badge';
 
 interface MemberRowProps {
   member: WorkspaceMember;
@@ -167,10 +162,10 @@ export function MemberRow({
               </SelectContent>
             </Select>
           ) : (
-            <Badge variant={ROLE_BADGE_VARIANT[member.role] ?? 'outline'} className="capitalize">
+            <div className="inline-flex items-center gap-1">
               {isMemberOwner && <Crown className="h-3 w-3" />}
-              {member.role}
-            </Badge>
+              <MemberRoleBadge role={member.role} customRole={member.custom_role ?? null} />
+            </div>
           )}
         </div>
 

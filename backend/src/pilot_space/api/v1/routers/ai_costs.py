@@ -48,6 +48,13 @@ async def get_cost_summary(
     session: DbSession,
     start_date: Annotated[date | None, Query(description="Period start date")] = None,
     end_date: Annotated[date | None, Query(description="Period end date")] = None,
+    group_by: Annotated[
+        str | None,
+        Query(
+            description="Group breakdown by field. Valid values: operation_type, agent_name, provider, model.",
+            pattern=r"^(operation_type|agent_name|provider|model)$",
+        ),
+    ] = None,
 ) -> CostSummaryResponse:
     """Get AI cost summary for workspace.
 
@@ -108,6 +115,27 @@ async def get_cost_summary(
         users_result = await session.execute(users_query)
         users_map = {str(u.id): u.full_name or u.email for u in users_result.scalars()}
 
+    # Build group_by=operation_type breakdown (AIGOV-06)
+    by_feature: dict[str, float] | None = None
+    if group_by == "operation_type":
+        op_type_stmt = (
+            select(
+                AICostRecord.operation_type,
+                func.sum(AICostRecord.cost_usd).label("cost"),
+            )
+            .where(
+                (AICostRecord.workspace_id == workspace_id)
+                & (func.date(AICostRecord.created_at).between(start_date, end_date))
+                & (AICostRecord.is_deleted == False)  # noqa: E712
+            )
+            .group_by(AICostRecord.operation_type)
+        )
+        op_result = await session.execute(op_type_stmt)
+        by_feature = {
+            (row.operation_type if row.operation_type is not None else "unknown"): float(row.cost)
+            for row in op_result
+        }
+
     # Build response
     by_agent = [CostByAgent(**item) for item in details["by_agent"]]
     by_user = [
@@ -132,6 +160,7 @@ async def get_cost_summary(
         by_agent=by_agent,
         by_user=by_user,
         by_day=by_day,
+        by_feature=by_feature,
     )
 
 

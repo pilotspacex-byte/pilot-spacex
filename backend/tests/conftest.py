@@ -127,8 +127,9 @@ async def test_engine(test_database_url: str) -> AsyncGenerator[AsyncEngine, Non
             echo=False,
         )
 
-    # Create all tables
+    # Create all tables (drop first to ensure clean state with StaticPool)
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine

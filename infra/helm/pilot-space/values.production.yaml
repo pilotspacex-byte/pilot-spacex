@@ -1,0 +1,68 @@
+# Production overrides for Pilot Space Helm chart.
+#
+# Merge with your site-specific values:
+#   helm install pilot-space infra/helm/pilot-space/ \
+#     -n pilot-space \
+#     -f infra/helm/pilot-space/values.production.yaml \
+#     -f values.site.yaml
+#
+# values.site.yaml must supply:
+#   - externalDatabase.existingSecret
+#   - externalRedis.existingSecret
+#   - externalSupabase.existingSecret
+#   - externalSupabase.url
+#   - ingress.host
+
+## Backend: production-grade resource allocation
+backend:
+  replicaCount: 3
+  image:
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+## Frontend: production defaults
+frontend:
+  replicaCount: 2
+  image:
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+## Ingress: TLS enforced in production
+ingress:
+  enabled: true
+  tls:
+    enabled: true
+    certManagerClusterIssuer: letsencrypt-prod
+
+## Autoscaling: enabled with production bounds
+autoscaling:
+  enabled: true
+  backend:
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  frontend:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+## PDB: required for production cluster maintenance
+podDisruptionBudget:
+  enabled: true
+  backend:
+    minAvailable: 2
+  frontend:
+    minAvailable: 1

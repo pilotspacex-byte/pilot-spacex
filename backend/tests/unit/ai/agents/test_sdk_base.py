@@ -42,7 +42,6 @@ class ConcreteStreamingAgent(StreamingSDKBaseAgent[str, str]):
 def mock_deps():
     """Create mock dependencies."""
     return {
-        "tool_registry": MagicMock(),
         "provider_selector": MagicMock(),
         "cost_tracker": MagicMock(),
         "resilient_executor": MagicMock(),

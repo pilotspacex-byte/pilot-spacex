@@ -121,7 +121,10 @@ export const APIKeyForm = observer(function APIKeyForm() {
             onChange={setAnthropicKey}
             isSet={settings.anthropicKeySet}
             required
-            error={validationErrors.anthropic}
+            error={
+              validationErrors.anthropic ??
+              (settings.validationErrors['anthropic'] as string | undefined)
+            }
             disabled={settings.isSaving}
             provider="anthropic"
             placeholder={settings.anthropicKeySet ? '••••••••••••••••••••' : 'sk-ant-...'}
@@ -135,7 +138,9 @@ export const APIKeyForm = observer(function APIKeyForm() {
             onChange={setOpenaiKey}
             isSet={settings.openaiKeySet}
             required
-            error={validationErrors.openai}
+            error={
+              validationErrors.openai ?? (settings.validationErrors['openai'] as string | undefined)
+            }
             disabled={settings.isSaving}
             provider="openai"
             placeholder={settings.openaiKeySet ? '••••••••••••••••••••' : 'sk-...'}

@@ -14,12 +14,15 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from pilot_space.ai.infrastructure.approval import ActionType
 
 
 # Type for tool functions
@@ -147,6 +150,68 @@ def get_tool_approval_level(tool_name: str) -> ToolApprovalLevel:
     return level
 
 
+async def check_approval_from_db(
+    tool_name: str,
+    action_type: ActionType | None,
+    tool_context: ToolContext | None,
+) -> ToolApprovalLevel:
+    """Check approval level via ApprovalService (DB-backed), fallback to static map.
+
+    Priority:
+    1. If action_type is None or no tool_context: return get_tool_approval_level(tool_name)
+    2. Build ApprovalService with WorkspaceAIPolicyRepository from tool_context.db_session
+    3. Call check_approval_required(action_type, workspace_id, user_role)
+    4. Map bool -> ToolApprovalLevel
+
+    On any exception (DB unavailable, config error), falls back gracefully to the
+    static TOOL_APPROVAL_MAP via get_tool_approval_level().
+
+    Args:
+        tool_name: The MCP tool name (e.g., "create_issue"). Used for fallback lookup.
+        action_type: The ActionType to check. None triggers immediate fallback.
+        tool_context: ToolContext with db_session, workspace_id, user_role. None triggers fallback.
+
+    Returns:
+        ToolApprovalLevel indicating whether and how to require approval.
+    """
+    if action_type is None or tool_context is None:
+        return get_tool_approval_level(tool_name)
+    try:
+        import uuid as _uuid
+
+        from pilot_space.ai.infrastructure.approval import ApprovalService
+        from pilot_space.infrastructure.database.repositories.workspace_ai_policy_repository import (
+            WorkspaceAIPolicyRepository,
+        )
+
+        policy_repo = WorkspaceAIPolicyRepository(tool_context.db_session)
+        approval_svc = ApprovalService(
+            session=tool_context.db_session,
+            policy_repo=policy_repo,
+        )
+        workspace_uuid = _uuid.UUID(tool_context.workspace_id)
+        user_role = tool_context.user_role or WorkspaceRole.MEMBER
+
+        requires = await approval_svc.check_approval_required(
+            action_type=action_type,
+            workspace_id=workspace_uuid,
+            user_role=user_role,
+        )
+        if requires:
+            # Distinguish ALWAYS_REQUIRE from configurable REQUIRE_APPROVAL
+            if action_type in approval_svc.ALWAYS_REQUIRE_ACTIONS:
+                return ToolApprovalLevel.ALWAYS_REQUIRE
+            return ToolApprovalLevel.REQUIRE_APPROVAL
+        return ToolApprovalLevel.AUTO_EXECUTE
+    except Exception:
+        logger.warning(
+            "approval_db_lookup_failed_fallback",
+            tool=tool_name,
+            exc_info=True,
+        )
+        return get_tool_approval_level(tool_name)
+
+
 def register_tool(category: str) -> Callable[[ToolFunc], ToolFunc]:
     """Decorator to register an MCP tool.
 
@@ -182,6 +247,7 @@ class ToolContext:
     workspace_id: str
     user_id: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    user_role: WorkspaceRole | None = None
 
 
 class ToolRegistry:

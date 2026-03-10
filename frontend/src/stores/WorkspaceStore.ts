@@ -92,7 +92,9 @@ export class WorkspaceStore {
     const members = this.members.get(this.currentWorkspaceId);
     if (!members) return null;
     const member = members.find((m) => m.userId === userId);
-    return member?.role ?? null;
+    if (!member) return null;
+    // Normalize to lowercase — backend returns UPPERCASE after migration 066
+    return member.role.toLowerCase() as WorkspaceRole;
   }
 
   get isAdmin(): boolean {

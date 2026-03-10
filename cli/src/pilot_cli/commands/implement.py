@@ -445,7 +445,7 @@ def _inject_claude_md(target_path: Path, ctx: dict[str, Any]) -> None:
     instruction context (F-5).
     """
     templates_dir = Path(__file__).parent.parent / "templates"
-    env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=False)
+    env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=True)
     template = env.get_template("CLAUDE_MD_TEMPLATE.md")
 
     normalized = _sanitize_context(_normalize_ctx(ctx))

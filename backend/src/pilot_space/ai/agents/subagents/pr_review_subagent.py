@@ -19,11 +19,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
+import structlog
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
 from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
 from pilot_space.ai.context import clear_context, set_workspace_context
 from pilot_space.ai.sdk.config import MODEL_SONNET
+
+_logger = structlog.get_logger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -222,33 +225,34 @@ production reliability, security, or maintainability."""
         ]
 
     async def _get_api_key(self, workspace_id: UUID | None) -> str:
-        """Get Anthropic API key from workspace settings.
+        """Get Anthropic API key for this request.
+
+        AIGOV-05 BYOK enforcement:
+        - workspace_id provided → BYOK required; raises AINotConfiguredError if missing.
+          No env fallback — using the platform key for workspace calls violates BYOK.
+        - workspace_id=None → system agent; env key permitted.
 
         Args:
-            workspace_id: Workspace UUID
+            workspace_id: Workspace UUID, or None for system-level operations.
 
         Returns:
-            Decrypted API key
+            Decrypted API key string.
 
         Raises:
-            ValueError: If API key not found
+            AINotConfiguredError: If workspace has no BYOK key or system has no env key.
         """
-        if not workspace_id:
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not api_key:
-                msg = "No workspace_id provided and ANTHROPIC_API_KEY not set"
-                raise ValueError(msg)
-            return api_key
+        from pilot_space.ai.exceptions import AINotConfiguredError
 
-        # BYOK: Falls back to env var. Per-workspace vault lookup pending DD-060.
-        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if workspace_id is not None:
+            # Workspace-scoped call: BYOK required, no env fallback (AIGOV-05).
+            # TODO Phase 4 (04-07): Wire key_storage via DI; for now raise immediately
+            # when workspace_id is provided and there's no env override for tests.
+            raise AINotConfiguredError(workspace_id=workspace_id)
+
+        # System-only: env key permitted
+        api_key = os.getenv("ANTHROPIC_API_KEY")  # _SYSTEM_ONLY: never for workspace calls
         if not api_key:
-            msg = (
-                f"Anthropic API key not found for workspace {workspace_id}. "
-                "Please set ANTHROPIC_API_KEY environment variable or "
-                "configure in workspace settings."
-            )
-            raise ValueError(msg)
+            raise AINotConfiguredError(workspace_id=None)
         return api_key
 
     def _build_prompt(self, input_data: PRReviewInput) -> str:
@@ -416,6 +420,11 @@ Be constructive and focus on production reliability, security, and maintainabili
                 await client.disconnect()
                 clear_context()
 
-        except Exception as e:
-            error_data = {"type": "error", "error_type": "pr_review_error", "message": str(e)}
+        except Exception:
+            _logger.exception("pr_review_subagent_error")
+            error_data = {
+                "type": "error",
+                "error_type": "pr_review_error",
+                "message": "PR review failed. Please try again.",
+            }
             yield f"event: error\ndata: {json.dumps(error_data)}\n\n"

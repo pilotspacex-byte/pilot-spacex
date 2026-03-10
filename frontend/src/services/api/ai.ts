@@ -52,6 +52,17 @@ export interface WorkspaceAISettings {
   costLimitUsd: number | null;
 }
 
+export interface WorkspaceAISettingsUpdateResponse {
+  success: boolean;
+  validationResults: Array<{
+    provider: string;
+    isValid: boolean;
+    errorMessage: string | null;
+  }>;
+  updatedProviders: string[];
+  updatedFeatures: boolean;
+}
+
 export interface CostSummary {
   workspace_id: string;
   period_start: string;
@@ -74,6 +85,8 @@ export interface CostSummary {
     request_count: number;
   }>;
   by_day: Array<{ date: string; total_cost_usd: number; request_count: number }>;
+  /** Cost breakdown by operation_type. Present only when group_by=operation_type is requested. */
+  by_feature: Record<string, number> | null;
 }
 
 export interface ApprovalListResponse {
@@ -202,7 +215,24 @@ export const aiApi = {
       anthropic_api_key?: string;
       openai_api_key?: string;
     }
-  ) => apiClient.patch<WorkspaceAISettings>(`/workspaces/${workspaceId}/ai/settings`, settings),
+  ): Promise<WorkspaceAISettingsUpdateResponse> => {
+    // Transform flat keys to backend's { api_keys: [{ provider, api_key }] } format
+    const apiKeys: Array<{ provider: string; api_key: string }> = [];
+    if (settings.anthropic_api_key) {
+      apiKeys.push({ provider: 'anthropic', api_key: settings.anthropic_api_key });
+    }
+    if (settings.openai_api_key) {
+      apiKeys.push({ provider: 'openai', api_key: settings.openai_api_key });
+    }
+    const { anthropic_api_key: _a, openai_api_key: _o, ...rest } = settings;
+    return apiClient.patch<WorkspaceAISettingsUpdateResponse>(
+      `/workspaces/${workspaceId}/ai/settings`,
+      {
+        ...rest,
+        ...(apiKeys.length > 0 ? { api_keys: apiKeys } : {}),
+      }
+    );
+  },
 
   /**
    * Approval endpoints for human-in-the-loop actions.
@@ -244,9 +274,13 @@ export const aiApi = {
    * @param endDate - End date (YYYY-MM-DD format)
    * @returns Cost summary with breakdowns by agent, user, and day
    */
-  getCostSummary: (workspaceId: string, startDate: string, endDate: string) =>
+  getCostSummary: (workspaceId: string, startDate: string, endDate: string, groupBy?: string) =>
     apiClient.get<CostSummary>(`/ai/costs/summary`, {
-      params: { start_date: startDate, end_date: endDate },
+      params: {
+        start_date: startDate,
+        end_date: endDate,
+        ...(groupBy ? { group_by: groupBy } : {}),
+      },
       headers: { 'X-Workspace-Id': workspaceId },
     }),
 

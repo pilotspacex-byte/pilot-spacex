@@ -1,13 +1,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Compass } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/services/api';
 
+/**
+ * Auth callback page — handles Supabase OAuth redirects (OIDC, GitHub, etc.).
+ *
+ * After session is established:
+ * 1. If workspace_id is in URL params, attempts to apply SSO role mapping claims.
+ *    Failure is non-fatal — unmapped claims default to "member" on the backend.
+ * 2. Redirects to workspace or home.
+ */
 export default function CallbackPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
+
+  // workspace_id is passed through the OIDC redirectTo URL by useSsoLogin
+  const workspaceId = searchParams.get('workspace_id');
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -28,9 +41,26 @@ export default function CallbackPage() {
       // Listen for the auth state change to confirm session is ready.
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange((event, session) => {
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
           subscription.unsubscribe();
+
+          // Apply SSO role mapping claims if this came from an OIDC SSO flow
+          if (workspaceId) {
+            try {
+              const jwtClaims: Record<string, unknown> = {
+                ...(session.user.app_metadata ?? {}),
+                ...(session.user.user_metadata ?? {}),
+              };
+              await apiClient.post('/auth/sso/claim-role', {
+                workspace_id: workspaceId,
+                jwt_claims: jwtClaims,
+              });
+            } catch {
+              // Non-fatal: unmapped claims default to "member"; proceed with login
+            }
+          }
+
           router.push('/');
         }
         if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
@@ -52,6 +82,23 @@ export default function CallbackPage() {
 
       if (data.session) {
         subscription.unsubscribe();
+
+        // Apply SSO role mapping claims if this came from an OIDC SSO flow
+        if (workspaceId) {
+          try {
+            const jwtClaims: Record<string, unknown> = {
+              ...(data.session.user.app_metadata ?? {}),
+              ...(data.session.user.user_metadata ?? {}),
+            };
+            await apiClient.post('/auth/sso/claim-role', {
+              workspace_id: workspaceId,
+              jwt_claims: jwtClaims,
+            });
+          } catch {
+            // Non-fatal: unmapped claims default to "member"; proceed with login
+          }
+        }
+
         router.push('/');
         return;
       }
@@ -69,7 +116,7 @@ export default function CallbackPage() {
     };
 
     handleCallback();
-  }, [router]);
+  }, [router, workspaceId]);
 
   return (
     <div className="flex flex-col items-center justify-center space-y-4 text-center">

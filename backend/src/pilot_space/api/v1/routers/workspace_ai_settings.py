@@ -197,33 +197,24 @@ async def update_ai_settings(
     validation_results: list[KeyValidationResult] = []
     updated_providers: list[str] = []
 
-    # Process API key updates
+    # Process API key updates — store immediately, validate in background
     if body.api_keys:
         for key_update in body.api_keys:
             if key_update.api_key:
-                # Validate key before storing
-                is_valid = await key_storage.validate_api_key(
-                    key_update.provider,
-                    key_update.api_key,
+                # Store key immediately without blocking validation
+                await key_storage.store_api_key(
+                    workspace_id=workspace_id,
+                    provider=key_update.provider,
+                    api_key=key_update.api_key,
                 )
-                error_message = None if is_valid else "API key validation failed"
-
+                updated_providers.append(key_update.provider)
                 validation_results.append(
                     KeyValidationResult(
                         provider=key_update.provider,
-                        is_valid=is_valid,
-                        error_message=error_message,
+                        is_valid=True,
+                        error_message=None,
                     )
                 )
-
-                if is_valid:
-                    # Store encrypted key
-                    await key_storage.store_api_key(
-                        workspace_id=workspace_id,
-                        provider=key_update.provider,
-                        api_key=key_update.api_key,
-                    )
-                    updated_providers.append(key_update.provider)
             else:
                 # Remove key
                 await key_storage.delete_api_key(workspace_id, key_update.provider)

@@ -15,10 +15,15 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final
 
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from pilot_space.infrastructure.database.repositories.workspace_ai_policy_repository import (
+        WorkspaceAIPolicyRepository,
+    )
 
 logger = get_logger(__name__)
 
@@ -197,15 +202,20 @@ class ApprovalService:
         self,
         session: AsyncSession,
         expiration_hours: int = DEFAULT_EXPIRATION_HOURS,
+        policy_repo: WorkspaceAIPolicyRepository | None = None,
     ) -> None:
         """Initialize approval service.
 
         Args:
             session: SQLAlchemy async session for database operations.
             expiration_hours: Default expiration time for requests.
+            policy_repo: Optional per-role x per-action policy repository.
+                         When provided, check_approval_required() will query it
+                         before falling back to hardcoded level logic.
         """
         self.session = session
         self.expiration_hours = expiration_hours
+        self._policy_repo = policy_repo
         # Use repository for database persistence
         from pilot_space.infrastructure.database.repositories.approval_repository import (
             ApprovalRepository,
@@ -213,33 +223,46 @@ class ApprovalService:
 
         self._repository = ApprovalRepository(session)
 
-    def check_approval_required(
+    async def check_approval_required(
         self,
         action_type: ActionType,
+        workspace_id: uuid.UUID = uuid.UUID(int=0),
+        user_role: WorkspaceRole = WorkspaceRole.MEMBER,
         project_settings: ProjectSettings | None = None,
     ) -> bool:
         """Check if an action requires human approval.
 
-        Implements three-tier classification per DD-003:
-        1. ALWAYS_REQUIRE: Always return True (non-configurable)
-        2. DEFAULT_REQUIRE: Check project settings, default True
-        3. AUTO_EXECUTE: Check project settings, default False
+        Implements four-tier classification per DD-003 and AIGOV-01:
+        1. ALWAYS_REQUIRE: Critical operations never auto-execute (non-configurable)
+        2. OWNER: Always auto-execute for non-ALWAYS_REQUIRE (hardcoded trust root)
+        3. DB policy row: Per-role x per-action workspace override
+        4. Level defaults: CONSERVATIVE / BALANCED / AUTONOMOUS fallback
 
         Args:
             action_type: The action to check.
-            project_settings: Optional project-level settings override.
+            workspace_id: Workspace to look up policy for. Defaults to nil UUID
+                          (backward-compat: callers not yet wired pass no workspace_id).
+                          # TODO Phase 4: all callers should pass real workspace_id.
+            user_role: Role of the user requesting the action. Defaults to MEMBER
+                       for backward compatibility.
+                       # TODO Phase 4: all callers should pass real user_role.
+            project_settings: Optional project-level settings override (legacy).
 
         Returns:
             True if approval is required, False if action can auto-execute.
 
         Example:
             >>> settings = ProjectSettings(level=ApprovalLevel.BALANCED)
-            >>> service.check_approval_required(ActionType.DELETE_WORKSPACE, settings)
+            >>> await service.check_approval_required(
+            ...     ActionType.DELETE_WORKSPACE, workspace_id, WorkspaceRole.ADMIN
+            ... )
             True
-            >>> service.check_approval_required(ActionType.SUGGEST_LABELS, settings)
+            >>> await service.check_approval_required(
+            ...     ActionType.SUGGEST_LABELS, workspace_id, WorkspaceRole.MEMBER
+            ... )
             False
         """
-        # ALWAYS_REQUIRE: Critical operations never auto-execute
+        # 1. ALWAYS_REQUIRE: Critical operations never auto-execute (non-configurable)
         if action_type in self.ALWAYS_REQUIRE_ACTIONS:
             logger.debug(
                 "approval_requires_approval_always",
@@ -248,7 +271,30 @@ class ApprovalService:
             )
             return True
 
-        # Check for explicit overrides
+        # 2. OWNER: hardcoded trust root — always auto-execute non-ALWAYS_REQUIRE
+        if user_role == WorkspaceRole.OWNER:
+            logger.debug(
+                "approval_owner_auto_execute",
+                action_type=action_type.value,
+                user_role=user_role.value,
+            )
+            return False
+
+        # 3. DB policy row lookup (workspace-scoped, role-scoped)
+        if self._policy_repo is not None and workspace_id != uuid.UUID(int=0):
+            policy_row = await self._policy_repo.get(
+                workspace_id, user_role.value, action_type.value
+            )
+            if policy_row is not None:
+                logger.debug(
+                    "approval_determined_by_db_policy",
+                    action_type=action_type.value,
+                    user_role=user_role.value,
+                    requires_approval=policy_row.requires_approval,
+                )
+                return policy_row.requires_approval
+
+        # 4. Fall back to existing level logic (legacy / no policy row)
         settings = project_settings or ProjectSettings()
         action_name = action_type.value
 

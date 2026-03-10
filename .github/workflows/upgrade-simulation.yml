@@ -1,0 +1,229 @@
+# Upgrade Simulation Workflow
+#
+# Simulates a zero-downtime upgrade by:
+#   1. Applying Alembic migrations against a fresh PostgreSQL instance
+#   2. Starting the new backend
+#   3. Asserting /health/ready returns "healthy" or "degraded"
+#
+# "degraded" is an accepted outcome in CI because Supabase is not available
+# in the GitHub Actions environment. The health check marks Supabase as a
+# non-critical dependency — database + redis healthy = service can serve traffic.
+#
+# See: docs/operations/upgrade-guide.md
+
+name: Upgrade Simulation
+
+on:
+  push:
+    branches: [main, feat/*, fix/*]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      prior_version:
+        description: "Prior version image tag to upgrade from"
+        required: false
+        default: "mvp-latest"
+
+concurrency:
+  group: upgrade-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  PRIOR_VERSION: ${{ github.event.inputs.prior_version || 'mvp-latest' }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  upgrade-simulation:
+    name: Simulate zero-downtime upgrade
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Use pgvector/pgvector to get pgvector support (required by migrations)
+        # while keeping standard PostgreSQL initialization (no Supabase-specific
+        # roles needed). pgmq is not available here — migration steps that need
+        # it are skipped or handled via graceful degradation.
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_USER: postgres
+          POSTGRES_DB: pilot_space_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --all-extras --dev
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for postgres…"
+            sleep 1
+          done
+          echo "PostgreSQL is ready"
+
+      # -------------------------------------------------------------------------
+      # Supabase compatibility shim
+      # Migrations use auth.uid() and the auth schema (Supabase extensions).
+      # pgvector/pgvector:pg15 is a plain Postgres build without these.
+      # We create a minimal stub so migrations can run outside Supabase.
+      # -------------------------------------------------------------------------
+      - name: Set up Supabase auth schema stub and alembic_version table
+        env:
+          PGPASSWORD: testpassword
+        run: |
+          psql -h localhost -U postgres -d pilot_space_test <<'SQL'
+            -- Supabase auth schema stub: migrations reference auth.uid() which
+            -- is a Supabase extension not present in pgvector/pgvector:pg15.
+            CREATE SCHEMA IF NOT EXISTS auth;
+            CREATE OR REPLACE FUNCTION auth.uid()
+              RETURNS uuid
+              LANGUAGE sql STABLE
+              AS $$ SELECT '00000000-0000-0000-0000-000000000000'::uuid $$;
+
+            -- Pre-create alembic_version with VARCHAR(128) so that the project's
+            -- descriptive revision IDs (e.g. "036_fix_ai_sessions_rls_enum_case",
+            -- 33+ chars) fit without truncation. Alembic's default is VARCHAR(32).
+            CREATE TABLE IF NOT EXISTS alembic_version (
+              version_num VARCHAR(128) NOT NULL,
+              CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            );
+          SQL
+          echo "Auth schema stub and alembic_version table created"
+
+      # -------------------------------------------------------------------------
+      # UPGRADE STEP 1: Apply migrations
+      # Simulates: running `alembic upgrade head` before rolling out new code
+      # -------------------------------------------------------------------------
+      - name: Run Alembic migrations (upgrade step)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:testpassword@localhost:5432/pilot_space_test
+          SYNC_DATABASE_URL: postgresql+psycopg2://postgres:testpassword@localhost:5432/pilot_space_test
+          REDIS_URL: redis://localhost:6379/0
+          SUPABASE_URL: http://localhost:8001
+          SUPABASE_ANON_KEY: test-anon-key
+          SUPABASE_SERVICE_KEY: test-service-key
+          SUPABASE_JWT_SECRET: test-jwt-secret-32-chars-minimum!!
+          APP_ENV: development
+        run: |
+          uv run alembic upgrade head
+          echo "Migration complete — verifying current revision:"
+          uv run alembic current
+
+      # -------------------------------------------------------------------------
+      # UPGRADE STEP 2: Start the new backend
+      # Simulates: new image pods coming up during rolling restart
+      # -------------------------------------------------------------------------
+      - name: Start backend server (new version)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:testpassword@localhost:5432/pilot_space_test
+          SYNC_DATABASE_URL: postgresql+psycopg2://postgres:testpassword@localhost:5432/pilot_space_test
+          REDIS_URL: redis://localhost:6379/0
+          SUPABASE_URL: http://localhost:8001
+          SUPABASE_ANON_KEY: test-anon-key
+          SUPABASE_SERVICE_KEY: test-service-key
+          SUPABASE_JWT_SECRET: test-jwt-secret-32-chars-minimum!!
+          APP_ENV: development
+        run: |
+          uv run uvicorn pilot_space.main:app \
+            --host 0.0.0.0 \
+            --port 8000 \
+            --log-level warning &
+          echo $! > /tmp/backend.pid
+          echo "Backend PID: $(cat /tmp/backend.pid)"
+
+      # -------------------------------------------------------------------------
+      # UPGRADE STEP 3: Liveness probe
+      # Simulates: Kubernetes liveness check passing before readiness is tested
+      # -------------------------------------------------------------------------
+      - name: Assert /health/live (liveness probe)
+        run: |
+          echo "Waiting for backend to start…"
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health/live > /dev/null 2>&1; then
+              echo "Backend is live after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "FAIL: Backend did not start within 30 seconds"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      # -------------------------------------------------------------------------
+      # UPGRADE STEP 4: Readiness probe — core assertion of this workflow
+      # Simulates: Kubernetes readiness probe; new pod receives traffic only when ready
+      #
+      # Accepted values:
+      #   "healthy"  — database, redis, and supabase all OK
+      #   "degraded" — database + redis OK; supabase unavailable (expected in CI)
+      #
+      # Rejected values:
+      #   "unhealthy" — database or redis down; pod must NOT receive traffic
+      # -------------------------------------------------------------------------
+      - name: Assert /health/ready returns healthy or degraded
+        run: |
+          RESPONSE=$(curl -sf http://localhost:8000/health/ready)
+          echo "Health response: $RESPONSE"
+
+          STATUS=$(echo "$RESPONSE" | python3 -c \
+            "import sys, json; print(json.load(sys.stdin)['status'])")
+          echo "Parsed status: $STATUS"
+
+          if [ "$STATUS" = "healthy" ] || [ "$STATUS" = "degraded" ]; then
+            echo "PASS: /health/ready status=$STATUS (service is ready to serve traffic)"
+          else
+            echo "FAIL: /health/ready returned status=$STATUS (expected healthy or degraded)"
+            echo "Full response:"
+            echo "$RESPONSE" | python3 -m json.tool
+            exit 1
+          fi
+
+      # -------------------------------------------------------------------------
+      # Cleanup — always runs even if assertions fail
+      # -------------------------------------------------------------------------
+      - name: Stop backend server
+        if: always()
+        run: |
+          if [ -f /tmp/backend.pid ]; then
+            BACKEND_PID=$(cat /tmp/backend.pid)
+            kill "$BACKEND_PID" 2>/dev/null && echo "Stopped backend (PID $BACKEND_PID)" || echo "Backend already stopped"
+            rm -f /tmp/backend.pid
+          fi

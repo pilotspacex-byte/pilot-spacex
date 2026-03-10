@@ -74,6 +74,7 @@ from pilot_space.application.services.onboarding import (
     GetOnboardingService,
     UpdateOnboardingService,
 )
+from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.role_skill import (
     CreateRoleSkillService,
     DeleteRoleSkillService,
@@ -639,6 +640,16 @@ def _get_task_service(
 
 TaskServiceDep = Annotated[TaskService, Depends(_get_task_service)]
 
+
+@inject
+def _get_rbac_service(
+    svc: RbacService = Depends(Provide[Container.rbac_service]),
+) -> RbacService:
+    return svc
+
+
+RbacServiceDep = Annotated[RbacService, Depends(_get_rbac_service)]
+
 __all__ = [  # noqa: RUF022
     "ActivityRepositoryDep",
     "CycleRepositoryDep",
@@ -697,4 +708,5 @@ __all__ = [  # noqa: RUF022
     "WorkspaceMemberServiceDep",
     "WorkspaceInvitationServiceDep",
     "TaskServiceDep",
+    "RbacServiceDep",
 ]

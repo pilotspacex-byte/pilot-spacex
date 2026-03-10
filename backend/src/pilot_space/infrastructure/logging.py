@@ -28,6 +28,11 @@ _workspace_id: ContextVar[str | None] = ContextVar("workspace_id", default=None)
 _user_id: ContextVar[str | None] = ContextVar("user_id", default=None)
 _correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 
+# OPS-04: Observability fields — trace_id, actor, action
+_trace_id: ContextVar[str | None] = ContextVar("trace_id", default=None)
+_actor: ContextVar[str | None] = ContextVar("actor", default=None)
+_action: ContextVar[str | None] = ContextVar("action", default=None)
+
 
 def add_request_context(
     logger: logging.Logger, method_name: str, event_dict: EventDict
@@ -50,6 +55,12 @@ def add_request_context(
         event_dict["user_id"] = user_id
     if correlation_id := _correlation_id.get():
         event_dict["correlation_id"] = correlation_id
+    if trace_id := _trace_id.get():
+        event_dict["trace_id"] = trace_id
+    if actor := _actor.get():
+        event_dict["actor"] = actor
+    if action := _action.get():
+        event_dict["action"] = action
     return event_dict
 
 
@@ -140,6 +151,8 @@ def set_request_context(
     workspace_id: str | None = None,
     user_id: str | None = None,
     correlation_id: str | None = None,
+    trace_id: str | None = None,
+    actor: str | None = None,
 ) -> None:
     """Set request context for logging.
 
@@ -148,6 +161,8 @@ def set_request_context(
         workspace_id: Workspace ID.
         user_id: User ID.
         correlation_id: Correlation ID for distributed tracing.
+        trace_id: Trace ID for cross-service correlation (OPS-04).
+        actor: Actor identifier, e.g. "user:{user_id}" or "system:service" (OPS-04).
     """
     if request_id:
         _request_id.set(request_id)
@@ -157,6 +172,19 @@ def set_request_context(
         _user_id.set(user_id)
     if correlation_id:
         _correlation_id.set(correlation_id)
+    if trace_id:
+        _trace_id.set(trace_id)
+    if actor:
+        _actor.set(actor)
+
+
+def set_action(action: str) -> None:
+    """Set the current action context for logging.
+
+    Args:
+        action: Action identifier, e.g. "issue.create" or "note.update" (OPS-04).
+    """
+    _action.set(action)
 
 
 def clear_request_context() -> None:
@@ -165,6 +193,9 @@ def clear_request_context() -> None:
     _workspace_id.set(None)
     _user_id.set(None)
     _correlation_id.set(None)
+    _trace_id.set(None)
+    _actor.set(None)
+    _action.set(None)
 
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
@@ -206,9 +237,11 @@ def log_performance(
 
 
 __all__ = [
+    "add_request_context",
     "clear_request_context",
     "configure_structlog",
     "get_logger",
     "log_performance",
+    "set_action",
     "set_request_context",
 ]
