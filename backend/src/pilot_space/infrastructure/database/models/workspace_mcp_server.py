@@ -60,7 +60,12 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         doc="Remote MCP server endpoint URL (SSE or HTTP transport)",
     )
     auth_type: Mapped[McpAuthType] = mapped_column(
-        Enum(McpAuthType, name="mcp_auth_type", create_type=False),
+        Enum(
+            McpAuthType,
+            name="mcp_auth_type",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
         nullable=False,
         default=McpAuthType.BEARER,
         doc="Authentication type: bearer token or OAuth 2.0",

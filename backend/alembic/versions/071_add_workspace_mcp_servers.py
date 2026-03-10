@@ -40,10 +40,8 @@ depends_on: None = None
 def upgrade() -> None:
     """Create mcp_auth_type enum, workspace_mcp_servers table, and RLS policies."""
 
-    # 1. Create the mcp_auth_type enum
-    op.execute(text("CREATE TYPE mcp_auth_type AS ENUM ('bearer', 'oauth2')"))
-
-    # 2. Create workspace_mcp_servers table
+    # 1+2. Create mcp_auth_type enum and workspace_mcp_servers table
+    # sa.Enum without create_type=False lets op.create_table emit CREATE TYPE automatically.
     op.create_table(
         "workspace_mcp_servers",
         # Primary key
@@ -60,7 +58,6 @@ def upgrade() -> None:
             sa.dialects.postgresql.UUID(as_uuid=True),
             sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
             nullable=False,
-            index=True,
         ),
         # Timestamps
         sa.Column(
@@ -92,7 +89,7 @@ def upgrade() -> None:
         sa.Column("url", sa.String(512), nullable=False),
         sa.Column(
             "auth_type",
-            sa.Enum("bearer", "oauth2", name="mcp_auth_type", create_type=False),
+            sa.Enum("bearer", "oauth2", name="mcp_auth_type"),
             nullable=False,
             server_default=text("'bearer'::mcp_auth_type"),
         ),
