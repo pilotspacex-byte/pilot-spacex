@@ -2,7 +2,7 @@
 phase: "016-workspace-role-skills"
 plan: "04"
 subsystem: "frontend/settings"
-status: "awaiting-checkpoint"
+status: "complete"
 tags: ["frontend", "settings", "workspace-skills", "admin-ui", "tanstack-query"]
 dependency_graph:
   requires:
@@ -42,9 +42,9 @@ metrics:
 
 **One-liner:** TypeScript API client + WorkspaceSkillCard with one-way activation gate + admin section in SkillsSettingsPage wired to TanStack Query.
 
-## Status: Awaiting Human Verification (Checkpoint)
+## Status: COMPLETE
 
-Tasks 1 and 2 are complete and committed. Task 3 is a `checkpoint:human-verify` gate requiring manual UI and WRSKL-03 AI context verification.
+All tasks done. Human verification passed 2026-03-10. Additional bug fixed during verification.
 
 ## Completed Tasks
 
@@ -92,9 +92,28 @@ Tasks 1 and 2 are complete and committed. Task 3 is a `checkpoint:human-verify` 
 - **Files modified:** `workspace-skill-card.tsx`
 - **Commit:** included in `a0ce03c6`
 
-## Awaiting
+## Human Verification Results (2026-03-10)
 
-Human verification at checkpoint — see Task 3 verification steps in the plan.
+| Step | Test | Result |
+|------|------|--------|
+| 7 | Pending Review badge + Activate + Remove (no Deactivate) | ✅ |
+| 8 | Activate → green Active badge, only Remove remains | ✅ |
+| 9 | Remove → confirmation dialog → skill disappears | ✅ |
+| 10 | MEMBER user: Skill section NOT visible | ✅ |
+
+### Bug Fixed During Verification
+
+**FastAPI trailing slash redirect leaks backend URL through Next.js proxy**
+
+- Route decorators used `"/"` → FastAPI issued 307 redirects with absolute `http://localhost:8000/...` Location header
+- Next.js proxy forwarded 307 directly to browser; browser dropped `Authorization` header on cross-origin follow
+- Result: 401 from backend, TanStack Query cache stuck at `null`
+- Fix: Changed `@router.get("/")` and `@router.post("/")` to `""` in `workspace_role_skills.py`
+- Commit: `1d17afa9`
+
+Also fixed during development (prior commits):
+- Snake_case field names in `WorkspaceRoleSkill` interface (was camelCase)
+- Section heading renamed "Workspace Role Skills" → "Skill"
 
 ## Self-Check
 

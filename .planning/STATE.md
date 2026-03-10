@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: "016-04-PLAN.md checkpoint: tasks 1+2 complete, awaiting human-verify"
-last_updated: "2026-03-10T08:51:50.029Z"
-last_activity: "2026-03-10 — 016-02 complete: persistence layer for WRSKL-01..04"
+stopped_at: ""
+last_updated: "2026-03-10T10:30:00.000Z"
+last_activity: "2026-03-10 — 016-04 complete: admin UI verified (all 4 plans done)"
 progress:
   total_phases: 7
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 18
   completed_plans: 18
-  percent: 28
+  percent: 86
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: Phase 16 — Workspace Role Skills (in progress)
-Plan: 2/4
-Status: 016-02 complete — WorkspaceRoleSkill model + repository + migration 073 with RLS
-Last activity: 2026-03-10 — 016-02 complete: persistence layer for WRSKL-01..04
+Phase: Phase 16 — Workspace Role Skills (complete)
+Plan: 4/4
+Status: All 4 plans complete — human verification passed 2026-03-10
+Last activity: 2026-03-10 — 016-04 complete: admin UI verified, proxy bug fixed
 
 Progress: [███░░░░░░░] 28%
 
