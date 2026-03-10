@@ -86,6 +86,7 @@ from pilot_space.api.v1.routers import (
     workspace_tasks_router,
     workspaces_router,
 )
+from pilot_space.api.v1.routers.workspace_plugins import router as workspace_plugins_router
 from pilot_space.api.v1.routers.workspace_role_skills import router as workspace_role_skills_router
 from pilot_space.api.v1.routers.workspace_scim_settings import workspace_scim_settings_router
 
@@ -297,6 +298,7 @@ app.include_router(workspace_cycles_router, prefix=f"{API_V1_PREFIX}/workspaces"
 app.include_router(workspace_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(related_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_role_skills_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(workspace_plugins_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_issue_branches_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_invitations_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_members_router, prefix=f"{API_V1_PREFIX}/workspaces")

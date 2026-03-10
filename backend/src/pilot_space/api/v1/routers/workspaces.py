@@ -141,6 +141,20 @@ async def create_workspace(
         ) from e
 
     workspace = result.workspace
+
+    # SKRG-05: Seed default plugins into the new workspace (non-blocking fire-and-forget)
+    import asyncio
+
+    from pilot_space.application.services.workspace_plugin.seed_plugins_service import (
+        SeedPluginsService,
+    )
+
+    asyncio.create_task(  # noqa: RUF006
+        SeedPluginsService(db_session=session).seed_workspace(
+            workspace_id=workspace.id,
+        )
+    )
+
     return WorkspaceDetailResponse(
         id=workspace.id,
         created_at=workspace.created_at,
