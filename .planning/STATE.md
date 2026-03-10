@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: "Checkpoint: Phase 015-03 automated tasks complete, awaiting human verify"
-last_updated: "2026-03-10T06:06:12.269Z"
-last_activity: "2026-03-10 — 15-02 complete: related issues API (RELISS-01..04)"
+stopped_at: "Completed 015-03-PLAN.md — Phase 15 Related Issues complete"
+last_updated: "2026-03-10T07:00:00.000Z"
+last_activity: "2026-03-10 — 15-03 complete: related issues frontend UI (RELISS-01..04)"
 progress:
   total_phases: 7
   completed_phases: 4
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: Phase 15 — Related Issues (in progress)
-Plan: 3/?
-Status: 15-02 complete — 4 REST endpoints (suggestions, dismiss, create/delete relations), 8 xfail tests → 9 passing
-Last activity: 2026-03-10 — 15-02 complete: related issues API (RELISS-01..04)
+Phase: Phase 15 — Related Issues (complete)
+Plan: 3/3
+Status: 15-03 complete — RelatedIssuesPanel, 4 TanStack hooks, typed API methods, 5 tests, human verify approved
+Last activity: 2026-03-10 — 15-03 complete: related issues frontend UI (RELISS-01..04)
 
 Progress: [██░░░░░░░░] 23%
 
@@ -39,7 +39,7 @@ Progress: [██░░░░░░░░] 23%
 | 12. Onboarding & First-Run UX | No blank screen on sign-up; guided onboarding | ONBD-01..05, BUG-01, BUG-02, WS-01, WS-02 | Not started |
 | 13. AI Provider Registry + Model Selection | Multi-provider BYOK + per-session model picker | AIPR-01..05, CHAT-01..03 | Not started |
 | 14. Remote MCP Server Management | Register/auth/status + PilotSpaceAgent hot-load | MCP-01..06 | Not started |
-| 15. Related Issues | Semantic suggestions + manual linking | RELISS-01..04 | Not started |
+| 15. Related Issues | Semantic suggestions + manual linking | RELISS-01..04 | Complete |
 | 16. Workspace Role Skills | Admin-generated role skills + inheritance | WRSKL-01..04 | Not started |
 | 17. Skill Action Buttons | Custom issue-page buttons bound to skills/MCP | SKBTN-01..04 | Not started |
 | 18. Tech Debt Closure | OIDC E2E, MCP approval, xfail tests, key rotation | DEBT-01..04 | Not started |
@@ -163,7 +163,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T06:06:07.784Z
-Stopped at: Checkpoint: Phase 015-03 automated tasks complete, awaiting human verify
+Last session: 2026-03-10T07:00:00.000Z
+Stopped at: Completed 015-03-PLAN.md — Phase 15 Related Issues complete
 Resume file: None
-Next action: Phase 15 Plan 02 complete. Continue with Phase 15 Plan 03 (frontend UI for related issues).
+Next action: Phase 15 complete. Continue with Phase 16 (Workspace Role Skills).
