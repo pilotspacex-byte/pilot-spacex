@@ -51,7 +51,7 @@ IssueIdPath = Annotated[UUID, Path(description="Issue UUID")]
 class RelatedSuggestion(BaseModel):
     """Semantic suggestion for a related issue."""
 
-    issue_id: UUID
+    id: UUID
     title: str
     identifier: str
     similarity_score: float
@@ -203,7 +203,7 @@ async def get_related_suggestions(
 
         suggestions.append(
             RelatedSuggestion(
-                issue_id=issue_rec.id,
+                id=issue_rec.id,
                 title=issue_rec.name,
                 identifier=issue_rec.identifier,
                 similarity_score=scored_node.score,
