@@ -112,16 +112,24 @@ async def materialize_role_skills(
             user_id,
             workspace_id,
         )
-        return 0
+    else:
+        logger.info(
+            "Materialized %d role skills (%d personal, %d workspace-inherited) for user %s in workspace %s",
+            total_materialized,
+            len(skills),
+            total_materialized - len(skills),
+            user_id,
+            workspace_id,
+        )
 
-    logger.info(
-        "Materialized %d role skills (%d personal, %d workspace-inherited) for user %s in workspace %s",
-        total_materialized,
-        len(skills),
-        total_materialized - len(skills),
-        user_id,
-        workspace_id,
+    # SKRG-03: materialize plugin skills (workspace-scoped, all members)
+    plugin_count = await materialize_plugin_skills(
+        db_session=db_session,
+        workspace_id=workspace_id,
+        skills_dir=skills_dir,
     )
+    total_materialized += plugin_count
+
     return total_materialized
 
 
@@ -196,4 +204,115 @@ def _cleanup_stale_role_skills(skills_dir: Path, expected_dirs: set[str]) -> Non
                 logger.debug("Cleaned up stale role skill: %s", entry.name)
 
 
-__all__ = ["_build_workspace_frontmatter", "materialize_role_skills"]
+# ---------------------------------------------------------------------------
+# Plugin skill materialization (SKRG-03)
+# ---------------------------------------------------------------------------
+
+_PLUGIN_SKILL_PREFIX = "plugin-"
+
+
+async def materialize_plugin_skills(
+    db_session: AsyncSession,
+    workspace_id: UUID,
+    skills_dir: Path,
+) -> int:
+    """Write installed plugin skills to .claude/skills/ as plugin-{name}/SKILL.md.
+
+    Also writes reference/ files alongside SKILL.md. Workspace-scoped:
+    all members in a workspace get all active plugins.
+
+    Handles OperationalError gracefully (pre-migration-074 or SQLite test DB).
+
+    Args:
+        db_session: Active database session.
+        workspace_id: Current workspace UUID.
+        skills_dir: Path to ``.claude/skills/`` in the sandbox.
+
+    Returns:
+        Number of plugin skills materialized.
+    """
+    from sqlalchemy.exc import OperationalError
+
+    from pilot_space.infrastructure.database.repositories.workspace_plugin_repository import (
+        WorkspacePluginRepository,
+    )
+
+    repo = WorkspacePluginRepository(db_session)
+    try:
+        plugins = await repo.get_active_by_workspace(workspace_id)
+    except OperationalError:
+        logger.debug(
+            "workspace_plugins table not accessible for workspace %s, skipping plugin skill injection",
+            workspace_id,
+        )
+        return 0
+
+    expected_dirs: set[str] = set()
+    for plugin in plugins:
+        dir_name = f"{_PLUGIN_SKILL_PREFIX}{plugin.skill_name}"
+        expected_dirs.add(dir_name)
+        plugin_dir = skills_dir / dir_name
+        await asyncio.to_thread(_write_plugin_files, plugin_dir, plugin)
+
+    await asyncio.to_thread(_cleanup_stale_plugin_skills, skills_dir, expected_dirs)
+
+    if plugins:
+        logger.info(
+            "Materialized %d plugin skills for workspace %s",
+            len(plugins),
+            workspace_id,
+        )
+
+    return len(plugins)
+
+
+def _write_plugin_files(plugin_dir: Path, plugin: object) -> None:
+    """Write SKILL.md and reference files for a plugin (runs in thread pool).
+
+    Args:
+        plugin_dir: Directory for this plugin (e.g., plugin-mcp-builder/).
+        plugin: WorkspacePlugin entity with skill_content and references.
+    """
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    skill_file = plugin_dir / "SKILL.md"
+    skill_file.write_text(getattr(plugin, "skill_content", ""), encoding="utf-8")
+
+    # Write reference files
+    references = getattr(plugin, "references", []) or []
+    if references:
+        ref_dir = plugin_dir / "reference"
+        ref_dir.mkdir(parents=True, exist_ok=True)
+        for ref in references:
+            filename = ref.get("filename", "")
+            content = ref.get("content", "")
+            if filename:
+                (ref_dir / filename).write_text(content, encoding="utf-8")
+
+
+def _cleanup_stale_plugin_skills(skills_dir: Path, expected_dirs: set[str]) -> None:
+    """Remove plugin-skill directories that are no longer active.
+
+    Only removes directories prefixed with ``plugin-``. Role skills and
+    system skills are never touched.
+
+    Args:
+        skills_dir: Path to ``.claude/skills/``.
+        expected_dirs: Set of directory names that should be kept.
+    """
+    if not skills_dir.exists():
+        return
+
+    import shutil
+
+    for entry in skills_dir.iterdir():
+        if entry.is_dir() and entry.name.startswith(_PLUGIN_SKILL_PREFIX):
+            if entry.name not in expected_dirs:
+                shutil.rmtree(entry, ignore_errors=True)
+                logger.debug("Cleaned up stale plugin skill: %s", entry.name)
+
+
+__all__ = [
+    "_build_workspace_frontmatter",
+    "materialize_plugin_skills",
+    "materialize_role_skills",
+]
