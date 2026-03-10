@@ -10,8 +10,8 @@ progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 22
-  completed_plans: 21
-  percent: 97
+  completed_plans: 22
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 ## Current Position
 
 Phase: Phase 19 — Skill Registry and Plugin System
-Plan: 3/4
-Status: Plan 03 (backend services + REST API) complete
-Last activity: 2026-03-10 — 019-03 complete: GitHubPluginService, InstallPluginService, SeedPluginsService, 7-endpoint REST router, plugin materializer
+Plan: 4/4
+Status: Phase 19 complete — all 4 plans done
+Last activity: 2026-03-10 — 019-04 complete: Plugin marketplace UI, PluginsStore, PluginCard, detail sheet, Settings Plugins tab
 
-Progress: [██████████] 97%
+Progress: [██████████] 100%
 
 ## Milestone: v1.0-alpha
 
@@ -82,6 +82,7 @@ Progress: [██████████] 97%
 | Phase 019-skill-registry-and-plugin-system P01 | 2 | 2 tasks | 7 files |
 | Phase 019 P02 | 5 | 2 tasks | 6 files |
 | Phase 019 P03 | 15 | 3 tasks | 10 files |
+| Phase 019 P04 | 9 | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -177,6 +178,9 @@ Recent decisions affecting current work:
 - [Phase 019]: Router uses direct instantiation (not DI container) -- consistent with SCIM/related-issues pattern, avoids wiring_config updates
 - [Phase 019]: Workspace plugin seeding via asyncio.create_task fire-and-forget -- non-blocking, non-fatal, log-only on failure
 - [Phase 019]: Plugin install sets is_active=True immediately -- SKILL.md auto-wired per CONTEXT.md; MCP/action buttons stored but NOT wired (Phase 17)
+- [Phase 019]: PluginsTabContent extracted as separate observer() -- keeps SkillsSettingsPage under 700 lines and isolates MobX plugin reactivity
+- [Phase 019]: PluginCard uses plain props (not observer) -- testability and simplicity, parent passes values
+- [Phase 019]: Plugins tab visible only to admin users (workspaceStore.isAdmin check)
 
 ### Pending Todos
 
@@ -190,7 +194,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T15:26:57Z
-Stopped at: Completed 019-03-PLAN.md
+Last session: 2026-03-10T15:37:49Z
+Stopped at: Completed 019-04-PLAN.md
 Resume file: None
-Next action: Continue with Phase 19 Plan 04 (frontend UI).
+Next action: Phase 19 complete. All plans done.

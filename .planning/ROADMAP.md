@@ -157,7 +157,7 @@ Plans:
   3. Plugins are versioned; when an official plugin gets a new version, installed workspaces see an "Update available" badge and apply updates explicitly (no silent auto-update)
   4. A plugin bundles skill content (SKILL.md + references/) + MCP tool bindings + action button definitions — installing wires all three automatically
   5. Workspace admins can publish private plugins to their own workspace registry for internal distribution
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] 019-01-PLAN.md — Wave 0: xfail backend stubs + frontend it.todo() stubs (SKRG-01..05)
