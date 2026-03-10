@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 019-01-PLAN.md
-last_updated: "2026-03-10T14:58:07.000Z"
-last_activity: "2026-03-10 — 019-01 complete: Wave 0 xfail/todo test stubs for skill registry"
+status: completed
+stopped_at: Completed 019-02-PLAN.md
+last_updated: "2026-03-10T15:07:06.311Z"
+last_activity: "2026-03-10 — 019-02 complete: WorkspacePlugin + WorkspaceGithubCredential models, migration 074, repositories"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 22
-  completed_plans: 19
-  percent: 28
+  completed_plans: 20
+  percent: 97
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 ## Current Position
 
 Phase: Phase 19 — Skill Registry and Plugin System
-Plan: 1/4
-Status: Plan 01 (Wave 0 test stubs) complete
-Last activity: 2026-03-10 — 019-01 complete: Wave 0 xfail/todo test stubs for skill registry
+Plan: 2/4
+Status: Plan 02 (persistence layer) complete
+Last activity: 2026-03-10 — 019-02 complete: WorkspacePlugin + WorkspaceGithubCredential models, migration 074, repositories
 
-Progress: [██████████] 96%
+Progress: [██████████] 97%
 
 ## Milestone: v1.0-alpha
 
@@ -80,6 +80,7 @@ Progress: [██████████] 96%
 | Phase 015-related-issues P03 | 30 | 2 tasks | 11 files |
 | Phase 016-workspace-role-skills P03 | 19 | 3 tasks | 13 files |
 | Phase 019-skill-registry-and-plugin-system P01 | 2 | 2 tasks | 7 files |
+| Phase 019 P02 | 5 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -167,6 +168,9 @@ Recent decisions affecting current work:
 - [Phase 019-skill-registry-and-plugin-system 01]: No module-level imports from not-yet-existing modules in xfail stubs -- prevents collection failure
 - [Phase 019-skill-registry-and-plugin-system 01]: pytest.fail() inside xfail bodies (not assert False) -- satisfies PT015 and B011 ruff rules
 - [Phase 019-skill-registry-and-plugin-system 01]: Created backend/tests/unit/agents/ package for materializer tests -- new test subdirectory
+- [Phase 019]: WorkspacePlugin is_active defaults to True (not False like WorkspaceRoleSkill) -- plugins are active on install
+- [Phase 019]: WorkspaceGithubCredentialRepository uses upsert pattern -- one PAT per workspace
+- [Phase 019]: Partial unique index on (workspace_id, repo_owner, repo_name, skill_name) WHERE is_deleted = false -- allows re-install after soft-delete
 
 ### Pending Todos
 
@@ -180,7 +184,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T14:58:07.000Z
-Stopped at: Completed 019-01-PLAN.md
-Resume file: .planning/phases/19-skill-registry-and-plugin-system/019-02-PLAN.md
+Last session: 2026-03-10T15:07:06.309Z
+Stopped at: Completed 019-02-PLAN.md
+Resume file: None
 Next action: Continue with Phase 19 Plan 02 (implementation).
