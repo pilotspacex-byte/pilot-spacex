@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 015-02-PLAN.md - Related Issues backend API endpoints
-last_updated: "2026-03-10T05:54:30Z"
-last_activity: "2026-03-09 — 13-03 complete: generalized ProviderStatusCard, CustomProviderForm, AISettingsStore.loadModels (AIPR-01, AIPR-02, AIPR-05)"
+stopped_at: "Checkpoint: Phase 015-03 automated tasks complete, awaiting human verify"
+last_updated: "2026-03-10T06:06:12.269Z"
+last_activity: "2026-03-10 — 15-02 complete: related issues API (RELISS-01..04)"
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 14
   percent: 23
 ---
 
@@ -77,6 +77,7 @@ Progress: [██░░░░░░░░] 23%
 | Phase 14-remote-mcp-server-management P03 | 12 | 2 tasks | 6 files |
 | Phase 14-remote-mcp-server-management P04 | 35 | 2 tasks | 10 files |
 | Phase 015 P01 | 6 | 3 tasks | 5 files |
+| Phase 015-related-issues P03 | 30 | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -147,6 +148,8 @@ Recent decisions affecting current work:
 - [Phase 015-related-issues 02]: IssueLinkCreateResponse custom Pydantic schema (not IssueLinkSchema) — tests check source_issue_id/target_issue_id directly
 - [Phase Phase 15-related-issues]: IssueSuggestionDismissalRepository uses direct instantiation (not DI) — lightweight per-request helper, consistent with KnowledgeGraphRepository/SCIM pattern
 - [Phase Phase 15-related-issues]: UNIQUE constraint (user_id, source_issue_id, target_issue_id) as idempotency guard for dismissal upserts — callers catch IntegrityError and treat as no-op
+- [Phase 015-related-issues]: RelatedIssuesPanel uses observer() — no TipTap NodeViewRenderer, so MobX reactivity is correct
+- [Phase 015-related-issues]: Test mocks use 'as unknown as ReturnType<typeof hook>' — TanStack UseQueryResult complex union needs unknown cast for partial mocks
 
 ### Pending Todos
 
@@ -160,7 +163,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T05:54:30Z
-Stopped at: Completed 015-02-PLAN.md - Related Issues backend API endpoints
+Last session: 2026-03-10T06:06:07.784Z
+Stopped at: Checkpoint: Phase 015-03 automated tasks complete, awaiting human verify
 Resume file: None
 Next action: Phase 15 Plan 02 complete. Continue with Phase 15 Plan 03 (frontend UI for related issues).
