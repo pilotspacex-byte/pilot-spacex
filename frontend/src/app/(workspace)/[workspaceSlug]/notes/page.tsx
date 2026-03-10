@@ -335,6 +335,9 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
     return map;
   }, [projectsData]);
 
+  // Set for O(1) lookup in CommandItem renders
+  const pendingProjectIdSet = useMemo(() => new Set(pendingProjectIds), [pendingProjectIds]);
+
   // Fetch notes with infinite scroll
   const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteNotes({
     workspaceId,
@@ -525,7 +528,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
                 <CommandEmpty>No projects found</CommandEmpty>
                 <CommandGroup className="max-h-48 overflow-y-auto">
                   {(projectsData?.items ?? []).map((project) => {
-                    const isSelected = pendingProjectIds.includes(project.id);
+                    const isSelected = pendingProjectIdSet.has(project.id);
                     return (
                       <CommandItem
                         key={project.id}

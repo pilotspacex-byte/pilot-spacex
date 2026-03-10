@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { useProjects } from '@/features/projects/hooks/useProjects';
+import { useProjects, selectAllProjects } from '@/features/projects/hooks/useProjects';
 
 export interface MoveNoteDialogProps {
   workspaceId: string;
@@ -38,7 +38,7 @@ export function MoveNoteDialog({
   const [search, setSearch] = useState('');
 
   const { data: projectsData, isLoading } = useProjects({ workspaceId });
-  const projects = useMemo(() => projectsData?.items ?? [], [projectsData]);
+  const projects = useMemo(() => selectAllProjects(projectsData), [projectsData]);
 
   const filteredProjects = useMemo(() => {
     if (!search.trim()) return projects;

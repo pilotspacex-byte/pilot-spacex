@@ -3,6 +3,7 @@
 /**
  * useNotes - TanStack Query hook for fetching notes list with pagination
  */
+import { useMemo } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { notesApi } from '@/services/api';
 import type { Note } from '@/types';
@@ -76,8 +77,13 @@ export function useInfiniteNotes({
   pageSize = 20,
   enabled = true,
 }: UseNotesOptions) {
+  // Stabilize the projectIds key: sort and join so array identity doesn't cause spurious refetches
+  const projectIdsKey = projectIds && projectIds.length > 0
+    ? [...projectIds].sort().join(',')
+    : undefined;
+
   const query = useInfiniteQuery({
-    queryKey: [...notesKeys.list(workspaceId, { projectId, isPinned }), 'infinite', projectIds],
+    queryKey: [...notesKeys.list(workspaceId, { projectId, isPinned }), 'infinite', projectIdsKey],
     queryFn: ({ pageParam }) =>
       notesApi.list(workspaceId, { projectId, isPinned, authorId }, pageParam, pageSize),
     initialPageParam: 1,
@@ -88,21 +94,23 @@ export function useInfiniteNotes({
     gcTime: 1000 * 60 * 30,
   });
 
-  // Client-side multi-project filter when projectIds is provided
-  if (projectIds && projectIds.length > 0) {
+  // Client-side multi-project filter when projectIds is provided.
+  // Memoized so the Set and filtered pages are only recomputed when query data or projectIds change.
+  const filteredData = useMemo(() => {
+    if (!projectIdsKey || !query.data) return query.data;
     const projectIdSet = new Set(projectIds);
     return {
-      ...query,
-      data: query.data
-        ? {
-            ...query.data,
-            pages: query.data.pages.map((page) => ({
-              ...page,
-              items: page.items.filter((note) => note.projectId && projectIdSet.has(note.projectId)),
-            })),
-          }
-        : undefined,
+      ...query.data,
+      pages: query.data.pages.map((page) => ({
+        ...page,
+        items: page.items.filter((note) => note.projectId && projectIdSet.has(note.projectId)),
+      })),
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.data, projectIdsKey]);
+
+  if (projectIdsKey) {
+    return { ...query, data: filteredData };
   }
 
   return query;

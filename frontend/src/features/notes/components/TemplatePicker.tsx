@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { templatesApi, type NoteTemplate } from '@/services/api/templates';
-import { useProjects } from '@/features/projects/hooks/useProjects';
+import { useProjects, selectAllProjects } from '@/features/projects/hooks/useProjects';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -198,7 +198,7 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
 
   // Fetch projects for project selector
   const { data: projectsData } = useProjects({ workspaceId });
-  const allProjects = useMemo(() => projectsData?.items ?? [], [projectsData]);
+  const allProjects = useMemo(() => selectAllProjects(projectsData), [projectsData]);
 
   const filteredProjects = useMemo(() => {
     if (!projectSearch.trim()) return allProjects;
