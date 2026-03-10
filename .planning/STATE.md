@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 14-02-PLAN.md - MCP server persistence layer (migration, model, repository, schemas)
-last_updated: "2026-03-10T02:38:41.370Z"
+stopped_at: Completed 14-03-PLAN.md - MCP server API router and agent hot-load wiring
+last_updated: "2026-03-10T02:53:55.619Z"
 last_activity: "2026-03-09 — 13-03 complete: generalized ProviderStatusCard, CustomProviderForm, AISettingsStore.loadModels (AIPR-01, AIPR-02, AIPR-05)"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 11
-  completed_plans: 9
+  completed_plans: 10
   percent: 23
 ---
 
@@ -73,6 +73,7 @@ Progress: [██░░░░░░░░] 23%
 | Phase 13-ai-provider-registry-model-selection P04 | 30 | 2 tasks | 6 files |
 | Phase 14-remote-mcp-server-management P01 | 18 | 2 tasks | 6 files |
 | Phase 14-remote-mcp-server-management P02 | 18 | 2 tasks | 4 files |
+| Phase 14-remote-mcp-server-management P03 | 12 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,9 @@ Recent decisions affecting current work:
 - [Phase 14-remote-mcp-server-management]: it.todo() for frontend Wave 0 stubs: Vitest pending state communicates intent-to-implement better than it.skip() (14-01)
 - [Phase 14-remote-mcp-server-management]: WorkspaceMcpServerRepository uses get_by_workspace_and_id not get_by_id override — avoids pyright incompatible method override (entity_id vs server_id parameter name)
 - [Phase 14-remote-mcp-server-management]: WorkspaceMcpServerUpdate schema added in 14-02 — Plan 03 PATCH endpoint needs it; added proactively to avoid deviation in Plan 03
+- [Phase 14-remote-mcp-server-management]: encrypt_api_key() takes one argument (no master_secret) - uses global EncryptionService singleton; plan interface doc was incorrect
+- [Phase 14-remote-mcp-server-management]: MCP server Pydantic schemas inline in router file - avoids separate schema file, stays under 700-line limit
+- [Phase 14-remote-mcp-server-management]: _load_remote_mcp_servers uses pyright ignore[reportUnusedFunction] + caller type: ignore[reportPrivateUsage] - underscore prefix is intentional shared-internal convention
 
 ### Pending Todos
 
@@ -143,7 +147,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T02:38:41.368Z
-Stopped at: Completed 14-02-PLAN.md - MCP server persistence layer (migration, model, repository, schemas)
+Last session: 2026-03-10T02:53:55.617Z
+Stopped at: Completed 14-03-PLAN.md - MCP server API router and agent hot-load wiring
 Resume file: None
 Next action: Phase 13 in progress. Plans 13-01, 13-02, 13-03 complete. Continue with 13-04 (model picker chat UI).
