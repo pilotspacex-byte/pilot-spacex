@@ -116,7 +116,13 @@ Plans:
   2. A skill remains inactive until the admin explicitly approves it — members see no change until approval
   3. Members whose workspace role matches the configured skill automatically have it available without any personal setup
   4. If a user has their own personal skill for the same role, their personal skill takes precedence over the workspace skill
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 016-01-PLAN.md — Wave 0: xfail backend stubs (repository, service, router, materializer) + frontend it.todo() stubs (WRSKL-01..04)
+- [ ] 016-02-PLAN.md — Persistence: WorkspaceRoleSkill model + repository + migration 073 + RLS policies (WRSKL-01..03)
+- [ ] 016-03-PLAN.md — Backend services + admin router + materializer inheritance extension (WRSKL-01..04)
+- [ ] 016-04-PLAN.md — Frontend: workspace-role-skills API client + hooks + WorkspaceSkillCard + admin section in SkillsSettingsPage (WRSKL-01..04)
 
 ### Phase 17: Skill Action Buttons
 **Goal**: Workspace admins can add custom action buttons to the issue detail page that invoke skills or MCP tools
@@ -159,7 +165,7 @@ Plans:
 | 13. AI Provider Registry + Model Selection | v1.0-alpha | 4/4 | Complete | 2026-03-10 |
 | 14. Remote MCP Server Management | v1.0-alpha | 4/4 | Complete | 2026-03-10 |
 | 15. Related Issues | v1.0-alpha | 2/3 | In Progress | - |
-| 16. Workspace Role Skills | v1.0-alpha | 0/TBD | Not started | - |
+| 16. Workspace Role Skills | v1.0-alpha | 0/4 | Not started | - |
 | 17. Skill Action Buttons | v1.0-alpha | 0/TBD | Not started | - |
 | 18. Tech Debt Closure | v1.0-alpha | 0/TBD | Not started | - |
 
