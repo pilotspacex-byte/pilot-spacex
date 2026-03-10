@@ -102,18 +102,28 @@ jobs:
       # pgvector/pgvector:pg15 is a plain Postgres build without these.
       # We create a minimal stub so migrations can run outside Supabase.
       # -------------------------------------------------------------------------
-      - name: Set up Supabase auth schema stub
+      - name: Set up Supabase auth schema stub and alembic_version table
         env:
           PGPASSWORD: testpassword
         run: |
           psql -h localhost -U postgres -d pilot_space_test <<'SQL'
+            -- Supabase auth schema stub: migrations reference auth.uid() which
+            -- is a Supabase extension not present in pgvector/pgvector:pg15.
             CREATE SCHEMA IF NOT EXISTS auth;
             CREATE OR REPLACE FUNCTION auth.uid()
               RETURNS uuid
               LANGUAGE sql STABLE
               AS $$ SELECT '00000000-0000-0000-0000-000000000000'::uuid $$;
+
+            -- Pre-create alembic_version with VARCHAR(128) so that the project's
+            -- descriptive revision IDs (e.g. "036_fix_ai_sessions_rls_enum_case",
+            -- 33+ chars) fit without truncation. Alembic's default is VARCHAR(32).
+            CREATE TABLE IF NOT EXISTS alembic_version (
+              version_num VARCHAR(128) NOT NULL,
+              CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            );
           SQL
-          echo "Auth schema stub created"
+          echo "Auth schema stub and alembic_version table created"
 
       # -------------------------------------------------------------------------
       # UPGRADE STEP 1: Apply migrations
