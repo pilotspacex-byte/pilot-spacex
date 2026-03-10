@@ -47,12 +47,12 @@
 
 ### Remote MCP
 
-- [ ] **MCP-01**: Workspace owner/admin can register a remote MCP server by URL + display name
-- [ ] **MCP-02**: Bearer token authentication — token stored securely per workspace
-- [ ] **MCP-03**: OAuth 2.0 redirect authentication — token stored per workspace after callback
-- [ ] **MCP-04**: Registered remote servers are dynamically available to PilotSpaceAgent (hot-loaded per workspace)
-- [ ] **MCP-05**: Owner/admin can view connection status (connected / failed / unknown) per registered server
-- [ ] **MCP-06**: Owner/admin can remove a remote MCP server
+- [x] **MCP-01**: Workspace owner/admin can register a remote MCP server by URL + display name
+- [x] **MCP-02**: Bearer token authentication — token stored securely per workspace
+- [x] **MCP-03**: OAuth 2.0 redirect authentication — token stored per workspace after callback
+- [x] **MCP-04**: Registered remote servers are dynamically available to PilotSpaceAgent (hot-loaded per workspace)
+- [x] **MCP-05**: Owner/admin can view connection status (connected / failed / unknown) per registered server
+- [x] **MCP-06**: Owner/admin can remove a remote MCP server
 
 ### AI Chat Model Selection
 
@@ -121,12 +121,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHAT-01 | Phase 13 | Complete |
 | CHAT-02 | Phase 13 | Complete |
 | CHAT-03 | Phase 13 | Complete |
-| MCP-01 | Phase 14 | Pending |
-| MCP-02 | Phase 14 | Pending |
-| MCP-03 | Phase 14 | Pending |
-| MCP-04 | Phase 14 | Pending |
-| MCP-05 | Phase 14 | Pending |
-| MCP-06 | Phase 14 | Pending |
+| MCP-01 | Phase 14 | Complete |
+| MCP-02 | Phase 14 | Complete |
+| MCP-03 | Phase 14 | Complete |
+| MCP-04 | Phase 14 | Complete |
+| MCP-05 | Phase 14 | Complete |
+| MCP-06 | Phase 14 | Complete |
 | RELISS-01 | Phase 15 | Pending |
 | RELISS-02 | Phase 15 | Pending |
 | RELISS-03 | Phase 15 | Pending |

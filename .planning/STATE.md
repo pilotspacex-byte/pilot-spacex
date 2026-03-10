@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 13-04-PLAN.md — chat model selector + model_override wiring (CHAT-01, CHAT-02, CHAT-03)
-last_updated: "2026-03-10T01:04:46.266Z"
+stopped_at: Completed 14-01-PLAN.md - Wave 0 test stubs for remote MCP server management
+last_updated: "2026-03-10T02:26:51.162Z"
 last_activity: "2026-03-09 — 13-03 complete: generalized ProviderStatusCard, CustomProviderForm, AISettingsStore.loadModels (AIPR-01, AIPR-02, AIPR-05)"
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 11
+  completed_plans: 8
   percent: 23
 ---
 
@@ -71,6 +71,7 @@ Progress: [██░░░░░░░░] 23%
 | Phase 12-onboarding-first-run-ux P01 | 25 | 3 tasks | 4 files |
 | Phase 13-ai-provider-registry-model-selection P02 | 26 | 2 tasks | 5 files |
 | Phase 13-ai-provider-registry-model-selection P04 | 30 | 2 tasks | 6 files |
+| Phase 14-remote-mcp-server-management P01 | 18 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -124,6 +125,8 @@ Recent decisions affecting current work:
 - [Phase 13-ai-provider-registry-model-selection]: ModelSelector returns null when availableModels is empty — no layout shift in ChatHeader when no providers configured
 - [Phase 13-ai-provider-registry-model-selection]: Per-workspace localStorage key chat_model_{workspaceId} — model selection scoped to workspace, not global session
 - [Phase 13-ai-provider-registry-model-selection]: model_override is undefined (not null) when no model selected — field omitted from JSON body, no breaking change for workspaces without selection
+- [Phase 14-remote-mcp-server-management]: xfail stubs with function-local imports: prevents import failure from breaking whole test file when implementation modules are absent (14-01)
+- [Phase 14-remote-mcp-server-management]: it.todo() for frontend Wave 0 stubs: Vitest pending state communicates intent-to-implement better than it.skip() (14-01)
 
 ### Pending Todos
 
@@ -137,7 +140,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T00:58:18.895Z
-Stopped at: Completed 13-04-PLAN.md — chat model selector + model_override wiring (CHAT-01, CHAT-02, CHAT-03)
+Last session: 2026-03-10T02:26:51.160Z
+Stopped at: Completed 14-01-PLAN.md - Wave 0 test stubs for remote MCP server management
 Resume file: None
 Next action: Phase 13 in progress. Plans 13-01, 13-02, 13-03 complete. Continue with 13-04 (model picker chat UI).

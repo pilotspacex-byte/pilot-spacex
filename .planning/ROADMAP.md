@@ -152,7 +152,7 @@ Plans:
 | 11. Fix Rate Limiting Architecture | v1.0 | 1/1 | Complete | 2026-03-09 |
 | 12. Onboarding & First-Run UX | v1.0-alpha | 3/3 | Complete | 2026-03-09 |
 | 13. AI Provider Registry + Model Selection | v1.0-alpha | 4/4 | Complete | 2026-03-10 |
-| 14. Remote MCP Server Management | v1.0-alpha | 0/4 | Not started | - |
+| 14. Remote MCP Server Management | 1/4 | In Progress|  | - |
 | 15. Related Issues | v1.0-alpha | 0/TBD | Not started | - |
 | 16. Workspace Role Skills | v1.0-alpha | 0/TBD | Not started | - |
 | 17. Skill Action Buttons | v1.0-alpha | 0/TBD | Not started | - |
