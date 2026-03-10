@@ -264,10 +264,7 @@ async def get_workspace_detail(
 
     Requires: PILOT_SPACE_SUPER_ADMIN_TOKEN bearer token.
     """
-    logger.info(
-        "super_admin_access",
-        extra={"action": "workspace_detail", "slug": workspace_slug[:64], "token": "****"},
-    )
+    logger.info("super_admin_access", extra={"action": "workspace_detail"})
 
     session_factory = _get_admin_session_factory()
     redis_client = _get_redis_client()

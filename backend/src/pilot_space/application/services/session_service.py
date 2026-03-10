@@ -266,9 +266,6 @@ class SessionService:
         try:
             self._admin_client.auth.admin.sign_out(str(user_id), scope="global")
         except Exception:
-            logger.warning(
-                "Supabase sign_out failed — sessions revoked in DB",
-                extra={"user_id": str(user_id)},
-            )
+            logger.warning("Supabase sign_out failed — sessions revoked in DB")
 
         return count
