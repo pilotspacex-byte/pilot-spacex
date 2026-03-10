@@ -535,7 +535,9 @@ async def mcp_oauth_callback(
 
     if error:
         logger.warning("mcp_oauth_callback_error", oauth_error=error)
-        return RedirectResponse(url=f"{redirect_base}?status=error&reason={error}")
+        return RedirectResponse(
+            url=redirect_base + "?" + urllib.parse.urlencode({"status": "error", "reason": error})
+        )
 
     if not code or not state:
         return RedirectResponse(url=f"{redirect_base}?status=error&reason=missing_params")
