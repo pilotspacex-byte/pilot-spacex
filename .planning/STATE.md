@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 13-02-PLAN.md — per-session model override routing (AIPR-04)
-last_updated: "2026-03-09T16:59:24.408Z"
+stopped_at: Completed 13-04-PLAN.md — chat model selector + model_override wiring (CHAT-01, CHAT-02, CHAT-03)
+last_updated: "2026-03-10T00:58:18.897Z"
 last_activity: "2026-03-09 — 13-03 complete: generalized ProviderStatusCard, CustomProviderForm, AISettingsStore.loadModels (AIPR-01, AIPR-02, AIPR-05)"
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 7
   percent: 23
 ---
 
@@ -70,6 +70,7 @@ Progress: [██░░░░░░░░] 23%
 *Updated after each plan completion*
 | Phase 12-onboarding-first-run-ux P01 | 25 | 3 tasks | 4 files |
 | Phase 13-ai-provider-registry-model-selection P02 | 26 | 2 tasks | 5 files |
+| Phase 13-ai-provider-registry-model-selection P04 | 30 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,9 @@ Recent decisions affecting current work:
 - [Phase 13-ai-provider-registry-model-selection]: resolve_model_override uses lazy imports to avoid circular dependency with AIConfigurationRepository
 - [Phase 13-ai-provider-registry-model-selection]: self._resolved_model set on agent instance in stream() before _get_api_key — no signature change to _get_api_key needed
 - [Phase 13-ai-provider-registry-model-selection]: Model override fallback is always None on any error — BYOK invariant preserved for workspace requests
+- [Phase 13-ai-provider-registry-model-selection]: ModelSelector returns null when availableModels is empty — no layout shift in ChatHeader when no providers configured
+- [Phase 13-ai-provider-registry-model-selection]: Per-workspace localStorage key chat_model_{workspaceId} — model selection scoped to workspace, not global session
+- [Phase 13-ai-provider-registry-model-selection]: model_override is undefined (not null) when no model selected — field omitted from JSON body, no breaking change for workspaces without selection
 
 ### Pending Todos
 
@@ -133,7 +137,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T00:00:00.000Z
-Stopped at: Completed 13-01-PLAN.md — provider registry extension (AIPR-01, AIPR-02, AIPR-03, AIPR-05)
+Last session: 2026-03-10T00:58:18.895Z
+Stopped at: Completed 13-04-PLAN.md — chat model selector + model_override wiring (CHAT-01, CHAT-02, CHAT-03)
 Resume file: None
 Next action: Phase 13 in progress. Plans 13-01, 13-02, 13-03 complete. Continue with 13-04 (model picker chat UI).

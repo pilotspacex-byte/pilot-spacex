@@ -56,9 +56,9 @@
 
 ### AI Chat Model Selection
 
-- [ ] **CHAT-01**: User can select the AI model for a chat session from models available in their workspace
-- [ ] **CHAT-02**: Selected model persists per workspace session (doesn't reset on navigation)
-- [ ] **CHAT-03**: Model selector is disabled if no valid API key is configured for that provider
+- [x] **CHAT-01**: User can select the AI model for a chat session from models available in their workspace
+- [x] **CHAT-02**: Selected model persists per workspace session (doesn't reset on navigation)
+- [x] **CHAT-03**: Model selector is disabled if no valid API key is configured for that provider
 
 ### AI Provider Registry
 
@@ -118,9 +118,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AIPR-03 | Phase 13 | Complete |
 | AIPR-04 | Phase 13 | Complete |
 | AIPR-05 | Phase 13 | Complete |
-| CHAT-01 | Phase 13 | Pending |
-| CHAT-02 | Phase 13 | Pending |
-| CHAT-03 | Phase 13 | Pending |
+| CHAT-01 | Phase 13 | Complete |
+| CHAT-02 | Phase 13 | Complete |
+| CHAT-03 | Phase 13 | Complete |
 | MCP-01 | Phase 14 | Pending |
 | MCP-02 | Phase 14 | Pending |
 | MCP-03 | Phase 14 | Pending |

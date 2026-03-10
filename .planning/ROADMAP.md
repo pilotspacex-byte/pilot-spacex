@@ -29,7 +29,7 @@ Full archive: `.planning/milestones/v1.0-ROADMAP.md`
 ### v1.0-alpha: Pre-Production Launch
 
 - [x] **Phase 12: Onboarding & First-Run UX** — Auto-workspace creation, onboarding checklist, bug fixes, workspace switcher polish (completed 2026-03-09)
-- [ ] **Phase 13: AI Provider Registry + Model Selection** — Multi-provider BYOK registry (built-in + custom) and per-session model selector
+- [x] **Phase 13: AI Provider Registry + Model Selection** — Multi-provider BYOK registry (built-in + custom) and per-session model selector (completed 2026-03-10)
 - [ ] **Phase 14: Remote MCP Server Management** — Register, auth (Bearer + OAuth), status, and PilotSpaceAgent dynamic wiring
 - [ ] **Phase 15: Related Issues** — Semantic similarity suggestions, manual linking, dismissal
 - [ ] **Phase 16: Workspace Role Skills** — Admin-configured AI skill generation and role inheritance
@@ -145,7 +145,7 @@ Plans:
 | 10. Wire Audit Trail | v1.0 | 1/1 | Complete | 2026-03-09 |
 | 11. Fix Rate Limiting Architecture | v1.0 | 1/1 | Complete | 2026-03-09 |
 | 12. Onboarding & First-Run UX | v1.0-alpha | 3/3 | Complete | 2026-03-09 |
-| 13. AI Provider Registry + Model Selection | 3/4 | In Progress|  | - |
+| 13. AI Provider Registry + Model Selection | 4/4 | Complete   | 2026-03-10 | - |
 | 14. Remote MCP Server Management | v1.0-alpha | 0/TBD | Not started | - |
 | 15. Related Issues | v1.0-alpha | 0/TBD | Not started | - |
 | 16. Workspace Role Skills | v1.0-alpha | 0/TBD | Not started | - |
