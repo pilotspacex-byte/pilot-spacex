@@ -126,7 +126,11 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
     e.preventDefault();
     if (!wsRoleType) return;
     generateWsSkill.mutate(
-      { roleType: wsRoleType, roleName: wsRoleName, experienceDescription: wsExpDescription },
+      {
+        role_type: wsRoleType as SDLCRoleType,
+        role_name: wsRoleName,
+        experience_description: wsExpDescription,
+      },
       {
         onSuccess: () => {
           setWsGenerateOpen(false);
@@ -397,7 +401,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
         <div className="space-y-4 border-t pt-6">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold">Workspace Role Skills</h2>
+              <h2 className="text-lg font-semibold">Skill</h2>
               <p className="text-sm text-muted-foreground">
                 Configure AI skills inherited by all members with a matching SDLC role. Skills
                 remain inactive until you explicitly activate them.
@@ -539,8 +543,8 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
           open={!!wsSkillToRemove}
           onCancel={() => setWsSkillToRemove(null)}
           onConfirm={handleWsRemoveConfirm}
-          title={`Remove ${wsSkillToRemove.roleName} Workspace Skill?`}
-          description={`This will permanently delete the ${wsSkillToRemove.roleName} workspace skill. Members will no longer inherit this skill. To revert, generate a new skill.`}
+          title={`Remove ${wsSkillToRemove.role_name} Workspace Skill?`}
+          description={`This will permanently delete the ${wsSkillToRemove.role_name} workspace skill. Members will no longer inherit this skill. To revert, generate a new skill.`}
           confirmLabel="Remove Skill"
           variant="destructive"
         />

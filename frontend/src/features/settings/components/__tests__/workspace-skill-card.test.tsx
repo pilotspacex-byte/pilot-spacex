@@ -9,15 +9,15 @@ import type { WorkspaceRoleSkill } from '@/services/api/workspace-role-skills';
 
 const baseSkill: WorkspaceRoleSkill = {
   id: 'skill-1',
-  workspaceId: 'ws-1',
-  roleType: 'developer',
-  roleName: 'Senior Developer',
-  skillContent: 'You are a senior developer with 10 years of React experience.',
-  experienceDescription: '10 years React',
-  isActive: false,
-  createdBy: 'user-1',
-  createdAt: '2024-01-01T00:00:00Z',
-  updatedAt: '2024-01-01T00:00:00Z',
+  workspace_id: 'ws-1',
+  role_type: 'developer',
+  role_name: 'Senior Developer',
+  skill_content: 'You are a senior developer with 10 years of React experience.',
+  experience_description: '10 years React',
+  is_active: false,
+  created_by: 'user-1',
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
 };
 
 describe('WorkspaceSkillCard', () => {
@@ -28,7 +28,7 @@ describe('WorkspaceSkillCard', () => {
   });
 
   it('renders Active badge when is_active is true (WRSKL-02)', () => {
-    const activeSkill = { ...baseSkill, isActive: true };
+    const activeSkill = { ...baseSkill, is_active: true };
     render(<WorkspaceSkillCard skill={activeSkill} onActivate={vi.fn()} onRemove={vi.fn()} />);
     expect(screen.getByText('Active')).toBeInTheDocument();
     expect(screen.queryByText('Pending Review')).not.toBeInTheDocument();
@@ -40,13 +40,13 @@ describe('WorkspaceSkillCard', () => {
   });
 
   it('does not show Activate button for active skills (WRSKL-02)', () => {
-    const activeSkill = { ...baseSkill, isActive: true };
+    const activeSkill = { ...baseSkill, is_active: true };
     render(<WorkspaceSkillCard skill={activeSkill} onActivate={vi.fn()} onRemove={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Activate' })).not.toBeInTheDocument();
   });
 
   it('does not show Deactivate button for active skills (is_active is one-way)', () => {
-    const activeSkill = { ...baseSkill, isActive: true };
+    const activeSkill = { ...baseSkill, is_active: true };
     render(<WorkspaceSkillCard skill={activeSkill} onActivate={vi.fn()} onRemove={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /deactivate/i })).not.toBeInTheDocument();
   });

@@ -33,8 +33,8 @@ export function WorkspaceSkillCard({
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium">{skill.roleName}</span>
-            {skill.isActive ? (
+            <span className="font-medium">{skill.role_name}</span>
+            {skill.is_active ? (
               <Badge variant="default" className="bg-green-500 hover:bg-green-500">
                 Active
               </Badge>
@@ -44,10 +44,10 @@ export function WorkspaceSkillCard({
               </Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">{skill.roleType.replace(/_/g, ' ')}</p>
+          <p className="text-xs text-muted-foreground">{skill.role_type.replace(/_/g, ' ')}</p>
         </div>
         <div className="flex gap-2">
-          {!skill.isActive && (
+          {!skill.is_active && (
             <Button
               variant="default"
               size="sm"
@@ -69,8 +69,8 @@ export function WorkspaceSkillCard({
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground line-clamp-3 font-mono whitespace-pre-wrap">
-          {skill.skillContent.slice(0, 300)}
-          {skill.skillContent.length > 300 ? '\u2026' : ''}
+          {skill.skill_content.slice(0, 300)}
+          {skill.skill_content.length > 300 ? '\u2026' : ''}
         </p>
       </CardContent>
     </Card>

@@ -17,16 +17,16 @@ import type { SDLCRoleType } from './role-skills';
 
 export interface WorkspaceRoleSkill {
   id: string;
-  workspaceId: string;
-  roleType: SDLCRoleType;
-  roleName: string;
-  skillContent: string;
-  experienceDescription: string | null;
+  workspace_id: string;
+  role_type: SDLCRoleType;
+  role_name: string;
+  skill_content: string;
+  experience_description: string | null;
   /** One-way approval gate: false = Pending Review, true = Active. No deactivate endpoint. */
-  isActive: boolean;
-  createdBy: string | null;
-  createdAt: string;
-  updatedAt: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface WorkspaceRoleSkillsResponse {
@@ -34,9 +34,9 @@ export interface WorkspaceRoleSkillsResponse {
 }
 
 export interface GenerateWorkspaceSkillPayload {
-  roleType: SDLCRoleType;
-  roleName: string;
-  experienceDescription: string;
+  role_type: SDLCRoleType;
+  role_name: string;
+  experience_description: string;
 }
 
 // ---------------------------------------------------------------------------
