@@ -16,6 +16,7 @@ All HTTP errors use RFC 7807 problem+json format.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode
 from uuid import UUID
@@ -326,17 +327,13 @@ async def saml_callback(
         )
     except Exception:
         logger.warning("saml_callback: audit write failed for user %s", user_info["user_id"])
-    # Redirect browser to frontend SAML callback page with token_hash for verifyOtp
+    # Redirect browser to frontend SAML callback page with token_hash for verifyOtp.
+    # token_hash is a Supabase-generated hex value; validate format before using.
+    raw_token_hash = str(user_info.get("token_hash", ""))
+    token_hash = raw_token_hash if re.fullmatch(r"[0-9a-fA-F]{1,256}", raw_token_hash) else ""
     settings = get_settings()
-    # Redirect to the trusted frontend URL (from settings, not user-controlled).
-    # Query parameters are URL-encoded to prevent injection into the URL structure.
     frontend_base = settings.frontend_url.rstrip("/")
-    safe_params = urlencode(
-        {
-            "token_hash": str(user_info.get("token_hash", "")),
-            "workspace_id": str(workspace_id),
-        }
-    )
+    safe_params = urlencode({"token_hash": token_hash, "workspace_id": str(workspace_id)})
     return RedirectResponse(
         url=f"{frontend_base}/auth/saml-callback?{safe_params}", status_code=302
     )
