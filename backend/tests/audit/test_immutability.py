@@ -15,13 +15,18 @@ Requirements: AUDIT-06
 
 from __future__ import annotations
 
+import os
 import uuid
 
 import pytest
 
-pytestmark = pytest.mark.integration
+_skip_no_pg = pytest.mark.skipif(
+    not os.environ.get("TEST_DATABASE_URL", "").startswith("postgresql"),
+    reason="Requires PostgreSQL (TEST_DATABASE_URL not set or not PostgreSQL)",
+)
 
 
+@pytest.mark.integration
 class TestAuditLogImmutabilityTrigger:
     """Tests for the fn_audit_log_immutable PostgreSQL trigger.
 
@@ -29,9 +34,7 @@ class TestAuditLogImmutabilityTrigger:
     They are skipped on SQLite where the trigger is not available.
     """
 
-    @pytest.mark.xfail(
-        strict=False, reason="PostgreSQL immutability trigger - requires TEST_DATABASE_URL"
-    )
+    @_skip_no_pg
     @pytest.mark.asyncio
     async def test_direct_update_raises_exception(self, db_session_committed) -> None:
         """Direct UPDATE on audit_log must raise an exception from the immutability trigger."""
@@ -63,9 +66,7 @@ class TestAuditLogImmutabilityTrigger:
         with pytest.raises(Exception, match="immutable"):
             await _do_update()
 
-    @pytest.mark.xfail(
-        strict=False, reason="PostgreSQL immutability trigger - requires TEST_DATABASE_URL"
-    )
+    @_skip_no_pg
     @pytest.mark.asyncio
     async def test_direct_delete_raises_exception(self, db_session_committed) -> None:
         """Direct DELETE on audit_log must raise an exception from the immutability trigger."""
@@ -97,9 +98,7 @@ class TestAuditLogImmutabilityTrigger:
         with pytest.raises(Exception, match="immutable"):
             await _do_delete()
 
-    @pytest.mark.xfail(
-        strict=False, reason="PostgreSQL immutability trigger - requires TEST_DATABASE_URL"
-    )
+    @_skip_no_pg
     @pytest.mark.asyncio
     async def test_purge_bypass_allows_delete(self, db_session_committed) -> None:
         """fn_purge_audit_log_expired must be able to delete via app.audit_purge bypass."""
@@ -141,7 +140,6 @@ class TestAuditLogImmutabilityTrigger:
 class TestAuditRouterNoMutationEndpoints:
     """Tests that audit router exposes no UPDATE or DELETE endpoints."""
 
-    @pytest.mark.xfail(strict=False, reason="audit router implementation pending")
     def test_no_delete_endpoint_in_audit_router(self) -> None:
         """Audit router must not expose any DELETE endpoints for audit entries."""
         from pilot_space.api.v1.routers.audit import router
@@ -157,7 +155,6 @@ class TestAuditRouterNoMutationEndpoints:
         audit_entry_deletes = [p for p in delete_paths if "audit" in p and "settings" not in p]
         assert not audit_entry_deletes, f"Found unauthorized DELETE routes: {audit_entry_deletes}"
 
-    @pytest.mark.xfail(strict=False, reason="audit router implementation pending")
     def test_no_put_patch_on_audit_entries(self) -> None:
         """Audit router must not expose PUT/PATCH endpoints on audit entries."""
         from pilot_space.api.v1.routers.audit import router

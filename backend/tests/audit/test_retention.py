@@ -45,9 +45,6 @@ def _make_audit_row(
 class TestPurgeAuditLogExpired:
     """Tests for the purge logic that fn_purge_audit_log_expired implements."""
 
-    @pytest.mark.xfail(
-        strict=False, reason="AuditLogRepository.purge_expired implementation pending"
-    )
     @pytest.mark.asyncio
     async def test_deletes_rows_older_than_retention_days(self) -> None:
         """purge_expired() must delete rows older than workspace.audit_retention_days."""
@@ -80,9 +77,6 @@ class TestPurgeAuditLogExpired:
         assert deleted_count == 1
         session.execute.assert_awaited_once()
 
-    @pytest.mark.xfail(
-        strict=False, reason="AuditLogRepository.purge_expired implementation pending"
-    )
     @pytest.mark.asyncio
     async def test_keeps_rows_within_retention_window(self) -> None:
         """purge_expired() must not delete rows within the retention window."""
@@ -108,9 +102,6 @@ class TestPurgeAuditLogExpired:
 
         assert deleted_count == 0
 
-    @pytest.mark.xfail(
-        strict=False, reason="AuditLogRepository.purge_expired implementation pending"
-    )
     @pytest.mark.asyncio
     async def test_default_retention_is_90_days(self) -> None:
         """When workspace.audit_retention_days is None, default to 90 days."""
@@ -139,9 +130,6 @@ class TestPurgeAuditLogExpired:
         assert deleted_count == 0
         session.execute.assert_awaited_once()
 
-    @pytest.mark.xfail(
-        strict=False, reason="AuditLogRepository.purge_expired implementation pending"
-    )
     @pytest.mark.asyncio
     async def test_per_workspace_retention_respected(self) -> None:
         """Each workspace's retention_days is applied independently."""
