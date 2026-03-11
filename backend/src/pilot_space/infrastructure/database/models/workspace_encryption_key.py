@@ -68,6 +68,13 @@ class WorkspaceEncryptionKey(Base, TimestampMixin, WorkspaceScopedMixin):
         doc="Last 8 chars of raw key for identification",
     )
 
+    # Previous master-encrypted key for dual-key fallback during rotation
+    previous_encrypted_key: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="Previous master-encrypted key for dual-key fallback during rotation",
+    )
+
     # Monotonically increments on each PUT /encryption/key
     key_version: Mapped[int] = mapped_column(
         Integer,

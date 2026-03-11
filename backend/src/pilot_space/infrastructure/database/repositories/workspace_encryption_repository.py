@@ -71,6 +71,8 @@ class WorkspaceEncryptionRepository:
 
         existing = await self.get_key_record(workspace_id)
         if existing is not None:
+            # Save current key as previous for dual-key fallback during rotation
+            existing.previous_encrypted_key = existing.encrypted_workspace_key
             existing.encrypted_workspace_key = encrypted
             existing.key_hint = key_hint
             existing.key_version = existing.key_version + 1
@@ -86,3 +88,17 @@ class WorkspaceEncryptionRepository:
         self.session.add(record)
         await self.session.flush()
         return record
+
+    async def clear_previous_key(self, workspace_id: str) -> None:
+        """Null out previous_encrypted_key after re-encryption completes.
+
+        Called after all content has been re-encrypted with the new key,
+        so the old key is no longer needed for fallback decryption.
+
+        Args:
+            workspace_id: Workspace UUID string.
+        """
+        record = await self.get_key_record(workspace_id)
+        if record is not None:
+            record.previous_encrypted_key = None
+            await self.session.flush()
