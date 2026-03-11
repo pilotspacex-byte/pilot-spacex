@@ -187,7 +187,7 @@ Plans:
   4. Admin can create/manage workspace templates; built-in templates are read-only
   5. Users browse template catalog, pick a template, and AI generates personalized skill
   6. Skills settings page shows My Skills + Template Catalog sections
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 - [ ] 20-01-PLAN.md — Models + migration 077 + repositories (P20-01, P20-02, P20-03)

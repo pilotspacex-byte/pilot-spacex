@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 018-01-PLAN.md
-last_updated: "2026-03-11T06:39:25.537Z"
-last_activity: "2026-03-11 — 018-02 complete: rotate_workspace_key with dual-key fallback, POST /encryption/rotate endpoint, 10 passing tests"
+status: in_progress
+stopped_at: Completed 20-01-PLAN.md
+last_updated: "2026-03-11T13:36:26Z"
+last_activity: "2026-03-11 — 020-01 complete: SkillTemplate and UserSkill models, migration 077, repositories, 35 passing tests"
 progress:
-  total_phases: 8
+  total_phases: 9
   completed_phases: 8
   total_plans: 27
   completed_plans: 27
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: Phase 18 — Tech Debt Closure
-Plan: 2/4
-Status: Plan 02 complete — key rotation with dual-key fallback
-Last activity: 2026-03-11 — 018-02 complete: rotate_workspace_key with dual-key fallback, POST /encryption/rotate endpoint, 10 passing tests
+Phase: Phase 20 — Skill Template Catalog
+Plan: 1/4
+Status: Plan 01 complete — SkillTemplate + UserSkill persistence layer
+Last activity: 2026-03-11 — 020-01 complete: SkillTemplate and UserSkill models, migration 077, repositories, 35 passing tests
 
-Progress: [██████████] 100%
+Progress: [███░░░░░░░] 25%
 
 ## Milestone: v1.0-alpha
 
@@ -87,12 +87,14 @@ Progress: [██████████] 100%
 | Phase 17-skill-action-buttons P02 | 13 | 2 tasks | 9 files |
 | Phase 018-tech-debt-closure P02 | 10 | 2 tasks | 6 files |
 | Phase 018 P01 | 20min | 2 tasks | 9 files |
+| Phase 20-skill-template-catalog P01 | 6min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Phase 19 added: Skill Registry and Plugin System — versioned built-in skill templates (static + workspace-curated), SKILL.md + references/ structure, "Update available" notifications, Pilot Space-native plugin format (skill + MCP + action buttons as installable unit)
+- Phase 20 added: Migrate role-based skills to independent skill templates; users pick from template catalog including role templates; skills decoupled from roles
 
 ### Decisions
 
@@ -195,6 +197,11 @@ Recent decisions affecting current work:
 - [Phase 018-tech-debt-closure 02]: previous_encrypted_key stored as nullable Text column -- cleared after re-encryption completes
 - [Phase 018-tech-debt-closure 02]: _re_encrypt_string returns None for non-decryptable content -- plaintext rows skipped, not failed
 - [Phase 018-tech-debt-closure 02]: Rotation endpoint returns 400 (not 422) for invalid key format -- distinguishes from PUT /key
+- [Phase 20-skill-template-catalog]: SkillTemplate is_active defaults true (not false like WorkspaceRoleSkill) -- templates immediately visible in catalog
+- [Phase 20-skill-template-catalog]: UserSkill has no role_type/is_primary -- skills fully decoupled from roles, all active skills equal
+- [Phase 20-skill-template-catalog]: Partial unique index on (user_id, workspace_id, template_id) allows nullable template_id for custom skills
+- [Phase 20-skill-template-catalog]: Data migration uses LEFT JOIN for template_id linking -- custom role user_skills get template_id=NULL
+- [Phase 20-skill-template-catalog]: length() not char_length() in CheckConstraints -- ANSI SQL compatible with SQLite test DB
 - [Phase 018]: Used FastAPI dependency_overrides for audit test auth instead of middleware patching
 - [Phase 018]: Mocked AuditLogRepository at router level to avoid event loop issues with real DB sessions in tests
 
@@ -210,7 +217,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-11T06:39:25.534Z
-Stopped at: Completed 018-01-PLAN.md
-Resume file: None
-Next action: Continue Phase 18 remaining plans.
+Last session: 2026-03-11T13:36:26Z
+Stopped at: Completed 20-01-PLAN.md
+Resume file: .planning/phases/20-migrate-all-role-skill-template-of-each-role-then-user-setup-skill-can-pick-template-include-role-template-skill-do-not-depend-on-role/20-02-PLAN.md
+Next action: Execute Phase 20 Plan 02.
