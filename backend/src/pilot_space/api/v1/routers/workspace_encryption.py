@@ -6,12 +6,13 @@ Encryption is opt-in: workspaces without a configured key continue in plaintext.
 Endpoints (all under /api/v1/workspaces/{workspace_slug}/encryption):
   GET    /           — encryption status (never returns encrypted_workspace_key)
   PUT    /key        — store or rotate workspace encryption key (OWNER only)
+  POST   /rotate     — rotate key with batch re-encryption (OWNER only)
   POST   /verify     — verify a key matches the stored key (ADMIN or OWNER)
   POST   /generate-key — generate a new valid Fernet key (ADMIN or OWNER)
 
 Authorization:
   - GET + POST /verify + POST /generate-key require settings:read (ADMIN or OWNER)
-  - PUT /key requires settings:manage (OWNER only)
+  - PUT /key + POST /rotate require settings:manage (OWNER only)
 
 References:
   - TENANT-02: Workspace BYOK encryption
@@ -38,6 +39,7 @@ from pilot_space.infrastructure.database.repositories.workspace_repository impor
 )
 from pilot_space.infrastructure.workspace_encryption import (
     retrieve_workspace_key,
+    rotate_workspace_key,
     validate_workspace_key,
 )
 
@@ -93,6 +95,20 @@ class GeneratedKeyResponse(BaseModel):
     """Response for POST /encryption/generate-key."""
 
     key: str
+
+
+class KeyRotationRequest(BaseModel):
+    """Request body for POST /encryption/rotate."""
+
+    new_key: str
+
+
+class KeyRotationResponse(BaseModel):
+    """Response for POST /encryption/rotate."""
+
+    rotated: bool
+    re_encrypted: dict[str, int]
+    key_version: int
 
 
 # ============================================================================
@@ -326,3 +342,65 @@ async def generate_encryption_key(
 
     new_key = Fernet.generate_key().decode()
     return GeneratedKeyResponse(key=new_key)
+
+
+@router.post("/{workspace_slug}/encryption/rotate")
+async def rotate_encryption_key(
+    workspace_slug: WorkspaceSlugPath,
+    body: KeyRotationRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> KeyRotationResponse:
+    """Rotate the workspace encryption key with batch re-encryption.
+
+    Generates a new encrypted key, saves the old key for dual-key fallback,
+    re-encrypts all content (notes, issues) with the new key, then clears
+    the old key reference.
+
+    Requires settings:manage permission (OWNER only).
+
+    Args:
+        workspace_slug: Workspace slug or UUID.
+        body: Request body with new_key (valid Fernet key).
+        session: Database session.
+        current_user: Authenticated user.
+
+    Returns:
+        KeyRotationResponse with re-encryption counts and new key version.
+
+    Raises:
+        HTTPException 400: If new key is invalid or no existing key configured.
+        HTTPException 403: If user is not workspace owner.
+        HTTPException 500: If rotation fails mid-batch.
+    """
+    try:
+        validate_workspace_key(body.new_key)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    workspace_id = await _resolve_workspace(workspace_slug, session)
+    await _require_settings_manage(session, current_user.user_id, workspace_id)
+
+    try:
+        counts = await rotate_workspace_key(
+            session, str(workspace_id), body.new_key, batch_size=100
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    # Fetch updated key version
+    repo = WorkspaceEncryptionRepository(session)
+    record = await repo.get_key_record(str(workspace_id))
+    key_version = record.key_version if record else 0
+
+    return KeyRotationResponse(
+        rotated=True,
+        re_encrypted=counts,
+        key_version=key_version,
+    )
