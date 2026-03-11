@@ -28,6 +28,7 @@ import {
   IssueNoteHeader,
   IssueNoteLayout,
   IssuePropertiesPanel,
+  ActionButtonBar,
 } from '@/features/issues/components';
 import { ProjectContextHeader } from '@/components/editor/ProjectContextHeader';
 import { IssueEditorContent } from '@/features/issues/components/issue-editor-content';
@@ -46,6 +47,7 @@ import { IssueNoteContext } from '@/features/issues/contexts/issue-note-context'
 import { useStore } from '@/stores';
 import { copyToClipboard } from '@/lib/copy-context';
 import { issuesApi, tasksApi } from '@/services/api';
+import { useActionButtons } from '@/services/api/skill-action-buttons';
 import type { ExportFormat } from '@/features/issues/components';
 import type { UpdateIssueData, IssueState, UserBrief } from '@/types';
 import { IssueChatEmptyState } from '@/features/issues/components/issue-chat-empty-state';
@@ -124,6 +126,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const { data: members = [] } = useWorkspaceMembers(workspaceId);
   const { data: labels = [] } = useWorkspaceLabels(workspaceId);
   const { data: cyclesData } = useProjectCycles(workspaceId, issue?.project?.id ?? '');
+  const { data: actionButtons } = useActionButtons(workspaceId);
 
   // -- UI state --
   const [isChatOpen, setIsChatOpen] = useState(true);
@@ -260,6 +263,29 @@ const IssueDetailPage = observer(function IssueDetailPage() {
       `Generate a detailed description for this issue. Structure it with: Problem statement, Acceptance criteria, and Technical approach.`
     );
   }, [handleChatSend, aiStore.pilotSpace]);
+
+  // -- Action button handler (SKBTN-03) --
+  const handleActionButtonClick = useCallback(
+    (button: { name: string; binding_metadata: Record<string, unknown> }) => {
+      const store = aiStore.pilotSpace as {
+        clearConversation: () => void;
+        setIssueContext: (ctx: { issueId: string }) => void;
+        setActiveSkill: (skill: string) => void;
+        sendMessage: (content: string) => Promise<void>;
+      };
+      store.clearConversation();
+      store.setIssueContext({ issueId });
+      const skillName =
+        (button.binding_metadata.skill_name as string) ??
+        (button.binding_metadata.tool_name as string) ??
+        button.name;
+      store.setActiveSkill(skillName);
+      void store.sendMessage(`Run ${button.name} on this issue`);
+      setIsChatOpen(true);
+      setRightPanelTab('chat');
+    },
+    [aiStore.pilotSpace, issueId]
+  );
 
   // -- Knowledge graph handlers --
 
@@ -504,6 +530,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
         onGeneratePlan={handleGeneratePlan}
         isGeneratingPlan={isGeneratingPlan}
       />
+      <ActionButtonBar buttons={actionButtons ?? []} onButtonClick={handleActionButtonClick} />
     </>
   );
 

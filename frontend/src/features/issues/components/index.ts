@@ -99,3 +99,6 @@ export type { GraphNodeData, GraphFlowNode } from './graph-node-renderer';
 
 export { GraphEmptyState } from './graph-empty-state';
 export type { GraphEmptyStateProps } from './graph-empty-state';
+
+export { ActionButtonBar } from './action-button-bar';
+export type { ActionButtonBarProps } from './action-button-bar';
