@@ -136,7 +136,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 17-01-PLAN.md — Backend: SkillActionButton model + migration 075 + repository + schemas + admin CRUD router + plugin service extension (SKBTN-01, SKBTN-02, SKBTN-04)
+- [x] 17-01-PLAN.md — Backend: SkillActionButton model + migration 075 + repository + schemas + admin CRUD router + plugin service extension (SKBTN-01, SKBTN-02, SKBTN-04) (completed 2026-03-11)
 - [ ] 17-02-PLAN.md — Frontend: API client + hooks + ActionButtonsTabContent admin UI + ActionButtonBar on issue page + chat activation (SKBTN-01..04)
 
 ### Phase 18: Tech Debt Closure

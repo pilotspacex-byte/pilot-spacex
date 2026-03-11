@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 019-04-PLAN.md
-last_updated: "2026-03-11T03:30:32.964Z"
-last_activity: "2026-03-10 — 019-04 complete: Plugin marketplace UI, PluginsStore, PluginCard, detail sheet, Settings Plugins tab"
+status: in-progress
+stopped_at: Completed 17-01-PLAN.md
+last_updated: "2026-03-11T04:38:00.000Z"
+last_activity: "2026-03-11 — 017-01 complete: SkillActionButton model, migration 075, admin CRUD router, plugin lifecycle hooks"
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 22
-  completed_plans: 22
-  percent: 100
+  total_plans: 24
+  completed_plans: 23
+  percent: 96
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: Phase 19 — Skill Registry and Plugin System
-Plan: 4/4
-Status: Phase 19 complete — all 4 plans done
-Last activity: 2026-03-10 — 019-04 complete: Plugin marketplace UI, PluginsStore, PluginCard, detail sheet, Settings Plugins tab
+Phase: Phase 17 — Skill Action Buttons
+Plan: 1/2
+Status: Plan 01 complete — backend persistence and API
+Last activity: 2026-03-11 — 017-01 complete: SkillActionButton model, migration 075, admin CRUD router, plugin lifecycle hooks
 
-Progress: [██████████] 100%
+Progress: [█████████▌] 96%
 
 ## Milestone: v1.0-alpha
 
@@ -41,7 +41,7 @@ Progress: [██████████] 100%
 | 14. Remote MCP Server Management | Register/auth/status + PilotSpaceAgent hot-load | MCP-01..06 | Not started |
 | 15. Related Issues | Semantic suggestions + manual linking | RELISS-01..04 | Complete |
 | 16. Workspace Role Skills | Admin-generated role skills + inheritance | WRSKL-01..04 | Not started |
-| 17. Skill Action Buttons | Custom issue-page buttons bound to skills/MCP | SKBTN-01..04 | Not started |
+| 17. Skill Action Buttons | Custom issue-page buttons bound to skills/MCP | SKBTN-01..04 | In progress (1/2) |
 | 18. Tech Debt Closure | OIDC E2E, MCP approval, xfail tests, key rotation | DEBT-01..04 | Not started |
 
 ## Performance Metrics
@@ -83,6 +83,7 @@ Progress: [██████████] 100%
 | Phase 019 P02 | 5 | 2 tasks | 6 files |
 | Phase 019 P03 | 15 | 3 tasks | 10 files |
 | Phase 019 P04 | 9 | 2 tasks | 12 files |
+| Phase 17-skill-action-buttons P01 | 7 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -181,6 +182,9 @@ Recent decisions affecting current work:
 - [Phase 019]: PluginsTabContent extracted as separate observer() -- keeps SkillsSettingsPage under 700 lines and isolates MobX plugin reactivity
 - [Phase 019]: PluginCard uses plain props (not observer) -- testability and simplicity, parent passes values
 - [Phase 019]: Plugins tab visible only to admin users (workspaceStore.isAdmin check)
+- [Phase 17-skill-action-buttons 01]: Removed strict=True from Pydantic schemas -- JSON payloads send strings for BindingType enum, strict mode rejects string coercion
+- [Phase 17-skill-action-buttons 01]: Plugin action button auto-creation is non-fatal (try/except) -- plugin install/uninstall should not fail due to action button issues
+- [Phase 17-skill-action-buttons 01]: deactivate_by_plugin_id uses JSONB operator to match plugin_id in binding_metadata -- avoids separate FK column
 
 ### Pending Todos
 
@@ -194,7 +198,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-10T15:37:49Z
-Stopped at: Completed 019-04-PLAN.md
-Resume file: None
-Next action: Phase 19 complete. All plans done.
+Last session: 2026-03-11T04:38:00.000Z
+Stopped at: Completed 17-01-PLAN.md
+Resume file: .planning/phases/17-skill-action-buttons/17-02-PLAN.md
+Next action: Execute Phase 17 Plan 02 — frontend action buttons UI.
