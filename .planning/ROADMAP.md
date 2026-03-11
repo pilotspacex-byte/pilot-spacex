@@ -148,7 +148,12 @@ Plans:
   2. `issue_relation_server` and `note_content_server` both call `check_approval_from_db()` for every tool execution (no static level bypass)
   3. The two previously-xfail audit API tests pass without skips or workarounds
   4. Key rotation re-encrypts all workspace content keys to the new key without data loss (xfail stub replaced with real implementation)
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 18-01-PLAN.md — MCP approval wiring fix + audit test infrastructure (DEBT-02, DEBT-03)
+- [ ] 18-02-PLAN.md — Key rotation with dual-key fallback and batch re-encryption (DEBT-04)
+- [ ] 18-03-PLAN.md — OIDC E2E Playwright test with mock IdP (DEBT-01)
 
 ### Phase 19: Skill Registry and Plugin System
 
