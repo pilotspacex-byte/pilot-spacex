@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 Enterprise** — Phases 1–11 (shipped 2026-03-09)
-- 🔄 **v1.0-alpha Pre-Production Launch** — Phases 12–19 (in progress)
+- 🔄 **v1.0-alpha Pre-Production Launch** — Phases 12–20 (in progress)
 
 ## Phases
 
@@ -35,6 +35,7 @@ Full archive: `.planning/milestones/v1.0-ROADMAP.md`
 - [x] **Phase 16: Workspace Role Skills** — Admin-configured AI skill generation and role inheritance (completed 2026-03-10)
 - [x] **Phase 17: Skill Action Buttons** — Custom issue-page buttons bound to skills or MCP tools (completed 2026-03-11)
 - [ ] **Phase 18: Tech Debt Closure** — OIDC E2E, MCP approval wiring, xfail tests, key rotation
+- [ ] **Phase 20: Skill Template Catalog** — Decouple skills from roles, unified template catalog, user skill personalization
 
 ## Phase Details
 
@@ -174,6 +175,26 @@ Plans:
 - [x] 019-03-PLAN.md — Backend: GitHubPluginService + InstallPluginService + SeedPluginsService + REST router + agent materializer extension (SKRG-01..05)
 - [x] 019-04-PLAN.md — Frontend: PluginsStore + API client + plugin cards + detail sheet + Skills settings page Plugins tab (SKRG-01..05)
 
+### Phase 20: Skill Template Catalog
+
+**Goal:** Decouple skills from roles. Create unified skill_templates + user_skills tables, migrate existing data, update materializer, and build a browsable template catalog UI where users pick templates and AI personalizes skills.
+**Depends on:** Phase 19
+**Requirements**: P20-01, P20-02, P20-03, P20-04, P20-05, P20-06, P20-07, P20-08, P20-09, P20-10
+**Success Criteria** (what must be TRUE):
+  1. skill_templates and user_skills tables exist with data migrated from legacy tables (old tables NOT dropped)
+  2. Materializer reads from new tables with OperationalError fallback to legacy
+  3. Built-in templates seeded per workspace at creation time
+  4. Admin can create/manage workspace templates; built-in templates are read-only
+  5. Users browse template catalog, pick a template, and AI generates personalized skill
+  6. Skills settings page shows My Skills + Template Catalog sections
+**Plans:** 4 plans
+
+Plans:
+- [ ] 20-01-PLAN.md — Models + migration 077 + repositories (P20-01, P20-02, P20-03)
+- [ ] 20-02-PLAN.md — Materializer refactor + SeedTemplatesService + CreateUserSkillService (P20-04, P20-07, P20-08)
+- [ ] 20-03-PLAN.md — REST API endpoints: skill templates admin CRUD + user skills CRUD (P20-05, P20-06)
+- [ ] 20-04-PLAN.md — Frontend: API hooks + template catalog + my skills + restructured settings page (P20-09, P20-10)
+
 ---
 *v1.0 shipped: 2026-03-09 — 11 phases, 46 plans, 30/30 requirements satisfied*
-*v1.0-alpha roadmap created: 2026-03-09 — 7 phases, 39/39 requirements mapped*
+*v1.0-alpha roadmap created: 2026-03-09 — 8 phases, 43/43 requirements mapped*
