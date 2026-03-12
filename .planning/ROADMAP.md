@@ -83,11 +83,11 @@ Plans:
   1. User can move a page to a different parent within the same project and the page's depth and children's depths are updated correctly
   2. User can reorder pages among siblings and the new position persists across page reloads
   3. Moving a page that would exceed the 3-level depth limit is rejected with a clear error
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 25-01: TBD
-- [ ] 25-02: TBD
+- [ ] 25-01-PLAN.md — MovePageService, NoteRepository tree methods, schemas, DI wiring, and unit tests
+- [ ] 25-02-PLAN.md — ReorderPageService and move/reorder API endpoints on workspace notes router
 
 ### Phase 26: Sidebar Tree & Navigation
 **Goal**: Users navigate a project's nested page hierarchy from the sidebar and see their location via breadcrumbs
