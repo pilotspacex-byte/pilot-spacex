@@ -166,7 +166,7 @@ Phases execute in numeric order: 24 → 25 → 26 → 27 → 28 → 29
 | 26. Sidebar Tree & Navigation | 3/3 | Complete    | 2026-03-12 | - |
 | 27. Project Hub & Issue Views | 2/2 | Complete    | 2026-03-12 | - |
 | 28. Visual Design Refresh | 2/2 | Complete    | 2026-03-12 | - |
-| 29. Responsive & Drag-and-Drop | 3/3 | In Progress | - | - |
+| 29. Responsive & Drag-and-Drop | 3/3 | Complete   | 2026-03-12 | - |
 
 **Total: 29 phases, 92 plans, 86 requirements**
 

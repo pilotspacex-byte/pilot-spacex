@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 29-01-PLAN.md
-last_updated: "2026-03-12T20:09:00.513Z"
+stopped_at: Completed 29-03-PLAN.md
+last_updated: "2026-03-12T20:26:56.385Z"
 last_activity: "2026-03-12 — Completed 26-03: PageBreadcrumb integration, flattenTree, and content sanitization"
 progress:
   total_phases: 6
   completed_phases: 6
-  total_plans: 13
-  completed_plans: 13
+  total_plans: 14
+  completed_plans: 14
 ---
 
 # Project State
@@ -76,6 +76,8 @@ Recent decisions affecting current work:
 - [Phase 29]: nodeMap from flattenTreeWithDepth provides O(1) parentId lookup in handleDragEnd — avoids traversing tree per drag event
 - [Phase 29]: isMobile+isTablet replaces isSmallScreen in AppShell — tablet gets inline icon-rail instead of overlay drawer
 - [Phase 29]: Settings layout breakpoint md → lg so 224px nav + 60px icon-rail + content fits at 1024px+
+- [Phase 29]: fullNodeMap recursive walk of treeNodes (not flatItems) needed for subtree height — collapsed children excluded from nodeMap but required for depth computation
+- [Phase 29]: newDeepestDepth = overMeta.depth + getSubtreeHeight(activeFullNode) for cross-parent drag depth validation
 
 ### Pending Todos
 
@@ -87,7 +89,7 @@ None — Phase 26 complete. All NAV-01 through NAV-04 requirements satisfied.
 
 ## Session Continuity
 
-Last session: 2026-03-12T20:09:00.511Z
-Stopped at: Completed 29-01-PLAN.md
+Last session: 2026-03-12T20:26:47.206Z
+Stopped at: Completed 29-03-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 27`
