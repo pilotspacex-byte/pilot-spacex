@@ -156,13 +156,30 @@ export class TaskStore {
 
   async reorderTasks(workspaceId: string, issueId: string, taskIds: string[]): Promise<void> {
     this.error = null;
+
+    // 1. Capture previous state for rollback
+    const previousTasks = this.tasksByIssue.get(issueId)
+      ? [...this.tasksByIssue.get(issueId)!]
+      : [];
+
+    // 2. Optimistic update — reorder local tasks to match taskIds order
+    const currentTasks = this.tasksByIssue.get(issueId) ?? [];
+    const taskMap = new Map(currentTasks.map((t) => [t.id, t]));
+    const reorderedTasks = taskIds
+      .map((id) => taskMap.get(id))
+      .filter((t): t is Task => t !== undefined);
+    this.tasksByIssue.set(issueId, reorderedTasks);
+
     try {
+      // 3. API call — replace optimistic state with server response
       const response = await tasksApi.reorder(workspaceId, issueId, taskIds);
       runInAction(() => {
         this.tasksByIssue.set(issueId, response.tasks);
       });
     } catch (err) {
+      // 4. Rollback on error
       runInAction(() => {
+        this.tasksByIssue.set(issueId, previousTasks);
         this.error = err instanceof Error ? err.message : 'Failed to reorder tasks';
       });
     }

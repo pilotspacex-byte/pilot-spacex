@@ -14,6 +14,11 @@ import type { Issue } from '@/types';
 // Types
 // ============================================================================
 
+interface StableItem {
+  id: number;
+  text: string;
+}
+
 export interface AcceptanceCriteriaEditorProps {
   issueId: string;
   workspaceId: string;
@@ -38,14 +43,21 @@ export function AcceptanceCriteriaEditor({
   const queryClient = useQueryClient();
   const queryKey = issueDetailKeys.detail(issueId);
 
-  const [items, setItems] = React.useState<string[]>(criteria);
+  // H-8: Stable IDs for list items
+  const nextIdRef = React.useRef(criteria.length);
+  const toStableItems = React.useCallback((strings: string[]): StableItem[] => {
+    return strings.map((text) => ({ id: nextIdRef.current++, text }));
+  }, []);
+
+  const [items, setItems] = React.useState<StableItem[]>(() =>
+    criteria.map((text, i) => ({ id: i, text }))
+  );
   const [newItem, setNewItem] = React.useState('');
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Sync with external prop changes (e.g. after server refetch)
-  React.useEffect(() => {
-    setItems(criteria);
-  }, [criteria]);
+  // H-9: Track pending data for flush-on-unmount
+  const pendingDataRef = React.useRef<string[] | null>(null);
+  // M-11: Track dirty state to skip prop sync
+  const isDirtyRef = React.useRef(false);
 
   const mutation = useMutation({
     mutationFn: (acceptanceCriteria: string[]) =>
@@ -69,32 +81,51 @@ export function AcceptanceCriteriaEditor({
     onError: (_err, _data, context) => {
       if (context?.previous) {
         queryClient.setQueryData<Issue>(queryKey, context.previous);
-        setItems(context.previous.acceptanceCriteria ?? []);
+        setItems(toStableItems(context.previous.acceptanceCriteria ?? []));
       }
     },
 
     onSettled: () => {
+      isDirtyRef.current = false;
+      pendingDataRef.current = null;
       void queryClient.invalidateQueries({ queryKey });
     },
   });
 
-  const scheduleSave = React.useCallback(
-    (nextItems: string[]) => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-      debounceRef.current = setTimeout(() => {
-        mutation.mutate(nextItems);
-      }, DEBOUNCE_MS);
-    },
-    [mutation]
-  );
+  // H-7: Stable ref for mutation.mutate to avoid re-creating scheduleSave
+  const mutateRef = React.useRef(mutation.mutate);
+  React.useEffect(() => {
+    mutateRef.current = mutation.mutate;
+  }, [mutation.mutate]);
 
-  // Cleanup debounce on unmount
+  // M-11: Only sync props when not dirty
+  React.useEffect(() => {
+    if (!isDirtyRef.current) {
+      setItems(toStableItems(criteria));
+    }
+  }, [criteria, toStableItems]);
+
+  const scheduleSave = React.useCallback((nextItems: string[]) => {
+    isDirtyRef.current = true;
+    pendingDataRef.current = nextItems;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      pendingDataRef.current = null;
+      isDirtyRef.current = false;
+      mutateRef.current(nextItems);
+    }, DEBOUNCE_MS);
+  }, []);
+
+  // H-9: Flush pending save on unmount instead of canceling
   React.useEffect(() => {
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
+      }
+      if (pendingDataRef.current) {
+        mutateRef.current(pendingDataRef.current);
       }
     };
   }, []);
@@ -102,11 +133,14 @@ export function AcceptanceCriteriaEditor({
   const handleAddItem = React.useCallback(() => {
     const trimmed = newItem.trim();
     if (!trimmed) return;
-    const next = [...items, trimmed];
-    setItems(next);
+    const newStable: StableItem = { id: nextIdRef.current++, text: trimmed };
+    setItems((prev) => {
+      const next = [...prev, newStable];
+      scheduleSave(next.map((i) => i.text));
+      return next;
+    });
     setNewItem('');
-    scheduleSave(next);
-  }, [newItem, items, scheduleSave]);
+  }, [newItem, scheduleSave]);
 
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -119,21 +153,25 @@ export function AcceptanceCriteriaEditor({
   );
 
   const handleRemoveItem = React.useCallback(
-    (index: number) => {
-      const next = items.filter((_, i) => i !== index);
-      setItems(next);
-      scheduleSave(next);
+    (id: number) => {
+      setItems((prev) => {
+        const next = prev.filter((item) => item.id !== id);
+        scheduleSave(next.map((i) => i.text));
+        return next;
+      });
     },
-    [items, scheduleSave]
+    [scheduleSave]
   );
 
   const handleEditItem = React.useCallback(
-    (index: number, value: string) => {
-      const next = items.map((item, i) => (i === index ? value : item));
-      setItems(next);
-      scheduleSave(next);
+    (id: number, value: string) => {
+      setItems((prev) => {
+        const next = prev.map((item) => (item.id === id ? { ...item, text: value } : item));
+        scheduleSave(next.map((i) => i.text));
+        return next;
+      });
     },
-    [items, scheduleSave]
+    [scheduleSave]
   );
 
   return (
@@ -142,21 +180,21 @@ export function AcceptanceCriteriaEditor({
 
       {items.length > 0 && (
         <ul className="space-y-1.5 mb-2" role="list">
-          {items.map((item, index) => (
-            <li key={index} className="flex items-start gap-2 group">
+          {items.map((item) => (
+            <li key={item.id} className="flex items-start gap-2 group">
               <Checkbox checked={false} disabled className="mt-1 shrink-0" aria-hidden="true" />
               <Input
-                value={item}
-                onChange={(e) => handleEditItem(index, e.target.value)}
+                value={item.text}
+                onChange={(e) => handleEditItem(item.id, e.target.value)}
                 className="h-8 text-sm flex-1 border-transparent hover:border-border focus:border-border bg-transparent"
-                aria-label={`Acceptance criterion ${index + 1}`}
+                aria-label={`Acceptance criterion ${items.indexOf(item) + 1}`}
               />
               <Button
                 variant="ghost"
                 size="sm"
                 className="size-7 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => handleRemoveItem(index)}
-                aria-label={`Remove criterion: ${item}`}
+                onClick={() => handleRemoveItem(item.id)}
+                aria-label={`Remove criterion: ${item.text}`}
               >
                 <X className="size-3.5" aria-hidden="true" />
               </Button>

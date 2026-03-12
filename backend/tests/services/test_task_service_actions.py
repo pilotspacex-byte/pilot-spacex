@@ -324,8 +324,8 @@ class TestExportContext:
         result = await task_service.export_context(issue_id, workspace_id, "markdown")
 
         assert result["format"] == "markdown"
-        assert "PS-42" in result["markdown"]
-        assert "Test Issue" in result["markdown"]
+        assert "PS-42" in result["content"]
+        assert "Test Issue" in result["content"]
         assert result["stats"]["tasks"] == 2
         assert result["stats"]["completed"] == 1
 
@@ -350,8 +350,8 @@ class TestExportContext:
         result = await task_service.export_context(issue_id, workspace_id, "claude_code")
 
         assert result["format"] == "claude_code"
-        assert "## Context" in result["markdown"]
-        assert "## Constraints" in result["markdown"]
+        assert "## Context" in result["content"]
+        assert "## Constraints" in result["content"]
 
     async def test_export_context_task_list_format(
         self,
@@ -372,8 +372,8 @@ class TestExportContext:
         result = await task_service.export_context(issue_id, workspace_id, "task_list")
 
         assert result["format"] == "task_list"
-        assert "# Task List:" in result["markdown"]
-        assert "main.py" in result["markdown"]
+        assert "# Task List:" in result["content"]
+        assert "main.py" in result["content"]
 
     async def test_export_context_issue_not_found(
         self,

@@ -81,6 +81,12 @@ class TaskService:
         workspace_id: UUID,
     ) -> dict[str, Any]:
         """List all tasks for an issue with progress stats."""
+        issue = await self._issue_repo.get_by_id_scalar(issue_id)
+        if not issue:
+            raise ValueError(f"Issue {issue_id} not found")
+        if issue.workspace_id != workspace_id:
+            raise ValueError("Issue does not belong to workspace")
+
         tasks = await self._task_repo.list_by_issue(issue_id)
         total = len(tasks)
         completed = sum(1 for t in tasks if t.status == TaskStatus.DONE)
@@ -246,7 +252,7 @@ class TaskService:
         }
 
         return {
-            "markdown": markdown,
+            "content": markdown,
             "format": export_format,
             "generated_at": datetime.now(tz=UTC),
             "stats": stats,
@@ -418,6 +424,9 @@ class TaskService:
     ) -> list[Task]:
         """Create tasks from AI decomposition skill output.
 
+        Uses a single bulk_create call instead of N individual create_task calls,
+        reducing DB round-trips from 2N to 2 (one list_by_issue + one bulk_create).
+
         Args:
             issue_id: Parent issue UUID
             workspace_id: Workspace UUID for scoping
@@ -436,10 +445,14 @@ class TaskService:
         if issue.workspace_id != workspace_id:
             raise ValueError("Issue does not belong to workspace")
 
-        created_tasks: list[Task] = []
+        # Pre-fetch current task count once to determine starting sort_order
+        existing = await self._task_repo.list_by_issue(issue_id)
+        next_order = len(existing)
 
-        for subtask_data in subtasks:
-            # Generate AI prompt for this task
+        tasks_to_create: list[Task] = []
+
+        for idx, subtask_data in enumerate(subtasks):
+            # _generate_ai_prompt is pure computation — no DB access
             ai_prompt = self._generate_ai_prompt(
                 task_title=subtask_data.get("name", ""),
                 task_description=subtask_data.get("description"),
@@ -448,26 +461,27 @@ class TaskService:
                 issue=issue,
             )
 
-            # Map decomposition output to CreateTaskPayload
-            payload = CreateTaskPayload(
+            estimated_hours: float | None = None
+            if "estimated_days" in subtask_data:
+                estimated_hours = subtask_data.get("estimated_days", 0) * 8
+
+            task = Task(
                 workspace_id=workspace_id,
                 issue_id=issue_id,
-                title=subtask_data.get("name", ""),
+                title=subtask_data.get("name", "").strip(),
                 description=subtask_data.get("description"),
                 acceptance_criteria=subtask_data.get("acceptance_criteria"),
-                estimated_hours=(
-                    subtask_data.get("estimated_days", 0) * 8
-                    if "estimated_days" in subtask_data
-                    else None
-                ),
+                status=TaskStatus.TODO,
+                sort_order=next_order + idx,
+                estimated_hours=estimated_hours,
                 code_references=subtask_data.get("code_references"),
                 dependency_ids=subtask_data.get("dependencies"),
                 ai_prompt=ai_prompt,
                 ai_generated=True,
             )
+            tasks_to_create.append(task)
 
-            task = await self.create_task(payload)
-            created_tasks.append(task)
+        created_tasks = await self._task_repo.bulk_create(tasks_to_create)
 
         logger.info(
             "Tasks created from AI decomposition",

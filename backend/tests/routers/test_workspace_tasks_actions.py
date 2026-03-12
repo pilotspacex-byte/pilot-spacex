@@ -287,7 +287,7 @@ class TestExportContext:
     ) -> None:
         """Exports context in markdown format."""
         mock_service.export_context.return_value = {
-            "markdown": "# Issue Context\n\nContent here",
+            "content": "# Issue Context\n\nContent here",
             "format": "markdown",
             "generated_at": datetime.now(tz=UTC),
             "stats": {"tasks": 3, "completed": 1},
@@ -301,7 +301,7 @@ class TestExportContext:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["format"] == "markdown"
-        assert "# Issue Context" in data["markdown"]
+        assert "# Issue Context" in data["content"]
         assert data["stats"]["tasks"] == 3
 
     async def test_export_context_claude_code_format(
@@ -314,7 +314,7 @@ class TestExportContext:
     ) -> None:
         """Exports context in claude_code format."""
         mock_service.export_context.return_value = {
-            "markdown": "## Context\n\nClaude-optimized content",
+            "content": "## Context\n\nClaude-optimized content",
             "format": "claude_code",
             "generated_at": datetime.now(tz=UTC),
             "stats": {"tasks": 2, "completed": 0},
@@ -339,7 +339,7 @@ class TestExportContext:
     ) -> None:
         """Exports context in task_list format."""
         mock_service.export_context.return_value = {
-            "markdown": "# Task List\n\n## Task 1",
+            "content": "# Task List\n\n## Task 1",
             "format": "task_list",
             "generated_at": datetime.now(tz=UTC),
             "stats": {"tasks": 1, "completed": 0},

@@ -350,8 +350,48 @@ describe('TaskStore', () => {
     });
   });
 
-  describe('reorderTasks', () => {
-    it('should reorder tasks from API response', async () => {
+  describe('reorderTasks (optimistic)', () => {
+    it('should optimistically reorder tasks immediately before API resolves', async () => {
+      const t1 = createTask({ id: 't1', sortOrder: 0 });
+      const t2 = createTask({ id: 't2', sortOrder: 1 });
+      const t3 = createTask({ id: 't3', sortOrder: 2 });
+      store.tasksByIssue.set('issue-1', [t1, t2, t3]);
+
+      let resolveApi: (value: TaskListResponse) => void;
+      const apiPromise = new Promise<TaskListResponse>((resolve) => {
+        resolveApi = resolve;
+      });
+      mockedTasksApi.reorder.mockReturnValue(apiPromise);
+
+      const reorderPromise = store.reorderTasks('ws-1', 'issue-1', ['t3', 't1', 't2']);
+
+      // Optimistic: local state should reflect new order immediately
+      const optimistic = store.getTasksForIssue('issue-1');
+      expect(optimistic[0]!.id).toBe('t3');
+      expect(optimistic[1]!.id).toBe('t1');
+      expect(optimistic[2]!.id).toBe('t2');
+
+      // Resolve API with server response
+      resolveApi!({
+        tasks: [
+          createTask({ id: 't3', sortOrder: 0 }),
+          createTask({ id: 't1', sortOrder: 1 }),
+          createTask({ id: 't2', sortOrder: 2 }),
+        ],
+        total: 3,
+        completed: 0,
+        completionPercent: 0,
+      });
+      await reorderPromise;
+
+      // After API resolves, server response replaces optimistic state
+      const final = store.getTasksForIssue('issue-1');
+      expect(final[0]!.id).toBe('t3');
+      expect(final[1]!.id).toBe('t1');
+      expect(final[2]!.id).toBe('t2');
+    });
+
+    it('should replace optimistic state with API response on success', async () => {
       const t1 = createTask({ id: 't1', sortOrder: 0 });
       const t2 = createTask({ id: 't2', sortOrder: 1 });
       store.tasksByIssue.set('issue-1', [t1, t2]);
@@ -372,12 +412,54 @@ describe('TaskStore', () => {
       expect(tasks[1]!.id).toBe('t1');
     });
 
-    it('should set error on failure', async () => {
+    it('should rollback to previous order on API error', async () => {
+      const t1 = createTask({ id: 't1', sortOrder: 0 });
+      const t2 = createTask({ id: 't2', sortOrder: 1 });
+      const t3 = createTask({ id: 't3', sortOrder: 2 });
+      store.tasksByIssue.set('issue-1', [t1, t2, t3]);
+
       mockedTasksApi.reorder.mockRejectedValue(new Error('Reorder failed'));
+
+      await store.reorderTasks('ws-1', 'issue-1', ['t3', 't1', 't2']);
+
+      // Should rollback to original order
+      const tasks = store.getTasksForIssue('issue-1');
+      expect(tasks[0]!.id).toBe('t1');
+      expect(tasks[1]!.id).toBe('t2');
+      expect(tasks[2]!.id).toBe('t3');
+      expect(store.error).toBe('Reorder failed');
+    });
+
+    it('should handle non-Error rejection with rollback', async () => {
+      const t1 = createTask({ id: 't1', sortOrder: 0 });
+      const t2 = createTask({ id: 't2', sortOrder: 1 });
+      store.tasksByIssue.set('issue-1', [t1, t2]);
+
+      mockedTasksApi.reorder.mockRejectedValue('network timeout');
+
+      await store.reorderTasks('ws-1', 'issue-1', ['t2', 't1']);
+
+      // Should rollback
+      const tasks = store.getTasksForIssue('issue-1');
+      expect(tasks[0]!.id).toBe('t1');
+      expect(tasks[1]!.id).toBe('t2');
+      expect(store.error).toBe('Failed to reorder tasks');
+    });
+
+    it('should handle reorder with no existing tasks gracefully', async () => {
+      // No tasks set for issue-1
+      const reordered: TaskListResponse = {
+        tasks: [],
+        total: 0,
+        completed: 0,
+        completionPercent: 0,
+      };
+      mockedTasksApi.reorder.mockResolvedValue(reordered);
 
       await store.reorderTasks('ws-1', 'issue-1', ['t1', 't2']);
 
-      expect(store.error).toBe('Reorder failed');
+      expect(store.getTasksForIssue('issue-1')).toEqual([]);
+      expect(store.error).toBeNull();
     });
   });
 

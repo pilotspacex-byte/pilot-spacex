@@ -240,7 +240,7 @@ export function TaskDependencyGraph({ tasks, isLoading }: TaskDependencyGraphPro
   if (isLoading) {
     return (
       <div
-        className="h-[200px] bg-[#F8F7F5] border border-[#E8E6E3] rounded-[10px] animate-pulse"
+        className="h-[200px] bg-muted/30 border border-border rounded-[10px] animate-pulse"
         role="status"
         aria-label="Loading dependency graph"
       />
@@ -256,7 +256,7 @@ export function TaskDependencyGraph({ tasks, isLoading }: TaskDependencyGraphPro
   return (
     <div
       ref={containerRef}
-      className="h-[200px] bg-[#F8F7F5] border border-[#E8E6E3] rounded-[10px] overflow-hidden max-sm:h-[150px]"
+      className="h-[200px] bg-muted/30 border border-border rounded-[10px] overflow-hidden max-sm:h-[150px]"
       data-testid="task-dependency-graph"
     >
       <canvas
