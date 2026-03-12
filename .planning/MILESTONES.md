@@ -2,11 +2,12 @@
 
 ## v1.0-alpha Pre-Production Launch (Shipped: 2026-03-12)
 
-**Phases completed:** 9 phases, 31 plans
+**Phases completed:** 12 phases (12–23), 37 plans
 **Timeline:** 2026-03-10 → 2026-03-12 (3 days)
-**Commits:** 92
-**Files changed:** 699 (+99,806 / -4,227 lines)
-**Requirements:** 39/39 satisfied
+**Commits:** 116 (92 original + 24 gap closure)
+**Files changed:** 738 (+102,933 / -4,551 lines)
+**Requirements:** 39/39 satisfied + 7 gap closure items resolved
+**Audit:** PASSED (2026-03-12)
 
 **Key accomplishments:**
 - Auto-workspace creation on sign-up + guided onboarding checklist — new users never see a blank screen (ONBD-01..05, BUG-01, BUG-02, WS-01, WS-02)
@@ -19,12 +20,17 @@
 - Skill template catalog: unified skill_templates + user_skills tables, browsable catalog with filter chips, AI-personalized skill generation from templates (P20-01..10)
 - Tech debt closure: OIDC E2E verified, MCP approval wiring fixed, xfail audit tests passing, key rotation with dual-key fallback (DEBT-01..04)
 
-**Known gaps (tech debt):**
-- Phase 016 VERIFICATION.md never generated (process gap — requirements functionally satisfied)
-- OAuth2 MCP server UI: backend support exists but no "Authorize" button in frontend
-- SeedPluginsService fire-and-forget asyncio.create_task shares request-scoped session
-- ai_chat.py at 700-line limit
-- Dead schemas/mcp_server.py file (superseded by inline schemas)
+**Gap closure (Phases 21–23):**
+- Generated Phase 16 VERIFICATION.md and updated REQUIREMENTS.md traceability (WRSKL-01..04)
+- Fixed SeedPluginsService session-sharing race condition with independent DB session
+- Added OAuth2 Authorize button and callback status handling for MCP servers
+- Extended provider key testing to kimi/glm/custom + removed dead schemas + extracted ai_chat.py schemas
+- Fixed Update Available badge color (blue→amber) + extended validateKey for all 6 provider types
+
+**Remaining tech debt (minor):**
+- Two test assertions in test_related_issues.py use stale field names (pass vacuously over empty lists)
+- AgentListItem/AgentListResponse dead code in _chat_schemas.py (pre-existing)
+- AISettingsStore.validateKey vs api-key-form.tsx validation duplication
 
 ---
 

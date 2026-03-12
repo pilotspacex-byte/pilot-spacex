@@ -87,18 +87,16 @@ Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data 
 
 ## Context
 
-Shipped v1.0-alpha Pre-Production Launch on 2026-03-12. Total codebase: ~880K lines (Python + TypeScript) across 20 completed phases and 77 plans over two milestones.
+Shipped v1.0-alpha Pre-Production Launch (final, with gap closure) on 2026-03-12. Total codebase: ~880K lines (Python + TypeScript) across 23 completed phases and 83 plans over two milestones.
 
 **Tech stack:** FastAPI + SQLAlchemy async + Next.js 15 App Router + MobX + TanStack Query + shadcn/ui + Supabase Auth + PostgreSQL 16 (pgvector, pgmq, RLS) + Redis + Meilisearch.
 
-**Current state:** All 69 requirements satisfied across v1.0 (30) and v1.0-alpha (39). Platform is self-hostable, auditable, enterprise-auth ready, with full onboarding flow, multi-provider AI, MCP extensibility, plugin marketplace, and skill template catalog. Product is usable from first sign-in through productive daily use.
+**Current state:** All 69 requirements satisfied across v1.0 (30) and v1.0-alpha (39), plus 7 gap closure items resolved. All known tech debt from v1.0-alpha audit addressed (5/5 major items closed by phases 21-23). Platform is self-hostable, auditable, enterprise-auth ready, with full onboarding flow, multi-provider AI, MCP extensibility with OAuth2 authorization UI, plugin marketplace, and skill template catalog. Product is usable from first sign-in through productive daily use.
 
-**Known tech debt:**
-- OAuth2 MCP server UI: backend support exists but no frontend "Authorize" button
-- SeedPluginsService fire-and-forget asyncio.create_task shares request-scoped session
-- ai_chat.py at 700-line limit (any addition requires refactor)
-- Dead schemas/mcp_server.py file (superseded by inline schemas)
-- Phase 016 VERIFICATION.md never generated (process gap)
+**Known tech debt (minor):**
+- Two test assertions in test_related_issues.py use stale field names (pass vacuously over empty lists)
+- AgentListItem/AgentListResponse dead code in _chat_schemas.py (pre-existing)
+- AISettingsStore.validateKey vs api-key-form.tsx validation duplication
 
 ## Constraints
 
@@ -125,4 +123,4 @@ Shipped v1.0-alpha Pre-Production Launch on 2026-03-12. Total codebase: ~880K li
 | Remote MCP hot-loading per workspace | _load_remote_mcp_servers in PilotSpaceAgent; no restart required | ✓ Good |
 
 ---
-*Last updated: 2026-03-12 after v1.0-alpha milestone completion*
+*Last updated: 2026-03-12 after v1.0-alpha milestone completion (final, gap closure included)*

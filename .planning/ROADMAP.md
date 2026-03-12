@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 Enterprise** — Phases 1–11 (shipped 2026-03-09)
-- ✅ **v1.0-alpha Pre-Production Launch** — Phases 12–20 (shipped 2026-03-12)
+- ✅ **v1.0-alpha Pre-Production Launch** — Phases 12–23 (shipped 2026-03-12)
 
 ## Phases
 
@@ -27,7 +27,7 @@ Full archive: `.planning/milestones/v1.0-ROADMAP.md`
 </details>
 
 <details>
-<summary>✅ v1.0-alpha Pre-Production Launch (Phases 12–20) — SHIPPED 2026-03-12</summary>
+<summary>✅ v1.0-alpha Pre-Production Launch (Phases 12–23) — SHIPPED 2026-03-12</summary>
 
 - [x] Phase 12: Onboarding & First-Run UX (3/3 plans) — completed 2026-03-09
 - [x] Phase 13: AI Provider Registry + Model Selection (4/4 plans) — completed 2026-03-10
@@ -38,58 +38,23 @@ Full archive: `.planning/milestones/v1.0-ROADMAP.md`
 - [x] Phase 18: Tech Debt Closure (3/3 plans) — completed 2026-03-11
 - [x] Phase 19: Skill Registry & Plugin System (4/4 plans) — completed 2026-03-11
 - [x] Phase 20: Skill Template Catalog (4/4 plans) — completed 2026-03-11
+- [x] Phase 21: Documentation & Verification Closure (2/2 plans) — completed 2026-03-12
+- [x] Phase 22: Integration Safety — Session & OAuth2 UI (2/2 plans) — completed 2026-03-12
+- [x] Phase 23: Tech Debt Sweep (2/2 plans) — completed 2026-03-12
 
 Full archive: `.planning/milestones/v1.0-alpha-ROADMAP.md`
 
 </details>
-
-### v1.0-alpha Gap Closure (Phases 21–23)
-
-- [x] Phase 21: Documentation & Verification Closure (completed 2026-03-12)
-- [x] Phase 22: Integration Safety — Session & OAuth2 UI (completed 2026-03-12)
-- [x] Phase 23: Tech Debt Sweep (completed 2026-03-12)
-
-### Phase 21: Documentation & Verification Closure
-**Goal:** Close all documentation and verification process gaps from v1.0-alpha audit
-**Requirements:** WRSKL-01, WRSKL-02, WRSKL-03, WRSKL-04 (verification gap -> satisfied)
-**Gap Closure:** Closes 4 requirement gaps (partial -> satisfied) + 4 documentation gaps from audit
-**Plans:** 2/2 plans complete
-
-Plans:
-- [ ] 21-01-PLAN.md — Generate Phase 16 VERIFICATION.md and update REQUIREMENTS.md traceability
-- [ ] 21-02-PLAN.md — Fix SUMMARY frontmatter in 12-02 and 13-04
-
-### Phase 22: Integration Safety — Session & OAuth2 UI
-**Goal:** Fix session sharing race condition and add OAuth2 MCP authorization UI
-**Requirements:** SKRG-05 (session safety), MCP-03 (OAuth2 flow completion)
-**Gap Closure:** Closes 2 integration gaps + 1 flow gap from audit
-**Plans:** 2/2 plans complete
-
-Plans:
-- [ ] 22-01-PLAN.md — Fix SeedPluginsService session race condition + OAuth callback redirect slug
-- [ ] 22-02-PLAN.md — Add OAuth2 Authorize button and callback status handling in frontend
-
-### Phase 23: Tech Debt Sweep
-**Goal:** Close remaining tech debt items identified in v1.0-alpha audit
-**Requirements:** AIPR-05 (cosmetic), code quality
-**Gap Closure:** Closes 8 tech debt items across 5 phases
-**Plans:** 2/2 plans complete
-
-Plans:
-- [ ] 23-01-PLAN.md — Backend: extend provider key testing, remove dead code, refactor ai_chat.py
-- [ ] 23-02-PLAN.md — Frontend: fix Update badge color, extend validateKey for all providers
 
 ## Progress
 
 | Phase | Milestone | Plans | Status | Completed |
 |-------|-----------|-------|--------|-----------|
 | 1–11 | v1.0 | 46/46 | Complete | 2026-03-09 |
-| 12–20 | v1.0-alpha | 31/31 | Complete | 2026-03-12 |
-| 21–23 | v1.0-alpha (gap closure) | 4/6 | Pending | — |
+| 12–23 | v1.0-alpha | 37/37 | Complete | 2026-03-12 |
 
 **Total: 23 phases, 83 plans, 69 requirements**
 
 ---
 *v1.0 shipped: 2026-03-09 — 11 phases, 46 plans, 30/30 requirements*
-*v1.0-alpha shipped: 2026-03-12 — 9 phases, 31 plans, 39/39 requirements*
-*v1.0-alpha gap closure: Phases 21–23 — 4 requirement gaps, 2 integration gaps, 8 tech debt items*
+*v1.0-alpha shipped: 2026-03-12 — 12 phases, 37 plans, 39/39 requirements + 7 gap closure items*
