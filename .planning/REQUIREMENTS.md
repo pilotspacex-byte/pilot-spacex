@@ -24,9 +24,9 @@ Requirements for the Notion-Style Restructure milestone. Each maps to roadmap ph
 
 ### Project Hub & Issue Views
 
-- [ ] **HUB-01**: User can view project issues as Board, List, or Table embedded within the project page
-- [ ] **HUB-02**: User can switch between issue views (Board/List/Table) via a toolbar within the project page
-- [ ] **HUB-03**: User can view issues grouped by priority swimlanes (Priority view)
+- [x] **HUB-01**: User can view project issues as Board, List, or Table embedded within the project page
+- [x] **HUB-02**: User can switch between issue views (Board/List/Table) via a toolbar within the project page
+- [x] **HUB-03**: User can view issues grouped by priority swimlanes (Priority view)
 - [ ] **HUB-04**: User can set an emoji icon on any page, displayed in sidebar tree and page header
 
 ### Visual Design & Responsive
@@ -79,9 +79,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NAV-02 | Phase 26: Sidebar Tree & Navigation | Complete |
 | NAV-03 | Phase 26: Sidebar Tree & Navigation | Complete |
 | NAV-04 | Phase 26: Sidebar Tree & Navigation | Complete |
-| HUB-01 | Phase 27: Project Hub & Issue Views | Pending |
-| HUB-02 | Phase 27: Project Hub & Issue Views | Pending |
-| HUB-03 | Phase 27: Project Hub & Issue Views | Pending |
+| HUB-01 | Phase 27: Project Hub & Issue Views | Complete |
+| HUB-02 | Phase 27: Project Hub & Issue Views | Complete |
+| HUB-03 | Phase 27: Project Hub & Issue Views | Complete |
 | HUB-04 | Phase 27: Project Hub & Issue Views | Pending |
 | UI-01 | Phase 28: Visual Design Refresh | Pending |
 | UI-02 | Phase 29: Responsive & Drag-and-Drop | Pending |

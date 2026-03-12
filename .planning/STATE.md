@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 26-03-PLAN.md
-last_updated: "2026-03-12T18:15:23.312Z"
+stopped_at: Completed 27-01-PLAN.md
+last_updated: "2026-03-12T18:51:29.337Z"
 last_activity: "2026-03-12 — Completed 26-03: PageBreadcrumb integration, flattenTree, and content sanitization"
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
 ---
 
 # Project State
@@ -65,6 +65,7 @@ Recent decisions affecting current work:
 - [Phase 26-sidebar-tree-navigation]: Sidebar Pinned/Recent fully removed — reduces complexity, removes stale noteStore.loadNotes() dependency
 - [Phase 26-sidebar-tree-navigation]: useProjectPageTree + flattenTree for ancestor derivation — avoids queryClient.getQueryData silent failure (select transforms cached data so .items would be undefined)
 - [Phase 26-sidebar-tree-navigation]: useProjects hook for project name in breadcrumb — WorkspaceStore.currentWorkspace has no projects array
+- [Phase 27-project-hub-issue-views]: ViewMode type exported from IssueViewStore, projectViewModes Map for per-project scoping with global fallback, project overview page replaced with thin IssueViewsRoot wrapper
 
 ### Pending Todos
 
@@ -76,7 +77,7 @@ None — Phase 26 complete. All NAV-01 through NAV-04 requirements satisfied.
 
 ## Session Continuity
 
-Last session: 2026-03-12T18:08:43.000Z
-Stopped at: Completed 26-03-PLAN.md
+Last session: 2026-03-12T18:51:29.334Z
+Stopped at: Completed 27-01-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 27`
