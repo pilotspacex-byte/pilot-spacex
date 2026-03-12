@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Completed 25-02-PLAN.md
-last_updated: "2026-03-12T16:21:23.000Z"
-last_activity: 2026-03-12 — Completed Phase 25 Plan 02 (ReorderPageService + tree endpoints)
+status: completed
+stopped_at: Completed 25-01-PLAN.md
+last_updated: "2026-03-12T16:26:59.547Z"
+last_activity: "2026-03-12 — Completed 25-02: ReorderPageService and tree REST endpoints"
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
   completed_plans: 4
 ---

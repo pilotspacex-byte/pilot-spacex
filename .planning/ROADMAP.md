@@ -160,7 +160,7 @@ Phases execute in numeric order: 24 → 25 → 26 → 27 → 28 → 29
 | 1–11 | v1.0 | 46/46 | Complete | 2026-03-09 |
 | 12–23 | v1.0-alpha | 37/37 | Complete | 2026-03-12 |
 | 24. Page Tree Data Model | 2/2 | Complete    | 2026-03-12 | - |
-| 25. Tree API & Page Service | 2/2 | Complete   | 2026-03-12 | - |
+| 25. Tree API & Page Service | 2/2 | Complete    | 2026-03-12 | - |
 | 26. Sidebar Tree & Navigation | v1.0.0-alpha2 | 0/3 | Not started | - |
 | 27. Project Hub & Issue Views | v1.0.0-alpha2 | 0/2 | Not started | - |
 | 28. Visual Design Refresh | v1.0.0-alpha2 | 0/1 | Not started | - |
