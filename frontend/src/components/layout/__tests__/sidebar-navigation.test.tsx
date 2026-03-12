@@ -45,13 +45,6 @@ vi.mock('@/stores', () => ({
     isOwner: true,
     isAdmin: false,
   }),
-  useNoteStore: () => ({
-    pinnedNotes: [],
-    recentNotes: [],
-    notesList: [],
-    isLoading: false,
-    loadNotes: vi.fn(),
-  }),
   useNotificationStore: () => ({
     unreadCount: 0,
     sortedNotifications: [],
@@ -84,6 +77,21 @@ vi.mock('@/stores', () => ({
 vi.mock('@/features/notes/hooks', () => ({
   useCreateNote: () => ({ mutate: vi.fn(), isPending: false }),
   createNoteDefaults: () => ({}),
+}));
+
+// Mock useProjects — sidebar uses this to fetch workspace projects
+vi.mock('@/features/projects/hooks/useProjects', () => ({
+  useProjects: () => ({ data: undefined, isLoading: false }),
+  selectAllProjects: () => [],
+}));
+
+// Mock ProjectPageTree and PersonalPagesList to avoid their hook dependencies in sidebar tests
+vi.mock('@/components/layout/ProjectPageTree', () => ({
+  ProjectPageTree: () => null,
+}));
+
+vi.mock('@/components/layout/PersonalPagesList', () => ({
+  PersonalPagesList: () => null,
 }));
 
 // Mock workspace API
