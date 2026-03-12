@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 27-02-PLAN.md
-last_updated: "2026-03-12T19:07:49.253Z"
+stopped_at: Completed 28-01-PLAN.md
+last_updated: "2026-03-12T19:29:54.406Z"
 last_activity: "2026-03-12 — Completed 26-03: PageBreadcrumb integration, flattenTree, and content sanitization"
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 11
+  completed_plans: 10
 ---
 
 # Project State
@@ -68,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 27-project-hub-issue-views]: ViewMode type exported from IssueViewStore, projectViewModes Map for per-project scoping with global fallback, project overview page replaced with thin IssueViewsRoot wrapper
 - [Phase 27]: Empty string iconEmoji maps to NULL (remove emoji) — service layer converts empty string to None so clients can pass empty string to clear icon
 - [Phase 27]: Partial PostgreSQL index on icon_emoji WHERE NOT NULL — minimizes index size since most pages will have no emoji
+- [Phase 28-visual-design-refresh]: System-ui stack replaces DM Sans as primary body font — zero web font overhead for body text
+- [Phase 28-visual-design-refresh]: shadow-warm-* class names preserved (no rename) — only HSL hue values neutralized from warm (30/40) to neutral (0)
 
 ### Pending Todos
 
@@ -79,7 +81,7 @@ None — Phase 26 complete. All NAV-01 through NAV-04 requirements satisfied.
 
 ## Session Continuity
 
-Last session: 2026-03-12T19:03:19.882Z
-Stopped at: Completed 27-02-PLAN.md
+Last session: 2026-03-12T19:29:54.404Z
+Stopped at: Completed 28-01-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 27`
