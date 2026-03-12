@@ -102,6 +102,11 @@ class NoteUpdate(BaseSchema):
         default=None,
         description="Whether the note is pinned",
     )
+    icon_emoji: str | None = Field(
+        default=None,
+        max_length=10,
+        description="Emoji icon for page visual identity (max 10 chars)",
+    )
 
 
 class NotePinUpdate(BaseSchema):
@@ -124,6 +129,10 @@ class NoteResponse(EntitySchema):
     last_edited_by_id: UUID | None = Field(
         default=None,
         description="Last editor user ID",
+    )
+    icon_emoji: str | None = Field(
+        default=None,
+        description="Page emoji icon",
     )
 
 

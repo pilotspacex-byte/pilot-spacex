@@ -374,6 +374,7 @@ async def update_workspace_note(
         summary=update_data.get("summary"),
         is_pinned=update_data.get("is_pinned"),
         project_id=update_data.get("project_id"),
+        icon_emoji=update_data.get("icon_emoji"),
     )
     result = await update_service.execute(payload)
 

@@ -59,6 +59,7 @@ class UpdateNotePayload:
     is_pinned: bool | None = None
     project_id: UUID | None = None
     expected_updated_at: datetime | None = None
+    icon_emoji: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +165,11 @@ class UpdateNoteService:
         if payload.project_id is not None:
             note.project_id = payload.project_id
             fields_updated.append("project_id")
+
+        if payload.icon_emoji is not None:
+            # Empty string means "remove the emoji" — store as None
+            note.icon_emoji = payload.icon_emoji if payload.icon_emoji.strip() else None
+            fields_updated.append("icon_emoji")
 
         # Save changes
         if fields_updated:

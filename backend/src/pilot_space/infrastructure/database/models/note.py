@@ -159,6 +159,14 @@ class Note(WorkspaceScopedModel):
         server_default=text("0"),
     )
 
+    # Page visual identity: optional emoji icon displayed in sidebar tree and page header
+    icon_emoji: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
+        default=None,
+        doc="Emoji icon for page visual identity (e.g. a single emoji character)",
+    )
+
     # Relationships
     template: Mapped[Template | None] = relationship(
         "Template",
