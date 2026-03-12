@@ -53,7 +53,7 @@ Full archive: `.planning/milestones/v1.0-alpha-ROADMAP.md`
 
 - [x] **Phase 24: Page Tree Data Model** - Schema migration adding tree columns to notes table, ownership classification, and existing notes migration (completed 2026-03-12)
 - [x] **Phase 25: Tree API & Page Service** - Backend endpoints for tree CRUD, move/re-parent, and sibling reordering with depth enforcement (completed 2026-03-12)
-- [ ] **Phase 26: Sidebar Tree & Navigation** - Project page tree in sidebar with expand/collapse, inline creation, personal pages section, breadcrumbs, and editor decoupling for non-issue pages
+- [x] **Phase 26: Sidebar Tree & Navigation** - Project page tree in sidebar with expand/collapse, inline creation, personal pages section, breadcrumbs, and editor decoupling for non-issue pages (completed 2026-03-12)
 - [ ] **Phase 27: Project Hub & Issue Views** - Embedded Board/List/Table/Priority issue views in project page with view switcher and page emoji icons
 - [ ] **Phase 28: Visual Design Refresh** - Notion-like typography, spacing, and color token update across the application
 - [ ] **Phase 29: Responsive Layout & Drag-and-Drop** - Tablet sidebar collapse, content area adaptation, and drag-and-drop tree reordering
@@ -161,7 +161,7 @@ Phases execute in numeric order: 24 → 25 → 26 → 27 → 28 → 29
 | 12–23 | v1.0-alpha | 37/37 | Complete | 2026-03-12 |
 | 24. Page Tree Data Model | 2/2 | Complete    | 2026-03-12 | - |
 | 25. Tree API & Page Service | 2/2 | Complete    | 2026-03-12 | - |
-| 26. Sidebar Tree & Navigation | 2/3 | In Progress|  | - |
+| 26. Sidebar Tree & Navigation | 3/3 | Complete   | 2026-03-12 | - |
 | 27. Project Hub & Issue Views | v1.0.0-alpha2 | 0/2 | Not started | - |
 | 28. Visual Design Refresh | v1.0.0-alpha2 | 0/1 | Not started | - |
 | 29. Responsive & Drag-and-Drop | v1.0.0-alpha2 | 0/2 | Not started | - |
