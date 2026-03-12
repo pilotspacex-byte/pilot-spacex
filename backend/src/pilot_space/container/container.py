@@ -661,9 +661,10 @@ class Container(SkillContainer, PluginContainer):
     # Knowledge Graph Query Service
     knowledge_graph_query_service = providers.Factory(
         KnowledgeGraphQueryService,
-        session=providers.Callable(get_current_session),
         knowledge_graph_repository=InfraContainer.knowledge_graph_repository,
         integration_link_repository=InfraContainer.integration_link_repository,
+        issue_repository=InfraContainer.issue_repository,
+        project_repository=InfraContainer.project_repository,
     )
 
     # SSO Service (AUTH-01 through AUTH-04)

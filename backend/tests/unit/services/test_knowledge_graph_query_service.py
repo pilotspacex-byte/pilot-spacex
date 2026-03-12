@@ -12,8 +12,7 @@ Feature 016: Knowledge Graph — Service layer
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
@@ -28,8 +27,9 @@ from tests.fixtures.knowledge_graph import (
     make_graph_node as _make_graph_node,
     make_il_repo as _make_il_repo,
     make_integration_link as _make_integration_link,
+    make_issue_repo as _make_issue_repo,
     make_kg_repo as _make_kg_repo,
-    make_session as _make_session,
+    make_project_repo as _make_project_repo,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -49,32 +49,17 @@ TEST_PROJECT_ID = UUID("eeeeeeee-0000-0000-0000-000000000005")
 # ---------------------------------------------------------------------------
 
 
-def _make_sequential_session(*responses: Any) -> AsyncMock:
-    call_index = 0
-
-    async def _execute(stmt: Any, *args: Any, **kwargs: Any) -> Any:
-        nonlocal call_index
-        idx = min(call_index, len(responses) - 1)
-        call_index += 1
-        spec = responses[idx]
-        result = MagicMock()
-        result.scalar_one_or_none = MagicMock(return_value=spec.get("scalar"))
-        return result
-
-    session = AsyncMock()
-    session.execute = AsyncMock(side_effect=_execute)
-    return session
-
-
 def _build_service(
-    session: AsyncMock | None = None,
     kg_repo: AsyncMock | None = None,
     il_repo: AsyncMock | None = None,
+    issue_repo: AsyncMock | None = None,
+    project_repo: AsyncMock | None = None,
 ) -> KnowledgeGraphQueryService:
     return KnowledgeGraphQueryService(
-        session=session or _make_session(),
         knowledge_graph_repository=kg_repo or _make_kg_repo(),
         integration_link_repository=il_repo or _make_il_repo(),
+        issue_repository=issue_repo or _make_issue_repo(),
+        project_repository=project_repo or _make_project_repo(),
     )
 
 
@@ -201,8 +186,8 @@ class TestGetUserContext:
 
 class TestGetIssueKnowledgeGraph:
     async def test_raises_entity_not_found_when_issue_missing(self) -> None:
-        session = _make_session(scalar_result=None)
-        svc = _build_service(session=session)
+        issue_repo = _make_issue_repo(exists=AsyncMock(return_value=False))
+        svc = _build_service(issue_repo=issue_repo)
 
         with pytest.raises(EntityNotFoundError) as exc_info:
             await svc.get_issue_knowledge_graph(
@@ -212,9 +197,8 @@ class TestGetIssueKnowledgeGraph:
         assert exc_info.value.entity_type == "Issue"
 
     async def test_returns_empty_when_no_graph_node(self) -> None:
-        session = _make_session(scalar_result=TEST_ISSUE_ID)
         kg_repo = _make_kg_repo(find_node_by_external_id=AsyncMock(return_value=None))
-        svc = _build_service(session=session, kg_repo=kg_repo)
+        svc = _build_service(kg_repo=kg_repo)
 
         result = await svc.get_issue_knowledge_graph(
             issue_id=TEST_ISSUE_ID,
@@ -227,13 +211,12 @@ class TestGetIssueKnowledgeGraph:
         assert result.center_node_id is None
 
     async def test_returns_subgraph_with_center_node_id(self) -> None:
-        session = _make_session(scalar_result=TEST_ISSUE_ID)
         graph_node = _make_graph_node(node_id=TEST_NODE_ID)
         kg_repo = _make_kg_repo(
             find_node_by_external_id=AsyncMock(return_value=graph_node),
             get_subgraph=AsyncMock(return_value=([graph_node], [])),
         )
-        svc = _build_service(session=session, kg_repo=kg_repo)
+        svc = _build_service(kg_repo=kg_repo)
 
         result = await svc.get_issue_knowledge_graph(
             issue_id=TEST_ISSUE_ID,
@@ -245,7 +228,6 @@ class TestGetIssueKnowledgeGraph:
         assert len(result.nodes) == 1
 
     async def test_synthesizes_github_nodes(self) -> None:
-        session = _make_session(scalar_result=TEST_ISSUE_ID)
         graph_node = _make_graph_node(node_id=TEST_NODE_ID)
         pr_link = _make_integration_link(link_type="pull_request", title="PR #1")
 
@@ -254,9 +236,9 @@ class TestGetIssueKnowledgeGraph:
             get_subgraph=AsyncMock(return_value=([graph_node], [])),
         )
         il_repo = _make_il_repo(
-            get_by_workspace_with_filter=AsyncMock(return_value=[pr_link]),
+            get_by_issue_in_workspace=AsyncMock(return_value=[pr_link]),
         )
-        svc = _build_service(session=session, kg_repo=kg_repo, il_repo=il_repo)
+        svc = _build_service(kg_repo=kg_repo, il_repo=il_repo)
 
         result = await svc.get_issue_knowledge_graph(
             issue_id=TEST_ISSUE_ID,
@@ -269,7 +251,6 @@ class TestGetIssueKnowledgeGraph:
         assert result.ephemeral_nodes[0].properties["ephemeral"] is True
 
     async def test_deduplicates_github_node_already_in_graph(self) -> None:
-        session = _make_session(scalar_result=TEST_ISSUE_ID)
         graph_node = _make_graph_node(
             node_id=TEST_NODE_ID,
             node_type="pull_request",
@@ -282,9 +263,9 @@ class TestGetIssueKnowledgeGraph:
             get_subgraph=AsyncMock(return_value=([graph_node], [])),
         )
         il_repo = _make_il_repo(
-            get_by_workspace_with_filter=AsyncMock(return_value=[pr_link]),
+            get_by_issue_in_workspace=AsyncMock(return_value=[pr_link]),
         )
-        svc = _build_service(session=session, kg_repo=kg_repo, il_repo=il_repo)
+        svc = _build_service(kg_repo=kg_repo, il_repo=il_repo)
 
         result = await svc.get_issue_knowledge_graph(
             issue_id=TEST_ISSUE_ID,
@@ -295,7 +276,6 @@ class TestGetIssueKnowledgeGraph:
         assert len(result.ephemeral_nodes) == 0
 
     async def test_filters_by_node_types(self) -> None:
-        session = _make_session(scalar_result=TEST_ISSUE_ID)
         graph_node = _make_graph_node(node_id=TEST_NODE_ID)
         issue_node = _make_graph_node(node_type="issue", label="Issue")
         note_node = _make_graph_node(node_type="note", label="Note")
@@ -304,7 +284,7 @@ class TestGetIssueKnowledgeGraph:
             find_node_by_external_id=AsyncMock(return_value=graph_node),
             get_subgraph=AsyncMock(return_value=([issue_node, note_node], [])),
         )
-        svc = _build_service(session=session, kg_repo=kg_repo)
+        svc = _build_service(kg_repo=kg_repo)
 
         result = await svc.get_issue_knowledge_graph(
             issue_id=TEST_ISSUE_ID,
@@ -314,10 +294,8 @@ class TestGetIssueKnowledgeGraph:
         )
 
         assert all(n.node_type.value == "issue" for n in result.nodes)
-        assert result.node_type_filter_applied is True
 
     async def test_sorts_by_importance_tier(self) -> None:
-        session = _make_session(scalar_result=TEST_ISSUE_ID)
         graph_node = _make_graph_node(node_id=TEST_NODE_ID)
         skill_node = _make_graph_node(node_type="skill_outcome", label="Skill")
         issue_node = _make_graph_node(node_type="issue", label="Issue")
@@ -327,7 +305,7 @@ class TestGetIssueKnowledgeGraph:
             find_node_by_external_id=AsyncMock(return_value=graph_node),
             get_subgraph=AsyncMock(return_value=([skill_node, pr_node, issue_node], [])),
         )
-        svc = _build_service(session=session, kg_repo=kg_repo)
+        svc = _build_service(kg_repo=kg_repo)
 
         result = await svc.get_issue_knowledge_graph(
             issue_id=TEST_ISSUE_ID,
@@ -339,7 +317,6 @@ class TestGetIssueKnowledgeGraph:
         assert result.nodes[-1].node_type.value == "skill_outcome"
 
     async def test_include_github_false_skips_synthesis(self) -> None:
-        session = _make_session(scalar_result=TEST_ISSUE_ID)
         graph_node = _make_graph_node(node_id=TEST_NODE_ID)
 
         kg_repo = _make_kg_repo(
@@ -347,7 +324,7 @@ class TestGetIssueKnowledgeGraph:
             get_subgraph=AsyncMock(return_value=([graph_node], [])),
         )
         il_repo = _make_il_repo()
-        svc = _build_service(session=session, kg_repo=kg_repo, il_repo=il_repo)
+        svc = _build_service(kg_repo=kg_repo, il_repo=il_repo)
 
         result = await svc.get_issue_knowledge_graph(
             issue_id=TEST_ISSUE_ID,
@@ -355,18 +332,17 @@ class TestGetIssueKnowledgeGraph:
             include_github=False,
         )
 
-        il_repo.get_by_workspace_with_filter.assert_not_awaited()
+        il_repo.get_by_issue_in_workspace.assert_not_awaited()
         assert result.ephemeral_nodes == []
 
     async def test_depth_and_max_nodes_forwarded(self) -> None:
-        session = _make_session(scalar_result=TEST_ISSUE_ID)
         graph_node = _make_graph_node(node_id=TEST_NODE_ID)
 
         kg_repo = _make_kg_repo(
             find_node_by_external_id=AsyncMock(return_value=graph_node),
             get_subgraph=AsyncMock(return_value=([], [])),
         )
-        svc = _build_service(session=session, kg_repo=kg_repo)
+        svc = _build_service(kg_repo=kg_repo)
 
         await svc.get_issue_knowledge_graph(
             issue_id=TEST_ISSUE_ID,
@@ -388,8 +364,8 @@ class TestGetIssueKnowledgeGraph:
 
 class TestGetProjectKnowledgeGraph:
     async def test_raises_entity_not_found_when_project_missing(self) -> None:
-        session = _make_session(scalar_result=None)
-        svc = _build_service(session=session)
+        project_repo = _make_project_repo(exists=AsyncMock(return_value=False))
+        svc = _build_service(project_repo=project_repo)
 
         with pytest.raises(EntityNotFoundError) as exc_info:
             await svc.get_project_knowledge_graph(
@@ -399,14 +375,13 @@ class TestGetProjectKnowledgeGraph:
         assert exc_info.value.entity_type == "Project"
 
     async def test_returns_subgraph_when_graph_node_exists(self) -> None:
-        session = _make_session(scalar_result=TEST_PROJECT_ID)
         graph_node = _make_graph_node(node_id=TEST_NODE_ID, node_type="project")
 
         kg_repo = _make_kg_repo(
             find_node_by_external_id=AsyncMock(return_value=graph_node),
             get_subgraph=AsyncMock(return_value=([graph_node], [])),
         )
-        svc = _build_service(session=session, kg_repo=kg_repo)
+        svc = _build_service(kg_repo=kg_repo)
 
         result = await svc.get_project_knowledge_graph(
             project_id=TEST_PROJECT_ID,
@@ -418,14 +393,13 @@ class TestGetProjectKnowledgeGraph:
         assert len(result.nodes) == 1
 
     async def test_uses_larger_fetch_max_override(self) -> None:
-        session = _make_session(scalar_result=TEST_PROJECT_ID)
         graph_node = _make_graph_node(node_id=TEST_NODE_ID, node_type="project")
 
         kg_repo = _make_kg_repo(
             find_node_by_external_id=AsyncMock(return_value=graph_node),
             get_subgraph=AsyncMock(return_value=([], [])),
         )
-        svc = _build_service(session=session, kg_repo=kg_repo)
+        svc = _build_service(kg_repo=kg_repo)
 
         await svc.get_project_knowledge_graph(
             project_id=TEST_PROJECT_ID,

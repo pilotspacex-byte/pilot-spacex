@@ -40,6 +40,7 @@ from pilot_space.application.services.memory.knowledge_graph_query_service impor
     EntitySubgraphResult,
     EphemeralNode,
     RootNodeNotFoundError,
+    node_tier,
 )
 from pilot_space.dependencies.auth import SessionDep, SyncedUserId
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
@@ -436,6 +437,9 @@ def _entity_result_to_response(result: EntitySubgraphResult) -> GraphResponse:
 
     for en in result.ephemeral_nodes:
         node_dtos.append(_ephemeral_to_dto(en))
+
+    # Sort after merging so ephemeral nodes land in their correct tier position
+    node_dtos.sort(key=lambda n: node_tier(n.node_type))
 
     return GraphResponse(nodes=node_dtos, edges=edge_dtos, center_node_id=result.center_node_id)
 

@@ -129,7 +129,26 @@ def make_kg_repo(**overrides: Any) -> AsyncMock:
 def make_il_repo(**overrides: Any) -> AsyncMock:
     """Build a mock IntegrationLinkRepository."""
     repo = AsyncMock()
-    repo.get_by_workspace_with_filter = AsyncMock(return_value=[])
+    repo.get_by_issue_in_workspace = AsyncMock(return_value=[])
+    repo.get_by_project_issues = AsyncMock(return_value=[])
+    for key, value in overrides.items():
+        setattr(repo, key, value)
+    return repo
+
+
+def make_issue_repo(**overrides: Any) -> AsyncMock:
+    """Build a mock IssueRepository."""
+    repo = AsyncMock()
+    repo.exists = AsyncMock(return_value=True)
+    for key, value in overrides.items():
+        setattr(repo, key, value)
+    return repo
+
+
+def make_project_repo(**overrides: Any) -> AsyncMock:
+    """Build a mock ProjectRepository."""
+    repo = AsyncMock()
+    repo.exists = AsyncMock(return_value=True)
     for key, value in overrides.items():
         setattr(repo, key, value)
     return repo

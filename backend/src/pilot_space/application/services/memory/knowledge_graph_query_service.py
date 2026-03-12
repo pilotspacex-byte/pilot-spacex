@@ -14,28 +14,28 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from sqlalchemy import select
-
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from pilot_space.domain.graph_node import GraphNode, NodeType
 from pilot_space.infrastructure.database.models.integration import (
     IntegrationLinkType,
 )
-from pilot_space.infrastructure.database.models.issue import Issue as IssueModel
-from pilot_space.infrastructure.database.models.project import Project as ProjectModel
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from sqlalchemy.ext.asyncio import AsyncSession
-
     from pilot_space.infrastructure.database.models.integration import IntegrationLink
     from pilot_space.infrastructure.database.repositories.integration_link_repository import (
         IntegrationLinkRepository,
     )
+    from pilot_space.infrastructure.database.repositories.issue_repository import (
+        IssueRepository,
+    )
     from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
         KnowledgeGraphRepository,
+    )
+    from pilot_space.infrastructure.database.repositories.project_repository import (
+        ProjectRepository,
     )
 
 logger = get_logger(__name__)
@@ -70,7 +70,7 @@ _GITHUB_NODE_TYPE_MAP: dict[IntegrationLinkType, str] = {
 }
 
 
-def _node_tier(node_type: str) -> int:
+def node_tier(node_type: str) -> int:
     """Return sort priority tier (lower = higher priority)."""
     if node_type in _TIER_HIGH:
         return 0
@@ -130,7 +130,6 @@ class EntitySubgraphResult:
     edges: list[GraphEdge]
     ephemeral_nodes: list[EphemeralNode]
     center_node_id: UUID | None
-    node_type_filter_applied: bool = False
 
 
 class EntityNotFoundError(Exception):
@@ -165,13 +164,15 @@ class KnowledgeGraphQueryService:
 
     def __init__(
         self,
-        session: AsyncSession,
         knowledge_graph_repository: KnowledgeGraphRepository,
         integration_link_repository: IntegrationLinkRepository,
+        issue_repository: IssueRepository,
+        project_repository: ProjectRepository,
     ) -> None:
-        self._session = session
         self._kg_repo = knowledge_graph_repository
         self._il_repo = integration_link_repository
+        self._issue_repo = issue_repository
+        self._project_repo = project_repository
 
     async def get_neighbors(
         self,
@@ -239,19 +240,14 @@ class KnowledgeGraphQueryService:
         include_github: bool = True,
     ) -> EntitySubgraphResult:
         """Return knowledge graph subgraph for an issue."""
-        exists = (
-            await self._session.execute(
-                select(IssueModel.id).where(
-                    IssueModel.id == issue_id,
-                    IssueModel.workspace_id == workspace_id,
-                    IssueModel.is_deleted == False,  # noqa: E712
-                )
-            )
-        ).scalar_one_or_none()
-        if exists is None:
+        if not await self._issue_repo.exists(issue_id):
             raise EntityNotFoundError("Issue", issue_id)
 
-        from pilot_space.infrastructure.database.models.integration import IntegrationLink
+        integration_links: Sequence[IntegrationLink] = []
+        if include_github:
+            integration_links = await self._il_repo.get_by_issue_in_workspace(
+                issue_id, workspace_id
+            )
 
         return await self._build_entity_subgraph(
             entity_id=issue_id,
@@ -259,8 +255,7 @@ class KnowledgeGraphQueryService:
             depth=depth,
             node_types=node_types,
             max_nodes=max_nodes,
-            include_github=include_github,
-            github_link_filter=IntegrationLink.issue_id == issue_id,
+            integration_links=integration_links,
             fetch_max_override=100,
             log_event="knowledge_graph_issue_no_node",
         )
@@ -276,19 +271,12 @@ class KnowledgeGraphQueryService:
         include_github: bool = True,
     ) -> EntitySubgraphResult:
         """Return knowledge graph subgraph for a project."""
-        exists = (
-            await self._session.execute(
-                select(ProjectModel.id).where(
-                    ProjectModel.id == project_id,
-                    ProjectModel.workspace_id == workspace_id,
-                    ProjectModel.is_deleted == False,  # noqa: E712
-                )
-            )
-        ).scalar_one_or_none()
-        if exists is None:
+        if not await self._project_repo.exists(project_id):
             raise EntityNotFoundError("Project", project_id)
 
-        from pilot_space.infrastructure.database.models.integration import IntegrationLink
+        integration_links: Sequence[IntegrationLink] = []
+        if include_github:
+            integration_links = await self._il_repo.get_by_project_issues(project_id, workspace_id)
 
         return await self._build_entity_subgraph(
             entity_id=project_id,
@@ -296,14 +284,7 @@ class KnowledgeGraphQueryService:
             depth=depth,
             node_types=node_types,
             max_nodes=max_nodes,
-            include_github=include_github,
-            github_link_filter=IntegrationLink.issue_id.in_(
-                select(IssueModel.id).where(
-                    IssueModel.project_id == project_id,
-                    IssueModel.workspace_id == workspace_id,
-                    IssueModel.is_deleted == False,  # noqa: E712
-                )
-            ),
+            integration_links=integration_links,
             fetch_max_override=200,
             log_event="knowledge_graph_project_no_node",
         )
@@ -320,8 +301,7 @@ class KnowledgeGraphQueryService:
         depth: int,
         node_types: str | None,
         max_nodes: int,
-        include_github: bool,
-        github_link_filter: Any,
+        integration_links: Sequence[IntegrationLink],
         fetch_max_override: int = 100,
         log_event: str = "knowledge_graph_entity_no_node",
     ) -> EntitySubgraphResult:
@@ -351,45 +331,33 @@ class KnowledgeGraphQueryService:
         )
 
         # Step 4: Filter by node types if specified
-        filter_applied = False
         if node_types:
             allowed = {t.strip() for t in node_types.split(",") if t.strip()}
             nodes = [n for n in nodes if n.node_type.value in allowed][:max_nodes]
             node_ids = {n.id for n in nodes}
             edges = [e for e in edges if e.source_id in node_ids and e.target_id in node_ids]
-            filter_applied = True
 
         # Step 5: Synthesize ephemeral GitHub nodes
-        ephemeral_nodes: list[EphemeralNode] = []
-        if include_github:
-            ephemeral_nodes = await self._synthesize_github_nodes(
-                nodes=nodes,
-                workspace_id=workspace_id,
-                github_link_filter=github_link_filter,
-            )
+        ephemeral_nodes = self._synthesize_github_nodes(nodes, integration_links)
 
         # Step 6: Sort nodes by importance tier
-        nodes.sort(key=lambda n: _node_tier(n.node_type.value))
+        nodes.sort(key=lambda n: node_tier(n.node_type.value))
 
         return EntitySubgraphResult(
             nodes=nodes,
             edges=edges,
             ephemeral_nodes=ephemeral_nodes,
             center_node_id=center_node_id,
-            node_type_filter_applied=filter_applied,
         )
 
-    async def _synthesize_github_nodes(
-        self,
-        *,
+    @staticmethod
+    def _synthesize_github_nodes(
         nodes: list[GraphNode],
-        workspace_id: UUID,
-        github_link_filter: Any,
+        integration_links: Sequence[IntegrationLink],
     ) -> list[EphemeralNode]:
         """Create ephemeral nodes from integration links not already in the graph."""
-        integration_links: Sequence[
-            IntegrationLink
-        ] = await self._il_repo.get_by_workspace_with_filter(workspace_id, github_link_filter)
+        if not integration_links:
+            return []
 
         existing_external_ids = {
             str(n.properties.get("external_id"))
@@ -431,4 +399,5 @@ __all__ = [
     "RootNodeNotFoundError",
     "SubgraphResult",
     "UserContextResult",
+    "node_tier",
 ]

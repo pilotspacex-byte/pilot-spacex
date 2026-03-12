@@ -567,7 +567,6 @@ class TestIssueKnowledgeGraph:
             edges=[],
             ephemeral_nodes=[],
             center_node_id=TEST_NODE_ID,
-            node_type_filter_applied=True,
         )
         session = _make_session()
 
