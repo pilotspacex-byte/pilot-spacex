@@ -164,7 +164,7 @@ Phases execute in numeric order: 24 → 25 → 26 → 27 → 28 → 29
 | 25. Tree API & Page Service | 2/2 | Complete    | 2026-03-12 | - |
 | 26. Sidebar Tree & Navigation | 3/3 | Complete    | 2026-03-12 | - |
 | 27. Project Hub & Issue Views | 2/2 | Complete    | 2026-03-12 | - |
-| 28. Visual Design Refresh | 2/2 | Complete   | 2026-03-12 | - |
+| 28. Visual Design Refresh | 2/2 | Complete    | 2026-03-12 | - |
 | 29. Responsive & Drag-and-Drop | v1.0.0-alpha2 | 0/2 | Not started | - |
 
 **Total: 29 phases, 89 plans (+ ~3 TBD), 86 requirements**
