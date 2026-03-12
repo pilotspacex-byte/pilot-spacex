@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTree, getAncestors } from '../tree-utils';
+import { buildTree, getAncestors, flattenTree } from '../tree-utils';
 import type { PageTreeNode } from '../tree-utils';
 
 // ---------------------------------------------------------------------------
@@ -158,5 +158,99 @@ describe('getAncestors', () => {
   it('returns [] for unknown noteId', () => {
     const ancestors = getAncestors('nonexistent', allNotes);
     expect(ancestors).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// flattenTree tests
+// ---------------------------------------------------------------------------
+
+describe('flattenTree', () => {
+  it('converts PageTreeNode[] tree into flat array preserving all nodes', () => {
+    const tree: PageTreeNode[] = [
+      {
+        id: 'root',
+        title: 'Root',
+        parentId: null,
+        depth: 0,
+        position: 1000,
+        children: [
+          {
+            id: 'child',
+            title: 'Child',
+            parentId: 'root',
+            depth: 1,
+            position: 1000,
+            children: [
+              {
+                id: 'grandchild',
+                title: 'Grandchild',
+                parentId: 'child',
+                depth: 2,
+                position: 1000,
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const flat = flattenTree(tree);
+
+    expect(flat).toHaveLength(3);
+    const ids = flat.map((n) => n.id);
+    expect(ids).toContain('root');
+    expect(ids).toContain('child');
+    expect(ids).toContain('grandchild');
+  });
+
+  it('returns empty array for empty input', () => {
+    const result = flattenTree([]);
+    expect(result).toEqual([]);
+  });
+
+  it('preserves parentId relationships in flat output', () => {
+    const tree: PageTreeNode[] = [
+      {
+        id: 'root',
+        title: 'Root',
+        parentId: null,
+        depth: 0,
+        position: 1000,
+        children: [
+          {
+            id: 'child',
+            title: 'Child',
+            parentId: 'root',
+            depth: 1,
+            position: 1000,
+            children: [],
+          },
+        ],
+      },
+    ];
+
+    const flat = flattenTree(tree);
+
+    const root = flat.find((n) => n.id === 'root');
+    const child = flat.find((n) => n.id === 'child');
+
+    expect(root?.parentId).toBeNull();
+    expect(child?.parentId).toBe('root');
+  });
+
+  it('handles multiple root nodes', () => {
+    const tree: PageTreeNode[] = [
+      { id: 'a', title: 'A', parentId: null, depth: 0, position: 1000, children: [] },
+      { id: 'b', title: 'B', parentId: null, depth: 0, position: 2000, children: [] },
+    ];
+
+    const flat = flattenTree(tree);
+
+    expect(flat).toHaveLength(2);
+    const ids = flat.map((n) => n.id);
+    expect(ids).toContain('a');
+    expect(ids).toContain('b');
   });
 });

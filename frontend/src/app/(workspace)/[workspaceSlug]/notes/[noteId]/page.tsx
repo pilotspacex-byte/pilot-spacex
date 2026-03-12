@@ -4,7 +4,7 @@
  * Note Detail Page - T114
  * Loads note via NoteStore, renders NoteCanvas, handles 404
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useRouter, useParams } from 'next/navigation';
 import { motion } from 'motion/react';
@@ -13,14 +13,34 @@ import { FileX, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NoteCanvas } from '@/components/editor/NoteCanvas';
+import { PageBreadcrumb } from '@/components/editor/PageBreadcrumb';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
-import { useNote, useUpdateNote, useAutoSave } from '@/features/notes/hooks';
+import { useNote, useUpdateNote, useAutoSave, useProjectPageTree } from '@/features/notes/hooks';
 import { useDeleteNote } from '@/features/notes/hooks/useDeleteNote';
 import { useTogglePin } from '@/hooks/useTogglePin';
 import { useNoteVersions, useRestoreNoteVersion } from '@/hooks/useNoteVersions';
-import { useNoteStore, useWorkspaceStore } from '@/stores/RootStore';
+import { useNoteStore } from '@/stores/RootStore';
 import { useWorkspace } from '@/components/workspace-guard';
+import { useProjects, selectAllProjects } from '@/features/projects/hooks/useProjects';
+import { getAncestors, flattenTree } from '@/lib/tree-utils';
 import type { JSONContent } from '@/types';
+
+/**
+ * Strips propertyBlock nodes from TipTap content to prevent unknown node errors
+ * when non-issue pages are opened in NoteCanvas.
+ *
+ * See: RESEARCH.md Pattern 5 and STATE.md concern about editor coupling.
+ */
+function sanitizeNoteContent(content: JSONContent | undefined): JSONContent | undefined {
+  if (!content?.content) return content;
+  return {
+    ...content,
+    content: content.content.filter((node) => {
+      const attrs = node.attrs as Record<string, unknown> | undefined;
+      return !(node.type === 'propertyBlock' || attrs?.['data-property-block']);
+    }),
+  };
+}
 
 // Using useParams() hook instead of props for reliable client-side navigation
 
@@ -105,7 +125,6 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   const noteId = params.noteId ?? '';
   const router = useRouter();
   const noteStore = useNoteStore();
-  const workspaceStore = useWorkspaceStore();
 
   // Get workspace from WorkspaceGuard context (guaranteed to be loaded)
   const { workspace } = useWorkspace();
@@ -116,8 +135,8 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   const [saveVersion, setSaveVersion] = useState(0);
   const [contentInitialized, setContentInitialized] = useState(false);
 
-  // Get workspace ID from context (preferred) or store fallback
-  const workspaceId = workspace?.id ?? workspaceStore.currentWorkspace?.id ?? workspaceSlug;
+  // Get workspace ID from context (preferred) or workspaceSlug fallback
+  const workspaceId = workspace?.id ?? workspaceSlug;
 
   // Check if params are available (used for conditional rendering later, not early return)
   const hasValidParams = !!workspaceSlug && !!noteId;
@@ -132,6 +151,31 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     noteId,
     enabled: hasValidParams,
   });
+
+  // Fetch project tree — shares same TanStack Query cache key as sidebar (no duplicate fetch).
+  // Returns PageTreeNode[] (post-select tree structure); enabled only for project pages.
+  const { data: treeData } = useProjectPageTree(
+    workspaceId,
+    note?.projectId ?? '',
+    !!note?.projectId
+  );
+
+  // Fetch projects for breadcrumb project name display — shares cache with sidebar.
+  const { data: projectsData } = useProjects({ workspaceId, enabled: !!note?.projectId });
+  const projects = selectAllProjects(projectsData);
+
+  // Derive breadcrumb ancestors by flattening tree then walking parentId chain (root-first).
+  const ancestors = useMemo(() => {
+    if (!treeData || !note?.id) return [];
+    const flatNotes = flattenTree(treeData);
+    return getAncestors(note.id, flatNotes);
+  }, [treeData, note?.id]);
+
+  // Get project name for breadcrumb root segment.
+  const projectName = useMemo(() => {
+    if (!note?.projectId) return undefined;
+    return projects.find((p) => p.id === note.projectId)?.name;
+  }, [note?.projectId, projects]);
 
   // Track previous noteId to detect navigation
   const prevNoteIdRef = useRef<string | null>(null);
@@ -150,10 +194,12 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     prevNoteIdRef.current = noteId;
   }, [noteId]);
 
-  // Initialize content ref when note loads (no re-render triggered)
+  // Initialize content ref when note loads (no re-render triggered).
+  // Sanitize content to strip propertyBlock nodes — prevents unknown node errors
+  // when non-issue pages (which lack PropertyBlockExtension) open in NoteCanvas.
   useEffect(() => {
     if (note?.content && !contentInitialized) {
-      contentRef.current = note.content;
+      contentRef.current = sanitizeNoteContent(note.content) ?? null;
       setContentInitialized(true);
     }
   }, [note?.content, contentInitialized]);
@@ -320,12 +366,24 @@ const NoteDetailPage = observer(function NoteDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Breadcrumb navigation — NAV-04. Only shown for project pages (note.projectId truthy). */}
+      {note.projectId && (
+        <div className="border-b border-border px-6 py-1.5">
+          <PageBreadcrumb
+            ancestors={ancestors}
+            currentTitle={note.title || 'Untitled'}
+            workspaceSlug={workspaceSlug}
+            projectName={projectName}
+          />
+        </div>
+      )}
+
       {/* Editor with merged header - Three-column layout per Prototype v4 */}
       <div className="relative flex-1 overflow-hidden">
         <NoteCanvas
           key={noteId}
           noteId={noteId}
-          content={note.content}
+          content={sanitizeNoteContent(note.content)}
           readOnly={false}
           onChange={handleContentChange}
           onSave={handleSave}

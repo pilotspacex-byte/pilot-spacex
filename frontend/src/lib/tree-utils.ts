@@ -81,6 +81,33 @@ export function buildTree(notes: FlatNote[]): PageTreeNode[] {
   return roots;
 }
 
+/**
+ * Flattens a PageTreeNode[] tree back into a flat array.
+ *
+ * Needed because useProjectPageTree returns post-select PageTreeNode[] (tree structure),
+ * but getAncestors requires a flat array to traverse parentId chains.
+ *
+ * @param nodes Nested tree nodes (from useProjectPageTree)
+ * @returns Flat array with id, title, parentId for each node
+ */
+export function flattenTree(
+  nodes: PageTreeNode[]
+): Array<{ id: string; title: string; parentId: string | null }> {
+  const result: Array<{ id: string; title: string; parentId: string | null }> = [];
+
+  function walk(nodeList: PageTreeNode[]): void {
+    for (const node of nodeList) {
+      result.push({ id: node.id, title: node.title, parentId: node.parentId });
+      if (node.children.length > 0) {
+        walk(node.children);
+      }
+    }
+  }
+
+  walk(nodes);
+  return result;
+}
+
 type AncestorNote = {
   id: string;
   title: string;
