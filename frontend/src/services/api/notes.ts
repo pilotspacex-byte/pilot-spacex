@@ -14,7 +14,7 @@ import type {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
 interface NoteFilters {
-  projectId?: string;
+  projectIds?: string[];
   isPinned?: boolean;
   authorId?: string;
   search?: string;
@@ -27,17 +27,21 @@ export const notesApi = {
     page = 1,
     pageSize = 50
   ): Promise<PaginatedResponse<Note>> {
-    const params: Record<string, string> = {
-      page: String(page),
-      pageSize: String(pageSize),
-    };
+    const searchParams = new URLSearchParams();
+    searchParams.set('page', String(page));
+    searchParams.set('pageSize', String(pageSize));
 
-    if (filters?.projectId) params.project_id = filters.projectId;
-    if (filters?.isPinned !== undefined) params.is_pinned = String(filters.isPinned);
-    if (filters?.authorId) params.author_id = filters.authorId;
-    if (filters?.search) params.search = filters.search;
+    for (const id of filters?.projectIds ?? []) {
+      searchParams.append('project_ids', id);
+    }
 
-    return apiClient.get<PaginatedResponse<Note>>(`/workspaces/${workspaceId}/notes`, { params });
+    if (filters?.isPinned !== undefined) searchParams.set('is_pinned', String(filters.isPinned));
+    if (filters?.authorId) searchParams.set('author_id', filters.authorId);
+    if (filters?.search) searchParams.set('search', filters.search);
+
+    return apiClient.get<PaginatedResponse<Note>>(
+      `/workspaces/${workspaceId}/notes?${searchParams.toString()}`
+    );
   },
 
   get(workspaceId: string, noteId: string): Promise<Note> {

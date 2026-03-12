@@ -295,6 +295,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
       try {
         await notesApi.moveNote(workspaceId, noteId, newProjectId);
         queryClient.invalidateQueries({ queryKey: notesKeys.detail(workspaceId, noteId) });
+        queryClient.invalidateQueries({ queryKey: notesKeys.lists() });
         toast.success(newProjectId ? 'Note moved to project' : 'Note moved to workspace root');
       } catch {
         toast.error('Failed to move note');

@@ -19,7 +19,7 @@ export function ProjectNotesPanel({ project, workspaceSlug, workspaceId }: Proje
     isError,
   } = useNotes({
     workspaceId,
-    projectId: project.id,
+    projectIds: [project.id],
     isPinned: false,
     pageSize: 5,
     enabled: !!workspaceId,

@@ -3,7 +3,6 @@
 /**
  * useNotes - TanStack Query hook for fetching notes list with pagination
  */
-import { useMemo } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { notesApi } from '@/services/api';
 import type { Note } from '@/types';
@@ -14,9 +13,7 @@ export const NOTES_QUERY_KEY = 'notes';
 export interface UseNotesOptions {
   /** Workspace ID (required) */
   workspaceId: string;
-  /** Filter by project ID */
-  projectId?: string;
-  /** Filter by multiple project IDs (client-side filter, fetches all notes then filters) */
+  /** Filter by one or more project IDs — sent to the server as repeated project_id params */
   projectIds?: string[];
   /** Filter by pinned status */
   isPinned?: boolean;
@@ -34,7 +31,7 @@ export interface UseNotesOptions {
 export const notesKeys = {
   all: [NOTES_QUERY_KEY] as const,
   lists: () => [...notesKeys.all, 'list'] as const,
-  list: (workspaceId: string, filters?: { projectId?: string; isPinned?: boolean }) =>
+  list: (workspaceId: string, filters?: { projectIds?: string[]; isPinned?: boolean }) =>
     [...notesKeys.lists(), workspaceId, filters] as const,
   details: () => [...notesKeys.all, 'detail'] as const,
   detail: (workspaceId: string, noteId: string) =>
@@ -50,15 +47,19 @@ export const notesKeys = {
  */
 export function useNotes({
   workspaceId,
-  projectId,
+  projectIds,
   isPinned,
   authorId,
   pageSize = 50,
   enabled = true,
 }: UseNotesOptions) {
+  // Stable key: sort so array order doesn't cause spurious refetches
+  const projectIdsKey =
+    projectIds && projectIds.length > 0 ? [...projectIds].sort() : undefined;
+
   return useQuery({
-    queryKey: notesKeys.list(workspaceId, { projectId, isPinned }),
-    queryFn: () => notesApi.list(workspaceId, { projectId, isPinned, authorId }, 1, pageSize),
+    queryKey: notesKeys.list(workspaceId, { projectIds: projectIdsKey, isPinned }),
+    queryFn: () => notesApi.list(workspaceId, { projectIds, isPinned, authorId }, 1, pageSize),
     enabled: enabled && !!workspaceId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes
@@ -66,26 +67,29 @@ export function useNotes({
 }
 
 /**
- * Hook for infinite scroll notes list
+ * Hook for infinite scroll notes list.
+ *
+ * When `projectIds` is provided, the IDs are sent to the server as repeated
+ * `project_id` query params so the server filters pages before returning them.
+ * The sorted, joined key is included in the TanStack Query key so pagination
+ * resets automatically whenever the project selection changes.
  */
 export function useInfiniteNotes({
   workspaceId,
-  projectId,
   projectIds,
   isPinned,
   authorId,
   pageSize = 20,
   enabled = true,
 }: UseNotesOptions) {
-  // Stabilize the projectIds key: sort and join so array identity doesn't cause spurious refetches
-  const projectIdsKey = projectIds && projectIds.length > 0
-    ? [...projectIds].sort().join(',')
-    : undefined;
+  // Stable string key: sort so array order doesn't cause spurious refetches.
+  const projectIdsKey =
+    projectIds && projectIds.length > 0 ? [...projectIds].sort().join(',') : undefined;
 
-  const query = useInfiniteQuery({
-    queryKey: [...notesKeys.list(workspaceId, { projectId, isPinned }), 'infinite', projectIdsKey],
+  return useInfiniteQuery({
+    queryKey: [...notesKeys.list(workspaceId, { isPinned }), 'infinite', projectIdsKey],
     queryFn: ({ pageParam }) =>
-      notesApi.list(workspaceId, { projectId, isPinned, authorId }, pageParam, pageSize),
+      notesApi.list(workspaceId, { projectIds, isPinned, authorId }, pageParam, pageSize),
     initialPageParam: 1,
     getNextPageParam: (lastPage, _pages, lastPageParam) =>
       lastPage.hasNext ? lastPageParam + 1 : undefined,
@@ -93,27 +97,6 @@ export function useInfiniteNotes({
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
   });
-
-  // Client-side multi-project filter when projectIds is provided.
-  // Memoized so the Set and filtered pages are only recomputed when query data or projectIds change.
-  const filteredData = useMemo(() => {
-    if (!projectIdsKey || !query.data) return query.data;
-    const projectIdSet = new Set(projectIds);
-    return {
-      ...query.data,
-      pages: query.data.pages.map((page) => ({
-        ...page,
-        items: page.items.filter((note) => note.projectId && projectIdSet.has(note.projectId)),
-      })),
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.data, projectIdsKey]);
-
-  if (projectIdsKey) {
-    return { ...query, data: filteredData };
-  }
-
-  return query;
 }
 
 /**

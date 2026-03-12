@@ -8,12 +8,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 
+from pilot_space.api.middleware import create_problem_response
+
 from pilot_space.api.v1.dependencies import (
     CreateNoteServiceDep,
     DeleteNoteServiceDep,
     GetNoteServiceDep,
     ListAnnotationsServiceDep,
     ListNotesServiceDep,
+    NoteRepositoryDep,
     PinNoteServiceDep,
     ProjectRepositoryDep,
     UpdateAnnotationServiceDep,
@@ -151,7 +154,7 @@ async def list_workspace_notes(
     current_user_id: CurrentUserId,
     list_service: ListNotesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
+    project_ids: list[UUID] = Query(default=[], description="Filter by one or more projects"),
     is_pinned: Annotated[bool | None, Query(description="Filter by pin status")] = None,
     search: Annotated[str | None, Query(description="Search query")] = None,
     cursor: Annotated[str | None, Query(description="Pagination cursor")] = None,
@@ -168,7 +171,7 @@ async def list_workspace_notes(
     result = await list_service.execute(
         ListNotesPayload(
             workspace_id=workspace.id,
-            project_id=project_id,
+            project_ids=project_ids,
             is_pinned=is_pinned,
             search=search,
             limit=page_size,
@@ -433,6 +436,7 @@ async def move_workspace_note(
     session: SessionDep,
     update_service: UpdateNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    note_repo: NoteRepositoryDep,
     project_repo: ProjectRepositoryDep,
 ) -> NoteResponse:
     """Move a note to a different project or root workspace.
@@ -447,6 +451,7 @@ async def move_workspace_note(
         session: Database session.
         update_service: Update note service.
         workspace_repo: Workspace repository.
+        note_repo: Note repository (used to validate note workspace).
         project_repo: Project repository (used to validate project workspace).
 
     Returns:
@@ -455,6 +460,13 @@ async def move_workspace_note(
     from pilot_space.application.services.note.update_note_service import UpdateNotePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+
+    note = await note_repo.get_by_id(note_id)
+    if note is None or note.workspace_id != workspace.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Note not found in this workspace",
+        )
 
     if move_data.project_id is not None:
         project = await project_repo.get_by_id(move_data.project_id)
@@ -474,10 +486,10 @@ async def move_workspace_note(
     try:
         result = await update_service.execute(payload)
     except ValueError as e:
-        raise HTTPException(
+        return create_problem_response(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
-        ) from e
+        )
 
     logger.info(
         "Note moved",
