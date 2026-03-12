@@ -73,6 +73,25 @@ export const knowledgeGraphApi = {
     });
   },
 
+  getProjectGraph(
+    workspaceId: string,
+    projectId: string,
+    params?: GraphQueryParams
+  ): Promise<GraphResponse> {
+    const queryParams: Record<string, string | number | boolean> = {};
+
+    if (params?.depth !== undefined) queryParams.depth = params.depth;
+    if (params?.maxNodes !== undefined) queryParams.max_nodes = params.maxNodes;
+    if (params?.includeGithub !== undefined) queryParams.include_github = params.includeGithub;
+    // Backend expects comma-separated string, not array
+    if (params?.nodeTypes?.length) queryParams.node_types = params.nodeTypes.join(',');
+
+    return apiClient.get<GraphResponse>(
+      `/workspaces/${workspaceId}/projects/${projectId}/knowledge-graph`,
+      { params: queryParams }
+    );
+  },
+
   getUserContext(workspaceId: string, limit?: number): Promise<GraphResponse> {
     const queryParams: Record<string, number> = {};
     if (limit !== undefined) queryParams.limit = limit;

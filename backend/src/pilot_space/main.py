@@ -50,6 +50,7 @@ from pilot_space.api.v1.routers import (
     issues_ai_router,
     issues_router,
     knowledge_graph_issues_router,
+    knowledge_graph_projects_router,
     knowledge_graph_router,
     mcp_oauth_callback_router,
     mcp_tools_router,
@@ -330,6 +331,7 @@ app.include_router(workspace_tasks_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(intents_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(knowledge_graph_router, prefix=API_V1_PREFIX)
 app.include_router(knowledge_graph_issues_router, prefix=API_V1_PREFIX)
+app.include_router(knowledge_graph_projects_router, prefix=API_V1_PREFIX)
 app.include_router(memory_router, prefix=API_V1_PREFIX)
 app.include_router(pm_blocks_router, prefix=API_V1_PREFIX)
 app.include_router(dependency_graph_router, prefix=API_V1_PREFIX)

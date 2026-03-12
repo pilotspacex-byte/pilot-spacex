@@ -53,6 +53,7 @@ from pilot_space.api.v1.routers.issues_ai_context_streaming import (
 )
 from pilot_space.api.v1.routers.knowledge_graph import (
     issues_kg_router as knowledge_graph_issues_router,
+    projects_kg_router as knowledge_graph_projects_router,
     router as knowledge_graph_router,
 )
 from pilot_space.api.v1.routers.mcp_tools import router as mcp_tools_router
@@ -180,6 +181,7 @@ __all__ = [
     "issues_ai_router",
     "issues_router",
     "knowledge_graph_issues_router",
+    "knowledge_graph_projects_router",
     "knowledge_graph_router",
     "mcp_oauth_callback_router",
     "mcp_tools_router",
