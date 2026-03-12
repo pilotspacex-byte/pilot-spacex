@@ -2,7 +2,17 @@
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { LayoutGrid, List, Table2, Search, Plus, Rows3, Rows2, Minus } from 'lucide-react';
+import {
+  LayoutGrid,
+  List,
+  Table2,
+  Search,
+  Plus,
+  Rows3,
+  Rows2,
+  Minus,
+  BarChart2,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +27,7 @@ import { FilterBar } from './FilterBar';
 
 interface IssueToolbarProps {
   hideProjectFilter?: boolean;
+  projectId?: string;
   assigneeOptions?: Array<{ value: string; label: string }>;
   labelOptions?: Array<{ value: string; label: string; color?: string }>;
   projectOptions?: Array<{ value: string; label: string }>;
@@ -28,6 +39,7 @@ const VIEW_MODES = [
   { key: 'board' as const, icon: LayoutGrid, label: 'Board' },
   { key: 'list' as const, icon: List, label: 'List' },
   { key: 'table' as const, icon: Table2, label: 'Table' },
+  { key: 'priority' as const, icon: BarChart2, label: 'Priority' },
 ];
 
 const DENSITY_OPTIONS = [
@@ -38,6 +50,7 @@ const DENSITY_OPTIONS = [
 
 export const IssueToolbar = observer(function IssueToolbar({
   hideProjectFilter,
+  projectId,
   assigneeOptions,
   labelOptions,
   projectOptions,
@@ -76,15 +89,15 @@ export const IssueToolbar = observer(function IssueToolbar({
             {VIEW_MODES.map(({ key, icon: ModeIcon, label }) => (
               <button
                 key={key}
-                onClick={() => viewStore.setViewMode(key)}
+                onClick={() => viewStore.setEffectiveViewMode(key, projectId)}
                 className={cn(
                   'flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors',
-                  viewStore.viewMode === key
+                  viewStore.getEffectiveViewMode(projectId) === key
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
                 aria-label={`Switch to ${label} view`}
-                aria-pressed={viewStore.viewMode === key}
+                aria-pressed={viewStore.getEffectiveViewMode(projectId) === key}
               >
                 <ModeIcon className="size-3.5" />
                 <span className="hidden sm:inline">{label}</span>

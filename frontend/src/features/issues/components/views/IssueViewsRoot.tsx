@@ -10,6 +10,7 @@ import { IssueToolbar } from './IssueToolbar';
 import { BoardView } from './board/BoardView';
 import { ListView } from './list/ListView';
 import { TableView } from './table/TableView';
+import { PriorityView } from './priority';
 import type { Issue, IssueState, IssuePriority } from '@/types';
 
 interface IssueViewsRootProps {
@@ -46,18 +47,19 @@ export const IssueViewsRoot = observer(function IssueViewsRoot({
     }
   }, [workspaceId, projectId, issueStore]);
 
-  // Auto-switch Table → List on mobile
+  // Auto-switch Table/Priority → List on mobile
   React.useEffect(() => {
     const mql = window.matchMedia('(max-width: 767px)');
     const handler = (e: MediaQueryListEvent | MediaQueryList) => {
-      if (e.matches && issueViewStore.viewMode === 'table') {
-        issueViewStore.setViewMode('list');
+      const currentMode = issueViewStore.getEffectiveViewMode(projectId);
+      if (e.matches && (currentMode === 'table' || currentMode === 'priority')) {
+        issueViewStore.setEffectiveViewMode('list', projectId);
       }
     };
     handler(mql);
     mql.addEventListener('change', handler);
     return () => mql.removeEventListener('change', handler);
-  }, [issueViewStore]);
+  }, [issueViewStore, projectId]);
 
   // Pre-apply project filter when projectId is provided
   React.useEffect(() => {
@@ -163,11 +165,11 @@ export const IssueViewsRoot = observer(function IssueViewsRoot({
     }
   };
 
-  const viewMode = issueViewStore.viewMode;
+  const viewMode = issueViewStore.getEffectiveViewMode(projectId);
 
   return (
     <div className={cn('flex h-full flex-col', className)}>
-      <IssueToolbar hideProjectFilter={!!projectId} />
+      <IssueToolbar hideProjectFilter={!!projectId} projectId={projectId} />
 
       <div className="flex-1 overflow-hidden">
         {viewMode === 'board' && (
@@ -196,6 +198,17 @@ export const IssueViewsRoot = observer(function IssueViewsRoot({
             issues={filteredIssues}
             isLoading={issueStore.isLoading}
             onIssueClick={handleIssueClick}
+          />
+        )}
+
+        {viewMode === 'priority' && (
+          <PriorityView
+            issues={filteredIssues}
+            isLoading={issueStore.isLoading}
+            onIssueClick={handleIssueClick}
+            onStateChange={handleStateChange}
+            onBulkStateChange={handleBulkStateChange}
+            onBulkPriorityChange={handleBulkPriorityChange}
           />
         )}
       </div>
