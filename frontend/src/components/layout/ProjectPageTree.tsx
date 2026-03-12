@@ -112,7 +112,11 @@ function TreeNode({
               : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
           )}
         >
-          <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+          {node.iconEmoji ? (
+            <span className="shrink-0 w-3 text-center text-xs leading-none">{node.iconEmoji}</span>
+          ) : (
+            <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+          )}
           <span className="truncate">{node.title || 'Untitled'}</span>
         </Link>
 
@@ -135,7 +139,7 @@ function TreeNode({
           className="flex items-center gap-1 py-0.5 pr-1"
           style={{ paddingLeft: `${indent + 24}px` }}
         >
-          <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <FileText className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
           <input
             ref={inputRef}
             type="text"

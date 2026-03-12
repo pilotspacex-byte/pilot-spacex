@@ -67,6 +67,16 @@ const leafNode: PageTreeNode = {
   children: [],
 };
 
+const emojiNode: PageTreeNode = {
+  id: 'node-emoji',
+  title: 'Emoji Page',
+  parentId: null,
+  depth: 0,
+  position: 500,
+  children: [],
+  iconEmoji: '📝',
+};
+
 const parentNode: PageTreeNode = {
   id: 'node-2',
   title: 'Architecture',
@@ -222,5 +232,26 @@ describe('ProjectPageTree', () => {
     const level2Item = screen.getByText('Level 2').closest('[data-testid="tree-node"]');
     const addBtn = level2Item?.querySelector('[aria-label*="child"]');
     expect(addBtn).toBeNull();
+  });
+
+  it('Test 9: renders emoji icon when node has iconEmoji set, not FileText icon', () => {
+    mockUseProjectPageTree.mockReturnValue({ data: [emojiNode], isLoading: false });
+    render(<ProjectPageTree {...defaultProps} />);
+
+    // Emoji span is rendered
+    expect(screen.getByText('📝')).toBeInTheDocument();
+
+    // FileText SVG should NOT be rendered inside the page link for this node
+    const emojiLink = screen.getByText('Emoji Page').closest('a');
+    expect(emojiLink?.querySelector('svg')).toBeNull();
+  });
+
+  it('Test 10: renders FileText icon when node has no iconEmoji', () => {
+    mockUseProjectPageTree.mockReturnValue({ data: [leafNode], isLoading: false });
+    render(<ProjectPageTree {...defaultProps} />);
+
+    // Page link should contain an SVG (FileText icon), not an emoji span
+    const pageLink = screen.getByText('Getting Started').closest('a');
+    expect(pageLink?.querySelector('svg')).toBeTruthy();
   });
 });

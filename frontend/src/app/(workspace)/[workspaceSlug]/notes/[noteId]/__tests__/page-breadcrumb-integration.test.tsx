@@ -71,6 +71,20 @@ vi.mock('@/features/notes/hooks/useDeleteNote', () => ({
   useDeleteNote: () => ({ mutate: vi.fn() }),
 }));
 
+// Mock TanStack Query's useQueryClient (required since we added emoji picker)
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@tanstack/react-query')>();
+  return {
+    ...original,
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn(),
+      cancelQueries: vi.fn(),
+      getQueryData: vi.fn(),
+      setQueryData: vi.fn(),
+    }),
+  };
+});
+
 // Mock useAutoSave
 vi.mock('@/features/notes/hooks/useAutoSave', () => ({
   useAutoSave: () => ({ status: 'idle', save: vi.fn(), reset: vi.fn() }),

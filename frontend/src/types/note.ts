@@ -36,6 +36,8 @@ export interface Note {
   depth?: number;
   /** Sibling ordering position within parent group */
   position?: number;
+  /** Optional emoji icon for page visual identity */
+  iconEmoji?: string | null;
   owner?: User;
   collaborators?: User[];
   linkedIssues: LinkedIssueBrief[];
@@ -123,6 +125,7 @@ export interface UpdateNoteData {
   content?: JSONContent;
   projectId?: string;
   isPinned?: boolean;
+  iconEmoji?: string | null;
 }
 
 // Note-to-Note Link Types

@@ -12,6 +12,7 @@ export interface PageTreeNode {
   depth: number;
   position: number;
   children: PageTreeNode[];
+  iconEmoji?: string | null;
 }
 
 type FlatNote = {
@@ -20,6 +21,7 @@ type FlatNote = {
   parentId?: string | null;
   depth?: number;
   position?: number;
+  iconEmoji?: string | null;
 };
 
 /**
@@ -46,6 +48,7 @@ export function buildTree(notes: FlatNote[]): PageTreeNode[] {
       depth: note.depth ?? 0,
       position: note.position ?? 0,
       children: [],
+      iconEmoji: note.iconEmoji ?? null,
     });
   }
 
