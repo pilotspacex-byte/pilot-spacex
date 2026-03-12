@@ -148,8 +148,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 29-01: TBD
-- [ ] 29-02: TBD
+- [ ] 29-01-PLAN.md — Tablet icon-rail sidebar behavior, mobile/tablet/desktop viewport differentiation
+- [ ] 29-02-PLAN.md — Drag-and-drop tree reordering: API methods, mutation hooks, DndContext in ProjectPageTree
 
 ## Progress
 
@@ -167,7 +167,7 @@ Phases execute in numeric order: 24 → 25 → 26 → 27 → 28 → 29
 | 28. Visual Design Refresh | 2/2 | Complete    | 2026-03-12 | - |
 | 29. Responsive & Drag-and-Drop | v1.0.0-alpha2 | 0/2 | Not started | - |
 
-**Total: 29 phases, 89 plans (+ ~3 TBD), 86 requirements**
+**Total: 29 phases, 91 plans, 86 requirements**
 
 ---
 *v1.0 shipped: 2026-03-09 — 11 phases, 46 plans, 30/30 requirements*
