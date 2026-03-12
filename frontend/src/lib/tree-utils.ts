@@ -141,6 +141,23 @@ export function flattenTreeWithDepth(
   return result;
 }
 
+/**
+ * Compute the max depth of descendants relative to the given node.
+ *
+ * Returns 0 for a leaf node (no children), 1 for a node with only
+ * direct children, 2 for a node with grandchildren, and so on.
+ *
+ * Used by ProjectPageTree.handleDragOver to determine whether re-parenting
+ * a dragged subtree onto a target would exceed the 3-level depth limit.
+ *
+ * @param node The root of the subtree to measure
+ * @returns Max descendant depth (0 = leaf)
+ */
+export function getSubtreeHeight(node: PageTreeNode): number {
+  if (node.children.length === 0) return 0;
+  return 1 + Math.max(...node.children.map(getSubtreeHeight));
+}
+
 type AncestorNote = {
   id: string;
   title: string;

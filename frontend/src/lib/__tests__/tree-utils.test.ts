@@ -1,6 +1,86 @@
 import { describe, it, expect } from 'vitest';
-import { buildTree, getAncestors, flattenTree } from '../tree-utils';
+import { buildTree, getAncestors, flattenTree, getSubtreeHeight } from '../tree-utils';
 import type { PageTreeNode } from '../tree-utils';
+
+// ---------------------------------------------------------------------------
+// getSubtreeHeight tests
+// ---------------------------------------------------------------------------
+
+describe('getSubtreeHeight', () => {
+  it('returns 0 for a leaf node (no children)', () => {
+    const leaf: PageTreeNode = {
+      id: 'a',
+      title: 'Leaf',
+      parentId: null,
+      depth: 0,
+      position: 1000,
+      children: [],
+    };
+    expect(getSubtreeHeight(leaf)).toBe(0);
+  });
+
+  it('returns 1 for a node with only direct children (no grandchildren)', () => {
+    const node: PageTreeNode = {
+      id: 'a',
+      title: 'Root',
+      parentId: null,
+      depth: 0,
+      position: 1000,
+      children: [
+        { id: 'b', title: 'Child', parentId: 'a', depth: 1, position: 1000, children: [] },
+      ],
+    };
+    expect(getSubtreeHeight(node)).toBe(1);
+  });
+
+  it('returns 2 for a node with grandchildren (2 levels below)', () => {
+    const node: PageTreeNode = {
+      id: 'a',
+      title: 'Root',
+      parentId: null,
+      depth: 0,
+      position: 1000,
+      children: [
+        {
+          id: 'b',
+          title: 'Child',
+          parentId: 'a',
+          depth: 1,
+          position: 1000,
+          children: [
+            { id: 'c', title: 'Grandchild', parentId: 'b', depth: 2, position: 1000, children: [] },
+          ],
+        },
+      ],
+    };
+    expect(getSubtreeHeight(node)).toBe(2);
+  });
+
+  it('returns the max height when children have unequal depths', () => {
+    const node: PageTreeNode = {
+      id: 'a',
+      title: 'Root',
+      parentId: null,
+      depth: 0,
+      position: 1000,
+      children: [
+        { id: 'b', title: 'Shallow', parentId: 'a', depth: 1, position: 1000, children: [] },
+        {
+          id: 'c',
+          title: 'Deep',
+          parentId: 'a',
+          depth: 1,
+          position: 2000,
+          children: [
+            { id: 'd', title: 'Deepest', parentId: 'c', depth: 2, position: 1000, children: [] },
+          ],
+        },
+      ],
+    };
+    // Max branch is a->c->d = 2
+    expect(getSubtreeHeight(node)).toBe(2);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // buildTree tests

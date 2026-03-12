@@ -277,4 +277,49 @@ describe('ProjectPageTree', () => {
     // At least 2 drag handles for the 2 root nodes
     expect(dragHandles.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('Test 12: depth limit — component renders without error when tree has max-depth nodes', () => {
+    // Setup: depth2Node has root(0) -> node-3-1(1) -> node-3-1-1(2) — full depth tree
+    // A second root with subtree height 1 would violate depth limit if re-parented under depth2Node
+    const secondRoot: PageTreeNode = {
+      id: 'second-root',
+      title: 'Second Root',
+      parentId: null,
+      depth: 0,
+      position: 4000,
+      children: [
+        {
+          id: 'second-root-child',
+          title: 'Second Root Child',
+          parentId: 'second-root',
+          depth: 1,
+          position: 1000,
+          children: [],
+        },
+      ],
+    };
+
+    // Expand all nodes to ensure all nodes are visible (including depth-2 grandchild)
+    mockIsNodeExpanded.mockImplementation(
+      (id: string) => id === 'node-3' || id === 'node-3-1' || id === 'second-root'
+    );
+    mockUseProjectPageTree.mockReturnValue({
+      data: [depth2Node, secondRoot],
+      isLoading: false,
+    });
+
+    // Renders without error — invalidDropTargetId mechanism is wired
+    render(<ProjectPageTree {...defaultProps} />);
+
+    // All tree nodes are rendered
+    expect(screen.getByText('Deep Section')).toBeInTheDocument();
+    expect(screen.getByText('Level 1')).toBeInTheDocument();
+    expect(screen.getByText('Level 2')).toBeInTheDocument();
+    expect(screen.getByText('Second Root')).toBeInTheDocument();
+    expect(screen.getByText('Second Root Child')).toBeInTheDocument();
+
+    // DndContext is wired — drag handles present for all visible nodes
+    const dragHandles = screen.getAllByRole('button', { name: /drag to reorder/i });
+    expect(dragHandles.length).toBeGreaterThanOrEqual(5);
+  });
 });

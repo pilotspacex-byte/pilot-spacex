@@ -31,6 +31,8 @@ export interface DraggableTreeNodeProps {
   projectId: string;
   currentNoteId?: string;
   inlineCreateParentId: string | null;
+  /** ID of the node that is currently an invalid drop target (depth limit exceeded). */
+  invalidDropTargetId?: string | null;
   onToggleExpand: (nodeId: string) => void;
   isExpanded: (nodeId: string) => boolean;
   onAddChild: (nodeId: string) => void;
@@ -48,6 +50,7 @@ export function DraggableTreeNode({
   projectId,
   currentNoteId,
   inlineCreateParentId,
+  invalidDropTargetId,
   onToggleExpand,
   isExpanded,
   onAddChild,
@@ -59,6 +62,7 @@ export function DraggableTreeNode({
   const hasChildren = node.children.length > 0;
   const canAddChild = node.depth < 2;
   const isInlineActive = inlineCreateParentId === node.id;
+  const isInvalidTarget = invalidDropTargetId === node.id;
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -86,7 +90,14 @@ export function DraggableTreeNode({
   const indent = node.depth * 16;
 
   return (
-    <div ref={setNodeRef} style={style} data-testid="tree-node">
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-testid="tree-node"
+      className={cn(
+        isInvalidTarget && 'ring-1 ring-destructive/50 rounded-md opacity-60 cursor-not-allowed'
+      )}
+    >
       {/* Node row */}
       <div
         className="group flex items-center gap-0.5 rounded-md py-0.5 pr-1 text-xs"
@@ -201,6 +212,7 @@ export function DraggableTreeNode({
                 projectId={projectId}
                 currentNoteId={currentNoteId}
                 inlineCreateParentId={inlineCreateParentId}
+                invalidDropTargetId={invalidDropTargetId}
                 onToggleExpand={onToggleExpand}
                 isExpanded={isExpanded}
                 onAddChild={onAddChild}

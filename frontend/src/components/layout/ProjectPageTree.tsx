@@ -26,6 +26,7 @@ import {
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -38,7 +39,7 @@ import { useRouter } from 'next/navigation';
 import { useUIStore } from '@/stores';
 import { useProjectPageTree } from '@/features/notes/hooks/useProjectPageTree';
 import { useCreateNote, useMovePage, useReorderPage } from '@/features/notes/hooks';
-import { flattenTreeWithDepth } from '@/lib/tree-utils';
+import { flattenTreeWithDepth, getSubtreeHeight } from '@/lib/tree-utils';
 import { DraggableTreeNode } from './DraggableTreeNode';
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,7 @@ export const ProjectPageTree = observer(function ProjectPageTree({
 
   const [inlineCreateParentId, setInlineCreateParentId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [invalidDropTargetId, setInvalidDropTargetId] = useState<string | null>(null);
 
   const createNote = useCreateNote({
     workspaceId,
@@ -91,18 +93,71 @@ export const ProjectPageTree = observer(function ProjectPageTree({
   const flatItems = flattenTreeWithDepth(treeNodes, (id) => uiStore.isNodeExpanded(id));
   const flatIds = flatItems.map((n) => n.id);
 
-  // O(1) node metadata lookup for drag handlers
+  // O(1) node metadata lookup for drag handlers (visible nodes only)
   const nodeMap = new Map(flatItems.map((n) => [n.id, { parentId: n.parentId, depth: n.depth }]));
+
+  // Full node map (all nodes, including collapsed children) for subtree height lookup
+  const fullNodeMap = new Map<string, import('@/lib/tree-utils').PageTreeNode>();
+  (function walkAll(nodes: import('@/lib/tree-utils').PageTreeNode[]): void {
+    for (const node of nodes) {
+      fullNodeMap.set(node.id, node);
+      if (node.children.length > 0) walkAll(node.children);
+    }
+  })(treeNodes);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      setInvalidDropTargetId(null);
+      return;
+    }
+
+    const activeFullNode = fullNodeMap.get(active.id as string);
+    const overMeta = nodeMap.get(over.id as string);
+
+    if (!activeFullNode || !overMeta) {
+      setInvalidDropTargetId(null);
+      return;
+    }
+
+    const activeParentId = nodeMap.get(active.id as string)?.parentId;
+    const overParentId = overMeta.parentId;
+
+    if (activeParentId === overParentId) {
+      // Same-parent reorder — depth unchanged, always valid
+      setInvalidDropTargetId(null);
+      return;
+    }
+
+    // Re-parent: active moves to over's parent, so active.depth becomes overMeta.depth.
+    // The deepest descendant of active lands at: overMeta.depth + getSubtreeHeight(activeFullNode)
+    const newDeepestDepth = overMeta.depth + getSubtreeHeight(activeFullNode);
+    if (newDeepestDepth > 2) {
+      setInvalidDropTargetId(over.id as string);
+    } else {
+      setInvalidDropTargetId(null);
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
 
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      setInvalidDropTargetId(null);
+      return;
+    }
+
+    // Block drop onto invalid (depth-exceeding) target
+    if (invalidDropTargetId && over.id === invalidDropTargetId) {
+      setInvalidDropTargetId(null);
+      return;
+    }
+    setInvalidDropTargetId(null);
 
     const activeNodeMeta = nodeMap.get(active.id as string);
     const overNodeMeta = nodeMap.get(over.id as string);
@@ -151,6 +206,7 @@ export const ProjectPageTree = observer(function ProjectPageTree({
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={flatIds} strategy={verticalListSortingStrategy}>
@@ -163,6 +219,7 @@ export const ProjectPageTree = observer(function ProjectPageTree({
               projectId={projectId}
               currentNoteId={currentNoteId}
               inlineCreateParentId={inlineCreateParentId}
+              invalidDropTargetId={invalidDropTargetId}
               onToggleExpand={(id) => uiStore.toggleNodeExpanded(id)}
               isExpanded={(id) => uiStore.isNodeExpanded(id)}
               onAddChild={(id) => setInlineCreateParentId(id)}
