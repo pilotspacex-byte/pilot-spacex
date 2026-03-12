@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 28-02-PLAN.md
-last_updated: "2026-03-12T19:42:21.566Z"
+stopped_at: Completed 29-02-PLAN.md
+last_updated: "2026-03-12T20:08:55.932Z"
 last_activity: "2026-03-12 — Completed 26-03: PageBreadcrumb integration, flattenTree, and content sanitization"
 progress:
   total_phases: 6
-  completed_phases: 5
-  total_plans: 11
-  completed_plans: 11
+  completed_phases: 6
+  total_plans: 13
+  completed_plans: 13
 ---
 
 # Project State
@@ -72,6 +72,10 @@ Recent decisions affecting current work:
 - [Phase 28-visual-design-refresh]: shadow-warm-* class names preserved (no rename) — only HSL hue values neutralized from warm (30/40) to neutral (0)
 - [Phase 28]: py-3 (12px) in page headers replaced with py-4 (16px) — consistent header height across all pages
 - [Phase 28]: py-3 (12px) in compact toolbars replaced with py-2 (8px) — toolbars are dense contexts, py-2 preserves density
+- [Phase 29]: DraggableTreeNode is a plain function component (not observer) — no MobX reads in node renderer, avoids re-renders during drag
+- [Phase 29]: nodeMap from flattenTreeWithDepth provides O(1) parentId lookup in handleDragEnd — avoids traversing tree per drag event
+- [Phase 29]: isMobile+isTablet replaces isSmallScreen in AppShell — tablet gets inline icon-rail instead of overlay drawer
+- [Phase 29]: Settings layout breakpoint md → lg so 224px nav + 60px icon-rail + content fits at 1024px+
 
 ### Pending Todos
 
@@ -83,7 +87,7 @@ None — Phase 26 complete. All NAV-01 through NAV-04 requirements satisfied.
 
 ## Session Continuity
 
-Last session: 2026-03-12T19:36:58.122Z
-Stopped at: Completed 28-02-PLAN.md
+Last session: 2026-03-12T20:08:39.480Z
+Stopped at: Completed 29-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 27`

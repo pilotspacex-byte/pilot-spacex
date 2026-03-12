@@ -56,7 +56,7 @@ Full archive: `.planning/milestones/v1.0-alpha-ROADMAP.md`
 - [x] **Phase 26: Sidebar Tree & Navigation** - Project page tree in sidebar with expand/collapse, inline creation, personal pages section, breadcrumbs, and editor decoupling for non-issue pages (completed 2026-03-12)
 - [x] **Phase 27: Project Hub & Issue Views** - Embedded Board/List/Table/Priority issue views in project page with view switcher and page emoji icons (completed 2026-03-12)
 - [x] **Phase 28: Visual Design Refresh** - Notion-like typography, spacing, and color token update across the application (completed 2026-03-12)
-- [ ] **Phase 29: Responsive Layout & Drag-and-Drop** - Tablet sidebar collapse, content area adaptation, and drag-and-drop tree reordering
+- [x] **Phase 29: Responsive Layout & Drag-and-Drop** - Tablet sidebar collapse, content area adaptation, and drag-and-drop tree reordering (completed 2026-03-12)
 
 ## Phase Details
 
@@ -165,7 +165,7 @@ Phases execute in numeric order: 24 → 25 → 26 → 27 → 28 → 29
 | 26. Sidebar Tree & Navigation | 3/3 | Complete    | 2026-03-12 | - |
 | 27. Project Hub & Issue Views | 2/2 | Complete    | 2026-03-12 | - |
 | 28. Visual Design Refresh | 2/2 | Complete    | 2026-03-12 | - |
-| 29. Responsive & Drag-and-Drop | v1.0.0-alpha2 | 0/2 | Not started | - |
+| 29. Responsive & Drag-and-Drop | 2/2 | Complete   | 2026-03-12 | - |
 
 **Total: 29 phases, 91 plans, 86 requirements**
 
