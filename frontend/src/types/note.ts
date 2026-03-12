@@ -30,6 +30,12 @@ export interface Note {
   ownerId?: string;
   lastEditedById?: string;
   workspaceId: string;
+  /** Parent note ID for tree nesting (null = root note) */
+  parentId?: string | null;
+  /** Tree depth: 0=root, 1=section, 2=page */
+  depth?: number;
+  /** Sibling ordering position within parent group */
+  position?: number;
   owner?: User;
   collaborators?: User[];
   linkedIssues: LinkedIssueBrief[];
@@ -108,6 +114,8 @@ export interface CreateNoteData {
   workspaceId: string;
   projectId?: string;
   templateId?: string;
+  /** Parent note ID for tree nesting */
+  parentId?: string;
 }
 
 export interface UpdateNoteData {

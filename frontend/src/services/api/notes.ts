@@ -3,6 +3,7 @@ import { apiClient, type PaginatedResponse } from './client';
 import type {
   Note,
   CreateNoteData,
+  UpdateNoteData,
   JSONContent,
   NoteAnnotation,
   AnnotationStatus,
@@ -48,7 +49,7 @@ export const notesApi = {
     return apiClient.post<Note>(`/workspaces/${workspaceId}/notes`, data);
   },
 
-  update(workspaceId: string, noteId: string, data: Partial<CreateNoteData>): Promise<Note> {
+  update(workspaceId: string, noteId: string, data: Partial<UpdateNoteData>): Promise<Note> {
     return apiClient.patch<Note>(`/workspaces/${workspaceId}/notes/${noteId}`, data);
   },
 
