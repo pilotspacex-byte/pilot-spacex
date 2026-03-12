@@ -204,7 +204,23 @@ export function IssueEditorContent({
     return () => document.removeEventListener('issue-force-save', handleForce);
   }, [editor, clearDebounce, saveDescription]);
 
-  useEffect(() => clearDebounce, [clearDebounce]);
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+        if (editor) {
+          const html = editor.getHTML();
+          const markdown =
+            (
+              editor.storage as unknown as Record<string, { getMarkdown?: () => string }>
+            ).markdown?.getMarkdown?.() ?? editor.getText();
+          void saveDescription(html, markdown);
+        }
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col min-w-0 overflow-hidden h-full">

@@ -44,16 +44,19 @@ async def _enqueue_kg_populate(project: Project) -> None:
         )
         from pilot_space.infrastructure.queue.models import QueueName
 
-        await queue.enqueue(
-            QueueName.AI_NORMAL,
-            {
-                "task_type": "kg_populate",
-                "entity_type": "project",
-                "entity_id": str(project.id),
-                "workspace_id": str(project.workspace_id),
-                "project_id": str(project.id),
-            },
-        )
+        try:
+            await queue.enqueue(
+                QueueName.AI_NORMAL,
+                {
+                    "task_type": "kg_populate",
+                    "entity_type": "project",
+                    "entity_id": str(project.id),
+                    "workspace_id": str(project.workspace_id),
+                    "project_id": str(project.id),
+                },
+            )
+        finally:
+            await queue.close()
     except Exception as exc:
         logger.warning("projects router: failed to enqueue kg_populate: %s", exc)
 

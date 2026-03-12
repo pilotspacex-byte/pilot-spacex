@@ -133,11 +133,13 @@ def build_plan_prompt(
     """
     parts: list[str] = [
         f"## Issue: {issue_identifier}\n",
-        f"**Title:** {issue_title}\n",
+        f"**Title:** <user_title>{issue_title}</user_title>\n",
     ]
 
     if issue_description:
-        parts.append(f"\n**Description:**\n{issue_description}\n")
+        parts.append(
+            f"\n**Description:**\n<user_description>{issue_description}</user_description>\n"
+        )
 
     if context_data:
         summary = context_data.get("summary", "")
@@ -256,7 +258,7 @@ def parse_plan_response(
 def _extract_json(text: str) -> dict[str, Any] | None:
     """Extract and parse JSON from response text, handling code fences."""
     # Try code-fenced JSON first
-    fenced = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
+    fenced = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", text)
     if fenced:
         try:
             result = json.loads(fenced.group(1))
@@ -266,7 +268,7 @@ def _extract_json(text: str) -> dict[str, Any] | None:
             pass
 
     # Try raw JSON object
-    raw = re.search(r"\{[\s\S]*?\}", text)
+    raw = re.search(r"\{[\s\S]*\}", text)
     if raw:
         try:
             result = json.loads(raw.group())
@@ -282,7 +284,7 @@ def _parse_subagent(data: dict[str, Any], idx: int) -> SubagentSpec:
     """Construct a SubagentSpec from a raw dict with safe defaults."""
     return SubagentSpec(
         id=data.get("id", f"sa-{idx + 1}"),
-        role=data.get("role", "backend-engineer"),
+        role=data.get("role", "general-purpose"),
         task=data.get("task", ""),
         context=data.get("context", ""),
         files=_ensure_str_list(data.get("files", [])),
@@ -302,11 +304,13 @@ def _ensure_str_list(value: Any) -> list[str]:
 def _role_display(role: str) -> str:
     """Convert role slug to display name."""
     display = {
-        "backend-engineer": "Backend Engineer",
+        "python-expert": "Python Expert",
         "frontend-expert": "Frontend Expert",
-        "qa-engineer": "QA Engineer",
+        "backend-expert": "Backend Expert",
         "ml-expert": "ML Expert",
-        "devops-engineer": "DevOps Engineer",
+        "Bash": "Bash",
+        "general-purpose": "General Purpose",
+        "security-expert": "Security Expert",
     }
     return display.get(role, role.replace("-", " ").title())
 
@@ -327,7 +331,7 @@ def _render_markdown(
 
     # --- YAML front matter ---
     lines: list[str] = ["---"]
-    lines.append(f"issue: {issue_identifier}")
+    lines.append(f'issue: "{issue_identifier}"')
     lines.append(f'title: "{safe_title}"')
     lines.append(f"generated: {generated_at}")
     lines.append("orchestrator: true")
@@ -411,7 +415,7 @@ def _build_fallback_plan(issue_identifier: str, issue_title: str) -> str:
     safe_title = issue_title.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
     return (
         f"---\n"
-        f"issue: {issue_identifier}\n"
+        f'issue: "{issue_identifier}"\n'
         f'title: "{safe_title}"\n'
         f"generated: {generated_at}\n"
         f"orchestrator: true\n"

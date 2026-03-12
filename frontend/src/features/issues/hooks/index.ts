@@ -57,3 +57,7 @@ export { useIssueRelations, issueRelationsKeys } from './use-issue-relations';
 
 // Knowledge graph data for an issue
 export { useIssueKnowledgeGraph, issueKnowledgeGraphKeys } from './use-issue-knowledge-graph';
+
+// Shared property mutation handlers for PropertyBlockView / PropertyBlockCollapsed
+export { usePropertyMutations } from './use-property-mutations';
+export type { UsePropertyMutationsOptions } from './use-property-mutations';

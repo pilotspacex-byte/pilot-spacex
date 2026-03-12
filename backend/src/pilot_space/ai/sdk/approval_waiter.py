@@ -142,7 +142,7 @@ class ApprovalActionExecutor:
             return {"status": "error", "action_error": f"Issue {issue_id} not found"}
 
         updated_fields: list[str] = []
-        for field in ("title", "description", "priority", "assignee_id", "estimate_points"):
+        for field in ("name", "description", "priority", "assignee_id", "estimate_points"):
             if field in inner:
                 setattr(issue, field, inner[field])
                 updated_fields.append(field)

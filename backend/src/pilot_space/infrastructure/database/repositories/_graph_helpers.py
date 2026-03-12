@@ -158,7 +158,7 @@ async def enrich_edge_density(
             embedding_score=sn.embedding_score,
             text_score=sn.text_score,
             recency_score=sn.recency_score,
-            edge_density_score=math.log1p(degree_map.get(sn.node.id, 0)) / log_100,
+            edge_density_score=min(1.0, math.log1p(degree_map.get(sn.node.id, 0)) / log_100),
         )
         for sn in scored
     ]

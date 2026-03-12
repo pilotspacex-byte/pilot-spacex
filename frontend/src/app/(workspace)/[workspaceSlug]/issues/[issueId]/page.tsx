@@ -414,9 +414,26 @@ const IssueDetailPage = observer(function IssueDetailPage() {
     [aiStore.pilotSpace]
   );
 
+  // -- IssueNoteContext value --
+  const contextValue = useMemo(
+    () =>
+      issue
+        ? {
+            issue,
+            members: memberUsers,
+            labels,
+            cycles,
+            onUpdate: handleUpdate,
+            onUpdateState: handleUpdateState,
+            disabled: false,
+          }
+        : null,
+    [issue, memberUsers, labels, cycles, handleUpdate, handleUpdateState]
+  );
+
   // -- Render states --
   if (isLoading) return <IssueDetailSkeleton />;
-  if (isError || !issue) return <IssueNotFound onBack={handleBack} />;
+  if (isError || !issue || !contextValue) return <IssueNotFound onBack={handleBack} />;
 
   // -- AI context result + chat empty state --
   const aiContextResult =
@@ -435,17 +452,6 @@ const IssueDetailPage = observer(function IssueDetailPage() {
     !issue?.description && isChatOpen
       ? `Generate a detailed description for this issue. Structure it with: Problem statement, Acceptance criteria, and Technical approach.`
       : undefined;
-
-  // -- IssueNoteContext value --
-  const contextValue = {
-    issue,
-    members: memberUsers,
-    labels,
-    cycles,
-    onUpdate: handleUpdate,
-    onUpdateState: handleUpdateState,
-    disabled: false,
-  };
 
   // -- Editor content (non-observer component to avoid flushSync) --
   const editorContent = (

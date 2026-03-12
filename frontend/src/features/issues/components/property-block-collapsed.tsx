@@ -7,71 +7,19 @@
  * requiring expand → click (two steps). Uses IssueNoteContext for data and
  * update handlers.
  */
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { observer } from 'mobx-react-lite';
 import { ChevronDown, User, CalendarIcon } from 'lucide-react';
-import { Circle, CircleDot, CircleDashed, PlayCircle, CheckCircle2, XCircle } from 'lucide-react';
-import { SignalHigh, SignalMedium, SignalLow, AlertTriangle, Minus } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { stateNameToKey } from '@/lib/issue-helpers';
-import type { IssueState, IssuePriority, UserBrief } from '@/types';
+import type { UserBrief } from '@/types';
 import { Calendar } from '@/components/ui/calendar';
 import { IssueStateSelect, IssuePrioritySelect, AssigneeSelector } from '@/components/issues';
-import { useSaveStatus } from '@/features/issues/hooks';
+import { usePropertyMutations } from '@/features/issues/hooks';
 import { useIssueNoteContext } from '@/features/issues/contexts/issue-note-context';
+import { STATE_ICON, PRIORITY_ICON } from './property-block-constants';
 import { PropertyChip } from './property-chip';
-
-// ---------------------------------------------------------------------------
-// State & Priority icon configs (minimal, for collapsed view)
-// ---------------------------------------------------------------------------
-
-const STATE_ICON: Record<
-  IssueState,
-  { icon: React.ElementType; className: string; label: string }
-> = {
-  backlog: { icon: CircleDashed, className: 'text-[var(--color-state-backlog)]', label: 'Backlog' },
-  todo: { icon: Circle, className: 'text-[var(--color-state-todo)]', label: 'Todo' },
-  in_progress: {
-    icon: PlayCircle,
-    className: 'text-[var(--color-state-in-progress)]',
-    label: 'In Progress',
-  },
-  in_review: {
-    icon: CircleDot,
-    className: 'text-[var(--color-state-in-review)]',
-    label: 'In Review',
-  },
-  done: { icon: CheckCircle2, className: 'text-[var(--color-state-done)]', label: 'Done' },
-  cancelled: {
-    icon: XCircle,
-    className: 'text-[var(--color-state-cancelled)]',
-    label: 'Cancelled',
-  },
-};
-
-const PRIORITY_ICON: Record<
-  IssuePriority,
-  { icon: React.ElementType; className: string; label: string }
-> = {
-  urgent: {
-    icon: AlertTriangle,
-    className: 'text-[var(--color-priority-urgent)]',
-    label: 'Urgent',
-  },
-  high: { icon: SignalHigh, className: 'text-[var(--color-priority-high)]', label: 'High' },
-  medium: { icon: SignalMedium, className: 'text-[var(--color-priority-medium)]', label: 'Medium' },
-  low: { icon: SignalLow, className: 'text-[var(--color-priority-low)]', label: 'Low' },
-  none: { icon: Minus, className: 'text-[var(--color-priority-none)]', label: 'None' },
-};
-
-const STATE_GROUP_MAP: Record<string, IssueState> = {
-  backlog: 'backlog',
-  unstarted: 'todo',
-  started: 'in_progress',
-  completed: 'done',
-  cancelled: 'cancelled',
-};
 
 export interface PropertyBlockCollapsedProps {
   onExpand: () => void;
@@ -97,50 +45,12 @@ export const PropertyBlockCollapsed = observer(function PropertyBlockCollapsed({
 
   // -- Handlers --
 
-  const { wrapMutation: wrapState } = useSaveStatus('state');
-  const handleStateChange = useCallback(
-    (state: IssueState) => {
-      const matched = STATE_GROUP_MAP[issue.state.group] === state ? issue.state : null;
-      if (matched) return;
-      // Start the mutation FIRST so onMutate updates the TanStack Query cache (optimistic update)
-      // before wrapState calls setSaveStatus("saving"), which triggers a MobX re-render.
-      const pending = onUpdateState(state);
-      wrapState(() => pending).catch(() => {});
-    },
-    [issue.state, wrapState, onUpdateState]
-  );
-
-  const { wrapMutation: wrapPriority } = useSaveStatus('priority');
-  const handlePriorityChange = useCallback(
-    (priority: IssuePriority) => {
-      wrapPriority(() => onUpdate({ priority })).catch(() => {});
-    },
-    [wrapPriority, onUpdate]
-  );
-
-  const { wrapMutation: wrapAssignee } = useSaveStatus('assignee');
-  const handleAssigneeChange = useCallback(
-    (user: UserBrief | null) => {
-      if (user) {
-        wrapAssignee(() => onUpdate({ assigneeId: user.id })).catch(() => {});
-      } else {
-        wrapAssignee(() => onUpdate({ clearAssignee: true })).catch(() => {});
-      }
-    },
-    [wrapAssignee, onUpdate]
-  );
-
-  const { wrapMutation: wrapDueDate } = useSaveStatus('targetDate');
-  const handleDueDateChange = useCallback(
-    (d: Date | undefined) => {
-      if (d) {
-        wrapDueDate(() => onUpdate({ targetDate: d.toISOString().split('T')[0] })).catch(() => {});
-      } else {
-        wrapDueDate(() => onUpdate({ clearTargetDate: true })).catch(() => {});
-      }
-    },
-    [wrapDueDate, onUpdate]
-  );
+  const { handleStateChange, handlePriorityChange, handleAssigneeChange, handleDueDateChange } =
+    usePropertyMutations({
+      issueState: issue.state,
+      onUpdate,
+      onUpdateState,
+    });
 
   return (
     <div

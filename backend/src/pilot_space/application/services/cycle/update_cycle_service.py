@@ -171,7 +171,7 @@ class UpdateCycleService:
         )
 
         # Enqueue KG populate on content-relevant changes (non-fatal)
-        kg_relevant_fields = {"name", "description", "status"}
+        kg_relevant_fields = {"name", "description", "status", "start_date", "end_date"}
         if (
             self._queue is not None
             and cycle is not None

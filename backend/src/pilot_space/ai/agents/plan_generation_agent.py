@@ -9,7 +9,10 @@ class (not inheriting SDKBaseAgent) following the same pattern as AIContextAgent
 
 from __future__ import annotations
 
+import asyncio
 import os
+import re
+import tempfile
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -176,13 +179,14 @@ class PlanGenerationAgent:
             stderr_lines.append(line)
             logger.debug("[PlanGen] CLI stderr: %s", line.rstrip())
 
+        cwd = tempfile.mkdtemp()
         options = claude_agent_sdk.ClaudeAgentOptions(
             model=model_tier.model_id,
             system_prompt=PLAN_SYSTEM_PROMPT,
             allowed_tools=[],
             max_turns=1,
             permission_mode="default",
-            cwd="/tmp",
+            cwd=cwd,
             setting_sources=[],
             stderr=_capture_stderr,
             extra_args={"debug-to-stderr": None},
@@ -195,20 +199,21 @@ class PlanGenerationAgent:
 
         text_parts: list[str] = []
         try:
-            async for message in claude_agent_sdk.query(
-                prompt=user_prompt,
-                options=options,
-            ):
-                if isinstance(message, claude_agent_sdk.AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, claude_agent_sdk.TextBlock):
-                            text_parts.append(block.text)
-                elif isinstance(message, claude_agent_sdk.ResultMessage):
-                    logger.info(
-                        "[PlanGen] query() result: cost=$%.4f, turns=%s",
-                        message.total_cost_usd,
-                        message.num_turns,
-                    )
+            async with asyncio.timeout(120):
+                async for message in claude_agent_sdk.query(
+                    prompt=user_prompt,
+                    options=options,
+                ):
+                    if isinstance(message, claude_agent_sdk.AssistantMessage):
+                        for block in message.content:
+                            if isinstance(block, claude_agent_sdk.TextBlock):
+                                text_parts.append(block.text)
+                    elif isinstance(message, claude_agent_sdk.ResultMessage):
+                        logger.info(
+                            "[PlanGen] query() result: cost=$%.4f, turns=%s",
+                            message.total_cost_usd,
+                            message.num_turns,
+                        )
         except Exception:
             logger.exception(
                 "[PlanGen] SDK query() failed. stderr=%s",
@@ -242,8 +247,6 @@ def _count_subagents(plan_markdown: str) -> int:
     Counts lines matching '### sa-' prefix which each represent one subagent heading.
     Falls back to 0 when no subagents are present.
     """
-    import re
-
     matches = re.findall(r"^### sa-\w+", plan_markdown, re.MULTILINE)
     return len(matches)
 

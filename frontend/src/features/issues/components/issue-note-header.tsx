@@ -195,7 +195,9 @@ export const IssueNoteHeader = observer(function IssueNoteHeader({
               <LinkIcon className="mr-2 size-4" />
               Copy link
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.open(window.location.href, '_blank')}>
+            <DropdownMenuItem
+              onClick={() => window.open(window.location.href, '_blank', 'noopener,noreferrer')}
+            >
               <ExternalLink className="mr-2 size-4" />
               Open in new tab
             </DropdownMenuItem>

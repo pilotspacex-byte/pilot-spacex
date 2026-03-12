@@ -12,12 +12,10 @@ import { observer } from 'mobx-react-lite';
 import { NodeViewWrapper } from '@tiptap/react';
 import { format } from 'date-fns';
 import { ChevronUp, CalendarIcon, User, Plus } from 'lucide-react';
-import { Circle, CircleDot, CircleDashed, PlayCircle, CheckCircle2, XCircle } from 'lucide-react';
-import { SignalHigh, SignalMedium, SignalLow, AlertTriangle, Minus } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { stateNameToKey } from '@/lib/issue-helpers';
-import type { IssueState, IssuePriority, UserBrief, LabelBrief } from '@/types';
+import type { UserBrief, LabelBrief } from '@/types';
 import { Calendar } from '@/components/ui/calendar';
 import {
   IssueStateSelect,
@@ -26,62 +24,12 @@ import {
   AssigneeSelector,
   LabelSelector,
 } from '@/components/issues';
-import { useSaveStatus } from '@/features/issues/hooks';
+import { useSaveStatus, usePropertyMutations } from '@/features/issues/hooks';
 import { useIssueNoteContext } from '@/features/issues/contexts/issue-note-context';
+import { STATE_ICON, PRIORITY_ICON } from './property-block-constants';
 import { PropertyChip } from './property-chip';
 import { PropertyBlockCollapsed } from './property-block-collapsed';
 import { EffortField } from './effort-field';
-
-// ---------------------------------------------------------------------------
-// State & Priority icon configs
-// ---------------------------------------------------------------------------
-
-const STATE_ICON: Record<
-  IssueState,
-  { icon: React.ElementType; className: string; label: string }
-> = {
-  backlog: { icon: CircleDashed, className: 'text-[var(--color-state-backlog)]', label: 'Backlog' },
-  todo: { icon: Circle, className: 'text-[var(--color-state-todo)]', label: 'Todo' },
-  in_progress: {
-    icon: PlayCircle,
-    className: 'text-[var(--color-state-in-progress)]',
-    label: 'In Progress',
-  },
-  in_review: {
-    icon: CircleDot,
-    className: 'text-[var(--color-state-in-review)]',
-    label: 'In Review',
-  },
-  done: { icon: CheckCircle2, className: 'text-[var(--color-state-done)]', label: 'Done' },
-  cancelled: {
-    icon: XCircle,
-    className: 'text-[var(--color-state-cancelled)]',
-    label: 'Cancelled',
-  },
-};
-
-const PRIORITY_ICON: Record<
-  IssuePriority,
-  { icon: React.ElementType; className: string; label: string }
-> = {
-  urgent: {
-    icon: AlertTriangle,
-    className: 'text-[var(--color-priority-urgent)]',
-    label: 'Urgent',
-  },
-  high: { icon: SignalHigh, className: 'text-[var(--color-priority-high)]', label: 'High' },
-  medium: { icon: SignalMedium, className: 'text-[var(--color-priority-medium)]', label: 'Medium' },
-  low: { icon: SignalLow, className: 'text-[var(--color-priority-low)]', label: 'Low' },
-  none: { icon: Minus, className: 'text-[var(--color-priority-none)]', label: 'None' },
-};
-
-const STATE_GROUP_MAP: Record<string, IssueState> = {
-  backlog: 'backlog',
-  unstarted: 'todo',
-  started: 'in_progress',
-  completed: 'done',
-  cancelled: 'cancelled',
-};
 
 // ---------------------------------------------------------------------------
 // Storage key for collapsed state
@@ -90,7 +38,11 @@ const COLLAPSED_KEY = 'issue-property-block-collapsed';
 
 function getInitialCollapsed(): boolean {
   if (typeof window === 'undefined') return false;
-  return localStorage.getItem(COLLAPSED_KEY) === 'true';
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +58,11 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev;
-      localStorage.setItem(COLLAPSED_KEY, String(next));
+      try {
+        localStorage.setItem(COLLAPSED_KEY, String(next));
+      } catch {
+        // localStorage may be unavailable (e.g. private browsing)
+      }
       return next;
     });
   }, []);
@@ -123,39 +79,12 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
 
   // -- Save-status-wrapped handlers --
 
-  const { wrapMutation: wrapState } = useSaveStatus('state');
-  const handleStateChange = useCallback(
-    (state: IssueState) => {
-      const matched = STATE_GROUP_MAP[issue.state.group] === state ? issue.state : null;
-      if (matched) return;
-      // Start the mutation FIRST so onMutate updates the TanStack Query cache (optimistic update)
-      // before wrapState calls setSaveStatus("saving"), which triggers a MobX re-render.
-      // Without this ordering, the MobX re-render sees the stale "In Progress" state → blink.
-      const pending = onUpdateState(state);
-      wrapState(() => pending).catch(() => {});
-    },
-    [issue.state, wrapState, onUpdateState]
-  );
-
-  const { wrapMutation: wrapPriority } = useSaveStatus('priority');
-  const handlePriorityChange = useCallback(
-    (priority: IssuePriority) => {
-      wrapPriority(() => onUpdate({ priority })).catch(() => {});
-    },
-    [wrapPriority, onUpdate]
-  );
-
-  const { wrapMutation: wrapAssignee } = useSaveStatus('assignee');
-  const handleAssigneeChange = useCallback(
-    (user: UserBrief | null) => {
-      if (user) {
-        wrapAssignee(() => onUpdate({ assigneeId: user.id })).catch(() => {});
-      } else {
-        wrapAssignee(() => onUpdate({ clearAssignee: true })).catch(() => {});
-      }
-    },
-    [wrapAssignee, onUpdate]
-  );
+  const { handleStateChange, handlePriorityChange, handleAssigneeChange, handleDueDateChange } =
+    usePropertyMutations({
+      issueState: issue.state,
+      onUpdate,
+      onUpdateState,
+    });
 
   const { wrapMutation: wrapLabels } = useSaveStatus('labels');
   const handleLabelsChange = useCallback(
@@ -187,18 +116,6 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
       }
     },
     [wrapStartDate, onUpdate]
-  );
-
-  const { wrapMutation: wrapDueDate } = useSaveStatus('targetDate');
-  const handleDueDateChange = useCallback(
-    (d: Date | undefined) => {
-      if (d) {
-        wrapDueDate(() => onUpdate({ targetDate: d.toISOString().split('T')[0] })).catch(() => {});
-      } else {
-        wrapDueDate(() => onUpdate({ clearTargetDate: true })).catch(() => {});
-      }
-    },
-    [wrapDueDate, onUpdate]
   );
 
   const { wrapMutation: wrapEstimate } = useSaveStatus('estimate');
@@ -242,7 +159,7 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
   return (
     <NodeViewWrapper className="mb-2" data-testid="property-block">
       <div
-        role="toolbar"
+        role="group"
         aria-label="Issue properties"
         className={cn(
           'rounded-[10px] border border-[#E5E2DD] bg-[#F8F6F3]',
