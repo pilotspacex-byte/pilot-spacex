@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 26-01-PLAN.md
-last_updated: "2026-03-12T17:44:58.146Z"
+stopped_at: Completed 26-02-PLAN.md
+last_updated: "2026-03-12T18:00:28.605Z"
 last_activity: "2026-03-12 — Completed 25-02: ReorderPageService and tree REST endpoints"
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -61,6 +61,8 @@ Recent decisions affecting current work:
 - [Phase 26-sidebar-tree-navigation]: Used get_children instead of get_siblings in CreateNoteService for position computation — no exclude_note_id needed during creation
 - [Phase 26-sidebar-tree-navigation]: MobX expandedNodes annotated as observable in makeAutoObservable overrides — standard Set mutations not reactive without explicit annotation
 - [Phase 26-sidebar-tree-navigation]: notesApi.update() uses Partial<UpdateNoteData> not Partial<CreateNoteData> — null parentId in Note interface is incompatible with string|undefined
+- [Phase 26-sidebar-tree-navigation]: PageBreadcrumb is plain component (not observer) — receives computed ancestors as props from parent observer, matching TipTap context bridge pattern
+- [Phase 26-sidebar-tree-navigation]: Sidebar Pinned/Recent fully removed — reduces complexity, removes stale noteStore.loadNotes() dependency
 
 ### Pending Todos
 
@@ -74,7 +76,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-12T17:44:58.143Z
-Stopped at: Completed 26-01-PLAN.md
+Last session: 2026-03-12T18:00:28.603Z
+Stopped at: Completed 26-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`
