@@ -11,7 +11,7 @@
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { AlertCircle, ServerCog } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,11 +41,25 @@ export const MCPServersSettingsPage = observer(function MCPServersSettingsPage()
   const currentWorkspace = workspaceStore.getWorkspaceBySlug(workspaceSlug);
   const workspaceId = currentWorkspace?.id ?? workspaceSlug;
 
+  const searchParams = useSearchParams();
+
   React.useEffect(() => {
     if (workspaceId) {
       mcpStore.loadServers(workspaceId);
     }
   }, [workspaceId, mcpStore]);
+
+  // Handle OAuth callback status from redirect
+  React.useEffect(() => {
+    const status = searchParams.get('status');
+    const reason = searchParams.get('reason');
+    if (status === 'connected') {
+      toast.success('MCP server authorized successfully');
+      mcpStore.loadServers(workspaceId);
+    } else if (status === 'error') {
+      toast.error(`OAuth authorization failed: ${reason || 'Unknown error'}`);
+    }
+  }, [searchParams, mcpStore, workspaceId]);
 
   const handleRegister = async (data: Parameters<typeof mcpStore.registerServer>[1]) => {
     await mcpStore.registerServer(workspaceId, data);
@@ -62,6 +76,15 @@ export const MCPServersSettingsPage = observer(function MCPServersSettingsPage()
 
   const handleRefreshStatus = async (serverId: string) => {
     await mcpStore.refreshStatus(workspaceId, serverId);
+  };
+
+  const handleAuthorize = async (serverId: string) => {
+    try {
+      const authUrl = await mcpStore.getOAuthUrl(workspaceId, serverId);
+      window.location.href = authUrl;
+    } catch {
+      toast.error('Failed to start OAuth authorization');
+    }
   };
 
   if (mcpStore.isLoading) {
@@ -119,6 +142,7 @@ export const MCPServersSettingsPage = observer(function MCPServersSettingsPage()
                     server={server}
                     onDelete={handleDelete}
                     onRefreshStatus={handleRefreshStatus}
+                    onAuthorize={handleAuthorize}
                     isDeleting={false}
                   />
                 ))}
