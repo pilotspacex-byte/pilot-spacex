@@ -145,11 +145,12 @@ Plans:
   2. Content area adjusts layout (reduced margins, stacked elements) for tablet viewport
   3. User can drag a page in the sidebar tree to reorder among siblings
   4. User can drag a page in the sidebar tree to re-parent it under a different node, with depth limit enforced visually
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
 - [ ] 29-01-PLAN.md — Tablet icon-rail sidebar behavior, mobile/tablet/desktop viewport differentiation
 - [ ] 29-02-PLAN.md — Drag-and-drop tree reordering: API methods, mutation hooks, DndContext in ProjectPageTree
+- [ ] 29-03-PLAN.md — Gap closure: depth limit visual enforcement during drag-and-drop
 
 ## Progress
 
@@ -165,9 +166,9 @@ Phases execute in numeric order: 24 → 25 → 26 → 27 → 28 → 29
 | 26. Sidebar Tree & Navigation | 3/3 | Complete    | 2026-03-12 | - |
 | 27. Project Hub & Issue Views | 2/2 | Complete    | 2026-03-12 | - |
 | 28. Visual Design Refresh | 2/2 | Complete    | 2026-03-12 | - |
-| 29. Responsive & Drag-and-Drop | 2/2 | Complete   | 2026-03-12 | - |
+| 29. Responsive & Drag-and-Drop | 3/3 | In Progress | - | - |
 
-**Total: 29 phases, 91 plans, 86 requirements**
+**Total: 29 phases, 92 plans, 86 requirements**
 
 ---
 *v1.0 shipped: 2026-03-09 — 11 phases, 46 plans, 30/30 requirements*
