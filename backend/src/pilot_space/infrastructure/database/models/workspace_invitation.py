@@ -27,10 +27,10 @@ if TYPE_CHECKING:
 class InvitationStatus(str, Enum):
     """Status of a workspace invitation."""
 
-    pending = "pending"
-    accepted = "accepted"
-    expired = "expired"
-    cancelled = "cancelled"
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
 
 
 def _default_expires_at() -> datetime:
@@ -80,7 +80,7 @@ class WorkspaceInvitation(BaseModel):
     status: Mapped[InvitationStatus] = mapped_column(
         SQLEnum(InvitationStatus, name="invitation_status"),
         nullable=False,
-        default=InvitationStatus.pending,
+        default=InvitationStatus.PENDING,
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -130,13 +130,13 @@ class WorkspaceInvitation(BaseModel):
     @property
     def is_pending(self) -> bool:
         """Check if invitation is still pending."""
-        return self.status == InvitationStatus.pending
+        return self.status == InvitationStatus.PENDING
 
     @property
     def is_expired(self) -> bool:
         """Check if invitation has expired."""
-        if self.status == InvitationStatus.expired:
+        if self.status == InvitationStatus.EXPIRED:
             return True
-        if self.status == InvitationStatus.pending:
+        if self.status == InvitationStatus.PENDING:
             return datetime.now(tz=UTC) > self.expires_at
         return False

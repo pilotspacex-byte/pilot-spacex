@@ -78,7 +78,7 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
         query = select(WorkspaceInvitation).where(
             and_(
                 WorkspaceInvitation.email == email,
-                WorkspaceInvitation.status == InvitationStatus.pending,
+                WorkspaceInvitation.status == InvitationStatus.PENDING,
                 WorkspaceInvitation.is_deleted == False,  # noqa: E712
                 WorkspaceInvitation.expires_at > datetime.now(tz=UTC),
             )
@@ -104,7 +104,7 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
             and_(
                 WorkspaceInvitation.workspace_id == workspace_id,
                 WorkspaceInvitation.email == email,
-                WorkspaceInvitation.status == InvitationStatus.pending,
+                WorkspaceInvitation.status == InvitationStatus.PENDING,
                 WorkspaceInvitation.is_deleted == False,  # noqa: E712
             )
         )
@@ -121,9 +121,9 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
             The cancelled invitation, or None if not found/already processed.
         """
         invitation = await self.get_by_id(invitation_id)
-        if invitation is None or invitation.status != InvitationStatus.pending:
+        if invitation is None or invitation.status != InvitationStatus.PENDING:
             return None
-        invitation.status = InvitationStatus.cancelled
+        invitation.status = InvitationStatus.CANCELLED
         await self.session.flush()
         return invitation
 
@@ -137,9 +137,9 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
             The accepted invitation, or None if not found/already processed.
         """
         invitation = await self.get_by_id(invitation_id)
-        if invitation is None or invitation.status != InvitationStatus.pending:
+        if invitation is None or invitation.status != InvitationStatus.PENDING:
             return None
-        invitation.status = InvitationStatus.accepted
+        invitation.status = InvitationStatus.ACCEPTED
         invitation.accepted_at = datetime.now(tz=UTC)
         await self.session.flush()
         return invitation
@@ -154,8 +154,8 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
             The expired invitation, or None if not found/already processed.
         """
         invitation = await self.get_by_id(invitation_id)
-        if invitation is None or invitation.status != InvitationStatus.pending:
+        if invitation is None or invitation.status != InvitationStatus.PENDING:
             return None
-        invitation.status = InvitationStatus.expired
+        invitation.status = InvitationStatus.EXPIRED
         await self.session.flush()
         return invitation

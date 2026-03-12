@@ -573,7 +573,7 @@ class WorkspaceService:
             email=normalized_email,
             role=workspace_role,
             invited_by=invited_by,
-            status=InvitationStatus.pending,
+            status=InvitationStatus.PENDING,
             expires_at=datetime.now(tz=UTC) + timedelta(days=7),
         )
         invitation = await self.invitation_repo.create(invitation)
