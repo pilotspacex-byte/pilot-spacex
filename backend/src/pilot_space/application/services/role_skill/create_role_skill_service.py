@@ -53,10 +53,13 @@ class CreateRoleSkillService:
     def __init__(
         self,
         session: AsyncSession,
-        role_skill_repository: RoleSkillRepository,
     ) -> None:
+        from pilot_space.infrastructure.database.repositories.role_skill_repository import (
+            RoleSkillRepository,
+        )
+
         self._session = session
-        self._repo = role_skill_repository
+        self._repo = RoleSkillRepository(session)
 
     async def execute(self, payload: CreateRoleSkillPayload) -> UserRoleSkill:
         """Create a new role skill.

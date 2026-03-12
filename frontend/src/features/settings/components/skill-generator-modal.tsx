@@ -30,6 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useGenerateSkill, useCreateRoleSkill } from '@/features/onboarding/hooks';
 import { useGenerateWorkspaceSkill } from '@/services/api/workspace-role-skills';
+import { useCreateUserSkill } from '@/services/api/user-skills';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,8 +54,10 @@ export interface SkillGeneratorModalProps {
   /** Hide mode toggle (e.g. non-admin users can only create personal). */
   showModeToggle?: boolean;
   workspaceId: string;
+  /** Workspace slug for API calls. Falls back to workspaceId if not provided. */
+  workspaceSlug?: string;
   /** Pre-seed from a template — shows template name in header and pre-fills description. */
-  template?: { name: string; description: string; skill_content: string } | null;
+  template?: { id: string; name: string; description: string; skill_content: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +81,7 @@ export function SkillGeneratorModal({
   defaultMode = 'personal',
   showModeToggle = true,
   workspaceId,
+  workspaceSlug,
   template = null,
 }: SkillGeneratorModalProps) {
   const [mode, setMode] = React.useState<SkillGeneratorMode>(defaultMode);
@@ -106,8 +110,14 @@ export function SkillGeneratorModal({
   // Workspace skill mutation
   const generateWorkspace = useGenerateWorkspaceSkill({ workspaceId });
 
+  // New user_skills table mutation (Phase 20)
+  const createUserSkill = useCreateUserSkill(workspaceSlug || workspaceId);
+
   const isPending =
-    generatePersonal.isPending || createPersonal.isPending || generateWorkspace.isPending;
+    generatePersonal.isPending ||
+    createPersonal.isPending ||
+    generateWorkspace.isPending ||
+    createUserSkill.isPending;
 
   const reset = React.useCallback(() => {
     setStep('form');
@@ -162,13 +172,22 @@ export function SkillGeneratorModal({
 
     if (mode === 'personal') {
       try {
-        await createPersonal.mutateAsync({
-          roleType: 'custom',
-          roleName: editableName || preview.suggestedName,
-          skillContent: preview.content,
-          experienceDescription: description || undefined,
-          isPrimary: false,
-        });
+        // If seeded from a template, save to user_skills table (Phase 20)
+        if (template?.id) {
+          await createUserSkill.mutateAsync({
+            template_id: template.id,
+            experience_description: description || undefined,
+          });
+        } else {
+          // Legacy path for custom skills without a template
+          await createPersonal.mutateAsync({
+            roleType: 'custom',
+            roleName: editableName || preview.suggestedName,
+            skillContent: preview.content,
+            experienceDescription: description || undefined,
+            isPrimary: false,
+          });
+        }
         handleClose();
       } catch {
         // Error toast from mutation hook
@@ -177,7 +196,16 @@ export function SkillGeneratorModal({
       // Workspace skill already persisted during generate
       handleClose();
     }
-  }, [preview, mode, editableName, description, createPersonal, handleClose]);
+  }, [
+    preview,
+    mode,
+    editableName,
+    description,
+    createPersonal,
+    createUserSkill,
+    template,
+    handleClose,
+  ]);
 
   const handleRetry = React.useCallback(() => {
     setShowError(false);

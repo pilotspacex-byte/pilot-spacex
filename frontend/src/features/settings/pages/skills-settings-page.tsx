@@ -25,6 +25,7 @@ import type { SkillTemplate } from '@/services/api/skill-templates';
 import { MySkillCard } from '../components/my-skill-card';
 import { TemplateCatalog } from '../components/template-catalog';
 import { CreateTemplateModal } from '../components/create-template-modal';
+import { EditTemplateModal } from '../components/edit-template-modal';
 import { PluginsTabContent } from '../components/plugins-tab-content';
 import { ActionButtonsTabContent } from '../components/action-buttons-tab-content';
 import { SkillGeneratorModal } from '../components/skill-generator-modal';
@@ -100,8 +101,9 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   const [generatorOpen, setGeneratorOpen] = React.useState(false);
   const [selectedTemplate, setSelectedTemplate] = React.useState<SkillTemplate | null>(null);
 
-  // Create template modal state
+  // Create/edit template modal state
   const [createTemplateOpen, setCreateTemplateOpen] = React.useState(false);
+  const [templateToEdit, setTemplateToEdit] = React.useState<SkillTemplate | null>(null);
 
   // Confirm dialogs
   const [skillToDelete, setSkillToDelete] = React.useState<UserSkill | null>(null);
@@ -146,8 +148,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   };
 
   const handleEditTemplate = (template: SkillTemplate) => {
-    // For now, just toggle — full edit modal can be added later
-    toast.info(`Edit template "${template.name}" — coming soon`);
+    setTemplateToEdit(template);
   };
 
   const handleToggleTemplateActive = (template: SkillTemplate) => {
@@ -313,6 +314,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
             defaultMode="personal"
             showModeToggle={isAdmin}
             workspaceId={workspaceId}
+            workspaceSlug={workspaceSlug}
             template={selectedTemplate}
           />
 
@@ -322,6 +324,18 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
               open={createTemplateOpen}
               onOpenChange={setCreateTemplateOpen}
               workspaceSlug={workspaceSlug}
+            />
+          )}
+
+          {/* Edit Template Modal (admin only) */}
+          {isAdmin && templateToEdit && (
+            <EditTemplateModal
+              open={!!templateToEdit}
+              onOpenChange={(v) => {
+                if (!v) setTemplateToEdit(null);
+              }}
+              workspaceSlug={workspaceSlug}
+              template={templateToEdit}
             />
           )}
 
