@@ -72,6 +72,8 @@ from pilot_space.application.services.note import (
 from pilot_space.application.services.note.ai_update_service import (
     NoteAIUpdateService,
 )
+from pilot_space.application.services.note.move_page_service import MovePageService
+from pilot_space.application.services.note.reorder_page_service import ReorderPageService
 from pilot_space.application.services.note_write_lock import NoteWriteLock
 from pilot_space.application.services.onboarding import (
     CreateGuidedNoteService,
@@ -287,6 +289,18 @@ class Container(SkillContainer, PluginContainer):
 
     pin_note_service = providers.Factory(
         PinNoteService,
+        session=providers.Callable(get_current_session),
+        note_repository=InfraContainer.note_repository,
+    )
+
+    move_page_service = providers.Factory(
+        MovePageService,
+        session=providers.Callable(get_current_session),
+        note_repository=InfraContainer.note_repository,
+    )
+
+    reorder_page_service = providers.Factory(
+        ReorderPageService,
         session=providers.Callable(get_current_session),
         note_repository=InfraContainer.note_repository,
     )

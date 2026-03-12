@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import joinedload, selectinload
 
 from pilot_space.infrastructure.database.models.note import Note
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from uuid import UUID
 
+    from sqlalchemy import RowMapping
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -326,6 +327,93 @@ class NoteRepository(BaseRepository[Note]):
             )
         )
         return result.scalar() is not None
+
+    async def get_children(self, parent_id: UUID) -> Sequence[Note]:
+        """Get direct children of a note ordered by position ascending.
+
+        Args:
+            parent_id: The parent note ID.
+
+        Returns:
+            Ordered list of direct child notes.
+        """
+        query = (
+            select(Note)
+            .where(
+                Note.parent_id == parent_id,
+                Note.is_deleted == False,  # noqa: E712
+            )
+            .order_by(Note.position.asc())
+        )
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
+    async def get_siblings(
+        self,
+        parent_id: UUID | None,
+        workspace_id: UUID,
+        project_id: UUID | None,
+        exclude_note_id: UUID,
+    ) -> Sequence[Note]:
+        """Get siblings of a note (notes sharing same parent) ordered by position ASC.
+
+        Args:
+            parent_id: The shared parent ID (None for root-level siblings).
+            workspace_id: The workspace ID.
+            project_id: The project ID (None for personal notes).
+            exclude_note_id: Note ID to exclude from results.
+
+        Returns:
+            Ordered list of sibling notes.
+        """
+        query = select(Note).where(
+            Note.workspace_id == workspace_id,
+            Note.is_deleted == False,  # noqa: E712
+            Note.id != exclude_note_id,
+        )
+        if parent_id is None:
+            query = query.where(Note.parent_id.is_(None))
+        else:
+            query = query.where(Note.parent_id == parent_id)
+
+        if project_id is None:
+            query = query.where(Note.project_id.is_(None))
+        else:
+            query = query.where(Note.project_id == project_id)
+
+        query = query.order_by(Note.position.asc())
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
+    async def get_descendants(self, note_id: UUID) -> Sequence[RowMapping]:
+        """Get all descendants of a note using a recursive CTE.
+
+        Uses PostgreSQL WITH RECURSIVE to traverse the note tree.
+        Unit tests must mock this method since SQLite cannot run this CTE pattern.
+
+        Args:
+            note_id: The root note ID whose descendants to retrieve.
+
+        Returns:
+            Sequence of row mappings with id, parent_id, depth, position columns.
+        """
+        cte_sql = text(
+            """
+            WITH RECURSIVE descendants AS (
+                SELECT id, parent_id, depth, position
+                FROM notes
+                WHERE parent_id = :root_id AND is_deleted = false
+                UNION ALL
+                SELECT n.id, n.parent_id, n.depth, n.position
+                FROM notes n
+                JOIN descendants d ON n.parent_id = d.id
+                WHERE n.is_deleted = false
+            )
+            SELECT * FROM descendants
+            """
+        )
+        result = await self.session.execute(cte_sql, {"root_id": str(note_id)})
+        return result.mappings().all()
 
     async def search_full_text(
         self,

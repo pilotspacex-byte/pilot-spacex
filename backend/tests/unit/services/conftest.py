@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
     full_name TEXT,
     avatar_url TEXT,
     default_sdlc_role TEXT,
+    bio TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_deleted BOOLEAN DEFAULT 0 NOT NULL,
@@ -45,6 +46,11 @@ CREATE TABLE IF NOT EXISTS workspaces (
     slug TEXT NOT NULL UNIQUE,
     description TEXT,
     settings TEXT,
+    audit_retention_days INTEGER DEFAULT 90,
+    rate_limit_standard_rpm INTEGER DEFAULT 60,
+    rate_limit_ai_rpm INTEGER DEFAULT 20,
+    storage_quota_mb INTEGER DEFAULT 5120,
+    storage_used_bytes INTEGER DEFAULT 0,
     owner_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -69,6 +75,8 @@ CREATE TABLE IF NOT EXISTS projects (
     name TEXT NOT NULL,
     description TEXT,
     identifier TEXT NOT NULL,
+    icon TEXT,
+    settings TEXT,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     lead_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     default_assignee_id TEXT,
@@ -78,6 +86,115 @@ CREATE TABLE IF NOT EXISTS projects (
     cover_image TEXT,
     sort_order REAL DEFAULT 65535,
     estimate_type TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS templates (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT '',
+    description TEXT,
+    content TEXT,
+    category TEXT,
+    is_default BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS notes (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    project_id TEXT REFERENCES projects(id),
+    owner_id TEXT REFERENCES users(id),
+    title TEXT NOT NULL DEFAULT '',
+    content TEXT,
+    summary TEXT,
+    word_count INTEGER DEFAULT 0,
+    reading_time_mins INTEGER DEFAULT 0,
+    parent_id TEXT REFERENCES notes(id) ON DELETE SET NULL,
+    depth INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0,
+    is_pinned BOOLEAN DEFAULT 0,
+    is_guided_template BOOLEAN DEFAULT 0,
+    template_id TEXT,
+    source_chat_session_id TEXT,
+    last_edited_by_id TEXT,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS note_annotations (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    block_id TEXT,
+    type TEXT,
+    content TEXT,
+    confidence REAL,
+    status TEXT,
+    ai_metadata TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS threaded_discussions (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    note_id TEXT REFERENCES notes(id) ON DELETE CASCADE,
+    block_id TEXT,
+    title TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    target_type TEXT NOT NULL DEFAULT 'note',
+    target_id TEXT,
+    resolved_by_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS issues (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    project_id TEXT,
+    title TEXT NOT NULL DEFAULT '',
+    description TEXT,
+    state_id TEXT,
+    priority TEXT,
+    sequence_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS note_issue_links (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    link_type TEXT NOT NULL DEFAULT 'reference',
+    block_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS note_note_links (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    source_note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    target_note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_deleted BOOLEAN DEFAULT 0 NOT NULL,

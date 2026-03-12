@@ -181,6 +181,48 @@ class NoteSearchResponse(BaseSchema):
     query: str = Field(description="Search query")
 
 
+# ============================================================
+# Tree operation schemas
+# ============================================================
+
+
+class MovePageRequest(BaseSchema):
+    """Request schema for moving a page to a new parent.
+
+    Attributes:
+        new_parent_id: Target parent note ID. None promotes the page to tree root.
+    """
+
+    new_parent_id: UUID | None = Field(
+        default=None,
+        description="Target parent note ID. None promotes to tree root.",
+    )
+
+
+class ReorderPageRequest(BaseSchema):
+    """Request schema for reordering a page among its siblings.
+
+    Attributes:
+        insert_after_id: Sibling note ID to insert after. None prepends.
+    """
+
+    insert_after_id: UUID | None = Field(
+        default=None,
+        description="Sibling note ID to insert after. None prepends.",
+    )
+
+
+class PageTreeResponse(NoteResponse):
+    """Schema for note response with tree hierarchy fields.
+
+    Extends NoteResponse with parent_id, depth, and position.
+    """
+
+    parent_id: UUID | None = Field(default=None, description="Parent note ID")
+    depth: int = Field(default=0, description="Tree depth (0=root, 1=section, 2=page)")
+    position: int = Field(default=0, description="Sibling position (lower = earlier)")
+
+
 # Export for TipTap content extraction
 def extract_blocks_from_tiptap(
     content: TipTapContentSchema | dict[str, Any] | None,
@@ -296,6 +338,7 @@ class AIUpdateResponse(BaseSchema):
 __all__ = [
     "AIUpdateRequest",
     "AIUpdateResponse",
+    "MovePageRequest",
     "NoteBlockSchema",
     "NoteCreate",
     "NoteDetailResponse",
@@ -306,6 +349,8 @@ __all__ = [
     "NoteSearchResult",
     "NoteSummary",
     "NoteUpdate",
+    "PageTreeResponse",
+    "ReorderPageRequest",
     "TipTapContentSchema",
     "extract_blocks_from_tiptap",
     "extract_text_from_tiptap",

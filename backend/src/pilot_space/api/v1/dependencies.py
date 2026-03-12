@@ -69,6 +69,8 @@ from pilot_space.application.services.note import (
 from pilot_space.application.services.note.ai_update_service import (
     NoteAIUpdateService,
 )
+from pilot_space.application.services.note.move_page_service import MovePageService
+from pilot_space.application.services.note.reorder_page_service import ReorderPageService
 from pilot_space.application.services.onboarding import (
     CreateGuidedNoteService,
     GetOnboardingService,
@@ -650,6 +652,28 @@ def _get_rbac_service(
 
 RbacServiceDep = Annotated[RbacService, Depends(_get_rbac_service)]
 
+# ===== Tree Page Service Dependencies =====
+
+
+@inject
+def _get_move_page_service(
+    svc: MovePageService = Depends(Provide[Container.move_page_service]),
+) -> MovePageService:
+    return svc
+
+
+MovePageServiceDep = Annotated[MovePageService, Depends(_get_move_page_service)]
+
+
+@inject
+def _get_reorder_page_service(
+    svc: ReorderPageService = Depends(Provide[Container.reorder_page_service]),
+) -> ReorderPageService:
+    return svc
+
+
+ReorderPageServiceDep = Annotated[ReorderPageService, Depends(_get_reorder_page_service)]
+
 __all__ = [  # noqa: RUF022
     "ActivityRepositoryDep",
     "CycleRepositoryDep",
@@ -709,4 +733,6 @@ __all__ = [  # noqa: RUF022
     "WorkspaceInvitationServiceDep",
     "TaskServiceDep",
     "RbacServiceDep",
+    "MovePageServiceDep",
+    "ReorderPageServiceDep",
 ]
