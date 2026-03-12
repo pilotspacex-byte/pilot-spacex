@@ -56,64 +56,24 @@ Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data 
 - ✓ Backup/restore CLI: pg_dump + Storage + AES-256-GCM encryption — v1.0
 - ✓ Zero-downtime migration path from earlier versions — v1.0
 
-## Current Milestone: v1.0-alpha Pre-Production Launch
-
-**Goal:** Make the product usable from first sign-in through productive daily use — fixing onboarding gaps, adding remote MCP extensibility, related issues, workspace role skills, custom skill buttons, model selection, and multi-provider AI support.
-
-**Target features:**
-- Auto-workspace creation on sign-up + guided onboarding (ONBD)
-- Bug fixes: empty page + skill save 422 (BUG)
-- Remote MCP server management with Bearer + OAuth auth (MCP)
-- Related issues via semantic lookup + manual linking (RELISS)
-- Workspace-level role skills admin-configured (WRSKL)
-- Custom skill action buttons on issue page (SKBTN)
-- AI model selector per chat session (CHAT)
-- Multi-provider registry: built-ins + custom OpenAI-compatible (AIPR)
-- Tech debt closure: OIDC E2E, MCP approval wiring, xfail tests, key rotation (DEBT)
+<!-- v1.0-alpha Pre-Production Launch — shipped 2026-03-12 -->
+- ✓ Auto-workspace creation on sign-up + guided onboarding checklist — v1.0-alpha
+- ✓ Bug fixes: skill wizard UUID resolution + empty page redirect — v1.0-alpha
+- ✓ Workspace switcher: name + member count + last-visited path — v1.0-alpha
+- ✓ Multi-provider BYOK registry (Anthropic, OpenAI, Kimi, GLM, Gemini, custom) — v1.0-alpha
+- ✓ Per-session AI model selector with localStorage persistence — v1.0-alpha
+- ✓ Remote MCP server management with Bearer + OAuth2 auth — v1.0-alpha
+- ✓ PilotSpaceAgent hot-loads registered MCP servers per workspace — v1.0-alpha
+- ✓ Related issues: semantic similarity suggestions + manual linking + dismissal — v1.0-alpha
+- ✓ Workspace role skills: AI generation, admin approval, role inheritance — v1.0-alpha
+- ✓ Skill action buttons on issue page bound to skills/MCP tools — v1.0-alpha
+- ✓ Plugin marketplace: versioned official plugins, one-click install, update notifications — v1.0-alpha
+- ✓ Skill template catalog: browsable templates + AI personalization — v1.0-alpha
+- ✓ Tech debt closure: OIDC E2E, MCP approval wiring, key rotation — v1.0-alpha
 
 ### Active
 
-<!-- v1.0-alpha: pre-production launch milestone -->
-
-- [ ] ONBD-01: New user sign-in auto-creates workspace (name from email/display name)
-- [ ] ONBD-02: Onboarding checklist shown after workspace creation — never empty page
-- [ ] ONBD-03: API key step has inline guidance + test connection button
-- [ ] ONBD-04: Skill generation step shows success confirmation
-- [ ] ONBD-05: Each onboarding step links to relevant settings action
-- [ ] BUG-01: Skill wizard workspaceId always UUID before API call
-- [ ] BUG-02: New account signup never lands on blank screen
-- [ ] WS-01: Workspace switcher shows name + member count
-- [ ] WS-02: Workspace switch lands on last visited page
-- [ ] RELISS-01: Issue detail shows auto-suggested related issues (semantic similarity)
-- [ ] RELISS-02: User can manually link/unlink related issues
-- [ ] RELISS-03: Relations surface notes, project, and semantic similarity
-- [ ] RELISS-04: User can dismiss AI suggestions permanently
-- [ ] WRSKL-01: Admin writes role description; AI generates workspace-level skill
-- [ ] WRSKL-02: Admin reviews and approves AI-generated skill before activation
-- [ ] WRSKL-03: Members inherit workspace skill for their role
-- [ ] WRSKL-04: Personal skill overrides workspace skill for same role
-- [ ] SKBTN-01: Admin defines custom action buttons for issue detail page
-- [ ] SKBTN-02: Button bound to skill or remote MCP tool
-- [ ] SKBTN-03: Button triggers ChatAI with issue context + bound skill/tool
-- [ ] SKBTN-04: Button execution respects AI approval policy
-- [ ] MCP-01: Admin registers remote MCP server by URL + name
-- [ ] MCP-02: Bearer token auth for remote MCP server
-- [ ] MCP-03: OAuth 2.0 redirect auth for remote MCP server
-- [ ] MCP-04: Registered servers dynamically available to PilotSpaceAgent
-- [ ] MCP-05: Connection status visible per server
-- [ ] MCP-06: Admin can remove a remote MCP server
-- [ ] CHAT-01: User selects AI model from workspace-available models
-- [ ] CHAT-02: Selected model persists per workspace session
-- [ ] CHAT-03: Model selector disabled when no valid API key configured
-- [ ] AIPR-01: Admin configures keys for pre-defined providers (Anthropic, OpenAI, Kimi, GLM, Gemini)
-- [ ] AIPR-02: Admin registers custom provider by name + base URL + API key
-- [ ] AIPR-03: All configured providers/models surfaced in model selector
-- [ ] AIPR-04: PilotSpaceAgent routes to selected provider/model
-- [ ] AIPR-05: Provider status shows connected/invalid/unreachable
-- [ ] DEBT-01: OIDC login flow browser-verified E2E
-- [ ] DEBT-02: issue_relation_server + note_content_server use check_approval_from_db()
-- [ ] DEBT-03: Async HTTP client fixture — 2 xfail audit tests passing
-- [ ] DEBT-04: Key rotation re-encryption implemented
+(No active requirements — next milestone not yet defined)
 
 ### Out of Scope
 
@@ -127,17 +87,18 @@ Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data 
 
 ## Context
 
-Shipped v1.0 Enterprise on 2026-03-09. Codebase: ~782K lines (Python + TypeScript) across 11 completed phases and 46 plans.
+Shipped v1.0-alpha Pre-Production Launch on 2026-03-12. Total codebase: ~880K lines (Python + TypeScript) across 20 completed phases and 77 plans over two milestones.
 
 **Tech stack:** FastAPI + SQLAlchemy async + Next.js 15 App Router + MobX + TanStack Query + shadcn/ui + Supabase Auth + PostgreSQL 16 (pgvector, pgmq, RLS) + Redis + Meilisearch.
 
-**Current state:** All 30 enterprise requirements satisfied. Platform is self-hostable (Docker Compose or Helm), auditable (immutable log, CSV/JSON export), and enterprise-auth ready (SAML 2.0, OIDC, SCIM 2.0). Two known tech-debt items pending for next milestone.
+**Current state:** All 69 requirements satisfied across v1.0 (30) and v1.0-alpha (39). Platform is self-hostable, auditable, enterprise-auth ready, with full onboarding flow, multi-provider AI, MCP extensibility, plugin marketplace, and skill template catalog. Product is usable from first sign-in through productive daily use.
 
-**Known issues / tech debt:**
-- OIDC E2E browser flow not verified (role claim application in frontend confirmed, but no browser test)
-- 2 of 6 MCP servers bypass DB approval policy (10 tools use static level)
-- 2 xfail audit API tests blocked by missing async HTTP client fixture
-- Key rotation re-encryption deferred (xfail stub)
+**Known tech debt:**
+- OAuth2 MCP server UI: backend support exists but no frontend "Authorize" button
+- SeedPluginsService fire-and-forget asyncio.create_task shares request-scoped session
+- ai_chat.py at 700-line limit (any addition requires refactor)
+- Dead schemas/mcp_server.py file (superseded by inline schemas)
+- Phase 016 VERIFICATION.md never generated (process gap)
 
 ## Constraints
 
@@ -158,9 +119,10 @@ Shipped v1.0 Enterprise on 2026-03-09. Codebase: ~782K lines (Python + TypeScrip
 | pgmq for async job queue | Native PostgreSQL; avoids Redis/Kafka dependency | ✓ Good |
 | SSO via Supabase Auth PKCE (SAML) | Custom SAML callback + `generate_link` + `verifyOtp` — Supabase handles JWT issuance | ✓ Good |
 | AI approval policies per-role | Per-role DB policy rows; four-tier priority (ALWAYS_REQUIRE → owner → DB → fallback) | ✓ Good |
-| `audit_log_repository` as `providers.Factory` | Immutable audit rows need fresh AsyncSession per request; Singleton shares session across concurrent requests | ✓ Good |
-| RateLimitMiddleware at module level with lazy `_resolve_redis()` | Starlette freezes middleware stack at lifespan start; module-level registration needed | ✓ Good |
-| `AuditLog` uses `Base+TimestampMixin+WorkspaceScopedMixin` (not `WorkspaceScopedModel`) | Exclude `SoftDeleteMixin` — audit records are immutable and must not support soft-delete | ✓ Good |
+| Plugin marketplace model | Versioned skill + MCP + action buttons as installable unit; replaces static built-ins | ✓ Good |
+| Skill templates decoupled from roles | Unified skill_templates + user_skills tables; users pick templates, AI personalizes | ✓ Good |
+| Multi-provider registry with custom OpenAI-compat | PROVIDER_DISPLAY_NAMES lookup + model_validator; trivially extensible | ✓ Good |
+| Remote MCP hot-loading per workspace | _load_remote_mcp_servers in PilotSpaceAgent; no restart required | ✓ Good |
 
 ---
-*Last updated: 2026-03-09 after v1.0-alpha milestone start*
+*Last updated: 2026-03-12 after v1.0-alpha milestone completion*
