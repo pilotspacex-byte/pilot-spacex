@@ -1,0 +1,434 @@
+"""KnowledgeGraphQueryService — read-only operations for the knowledge graph API.
+
+Encapsulates neighbor traversal, subgraph extraction, user context,
+and entity-scoped (issue/project) graph retrieval with optional GitHub
+node synthesis.
+
+Feature 016: Knowledge Graph — Unit 7 REST API
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+from uuid import NAMESPACE_URL, UUID, uuid5
+
+from sqlalchemy import select
+
+from pilot_space.domain.graph_edge import EdgeType, GraphEdge
+from pilot_space.domain.graph_node import GraphNode, NodeType
+from pilot_space.infrastructure.database.models.integration import (
+    IntegrationLinkType,
+)
+from pilot_space.infrastructure.database.models.issue import Issue as IssueModel
+from pilot_space.infrastructure.database.models.project import Project as ProjectModel
+from pilot_space.infrastructure.logging import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from pilot_space.infrastructure.database.models.integration import IntegrationLink
+    from pilot_space.infrastructure.database.repositories.integration_link_repository import (
+        IntegrationLinkRepository,
+    )
+    from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
+        KnowledgeGraphRepository,
+    )
+
+logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Node importance tiers for sorting
+# ---------------------------------------------------------------------------
+
+_TIER_HIGH: frozenset[str] = frozenset(
+    {
+        NodeType.ISSUE.value,
+        NodeType.NOTE.value,
+        NodeType.DECISION.value,
+        NodeType.PROJECT.value,
+    }
+)
+_TIER_MID: frozenset[str] = frozenset(
+    {
+        NodeType.PULL_REQUEST.value,
+        NodeType.BRANCH.value,
+        NodeType.COMMIT.value,
+        NodeType.CODE_REFERENCE.value,
+        NodeType.WORK_INTENT.value,
+    }
+)
+
+_GITHUB_NODE_TYPE_MAP: dict[IntegrationLinkType, str] = {
+    IntegrationLinkType.PULL_REQUEST: NodeType.PULL_REQUEST.value,
+    IntegrationLinkType.BRANCH: NodeType.BRANCH.value,
+    IntegrationLinkType.COMMIT: NodeType.COMMIT.value,
+    IntegrationLinkType.MENTION: NodeType.NOTE.value,
+}
+
+
+def _node_tier(node_type: str) -> int:
+    """Return sort priority tier (lower = higher priority)."""
+    if node_type in _TIER_HIGH:
+        return 0
+    if node_type in _TIER_MID:
+        return 1
+    return 2
+
+
+# ---------------------------------------------------------------------------
+# Result dataclasses
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class NeighborResult:
+    """Result from a neighbor traversal."""
+
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+    center_node_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class SubgraphResult:
+    """Result from subgraph extraction."""
+
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+    center_node_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class UserContextResult:
+    """Result from user context retrieval."""
+
+    nodes: list[GraphNode]
+
+
+@dataclass(slots=True)
+class EphemeralNode:
+    """Ephemeral GitHub node synthesized from integration links."""
+
+    id: str
+    node_type: str
+    label: str
+    summary: str
+    properties: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class EntitySubgraphResult:
+    """Result from entity-scoped subgraph extraction."""
+
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+    ephemeral_nodes: list[EphemeralNode]
+    center_node_id: UUID | None
+    node_type_filter_applied: bool = False
+
+
+class EntityNotFoundError(Exception):
+    """Raised when the target entity (issue/project) does not exist."""
+
+    def __init__(self, entity_type: str, entity_id: UUID) -> None:
+        self.entity_type = entity_type
+        self.entity_id = entity_id
+        super().__init__(f"{entity_type} {entity_id} not found")
+
+
+class RootNodeNotFoundError(Exception):
+    """Raised when the root node for subgraph extraction does not exist."""
+
+    def __init__(self, node_id: UUID) -> None:
+        self.node_id = node_id
+        super().__init__(f"Root node {node_id} not found")
+
+
+# ---------------------------------------------------------------------------
+# Service
+# ---------------------------------------------------------------------------
+
+
+class KnowledgeGraphQueryService:
+    """Read-only service for knowledge graph queries.
+
+    Encapsulates neighbor traversal, subgraph extraction, user context,
+    and entity-scoped graph retrieval. Raises domain exceptions instead
+    of HTTP exceptions.
+    """
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        knowledge_graph_repository: KnowledgeGraphRepository,
+        integration_link_repository: IntegrationLinkRepository,
+    ) -> None:
+        self._session = session
+        self._kg_repo = knowledge_graph_repository
+        self._il_repo = integration_link_repository
+
+    async def get_neighbors(
+        self,
+        *,
+        node_id: UUID,
+        workspace_id: UUID,
+        depth: int = 1,
+        edge_types: list[EdgeType] | None = None,
+    ) -> NeighborResult:
+        """Return local neighborhood subgraph around the given node."""
+        neighbors = await self._kg_repo.get_neighbors(
+            node_id=node_id,
+            edge_types=edge_types,
+            depth=depth,
+            workspace_id=workspace_id,
+        )
+        center_node = await self._kg_repo.get_node_by_id(node_id, workspace_id)
+        all_nodes = ([center_node] if center_node else []) + neighbors
+        all_ids = [n.id for n in all_nodes]
+        edges = await self._kg_repo.get_edges_between(all_ids, workspace_id=workspace_id)
+        return NeighborResult(nodes=all_nodes, edges=edges, center_node_id=node_id)
+
+    async def get_subgraph(
+        self,
+        *,
+        root_id: UUID,
+        workspace_id: UUID,
+        max_depth: int = 2,
+        max_nodes: int = 50,
+    ) -> SubgraphResult:
+        """Extract a subgraph for visualization centered on root_id."""
+        if not await self._kg_repo.get_node_by_id(root_id, workspace_id):
+            raise RootNodeNotFoundError(root_id)
+        nodes, edges = await self._kg_repo.get_subgraph(
+            root_id=root_id,
+            max_depth=max_depth,
+            max_nodes=max_nodes,
+            workspace_id=workspace_id,
+        )
+        return SubgraphResult(nodes=nodes, edges=edges, center_node_id=root_id)
+
+    async def get_user_context(
+        self,
+        *,
+        workspace_id: UUID,
+        user_id: UUID,
+        limit: int = 10,
+    ) -> UserContextResult:
+        """Return personal context nodes for the current user."""
+        nodes = await self._kg_repo.get_user_context(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            limit=limit,
+        )
+        return UserContextResult(nodes=nodes)
+
+    async def get_issue_knowledge_graph(
+        self,
+        *,
+        issue_id: UUID,
+        workspace_id: UUID,
+        depth: int = 2,
+        node_types: str | None = None,
+        max_nodes: int = 50,
+        include_github: bool = True,
+    ) -> EntitySubgraphResult:
+        """Return knowledge graph subgraph for an issue."""
+        exists = (
+            await self._session.execute(
+                select(IssueModel.id).where(
+                    IssueModel.id == issue_id,
+                    IssueModel.workspace_id == workspace_id,
+                    IssueModel.is_deleted == False,  # noqa: E712
+                )
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            raise EntityNotFoundError("Issue", issue_id)
+
+        from pilot_space.infrastructure.database.models.integration import IntegrationLink
+
+        return await self._build_entity_subgraph(
+            entity_id=issue_id,
+            workspace_id=workspace_id,
+            depth=depth,
+            node_types=node_types,
+            max_nodes=max_nodes,
+            include_github=include_github,
+            github_link_filter=IntegrationLink.issue_id == issue_id,
+            fetch_max_override=100,
+            log_event="knowledge_graph_issue_no_node",
+        )
+
+    async def get_project_knowledge_graph(
+        self,
+        *,
+        project_id: UUID,
+        workspace_id: UUID,
+        depth: int = 2,
+        node_types: str | None = None,
+        max_nodes: int = 50,
+        include_github: bool = True,
+    ) -> EntitySubgraphResult:
+        """Return knowledge graph subgraph for a project."""
+        exists = (
+            await self._session.execute(
+                select(ProjectModel.id).where(
+                    ProjectModel.id == project_id,
+                    ProjectModel.workspace_id == workspace_id,
+                    ProjectModel.is_deleted == False,  # noqa: E712
+                )
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            raise EntityNotFoundError("Project", project_id)
+
+        from pilot_space.infrastructure.database.models.integration import IntegrationLink
+
+        return await self._build_entity_subgraph(
+            entity_id=project_id,
+            workspace_id=workspace_id,
+            depth=depth,
+            node_types=node_types,
+            max_nodes=max_nodes,
+            include_github=include_github,
+            github_link_filter=IntegrationLink.issue_id.in_(
+                select(IssueModel.id).where(
+                    IssueModel.project_id == project_id,
+                    IssueModel.workspace_id == workspace_id,
+                    IssueModel.is_deleted == False,  # noqa: E712
+                )
+            ),
+            fetch_max_override=200,
+            log_event="knowledge_graph_project_no_node",
+        )
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    async def _build_entity_subgraph(
+        self,
+        *,
+        entity_id: UUID,
+        workspace_id: UUID,
+        depth: int,
+        node_types: str | None,
+        max_nodes: int,
+        include_github: bool,
+        github_link_filter: Any,
+        fetch_max_override: int = 100,
+        log_event: str = "knowledge_graph_entity_no_node",
+    ) -> EntitySubgraphResult:
+        """Shared pipeline: graph node lookup -> subgraph -> GitHub synthesis -> sort."""
+        # Step 1: Find graph node linked to this entity
+        graph_node = await self._kg_repo.find_node_by_external_id(entity_id, workspace_id)
+
+        # Step 2: No graph node -> empty response
+        if graph_node is None:
+            logger.info(log_event, entity_id=str(entity_id), workspace_id=str(workspace_id))
+            return EntitySubgraphResult(
+                nodes=[],
+                edges=[],
+                ephemeral_nodes=[],
+                center_node_id=None,
+            )
+
+        center_node_id = graph_node.id
+
+        # Step 3: Extract subgraph
+        _fetch_max = fetch_max_override if node_types else max_nodes
+        nodes, edges = await self._kg_repo.get_subgraph(
+            root_id=center_node_id,
+            max_depth=depth,
+            max_nodes=_fetch_max,
+            workspace_id=workspace_id,
+        )
+
+        # Step 4: Filter by node types if specified
+        filter_applied = False
+        if node_types:
+            allowed = {t.strip() for t in node_types.split(",") if t.strip()}
+            nodes = [n for n in nodes if n.node_type.value in allowed][:max_nodes]
+            node_ids = {n.id for n in nodes}
+            edges = [e for e in edges if e.source_id in node_ids and e.target_id in node_ids]
+            filter_applied = True
+
+        # Step 5: Synthesize ephemeral GitHub nodes
+        ephemeral_nodes: list[EphemeralNode] = []
+        if include_github:
+            ephemeral_nodes = await self._synthesize_github_nodes(
+                nodes=nodes,
+                workspace_id=workspace_id,
+                github_link_filter=github_link_filter,
+            )
+
+        # Step 6: Sort nodes by importance tier
+        nodes.sort(key=lambda n: _node_tier(n.node_type.value))
+
+        return EntitySubgraphResult(
+            nodes=nodes,
+            edges=edges,
+            ephemeral_nodes=ephemeral_nodes,
+            center_node_id=center_node_id,
+            node_type_filter_applied=filter_applied,
+        )
+
+    async def _synthesize_github_nodes(
+        self,
+        *,
+        nodes: list[GraphNode],
+        workspace_id: UUID,
+        github_link_filter: Any,
+    ) -> list[EphemeralNode]:
+        """Create ephemeral nodes from integration links not already in the graph."""
+        integration_links: Sequence[
+            IntegrationLink
+        ] = await self._il_repo.get_by_workspace_with_filter(workspace_id, github_link_filter)
+
+        existing_external_ids = {
+            str(n.properties.get("external_id"))
+            for n in nodes
+            if n.properties and n.properties.get("external_id") is not None
+        }
+        now = datetime.now(tz=UTC)
+        ephemeral: list[EphemeralNode] = []
+
+        for link in integration_links:
+            if str(link.external_id) in existing_external_ids:
+                continue
+            mapped_type = _GITHUB_NODE_TYPE_MAP.get(link.link_type, NodeType.NOTE.value)
+            ephemeral.append(
+                EphemeralNode(
+                    id=str(uuid5(NAMESPACE_URL, f"ephemeral:{link.external_id}")),
+                    node_type=mapped_type,
+                    label=link.title or link.external_id,
+                    summary=f"GitHub {link.link_type.value}: {link.title or link.external_id}",
+                    properties={
+                        "external_id": link.external_id,
+                        "external_url": link.external_url,
+                        "author_name": link.author_name,
+                        "ephemeral": True,
+                    },
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        return ephemeral
+
+
+__all__ = [
+    "EntityNotFoundError",
+    "EntitySubgraphResult",
+    "EphemeralNode",
+    "KnowledgeGraphQueryService",
+    "NeighborResult",
+    "RootNodeNotFoundError",
+    "SubgraphResult",
+    "UserContextResult",
+]

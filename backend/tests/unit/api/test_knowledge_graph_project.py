@@ -1,10 +1,13 @@
 """Unit tests for the project-scoped Knowledge Graph endpoint.
 
 Tests cover:
-- 404 when project doesn't exist
+- 404 when project doesn't exist (EntityNotFoundError from service)
 - Empty response when no graph node exists for project
 - Successful subgraph return when graph node exists
 - GitHub node synthesis from project issues' integration_links
+- Parameter forwarding to KnowledgeGraphQueryService
+
+Router-level tests mock KnowledgeGraphQueryService (injected via kg_service param).
 
 Feature 016: Knowledge Graph — Project-scoped endpoint
 """
@@ -22,6 +25,11 @@ from pilot_space.api.v1.routers.knowledge_graph import (
     get_project_knowledge_graph,
 )
 from pilot_space.api.v1.schemas.knowledge_graph import GraphResponse
+from pilot_space.application.services.memory.knowledge_graph_query_service import (
+    EntityNotFoundError,
+    EntitySubgraphResult,
+    EphemeralNode,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -76,58 +84,43 @@ def _make_graph_edge(
     return edge
 
 
-def _make_integration_link_mock(
-    link_type: str = "pull_request",
-    title: str = "feat: add something",
+def _make_ephemeral_node(
+    node_type: str = "pull_request",
+    label: str = "feat: new feature",
     external_id: str = "123",
-) -> MagicMock:
-    """Build a mock IntegrationLink model."""
-    from pilot_space.infrastructure.database.models.integration import IntegrationLinkType
-
-    link = MagicMock()
-    link.workspace_id = TEST_WORKSPACE_ID
-    link.link_type = IntegrationLinkType(link_type)
-    link.title = title
-    link.external_id = external_id
-    link.external_url = f"https://github.com/repo/pull/{external_id}"
-    link.author_name = "dev"
-    link.is_deleted = False
-    return link
-
-
-def _make_repo(**kwargs: object) -> AsyncMock:
-    """Build a mock KnowledgeGraphRepository."""
-    repo = AsyncMock()
-    repo.get_subgraph = AsyncMock(return_value=([], []))
-    for key, value in kwargs.items():
-        setattr(repo, key, value)
-    return repo
+) -> EphemeralNode:
+    """Build an EphemeralNode dataclass."""
+    now = datetime.now(tz=UTC)
+    return EphemeralNode(
+        id=f"ephemeral-{external_id}",
+        node_type=node_type,
+        label=label,
+        summary=f"GitHub {node_type}: {label}",
+        properties={
+            "external_id": external_id,
+            "external_url": f"https://github.com/repo/pull/{external_id}",
+            "author_name": "dev",
+            "ephemeral": True,
+        },
+        created_at=now,
+        updated_at=now,
+    )
 
 
-def _make_sequential_session(*responses: dict[str, object]) -> AsyncMock:
-    """Build a mock AsyncSession returning different results on successive execute calls."""
-    call_index = 0
-
-    async def _execute(stmt: object, *args: object, **kwargs: object) -> object:
-        nonlocal call_index
-        idx = min(call_index, len(responses) - 1)
-        call_index += 1
-        spec = responses[idx]
-        result = MagicMock()
-        result.scalar_one_or_none = MagicMock(return_value=spec.get("scalar"))
-        scalars_mock = MagicMock()
-        scalars_mock.all = MagicMock(return_value=spec.get("scalars_all") or [])
-        result.scalars = MagicMock(return_value=scalars_mock)
-        return result
-
-    session = AsyncMock()
-    session.execute = AsyncMock(side_effect=_execute)
-    return session
+def _make_session() -> AsyncMock:
+    """Build a mock AsyncSession."""
+    return AsyncMock()
 
 
-# Shared patch targets
+def _make_kg_service() -> AsyncMock:
+    """Build a mock KnowledgeGraphQueryService."""
+    svc = AsyncMock()
+    svc.get_project_knowledge_graph = AsyncMock()
+    return svc
+
+
+# Shared patch target
 _RLS_PATCH = "pilot_space.api.v1.routers.knowledge_graph.set_rls_context"
-_REPO_PATCH = "pilot_space.api.v1.routers.knowledge_graph.KnowledgeGraphRepository"
 
 
 def _default_kwargs(**overrides: object) -> dict[str, object]:
@@ -154,20 +147,25 @@ class TestProjectKnowledgeGraph404:
     """GET /workspaces/{wid}/projects/{pid}/knowledge-graph — not found."""
 
     async def test_returns_404_with_correct_detail(self) -> None:
-        """Non-existent project raises 404 with 'Project not found' detail."""
-        session = _make_sequential_session({"scalar": None})
-        repo = _make_repo()
+        """EntityNotFoundError from service is translated to 404."""
+        kg_service = _make_kg_service()
+        kg_service.get_project_knowledge_graph.side_effect = EntityNotFoundError(
+            "Project", TEST_PROJECT_ID
+        )
+        session = _make_session()
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            patch(_REPO_PATCH, return_value=repo),
             pytest.raises(HTTPException) as exc_info,
         ):
-            await get_project_knowledge_graph(session=session, **_default_kwargs())  # type: ignore[arg-type]
+            await get_project_knowledge_graph(
+                session=session,
+                kg_service=kg_service,
+                **_default_kwargs(),  # type: ignore[arg-type]
+            )
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Project not found"
-        repo.get_subgraph.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -179,38 +177,29 @@ class TestProjectKnowledgeGraphEmpty:
     """Returns empty GraphResponse when project has no graph node."""
 
     async def test_returns_empty_without_calling_subgraph(self) -> None:
-        """Project exists but has no graph node → empty GraphResponse, no subgraph call."""
-        session = _make_sequential_session(
-            {"scalar": TEST_PROJECT_ID},
-            {"scalar": None},
+        """Project exists but has no graph node — empty response, center_node_id=None."""
+        kg_service = _make_kg_service()
+        kg_service.get_project_knowledge_graph.return_value = EntitySubgraphResult(
+            nodes=[], edges=[], ephemeral_nodes=[], center_node_id=None
         )
-        repo = _make_repo()
+        session = _make_session()
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            patch(_REPO_PATCH, return_value=repo),
-        ):
-            result = await get_project_knowledge_graph(session=session, **_default_kwargs())  # type: ignore[arg-type]
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            result = await get_project_knowledge_graph(
+                session=session,
+                kg_service=kg_service,
+                **_default_kwargs(),  # type: ignore[arg-type]
+            )
 
         assert isinstance(result, GraphResponse)
         assert result.nodes == []
         assert result.edges == []
-        assert result.center_node_id == TEST_PROJECT_ID
-        repo.get_subgraph.assert_not_awaited()
+        assert result.center_node_id is None
 
 
 # ---------------------------------------------------------------------------
 # Test: success path
 # ---------------------------------------------------------------------------
-
-
-def _make_gn_model() -> MagicMock:
-    """Build a mock graph node model for the project."""
-    gn = MagicMock()
-    gn.id = TEST_NODE_ID
-    gn.workspace_id = TEST_WORKSPACE_ID
-    gn.is_deleted = False
-    return gn
 
 
 class TestProjectKnowledgeGraphSuccess:
@@ -222,108 +211,118 @@ class TestProjectKnowledgeGraphSuccess:
         issue_node = _make_graph_node(node_type="issue", label="PS-1")
         edge = _make_graph_edge(source_id=TEST_NODE_ID, target_id=issue_node.id)
 
-        session = _make_sequential_session(
-            {"scalar": TEST_PROJECT_ID},
-            {"scalar": _make_gn_model()},
+        kg_service = _make_kg_service()
+        kg_service.get_project_knowledge_graph.return_value = EntitySubgraphResult(
+            nodes=[project_node, issue_node],
+            edges=[edge],
+            ephemeral_nodes=[],
+            center_node_id=TEST_NODE_ID,
         )
-        repo = _make_repo(get_subgraph=AsyncMock(return_value=([project_node, issue_node], [edge])))
+        session = _make_session()
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            patch(_REPO_PATCH, return_value=repo),
-        ):
-            result = await get_project_knowledge_graph(session=session, **_default_kwargs())  # type: ignore[arg-type]
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            result = await get_project_knowledge_graph(
+                session=session,
+                kg_service=kg_service,
+                **_default_kwargs(),  # type: ignore[arg-type]
+            )
 
         assert isinstance(result, GraphResponse)
         assert len(result.nodes) == 2
         assert len(result.edges) == 1
         assert result.center_node_id == TEST_NODE_ID
 
-    async def test_depth_and_max_nodes_forwarded_to_subgraph(self) -> None:
-        """depth and max_nodes query params are forwarded to get_subgraph."""
-        session = _make_sequential_session(
-            {"scalar": TEST_PROJECT_ID},
-            {"scalar": _make_gn_model()},
+    async def test_depth_and_max_nodes_forwarded_to_service(self) -> None:
+        """depth and max_nodes query params are forwarded to the service."""
+        kg_service = _make_kg_service()
+        kg_service.get_project_knowledge_graph.return_value = EntitySubgraphResult(
+            nodes=[], edges=[], ephemeral_nodes=[], center_node_id=None
         )
-        repo = _make_repo()
+        session = _make_session()
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            patch(_REPO_PATCH, return_value=repo),
-        ):
-            await get_project_knowledge_graph(  # type: ignore[arg-type]
-                session=session, **_default_kwargs(depth=3, max_nodes=75)
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            await get_project_knowledge_graph(
+                session=session,
+                kg_service=kg_service,
+                **_default_kwargs(depth=3, max_nodes=75),  # type: ignore[arg-type]
             )
 
-        call_kwargs = repo.get_subgraph.call_args.kwargs
-        assert call_kwargs["max_depth"] == 3
+        call_kwargs = kg_service.get_project_knowledge_graph.call_args.kwargs
+        assert call_kwargs["depth"] == 3
         assert call_kwargs["max_nodes"] == 75
 
-    async def test_node_type_filter_applied(self) -> None:
-        """node_types param filters out non-matching nodes from subgraph."""
-        project_node = _make_graph_node(node_id=TEST_NODE_ID, node_type="project", label="MyApp")
+    async def test_node_type_filter_forwarded(self) -> None:
+        """node_types param is forwarded to the service."""
         issue_node = _make_graph_node(node_type="issue", label="PS-1")
-        note_node = _make_graph_node(node_type="note", label="Note")
 
-        session = _make_sequential_session(
-            {"scalar": TEST_PROJECT_ID},
-            {"scalar": _make_gn_model()},
+        kg_service = _make_kg_service()
+        kg_service.get_project_knowledge_graph.return_value = EntitySubgraphResult(
+            nodes=[issue_node],
+            edges=[],
+            ephemeral_nodes=[],
+            center_node_id=TEST_NODE_ID,
+            node_type_filter_applied=True,
         )
-        repo = _make_repo(
-            get_subgraph=AsyncMock(return_value=([project_node, issue_node, note_node], []))
-        )
+        session = _make_session()
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            patch(_REPO_PATCH, return_value=repo),
-        ):
-            result = await get_project_knowledge_graph(  # type: ignore[arg-type]
-                session=session, **_default_kwargs(node_types="issue")
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            result = await get_project_knowledge_graph(
+                session=session,
+                kg_service=kg_service,
+                **_default_kwargs(node_types="issue"),  # type: ignore[arg-type]
             )
 
         assert all(n.node_type == "issue" for n in result.nodes)
+        call_kwargs = kg_service.get_project_knowledge_graph.call_args.kwargs
+        assert call_kwargs["node_types"] == "issue"
 
     async def test_sorts_nodes_by_importance_tier(self) -> None:
-        """Nodes are sorted with issues/notes first, then PR/branch, then others."""
-        skill_node = _make_graph_node(node_type="skill_outcome", label="Skill")
+        """Service returns sorted nodes; verify order preserved in response."""
         issue_node = _make_graph_node(node_type="issue", label="Issue")
         pr_node = _make_graph_node(node_type="pull_request", label="PR")
+        skill_node = _make_graph_node(node_type="skill_outcome", label="Skill")
 
-        session = _make_sequential_session(
-            {"scalar": TEST_PROJECT_ID},
-            {"scalar": _make_gn_model()},
+        kg_service = _make_kg_service()
+        # Service returns already sorted: issue (tier 0), PR (tier 1), skill (tier 2)
+        kg_service.get_project_knowledge_graph.return_value = EntitySubgraphResult(
+            nodes=[issue_node, pr_node, skill_node],
+            edges=[],
+            ephemeral_nodes=[],
+            center_node_id=TEST_NODE_ID,
         )
-        repo = _make_repo(
-            get_subgraph=AsyncMock(return_value=([skill_node, pr_node, issue_node], []))
-        )
+        session = _make_session()
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            patch(_REPO_PATCH, return_value=repo),
-        ):
-            result = await get_project_knowledge_graph(session=session, **_default_kwargs())  # type: ignore[arg-type]
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            result = await get_project_knowledge_graph(
+                session=session,
+                kg_service=kg_service,
+                **_default_kwargs(),  # type: ignore[arg-type]
+            )
 
         assert result.nodes[0].node_type == "issue"
         assert result.nodes[-1].node_type == "skill_outcome"
 
     async def test_synthesizes_github_nodes_from_project_issues(self) -> None:
-        """include_github=true with integration links appends ephemeral PR nodes."""
-        pr_link = _make_integration_link_mock(link_type="pull_request", title="feat: new feature")
+        """Ephemeral PR nodes from service are appended to the response."""
         project_node = _make_graph_node(node_id=TEST_NODE_ID, node_type="project", label="MyApp")
-
-        session = _make_sequential_session(
-            {"scalar": TEST_PROJECT_ID},
-            {"scalar": _make_gn_model()},
-            {"scalars_all": [pr_link]},
+        ephemeral = _make_ephemeral_node(
+            node_type="pull_request", label="feat: new feature", external_id="456"
         )
-        repo = _make_repo(get_subgraph=AsyncMock(return_value=([project_node], [])))
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            patch(_REPO_PATCH, return_value=repo),
-        ):
-            result = await get_project_knowledge_graph(  # type: ignore[arg-type]
-                session=session, **_default_kwargs(include_github=True)
+        kg_service = _make_kg_service()
+        kg_service.get_project_knowledge_graph.return_value = EntitySubgraphResult(
+            nodes=[project_node],
+            edges=[],
+            ephemeral_nodes=[ephemeral],
+            center_node_id=TEST_NODE_ID,
+        )
+        session = _make_session()
+
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            result = await get_project_knowledge_graph(
+                session=session,
+                kg_service=kg_service,
+                **_default_kwargs(include_github=True),  # type: ignore[arg-type]
             )
 
         assert len(result.nodes) >= 2
@@ -331,34 +330,46 @@ class TestProjectKnowledgeGraphSuccess:
         assert len(gh_nodes) == 1
         assert gh_nodes[0].properties.get("ephemeral") is True
 
-    async def test_include_github_false_skips_link_query(self) -> None:
-        """include_github=False does not query integration_links."""
+    async def test_include_github_false_forwarded(self) -> None:
+        """include_github=False is forwarded to the service."""
         project_node = _make_graph_node(node_id=TEST_NODE_ID, node_type="project", label="MyApp")
 
-        session = _make_sequential_session(
-            {"scalar": TEST_PROJECT_ID},
-            {"scalar": _make_gn_model()},
+        kg_service = _make_kg_service()
+        kg_service.get_project_knowledge_graph.return_value = EntitySubgraphResult(
+            nodes=[project_node],
+            edges=[],
+            ephemeral_nodes=[],
+            center_node_id=TEST_NODE_ID,
         )
-        repo = _make_repo(get_subgraph=AsyncMock(return_value=([project_node], [])))
+        session = _make_session()
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            patch(_REPO_PATCH, return_value=repo),
-        ):
-            result = await get_project_knowledge_graph(session=session, **_default_kwargs())  # type: ignore[arg-type]
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            result = await get_project_knowledge_graph(
+                session=session,
+                kg_service=kg_service,
+                **_default_kwargs(),  # type: ignore[arg-type]
+            )
 
         assert len(result.nodes) == 1
-        assert session.execute.await_count == 2
+        call_kwargs = kg_service.get_project_knowledge_graph.call_args.kwargs
+        assert call_kwargs["include_github"] is False
 
     async def test_rls_context_called_with_correct_args(self) -> None:
         """set_rls_context is called with session, user_id, and workspace_id."""
-        session = _make_sequential_session({"scalar": None})
+        kg_service = _make_kg_service()
+        kg_service.get_project_knowledge_graph.side_effect = EntityNotFoundError(
+            "Project", TEST_PROJECT_ID
+        )
+        session = _make_session()
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock) as mock_rls,
-            patch(_REPO_PATCH),
             pytest.raises(HTTPException, match="Project not found"),
         ):
-            await get_project_knowledge_graph(session=session, **_default_kwargs())  # type: ignore[arg-type]
+            await get_project_knowledge_graph(
+                session=session,
+                kg_service=kg_service,
+                **_default_kwargs(),  # type: ignore[arg-type]
+            )
 
         mock_rls.assert_awaited_once_with(session, TEST_USER_ID, TEST_WORKSPACE_ID)

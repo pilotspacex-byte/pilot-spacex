@@ -231,6 +231,28 @@ class IntegrationLinkRepository(BaseRepository[IntegrationLink]):
             link_type=IntegrationLinkType.PULL_REQUEST,
         )
 
+    async def get_by_workspace_with_filter(
+        self,
+        workspace_id: UUID,
+        extra_filter: Any,
+    ) -> Sequence[IntegrationLink]:
+        """Get integration links matching a workspace scope and an extra filter.
+
+        Args:
+            workspace_id: Workspace UUID scope.
+            extra_filter: Additional SQLAlchemy filter clause (e.g. issue_id == X).
+
+        Returns:
+            Sequence of matching integration links.
+        """
+        stmt = select(IntegrationLink).where(
+            extra_filter,
+            IntegrationLink.workspace_id == workspace_id,
+            IntegrationLink.is_deleted == False,  # noqa: E712
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def count_by_issue(
         self,
         issue_id: UUID,
