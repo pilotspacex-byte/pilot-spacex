@@ -14,6 +14,7 @@ import pytest
 from pilot_space.api.v1.routers.ai_sessions import list_sessions, resume_session
 
 TEST_USER_ID = UUID("77a6813e-0aa3-400c-8d4e-540b6ed2187a")
+TEST_WORKSPACE_ID = uuid4()
 
 
 @pytest.mark.asyncio
@@ -22,6 +23,7 @@ async def test_list_sessions_sets_rls_context() -> None:
     mock_db = AsyncMock()
     mock_session_manager = MagicMock()
     user_id = TEST_USER_ID
+    workspace_id = TEST_WORKSPACE_ID
 
     with (
         patch(
@@ -38,9 +40,10 @@ async def test_list_sessions_sets_rls_context() -> None:
             user_id=user_id,
             db_session=mock_db,
             session_manager=mock_session_manager,
+            workspace_id=workspace_id,
         )
 
-        mock_rls.assert_called_once_with(mock_db, user_id)
+        mock_rls.assert_called_once_with(mock_db, user_id, workspace_id)
         assert result.total == 0
 
 
@@ -50,6 +53,7 @@ async def test_resume_session_sets_rls_context() -> None:
     mock_db = AsyncMock()
     mock_session_manager = MagicMock()
     user_id = TEST_USER_ID
+    workspace_id = TEST_WORKSPACE_ID
     session_id = uuid4()
 
     mock_session = MagicMock()
@@ -75,7 +79,10 @@ async def test_resume_session_sets_rls_context() -> None:
             user_id=user_id,
             db_session=mock_db,
             session_manager=mock_session_manager,
+            workspace_id=workspace_id,
+            limit=3,
+            offset=0,
         )
 
-        mock_rls.assert_called_once_with(mock_db, user_id)
+        mock_rls.assert_called_once_with(mock_db, user_id, workspace_id)
         assert result.session_id == session_id

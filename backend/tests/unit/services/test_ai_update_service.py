@@ -32,9 +32,9 @@ def mock_note_repo() -> AsyncMock:
 
 
 @pytest.fixture
-def ai_update_service(mock_session: AsyncMock) -> NoteAIUpdateService:
-    """Create service instance with mocked session."""
-    return NoteAIUpdateService(session=mock_session)
+def ai_update_service(mock_session: AsyncMock, mock_note_repo: AsyncMock) -> NoteAIUpdateService:
+    """Create service instance with mocked session and repo."""
+    return NoteAIUpdateService(session=mock_session, note_repository=mock_note_repo)
 
 
 def _doc(*nodes: dict[str, Any]) -> dict[str, Any]:
@@ -89,9 +89,11 @@ def _inline_issue(
 class TestServiceInitialization:
     """Test service initialization."""
 
-    def test_that_service_initializes_with_session(self, mock_session: AsyncMock) -> None:
+    def test_that_service_initializes_with_session(
+        self, mock_session: AsyncMock, mock_note_repo: AsyncMock
+    ) -> None:
         """Verify service initialization with session."""
-        service = NoteAIUpdateService(session=mock_session)
+        service = NoteAIUpdateService(session=mock_session, note_repository=mock_note_repo)
         assert service is not None
         assert service._session == mock_session
 

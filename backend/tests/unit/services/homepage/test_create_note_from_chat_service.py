@@ -25,6 +25,9 @@ from pilot_space.application.services.note.create_note_from_chat_service import 
     CreateNoteFromChatService,
 )
 from pilot_space.infrastructure.database.models.note import Note
+from pilot_space.infrastructure.database.repositories.note_repository import (
+    NoteRepository,
+)
 
 
 def _insert_ai_session(
@@ -85,7 +88,7 @@ async def _create_note_via_service(
     from pilot_space.infrastructure.database.models.ai_message import AIMessage
     from pilot_space.infrastructure.database.models.ai_session import AISession
 
-    service = CreateNoteFromChatService(db_session)
+    service = CreateNoteFromChatService(db_session, note_repository=NoteRepository(db_session))
     payload = CreateNoteFromChatPayload(
         workspace_id=workspace_id,
         user_id=user_id,
@@ -226,7 +229,7 @@ class TestCreateNoteFromChatService:
         """Non-existent session_id raises ValueError."""
         non_existent_session_id = uuid.uuid4()
 
-        service = CreateNoteFromChatService(db_session)
+        service = CreateNoteFromChatService(db_session, note_repository=NoteRepository(db_session))
         payload = CreateNoteFromChatPayload(
             workspace_id=workspace_id,
             user_id=user_id,

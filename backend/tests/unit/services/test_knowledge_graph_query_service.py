@@ -254,7 +254,10 @@ class TestGetIssueKnowledgeGraph:
         graph_node = _make_graph_node(
             node_id=TEST_NODE_ID,
             node_type="pull_request",
-            properties={"external_id": "pr-99"},
+            properties={
+                "external_id": "pr-99",
+                "external_url": "https://github.com/repo/pull/pr-99",
+            },
         )
         pr_link = _make_integration_link(external_id="pr-99")
 

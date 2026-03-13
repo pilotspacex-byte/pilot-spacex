@@ -20,6 +20,9 @@ from pilot_space.application.services.homepage.dismiss_suggestion_service import
 from pilot_space.infrastructure.database.models.digest_dismissal import (
     DigestDismissal,
 )
+from pilot_space.infrastructure.database.repositories.digest_repository import (
+    DismissalRepository,
+)
 
 
 @pytest.mark.asyncio
@@ -37,7 +40,9 @@ class TestDismissSuggestionService:
         entity_id = uuid.uuid4()
         suggestion_id = uuid.uuid4()
 
-        service = DismissSuggestionService(db_session)
+        service = DismissSuggestionService(
+            db_session, dismissal_repository=DismissalRepository(db_session)
+        )
         payload = DismissSuggestionPayload(
             workspace_id=workspace_id,
             user_id=user_id,
@@ -81,7 +86,9 @@ class TestDismissSuggestionService:
         entity_id = uuid.uuid4()
         suggestion_id = uuid.uuid4()
 
-        service = DismissSuggestionService(db_session)
+        service = DismissSuggestionService(
+            db_session, dismissal_repository=DismissalRepository(db_session)
+        )
         payload = DismissSuggestionPayload(
             workspace_id=workspace_id,
             user_id=user_id,

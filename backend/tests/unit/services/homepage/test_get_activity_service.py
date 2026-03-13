@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -41,25 +41,21 @@ class TestGetActivityService:
         # Mock session (not used directly but required by service)
         mock_session = AsyncMock()
 
-        with patch(
-            "pilot_space.infrastructure.database.repositories.homepage_repository.HomepageRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo.get_recent_notes_with_annotations.return_value = []
-            mock_repo.get_recent_issues_with_activity.return_value = []
-            mock_repo_cls.return_value = mock_repo
+        mock_repo = AsyncMock()
+        mock_repo.get_recent_notes_with_annotations.return_value = []
+        mock_repo.get_recent_issues_with_activity.return_value = []
 
-            service = GetActivityService(mock_session)
-            payload = GetActivityPayload(workspace_id=workspace_id, limit=20)
+        service = GetActivityService(mock_session, homepage_repository=mock_repo)
+        payload = GetActivityPayload(workspace_id=workspace_id, limit=20)
 
-            result = await service.execute(payload)
+        result = await service.execute(payload)
 
-            assert result.total == 0
-            assert len(result.grouped.today) == 0
-            assert len(result.grouped.yesterday) == 0
-            assert len(result.grouped.this_week) == 0
-            assert result.cursor is None
-            assert result.has_more is False
+        assert result.total == 0
+        assert len(result.grouped.today) == 0
+        assert len(result.grouped.yesterday) == 0
+        assert len(result.grouped.this_week) == 0
+        assert result.cursor is None
+        assert result.has_more is False
 
     async def test_groups_notes_by_day(self) -> None:
         """Notes are grouped into today/yesterday/this_week buckets."""
@@ -117,27 +113,23 @@ class TestGetActivityService:
             ),
         ]
 
-        with patch(
-            "pilot_space.infrastructure.database.repositories.homepage_repository.HomepageRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo.get_recent_notes_with_annotations.return_value = notes
-            mock_repo.get_recent_issues_with_activity.return_value = []
-            mock_repo_cls.return_value = mock_repo
+        mock_repo = AsyncMock()
+        mock_repo.get_recent_notes_with_annotations.return_value = notes
+        mock_repo.get_recent_issues_with_activity.return_value = []
 
-            service = GetActivityService(mock_session)
-            payload = GetActivityPayload(workspace_id=workspace_id, limit=20)
+        service = GetActivityService(mock_session, homepage_repository=mock_repo)
+        payload = GetActivityPayload(workspace_id=workspace_id, limit=20)
 
-            result = await service.execute(payload)
+        result = await service.execute(payload)
 
-            assert result.total == 3
-            assert len(result.grouped.today) == 1
-            assert len(result.grouped.yesterday) == 1
-            assert len(result.grouped.this_week) == 1
+        assert result.total == 3
+        assert len(result.grouped.today) == 1
+        assert len(result.grouped.yesterday) == 1
+        assert len(result.grouped.this_week) == 1
 
-            assert result.grouped.today[0].id == note_today_id
-            assert result.grouped.yesterday[0].id == note_yesterday_id
-            assert result.grouped.this_week[0].id == note_this_week_id
+        assert result.grouped.today[0].id == note_today_id
+        assert result.grouped.yesterday[0].id == note_yesterday_id
+        assert result.grouped.this_week[0].id == note_this_week_id
 
     async def test_groups_issues_by_day(self) -> None:
         """Issues are grouped into today/yesterday/this_week buckets."""
@@ -207,27 +199,23 @@ class TestGetActivityService:
             ),
         ]
 
-        with patch(
-            "pilot_space.infrastructure.database.repositories.homepage_repository.HomepageRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo.get_recent_notes_with_annotations.return_value = []
-            mock_repo.get_recent_issues_with_activity.return_value = issues
-            mock_repo_cls.return_value = mock_repo
+        mock_repo = AsyncMock()
+        mock_repo.get_recent_notes_with_annotations.return_value = []
+        mock_repo.get_recent_issues_with_activity.return_value = issues
 
-            service = GetActivityService(mock_session)
-            payload = GetActivityPayload(workspace_id=workspace_id, limit=20)
+        service = GetActivityService(mock_session, homepage_repository=mock_repo)
+        payload = GetActivityPayload(workspace_id=workspace_id, limit=20)
 
-            result = await service.execute(payload)
+        result = await service.execute(payload)
 
-            assert result.total == 3
-            assert len(result.grouped.today) == 1
-            assert len(result.grouped.yesterday) == 1
-            assert len(result.grouped.this_week) == 1
+        assert result.total == 3
+        assert len(result.grouped.today) == 1
+        assert len(result.grouped.yesterday) == 1
+        assert len(result.grouped.this_week) == 1
 
-            assert result.grouped.today[0].id == issue_today_id
-            assert result.grouped.yesterday[0].id == issue_yesterday_id
-            assert result.grouped.this_week[0].id == issue_this_week_id
+        assert result.grouped.today[0].id == issue_today_id
+        assert result.grouped.yesterday[0].id == issue_yesterday_id
+        assert result.grouped.this_week[0].id == issue_this_week_id
 
     async def test_cursor_pagination(self) -> None:
         """Pagination works with limit and returns cursor + has_more."""
@@ -254,25 +242,21 @@ class TestGetActivityService:
             for i in range(3)
         ]
 
-        with patch(
-            "pilot_space.infrastructure.database.repositories.homepage_repository.HomepageRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            # Return all notes (service will handle limit)
-            mock_repo.get_recent_notes_with_annotations.return_value = notes
-            mock_repo.get_recent_issues_with_activity.return_value = []
-            mock_repo_cls.return_value = mock_repo
+        mock_repo = AsyncMock()
+        # Return all notes (service will handle limit)
+        mock_repo.get_recent_notes_with_annotations.return_value = notes
+        mock_repo.get_recent_issues_with_activity.return_value = []
 
-            service = GetActivityService(mock_session)
-            # Limit to 1 item
-            payload = GetActivityPayload(workspace_id=workspace_id, limit=1)
+        service = GetActivityService(mock_session, homepage_repository=mock_repo)
+        # Limit to 1 item
+        payload = GetActivityPayload(workspace_id=workspace_id, limit=1)
 
-            result = await service.execute(payload)
+        result = await service.execute(payload)
 
-            # Should return only 1 item
-            assert result.total == 1
-            assert result.has_more is True
-            assert result.cursor is not None
+        # Should return only 1 item
+        assert result.total == 1
+        assert result.has_more is True
+        assert result.cursor is not None
 
     async def test_cursor_continuation(self) -> None:
         """Using returned cursor fetches next page."""
@@ -300,44 +284,40 @@ class TestGetActivityService:
             for i in range(3)
         ]
 
-        with patch(
-            "pilot_space.infrastructure.database.repositories.homepage_repository.HomepageRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            # First call: return all notes
-            mock_repo.get_recent_notes_with_annotations.return_value = notes
-            mock_repo.get_recent_issues_with_activity.return_value = []
-            mock_repo_cls.return_value = mock_repo
+        mock_repo = AsyncMock()
+        # First call: return all notes
+        mock_repo.get_recent_notes_with_annotations.return_value = notes
+        mock_repo.get_recent_issues_with_activity.return_value = []
 
-            service = GetActivityService(mock_session)
+        service = GetActivityService(mock_session, homepage_repository=mock_repo)
 
-            # First page
-            payload1 = GetActivityPayload(workspace_id=workspace_id, limit=1)
-            result1 = await service.execute(payload1)
+        # First page
+        payload1 = GetActivityPayload(workspace_id=workspace_id, limit=1)
+        result1 = await service.execute(payload1)
 
-            assert result1.total == 1
-            assert result1.has_more is True
-            first_cursor = result1.cursor
-            assert first_cursor is not None
+        assert result1.total == 1
+        assert result1.has_more is True
+        first_cursor = result1.cursor
+        assert first_cursor is not None
 
-            # Second page using cursor
-            # Mock repo should filter results based on cursor
-            mock_repo.get_recent_notes_with_annotations.return_value = notes[1:]
+        # Second page using cursor
+        # Mock repo should filter results based on cursor
+        mock_repo.get_recent_notes_with_annotations.return_value = notes[1:]
 
-            payload2 = GetActivityPayload(
-                workspace_id=workspace_id,
-                limit=1,
-                cursor=first_cursor,
-            )
-            result2 = await service.execute(payload2)
+        payload2 = GetActivityPayload(
+            workspace_id=workspace_id,
+            limit=1,
+            cursor=first_cursor,
+        )
+        result2 = await service.execute(payload2)
 
-            assert result2.total == 1
-            assert result2.has_more is True
+        assert result2.total == 1
+        assert result2.has_more is True
 
-            # Items should be different
-            first_id = result1.grouped.today[0].id
-            second_id = result2.grouped.today[0].id
-            assert first_id != second_id
+        # Items should be different
+        first_id = result1.grouped.today[0].id
+        second_id = result2.grouped.today[0].id
+        assert first_id != second_id
 
     async def test_mixed_notes_and_issues(self) -> None:
         """Mixed notes and issues appear sorted by updated_at desc."""
@@ -382,26 +362,22 @@ class TestGetActivityService:
             last_activity=None,
         )
 
-        with patch(
-            "pilot_space.infrastructure.database.repositories.homepage_repository.HomepageRepository"
-        ) as mock_repo_cls:
-            mock_repo = AsyncMock()
-            mock_repo.get_recent_notes_with_annotations.return_value = [note]
-            mock_repo.get_recent_issues_with_activity.return_value = [issue]
-            mock_repo_cls.return_value = mock_repo
+        mock_repo = AsyncMock()
+        mock_repo.get_recent_notes_with_annotations.return_value = [note]
+        mock_repo.get_recent_issues_with_activity.return_value = [issue]
 
-            service = GetActivityService(mock_session)
-            payload = GetActivityPayload(workspace_id=workspace_id, limit=20)
+        service = GetActivityService(mock_session, homepage_repository=mock_repo)
+        payload = GetActivityPayload(workspace_id=workspace_id, limit=20)
 
-            result = await service.execute(payload)
+        result = await service.execute(payload)
 
-            assert result.total == 2
-            assert len(result.grouped.today) == 2
+        assert result.total == 2
+        assert len(result.grouped.today) == 2
 
-            # First item should be the note (most recent)
-            assert result.grouped.today[0].id == note_id
-            assert result.grouped.today[0].type == "note"
+        # First item should be the note (most recent)
+        assert result.grouped.today[0].id == note_id
+        assert result.grouped.today[0].type == "note"
 
-            # Second item should be the issue
-            assert result.grouped.today[1].id == issue_id
-            assert result.grouped.today[1].type == "issue"
+        # Second item should be the issue
+        assert result.grouped.today[1].id == issue_id
+        assert result.grouped.today[1].type == "issue"

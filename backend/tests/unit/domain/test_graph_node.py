@@ -48,6 +48,7 @@ class TestNodeTypeEnum:
         expected = {
             "issue",
             "note",
+            "note_chunk",
             "project",
             "cycle",
             "user",

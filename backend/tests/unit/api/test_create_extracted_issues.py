@@ -117,6 +117,7 @@ async def test_create_extracted_issues_success() -> None:
             current_user_id=TEST_USER_ID,
             session=mock_session,
             note_repo=mock_note_repo,
+            create_issue_service=mock_service,
             workspace_repo=mock_workspace_repo,
         )
 
@@ -148,6 +149,7 @@ async def test_create_extracted_issues_note_not_found() -> None:
             current_user_id=TEST_USER_ID,
             session=mock_session,
             note_repo=mock_note_repo,
+            create_issue_service=AsyncMock(),
             workspace_repo=mock_workspace_repo,
         )
 
@@ -176,6 +178,7 @@ async def test_create_extracted_issues_wrong_workspace() -> None:
             current_user_id=TEST_USER_ID,
             session=mock_session,
             note_repo=mock_note_repo,
+            create_issue_service=AsyncMock(),
             workspace_repo=mock_workspace_repo,
         )
 
@@ -225,6 +228,7 @@ async def test_create_extracted_issues_fallback_project() -> None:
             current_user_id=TEST_USER_ID,
             session=mock_session,
             note_repo=mock_note_repo,
+            create_issue_service=mock_service,
             workspace_repo=mock_workspace_repo,
         )
 
@@ -259,6 +263,7 @@ async def test_create_extracted_issues_no_project_available() -> None:
                 current_user_id=TEST_USER_ID,
                 session=mock_session,
                 note_repo=mock_note_repo,
+                create_issue_service=AsyncMock(),
                 workspace_repo=mock_workspace_repo,
             )
 

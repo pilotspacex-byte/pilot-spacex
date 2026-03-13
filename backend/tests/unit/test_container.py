@@ -18,11 +18,11 @@ from unittest.mock import MagicMock
 import pytest
 from dependency_injector import providers
 
-# Mock problematic imports before importing container
-sys.modules["pilot_space.ai.agents.subagents.pr_review_subagent"] = MagicMock()
+from pilot_space.container import create_container, get_container
+from pilot_space.dependencies.auth import _request_session_ctx, get_current_session
 
-from pilot_space.container import Container, create_container, get_container  # noqa: E402
-from pilot_space.dependencies.auth import _request_session_ctx, get_current_session  # noqa: E402
+# Clean up any stale sys.modules mock from previous imports
+sys.modules.pop("pilot_space.ai.agents.subagents.pr_review_subagent", None)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,7 +41,10 @@ class TestContainerCreation:
         container = create_container()
 
         assert container is not None
-        assert isinstance(container, Container)
+        # dependency_injector's metaclass returns a DynamicContainer at runtime;
+        # check for functional attributes rather than isinstance()
+        assert hasattr(container, "wiring_config")
+        assert hasattr(container, "config")
 
     def test_create_container_with_settings_override(self) -> None:
         """Test that create_container accepts settings override."""
@@ -71,11 +74,10 @@ class TestContainerCreation:
         assert container.wiring_config is not None
         assert len(container.wiring_config.modules) > 0
 
-        # Verify key modules are wired
+        # Verify key dependency modules are wired (not router modules)
         module_names = [str(m) for m in container.wiring_config.modules]
-        assert "pilot_space.api.v1.routers.issues" in module_names
-        assert "pilot_space.api.v1.routers.workspaces" in module_names
-        assert "pilot_space.api.v1.routers.ai_chat" in module_names
+        assert "pilot_space.dependencies" in module_names
+        assert "pilot_space.api.v1.dependencies" in module_names
 
 
 # ============================================================================
@@ -401,9 +403,9 @@ class TestDependencyChains:
         try:
             service = container.create_issue_service()
 
-            # Verify service has repository injected
-            assert hasattr(service, "_repo")
-            assert service._repo is not None
+            # Verify service has repository injected (uses _issue_repo attribute)
+            assert hasattr(service, "_issue_repo")
+            assert service._issue_repo is not None
         finally:
             _request_session_ctx.reset(token)
 
@@ -437,8 +439,8 @@ class TestDependencyChains:
             service = container.create_issue_service()
 
             # Verify chain: service → repository → session
-            assert service._repo is not None
-            assert service._repo.session is db_session
+            assert service._issue_repo is not None
+            assert service._issue_repo.session is db_session
         finally:
             _request_session_ctx.reset(token)
 
@@ -518,28 +520,38 @@ class TestOptionalInfrastructureProviders:
 
     def test_redis_client_returns_none_when_not_configured(self) -> None:
         """Test that redis_client returns None when Redis not configured."""
+        from unittest.mock import patch
+
         from pilot_space.config import Settings
 
-        settings = Settings(redis_url=None)
-        container = create_container(settings=settings)
+        settings = Settings(redis_url="")
+        container = create_container()
+        # Reset singleton so it re-evaluates
+        container.redis_client.reset()
 
-        redis_client = container.redis_client()
+        with patch("pilot_space.container._factories.get_settings", return_value=settings):
+            redis_client = container.redis_client()
 
         assert redis_client is None
 
     def test_queue_client_returns_none_when_not_configured(self) -> None:
         """Test that queue_client returns None when not configured."""
+        from unittest.mock import patch
+
         from pydantic import SecretStr
 
         from pilot_space.config import Settings
 
         settings = Settings(
-            supabase_url=None,
+            supabase_url="",
             supabase_service_key=SecretStr(""),
         )
-        container = create_container(settings=settings)
+        container = create_container()
+        # Reset singleton so it re-evaluates
+        container.queue_client.reset()
 
-        queue_client = container.queue_client()
+        with patch("pilot_space.container._factories.get_settings", return_value=settings):
+            queue_client = container.queue_client()
 
         assert queue_client is None
 

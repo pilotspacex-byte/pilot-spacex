@@ -24,6 +24,12 @@ def _register_sqlite_functions(dbapi_conn, connection_record) -> None:
     """Register PostgreSQL-compatible functions for SQLite."""
     dbapi_conn.create_function("gen_random_uuid", 0, lambda: str(uuid.uuid4()))
     dbapi_conn.create_function("char_length", 1, lambda s: len(s) if s else 0)
+    # Simplified sequence function — returns 1 for unit tests (no race conditions)
+    dbapi_conn.create_function("get_next_issue_sequence", 1, lambda _project_id: 1)
+    # Allow UUID objects as parameters by registering an adapter
+    import sqlite3
+
+    sqlite3.register_adapter(uuid.UUID, lambda u: str(u))
 
 
 _CREATE_TABLES_SQL = """
@@ -62,7 +68,10 @@ CREATE TABLE IF NOT EXISTS workspace_members (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    role TEXT NOT NULL DEFAULT 'member',
+    role TEXT NOT NULL DEFAULT 'MEMBER',
+    weekly_available_hours REAL NOT NULL DEFAULT 40.0,
+    custom_role_id TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_deleted BOOLEAN DEFAULT 0 NOT NULL,
@@ -100,6 +109,20 @@ CREATE TABLE IF NOT EXISTS templates (
     content TEXT,
     category TEXT,
     is_default BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS states (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#94a3b8',
+    "group" TEXT NOT NULL DEFAULT 'unstarted',
+    sequence INTEGER DEFAULT 0,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_deleted BOOLEAN DEFAULT 0 NOT NULL,
@@ -168,14 +191,156 @@ CREATE TABLE IF NOT EXISTS issues (
     workspace_id TEXT NOT NULL,
     project_id TEXT,
     title TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
     description TEXT,
+    description_html TEXT,
     state_id TEXT,
-    priority TEXT,
+    priority TEXT DEFAULT 'none',
     sequence_id INTEGER,
+    assignee_id TEXT,
+    reporter_id TEXT,
+    cycle_id TEXT,
+    module_id TEXT,
+    parent_id TEXT,
+    estimate_points REAL,
+    estimate_hours REAL,
+    start_date DATETIME,
+    target_date DATETIME,
+    sort_order REAL DEFAULT 0,
+    ai_metadata TEXT DEFAULT '{}',
+    acceptance_criteria TEXT,
+    technical_requirements TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_deleted BOOLEAN DEFAULT 0 NOT NULL,
     deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS cycles (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',
+    start_date DATETIME,
+    end_date DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS modules (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'backlog',
+    start_date DATETIME,
+    target_date DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS labels (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#6b7280',
+    description TEXT,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS issue_labels (
+    issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    label_id TEXT NOT NULL REFERENCES labels(id) ON DELETE CASCADE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (issue_id, label_id)
+);
+
+CREATE TABLE IF NOT EXISTS activities (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    issue_id TEXT REFERENCES issues(id) ON DELETE CASCADE,
+    actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    verb TEXT NOT NULL,
+    field TEXT,
+    old_value TEXT,
+    new_value TEXT,
+    comment TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    acceptance_criteria TEXT,
+    status TEXT NOT NULL DEFAULT 'todo',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    estimated_hours REAL,
+    code_references TEXT,
+    ai_prompt TEXT,
+    ai_generated BOOLEAN NOT NULL DEFAULT 0,
+    dependency_ids TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS ai_contexts (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    issue_id TEXT NOT NULL UNIQUE REFERENCES issues(id) ON DELETE CASCADE,
+    content TEXT NOT NULL DEFAULT '{}',
+    claude_code_prompt TEXT,
+    related_issues TEXT NOT NULL DEFAULT '[]',
+    related_notes TEXT NOT NULL DEFAULT '[]',
+    related_pages TEXT NOT NULL DEFAULT '[]',
+    code_references TEXT NOT NULL DEFAULT '[]',
+    tasks_checklist TEXT NOT NULL DEFAULT '[]',
+    conversation_history TEXT NOT NULL DEFAULT '[]',
+    generated_at DATETIME,
+    last_refined_at DATETIME,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    is_deleted BOOLEAN DEFAULT 0 NOT NULL,
+    deleted_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    actor_id TEXT,
+    actor_type TEXT,
+    action TEXT,
+    resource_type TEXT,
+    resource_id TEXT,
+    payload TEXT,
+    ai_input TEXT,
+    ai_output TEXT,
+    ai_model TEXT,
+    ai_token_cost REAL,
+    ai_rationale TEXT,
+    ip_address TEXT,
+    workspace_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS note_issue_links (

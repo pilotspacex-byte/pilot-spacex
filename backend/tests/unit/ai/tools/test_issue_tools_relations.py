@@ -327,7 +327,10 @@ class TestAddSubIssue:
         parent, child = uuid4(), uuid4()
 
         repo = AsyncMock()
-        repo.get_by_id.return_value = None  # no circular dependency
+        # _check_circular_parent uses repo.session.execute — mock to return no cycle
+        mock_execute_result = MagicMock()
+        mock_execute_result.fetchone.return_value = None
+        repo.session.execute = AsyncMock(return_value=mock_execute_result)
 
         with (
             patch(

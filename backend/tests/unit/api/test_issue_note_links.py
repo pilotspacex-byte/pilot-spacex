@@ -26,6 +26,7 @@ def _make_link(
     link = MagicMock()
     link.id = uuid4()
     link.note_id = uuid4()
+    link.issue_id = uuid4()
     link.link_type = MagicMock()
     link.link_type.value = "EXTRACTED"
     link.is_deleted = is_deleted

@@ -61,7 +61,7 @@ class TestSeedWorkspace:
             MockRoleRepo.return_value = mock_role_repo
 
             mock_skill_repo = AsyncMock()
-            mock_skill_repo.get_by_workspace = AsyncMock(return_value=[])
+            mock_skill_repo.has_built_in_templates = AsyncMock(return_value=False)
             mock_skill_repo.create = AsyncMock()
             MockSkillRepo.return_value = mock_skill_repo
 
@@ -89,7 +89,7 @@ class TestSeedWorkspace:
             "pilot_space.application.services.skill_template.seed_templates_service.SkillTemplateRepository"
         ) as MockSkillRepo:
             mock_skill_repo = AsyncMock()
-            mock_skill_repo.get_by_workspace = AsyncMock(return_value=[existing_template])
+            mock_skill_repo.has_built_in_templates = AsyncMock(return_value=True)
             MockSkillRepo.return_value = mock_skill_repo
 
             await service.seed_workspace(workspace_id)
@@ -104,7 +104,7 @@ class TestSeedWorkspace:
             "pilot_space.application.services.skill_template.seed_templates_service.SkillTemplateRepository"
         ) as MockSkillRepo:
             mock_skill_repo = AsyncMock()
-            mock_skill_repo.get_by_workspace = AsyncMock(
+            mock_skill_repo.has_built_in_templates = AsyncMock(
                 side_effect=RuntimeError("DB connection lost")
             )
             MockSkillRepo.return_value = mock_skill_repo
@@ -144,7 +144,7 @@ class TestSeedWorkspace:
             MockRoleRepo.return_value = mock_role_repo
 
             mock_skill_repo = AsyncMock()
-            mock_skill_repo.get_by_workspace = AsyncMock(return_value=[])
+            mock_skill_repo.has_built_in_templates = AsyncMock(return_value=False)
             mock_skill_repo.create = AsyncMock()
             MockSkillRepo.return_value = mock_skill_repo
 

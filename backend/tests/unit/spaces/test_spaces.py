@@ -180,9 +180,9 @@ class TestProjectBootstrapper:
         content = claude_file.read_text()
 
         # Verify note tools section exists
-        assert "### Note Tools (6 tools)" in content
+        assert "### Note Tools (7 tools)" in content
 
-        # Verify all 6 note tools are documented
+        # Verify all 7 note tools are documented
         assert "summarize_note(note_id)" in content
         assert "update_note_block(note_id, block_id, new_content_markdown, operation)" in content
         assert "enhance_text(note_id, block_id, enhanced_markdown)" in content

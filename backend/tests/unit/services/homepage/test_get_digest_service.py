@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -34,22 +34,24 @@ class TestGetDigestService:
         user_id = uuid.uuid4()
         mock_session = AsyncMock()
 
-        with patch(
-            "pilot_space.infrastructure.database.repositories.digest_repository.DigestRepository"
-        ) as mock_digest_repo_cls:
-            mock_digest_repo = AsyncMock()
-            mock_digest_repo.get_latest_digest.return_value = None
-            mock_digest_repo_cls.return_value = mock_digest_repo
+        mock_digest_repo = AsyncMock()
+        mock_digest_repo.get_latest_digest.return_value = None
+        mock_dismissal_repo = AsyncMock()
+        mock_dismissal_repo.get_dismissed_entity_ids.return_value = set()
 
-            service = GetDigestService(mock_session)
-            payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
+        service = GetDigestService(
+            mock_session,
+            digest_repository=mock_digest_repo,
+            dismissal_repository=mock_dismissal_repo,
+        )
+        payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
 
-            result = await service.execute(payload)
+        result = await service.execute(payload)
 
-            assert result.generated_at is None
-            assert result.generated_by == "scheduled"
-            assert len(result.suggestions) == 0
-            assert result.suggestion_count == 0
+        assert result.generated_at is None
+        assert result.generated_by == "scheduled"
+        assert len(result.suggestions) == 0
+        assert result.suggestion_count == 0
 
     async def test_returns_latest_digest(self) -> None:
         """Returns the latest digest when multiple exist."""
@@ -73,31 +75,24 @@ class TestGetDigestService:
             }
         ]
 
-        with (
-            patch(
-                "pilot_space.infrastructure.database.repositories.digest_repository.DigestRepository"
-            ) as mock_digest_repo_cls,
-            patch(
-                "pilot_space.infrastructure.database.repositories.digest_repository.DismissalRepository"
-            ) as mock_dismissal_repo_cls,
-        ):
-            mock_digest_repo = AsyncMock()
-            mock_digest_repo.get_latest_digest.return_value = mock_digest
-            mock_digest_repo_cls.return_value = mock_digest_repo
+        mock_digest_repo = AsyncMock()
+        mock_digest_repo.get_latest_digest.return_value = mock_digest
+        mock_dismissal_repo = AsyncMock()
+        mock_dismissal_repo.get_dismissed_entity_ids.return_value = set()
 
-            mock_dismissal_repo = AsyncMock()
-            mock_dismissal_repo.get_dismissed_entity_ids.return_value = set()
-            mock_dismissal_repo_cls.return_value = mock_dismissal_repo
+        service = GetDigestService(
+            mock_session,
+            digest_repository=mock_digest_repo,
+            dismissal_repository=mock_dismissal_repo,
+        )
+        payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
 
-            service = GetDigestService(mock_session)
-            payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
+        result = await service.execute(payload)
 
-            result = await service.execute(payload)
-
-            assert result.generated_at == now
-            assert result.generated_by == "manual"
-            assert len(result.suggestions) == 1
-            assert result.suggestions[0].title == "New suggestion"
+        assert result.generated_at == now
+        assert result.generated_by == "manual"
+        assert len(result.suggestions) == 1
+        assert result.suggestions[0].title == "New suggestion"
 
     async def test_filters_dismissed_suggestions(self) -> None:
         """Dismissed suggestions are filtered out."""
@@ -145,34 +140,27 @@ class TestGetDigestService:
         # Dismiss the second suggestion
         dismissed_set = {(str(entity_id_2), "unlinked_notes")}
 
-        with (
-            patch(
-                "pilot_space.infrastructure.database.repositories.digest_repository.DigestRepository"
-            ) as mock_digest_repo_cls,
-            patch(
-                "pilot_space.infrastructure.database.repositories.digest_repository.DismissalRepository"
-            ) as mock_dismissal_repo_cls,
-        ):
-            mock_digest_repo = AsyncMock()
-            mock_digest_repo.get_latest_digest.return_value = mock_digest
-            mock_digest_repo_cls.return_value = mock_digest_repo
+        mock_digest_repo = AsyncMock()
+        mock_digest_repo.get_latest_digest.return_value = mock_digest
+        mock_dismissal_repo = AsyncMock()
+        mock_dismissal_repo.get_dismissed_entity_ids.return_value = dismissed_set
 
-            mock_dismissal_repo = AsyncMock()
-            mock_dismissal_repo.get_dismissed_entity_ids.return_value = dismissed_set
-            mock_dismissal_repo_cls.return_value = mock_dismissal_repo
+        service = GetDigestService(
+            mock_session,
+            digest_repository=mock_digest_repo,
+            dismissal_repository=mock_dismissal_repo,
+        )
+        payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
 
-            service = GetDigestService(mock_session)
-            payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
+        result = await service.execute(payload)
 
-            result = await service.execute(payload)
+        assert result.suggestion_count == 2
+        assert len(result.suggestions) == 2
 
-            assert result.suggestion_count == 2
-            assert len(result.suggestions) == 2
-
-            titles = [s.title for s in result.suggestions]
-            assert "Suggestion 1" in titles
-            assert "Suggestion 2" not in titles
-            assert "Suggestion 3" in titles
+        titles = [s.title for s in result.suggestions]
+        assert "Suggestion 1" in titles
+        assert "Suggestion 2" not in titles
+        assert "Suggestion 3" in titles
 
     async def test_relevance_ranking(self) -> None:
         """Suggestions are sorted by relevance_score desc."""
@@ -207,36 +195,29 @@ class TestGetDigestService:
             },
         ]
 
-        with (
-            patch(
-                "pilot_space.infrastructure.database.repositories.digest_repository.DigestRepository"
-            ) as mock_digest_repo_cls,
-            patch(
-                "pilot_space.infrastructure.database.repositories.digest_repository.DismissalRepository"
-            ) as mock_dismissal_repo_cls,
-        ):
-            mock_digest_repo = AsyncMock()
-            mock_digest_repo.get_latest_digest.return_value = mock_digest
-            mock_digest_repo_cls.return_value = mock_digest_repo
+        mock_digest_repo = AsyncMock()
+        mock_digest_repo.get_latest_digest.return_value = mock_digest
+        mock_dismissal_repo = AsyncMock()
+        mock_dismissal_repo.get_dismissed_entity_ids.return_value = set()
 
-            mock_dismissal_repo = AsyncMock()
-            mock_dismissal_repo.get_dismissed_entity_ids.return_value = set()
-            mock_dismissal_repo_cls.return_value = mock_dismissal_repo
+        service = GetDigestService(
+            mock_session,
+            digest_repository=mock_digest_repo,
+            dismissal_repository=mock_dismissal_repo,
+        )
+        payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
 
-            service = GetDigestService(mock_session)
-            payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
+        result = await service.execute(payload)
 
-            result = await service.execute(payload)
+        # Should be sorted by relevance_score desc
+        assert result.suggestions[0].title == "High priority"
+        assert result.suggestions[0].relevance_score == 0.9
 
-            # Should be sorted by relevance_score desc
-            assert result.suggestions[0].title == "High priority"
-            assert result.suggestions[0].relevance_score == 0.9
+        assert result.suggestions[1].title == "Medium priority"
+        assert result.suggestions[1].relevance_score == 0.6
 
-            assert result.suggestions[1].title == "Medium priority"
-            assert result.suggestions[1].relevance_score == 0.6
-
-            assert result.suggestions[2].title == "Low priority"
-            assert result.suggestions[2].relevance_score == 0.3
+        assert result.suggestions[2].title == "Low priority"
+        assert result.suggestions[2].relevance_score == 0.3
 
     async def test_suggestion_count(self) -> None:
         """Suggestion count matches filtered results."""
@@ -264,26 +245,19 @@ class TestGetDigestService:
             },
         ]
 
-        with (
-            patch(
-                "pilot_space.infrastructure.database.repositories.digest_repository.DigestRepository"
-            ) as mock_digest_repo_cls,
-            patch(
-                "pilot_space.infrastructure.database.repositories.digest_repository.DismissalRepository"
-            ) as mock_dismissal_repo_cls,
-        ):
-            mock_digest_repo = AsyncMock()
-            mock_digest_repo.get_latest_digest.return_value = mock_digest
-            mock_digest_repo_cls.return_value = mock_digest_repo
+        mock_digest_repo = AsyncMock()
+        mock_digest_repo.get_latest_digest.return_value = mock_digest
+        mock_dismissal_repo = AsyncMock()
+        mock_dismissal_repo.get_dismissed_entity_ids.return_value = set()
 
-            mock_dismissal_repo = AsyncMock()
-            mock_dismissal_repo.get_dismissed_entity_ids.return_value = set()
-            mock_dismissal_repo_cls.return_value = mock_dismissal_repo
+        service = GetDigestService(
+            mock_session,
+            digest_repository=mock_digest_repo,
+            dismissal_repository=mock_dismissal_repo,
+        )
+        payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
 
-            service = GetDigestService(mock_session)
-            payload = GetDigestPayload(workspace_id=workspace_id, user_id=user_id)
+        result = await service.execute(payload)
 
-            result = await service.execute(payload)
-
-            assert result.suggestion_count == 2
-            assert len(result.suggestions) == 2
+        assert result.suggestion_count == 2
+        assert len(result.suggestions) == 2

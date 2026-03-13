@@ -96,6 +96,12 @@ def _make_db_session(role: WorkspaceRole | None = WorkspaceRole.MEMBER) -> Async
     scalar_result = MagicMock()
     scalar_result.scalar = MagicMock(return_value=role)
     db.execute = AsyncMock(return_value=scalar_result)
+
+    # Mock workspace for quota check: 5GB quota, 0 used (passes quota)
+    mock_workspace = MagicMock()
+    mock_workspace.storage_quota_mb = 5120
+    mock_workspace.storage_used_bytes = 0
+    db.get = AsyncMock(return_value=mock_workspace)
     return db
 
 

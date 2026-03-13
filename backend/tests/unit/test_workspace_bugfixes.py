@@ -113,8 +113,11 @@ class TestH6DeleteWorkspaceRequiresOwner:
 
     @pytest.mark.asyncio
     async def test_admin_cannot_delete_workspace(self) -> None:
-        """Admin (non-owner) gets 403 when trying to delete workspace."""
-        from pilot_space.api.v1.routers.workspaces import delete_workspace
+        """Admin (non-owner) gets ValueError when trying to delete workspace."""
+        from pilot_space.application.services.workspace import (
+            DeleteWorkspacePayload,
+            WorkspaceService,
+        )
 
         workspace, admin, admin_member = _make_workspace_with_admin()
 
@@ -122,23 +125,28 @@ class TestH6DeleteWorkspaceRequiresOwner:
         mock_workspace_repo.get_with_members.return_value = workspace
         mock_workspace_repo.get_by_slug_with_members.return_value = workspace
 
-        current_user = MagicMock()
-        current_user.user_id = admin.id
+        service = WorkspaceService(
+            workspace_repo=mock_workspace_repo,
+            user_repo=AsyncMock(),
+            invitation_repo=AsyncMock(),
+            label_repo=AsyncMock(),
+        )
 
-        with pytest.raises(HTTPException) as exc_info:
-            await delete_workspace(
-                workspace_id=str(workspace.id),
-                current_user=current_user,
-                workspace_repo=mock_workspace_repo,
+        with pytest.raises(ValueError, match=r"[Oo]wner"):
+            await service.delete_workspace(
+                DeleteWorkspacePayload(
+                    workspace_id_or_slug=str(workspace.id),
+                    user_id=admin.id,
+                )
             )
-
-        assert exc_info.value.status_code == 403
-        assert "Owner" in exc_info.value.detail or "owner" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
     async def test_owner_can_delete_workspace(self) -> None:
         """Owner can delete workspace."""
-        from pilot_space.api.v1.routers.workspaces import delete_workspace
+        from pilot_space.application.services.workspace import (
+            DeleteWorkspacePayload,
+            WorkspaceService,
+        )
 
         workspace, owner, owner_member = _make_workspace_with_owner()
 
@@ -147,16 +155,21 @@ class TestH6DeleteWorkspaceRequiresOwner:
         mock_workspace_repo.get_by_slug_with_members.return_value = workspace
         mock_workspace_repo.delete.return_value = None
 
-        current_user = MagicMock()
-        current_user.user_id = owner.id
-
-        result = await delete_workspace(
-            workspace_id=str(workspace.id),
-            current_user=current_user,
+        service = WorkspaceService(
             workspace_repo=mock_workspace_repo,
+            user_repo=AsyncMock(),
+            invitation_repo=AsyncMock(),
+            label_repo=AsyncMock(),
         )
 
-        assert result.id == workspace.id
+        result = await service.delete_workspace(
+            DeleteWorkspacePayload(
+                workspace_id_or_slug=str(workspace.id),
+                user_id=owner.id,
+            )
+        )
+
+        assert result.workspace_id == workspace.id
         mock_workspace_repo.delete.assert_awaited_once()
 
 
@@ -165,32 +178,37 @@ class TestM5OwnerSelfRemovalPrevention:
 
     @pytest.mark.asyncio
     async def test_owner_cannot_self_remove(self) -> None:
-        """Owner trying to remove themselves gets 400."""
-        from pilot_space.api.v1.routers.workspace_members import remove_workspace_member
+        """Owner trying to remove themselves raises UnauthorizedError."""
+        from pilot_space.application.services.workspace_member import (
+            RemoveMemberPayload,
+            WorkspaceMemberService,
+        )
 
         workspace, owner, owner_member = _make_workspace_with_owner()
 
         mock_workspace_repo = AsyncMock()
         mock_workspace_repo.get_with_members.return_value = workspace
 
-        current_user = MagicMock()
-        current_user.user_id = owner.id
+        service = WorkspaceMemberService(workspace_repo=mock_workspace_repo)
 
-        with pytest.raises(HTTPException) as exc_info:
-            await remove_workspace_member(
-                workspace_id=workspace.id,
-                user_id=owner.id,
-                current_user=current_user,
-                workspace_repo=mock_workspace_repo,
+        from pilot_space.application.services.workspace_member import UnauthorizedError
+
+        with pytest.raises(UnauthorizedError, match=r"[Oo]wner"):
+            await service.remove_member(
+                RemoveMemberPayload(
+                    workspace_id=workspace.id,
+                    target_user_id=owner.id,
+                    actor_id=owner.id,
+                )
             )
-
-        assert exc_info.value.status_code == 400
-        assert "owner" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
     async def test_admin_count_includes_owner_role(self) -> None:
         """When checking 'only admin', both OWNER and ADMIN roles count."""
-        from pilot_space.api.v1.routers.workspace_members import remove_workspace_member
+        from pilot_space.application.services.workspace_member import (
+            RemoveMemberPayload,
+            WorkspaceMemberService,
+        )
 
         # Setup: owner + admin, admin tries to self-remove
         owner = UserFactory(email="owner@example.com")
@@ -208,15 +226,15 @@ class TestM5OwnerSelfRemovalPrevention:
         mock_workspace_repo.get_with_members.return_value = workspace
         mock_workspace_repo.remove_member.return_value = True
 
-        current_user = MagicMock()
-        current_user.user_id = admin.id
+        service = WorkspaceMemberService(workspace_repo=mock_workspace_repo)
 
         # Admin can self-remove because owner is still there (admin_count=2)
-        await remove_workspace_member(
-            workspace_id=workspace.id,
-            user_id=admin.id,
-            current_user=current_user,
-            workspace_repo=mock_workspace_repo,
+        await service.remove_member(
+            RemoveMemberPayload(
+                workspace_id=workspace.id,
+                target_user_id=admin.id,
+                actor_id=admin.id,
+            )
         )
 
         mock_workspace_repo.remove_member.assert_awaited_once_with(workspace.id, admin.id)
@@ -228,8 +246,10 @@ class TestM2SettingsMerge:
     @pytest.mark.asyncio
     async def test_settings_merge_preserves_existing_keys(self) -> None:
         """Updating settings merges new keys with existing ones."""
-        from pilot_space.api.v1.routers.workspaces import update_workspace
-        from pilot_space.api.v1.schemas.workspace import WorkspaceUpdate
+        from pilot_space.application.services.workspace import (
+            UpdateWorkspacePayload,
+            WorkspaceService,
+        )
 
         workspace, owner, owner_member = _make_workspace_with_owner()
         # Pre-existing settings
@@ -240,17 +260,19 @@ class TestM2SettingsMerge:
         mock_workspace_repo.get_by_slug_with_members.return_value = workspace
         mock_workspace_repo.update.return_value = workspace
 
-        current_user = MagicMock()
-        current_user.user_id = owner.id
-
-        # Send only a new setting key
-        request = WorkspaceUpdate(settings={"new_key": "new_value"})
-
-        await update_workspace(
-            workspace_id=str(workspace.id),
-            request=request,
-            current_user=current_user,
+        service = WorkspaceService(
             workspace_repo=mock_workspace_repo,
+            user_repo=AsyncMock(),
+            invitation_repo=AsyncMock(),
+            label_repo=AsyncMock(),
+        )
+
+        await service.update_workspace(
+            UpdateWorkspacePayload(
+                workspace_id_or_slug=str(workspace.id),
+                user_id=owner.id,
+                settings={"new_key": "new_value"},
+            )
         )
 
         # Verify existing keys are preserved
@@ -262,8 +284,10 @@ class TestM2SettingsMerge:
     @pytest.mark.asyncio
     async def test_settings_merge_from_none(self) -> None:
         """Settings merge works when workspace.settings is None."""
-        from pilot_space.api.v1.routers.workspaces import update_workspace
-        from pilot_space.api.v1.schemas.workspace import WorkspaceUpdate
+        from pilot_space.application.services.workspace import (
+            UpdateWorkspacePayload,
+            WorkspaceService,
+        )
 
         workspace, owner, owner_member = _make_workspace_with_owner()
         workspace.settings = None
@@ -273,16 +297,19 @@ class TestM2SettingsMerge:
         mock_workspace_repo.get_by_slug_with_members.return_value = workspace
         mock_workspace_repo.update.return_value = workspace
 
-        current_user = MagicMock()
-        current_user.user_id = owner.id
-
-        request = WorkspaceUpdate(settings={"theme": "dark"})
-
-        await update_workspace(
-            workspace_id=str(workspace.id),
-            request=request,
-            current_user=current_user,
+        service = WorkspaceService(
             workspace_repo=mock_workspace_repo,
+            user_repo=AsyncMock(),
+            invitation_repo=AsyncMock(),
+            label_repo=AsyncMock(),
+        )
+
+        await service.update_workspace(
+            UpdateWorkspacePayload(
+                workspace_id_or_slug=str(workspace.id),
+                user_id=owner.id,
+                settings={"theme": "dark"},
+            )
         )
 
         assert workspace.settings == {"theme": "dark"}
@@ -294,8 +321,9 @@ class TestH5CrossWorkspaceInvitationCancel:
     @pytest.mark.asyncio
     async def test_cancel_invitation_from_other_workspace_rejected(self) -> None:
         """Admin cannot cancel invitation from a different workspace."""
-        from pilot_space.api.v1.routers.workspace_invitations import (
-            cancel_workspace_invitation,
+        from pilot_space.application.services.workspace_invitation import (
+            CancelInvitationPayload,
+            WorkspaceInvitationService,
         )
 
         workspace_a, admin_a, admin_member_a = _make_workspace_with_admin()
@@ -312,25 +340,26 @@ class TestH5CrossWorkspaceInvitationCancel:
         mock_invitation_repo = AsyncMock()
         mock_invitation_repo.cancel.return_value = mock_invitation
 
-        current_user = MagicMock()
-        current_user.user_id = admin_a.id
+        service = WorkspaceInvitationService(
+            workspace_repo=mock_workspace_repo,
+            invitation_repo=mock_invitation_repo,
+        )
 
-        with pytest.raises(HTTPException) as exc_info:
-            await cancel_workspace_invitation(
-                workspace_id=workspace_a.id,
-                invitation_id=uuid4(),
-                current_user=current_user,
-                workspace_repo=mock_workspace_repo,
-                invitation_repo=mock_invitation_repo,
+        with pytest.raises(ValueError, match="not found"):
+            await service.cancel_invitation(
+                CancelInvitationPayload(
+                    workspace_id=workspace_a.id,
+                    invitation_id=uuid4(),
+                    actor_id=admin_a.id,
+                )
             )
-
-        assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
     async def test_cancel_invitation_same_workspace_succeeds(self) -> None:
         """Admin can cancel invitation from their own workspace."""
-        from pilot_space.api.v1.routers.workspace_invitations import (
-            cancel_workspace_invitation,
+        from pilot_space.application.services.workspace_invitation import (
+            CancelInvitationPayload,
+            WorkspaceInvitationService,
         )
 
         workspace, admin, admin_member = _make_workspace_with_admin()
@@ -346,14 +375,17 @@ class TestH5CrossWorkspaceInvitationCancel:
         mock_invitation_repo = AsyncMock()
         mock_invitation_repo.cancel.return_value = mock_invitation
 
-        current_user = MagicMock()
-        current_user.user_id = admin.id
-
-        # Should not raise
-        await cancel_workspace_invitation(
-            workspace_id=workspace.id,
-            invitation_id=uuid4(),
-            current_user=current_user,
+        service = WorkspaceInvitationService(
             workspace_repo=mock_workspace_repo,
             invitation_repo=mock_invitation_repo,
         )
+
+        # Should not raise
+        result = await service.cancel_invitation(
+            CancelInvitationPayload(
+                workspace_id=workspace.id,
+                invitation_id=uuid4(),
+                actor_id=admin.id,
+            )
+        )
+        assert result.invitation_id is not None
