@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_url TEXT,
     default_sdlc_role TEXT,
     bio TEXT,
+    ai_settings TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_deleted BOOLEAN DEFAULT 0 NOT NULL,
