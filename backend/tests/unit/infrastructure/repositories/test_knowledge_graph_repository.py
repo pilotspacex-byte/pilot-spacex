@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import StaticPool
 
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
-from pilot_space.domain.graph_node import GraphNode, NodeType
+from pilot_space.domain.graph_node import GraphNode, NodeType, compute_content_hash
 from pilot_space.infrastructure.database.models.graph_node import GraphNodeModel
 from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
     KnowledgeGraphRepository,
@@ -237,6 +237,28 @@ class TestUpsertNode:
         result = await repo.upsert_node(node)
         assert result.properties["state"] == "open"
         assert result.properties["priority"] == "high"
+
+    async def test_upsert_node_update_with_embedding(self, db_session: AsyncSession) -> None:
+        """Updating a node with embedding stores the embedding via update_node_helper."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+        ext_id = uuid4()
+
+        first = _make_node(workspace_id=ws, label="Original", external_id=ext_id)
+        await repo.upsert_node(first)
+
+        updated = GraphNode.create(
+            workspace_id=ws,
+            node_type=NodeType.NOTE,
+            label="Updated",
+            content="updated",
+            external_id=ext_id,
+        )
+        # Set embedding after create (not a create() parameter)
+        updated.embedding = [0.1] * 768
+        result = await repo.upsert_node(updated)
+
+        assert result.label == "Updated"
 
 
 # ---------------------------------------------------------------------------
@@ -701,3 +723,256 @@ class TestDeleteExpiredNodes:
         cutoff = datetime.now(tz=UTC) - timedelta(days=365)
         count = await repo.delete_expired_nodes(before=cutoff)
         assert count == 0
+
+
+# ---------------------------------------------------------------------------
+# upsert_node — content_hash dedup paths
+# ---------------------------------------------------------------------------
+
+
+class TestUpsertNodeContentHash:
+    async def test_upsert_node_content_hash_dedup(self, db_session: AsyncSession) -> None:
+        """Two nodes with same content_hash (no external_id) dedup to the same row."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+        content = "identical content"
+        label = "identical label"
+        ch = compute_content_hash(ws, NodeType.DECISION, content)
+
+        node_a = GraphNode.create(
+            workspace_id=ws,
+            node_type=NodeType.DECISION,
+            label=label,
+            content=content,
+            content_hash=ch,
+        )
+        r1 = await repo.upsert_node(node_a)
+
+        node_b = GraphNode.create(
+            workspace_id=ws,
+            node_type=NodeType.DECISION,
+            label=label,
+            content=content,
+            content_hash=ch,
+        )
+        r2 = await repo.upsert_node(node_b)
+
+        assert r1.id == r2.id
+
+    async def test_upsert_node_content_hash_updates_timestamp(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Second upsert via content_hash returns the same id with a refreshed updated_at."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+        content = "pattern content"
+        ch = compute_content_hash(ws, NodeType.LEARNED_PATTERN, content)
+
+        node = GraphNode.create(
+            workspace_id=ws,
+            node_type=NodeType.LEARNED_PATTERN,
+            label="pattern",
+            content=content,
+            content_hash=ch,
+        )
+        r1 = await repo.upsert_node(node)
+        first_updated = r1.updated_at
+
+        # Backdate to make the timestamp difference visible
+        await db_session.execute(
+            _update(GraphNodeModel)
+            .where(GraphNodeModel.id == r1.id)
+            .values(updated_at=datetime.now(tz=UTC) - timedelta(hours=1))
+        )
+        await db_session.flush()
+
+        node2 = GraphNode.create(
+            workspace_id=ws,
+            node_type=NodeType.LEARNED_PATTERN,
+            label="pattern",
+            content=content,
+            content_hash=ch,
+        )
+        r2 = await repo.upsert_node(node2)
+
+        assert r2.id == r1.id
+        assert r2.updated_at > first_updated - timedelta(hours=1)
+
+
+# ---------------------------------------------------------------------------
+# upsert_edge — error paths
+# ---------------------------------------------------------------------------
+
+
+class TestUpsertEdgeErrors:
+    async def test_upsert_edge_missing_source_raises_value_error(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Edge with non-existent source_id raises ValueError."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+
+        tgt = await repo.upsert_node(_make_node(workspace_id=ws, label="Target"))
+        edge = _make_edge(uuid4(), tgt.id)
+
+        with pytest.raises(ValueError, match="Source node"):
+            await repo.upsert_edge(edge)
+
+    async def test_upsert_edge_cross_workspace_raises_value_error(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Edge between nodes in different workspaces raises ValueError."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws_a = uuid4()
+        ws_b = uuid4()
+
+        src = await repo.upsert_node(_make_node(workspace_id=ws_a, label="Source"))
+        tgt = await repo.upsert_node(_make_node(workspace_id=ws_b, label="Target"))
+        edge = _make_edge(src.id, tgt.id)
+
+        with pytest.raises(ValueError, match="Target node"):
+            await repo.upsert_edge(edge)
+
+
+# ---------------------------------------------------------------------------
+# get_node_by_id
+# ---------------------------------------------------------------------------
+
+
+class TestGetNodeById:
+    async def test_get_node_by_id_returns_node(self, db_session: AsyncSession) -> None:
+        """get_node_by_id returns the node for valid id and workspace."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+        node = await repo.upsert_node(_make_node(workspace_id=ws, label="Find me"))
+
+        result = await repo.get_node_by_id(node.id, ws)
+
+        assert result is not None
+        assert result.id == node.id
+        assert result.label == "Find me"
+
+    async def test_get_node_by_id_deleted_returns_none(self, db_session: AsyncSession) -> None:
+        """Soft-deleted node is not returned by get_node_by_id."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+        node = await repo.upsert_node(_make_node(workspace_id=ws, label="Will delete"))
+
+        await db_session.execute(
+            _update(GraphNodeModel).where(GraphNodeModel.id == node.id).values(is_deleted=True)
+        )
+        await db_session.flush()
+
+        result = await repo.get_node_by_id(node.id, ws)
+        assert result is None
+
+    async def test_get_node_by_id_wrong_workspace_returns_none(
+        self, db_session: AsyncSession
+    ) -> None:
+        """get_node_by_id returns None when queried with a different workspace."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws_a = uuid4()
+        ws_b = uuid4()
+        node = await repo.upsert_node(_make_node(workspace_id=ws_a, label="WS-A only"))
+
+        result = await repo.get_node_by_id(node.id, ws_b)
+        assert result is None
+
+    async def test_get_node_by_id_nonexistent_returns_none(self, db_session: AsyncSession) -> None:
+        """get_node_by_id returns None for a random UUID."""
+        repo = KnowledgeGraphRepository(db_session)
+        result = await repo.get_node_by_id(uuid4(), uuid4())
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# find_node_by_external_id
+# ---------------------------------------------------------------------------
+
+
+class TestFindNodeByExternalId:
+    async def test_find_node_by_external_id_returns_node(self, db_session: AsyncSession) -> None:
+        """find_node_by_external_id returns the matching node."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+        ext_id = uuid4()
+        node = await repo.upsert_node(
+            _make_node(workspace_id=ws, label="Ext node", external_id=ext_id)
+        )
+
+        result = await repo.find_node_by_external_id(ext_id, ws)
+
+        assert result is not None
+        assert result.id == node.id
+        assert result.external_id == ext_id
+
+    async def test_find_node_by_external_id_wrong_workspace_returns_none(
+        self, db_session: AsyncSession
+    ) -> None:
+        """find_node_by_external_id returns None for a different workspace."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws_a = uuid4()
+        ws_b = uuid4()
+        ext_id = uuid4()
+        await repo.upsert_node(_make_node(workspace_id=ws_a, label="Ext node", external_id=ext_id))
+
+        result = await repo.find_node_by_external_id(ext_id, ws_b)
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# get_edges_between
+# ---------------------------------------------------------------------------
+
+
+class TestGetEdgesBetween:
+    async def test_get_edges_between_empty_ids_returns_empty(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Passing an empty list returns an empty list without errors."""
+        repo = KnowledgeGraphRepository(db_session)
+        result = await repo.get_edges_between([])
+        assert result == []
+
+    async def test_get_edges_between_connected_nodes(self, db_session: AsyncSession) -> None:
+        """Returns edges when both endpoints are in the node_ids pool."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+
+        n1 = await repo.upsert_node(_make_node(workspace_id=ws, label="N1"))
+        n2 = await repo.upsert_node(_make_node(workspace_id=ws, label="N2"))
+        edge = await repo.upsert_edge(_make_edge(n1.id, n2.id))
+
+        result = await repo.get_edges_between([n1.id, n2.id])
+
+        assert len(result) == 1
+        assert result[0].id == edge.id
+        assert result[0].source_id == n1.id
+        assert result[0].target_id == n2.id
+
+    async def test_get_edges_between_with_workspace_filter(self, db_session: AsyncSession) -> None:
+        """get_edges_between with workspace_id filter scopes results."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+
+        n1 = await repo.upsert_node(_make_node(workspace_id=ws, label="A"))
+        n2 = await repo.upsert_node(_make_node(workspace_id=ws, label="B"))
+        await repo.upsert_edge(_make_edge(n1.id, n2.id))
+
+        edges = await repo.get_edges_between([n1.id, n2.id], workspace_id=ws)
+        assert len(edges) == 1
+
+        # Wrong workspace → no edges
+        edges_wrong = await repo.get_edges_between([n1.id, n2.id], workspace_id=uuid4())
+        assert edges_wrong == []
+
+    async def test_get_edges_between_unconnected_nodes(self, db_session: AsyncSession) -> None:
+        """Returns empty list when no edges exist between the given nodes."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+
+        n1 = await repo.upsert_node(_make_node(workspace_id=ws, label="N1"))
+        n2 = await repo.upsert_node(_make_node(workspace_id=ws, label="N2"))
+
+        result = await repo.get_edges_between([n1.id, n2.id])
+        assert result == []

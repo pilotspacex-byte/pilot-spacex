@@ -5,13 +5,14 @@ Tests provider cascade: OpenAI → Ollama, failure isolation, and edge cases.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from pilot_space.application.services.embedding_service import (
     EmbeddingConfig,
     EmbeddingService,
+    _ollama_embed_sync,
 )
 
 
@@ -152,3 +153,116 @@ async def test_timeout_falls_back_to_ollama(openai_config: EmbeddingConfig) -> N
         result = await svc.embed("test query")
 
     assert result == vector
+
+
+# ---------------------------------------------------------------------------
+# _embed_openai implementation tests (lines 87-110)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_embed_openai_success_extracts_embedding(openai_config: EmbeddingConfig) -> None:
+    """_embed_openai extracts embedding from OpenAI response object."""
+    vector = [0.1] * 768
+
+    svc = EmbeddingService(openai_config)
+
+    # Build a fake response matching OpenAI's CreateEmbeddingResponse shape.
+    embedding_obj = MagicMock()
+    embedding_obj.embedding = vector
+    response = MagicMock()
+    response.data = [embedding_obj]
+
+    # Mock the client method to return the fake response as an awaitable.
+    svc._openai_client.embeddings.create = AsyncMock(return_value=response)  # type: ignore[union-attr]
+
+    result = await svc._embed_openai("test")
+
+    assert result == vector
+    assert len(result) == 768  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_embed_openai_timeout_returns_none(openai_config: EmbeddingConfig) -> None:
+    """_embed_openai returns None when asyncio.wait_for raises TimeoutError."""
+    svc = EmbeddingService(openai_config)
+
+    with patch(
+        "pilot_space.application.services.embedding_service.asyncio.wait_for",
+        side_effect=TimeoutError,
+    ):
+        result = await svc._embed_openai("test")
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_embed_openai_generic_exception_returns_none(openai_config: EmbeddingConfig) -> None:
+    """_embed_openai returns None on arbitrary exceptions."""
+    svc = EmbeddingService(openai_config)
+
+    with patch(
+        "pilot_space.application.services.embedding_service.asyncio.wait_for",
+        side_effect=RuntimeError("API error"),
+    ):
+        result = await svc._embed_openai("test")
+
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _ollama_embed_sync implementation tests (lines 130-150)
+# ---------------------------------------------------------------------------
+
+
+def test_ollama_embed_sync_success() -> None:
+    """_ollama_embed_sync returns embedding list on valid response."""
+    import json
+
+    vector = [0.1] * 768
+    response_body = json.dumps({"embeddings": [vector]}).encode()
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = response_body
+    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+    mock_resp.__exit__ = MagicMock(return_value=False)
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        result = _ollama_embed_sync("test", "http://localhost:11434", "model", 30)
+
+    assert result == vector
+    assert len(result) == 768  # type: ignore[arg-type]
+
+
+def test_ollama_embed_sync_empty_embeddings_returns_none() -> None:
+    """_ollama_embed_sync returns None when embeddings list is empty."""
+    import json
+
+    response_body = json.dumps({"embeddings": []}).encode()
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = response_body
+    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+    mock_resp.__exit__ = MagicMock(return_value=False)
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        result = _ollama_embed_sync("test", "http://localhost:11434", "model", 30)
+
+    assert result is None
+
+
+def test_ollama_embed_sync_missing_key_returns_none() -> None:
+    """_ollama_embed_sync returns None when response has no 'embeddings' key."""
+    import json
+
+    response_body = json.dumps({}).encode()
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = response_body
+    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+    mock_resp.__exit__ = MagicMock(return_value=False)
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        result = _ollama_embed_sync("test", "http://localhost:11434", "model", 30)
+
+    assert result is None

@@ -340,3 +340,43 @@ class TestGraphSearchServiceReranking:
 
         assert result.nodes[0].node.id == high_node.id
         assert result.nodes[1].node.id == low_node.id
+
+
+class TestGetEmbeddingNoService:
+    """M-5: Verify _get_embedding returns (None, False) when no service."""
+
+    @pytest.mark.asyncio
+    async def test_get_embedding_no_service_returns_none(
+        self,
+        mock_repo: AsyncMock,
+    ) -> None:
+        """Service with embedding_service=None returns (None, False)."""
+        svc = GraphSearchService(
+            knowledge_graph_repository=mock_repo,
+            embedding_service=None,
+        )
+        result = await svc._get_embedding("query")
+        assert result == (None, False)
+
+
+class TestCollectEdgesException:
+    """M-6: Verify _collect_edges returns empty list on exception."""
+
+    @pytest.mark.asyncio
+    async def test_collect_edges_exception_returns_empty(
+        self,
+        mock_repo: AsyncMock,
+    ) -> None:
+        """When get_edges_between raises, _collect_edges returns []."""
+        mock_repo.get_edges_between = AsyncMock(side_effect=Exception("DB error"))
+        svc = GraphSearchService(
+            knowledge_graph_repository=mock_repo,
+            embedding_service=None,
+        )
+
+        ws = uuid4()
+        node = _make_node(ws)
+        scored = _make_scored_node(node)
+
+        edges = await svc._collect_edges([scored], workspace_id=ws)
+        assert edges == []
