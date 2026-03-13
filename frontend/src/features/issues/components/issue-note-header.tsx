@@ -106,7 +106,9 @@ export const IssueNoteHeader = observer(function IssueNoteHeader({
         <Button variant="ghost" size="icon-sm" onClick={onBack} aria-label="Back to issues">
           <ArrowLeft className="size-4" />
         </Button>
-        <span className="text-sm font-semibold font-mono text-foreground/70">{identifier}</span>
+        <span className="min-w-0 truncate text-sm font-semibold font-mono text-foreground/70">
+          {identifier}
+        </span>
         {issueType && (
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {TYPE_LABELS[issueType] ?? issueType}

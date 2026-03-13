@@ -187,7 +187,7 @@ export function IssueTitle({ title, issueId, workspaceId, disabled = false }: Is
             aria-invalid={validationError ? 'true' : undefined}
             aria-describedby={validationError ? 'issue-title-error' : undefined}
             className={cn(
-              'flex-1 bg-transparent font-display text-3xl font-semibold leading-tight tracking-tight',
+              'flex-1 bg-transparent font-display text-4xl font-semibold leading-tight',
               'outline-none border-b-2 border-transparent',
               'focus:border-primary transition-colors duration-150',
               'placeholder:text-foreground-muted',
@@ -201,7 +201,7 @@ export function IssueTitle({ title, issueId, workspaceId, disabled = false }: Is
             onClick={enterEditMode}
             disabled={disabled}
             className={cn(
-              'flex-1 text-left font-display text-3xl font-semibold leading-tight tracking-tight',
+              'flex-1 text-left font-display text-4xl font-semibold leading-tight',
               'rounded-[10px] px-1 -mx-1 py-0.5',
               'hover:bg-background-subtle focus-visible:outline-none',
               'focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',

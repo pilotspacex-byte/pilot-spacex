@@ -101,7 +101,7 @@ export function IssueNoteLayout({
     <div className="flex flex-col h-full w-full overflow-hidden">
       {hasGraphTab && onRightPanelTabChange && (
         <div
-          className="flex shrink-0 border-b border-border"
+          className="flex h-12 shrink-0 border-b border-border"
           role="tablist"
           aria-label="Right panel tabs"
         >
