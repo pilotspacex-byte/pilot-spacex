@@ -201,3 +201,29 @@ def build_sdk_env(api_key: str) -> dict[str, str]:
     if base_url:
         env["ANTHROPIC_BASE_URL"] = base_url
     return env
+
+
+def build_sdk_env_for_user(
+    api_key: str,
+    user_ai_settings: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    """Build env dict for SDK subprocess with user-level overrides.
+
+    Extends build_sdk_env with per-user base_url override from ai_settings.
+
+    Args:
+        api_key: Anthropic API key for the workspace.
+        user_ai_settings: Optional per-user AI settings dict.
+
+    Returns:
+        Environment dict for SDK subprocess execution.
+    """
+    env = build_sdk_env(api_key)
+
+    # User base_url override takes priority over system setting
+    if user_ai_settings:
+        user_base_url = user_ai_settings.get("base_url")
+        if user_base_url:
+            env["ANTHROPIC_BASE_URL"] = str(user_base_url)
+
+    return env

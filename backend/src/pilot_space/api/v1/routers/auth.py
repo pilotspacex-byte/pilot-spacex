@@ -98,6 +98,7 @@ async def get_current_user_profile(
         avatar_url=user.avatar_url,
         bio=user.bio,
         default_sdlc_role=user.default_sdlc_role,
+        ai_settings=user.ai_settings,
         created_at=user.created_at,
     )
 
@@ -133,6 +134,7 @@ async def update_current_user_profile(
                 avatar_url=update_data.get("avatar_url"),
                 bio=update_data.get("bio"),
                 default_sdlc_role=update_data.get("default_sdlc_role"),
+                ai_settings=update_data.get("ai_settings"),
             ),
         )
     except ValueError as e:
@@ -149,6 +151,7 @@ async def update_current_user_profile(
         avatar_url=user.avatar_url,
         bio=user.bio,
         default_sdlc_role=user.default_sdlc_role,
+        ai_settings=user.ai_settings,
         created_at=user.created_at,
     )
 

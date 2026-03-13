@@ -7,6 +7,7 @@ OAuth callback and token refresh are handled client-side by Supabase SDK (RD-002
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import EmailStr, Field
@@ -67,6 +68,9 @@ class UserProfileResponse(BaseSchema):
     avatar_url: str | None = Field(default=None, description="Profile image URL")
     bio: str | None = Field(default=None, description="Short bio displayed to teammates")
     default_sdlc_role: str | None = Field(default=None, description="User's default SDLC role")
+    ai_settings: dict[str, Any] | None = Field(
+        default=None, description="Per-user AI provider settings (model overrides, base_url)"
+    )
     created_at: datetime = Field(description="Account creation timestamp")
 
 
@@ -84,6 +88,9 @@ class UserProfileUpdateRequest(BaseSchema):
     bio: str | None = Field(default=None, max_length=200, description="Short bio (max 200 chars)")
     default_sdlc_role: str | None = Field(
         default=None, max_length=50, description="Default SDLC role"
+    )
+    ai_settings: dict[str, Any] | None = Field(
+        default=None, description="Per-user AI provider settings (model overrides, base_url)"
     )
 
 

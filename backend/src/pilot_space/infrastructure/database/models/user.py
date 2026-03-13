@@ -6,12 +6,13 @@ Global entity (not workspace-scoped).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import BaseModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.workspace_member import (
@@ -59,6 +60,20 @@ class User(BaseModel):
     bio: Mapped[str | None] = mapped_column(
         String(200),
         nullable=True,
+    )
+
+    # Per-user AI provider settings (model overrides, base_url)
+    # Expected shape (all fields optional):
+    # {
+    #   "model_sonnet": "claude-sonnet-4-20250514",
+    #   "model_haiku": "claude-haiku-4-5-20251001",
+    #   "model_opus": "claude-opus-4-5-20251101",
+    #   "base_url": "https://proxy.example.com/v1"
+    # }
+    ai_settings: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONBCompat,
+        nullable=True,
+        default=None,
     )
 
     # Relationships

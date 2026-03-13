@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +68,7 @@ class UpdateProfilePayload:
     avatar_url: str | None = None
     bio: str | None = None
     default_sdlc_role: str | None = None
+    ai_settings: dict[str, Any] | None = None
 
 
 @dataclass
@@ -185,6 +187,9 @@ class AuthService:
         if payload.default_sdlc_role is not None:
             user.default_sdlc_role = payload.default_sdlc_role
             changed_fields.append("default_sdlc_role")
+        if payload.ai_settings is not None:
+            user.ai_settings = payload.ai_settings
+            changed_fields.append("ai_settings")
 
         if changed_fields:
             user = await self._user_repo.update(user)

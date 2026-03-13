@@ -81,6 +81,34 @@ class ModelTier(str, Enum):
         return limits[self]
 
 
+def resolve_model_for_user(
+    tier: ModelTier,
+    user_ai_settings: dict[str, Any] | None = None,
+) -> str:
+    """Resolve tier to model ID with user override priority.
+
+    Priority chain:
+    1. user_ai_settings["model_{tier}"] (user override)
+    2. PILOTSPACE_MODEL_{TIER}_DEFAULT env var (admin override)
+    3. Hardcoded defaults
+
+    Args:
+        tier: Model tier to resolve.
+        user_ai_settings: Optional per-user AI settings dict.
+
+    Returns:
+        Full model identifier string.
+    """
+    # Check user override first
+    if user_ai_settings:
+        user_model = user_ai_settings.get(f"model_{tier.value}")
+        if user_model:
+            return str(user_model)
+
+    # Fall back to env var then hardcoded default (existing behavior)
+    return tier.model_id
+
+
 def resolve_model(model: str | ModelTier) -> str:
     """Resolve a model identifier to a full model ID.
 
