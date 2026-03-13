@@ -510,6 +510,9 @@ async def update_workspace_issue(
         target_date=target_date_value,
         sort_order=issue_data.sort_order if issue_data.sort_order is not None else UNCHANGED,
         label_ids=issue_data.label_ids if issue_data.label_ids is not None else UNCHANGED,
+        acceptance_criteria=issue_data.acceptance_criteria
+        if issue_data.acceptance_criteria is not None
+        else UNCHANGED,
     )
 
     try:

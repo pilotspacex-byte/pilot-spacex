@@ -2,13 +2,10 @@
 
 import * as React from 'react';
 import { Plus, X } from 'lucide-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { issuesApi } from '@/services/api';
-import { issueDetailKeys } from '@/features/issues/hooks/use-issue-detail';
-import type { Issue } from '@/types';
+import { useUpdateIssue } from '@/features/issues/hooks/use-update-issue';
 
 // ============================================================================
 // Types
@@ -40,8 +37,7 @@ export function AcceptanceCriteriaEditor({
   workspaceId,
   criteria,
 }: AcceptanceCriteriaEditorProps) {
-  const queryClient = useQueryClient();
-  const queryKey = issueDetailKeys.detail(issueId);
+  const { mutate } = useUpdateIssue(workspaceId, issueId);
 
   // H-8: Stable IDs for list items
   const nextIdRef = React.useRef(criteria.length);
@@ -61,53 +57,11 @@ export function AcceptanceCriteriaEditor({
   // R-1: Monotonic counter to detect stale mutation callbacks
   const saveIdRef = React.useRef(0);
 
-  const mutation = useMutation({
-    mutationFn: (acceptanceCriteria: string[]) =>
-      issuesApi.update(workspaceId, issueId, { acceptanceCriteria }),
-
-    onMutate: async (newCriteria) => {
-      // R-1: Capture the save ID at the moment this mutation fires so that
-      // onError/onSettled can detect if a newer save has since been scheduled.
-      const saveId = saveIdRef.current;
-
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<Issue>(queryKey);
-
-      if (previous) {
-        queryClient.setQueryData<Issue>(queryKey, {
-          ...previous,
-          acceptanceCriteria: newCriteria,
-          updatedAt: new Date().toISOString(),
-        });
-      }
-
-      return { previous, saveId };
-    },
-
-    onError: (_err, _data, context) => {
-      // R-1: Only roll back if no newer save has been issued since this one.
-      if (context?.saveId !== saveIdRef.current) return;
-      if (context.previous) {
-        queryClient.setQueryData<Issue>(queryKey, context.previous);
-        setItems(toStableItems(context.previous.acceptanceCriteria ?? []));
-      }
-    },
-
-    onSettled: (_data, _err, _vars, context) => {
-      // R-1: Only clear pending state if no newer save has been issued since
-      // this one. If a newer save exists, its onSettled will handle cleanup.
-      if (context?.saveId !== saveIdRef.current) return;
-      isDirtyRef.current = false;
-      pendingDataRef.current = null;
-      void queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
-  // H-7: Stable ref for mutation.mutate to avoid re-creating scheduleSave
-  const mutateRef = React.useRef(mutation.mutate);
+  // H-7: Stable ref for mutate to avoid re-creating scheduleSave
+  const mutateRef = React.useRef(mutate);
   React.useEffect(() => {
-    mutateRef.current = mutation.mutate;
-  }, [mutation.mutate]);
+    mutateRef.current = mutate;
+  }, [mutate]);
 
   // M-11: Only sync props when not dirty
   React.useEffect(() => {
@@ -128,7 +82,7 @@ export function AcceptanceCriteriaEditor({
       saveIdRef.current += 1;
       pendingDataRef.current = null;
       isDirtyRef.current = false;
-      mutateRef.current(nextItems);
+      mutateRef.current({ acceptanceCriteria: nextItems });
     }, DEBOUNCE_MS);
   }, []);
 
@@ -141,7 +95,7 @@ export function AcceptanceCriteriaEditor({
       if (pendingDataRef.current) {
         // R-1: Increment so the flush mutation is treated as a new save.
         saveIdRef.current += 1;
-        mutateRef.current(pendingDataRef.current);
+        mutateRef.current({ acceptanceCriteria: pendingDataRef.current });
       }
     };
   }, []);

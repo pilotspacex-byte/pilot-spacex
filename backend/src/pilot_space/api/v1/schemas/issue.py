@@ -382,6 +382,7 @@ class WorkspaceIssueUpdateRequest(BaseSchema):
     target_date: str | None = None
     sort_order: int | None = None
     label_ids: list[UUID] | None = None
+    acceptance_criteria: list[str] | None = None
 
     # Clear flags
     clear_assignee: bool = False

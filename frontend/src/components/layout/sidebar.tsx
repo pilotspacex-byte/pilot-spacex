@@ -308,6 +308,10 @@ export const Sidebar = observer(function Sidebar() {
     workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id ??
     workspaceStore.currentWorkspaceId ??
     workspaceSlug;
+  // A verified UUID — undefined when workspaceId is still a slug (e.g. "acme-inc" also
+  // contains '-' so the old .includes('-') guard was insufficient).
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const resolvedWorkspaceId = UUID_RE.test(workspaceId) ? workspaceId : undefined;
 
   // Store workspace slug in localStorage for redirect on root URL
   useEffect(() => {
@@ -330,7 +334,7 @@ export const Sidebar = observer(function Sidebar() {
   }, [workspaceId, isAuthenticated, notificationStore]);
 
   const createNote = useCreateNote({
-    workspaceId,
+    workspaceId: resolvedWorkspaceId ?? '',
     onSuccess: (note) => {
       router.push(`/${workspaceSlug}/notes/${note.id}`);
     },
@@ -373,8 +377,8 @@ export const Sidebar = observer(function Sidebar() {
   }, [projectsData]);
 
   const { data: rawPinnedNotes = [] } = usePinnedNotes({
-    workspaceId,
-    enabled: !!workspaceId && isAuthenticated && workspaceId.includes('-'),
+    workspaceId: resolvedWorkspaceId ?? '',
+    enabled: !!resolvedWorkspaceId && isAuthenticated,
   });
 
   const pinnedNotes = useMemo(() => {
@@ -536,7 +540,9 @@ export const Sidebar = observer(function Sidebar() {
                   </span>
                 </div>
                 <div className="space-y-px">
-                  {pinnedNotes.map((note, index) => (
+                  {pinnedNotes.map((note, index) => {
+                    const isActive = pathname === note.href;
+                    return (
                     <motion.div
                       key={note.id}
                       initial={{ opacity: 0, y: 8 }}
@@ -546,7 +552,13 @@ export const Sidebar = observer(function Sidebar() {
                       <Link
                         href={note.href}
                         data-testid="note-item"
-                        className="group flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50"
+                        aria-current={isActive ? 'page' : undefined}
+                        className={cn(
+                          'group flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors',
+                          isActive
+                            ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                        )}
                       >
                         <FileText className="h-3 w-3 text-muted-foreground" />
                         <span className="truncate">{note.title}</span>
@@ -557,7 +569,8 @@ export const Sidebar = observer(function Sidebar() {
                         )}
                       </Link>
                     </motion.div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             </>
@@ -576,7 +589,7 @@ export const Sidebar = observer(function Sidebar() {
                   size={collapsed ? 'icon' : 'sm'}
                   data-testid="new-note-button"
                   onClick={handleNewNote}
-                  disabled={createNote.isPending}
+                  disabled={createNote.isPending || !resolvedWorkspaceId}
                   className={cn(
                     'shadow-warm-sm transition-all duration-200',
                     'hover:shadow-warm-md hover:-translate-y-0.5',
@@ -648,9 +661,9 @@ export const Sidebar = observer(function Sidebar() {
         </div>
       </div>
 
-      {newNoteFlow.showTemplatePicker && (
+      {newNoteFlow.showTemplatePicker && resolvedWorkspaceId && (
         <TemplatePicker
-          workspaceId={workspaceId}
+          workspaceId={resolvedWorkspaceId}
           isAdmin={isAdminOrOwner}
           onConfirm={newNoteFlow.handleTemplateConfirm}
           onClose={newNoteFlow.handleTemplateClose}

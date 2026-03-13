@@ -486,17 +486,19 @@ async def move_workspace_note(
 
     note = await note_repo.get_by_id(note_id)
     if note is None or note.workspace_id != workspace.id:
-        raise HTTPException(
+        return create_problem_response(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Note not found in this workspace",
+            instance=f"/workspaces/{workspace_id}/notes/{note_id}",
         )
 
     if move_data.project_id is not None:
         project = await project_repo.get_by_id(move_data.project_id)
         if project is None or project.workspace_id != workspace.id:
-            raise HTTPException(
+            return create_problem_response(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found in this workspace",
+                instance=f"/workspaces/{workspace_id}/projects/{move_data.project_id}",
             )
 
     payload = UpdateNotePayload(

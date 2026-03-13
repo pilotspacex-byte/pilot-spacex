@@ -212,9 +212,11 @@ export function MoveNoteDialog({
             ref={searchRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={handleListboxKeyDown}
             placeholder="Search projects…"
             aria-label="Search projects"
             aria-controls={listboxId}
+            aria-activedescendant={`${activeOptionId}-${activeIndex}`}
             className="h-6 border-none bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
           />
         </div>

@@ -27,10 +27,10 @@ if TYPE_CHECKING:
 class InvitationStatus(str, Enum):
     """Status of a workspace invitation."""
 
-    PENDING = "PENDING"
-    ACCEPTED = "ACCEPTED"
-    EXPIRED = "EXPIRED"
-    CANCELLED = "CANCELLED"
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
 
 
 def _default_expires_at() -> datetime:

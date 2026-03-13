@@ -73,6 +73,9 @@ class UpdateIssuePayload:
     sort_order: int | _Unchanged = UNCHANGED
     label_ids: list[UUID] | _Unchanged = UNCHANGED
 
+    # Acceptance criteria (list of plain-text strings)
+    acceptance_criteria: list[str] | None | _Unchanged = UNCHANGED
+
     # AI metadata update
     ai_metadata: dict[str, Any] | None | _Unchanged = UNCHANGED
 
@@ -418,6 +421,11 @@ class UpdateIssueService:
             if payload.ai_metadata != issue.ai_metadata:
                 issue.ai_metadata = payload.ai_metadata
                 changed_fields.append("ai_metadata")
+
+        if not isinstance(payload.acceptance_criteria, _Unchanged):
+            if payload.acceptance_criteria != issue.acceptance_criteria:
+                issue.acceptance_criteria = payload.acceptance_criteria
+                changed_fields.append("acceptance_criteria")
 
         # Handle label updates
         if not isinstance(payload.label_ids, _Unchanged):
