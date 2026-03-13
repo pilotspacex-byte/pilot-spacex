@@ -283,6 +283,10 @@ class KnowledgeGraphRepository:
         edge_types filtering uses ANY(:edge_types) to prevent SQL injection
         (C-1). workspace_id is pushed into the CTE anchor and final filter to
         enforce cross-workspace boundary (C-2).
+
+        The CTE uses bidirectional CASE expressions so each direction pair is a
+        single SELECT — giving exactly one UNION ALL boundary between anchor
+        and recursive terms, which PostgreSQL requires.
         """
         # Only static SQL string fragments are f-string-interpolated — no user
         # data ever enters the SQL text directly.
@@ -293,18 +297,16 @@ class KnowledgeGraphRepository:
         raw = text(
             f"""
             WITH RECURSIVE neighbors(id, depth) AS (
-                SELECT target_id, 1 FROM graph_edges
-                  WHERE source_id = :nid {edge_type_clause} {ws_clause}
+                -- Anchor: direct neighbors in both directions
+                SELECT CASE WHEN source_id = :nid THEN target_id ELSE source_id END, 1
+                  FROM graph_edges
+                  WHERE (source_id = :nid OR target_id = :nid) {edge_type_clause} {ws_clause}
                 UNION ALL
-                SELECT source_id, 1 FROM graph_edges
-                  WHERE target_id = :nid {edge_type_clause} {ws_clause}
-                UNION ALL
-                SELECT e.target_id, n.depth+1 FROM graph_edges e
-                  JOIN neighbors n ON e.source_id = n.id
-                  WHERE n.depth < :md {edge_type_clause} {ws_clause}
-                UNION ALL
-                SELECT e.source_id, n.depth+1 FROM graph_edges e
-                  JOIN neighbors n ON e.target_id = n.id
+                -- Recursive: expand in both directions
+                SELECT CASE WHEN e.source_id = n.id THEN e.target_id ELSE e.source_id END,
+                       n.depth + 1
+                  FROM graph_edges e
+                  JOIN neighbors n ON (e.source_id = n.id OR e.target_id = n.id)
                   WHERE n.depth < :md {edge_type_clause} {ws_clause}
             )
             SELECT DISTINCT gn.id FROM graph_nodes gn JOIN neighbors nb ON gn.id = nb.id
