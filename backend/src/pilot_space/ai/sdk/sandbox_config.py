@@ -40,7 +40,7 @@ class ModelTier(str, Enum):
         """Resolve tier to full model ID from env vars with sensible defaults."""
         defaults = {
             ModelTier.SONNET: "claude-sonnet-4-20250514",
-            ModelTier.OPUS: "claude-opus-4-20250514",
+            ModelTier.OPUS: "claude-opus-4-5-20251101",
             ModelTier.HAIKU: "claude-haiku-4-5-20251001",
         }
         env_keys = {
@@ -388,7 +388,9 @@ def configure_sdk_for_space(
     if additional_env:
         env.update(additional_env)
     # Forward custom Anthropic base URL if configured (admin override for proxy/staging)
-    _base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    from pilot_space.config import get_settings
+
+    _base_url = get_settings().anthropic_base_url
     if _base_url:
         env.setdefault("ANTHROPIC_BASE_URL", _base_url)
 

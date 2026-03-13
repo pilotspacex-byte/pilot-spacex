@@ -195,7 +195,9 @@ def build_sdk_env(api_key: str) -> dict[str, str]:
         "PATH": os.environ.get("PATH", ""),
         "HOME": os.environ.get("HOME", ""),
     }
-    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    from pilot_space.config import get_settings
+
+    base_url = get_settings().anthropic_base_url
     if base_url:
         env["ANTHROPIC_BASE_URL"] = base_url
     return env

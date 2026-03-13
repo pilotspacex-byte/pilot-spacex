@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from pilot_space.ai.sdk.config import build_sdk_env, get_model_for_task
+from pilot_space.ai.sdk.config import MODEL_OPUS, build_sdk_env, get_model_for_task
 from pilot_space.ai.sdk.sandbox_config import ModelTier
 
 
@@ -28,7 +28,7 @@ class TestModelTierEnvOverride:
 
     def test_opus_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("PILOTSPACE_MODEL_OPUS_DEFAULT", raising=False)
-        assert ModelTier.OPUS.model_id == "claude-opus-4-20250514"
+        assert ModelTier.OPUS.model_id == "claude-opus-4-5-20251101"
 
     def test_opus_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PILOTSPACE_MODEL_OPUS_DEFAULT", "kimi-k2.5:cloud")
@@ -54,7 +54,7 @@ class TestGetModelForTask:
     def test_architecture_uses_opus(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("PILOTSPACE_MODEL_OPUS_DEFAULT", raising=False)
         result = get_model_for_task("architecture")
-        assert result == ModelTier.OPUS.model_id
+        assert result == MODEL_OPUS
 
     def test_code_respects_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PILOTSPACE_MODEL_SONNET_DEFAULT", "custom-sonnet")
@@ -88,12 +88,18 @@ class TestBuildSdkEnv:
         assert "HOME" in env
 
     def test_forwards_base_url_when_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from pilot_space.config import get_settings
+
         monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://localhost:11434")
+        get_settings.cache_clear()
         env = build_sdk_env("sk-test")
         assert env["ANTHROPIC_BASE_URL"] == "http://localhost:11434"
 
     def test_omits_base_url_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from pilot_space.config import get_settings
+
         monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+        get_settings.cache_clear()
         env = build_sdk_env("sk-test")
         assert "ANTHROPIC_BASE_URL" not in env
 
