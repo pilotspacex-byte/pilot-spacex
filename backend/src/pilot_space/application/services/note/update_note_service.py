@@ -7,12 +7,16 @@ Supports partial updates with optimistic locking.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, cast
 
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Sentinel that distinguishes "field omitted" from "field explicitly set to None".
+# Used for icon_emoji to allow clearing (explicit None) vs no-op (UNSET).
+UNSET: object = object()
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -59,7 +63,8 @@ class UpdateNotePayload:
     is_pinned: bool | None = None
     project_id: UUID | None = None
     expected_updated_at: datetime | None = None
-    icon_emoji: str | None = None
+    # UNSET = field omitted (no-op); None = explicit clear; str = set value
+    icon_emoji: str | None | object = field(default_factory=lambda: UNSET)
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,9 +171,14 @@ class UpdateNoteService:
             note.project_id = payload.project_id
             fields_updated.append("project_id")
 
-        if payload.icon_emoji is not None:
-            # Empty string means "remove the emoji" — store as None
-            note.icon_emoji = payload.icon_emoji if payload.icon_emoji.strip() else None
+        if payload.icon_emoji is not UNSET:
+            # None or empty/whitespace string means "remove the emoji" — store as None
+            if payload.icon_emoji is None or (
+                isinstance(payload.icon_emoji, str) and not payload.icon_emoji.strip()
+            ):
+                note.icon_emoji = None
+            else:
+                note.icon_emoji = cast("str", payload.icon_emoji)
             fields_updated.append("icon_emoji")
 
         # Save changes

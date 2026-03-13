@@ -332,3 +332,106 @@ async def test_move_note_to_deep_parent_exceeds_depth() -> None:
                 actor_id=uuid.uuid4(),
             )
         )
+
+
+# ---------------------------------------------------------------------------
+# Issue 1: Self-parenting and ancestor-descendant cycle guard tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_move_page_to_itself_raises_value_error() -> None:
+    """Moving a page to itself (new_parent_id == note.id) raises ValueError."""
+    workspace_id = uuid.uuid4()
+    project_id = uuid.uuid4()
+
+    note = _make_note(workspace_id=workspace_id, project_id=project_id, depth=0)
+
+    repo = _make_repo(note=note)
+    session = _make_session()
+    service = MovePageService(session=session, note_repository=repo)
+
+    with pytest.raises(ValueError, match="Cannot move a page to itself"):
+        await service.execute(
+            MovePagePayload(
+                note_id=note.id,
+                new_parent_id=note.id,  # same as note.id
+                workspace_id=workspace_id,
+                actor_id=uuid.uuid4(),
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_move_page_to_descendant_raises_cycle_error() -> None:
+    """Moving a page to one of its own descendants raises ValueError containing 'cycle'."""
+    workspace_id = uuid.uuid4()
+    project_id = uuid.uuid4()
+
+    note = _make_note(workspace_id=workspace_id, project_id=project_id, depth=0)
+    child_id = uuid.uuid4()
+
+    # Simulate child as a descendant of note
+    fake_desc: dict[str, Any] = {
+        "id": child_id,
+        "parent_id": note.id,
+        "depth": 1,
+        "position": 1000,
+    }
+
+    # child acts as parent target
+    child_parent = _make_note(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        depth=1,
+        note_id=child_id,
+    )
+
+    repo = _make_repo(note=note, parent=child_parent, descendants=[fake_desc])
+    session = _make_session()
+    service = MovePageService(session=session, note_repository=repo)
+
+    with pytest.raises(ValueError, match="cycle"):
+        await service.execute(
+            MovePagePayload(
+                note_id=note.id,
+                new_parent_id=child_id,  # child is a descendant of note
+                workspace_id=workspace_id,
+                actor_id=uuid.uuid4(),
+            )
+        )
+
+
+# ---------------------------------------------------------------------------
+# Issue 4: FOR UPDATE locking — verify get_siblings called with for_update=True
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_compute_tail_position_uses_for_update_locking() -> None:
+    """_compute_tail_position passes for_update=True to get_siblings."""
+    workspace_id = uuid.uuid4()
+    project_id = uuid.uuid4()
+
+    parent = _make_note(workspace_id=workspace_id, project_id=project_id, depth=0)
+    note = _make_note(workspace_id=workspace_id, project_id=project_id, depth=0)
+
+    repo = _make_repo(note=note, parent=parent)
+    session = _make_session()
+    service = MovePageService(session=session, note_repository=repo)
+
+    await service.execute(
+        MovePagePayload(
+            note_id=note.id,
+            new_parent_id=parent.id,
+            workspace_id=workspace_id,
+            actor_id=uuid.uuid4(),
+        )
+    )
+
+    # Verify get_siblings was called with for_update=True
+    repo.get_siblings.assert_called_once()
+    call_kwargs = repo.get_siblings.call_args
+    assert call_kwargs.kwargs.get("for_update") is True or (
+        len(call_kwargs.args) > 4 and call_kwargs.args[4] is True
+    )

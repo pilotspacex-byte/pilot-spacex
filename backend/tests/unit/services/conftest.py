@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS notes (
     template_id TEXT,
     source_chat_session_id TEXT,
     last_edited_by_id TEXT,
+    icon_emoji TEXT,
     is_deleted BOOLEAN DEFAULT 0 NOT NULL,
     deleted_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,

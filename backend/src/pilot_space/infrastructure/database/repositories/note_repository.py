@@ -354,6 +354,7 @@ class NoteRepository(BaseRepository[Note]):
         workspace_id: UUID,
         project_id: UUID | None,
         exclude_note_id: UUID,
+        for_update: bool = False,
     ) -> Sequence[Note]:
         """Get siblings of a note (notes sharing same parent) ordered by position ASC.
 
@@ -362,6 +363,8 @@ class NoteRepository(BaseRepository[Note]):
             workspace_id: The workspace ID.
             project_id: The project ID (None for personal notes).
             exclude_note_id: Note ID to exclude from results.
+            for_update: If True, apply SELECT FOR UPDATE to serialize concurrent writes.
+                        This is a no-op in SQLite (used in production PostgreSQL only).
 
         Returns:
             Ordered list of sibling notes.
@@ -382,6 +385,8 @@ class NoteRepository(BaseRepository[Note]):
             query = query.where(Note.project_id == project_id)
 
         query = query.order_by(Note.position.asc())
+        if for_update:
+            query = query.with_for_update()
         result = await self.session.execute(query)
         return result.scalars().all()
 

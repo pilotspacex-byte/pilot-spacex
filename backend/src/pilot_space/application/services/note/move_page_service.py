@@ -94,6 +94,11 @@ class MovePageService:
             msg = "Note not found"
             raise ValueError(msg)
 
+        # Guard: cannot move a page to itself
+        if payload.new_parent_id == note.id:
+            msg = "Cannot move a page to itself"
+            raise ValueError(msg)
+
         # Guard: personal pages (project_id=None) cannot be re-parented yet
         if note.project_id is None:
             msg = "Personal page re-parenting not yet supported"
@@ -120,6 +125,14 @@ class MovePageService:
 
         # Descendant depth check — mocked in tests since SQLite lacks recursive CTE
         descendants = await self._note_repo.get_descendants(note.id)
+
+        # Guard: cannot move to a descendant (would create a cycle)
+        if payload.new_parent_id is not None and descendants:
+            descendant_ids = {d["id"] for d in descendants}
+            if payload.new_parent_id in descendant_ids:
+                msg = "Cannot move a page to one of its descendants (would create cycle)"
+                raise ValueError(msg)
+
         if descendants:
             max_offset = max(int(d["depth"]) - note.depth for d in descendants)
             if new_depth + max_offset > MAX_DEPTH:
@@ -149,7 +162,9 @@ class MovePageService:
 
             desc_ids = [d["id"] for d in descendants]
             await self._session.execute(
-                update(Note).where(Note.id.in_(desc_ids)).values(depth=Note.depth + depth_delta)
+                update(Note)
+                .where(Note.id.in_(desc_ids), Note.workspace_id == payload.workspace_id)
+                .values(depth=Note.depth + depth_delta)
             )
 
         await self._session.flush()
@@ -189,6 +204,7 @@ class MovePageService:
             workspace_id=workspace_id,
             project_id=project_id,
             exclude_note_id=self._null_uuid(),
+            for_update=True,
         )
         if not siblings:
             return 1000

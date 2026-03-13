@@ -41,6 +41,7 @@ from pilot_space.api.v1.schemas.note import (
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, SyncedUserId
 from pilot_space.infrastructure.database.models.note import Note
 from pilot_space.infrastructure.database.models.workspace import Workspace
+from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -102,6 +103,7 @@ def _note_to_response(note: Note) -> NoteResponse:
         is_pinned=note.is_pinned,
         word_count=note.word_count,
         last_edited_by_id=note.owner_id,
+        icon_emoji=note.icon_emoji,
     )
 
 
@@ -129,6 +131,7 @@ def _note_to_detail_response(note: Note) -> NoteDetailResponse:
         is_pinned=note.is_pinned,
         word_count=note.word_count,
         last_edited_by_id=note.owner_id,
+        icon_emoji=note.icon_emoji,
         content=content,
         annotation_count=len(note.annotations) if note.annotations else 0,
         discussion_count=len(note.discussions) if note.discussions else 0,
@@ -148,6 +151,7 @@ def _note_to_tree_response(note: Note) -> PageTreeResponse:
         is_pinned=note.is_pinned,
         word_count=note.word_count,
         last_edited_by_id=note.owner_id,
+        icon_emoji=note.icon_emoji,
         parent_id=note.parent_id,
         depth=note.depth,
         position=note.position,
@@ -343,7 +347,7 @@ async def update_workspace_note(
     Returns:
         Updated note.
     """
-    from pilot_space.application.services.note.update_note_service import UpdateNotePayload
+    from pilot_space.application.services.note.update_note_service import UNSET, UpdateNotePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
@@ -366,7 +370,7 @@ async def update_workspace_note(
             detail="Storage quota exceeded",
         )
 
-    # Execute service
+    # Execute service — pass UNSET for icon_emoji when omitted to distinguish from explicit null
     payload = UpdateNotePayload(
         note_id=note_id,
         title=update_data.get("title"),
@@ -374,7 +378,7 @@ async def update_workspace_note(
         summary=update_data.get("summary"),
         is_pinned=update_data.get("is_pinned"),
         project_id=update_data.get("project_id"),
-        icon_emoji=update_data.get("icon_emoji"),
+        icon_emoji=update_data.get("icon_emoji", UNSET),
     )
     result = await update_service.execute(payload)
 
@@ -470,6 +474,7 @@ async def move_page(
     from pilot_space.application.services.note.move_page_service import MovePagePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     try:
         result = await move_service.execute(
@@ -481,10 +486,13 @@ async def move_page(
             )
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from e
+        msg = str(e)
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in msg.lower()
+            else status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+        raise HTTPException(status_code=status_code, detail=msg) from e
 
     logger.info(
         "Page moved",
@@ -529,6 +537,7 @@ async def reorder_page(
     from pilot_space.application.services.note.reorder_page_service import ReorderPagePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     try:
         result = await reorder_service.execute(
@@ -540,10 +549,13 @@ async def reorder_page(
             )
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from e
+        msg = str(e)
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in msg.lower()
+            else status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+        raise HTTPException(status_code=status_code, detail=msg) from e
 
     logger.info(
         "Page reordered",
