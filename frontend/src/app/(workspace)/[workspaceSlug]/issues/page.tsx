@@ -13,7 +13,7 @@ export default function IssuesPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b px-4 py-3 sm:px-6 sm:py-4">
+      <div className="border-b px-4 py-4 sm:px-6">
         <h1 className="text-xl font-semibold sm:text-2xl">Issues</h1>
         <p className="text-sm text-muted-foreground">All projects</p>
       </div>

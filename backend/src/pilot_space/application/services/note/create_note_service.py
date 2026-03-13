@@ -55,6 +55,7 @@ class CreateNotePayload:
     project_id: UUID | None = None
     template_id: UUID | None = None
     is_pinned: bool = False
+    parent_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +124,38 @@ class CreateNoteService:
             msg = "Note title is required"
             raise ValueError(msg)
 
+        # Resolve tree position fields from parent
+        depth = 0
+        position = 0
+        parent_id = payload.parent_id
+
+        if parent_id is not None:
+            # Personal pages cannot be nested (no project_id)
+            if payload.project_id is None:
+                msg = "Cannot nest personal pages: parent_id requires a project_id"
+                raise ValueError(msg)
+
+            # Fetch parent note
+            parent = await self._note_repo.get_by_id(parent_id)
+            if parent is None:
+                msg = f"Parent note not found: {parent_id}"
+                raise ValueError(msg)
+
+            # Enforce 3-level max depth (0=root, 1=section, 2=page)
+            depth = parent.depth + 1
+            if depth > 2:
+                msg = f"Cannot exceed maximum depth of 2 (parent depth={parent.depth})"
+                raise ValueError(msg)
+
+            # Compute position: max sibling position + 1000
+            # Use get_children to find existing children of the parent
+            existing_children = await self._note_repo.get_children(parent_id)
+            if existing_children:
+                max_position = max(c.position for c in existing_children)
+                position = max_position + 1000
+            else:
+                position = 1000
+
         # Get template content if template_id provided
         content = payload.content or self._get_empty_doc()
         template_applied = False
@@ -149,6 +182,9 @@ class CreateNoteService:
             is_pinned=payload.is_pinned,
             template_id=payload.template_id,
             project_id=payload.project_id,
+            parent_id=parent_id,
+            depth=depth,
+            position=position,
         )
 
         created_note = await self._note_repo.create(note)

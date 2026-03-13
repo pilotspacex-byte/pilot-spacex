@@ -128,7 +128,7 @@ export default function ProjectsPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4">
+      <div className="flex items-center justify-between border-b border-border px-4 py-4 sm:px-6">
         <div>
           <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Projects</h1>
           <p className="text-sm text-muted-foreground">
@@ -167,7 +167,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-2 border-b border-border/50 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-6">
+      <div className="flex flex-col gap-2 border-b border-border/50 px-4 py-2 sm:flex-row sm:items-center sm:gap-4 sm:px-6">
         <div className="relative sm:flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

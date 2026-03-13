@@ -19,7 +19,7 @@ interface AppShellProps {
 
 export const AppShell = observer(function AppShell({ children }: AppShellProps) {
   const uiStore = useUIStore();
-  const { isSmallScreen } = useResponsive();
+  const { isMobile, isTablet } = useResponsive();
   const sidebarOpen = !uiStore.sidebarCollapsed;
 
   useEffect(() => {
@@ -29,13 +29,15 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
   // Register global Cmd+K / Ctrl+K shortcut
   useCommandPaletteShortcut();
 
-  // Auto-collapse sidebar on small screens (mobile/tablet)
+  // Auto-collapse sidebar on mobile and tablet; restore on desktop
   useEffect(() => {
-    if (isSmallScreen) {
+    if (isMobile || isTablet) {
       uiStore.setSidebarCollapsed(true);
+    } else {
+      uiStore.setSidebarCollapsed(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSmallScreen]);
+  }, [isMobile, isTablet]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -50,9 +52,9 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
         Skip to main content
       </a>
 
-      {/* Mobile backdrop overlay */}
+      {/* Mobile backdrop overlay — only on mobile (tablet uses icon-rail, no overlay needed) */}
       <AnimatePresence>
-        {isSmallScreen && sidebarOpen && (
+        {isMobile && sidebarOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -65,8 +67,8 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
         )}
       </AnimatePresence>
 
-      {/* Sidebar — overlay on mobile, inline on desktop */}
-      {isSmallScreen ? (
+      {/* Sidebar — overlay on mobile, inline icon-rail on tablet, full inline on desktop */}
+      {isMobile ? (
         <AnimatePresence>
           {sidebarOpen && (
             <motion.aside
@@ -81,10 +83,11 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
           )}
         </AnimatePresence>
       ) : (
+        /* Tablet: always-visible 60px icon-rail (collapsed); Desktop: user-controlled full width */
         <motion.aside
           initial={false}
           animate={{
-            width: uiStore.sidebarCollapsed ? 60 : uiStore.sidebarWidth,
+            width: isTablet ? 60 : uiStore.sidebarCollapsed ? 60 : uiStore.sidebarWidth,
           }}
           transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
           className="relative flex h-full flex-col border-r border-sidebar-border bg-sidebar"
@@ -95,8 +98,8 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
 
       {/* Main content area — min-w-0 prevents flex children from overflowing viewport */}
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        {/* Mobile hamburger toggle */}
-        {isSmallScreen && !sidebarOpen && (
+        {/* Mobile hamburger toggle — only on mobile (tablet has persistent icon-rail) */}
+        {isMobile && !sidebarOpen && (
           <div className="flex h-10 items-center border-b border-border px-2">
             <Button
               variant="ghost"

@@ -3,6 +3,7 @@ import { apiClient, type PaginatedResponse } from './client';
 import type {
   Note,
   CreateNoteData,
+  UpdateNoteData,
   JSONContent,
   NoteAnnotation,
   AnnotationStatus,
@@ -48,7 +49,7 @@ export const notesApi = {
     return apiClient.post<Note>(`/workspaces/${workspaceId}/notes`, data);
   },
 
-  update(workspaceId: string, noteId: string, data: Partial<CreateNoteData>): Promise<Note> {
+  update(workspaceId: string, noteId: string, data: Partial<UpdateNoteData>): Promise<Note> {
     return apiClient.patch<Note>(`/workspaces/${workspaceId}/notes/${noteId}`, data);
   },
 
@@ -147,6 +148,18 @@ export const notesApi = {
 
   getNoteBacklinks(workspaceId: string, noteId: string): Promise<NoteBacklink[]> {
     return apiClient.get<NoteBacklink[]>(`/workspaces/${workspaceId}/notes/${noteId}/backlinks`);
+  },
+
+  movePage(workspaceId: string, noteId: string, newParentId: string | null): Promise<Note> {
+    return apiClient.post<Note>(`/workspaces/${workspaceId}/notes/${noteId}/move`, {
+      new_parent_id: newParentId,
+    });
+  },
+
+  reorderPage(workspaceId: string, noteId: string, insertAfterId: string | null): Promise<Note> {
+    return apiClient.post<Note>(`/workspaces/${workspaceId}/notes/${noteId}/reorder`, {
+      insert_after_id: insertAfterId,
+    });
   },
 };
 

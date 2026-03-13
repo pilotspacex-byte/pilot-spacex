@@ -202,9 +202,9 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="flex h-full flex-col">
-      {/* Desktop Header */}
-      <div className="hidden border-b border-border px-6 py-4 md:block">
-        <div className="flex items-center gap-3">
+      {/* Desktop Header — only visible at lg+ (tablet uses sheet nav, too tight with icon-rail) */}
+      <div className="hidden border-b border-border px-6 py-4 lg:block">
+        <div className="flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
             <Settings className="h-5 w-5 text-muted-foreground" />
           </div>
@@ -215,8 +215,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         </div>
       </div>
 
-      {/* Mobile Header with Sheet trigger */}
-      <div className="flex items-center gap-3 border-b border-border px-4 py-3 md:hidden">
+      {/* Mobile/Tablet Header with Sheet trigger — visible below lg (md uses sheet since icon-rail takes space) */}
+      <div className="flex items-center gap-4 border-b border-border px-4 py-4 lg:hidden">
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetTrigger asChild>
             <Button
@@ -245,9 +245,9 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
       {/* Layout: Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Desktop Sidebar Navigation */}
+        {/* Desktop Sidebar Navigation — only at lg+ so tablet gets full-width content */}
         <nav
-          className="hidden w-56 shrink-0 border-r border-border overflow-y-auto p-3 md:block"
+          className="hidden w-56 shrink-0 border-r border-border overflow-y-auto p-3 lg:block"
           aria-label="Settings navigation"
         >
           <SettingsNavContent workspaceSlug={workspaceSlug} pathname={pathname} />

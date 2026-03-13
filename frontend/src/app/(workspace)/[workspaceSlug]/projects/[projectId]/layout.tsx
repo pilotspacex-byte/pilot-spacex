@@ -29,7 +29,7 @@ export default function ProjectDetailLayout({ children }: { children: React.Reac
               <Skeleton className="h-3 w-12" />
             </div>
           </div>
-          <div className="px-2 py-3 space-y-1">
+          <div className="px-2 py-4 space-y-1">
             {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-9 w-full rounded-md" />
             ))}

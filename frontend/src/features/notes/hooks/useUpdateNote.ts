@@ -26,6 +26,7 @@ export interface UpdateNoteData {
   title?: string;
   content?: JSONContent;
   projectId?: string;
+  iconEmoji?: string | null;
 }
 
 /**

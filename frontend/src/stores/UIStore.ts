@@ -1,6 +1,6 @@
 'use client';
 
-import { makeAutoObservable, reaction, computed, type IReactionDisposer } from 'mobx';
+import { makeAutoObservable, observable, reaction, computed, type IReactionDisposer } from 'mobx';
 import { generateUUID } from '@/lib/utils';
 
 export type Theme = 'light' | 'dark' | 'system';
@@ -29,6 +29,7 @@ interface PersistedUIState {
   sidebarWidth: number;
   marginPanelWidth: number;
   theme: Theme;
+  expandedNodes: string[];
 }
 
 export class UIStore {
@@ -42,6 +43,8 @@ export class UIStore {
 
   modals: Map<string, ModalState> = new Map();
   toasts: Toast[] = [];
+  /** Expanded tree node IDs — MobX observable Set for sidebar tree state */
+  expandedNodes: Set<string> = new Set<string>();
 
   private toastTimeouts: Map<string, NodeJS.Timeout> = new Map();
   private reactionDisposers: IReactionDisposer[] = [];
@@ -51,6 +54,9 @@ export class UIStore {
       activeToasts: computed,
       resolvedTheme: computed,
       hasOpenModal: computed,
+      // CRITICAL: annotate as observable so MobX tracks Set mutations.
+      // Standard Set mutations (add/delete) are NOT reactive without this.
+      expandedNodes: observable,
     });
 
     this.setupPersistence();
@@ -96,6 +102,10 @@ export class UIStore {
         this.sidebarWidth = state.sidebarWidth ?? 260;
         this.marginPanelWidth = state.marginPanelWidth ?? 200;
         this.theme = state.theme ?? 'system';
+        // Restore expanded nodes from persisted string array
+        if (Array.isArray(state.expandedNodes)) {
+          this.expandedNodes = new Set<string>(state.expandedNodes);
+        }
       }
     } catch {
       // Ignore parse errors
@@ -109,6 +119,8 @@ export class UIStore {
         sidebarWidth: this.sidebarWidth,
         marginPanelWidth: this.marginPanelWidth,
         theme: this.theme,
+        // Serialize Set as array for JSON storage
+        expandedNodes: Array.from(this.expandedNodes),
       }),
       (state) => {
         if (typeof window === 'undefined') return;
@@ -134,6 +146,26 @@ export class UIStore {
 
     this.reactionDisposers.push(persistDisposer, themeDisposer);
   }
+
+  // ---------------------------------------------------------------------------
+  // Tree expand state
+  // ---------------------------------------------------------------------------
+
+  toggleNodeExpanded(nodeId: string): void {
+    if (this.expandedNodes.has(nodeId)) {
+      this.expandedNodes.delete(nodeId);
+    } else {
+      this.expandedNodes.add(nodeId);
+    }
+  }
+
+  isNodeExpanded(nodeId: string): boolean {
+    return this.expandedNodes.has(nodeId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sidebar
+  // ---------------------------------------------------------------------------
 
   toggleSidebar(): void {
     this.sidebarCollapsed = !this.sidebarCollapsed;

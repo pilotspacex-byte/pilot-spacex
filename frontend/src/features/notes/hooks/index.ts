@@ -2,6 +2,10 @@
  * Notes Hooks - Barrel Export
  */
 
+// Tree hooks
+export { useProjectPageTree, projectTreeKeys } from './useProjectPageTree';
+export { usePersonalPages, personalPagesKeys } from './usePersonalPages';
+
 // Query hooks
 export { useNotes, useInfiniteNotes, notesKeys, NOTES_QUERY_KEY } from './useNotes';
 export type { UseNotesOptions } from './useNotes';
@@ -10,6 +14,8 @@ export { useNote, useNoteAnnotations } from './useNote';
 export type { UseNoteOptions } from './useNote';
 
 // Mutation hooks
+export { useMovePage } from './useMovePage';
+export { useReorderPage } from './useReorderPage';
 export { useCreateNote, createNoteDefaults } from './useCreateNote';
 export type { UseCreateNoteOptions } from './useCreateNote';
 

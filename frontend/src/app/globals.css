@@ -5,7 +5,7 @@
 
 /* =============================================================================
    PILOT SPACE DESIGN TOKENS v2.0
-   Direction: Warm, Capable, Collaborative | Editorial Quality
+   Direction: Neutral Notion-like base | Editorial Quality
    ============================================================================= */
 
 @theme inline {
@@ -72,7 +72,8 @@
 
   /* Typography - Pilot Space v4 fonts */
   --font-display: 'Fraunces', Georgia, serif;
-  --font-sans: var(--font-dm-sans), var(--font-geist-sans), system-ui, sans-serif;
+  --font-sans:
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --font-mono: var(--font-dm-mono), var(--font-geist-mono), 'SF Mono', monospace;
 
   /* Border radius (Apple squircle style) */
@@ -97,23 +98,23 @@
 }
 
 /* =============================================================================
-   LIGHT THEME (Default) - Warm Editorial (Prototype v4)
+   LIGHT THEME (Default) - Neutral Notion-like base
    ============================================================================= */
 :root {
-  /* Base - Warm off-white (v4 exact values) */
-  --background: #fdfcfa;
-  --background-subtle: #f8f7f5;
-  --background-muted: #f3f2ef;
-  --foreground: #1a1918;
-  --foreground-muted: #6b6966;
+  /* Base - Neutral Notion-like values */
+  --background: #ffffff;
+  --background-subtle: #f7f7f5;
+  --background-muted: #f1f1ef;
+  --foreground: #37352f;
+  --foreground-muted: #787774;
 
   /* Card surfaces */
-  --card: #fdfcfa;
-  --card-foreground: #1a1918;
+  --card: #ffffff;
+  --card-foreground: #37352f;
 
   /* Popover */
-  --popover: #fdfcfa;
-  --popover-foreground: #1a1918;
+  --popover: #ffffff;
+  --popover-foreground: #37352f;
 
   /* Primary - Teal Green (v4 exact values) */
   --primary: #29a386;
@@ -122,16 +123,16 @@
   --primary-foreground: #ffffff;
 
   /* Secondary */
-  --secondary: #f3f2ef;
-  --secondary-foreground: #1a1918;
+  --secondary: #f1f1ef;
+  --secondary-foreground: #37352f;
 
   /* Muted */
-  --muted: #f3f2ef;
-  --muted-foreground: #6b6966;
+  --muted: #f1f1ef;
+  --muted-foreground: #787774;
 
   /* Accent */
-  --accent: #f3f2ef;
-  --accent-foreground: #1a1918;
+  --accent: #f1f1ef;
+  --accent-foreground: #37352f;
 
   /* Destructive - Warm red */
   --destructive: #d9534f;
@@ -140,10 +141,10 @@
   /* Warning */
   --warning: #d9853f;
 
-  /* Borders - Warm (v4 exact values) */
-  --border: #e8e6e3;
-  --border-subtle: #f0eeeb;
-  --input: #e8e6e3;
+  /* Borders - Neutral */
+  --border: #e9e9e7;
+  --border-subtle: #efefed;
+  --input: #e9e9e7;
   --ring: #29a386;
 
   /* AI Partner - Dusty Blue (v4 exact values) */
@@ -175,13 +176,13 @@
   --priority-none: #9c9590;
 
   /* Sidebar */
-  --sidebar: #f8f7f5;
-  --sidebar-foreground: #1a1918;
+  --sidebar: #f7f7f5;
+  --sidebar-foreground: #37352f;
   --sidebar-primary: #29a386;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3f2ef;
-  --sidebar-accent-foreground: #1a1918;
-  --sidebar-border: #e8e6e3;
+  --sidebar-accent: #f1f1ef;
+  --sidebar-accent-foreground: #37352f;
+  --sidebar-border: #e9e9e7;
   --sidebar-ring: #29a386;
 
   /* Layout */
@@ -195,20 +196,20 @@
    DARK THEME - Soft Dark (v4 aligned)
    ============================================================================= */
 .dark {
-  /* Base - Soft dark */
-  --background: #1a1918;
-  --background-subtle: #232220;
-  --background-muted: #2d2c2a;
-  --foreground: #edeceb;
-  --foreground-muted: #9c9590;
+  /* Base - Neutral dark */
+  --background: #191919;
+  --background-subtle: #222222;
+  --background-muted: #2c2c2c;
+  --foreground: #ebebeb;
+  --foreground-muted: #9b9b9b;
 
   /* Card surfaces */
-  --card: #232220;
-  --card-foreground: #edeceb;
+  --card: #222222;
+  --card-foreground: #ebebeb;
 
   /* Popover */
-  --popover: #232220;
-  --popover-foreground: #edeceb;
+  --popover: #222222;
+  --popover-foreground: #ebebeb;
 
   /* Primary */
   --primary: #3db896;
@@ -217,16 +218,16 @@
   --primary-foreground: #ffffff;
 
   /* Secondary */
-  --secondary: #2d2c2a;
-  --secondary-foreground: #edeceb;
+  --secondary: #2c2c2c;
+  --secondary-foreground: #ebebeb;
 
   /* Muted */
-  --muted: #2d2c2a;
-  --muted-foreground: #9c9590;
+  --muted: #2c2c2c;
+  --muted-foreground: #9b9b9b;
 
   /* Accent */
-  --accent: #2d2c2a;
-  --accent-foreground: #edeceb;
+  --accent: #2c2c2c;
+  --accent-foreground: #ebebeb;
 
   /* Destructive */
   --destructive: #e5605b;
@@ -236,9 +237,9 @@
   --warning: #e5955b;
 
   /* Borders */
-  --border: #3d3c3a;
-  --border-subtle: #333230;
-  --input: #3d3c3a;
+  --border: #3c3c3c;
+  --border-subtle: #333333;
+  --input: #3c3c3c;
   --ring: #3db896;
 
   /* AI Partner */
@@ -270,13 +271,13 @@
   --priority-none: #7a7570;
 
   /* Sidebar */
-  --sidebar: #151413;
-  --sidebar-foreground: #edeceb;
+  --sidebar: #141414;
+  --sidebar-foreground: #ebebeb;
   --sidebar-primary: #3db896;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2d2c2a;
-  --sidebar-accent-foreground: #edeceb;
-  --sidebar-border: #3d3c3a;
+  --sidebar-accent: #2c2c2c;
+  --sidebar-accent-foreground: #ebebeb;
+  --sidebar-border: #3c3c3c;
   --sidebar-ring: #3db896;
 }
 
@@ -311,47 +312,47 @@
    CUSTOM CLASSES (Not using @layer utilities for Tailwind v4 compatibility)
    ============================================================================= */
 
-/* Warm Shadows */
+/* Neutral Shadows */
 .shadow-warm-sm {
   box-shadow:
-    0 1px 2px hsl(30 10% 10% / 0.04),
-    0 1px 1px hsl(30 10% 10% / 0.02);
+    0 1px 2px hsl(0 0% 0% / 0.04),
+    0 1px 1px hsl(0 0% 0% / 0.02);
 }
 
 .shadow-warm {
   box-shadow:
-    0 2px 4px hsl(30 10% 10% / 0.04),
-    0 4px 8px hsl(30 10% 10% / 0.04);
+    0 2px 4px hsl(0 0% 0% / 0.04),
+    0 4px 8px hsl(0 0% 0% / 0.04);
 }
 
 .shadow-warm-md {
   box-shadow:
-    0 4px 8px hsl(30 10% 10% / 0.04),
-    0 8px 16px hsl(30 10% 10% / 0.06);
+    0 4px 8px hsl(0 0% 0% / 0.04),
+    0 8px 16px hsl(0 0% 0% / 0.06);
 }
 
 .shadow-warm-lg {
   box-shadow:
-    0 8px 16px hsl(30 10% 10% / 0.06),
-    0 16px 32px hsl(30 10% 10% / 0.08);
+    0 8px 16px hsl(0 0% 0% / 0.06),
+    0 16px 32px hsl(0 0% 0% / 0.08);
 }
 
 .shadow-warm-xl {
   box-shadow:
-    0 12px 24px hsl(30 10% 10% / 0.08),
-    0 24px 48px hsl(30 10% 10% / 0.1);
+    0 12px 24px hsl(0 0% 0% / 0.08),
+    0 24px 48px hsl(0 0% 0% / 0.1);
 }
 
 /* Frosted Glass */
 .glass {
   backdrop-filter: blur(20px) saturate(180%);
-  background: hsl(40 20% 98% / 0.72);
-  border: 1px solid hsl(40 10% 90% / 0.5);
+  background: hsl(0 0% 98% / 0.72);
+  border: 1px solid hsl(0 0% 90% / 0.5);
 }
 
 .glass-subtle {
   backdrop-filter: blur(12px) saturate(150%);
-  background: hsl(40 20% 98% / 0.85);
+  background: hsl(0 0% 98% / 0.85);
 }
 
 /* AI Styling */
@@ -373,7 +374,7 @@
 /* Scrollbar */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: hsl(40 10% 90%) transparent;
+  scrollbar-color: hsl(0 0% 90%) transparent;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -386,7 +387,7 @@
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: hsl(40 10% 90%);
+  background: hsl(0 0% 90%);
   border-radius: 3px;
 }
 
@@ -409,8 +410,8 @@
 
 .interactive:hover {
   box-shadow:
-    0 4px 8px hsl(30 10% 10% / 0.04),
-    0 8px 16px hsl(30 10% 10% / 0.06);
+    0 4px 8px hsl(0 0% 0% / 0.04),
+    0 8px 16px hsl(0 0% 0% / 0.06);
   transform: translateY(-1px);
 }
 
@@ -487,12 +488,7 @@
 }
 
 .animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    hsl(40 15% 95%) 0%,
-    hsl(0 0% 45% / 0.1) 50%,
-    hsl(40 15% 95%) 100%
-  );
+  background: linear-gradient(90deg, hsl(0 0% 95%) 0%, hsl(0 0% 45% / 0.1) 50%, hsl(0 0% 95%) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -2153,8 +2149,8 @@
 .code-block-wrapper:hover {
   border-color: var(--border);
   box-shadow:
-    0 2px 4px hsl(30 10% 10% / 0.03),
-    0 4px 8px hsl(30 10% 10% / 0.03);
+    0 2px 4px hsl(0 0% 0% / 0.03),
+    0 4px 8px hsl(0 0% 0% / 0.03);
 }
 
 .dark .code-block-wrapper:hover {
@@ -2195,12 +2191,12 @@
 }
 
 .code-block-wrapper pre::-webkit-scrollbar-thumb {
-  background: hsl(30 10% 80%);
+  background: hsl(0 0% 80%);
   border-radius: 3px;
 }
 
 .dark .code-block-wrapper pre::-webkit-scrollbar-thumb {
-  background: hsl(30 5% 30%);
+  background: hsl(0 0% 30%);
 }
 
 /* Language selector — top-left floating pill */
@@ -2353,13 +2349,13 @@
   transform: scale(0.97);
 }
 
-/* Active toggle — elevated surface with warm shadow */
+/* Active toggle — elevated surface with neutral shadow */
 .mermaid-unified-block button.mermaid-toggle-btn.active {
   color: var(--foreground);
   background: var(--background);
   box-shadow:
-    0 1px 2px hsl(30 10% 10% / 0.06),
-    0 1px 3px hsl(30 10% 10% / 0.04);
+    0 1px 2px hsl(0 0% 0% / 0.06),
+    0 1px 3px hsl(0 0% 0% / 0.04);
 }
 
 .dark .mermaid-unified-block button.mermaid-toggle-btn.active {
@@ -2402,12 +2398,12 @@
 }
 
 .mermaid-unified-block .mermaid-code-section::-webkit-scrollbar-thumb {
-  background: hsl(30 10% 80%);
+  background: hsl(0 0% 80%);
   border-radius: 3px;
 }
 
 .dark .mermaid-unified-block .mermaid-code-section::-webkit-scrollbar-thumb {
-  background: hsl(30 5% 30%);
+  background: hsl(0 0% 30%);
 }
 
 /* Preview section — clean diagram area with breathing room */

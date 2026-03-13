@@ -2,10 +2,14 @@
 
 import { makeAutoObservable, reaction, computed, type IReactionDisposer } from 'mobx';
 
+// ---- Types ----
+
+export type ViewMode = 'board' | 'list' | 'table' | 'priority';
+
 // ---- Persisted State Shape ----
 
 interface PersistedIssueViewState {
-  viewMode: 'board' | 'list' | 'table';
+  viewMode: ViewMode;
   cardDensity: 'comfortable' | 'compact' | 'minimal';
   collapsedColumns: string[];
   collapsedGroups: string[];
@@ -18,6 +22,7 @@ interface PersistedIssueViewState {
   filterAssigneeIds: string[];
   filterLabelIds: string[];
   filterProjectIds: string[];
+  projectViewModes: Record<string, ViewMode>;
 }
 
 const STORAGE_KEY = 'pilot-space:issue-view-state';
@@ -26,7 +31,8 @@ const STORAGE_KEY = 'pilot-space:issue-view-state';
 
 export class IssueViewStore {
   // View preferences (persisted)
-  viewMode: 'board' | 'list' | 'table' = 'board';
+  viewMode: ViewMode = 'board';
+  projectViewModes: Map<string, ViewMode> = new Map();
   cardDensity: 'comfortable' | 'compact' | 'minimal' = 'comfortable';
   collapsedColumns: Set<string> = new Set();
   collapsedGroups: Set<string> = new Set();
@@ -96,8 +102,23 @@ export class IssueViewStore {
 
   // ---- View Preference Actions ----
 
-  setViewMode(mode: 'board' | 'list' | 'table'): void {
+  setViewMode(mode: ViewMode): void {
     this.viewMode = mode;
+  }
+
+  getEffectiveViewMode(projectId?: string): ViewMode {
+    if (projectId) {
+      return this.projectViewModes.get(projectId) ?? this.viewMode;
+    }
+    return this.viewMode;
+  }
+
+  setEffectiveViewMode(mode: ViewMode, projectId?: string): void {
+    if (projectId) {
+      this.projectViewModes.set(projectId, mode);
+    } else {
+      this.viewMode = mode;
+    }
   }
 
   setCardDensity(density: 'comfortable' | 'compact' | 'minimal'): void {
@@ -232,6 +253,7 @@ export class IssueViewStore {
     this.filterLabelIds = [];
     this.filterProjectIds = [];
     this.selectedIssueIds.clear();
+    this.projectViewModes.clear();
   }
 
   dispose(): void {
@@ -263,6 +285,7 @@ export class IssueViewStore {
         this.filterAssigneeIds = state.filterAssigneeIds ?? [];
         this.filterLabelIds = state.filterLabelIds ?? [];
         this.filterProjectIds = state.filterProjectIds ?? [];
+        this.projectViewModes = new Map(Object.entries(state.projectViewModes ?? {}));
       }
     } catch {
       // Ignore parse errors
@@ -285,6 +308,7 @@ export class IssueViewStore {
         filterAssigneeIds: this.filterAssigneeIds.slice(),
         filterLabelIds: this.filterLabelIds.slice(),
         filterProjectIds: this.filterProjectIds.slice(),
+        projectViewModes: Object.fromEntries(this.projectViewModes),
       }),
       (state) => {
         if (typeof window === 'undefined') return;

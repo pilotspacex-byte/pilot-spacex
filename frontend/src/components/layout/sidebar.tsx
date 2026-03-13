@@ -18,8 +18,6 @@ import {
   ChevronRight,
   Plus,
   Compass,
-  PinIcon,
-  Clock,
   Loader2,
   LogOut,
   User,
@@ -32,14 +30,11 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import {
-  useUIStore,
-  useNoteStore,
-  useNotificationStore,
-  useAuthStore,
-  useWorkspaceStore,
-} from '@/stores';
+import { useUIStore, useNotificationStore, useAuthStore, useWorkspaceStore } from '@/stores';
 import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
+import { useProjects, selectAllProjects } from '@/features/projects/hooks/useProjects';
+import { ProjectPageTree } from '@/components/layout/ProjectPageTree';
+import { PersonalPagesList } from '@/components/layout/PersonalPagesList';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -281,7 +276,6 @@ function getWorkspaceSlugFromPathname(pathname: string): string {
 
 export const Sidebar = observer(function Sidebar() {
   const uiStore = useUIStore();
-  const noteStore = useNoteStore();
   const notificationStore = useNotificationStore();
   const authStore = useAuthStore();
   const workspaceStore = useWorkspaceStore();
@@ -315,19 +309,7 @@ export const Sidebar = observer(function Sidebar() {
     }
   }, [workspaceSlug]);
 
-  // Load notes for sidebar pinned/recent sections.
-  // Depend on authStore.isAuthenticated to retry after login completes.
   const isAuthenticated = authStore.isAuthenticated;
-  useEffect(() => {
-    if (
-      workspaceId &&
-      isAuthenticated &&
-      noteStore.notesList.length === 0 &&
-      !noteStore.isLoading
-    ) {
-      noteStore.loadNotes(workspaceId);
-    }
-  }, [workspaceId, isAuthenticated, noteStore]);
 
   // Start polling unread count when workspace is active; stop on unmount or workspace change.
   // Only poll when workspaceId is a UUID (contains '-') to prevent spurious calls with slugs.
@@ -358,6 +340,19 @@ export const Sidebar = observer(function Sidebar() {
     pendingApprovals: pendingApprovalCount,
   };
 
+  // Workspace projects for sidebar tree sections
+  const { data: projectsData } = useProjects({
+    workspaceId,
+    enabled: !!workspaceId && isAuthenticated,
+  });
+  const projects = selectAllProjects(projectsData);
+
+  // Extract current note ID from URL: /{workspaceSlug}/notes/{noteId}
+  const currentNoteId = useMemo(() => {
+    const match = pathname.match(/\/notes\/([^/]+)/);
+    return match?.[1] ?? undefined;
+  }, [pathname]);
+
   const navigation = useMemo(() => {
     return navigationSections.map((section) => ({
       label: section.label,
@@ -368,25 +363,6 @@ export const Sidebar = observer(function Sidebar() {
       })),
     }));
   }, [workspaceSlug]);
-
-  const pinnedNotes = useMemo(() => {
-    return noteStore.pinnedNotes.slice(0, 5).map((note) => ({
-      id: note.id,
-      title: note.title,
-      href: `/${workspaceSlug}/notes/${note.id}`,
-    }));
-  }, [noteStore.pinnedNotes, workspaceSlug]);
-
-  const recentNotes = useMemo(() => {
-    return noteStore.recentNotes
-      .filter((note) => !noteStore.pinnedNotes.some((p) => p.id === note.id))
-      .slice(0, 5)
-      .map((note) => ({
-        id: note.id,
-        title: note.title,
-        href: `/${workspaceSlug}/notes/${note.id}`,
-      }));
-  }, [noteStore.recentNotes, noteStore.pinnedNotes, workspaceSlug]);
 
   const handleNewNote = useCallback(() => {
     createNote.mutate(createNoteDefaults());
@@ -523,66 +499,42 @@ export const Sidebar = observer(function Sidebar() {
 
       <Separator className="mx-2" />
 
-      {/* Notes sections */}
+      {/* Notes sections — Project page trees + Personal pages */}
       <ScrollArea className="flex-1 px-2 py-1.5">
         {!collapsed && (
           <>
-            {/* Pinned Notes */}
-            <div className="mb-3" data-testid="pinned-notes">
-              <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
-                <PinIcon className="h-2.5 w-2.5 text-muted-foreground" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Pinned
-                </span>
+            {/* Project Page Trees */}
+            {projects.map((project) => (
+              <div key={project.id} className="mb-2">
+                <div className="mb-1 flex items-center gap-1.5 px-1.5">
+                  <FolderKanban className="h-2.5 w-2.5 text-muted-foreground" />
+                  <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {project.name}
+                  </span>
+                </div>
+                <ProjectPageTree
+                  workspaceId={workspaceId}
+                  workspaceSlug={workspaceSlug}
+                  projectId={project.id}
+                  projectName={project.name}
+                  currentNoteId={currentNoteId}
+                />
               </div>
-              <div className="space-y-px">
-                {pinnedNotes.map((note, index) => (
-                  <motion.div
-                    key={note.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <Link
-                      href={note.href}
-                      data-testid="note-item"
-                      className="group flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50"
-                    >
-                      <FileText className="h-3 w-3 text-muted-foreground" />
-                      <span className="truncate">{note.title}</span>
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
+            ))}
 
-            {/* Recent Notes */}
-            <div data-testid="note-list">
-              <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
-                <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+            {/* Personal Pages */}
+            <div className="mb-2">
+              <div className="mb-1 flex items-center gap-1.5 px-1.5">
+                <FileText className="h-2.5 w-2.5 text-muted-foreground" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Recent
+                  My Pages
                 </span>
               </div>
-              <div className="space-y-px">
-                {recentNotes.map((note, index) => (
-                  <motion.div
-                    key={note.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 + 0.1 }}
-                  >
-                    <Link
-                      href={note.href}
-                      data-testid="note-item"
-                      className="group flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                    >
-                      <FileText className="h-3 w-3" />
-                      <span className="truncate">{note.title}</span>
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
+              <PersonalPagesList
+                workspaceId={workspaceId}
+                workspaceSlug={workspaceSlug}
+                currentNoteId={currentNoteId}
+              />
             </div>
           </>
         )}

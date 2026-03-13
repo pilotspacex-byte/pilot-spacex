@@ -4,23 +4,48 @@
  * Note Detail Page - T114
  * Loads note via NoteStore, renders NoteCanvas, handles 404
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useRouter, useParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { FileX, ArrowLeft } from 'lucide-react';
+import { FileX, ArrowLeft, SmilePlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NoteCanvas } from '@/components/editor/NoteCanvas';
+import { PageBreadcrumb } from '@/components/editor/PageBreadcrumb';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
-import { useNote, useUpdateNote, useAutoSave } from '@/features/notes/hooks';
+import { useNote, useUpdateNote, useAutoSave, useProjectPageTree } from '@/features/notes/hooks';
+import { projectTreeKeys } from '@/features/notes/hooks/useProjectPageTree';
+import { personalPagesKeys } from '@/features/notes/hooks/usePersonalPages';
 import { useDeleteNote } from '@/features/notes/hooks/useDeleteNote';
 import { useTogglePin } from '@/hooks/useTogglePin';
 import { useNoteVersions, useRestoreNoteVersion } from '@/hooks/useNoteVersions';
-import { useNoteStore, useWorkspaceStore } from '@/stores/RootStore';
+import { useNoteStore } from '@/stores/RootStore';
 import { useWorkspace } from '@/components/workspace-guard';
+import { useProjects, selectAllProjects } from '@/features/projects/hooks/useProjects';
+import { getAncestors, flattenTree } from '@/lib/tree-utils';
 import type { JSONContent } from '@/types';
+
+/**
+ * Strips propertyBlock nodes from TipTap content to prevent unknown node errors
+ * when non-issue pages are opened in NoteCanvas.
+ *
+ * See: RESEARCH.md Pattern 5 and STATE.md concern about editor coupling.
+ */
+function sanitizeNoteContent(content: JSONContent | undefined): JSONContent | undefined {
+  if (!content?.content) return content;
+  return {
+    ...content,
+    content: content.content.filter((node) => {
+      const attrs = node.attrs as Record<string, unknown> | undefined;
+      return !(node.type === 'propertyBlock' || attrs?.['data-property-block']);
+    }),
+  };
+}
 
 // Using useParams() hook instead of props for reliable client-side navigation
 
@@ -105,7 +130,6 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   const noteId = params.noteId ?? '';
   const router = useRouter();
   const noteStore = useNoteStore();
-  const workspaceStore = useWorkspaceStore();
 
   // Get workspace from WorkspaceGuard context (guaranteed to be loaded)
   const { workspace } = useWorkspace();
@@ -116,8 +140,14 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   const [saveVersion, setSaveVersion] = useState(0);
   const [contentInitialized, setContentInitialized] = useState(false);
 
-  // Get workspace ID from context (preferred) or store fallback
-  const workspaceId = workspace?.id ?? workspaceStore.currentWorkspace?.id ?? workspaceSlug;
+  // Get workspace ID from context (preferred) or workspaceSlug fallback
+  const workspaceId = workspace?.id ?? workspaceSlug;
+
+  const queryClient = useQueryClient();
+
+  // Emoji picker state
+  const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
+  const [emojiInput, setEmojiInput] = useState('');
 
   // Check if params are available (used for conditional rendering later, not early return)
   const hasValidParams = !!workspaceSlug && !!noteId;
@@ -132,6 +162,36 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     noteId,
     enabled: hasValidParams,
   });
+
+  // Fetch project tree — shares same TanStack Query cache key as sidebar (no duplicate fetch).
+  // Returns PageTreeNode[] (post-select tree structure); enabled only for project pages.
+  const { data: treeData } = useProjectPageTree(
+    workspaceId,
+    note?.projectId ?? '',
+    !!note?.projectId
+  );
+
+  // Fetch projects for breadcrumb project name display — shares cache with sidebar.
+  const { data: projectsData } = useProjects({ workspaceId, enabled: !!note?.projectId });
+  const projects = selectAllProjects(projectsData);
+
+  // Derive breadcrumb ancestors by flattening tree then walking parentId chain (root-first).
+  const ancestors = useMemo(() => {
+    if (!treeData || !note?.id) return [];
+    const flatNotes = flattenTree(treeData);
+    return getAncestors(note.id, flatNotes);
+  }, [treeData, note?.id]);
+
+  // Get project name for breadcrumb root segment.
+  const projectName = useMemo(() => {
+    if (!note?.projectId) return undefined;
+    return projects.find((p) => p.id === note.projectId)?.name;
+  }, [note?.projectId, projects]);
+
+  // Memoize sanitized content to avoid creating a new object reference on every render.
+  // sanitizeNoteContent returns a new object each call; memoizing prevents NoteCanvas from
+  // seeing unnecessary content reference changes between unrelated state updates.
+  const sanitizedContent = useMemo(() => sanitizeNoteContent(note?.content), [note?.content]);
 
   // Track previous noteId to detect navigation
   const prevNoteIdRef = useRef<string | null>(null);
@@ -150,10 +210,12 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     prevNoteIdRef.current = noteId;
   }, [noteId]);
 
-  // Initialize content ref when note loads (no re-render triggered)
+  // Initialize content ref when note loads (no re-render triggered).
+  // Sanitize content to strip propertyBlock nodes — prevents unknown node errors
+  // when non-issue pages (which lack PropertyBlockExtension) open in NoteCanvas.
   useEffect(() => {
     if (note?.content && !contentInitialized) {
-      contentRef.current = note.content;
+      contentRef.current = sanitizeNoteContent(note.content) ?? null;
       setContentInitialized(true);
     }
   }, [note?.content, contentInitialized]);
@@ -300,6 +362,26 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     setShowVersionHistory((prev) => !prev);
   }, []);
 
+  // Handle emoji update — immediate (not debounced), invalidates tree cache so sidebar refreshes
+  const handleEmojiChange = useCallback(
+    (emoji: string | null) => {
+      updateNote.mutate({ iconEmoji: emoji });
+      // Invalidate the page tree so the sidebar emoji updates immediately
+      if (note?.projectId) {
+        void queryClient.invalidateQueries({
+          queryKey: projectTreeKeys.tree(workspaceId, note.projectId),
+        });
+      } else {
+        void queryClient.invalidateQueries({
+          queryKey: personalPagesKeys.all,
+        });
+      }
+      setEmojiPopoverOpen(false);
+      setEmojiInput('');
+    },
+    [updateNote, queryClient, workspaceId, note?.projectId]
+  );
+
   // Handle version restore
   const handleRestoreVersion = useCallback(
     async (version: NoteVersion) => {
@@ -320,12 +402,81 @@ const NoteDetailPage = observer(function NoteDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Breadcrumb navigation — NAV-04. Only shown for project pages (note.projectId truthy). */}
+      {note.projectId && (
+        <div className="border-b border-border px-6 py-1.5">
+          <PageBreadcrumb
+            ancestors={ancestors}
+            currentTitle={note.title || 'Untitled'}
+            workspaceSlug={workspaceSlug}
+            projectName={projectName}
+          />
+        </div>
+      )}
+
+      {/* Emoji picker — Notion-style icon button above the editor */}
+      <div className="px-6 pt-3 pb-1">
+        <Popover
+          open={emojiPopoverOpen}
+          onOpenChange={(open) => {
+            setEmojiPopoverOpen(open);
+            if (open) setEmojiInput(note.iconEmoji ?? '');
+          }}
+        >
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+              aria-label={note.iconEmoji ? 'Change icon' : 'Add icon'}
+            >
+              {note.iconEmoji ? (
+                <span className="text-2xl leading-none">{note.iconEmoji}</span>
+              ) : (
+                <SmilePlus className="h-5 w-5" />
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-2" align="start">
+            <div className="flex gap-2">
+              <Input
+                value={emojiInput}
+                onChange={(e) => setEmojiInput(e.target.value)}
+                aria-label="Page icon emoji"
+                placeholder="Type emoji..."
+                className="h-8 text-base"
+                maxLength={10}
+                autoFocus
+              />
+              <Button
+                size="sm"
+                className="h-8 shrink-0"
+                onClick={() => {
+                  const emoji = emojiInput.trim() || null;
+                  handleEmojiChange(emoji);
+                }}
+              >
+                Set
+              </Button>
+            </div>
+            {note.iconEmoji && (
+              <button
+                type="button"
+                className="mt-1 w-full text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => handleEmojiChange(null)}
+              >
+                Remove icon
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
+
       {/* Editor with merged header - Three-column layout per Prototype v4 */}
       <div className="relative flex-1 overflow-hidden">
         <NoteCanvas
           key={noteId}
           noteId={noteId}
-          content={note.content}
+          content={sanitizedContent}
           readOnly={false}
           onChange={handleContentChange}
           onSave={handleSave}

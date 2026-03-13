@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     ForeignKey,
     Index,
     Integer,
@@ -56,6 +57,9 @@ class Note(WorkspaceScopedModel):
         owner_id: FK to User who created the note.
         project_id: Optional FK to Project (notes can be project-scoped).
         source_chat_session_id: Optional FK to AISession (Homepage Hub chat origin).
+        parent_id: Optional FK to parent Note (tree hierarchy, max depth 2).
+        depth: Tree depth level -- 0 (root), 1 (section), 2 (page).
+        position: Sibling ordering within a parent, zero-indexed.
         annotations: AI annotations in right margin.
         discussions: Threaded discussions on the note.
     """
@@ -136,6 +140,33 @@ class Note(WorkspaceScopedModel):
         nullable=True,
     )
 
+    # Tree hierarchy (adjacency list, max depth 2: root -> section -> page)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("notes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    depth: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+    position: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+
+    # Page visual identity: optional emoji icon displayed in sidebar tree and page header
+    icon_emoji: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
+        default=None,
+        doc="Emoji icon for page visual identity (e.g. a single emoji character)",
+    )
+
     # Relationships
     template: Mapped[Template | None] = relationship(
         "Template",
@@ -204,6 +235,14 @@ class Note(WorkspaceScopedModel):
             text("to_tsvector('english', title)"),
             postgresql_using="gin",
         ),
+        # Tree hierarchy indexes
+        Index("ix_notes_parent_id", "parent_id"),
+        Index("ix_notes_parent_position", "parent_id", "position"),
+        Index("ix_notes_depth", "depth"),
+        Index("ix_notes_owner_workspace", "owner_id", "workspace_id"),
+        # Tree hierarchy constraints
+        CheckConstraint("depth >= 0 AND depth <= 2", name="chk_notes_depth_range"),
+        CheckConstraint("parent_id != id", name="chk_notes_no_self_parent"),
     )
 
     def __repr__(self) -> str:

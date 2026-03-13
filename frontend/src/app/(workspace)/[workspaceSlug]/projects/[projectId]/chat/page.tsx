@@ -19,7 +19,7 @@ export default function ProjectChatPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b border-border px-6 py-3">
+      <div className="border-b border-border px-6 py-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <MessageSquare className="h-4 w-4" />
           Chat — {project.name}

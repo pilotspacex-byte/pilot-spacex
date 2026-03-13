@@ -241,6 +241,10 @@ class NoteFactory(BaseFactory):
     project_id: UUID | None = None
     project: Project | None = None
     workspace_id: UUID = LazyFunction(uuid4)
+    # Tree hierarchy defaults
+    parent_id: UUID | None = None
+    depth: int = 0
+    position: int = 0
 
 
 class NoteAnnotationFactory(BaseFactory):
