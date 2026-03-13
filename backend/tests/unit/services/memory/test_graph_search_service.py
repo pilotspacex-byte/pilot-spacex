@@ -342,6 +342,42 @@ class TestGraphSearchServiceReranking:
         assert result.nodes[1].node.id == low_node.id
 
 
+class TestGetEmbeddingWithService:
+    """M-5b: Verify _get_embedding success path when service is provided."""
+
+    @pytest.mark.asyncio
+    async def test_get_embedding_returns_vector(
+        self,
+        mock_repo: AsyncMock,
+    ) -> None:
+        """Service with embedding_service returns (vector, True)."""
+        mock_embed = AsyncMock(return_value=[0.1] * 768)
+        mock_svc = AsyncMock()
+        mock_svc.embed = mock_embed
+        svc = GraphSearchService(
+            knowledge_graph_repository=mock_repo,
+            embedding_service=mock_svc,
+        )
+        result = await svc._get_embedding("query")
+        assert result == ([0.1] * 768, True)
+        mock_embed.assert_awaited_once_with("query")
+
+    @pytest.mark.asyncio
+    async def test_get_embedding_returns_none_on_failure(
+        self,
+        mock_repo: AsyncMock,
+    ) -> None:
+        """Embedding service returns None → (None, False)."""
+        mock_svc = AsyncMock()
+        mock_svc.embed = AsyncMock(return_value=None)
+        svc = GraphSearchService(
+            knowledge_graph_repository=mock_repo,
+            embedding_service=mock_svc,
+        )
+        result = await svc._get_embedding("query")
+        assert result == (None, False)
+
+
 class TestGetEmbeddingNoService:
     """M-5: Verify _get_embedding returns (None, False) when no service."""
 

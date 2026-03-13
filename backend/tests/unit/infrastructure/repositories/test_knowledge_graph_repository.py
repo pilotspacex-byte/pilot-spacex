@@ -399,6 +399,28 @@ class TestGetNeighbors:
         result = await repo.get_neighbors(isolated.id, depth=1)
         assert result == []
 
+    async def test_get_neighbors_with_workspace_id(self, db_session: AsyncSession) -> None:
+        """Workspace-scoped neighbor traversal applies workspace filter."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+
+        n1 = await repo.upsert_node(_make_node(workspace_id=ws, label="N1"))
+        n2 = await repo.upsert_node(_make_node(workspace_id=ws, label="N2"))
+        await repo.upsert_edge(_make_edge(n1.id, n2.id))
+
+        neighbors = await repo.get_neighbors(n1.id, depth=1, workspace_id=ws)
+        ids = {n.id for n in neighbors}
+        assert n2.id in ids
+
+    async def test_get_neighbors_isolated_deep_early_exit(self, db_session: AsyncSession) -> None:
+        """Isolated node with depth=2 exits early when frontier empties at depth 1."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+
+        isolated = await repo.upsert_node(_make_node(workspace_id=ws))
+        result = await repo.get_neighbors(isolated.id, depth=2, workspace_id=ws)
+        assert result == []
+
 
 # ---------------------------------------------------------------------------
 # hybrid_search
@@ -550,6 +572,34 @@ class TestGetSubgraph:
         for edge in edges:
             assert edge.source_id in node_ids
             assert edge.target_id in node_ids
+
+    async def test_get_subgraph_with_workspace_id(self, db_session: AsyncSession) -> None:
+        """Subgraph with workspace_id applies edge workspace filter."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+
+        root = await repo.upsert_node(_make_node(workspace_id=ws, label="Root"))
+        child = await repo.upsert_node(_make_node(workspace_id=ws, label="Child"))
+        await repo.upsert_edge(_make_edge(root.id, child.id))
+
+        nodes, edges = await repo.get_subgraph(root.id, max_depth=1, workspace_id=ws)
+        node_ids = {n.id for n in nodes}
+
+        assert root.id in node_ids
+        assert child.id in node_ids
+        assert len(edges) >= 1
+
+    async def test_get_subgraph_isolated_node_early_exit(self, db_session: AsyncSession) -> None:
+        """Isolated node with depth=2 exits early when frontier is empty."""
+        repo = KnowledgeGraphRepository(db_session)
+        ws = uuid4()
+
+        isolated = await repo.upsert_node(_make_node(workspace_id=ws, label="Isolated"))
+
+        nodes, edges = await repo.get_subgraph(isolated.id, max_depth=2, workspace_id=ws)
+        assert len(nodes) == 1
+        assert nodes[0].id == isolated.id
+        assert edges == []
 
 
 # ---------------------------------------------------------------------------
