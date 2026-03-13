@@ -8,6 +8,20 @@ These tests cover code paths that ONLY work on PostgreSQL (not SQLite):
 
 The tests create isolated tables (no FK to workspaces/users), run, then
 drop. No alembic migrations or main test conftest are used.
+
+Requirements:
+    - PostgreSQL with pgvector extension at localhost:15432
+    - Default Supabase dev credentials (or set PG_TEST_PASSWORD env var)
+    - Tests skip automatically if PostgreSQL is not available
+
+Run:
+    pytest tests/integration/ -m integration
+    pytest tests/integration/test_kg_repo_pg.py -v  # this file only
+
+CI:
+    Set up a PostgreSQL service with pgvector extension enabled.
+    Tests use the ``integration`` pytest marker and can be selected
+    with ``-m integration`` or deselected with ``-m 'not integration'``.
 """
 
 from __future__ import annotations
