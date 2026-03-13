@@ -33,7 +33,6 @@ import {
 import { IssueDescriptionEmptyState } from './issue-description-empty-state';
 import { GitHubImplementationSection } from './github-implementation-section';
 import { IssueKnowledgeGraphMini } from './issue-knowledge-graph-mini';
-import { RelatedIssuesPanel } from './related-issues-panel';
 import { useIssueLinks, useIssueRelations } from '@/features/issues/hooks';
 import { createIssueNoteExtensions } from '@/features/issues/editor/create-issue-note-extensions';
 import { integrationsApi } from '@/services/api/integrations';
