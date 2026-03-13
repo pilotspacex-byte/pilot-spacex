@@ -56,6 +56,9 @@ from pilot_space.application.services.issue import (
 from pilot_space.application.services.memory.constitution_service import (
     ConstitutionIngestService,
 )
+from pilot_space.application.services.memory.knowledge_graph_query_service import (
+    KnowledgeGraphQueryService,
+)
 from pilot_space.application.services.memory.memory_save_service import MemorySaveService
 from pilot_space.application.services.memory.memory_search_service import MemorySearchService
 from pilot_space.application.services.note import (
@@ -653,6 +656,15 @@ class Container(SkillContainer, PluginContainer):
         session=providers.Callable(get_current_session),
         constitution_repository=InfraContainer.constitution_rule_repository,
         queue=InfraContainer.queue_client,
+    )
+
+    # Knowledge Graph Query Service
+    knowledge_graph_query_service = providers.Factory(
+        KnowledgeGraphQueryService,
+        knowledge_graph_repository=InfraContainer.knowledge_graph_repository,
+        integration_link_repository=InfraContainer.integration_link_repository,
+        issue_repository=InfraContainer.issue_repository,
+        project_repository=InfraContainer.project_repository,
     )
 
     # SSO Service (AUTH-01 through AUTH-04)

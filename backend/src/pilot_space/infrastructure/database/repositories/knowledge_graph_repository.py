@@ -643,6 +643,22 @@ class KnowledgeGraphRepository:
         model = (await self._session.execute(stmt)).scalar_one_or_none()
         return node_model_to_domain(model) if model else None
 
+    async def find_node_by_external_id(
+        self, external_id: UUID, workspace_id: UUID
+    ) -> GraphNode | None:
+        """Fetch a single active node by external_id within the given workspace."""
+        stmt = (
+            select(GraphNodeModel)
+            .where(
+                GraphNodeModel.external_id == external_id,
+                GraphNodeModel.workspace_id == workspace_id,
+                GraphNodeModel.is_deleted == False,  # noqa: E712
+            )
+            .limit(1)
+        )
+        model = (await self._session.execute(stmt)).scalar_one_or_none()
+        return node_model_to_domain(model) if model else None
+
     async def get_edges_between(
         self,
         node_ids: list[UUID],

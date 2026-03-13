@@ -26,3 +26,6 @@ export {
   type UseUpdateProjectOptions,
   type UseDeleteProjectOptions,
 } from './useCreateProject';
+
+// Knowledge graph hooks
+export { useProjectKnowledgeGraph, projectKnowledgeGraphKeys } from './useProjectKnowledgeGraph';

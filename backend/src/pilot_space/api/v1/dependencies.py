@@ -55,6 +55,9 @@ from pilot_space.application.services.issue import (
     ListIssuesService,
     UpdateIssueService,
 )
+from pilot_space.application.services.memory.knowledge_graph_query_service import (
+    KnowledgeGraphQueryService,
+)
 from pilot_space.application.services.note import (
     CreateNoteFromChatService,
     CreateNoteService,
@@ -650,6 +653,20 @@ def _get_rbac_service(
 
 RbacServiceDep = Annotated[RbacService, Depends(_get_rbac_service)]
 
+# ===== Knowledge Graph Service Dependencies =====
+
+
+@inject
+def _get_knowledge_graph_query_service(
+    svc: KnowledgeGraphQueryService = Depends(Provide[Container.knowledge_graph_query_service]),
+) -> KnowledgeGraphQueryService:
+    return svc
+
+
+KnowledgeGraphQueryServiceDep = Annotated[
+    KnowledgeGraphQueryService, Depends(_get_knowledge_graph_query_service)
+]
+
 __all__ = [  # noqa: RUF022
     "ActivityRepositoryDep",
     "CycleRepositoryDep",
@@ -687,6 +704,7 @@ __all__ = [  # noqa: RUF022
     "GetIssueServiceDep",
     "GetNoteServiceDep",
     "GetOnboardingServiceDep",
+    "KnowledgeGraphQueryServiceDep",
     "LinkCommitServiceDep",
     "ListAnnotationsServiceDep",
     "ListIssuesServiceDep",

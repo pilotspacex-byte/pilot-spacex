@@ -231,6 +231,42 @@ class IntegrationLinkRepository(BaseRepository[IntegrationLink]):
             link_type=IntegrationLinkType.PULL_REQUEST,
         )
 
+    async def get_by_issue_in_workspace(
+        self,
+        issue_id: UUID,
+        workspace_id: UUID,
+    ) -> Sequence[IntegrationLink]:
+        """Get integration links for a single issue within a workspace."""
+        stmt = select(IntegrationLink).where(
+            IntegrationLink.issue_id == issue_id,
+            IntegrationLink.workspace_id == workspace_id,
+            IntegrationLink.is_deleted == False,  # noqa: E712
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_by_project_issues(
+        self,
+        project_id: UUID,
+        workspace_id: UUID,
+    ) -> Sequence[IntegrationLink]:
+        """Get integration links for all issues belonging to a project."""
+        from pilot_space.infrastructure.database.models.issue import Issue as IssueModel
+
+        stmt = select(IntegrationLink).where(
+            IntegrationLink.issue_id.in_(
+                select(IssueModel.id).where(
+                    IssueModel.project_id == project_id,
+                    IssueModel.workspace_id == workspace_id,
+                    IssueModel.is_deleted == False,  # noqa: E712
+                )
+            ),
+            IntegrationLink.workspace_id == workspace_id,
+            IntegrationLink.is_deleted == False,  # noqa: E712
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def count_by_issue(
         self,
         issue_id: UUID,

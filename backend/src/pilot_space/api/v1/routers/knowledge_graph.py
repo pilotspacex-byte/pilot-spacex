@@ -1,7 +1,8 @@
 """Knowledge Graph REST API router.
 
-Provides hybrid search, neighbor traversal, subgraph extraction, user
-context, and issue-scoped graph endpoints for the knowledge graph feature.
+Thin router that delegates all business logic to KnowledgeGraphQueryService
+and GraphSearchService. Only handles HTTP concerns: input parsing,
+RLS context, DTO mapping, and error translation.
 
 Endpoints:
   GET  /api/v1/workspaces/{workspace_id}/knowledge-graph/search
@@ -9,21 +10,21 @@ Endpoints:
   GET  /api/v1/workspaces/{workspace_id}/knowledge-graph/subgraph
   GET  /api/v1/workspaces/{workspace_id}/knowledge-graph/user-context
   GET  /api/v1/workspaces/{workspace_id}/issues/{issue_id}/knowledge-graph
+  GET  /api/v1/workspaces/{workspace_id}/projects/{project_id}/knowledge-graph
 
 Feature 016: Knowledge Graph — Unit 7 REST API
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, TypeVar
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
-from sqlalchemy import select
 
 from pilot_space.ai.agents.pilotspace_stream_utils import get_workspace_openai_key
+from pilot_space.api.v1.dependencies import KnowledgeGraphQueryServiceDep
 from pilot_space.api.v1.schemas.knowledge_graph import (
     GraphEdgeDTO,
     GraphNodeDTO,
@@ -34,22 +35,20 @@ from pilot_space.application.services.memory.graph_search_service import (
     GraphSearchPayload,
     GraphSearchService,
 )
+from pilot_space.application.services.memory.knowledge_graph_query_service import (
+    EntityNotFoundError,
+    EntitySubgraphResult,
+    EphemeralNode,
+    RootNodeNotFoundError,
+    node_tier,
+)
 from pilot_space.dependencies.auth import SessionDep, SyncedUserId
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from pilot_space.domain.graph_node import GraphNode, NodeType
-from pilot_space.infrastructure.database.models.graph_node import GraphNodeModel
-from pilot_space.infrastructure.database.models.integration import (
-    IntegrationLink,
-    IntegrationLinkType,
-)
-from pilot_space.infrastructure.database.models.issue import Issue as IssueModel
 from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
     KnowledgeGraphRepository,
 )
 from pilot_space.infrastructure.database.rls import set_rls_context
-from pilot_space.infrastructure.logging import get_logger
-
-logger = get_logger(__name__)
 
 _EnumT = TypeVar("_EnumT", bound=StrEnum)
 
@@ -59,10 +58,7 @@ def _parse_csv_enum(
     enum_cls: type[_EnumT],
     param_name: str,
 ) -> list[_EnumT] | None:
-    """Parse a comma-separated enum string into a list of enum values.
-
-    Raises HTTP 422 with a descriptive message on invalid values.
-    """
+    """Parse a comma-separated enum string into a list of enum values."""
     if not raw:
         return None
     try:
@@ -72,57 +68,7 @@ def _parse_csv_enum(
 
 
 # ---------------------------------------------------------------------------
-# Routers
-# ---------------------------------------------------------------------------
-
-router = APIRouter(
-    prefix="/workspaces/{workspace_id}/knowledge-graph",
-    tags=["knowledge-graph"],
-)
-
-# Separate router for the issue-scoped endpoint — different path prefix
-issues_kg_router = APIRouter(
-    prefix="/workspaces/{workspace_id}",
-    tags=["knowledge-graph"],
-)
-
-WorkspaceIdPath = Annotated[UUID, Path(description="Workspace UUID")]
-
-# ---------------------------------------------------------------------------
-# Node importance tiers for sorting
-# ---------------------------------------------------------------------------
-
-_TIER_HIGH: frozenset[str] = frozenset(
-    {
-        NodeType.ISSUE.value,
-        NodeType.NOTE.value,
-        NodeType.DECISION.value,
-        NodeType.PROJECT.value,
-    }
-)
-_TIER_MID: frozenset[str] = frozenset(
-    {
-        NodeType.PULL_REQUEST.value,
-        NodeType.BRANCH.value,
-        NodeType.COMMIT.value,
-        NodeType.CODE_REFERENCE.value,
-        NodeType.WORK_INTENT.value,
-    }
-)
-# All others fall to tier 3 (summary, skill_outcome, etc.)
-
-
-def _node_tier(node_type: str) -> int:
-    """Return sort priority tier (lower = higher priority)."""
-    if node_type in _TIER_HIGH:
-        return 0
-    if node_type in _TIER_MID:
-        return 1
-    return 2
-
-
-# ---------------------------------------------------------------------------
-# Domain → DTO mappers
+# Edge labels for DTO mapping
 # ---------------------------------------------------------------------------
 
 _EDGE_LABELS: dict[EdgeType, str] = {
@@ -142,16 +88,13 @@ _EDGE_LABELS: dict[EdgeType, str] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Domain → DTO mappers (presentation layer concern)
+# ---------------------------------------------------------------------------
+
+
 def _node_to_dto(node: GraphNode, score: float | None = None) -> GraphNodeDTO:
-    """Map a domain GraphNode to a GraphNodeDTO.
-
-    Args:
-        node: Domain graph node entity.
-        score: Optional relevance score from search.
-
-    Returns:
-        GraphNodeDTO ready for JSON serialization.
-    """
+    """Map a domain GraphNode to a GraphNodeDTO."""
     return GraphNodeDTO(
         id=str(node.id),
         node_type=node.node_type.value,
@@ -182,6 +125,42 @@ def _edge_to_dto(edge: GraphEdge) -> GraphEdgeDTO:
 def _edges_to_dtos(edges: list[GraphEdge]) -> list[GraphEdgeDTO]:
     """Batch-convert domain edges to DTOs."""
     return [_edge_to_dto(e) for e in edges]
+
+
+def _ephemeral_to_dto(node: EphemeralNode) -> GraphNodeDTO:
+    """Map an ephemeral GitHub node to a GraphNodeDTO."""
+    return GraphNodeDTO(
+        id=node.id,
+        node_type=node.node_type,
+        label=node.label,
+        summary=node.summary,
+        properties=node.properties,
+        created_at=node.created_at,
+        updated_at=node.updated_at,
+        score=None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Routers
+# ---------------------------------------------------------------------------
+
+router = APIRouter(
+    prefix="/workspaces/{workspace_id}/knowledge-graph",
+    tags=["knowledge-graph"],
+)
+
+issues_kg_router = APIRouter(
+    prefix="/workspaces/{workspace_id}",
+    tags=["knowledge-graph"],
+)
+
+projects_kg_router = APIRouter(
+    prefix="/workspaces/{workspace_id}",
+    tags=["knowledge-graph"],
+)
+
+WorkspaceIdPath = Annotated[UUID, Path(description="Workspace UUID")]
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +195,6 @@ async def search_knowledge_graph(
 
     parsed_types: list[NodeType] | None = _parse_csv_enum(node_types, NodeType, "node_type")
 
-    # Look up workspace OpenAI key for vector embedding (BYOK pattern)
     openai_api_key = await get_workspace_openai_key(session, workspace_id)
     embedding_svc = EmbeddingService(EmbeddingConfig(openai_api_key=openai_api_key))
 
@@ -248,6 +226,7 @@ async def get_node_neighbors(
     node_id: Annotated[UUID, Path(description="Source node UUID")],
     session: SessionDep,
     current_user_id: SyncedUserId,
+    kg_service: KnowledgeGraphQueryServiceDep,
     depth: Annotated[int, Query(ge=1, le=4, description="Traversal depth")] = 1,
     edge_types: Annotated[
         str | None,
@@ -259,23 +238,17 @@ async def get_node_neighbors(
 
     parsed_edge_types: list[EdgeType] | None = _parse_csv_enum(edge_types, EdgeType, "edge_type")
 
-    repo = KnowledgeGraphRepository(session)
-    neighbors = await repo.get_neighbors(
+    result = await kg_service.get_neighbors(
         node_id=node_id,
-        edge_types=parsed_edge_types,
-        depth=depth,
         workspace_id=workspace_id,
+        depth=depth,
+        edge_types=parsed_edge_types,
     )
 
-    # Fetch center node so it is included in `nodes` alongside neighbors.
-    # Without this, edges referencing center_node_id would be dangling references
-    # in any graph renderer that relies solely on the `nodes` array.
-    center_node = await repo.get_node_by_id(node_id, workspace_id)
-    all_nodes = ([center_node] if center_node else []) + neighbors
-    all_ids = [n.id for n in all_nodes]
-    edges = await repo.get_edges_between(all_ids, workspace_id=workspace_id)
-    node_dtos = [_node_to_dto(n) for n in all_nodes]
-    return GraphResponse(nodes=node_dtos, edges=_edges_to_dtos(edges), center_node_id=node_id)
+    node_dtos = [_node_to_dto(n) for n in result.nodes]
+    return GraphResponse(
+        nodes=node_dtos, edges=_edges_to_dtos(result.edges), center_node_id=node_id
+    )
 
 
 @router.get(
@@ -289,6 +262,7 @@ async def get_subgraph(
     workspace_id: WorkspaceIdPath,
     session: SessionDep,
     current_user_id: SyncedUserId,
+    kg_service: KnowledgeGraphQueryServiceDep,
     root_id: Annotated[UUID, Query(description="Root node UUID")],
     max_depth: Annotated[int, Query(ge=1, le=4, description="Maximum traversal depth")] = 2,
     max_nodes: Annotated[int, Query(ge=5, le=100, description="Maximum node count")] = 50,
@@ -296,18 +270,22 @@ async def get_subgraph(
     """Extract a subgraph for visualization centered on root_id."""
     await set_rls_context(session, current_user_id, workspace_id)
 
-    repo = KnowledgeGraphRepository(session)
-    if not await repo.get_node_by_id(root_id, workspace_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Root node not found")
-    nodes, edges = await repo.get_subgraph(
-        root_id=root_id,
-        max_depth=max_depth,
-        max_nodes=max_nodes,
-        workspace_id=workspace_id,
-    )
+    try:
+        result = await kg_service.get_subgraph(
+            root_id=root_id,
+            workspace_id=workspace_id,
+            max_depth=max_depth,
+            max_nodes=max_nodes,
+        )
+    except RootNodeNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Root node not found"
+        ) from exc
 
-    node_dtos = [_node_to_dto(n) for n in nodes]
-    return GraphResponse(nodes=node_dtos, edges=_edges_to_dtos(edges), center_node_id=root_id)
+    node_dtos = [_node_to_dto(n) for n in result.nodes]
+    return GraphResponse(
+        nodes=node_dtos, edges=_edges_to_dtos(result.edges), center_node_id=root_id
+    )
 
 
 @router.get(
@@ -324,32 +302,25 @@ async def get_user_context(
     workspace_id: WorkspaceIdPath,
     session: SessionDep,
     current_user_id: SyncedUserId,
+    kg_service: KnowledgeGraphQueryServiceDep,
     limit: Annotated[int, Query(ge=1, le=50, description="Maximum nodes")] = 10,
 ) -> GraphResponse:
     """Return personal context nodes for the current user."""
     await set_rls_context(session, current_user_id, workspace_id)
 
-    repo = KnowledgeGraphRepository(session)
-    nodes = await repo.get_user_context(
-        user_id=current_user_id,
+    result = await kg_service.get_user_context(
         workspace_id=workspace_id,
+        user_id=current_user_id,
         limit=limit,
     )
 
-    node_dtos = [_node_to_dto(n) for n in nodes]
+    node_dtos = [_node_to_dto(n) for n in result.nodes]
     return GraphResponse(nodes=node_dtos, edges=[])
 
 
 # ---------------------------------------------------------------------------
 # Issue-scoped endpoint
 # ---------------------------------------------------------------------------
-
-_GITHUB_NODE_TYPE_MAP: dict[IntegrationLinkType, str] = {
-    IntegrationLinkType.PULL_REQUEST: NodeType.PULL_REQUEST.value,
-    IntegrationLinkType.BRANCH: NodeType.BRANCH.value,
-    IntegrationLinkType.COMMIT: NodeType.COMMIT.value,
-    IntegrationLinkType.MENTION: NodeType.NOTE.value,
-}
 
 
 @issues_kg_router.get(
@@ -368,6 +339,7 @@ async def get_issue_knowledge_graph(
     issue_id: Annotated[UUID, Path(description="Issue UUID")],
     session: SessionDep,
     current_user_id: SyncedUserId,
+    kg_service: KnowledgeGraphQueryServiceDep,
     depth: Annotated[int, Query(ge=1, le=4, description="Traversal depth")] = 2,
     node_types: Annotated[
         str | None,
@@ -381,116 +353,97 @@ async def get_issue_knowledge_graph(
 ) -> GraphResponse:
     """Return knowledge graph subgraph for an issue, optionally enriched with GitHub links."""
     await set_rls_context(session, current_user_id, workspace_id)
+    _parse_csv_enum(node_types, NodeType, "node_type")
 
-    # H-4: Verify the issue exists in this workspace before querying the graph.
-    issue_exists = (
-        await session.execute(
-            select(IssueModel.id).where(
-                IssueModel.id == issue_id,
-                IssueModel.workspace_id == workspace_id,
-                IssueModel.is_deleted == False,  # noqa: E712
-            )
+    try:
+        result = await kg_service.get_issue_knowledge_graph(
+            issue_id=issue_id,
+            workspace_id=workspace_id,
+            depth=depth,
+            node_types=node_types,
+            max_nodes=max_nodes,
+            include_github=include_github,
         )
-    ).scalar_one_or_none()
-    if issue_exists is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+    except EntityNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found"
+        ) from exc
 
-    # Step 1: Find the graph node linked to this issue
-    stmt = (
-        select(GraphNodeModel)
-        .where(
-            GraphNodeModel.external_id == issue_id,
-            GraphNodeModel.workspace_id == workspace_id,
-            GraphNodeModel.is_deleted == False,  # noqa: E712
+    return _entity_result_to_response(result)
+
+
+# ---------------------------------------------------------------------------
+# Project-scoped endpoint
+# ---------------------------------------------------------------------------
+
+
+@projects_kg_router.get(
+    "/projects/{project_id}/knowledge-graph",
+    response_model=GraphResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Project-scoped knowledge graph",
+    description=(
+        "Return the knowledge graph subgraph connected to a specific project. "
+        "When include_github=true, ephemeral PR/branch/commit nodes are "
+        "synthesized from integration_links of project issues and appended (not persisted)."
+    ),
+)
+async def get_project_knowledge_graph(
+    workspace_id: WorkspaceIdPath,
+    project_id: Annotated[UUID, Path(description="Project UUID")],
+    session: SessionDep,
+    current_user_id: SyncedUserId,
+    kg_service: KnowledgeGraphQueryServiceDep,
+    depth: Annotated[int, Query(ge=1, le=4, description="Traversal depth")] = 2,
+    node_types: Annotated[
+        str | None,
+        Query(description="Comma-separated NodeType filter"),
+    ] = None,
+    max_nodes: Annotated[int, Query(ge=5, le=200, description="Maximum nodes")] = 50,
+    include_github: Annotated[
+        bool,
+        Query(description="Append ephemeral GitHub nodes from integration_links"),
+    ] = True,
+) -> GraphResponse:
+    """Return knowledge graph subgraph for a project, optionally enriched with GitHub links."""
+    await set_rls_context(session, current_user_id, workspace_id)
+    _parse_csv_enum(node_types, NodeType, "node_type")
+
+    try:
+        result = await kg_service.get_project_knowledge_graph(
+            project_id=project_id,
+            workspace_id=workspace_id,
+            depth=depth,
+            node_types=node_types,
+            max_nodes=max_nodes,
+            include_github=include_github,
         )
-        .limit(1)
-    )
-    result = await session.execute(stmt)
-    graph_node_model = result.scalar_one_or_none()
+    except EntityNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        ) from exc
 
-    # Step 2: No graph node found — return empty response
-    if graph_node_model is None:
-        logger.info(
-            "knowledge_graph_issue_no_node",
-            issue_id=str(issue_id),
-            workspace_id=str(workspace_id),
-        )
-        return GraphResponse(nodes=[], edges=[], center_node_id=issue_id)
-
-    center_node_id = graph_node_model.id
-
-    # Step 3: Extract subgraph from the graph node.
-    # When node_types filter is active, fetch the maximum pool (100) before filtering
-    # to avoid silently dropping valid nodes that were pruned by max_nodes before the
-    # filter was applied (devil's advocate W-2).
-    repo = KnowledgeGraphRepository(session)
-    _fetch_max = 100 if node_types else max_nodes
-    nodes, edges = await repo.get_subgraph(
-        root_id=center_node_id,
-        max_depth=depth,
-        max_nodes=_fetch_max,
-        workspace_id=workspace_id,
-    )
-
-    # Apply node type filter, then trim to requested max_nodes
-    if node_types:
-        allowed = {t.strip() for t in node_types.split(",") if t.strip()}
-        nodes = [n for n in nodes if n.node_type.value in allowed][:max_nodes]
-
-    node_dtos = [_node_to_dto(n) for n in nodes]
-    edge_dtos = _edges_to_dtos(edges)
-
-    # Step 4: Synthesize ephemeral GitHub nodes if requested
-    if include_github:
-        gh_stmt = select(IntegrationLink).where(
-            IntegrationLink.issue_id == issue_id,
-            IntegrationLink.workspace_id == workspace_id,
-            IntegrationLink.is_deleted == False,  # noqa: E712
-        )
-        gh_result = await session.execute(gh_stmt)
-        integration_links = gh_result.scalars().all()
-
-        existing_external_ids = {
-            str(n.properties["external_id"])
-            for n in node_dtos
-            if n.properties and n.properties.get("external_id") is not None
-        }
-        now = datetime.now(tz=UTC)
-
-        for link in integration_links:
-            # Avoid duplicates if a real graph node already represents this link
-            if str(link.external_id) in existing_external_ids:
-                continue
-
-            mapped_type = _GITHUB_NODE_TYPE_MAP.get(link.link_type, NodeType.NOTE.value)
-            node_dtos.append(
-                GraphNodeDTO(
-                    # Deterministic ID from external_id so repeated fetches
-                    # produce stable node IDs for frontend graph reconciliation.
-                    id=str(uuid5(NAMESPACE_URL, f"ephemeral:{link.external_id}")),
-                    node_type=mapped_type,
-                    label=link.title or link.external_id,
-                    summary=f"GitHub {link.link_type.value}: {link.title or link.external_id}",
-                    properties={
-                        "external_id": link.external_id,
-                        "external_url": link.external_url,
-                        "author_name": link.author_name,
-                        "ephemeral": True,
-                    },
-                    created_at=now,
-                    updated_at=now,
-                    score=None,
-                )
-            )
-
-    # Step 5: Sort by importance tier
-    node_dtos.sort(key=lambda n: _node_tier(n.node_type))
-
-    return GraphResponse(
-        nodes=node_dtos,
-        edges=edge_dtos,
-        center_node_id=center_node_id,
-    )
+    return _entity_result_to_response(result)
 
 
-__all__ = ["issues_kg_router", "router"]
+# ---------------------------------------------------------------------------
+# Shared response builder for entity-scoped endpoints
+# ---------------------------------------------------------------------------
+
+
+def _entity_result_to_response(result: EntitySubgraphResult) -> GraphResponse:
+    """Convert an EntitySubgraphResult to a GraphResponse with ephemeral nodes merged."""
+
+    node_dtos = [_node_to_dto(n) for n in result.nodes]
+    edge_dtos = _edges_to_dtos(result.edges)
+
+    for en in result.ephemeral_nodes:
+        node_dtos.append(_ephemeral_to_dto(en))
+
+    # Sort after merging so ephemeral nodes land in their correct tier position
+    node_dtos.sort(key=lambda n: node_tier(n.node_type))
+
+    return GraphResponse(nodes=node_dtos, edges=edge_dtos, center_node_id=result.center_node_id)
+
+
+__all__ = ["issues_kg_router", "projects_kg_router", "router"]

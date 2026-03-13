@@ -1,20 +1,18 @@
 'use client';
 
 /**
- * IssueKnowledgeGraphFull — full interactive knowledge graph panel.
+ * ProjectKnowledgeGraph — full interactive knowledge graph for a project.
  *
  * Layout:
- *   1. Toolbar (40px): Back button, node-type filter chips, depth slider
+ *   1. Toolbar (40px): filter chips, depth slider, node count
  *   2. ReactFlow canvas (flex-1): interactive, minimap, zoom 0.3–3x
  *   3. Node detail panel (≤200px): shown when a node is selected
  *
- * State: local useState only (no MobX).
- * NOT wrapped in observer().
+ * State: local useState only (no MobX, NOT observer).
  */
 
-import * as React from 'react';
 import { useCallback, useEffect, startTransition, useState, useMemo } from 'react';
-import { ArrowLeft, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import {
   ReactFlow,
   MiniMap,
@@ -30,22 +28,19 @@ import '@xyflow/react/dist/style.css';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
-import { GraphEmptyState } from './graph-empty-state';
-import { nodeTypes, type GraphNodeData } from './graph-node-renderer';
+import { GraphEmptyState } from '@/features/issues/components/graph-empty-state';
+import { nodeTypes, type GraphNodeData } from '@/features/issues/components/graph-node-renderer';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { computeForceLayout } from '@/features/issues/utils/graph-styles';
-import { useIssueKnowledgeGraph } from '@/features/issues/hooks/use-issue-knowledge-graph';
+import { useProjectKnowledgeGraph } from '@/features/projects/hooks/useProjectKnowledgeGraph';
 import { knowledgeGraphApi } from '@/services/api/knowledge-graph';
 import type { GraphNodeDTO, GraphEdgeDTO, GraphNodeType } from '@/types/knowledge-graph';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export interface IssueKnowledgeGraphFullProps {
+export interface ProjectKnowledgeGraphProps {
   workspaceId: string;
-  issueId: string;
-  /** Highlight a specific node (e.g. from implementation panel). */
-  highlightNodeId?: string;
-  onClose: () => void;
+  projectId: string;
 }
 
 interface FilterChip {
@@ -56,8 +51,9 @@ interface FilterChip {
 const FILTER_CHIPS: FilterChip[] = [
   { label: 'Issues', nodeType: 'issue' },
   { label: 'Notes', nodeType: 'note' },
+  { label: 'Cycles', nodeType: 'cycle' },
   { label: 'PRs', nodeType: 'pull_request' },
-  { label: 'Decisions', nodeType: 'decision' },
+  { label: 'Commits', nodeType: 'commit' },
   { label: 'Code', nodeType: 'code_reference' },
   { label: 'All', nodeType: 'all' },
 ];
@@ -70,42 +66,51 @@ const minimapNodeColor = (n: Node) => {
 
 // ── Inner component (needs ReactFlowProvider context) ─────────────────────
 
-interface GraphCanvasProps {
+interface ProjectGraphCanvasProps {
   workspaceId: string;
-  issueId: string;
+  projectId: string;
   depth: number;
   activeFilter: GraphNodeType | 'all';
-  highlightNodeId?: string;
-  onClose: () => void;
+  onNodeCountChange: (count: number) => void;
 }
 
-function GraphCanvas({
+function ProjectGraphCanvas({
   workspaceId,
-  issueId,
+  projectId,
   depth,
   activeFilter,
-  highlightNodeId,
-  onClose,
-}: GraphCanvasProps) {
-  const { fitView, setCenter } = useReactFlow();
+  onNodeCountChange,
+}: ProjectGraphCanvasProps) {
+  const { fitView } = useReactFlow();
 
-  const [selectedNode, setSelectedNode] = React.useState<GraphNodeDTO | null>(null);
-  const [extraNodes, setExtraNodes] = React.useState<GraphNodeDTO[]>([]);
-  const [extraEdges, setExtraEdges] = React.useState<GraphEdgeDTO[]>([]);
+  const [selectedNode, setSelectedNode] = useState<GraphNodeDTO | null>(null);
+  const [extraNodes, setExtraNodes] = useState<GraphNodeDTO[]>([]);
+  const [extraEdges, setExtraEdges] = useState<GraphEdgeDTO[]>([]);
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
 
-  // Memoize to prevent TanStack Query key churn from new array refs on each render
+  // Reset expanded nodes when filter or depth changes
+  useEffect(() => {
+    setExtraNodes([]);
+    setExtraEdges([]);
+    setSelectedNode(null);
+  }, [activeFilter, depth]);
+
   const nodeTypes_ = useMemo<GraphNodeType[] | undefined>(
     () => (activeFilter === 'all' ? undefined : [activeFilter]),
     [activeFilter]
   );
 
-  const { data, isLoading, isError, refetch } = useIssueKnowledgeGraph(workspaceId, issueId, {
+  const { data, isLoading, isError, refetch } = useProjectKnowledgeGraph(workspaceId, projectId, {
     depth,
     nodeTypes: nodeTypes_,
-    enabled: true,
   });
+
+  // Report node count to parent for toolbar display (guard against no-op updates)
+  useEffect(() => {
+    const count = data?.nodes.length ?? 0;
+    onNodeCountChange(count);
+  }, [data?.nodes.length, onNodeCountChange]);
 
   // Merge base + expanded neighbor nodes
   const mergedNodes = useMemo(() => {
@@ -120,19 +125,15 @@ function GraphCanvas({
     return [...data.edges, ...extraEdges.filter((e) => !baseIds.has(e.id))];
   }, [data, extraEdges]);
 
-  // M-9: validate centerNodeId exists in the node set
   const effectiveCenterNodeId = useMemo(() => {
     if (!data) return '';
     const center = data.centerNodeId;
     if (!center) return data.nodes[0]?.id ?? '';
     const exists = data.nodes.some((n) => n.id === center);
-    if (!exists) {
-      console.warn('[KnowledgeGraph] centerNodeId not found in nodes:', center);
-    }
     return exists ? center : (data.nodes[0]?.id ?? '');
   }, [data]);
 
-  // H-6: move layout computation to useEffect with startTransition to yield to browser
+  // Layout computation via useEffect + startTransition
   useEffect(() => {
     startTransition(() => {
       if (mergedNodes.length === 0) {
@@ -141,28 +142,18 @@ function GraphCanvas({
         return;
       }
       const [nodes, edges] = computeForceLayout(mergedNodes, mergedEdges, {
-        width: 800,
-        height: 500,
+        width: 1000,
+        height: 600,
         centerNodeId: effectiveCenterNodeId,
-        highlightNodeId,
-        linkDistance: 80,
-        chargeStrength: -120,
-        collisionRadius: 36,
+        linkDistance: 100,
+        chargeStrength: -150,
+        collisionRadius: 40,
         edgeStrokeWidth: 1.5,
       });
       setFlowNodes(nodes);
       setFlowEdges(edges);
     });
-  }, [mergedNodes, mergedEdges, effectiveCenterNodeId, highlightNodeId]);
-
-  // Auto-center on highlighted node
-  useEffect(() => {
-    if (!highlightNodeId || flowNodes.length === 0) return;
-    const target = flowNodes.find((n) => n.id === highlightNodeId);
-    if (target) {
-      void setCenter(target.position.x, target.position.y, { zoom: 1.5, duration: 600 });
-    }
-  }, [highlightNodeId, flowNodes, setCenter]);
+  }, [mergedNodes, mergedEdges, effectiveCenterNodeId]);
 
   // Auto-fit when data loads
   useEffect(() => {
@@ -176,8 +167,8 @@ function GraphCanvas({
 
   const handleNodeDoubleClick = useCallback(
     async (nodeId: string) => {
-      const totalNodes = (data?.nodes.length ?? 0) + extraNodes.length;
-      if (totalNodes >= 200) {
+      const remaining = 200 - mergedNodes.length;
+      if (remaining <= 0) {
         toast.warning('Graph limit reached (200 nodes). Clear filters to reset the view.');
         return;
       }
@@ -189,7 +180,15 @@ function GraphCanvas({
         );
         setExtraNodes((prev) => {
           const ids = new Set(prev.map((n) => n.id));
-          return [...prev, ...neighbors.nodes.filter((n) => !ids.has(n.id))];
+          const newNodes = neighbors.nodes.filter((n) => !ids.has(n.id));
+          // Cap total nodes at 200: only add as many as the remaining capacity allows.
+          const nodesToAdd = newNodes.slice(0, remaining);
+          if (newNodes.length > nodesToAdd.length) {
+            toast.warning(
+              `Graph limit reached (200 nodes). ${newNodes.length - nodesToAdd.length} nodes were not added.`
+            );
+          }
+          return [...prev, ...nodesToAdd];
         });
         setExtraEdges((prev) => {
           const ids = new Set(prev.map((e) => e.id));
@@ -201,11 +200,15 @@ function GraphCanvas({
         toast.error(`Failed to expand node: ${message}`);
       }
     },
-    [data, depth, extraNodes, workspaceId]
+    [mergedNodes.length, depth, workspaceId]
   );
 
   const handleNodeClick = useCallback((node: GraphNodeDTO) => {
     setSelectedNode(node);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setSelectedNode(null);
   }, []);
 
   const nodeTypedNodes = useMemo(
@@ -242,7 +245,7 @@ function GraphCanvas({
   if (!data || data.nodes.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <GraphEmptyState variant="empty" height={400} onOpenChat={onClose} />
+        <GraphEmptyState variant="empty" height={400} />
       </div>
     );
   }
@@ -262,6 +265,7 @@ function GraphCanvas({
             maxZoom={3}
             fitView
             fitViewOptions={{ padding: 0.15 }}
+            // React Flow MIT — attribution hidden per internal product decision (non-commercial/early-stage)
             proOptions={{ hideAttribution: true }}
             onNodeDoubleClick={(_evt, node) => void handleNodeDoubleClick(node.id)}
           >
@@ -298,13 +302,15 @@ function GraphCanvas({
               {selectedNode.summary && (
                 <p className="text-xs text-muted-foreground line-clamp-2">{selectedNode.summary}</p>
               )}
-              <p className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(selectedNode.createdAt), { addSuffix: true })}
-              </p>
+              {selectedNode.createdAt && (
+                <p className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(selectedNode.createdAt), { addSuffix: true })}
+                </p>
+              )}
             </div>
             <button
               type="button"
-              onClick={() => setSelectedNode(null)}
+              onClick={handleCloseDetail}
               className="shrink-0 rounded p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Close node details"
             >
@@ -319,37 +325,22 @@ function GraphCanvas({
 
 // ── Public component ────────────────────────────────────────────────────────
 
-export function IssueKnowledgeGraphFull(props: IssueKnowledgeGraphFullProps) {
-  const { workspaceId, issueId, onClose } = props;
+export function ProjectKnowledgeGraph({ workspaceId, projectId }: ProjectKnowledgeGraphProps) {
+  const [depth, setDepth] = useState(2);
+  const [activeFilter, setActiveFilter] = useState<GraphNodeType | 'all'>('all');
+  const [nodeCount, setNodeCount] = useState(0);
 
-  const [depth, setDepth] = React.useState(2);
-  const [activeFilter, setActiveFilter] = React.useState<GraphNodeType | 'all'>('all');
-
-  const { data } = useIssueKnowledgeGraph(workspaceId, issueId, {
-    depth,
-    nodeTypes: activeFilter === 'all' ? undefined : [activeFilter],
-    enabled: true,
-  });
+  const handleNodeCountChange = useCallback((count: number) => {
+    setNodeCount((prev) => (prev === count ? prev : count));
+  }, []);
 
   return (
-    <div className="flex flex-col h-full bg-background" data-testid="knowledge-graph-full">
+    <div className="flex flex-col h-full bg-background" data-testid="project-knowledge-graph">
       {/* Toolbar */}
       <div
         className="flex items-center gap-2 px-3 border-b border-border shrink-0 overflow-x-auto"
         style={{ height: 40, minHeight: 40 }}
       >
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-          aria-label="Back to chat"
-        >
-          <ArrowLeft className="size-3.5" />
-          Back to Chat
-        </button>
-
-        <div className="w-px h-5 bg-border shrink-0" aria-hidden="true" />
-
         {/* Filter chips */}
         <div
           className="flex items-center gap-1"
@@ -380,11 +371,14 @@ export function IssueKnowledgeGraphFull(props: IssueKnowledgeGraphFullProps) {
 
         {/* Depth slider */}
         <div className="flex items-center gap-1.5 shrink-0">
-          <label htmlFor="graph-depth" className="text-xs text-muted-foreground whitespace-nowrap">
+          <label
+            htmlFor="project-graph-depth"
+            className="text-xs text-muted-foreground whitespace-nowrap"
+          >
             Depth {depth}
           </label>
           <input
-            id="graph-depth"
+            id="project-graph-depth"
             type="range"
             min={1}
             max={3}
@@ -395,9 +389,9 @@ export function IssueKnowledgeGraphFull(props: IssueKnowledgeGraphFullProps) {
           />
         </div>
 
-        {data && (
+        {nodeCount > 0 && (
           <span className="ml-auto text-xs text-muted-foreground shrink-0 whitespace-nowrap">
-            {data.nodes.length} nodes
+            {nodeCount} nodes
           </span>
         )}
       </div>
@@ -405,13 +399,12 @@ export function IssueKnowledgeGraphFull(props: IssueKnowledgeGraphFullProps) {
       {/* Graph canvas + detail panel via ReactFlowProvider */}
       <ReactFlowProvider>
         <div className="flex flex-col flex-1 min-h-0">
-          <GraphCanvas
+          <ProjectGraphCanvas
             workspaceId={workspaceId}
-            issueId={issueId}
+            projectId={projectId}
             depth={depth}
             activeFilter={activeFilter}
-            highlightNodeId={props.highlightNodeId}
-            onClose={onClose}
+            onNodeCountChange={handleNodeCountChange}
           />
         </div>
       </ReactFlowProvider>

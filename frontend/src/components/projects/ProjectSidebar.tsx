@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   ListTodo,
   RefreshCw,
+  Brain,
   MessageSquare,
   Settings,
   FolderKanban,
@@ -18,10 +19,16 @@ interface ProjectSidebarProps {
   workspaceSlug: string;
 }
 
-const NAV_ITEMS: readonly { label: string; icon: typeof LayoutDashboard; segment: string; badge?: string }[] = [
+const NAV_ITEMS: readonly {
+  label: string;
+  icon: typeof LayoutDashboard;
+  segment: string;
+  badge?: string;
+}[] = [
   { label: 'Overview', icon: LayoutDashboard, segment: 'overview' },
   { label: 'Issues', icon: ListTodo, segment: 'issues' },
   { label: 'Cycles', icon: RefreshCw, segment: 'cycles' },
+  { label: 'Knowledge', icon: Brain, segment: 'knowledge' },
   { label: 'Chat', icon: MessageSquare, segment: 'chat', badge: 'Soon' },
   { label: 'Settings', icon: Settings, segment: 'settings' },
 ];

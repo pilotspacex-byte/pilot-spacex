@@ -6,23 +6,27 @@ import type {
   GraphQueryParams,
 } from '@/types/knowledge-graph';
 
+function _buildGraphQueryParams(
+  params?: GraphQueryParams
+): Record<string, string | number | boolean> {
+  const q: Record<string, string | number | boolean> = {};
+  if (params?.depth !== undefined) q.depth = params.depth;
+  if (params?.maxNodes !== undefined) q.max_nodes = params.maxNodes;
+  if (params?.includeGithub !== undefined) q.include_github = params.includeGithub;
+  // Backend expects comma-separated string, not array
+  if (params?.nodeTypes?.length) q.node_types = params.nodeTypes.join(',');
+  return q;
+}
+
 export const knowledgeGraphApi = {
   getIssueGraph(
     workspaceId: string,
     issueId: string,
     params?: GraphQueryParams
   ): Promise<GraphResponse> {
-    const queryParams: Record<string, string | number | boolean> = {};
-
-    if (params?.depth !== undefined) queryParams.depth = params.depth;
-    if (params?.maxNodes !== undefined) queryParams.max_nodes = params.maxNodes;
-    if (params?.includeGithub !== undefined) queryParams.include_github = params.includeGithub;
-    // Backend expects comma-separated string, not array
-    if (params?.nodeTypes?.length) queryParams.node_types = params.nodeTypes.join(',');
-
     return apiClient.get<GraphResponse>(
       `/workspaces/${workspaceId}/issues/${issueId}/knowledge-graph`,
-      { params: queryParams }
+      { params: _buildGraphQueryParams(params) }
     );
   },
 
@@ -71,6 +75,17 @@ export const knowledgeGraphApi = {
     return apiClient.get<GraphResponse>(`/workspaces/${workspaceId}/knowledge-graph/subgraph`, {
       params: queryParams,
     });
+  },
+
+  getProjectGraph(
+    workspaceId: string,
+    projectId: string,
+    params?: GraphQueryParams
+  ): Promise<GraphResponse> {
+    return apiClient.get<GraphResponse>(
+      `/workspaces/${workspaceId}/projects/${projectId}/knowledge-graph`,
+      { params: _buildGraphQueryParams(params) }
+    );
   },
 
   getUserContext(workspaceId: string, limit?: number): Promise<GraphResponse> {
