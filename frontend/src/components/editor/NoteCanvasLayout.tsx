@@ -103,6 +103,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
     onVersionHistory,
     projectId,
     linkedIssues = [],
+    onMove,
   } = props;
 
   // Issue extraction SSE pipeline (Feature 009)
@@ -201,6 +202,8 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
           isAIAssisted={isAIAssisted}
           topics={topics}
           workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          workspaceId={workspaceId}
           onShare={onShare}
           onExport={onExport}
           onDelete={onDelete}
@@ -209,6 +212,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
             sidebar.openSidebar('versions');
             onVersionHistory?.();
           }}
+          onMove={onMove}
           disabled={readOnly}
         />
       )}

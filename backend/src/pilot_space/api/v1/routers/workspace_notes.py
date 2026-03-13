@@ -11,13 +11,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 
+from pilot_space.api.middleware import create_problem_response
+
 from pilot_space.api.v1.dependencies import (
     CreateNoteServiceDep,
     DeleteNoteServiceDep,
     GetNoteServiceDep,
     ListNotesServiceDep,
+    NoteRepositoryDep,
     MovePageServiceDep,
     PinNoteServiceDep,
+    ProjectRepositoryDep,
     ReorderPageServiceDep,
     UpdateNoteServiceDep,
     WorkspaceRepositoryDep,
@@ -32,6 +36,7 @@ from pilot_space.api.v1.schemas.note import (
     MovePageRequest,
     NoteCreate,
     NoteDetailResponse,
+    NoteMove,
     NoteResponse,
     NoteUpdate,
     PageTreeResponse,
@@ -170,7 +175,7 @@ async def list_workspace_notes(
     current_user_id: CurrentUserId,
     list_service: ListNotesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
+    project_ids: list[UUID] = Query(default=[], description="Filter by one or more projects"),
     is_pinned: Annotated[bool | None, Query(description="Filter by pin status")] = None,
     search: Annotated[str | None, Query(description="Search query")] = None,
     cursor: Annotated[str | None, Query(description="Pagination cursor")] = None,
@@ -187,7 +192,7 @@ async def list_workspace_notes(
     result = await list_service.execute(
         ListNotesPayload(
             workspace_id=workspace.id,
-            project_id=project_id,
+            project_ids=project_ids,
             is_pinned=is_pinned,
             search=search,
             limit=page_size,
@@ -245,7 +250,7 @@ async def get_workspace_note(
 
 @router.post(
     "/{workspace_id}/notes",
-    response_model=NoteResponse,
+    response_model=NoteDetailResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["workspace-notes"],
     summary="Create a new note",
@@ -258,7 +263,7 @@ async def create_workspace_note(
     create_service: CreateNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
     response: Response = Response(),
-) -> NoteResponse:
+) -> NoteDetailResponse:
     """Create a new note in the workspace.
 
     Args:
@@ -313,7 +318,7 @@ async def create_workspace_note(
         extra={"note_id": str(result.note.id), "workspace_id": str(workspace.id)},
     )
 
-    return _note_to_response(result.note)
+    return _note_to_detail_response(result.note)
 
 
 @router.patch(
@@ -441,66 +446,83 @@ async def delete_workspace_note(
 
 @router.post(
     "/{workspace_id}/notes/{note_id}/move",
-    response_model=PageTreeResponse,
+    response_model=NoteResponse,
     tags=["workspace-notes"],
-    summary="Move a page to a new parent",
+    summary="Move a note to a different project or root workspace",
 )
-async def move_page(
+async def move_workspace_note(
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
-    body: MovePageRequest,
+    move_data: NoteMove,
     current_user_id: CurrentUserId,
-    session: SessionDep,  # CRITICAL: populates DI ContextVar
-    move_service: MovePageServiceDep,
+    session: SessionDep,
+    update_service: UpdateNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-) -> PageTreeResponse:
-    """Move a page to a different parent within the same project.
+    note_repo: NoteRepositoryDep,
+    project_repo: ProjectRepositoryDep,
+) -> NoteResponse:
+    """Move a note to a different project or root workspace.
+
+    Pass project_id=null to remove project association (move to root workspace).
 
     Args:
         workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID to move.
-        body: Move request with target parent ID (None promotes to root).
+        note_id: The note ID.
+        move_data: Move data with new project_id (nullable).
         current_user_id: Current user ID.
-        session: Database session (required for DI ContextVar).
-        move_service: Move page service.
+        session: Database session.
+        update_service: Update note service.
         workspace_repo: Workspace repository.
+        note_repo: Note repository (used to validate note workspace).
+        project_repo: Project repository (used to validate project workspace).
 
     Returns:
-        Updated page with tree fields (parent_id, depth, position).
-
-    Raises:
-        HTTPException 422: If depth limit exceeded, cross-project move, or note not found.
+        Updated note with new project association.
     """
-    from pilot_space.application.services.note.move_page_service import MovePagePayload
+    from pilot_space.application.services.note.update_note_service import UpdateNotePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
-    await set_rls_context(session, current_user_id, workspace.id)
 
-    try:
-        result = await move_service.execute(
-            MovePagePayload(
-                note_id=note_id,
-                new_parent_id=body.new_parent_id,
-                workspace_id=workspace.id,
-                actor_id=current_user_id,
+    note = await note_repo.get_by_id(note_id)
+    if note is None or note.workspace_id != workspace.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Note not found in this workspace",
+        )
+
+    if move_data.project_id is not None:
+        project = await project_repo.get_by_id(move_data.project_id)
+        if project is None or project.workspace_id != workspace.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found in this workspace",
             )
-        )
-    except ValueError as e:
-        msg = str(e)
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if "not found" in msg.lower()
-            else status.HTTP_422_UNPROCESSABLE_ENTITY
-        )
-        raise HTTPException(status_code=status_code, detail=msg) from e
 
-    logger.info(
-        "Page moved",
-        extra={"note_id": str(note_id), "new_parent_id": str(body.new_parent_id)},
+    payload = UpdateNotePayload(
+        note_id=note_id,
+        actor_id=current_user_id,
+        clear_project_id=move_data.project_id is None,
+        project_id=move_data.project_id,
     )
 
-    return _note_to_tree_response(result.note)
+    try:
+        result = await update_service.execute(payload)
+    except ValueError as e:
+        return create_problem_response(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
 
+    logger.info(
+        "Note moved",
+        extra={
+            "note_id": str(note_id),
+            "workspace_id": str(workspace.id),
+            "project_id": str(move_data.project_id) if move_data.project_id else None,
+        },
+    )
+
+    return _note_to_response(result.note)
 
 @router.post(
     "/{workspace_id}/notes/{note_id}/reorder",
@@ -563,7 +585,6 @@ async def reorder_page(
     )
 
     return _note_to_tree_response(result.note)
-
 
 @router.post(
     "/{workspace_id}/notes/{note_id}/pin",

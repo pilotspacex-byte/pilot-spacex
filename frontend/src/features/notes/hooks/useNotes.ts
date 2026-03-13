@@ -13,8 +13,8 @@ export const NOTES_QUERY_KEY = 'notes';
 export interface UseNotesOptions {
   /** Workspace ID (required) */
   workspaceId: string;
-  /** Filter by project ID */
-  projectId?: string;
+  /** Filter by one or more project IDs — sent to the server as repeated project_id params */
+  projectIds?: string[];
   /** Filter by pinned status */
   isPinned?: boolean;
   /** Filter by author ID */
@@ -31,7 +31,7 @@ export interface UseNotesOptions {
 export const notesKeys = {
   all: [NOTES_QUERY_KEY] as const,
   lists: () => [...notesKeys.all, 'list'] as const,
-  list: (workspaceId: string, filters?: { projectId?: string; isPinned?: boolean }) =>
+  list: (workspaceId: string, filters?: { projectIds?: string[]; isPinned?: boolean }) =>
     [...notesKeys.lists(), workspaceId, filters] as const,
   details: () => [...notesKeys.all, 'detail'] as const,
   detail: (workspaceId: string, noteId: string) =>
@@ -47,15 +47,19 @@ export const notesKeys = {
  */
 export function useNotes({
   workspaceId,
-  projectId,
+  projectIds,
   isPinned,
   authorId,
   pageSize = 50,
   enabled = true,
 }: UseNotesOptions) {
+  // Stable key: sort so array order doesn't cause spurious refetches
+  const projectIdsKey =
+    projectIds && projectIds.length > 0 ? [...projectIds].sort() : undefined;
+
   return useQuery({
-    queryKey: notesKeys.list(workspaceId, { projectId, isPinned }),
-    queryFn: () => notesApi.list(workspaceId, { projectId, isPinned, authorId }, 1, pageSize),
+    queryKey: notesKeys.list(workspaceId, { projectIds: projectIdsKey, isPinned }),
+    queryFn: () => notesApi.list(workspaceId, { projectIds, isPinned, authorId }, 1, pageSize),
     enabled: enabled && !!workspaceId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes
@@ -63,20 +67,29 @@ export function useNotes({
 }
 
 /**
- * Hook for infinite scroll notes list
+ * Hook for infinite scroll notes list.
+ *
+ * When `projectIds` is provided, the IDs are sent to the server as repeated
+ * `project_id` query params so the server filters pages before returning them.
+ * The sorted, joined key is included in the TanStack Query key so pagination
+ * resets automatically whenever the project selection changes.
  */
 export function useInfiniteNotes({
   workspaceId,
-  projectId,
+  projectIds,
   isPinned,
   authorId,
   pageSize = 20,
   enabled = true,
 }: UseNotesOptions) {
+  // Stable string key: sort so array order doesn't cause spurious refetches.
+  const projectIdsKey =
+    projectIds && projectIds.length > 0 ? [...projectIds].sort().join(',') : undefined;
+
   return useInfiniteQuery({
-    queryKey: [...notesKeys.list(workspaceId, { projectId, isPinned }), 'infinite'],
+    queryKey: [...notesKeys.list(workspaceId, { isPinned }), 'infinite', projectIdsKey],
     queryFn: ({ pageParam }) =>
-      notesApi.list(workspaceId, { projectId, isPinned, authorId }, pageParam, pageSize),
+      notesApi.list(workspaceId, { projectIds, isPinned, authorId }, pageParam, pageSize),
     initialPageParam: 1,
     getNextPageParam: (lastPage, _pages, lastPageParam) =>
       lastPage.hasNext ? lastPageParam + 1 : undefined,

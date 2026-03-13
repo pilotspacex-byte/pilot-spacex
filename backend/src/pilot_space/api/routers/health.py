@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 
 import structlog
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from pilot_space.infrastructure.health_checks import check_database, check_redis, check_supabase
 
@@ -57,6 +58,7 @@ async def readiness() -> dict[str, object]:
 
     Kubernetes uses this to decide whether to route traffic to the pod.
     """
+
     check_coros: dict[str, object] = {
         "database": check_database(),
         "redis": check_redis(),
@@ -92,9 +94,24 @@ async def readiness() -> dict[str, object]:
         checks={k: v.get("status") for k, v in results.items()},
     )
 
-    return {
+    body: dict[str, object] = {
         "status": overall,
         "version": HEALTH_VERSION,
         "timestamp": datetime.now(UTC).isoformat(),
         "checks": results,
     }
+
+    if overall == "unhealthy":
+        return JSONResponse(
+            status_code=503,
+            content={
+                "type": "https://pilot.space/problems/service-unavailable",
+                "title": "Service Unavailable",
+                "status": 503,
+                "detail": "One or more critical dependencies are unreachable.",
+                **body,
+            },
+            media_type="application/problem+json",
+        )
+
+    return body

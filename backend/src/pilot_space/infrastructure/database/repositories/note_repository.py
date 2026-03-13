@@ -66,65 +66,52 @@ class NoteRepository(BaseRepository[Note]):
         result = await self.session.execute(query)
         return result.scalars().all()
 
-    async def get_by_project(
-        self,
-        project_id: UUID,
-        *,
-        include_deleted: bool = False,
-        limit: int | None = None,
-    ) -> Sequence[Note]:
-        """Get all notes in a project.
-
-        Args:
-            project_id: The project ID.
-            include_deleted: Whether to include soft-deleted notes.
-            limit: Maximum number of notes to return.
-
-        Returns:
-            List of notes in the project.
-        """
-        query = select(Note).where(Note.project_id == project_id)
-        if not include_deleted:
-            query = query.where(Note.is_deleted == False)  # noqa: E712
-        query = query.order_by(Note.created_at.desc())
-        if limit:
-            query = query.limit(limit)
-        result = await self.session.execute(query)
-        return result.scalars().all()
-
-    async def search_by_title(
+    async def list_notes(
         self,
         workspace_id: UUID,
-        search_term: str,
         *,
-        project_id: UUID | None = None,
+        project_ids: list[UUID] | None = None,
+        is_pinned: bool | None = None,
+        search: str | None = None,
         include_deleted: bool = False,
-        limit: int = 20,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> Sequence[Note]:
-        """Search notes by title in workspace.
+        """List notes in a workspace with optional filters.
 
-        Uses case-insensitive pattern matching.
+        All filters are composable: any combination of project_ids, is_pinned,
+        and search can be provided together.
 
         Args:
-            workspace_id: The workspace ID.
-            search_term: Text to search for in title.
-            project_id: Optional project ID to narrow search.
+            workspace_id: The workspace ID to scope the query.
+            project_ids: If provided, only notes belonging to these projects are returned.
+            is_pinned: If provided, filters by pinned status.
+            search: If provided, performs case-insensitive title matching.
             include_deleted: Whether to include soft-deleted notes.
-            limit: Maximum results to return.
+            limit: Maximum number of notes to return.
+            offset: Number of notes to skip (for pagination).
 
         Returns:
-            List of matching notes.
+            List of matching notes ordered by updated_at desc.
         """
         query = select(Note).where(Note.workspace_id == workspace_id)
-        if project_id:
-            query = query.where(Note.project_id == project_id)
+
+        if project_ids:
+            query = query.where(Note.project_id.in_(project_ids))
+        if is_pinned is not None:
+            query = query.where(Note.is_pinned == is_pinned)  # noqa: E712
+        if search:
+            safe_term = search.replace("%", r"\%").replace("_", r"\_")
+            query = query.where(Note.title.ilike(f"%{safe_term}%"))
         if not include_deleted:
             query = query.where(Note.is_deleted == False)  # noqa: E712
 
-        safe_term = search_term.replace("%", r"\%").replace("_", r"\_")
-        search_pattern = f"%{safe_term}%"
-        query = query.where(Note.title.ilike(search_pattern))
-        query = query.order_by(Note.created_at.desc()).limit(limit)
+        query = query.order_by(Note.updated_at.desc())
+        if limit:
+            query = query.limit(limit)
+        if offset:
+            query = query.offset(offset)
+
         result = await self.session.execute(query)
         return result.scalars().all()
 
@@ -425,7 +412,7 @@ class NoteRepository(BaseRepository[Note]):
         workspace_id: UUID,
         search_term: str,
         *,
-        project_id: UUID | None = None,
+        project_ids: list[UUID] | None = None,
         include_deleted: bool = False,
         limit: int = 20,
     ) -> Sequence[Note]:
@@ -436,7 +423,7 @@ class NoteRepository(BaseRepository[Note]):
         Args:
             workspace_id: The workspace ID.
             search_term: Text to search for.
-            project_id: Optional project ID to narrow search.
+            project_ids: Optional list of project IDs to narrow search.
             include_deleted: Whether to include soft-deleted notes.
             limit: Maximum results to return.
 
@@ -446,8 +433,8 @@ class NoteRepository(BaseRepository[Note]):
         from sqlalchemy import text as sql_text
 
         query = select(Note).where(Note.workspace_id == workspace_id)
-        if project_id:
-            query = query.where(Note.project_id == project_id)
+        if project_ids:
+            query = query.where(Note.project_id.in_(project_ids))
         if not include_deleted:
             query = query.where(Note.is_deleted == False)  # noqa: E712
 

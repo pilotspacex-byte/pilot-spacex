@@ -10,6 +10,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { FileX, ArrowLeft, SmilePlus } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,8 @@ import { useNoteStore } from '@/stores/RootStore';
 import { useWorkspace } from '@/components/workspace-guard';
 import { useProjects, selectAllProjects } from '@/features/projects/hooks/useProjects';
 import { getAncestors, flattenTree } from '@/lib/tree-utils';
+import { notesApi } from '@/services/api';
+import { notesKeys } from '@/features/notes/hooks';
 import type { JSONContent } from '@/types';
 
 /**
@@ -129,6 +132,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   const workspaceSlug = params.workspaceSlug ?? '';
   const noteId = params.noteId ?? '';
   const router = useRouter();
+  const queryClient = useQueryClient();
   const noteStore = useNoteStore();
 
   // Get workspace from WorkspaceGuard context (guaranteed to be loaded)
@@ -346,6 +350,21 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     }
   }, [togglePin, note]);
 
+  // Handle move to project
+  const handleMove = useCallback(
+    async (newProjectId: string | null) => {
+      try {
+        await notesApi.moveNote(workspaceId, noteId, newProjectId);
+        queryClient.invalidateQueries({ queryKey: notesKeys.detail(workspaceId, noteId) });
+        queryClient.invalidateQueries({ queryKey: notesKeys.lists() });
+        toast.success(newProjectId ? 'Note moved to project' : 'Note moved to workspace root');
+      } catch {
+        toast.error('Failed to move note');
+      }
+    },
+    [workspaceId, noteId, queryClient]
+  );
+
   // Handle share
   const handleShare = useCallback(() => {
     // Open share dialog - to be implemented
@@ -497,6 +516,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
           onDelete={handleDelete}
           onTogglePin={handleTogglePin}
           onVersionHistory={handleVersionHistory}
+          onMove={handleMove}
           projectId={note.projectId}
           linkedIssues={note.linkedIssues}
         />

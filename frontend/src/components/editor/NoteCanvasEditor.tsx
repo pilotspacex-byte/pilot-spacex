@@ -105,6 +105,8 @@ export interface NoteCanvasProps {
   onVersionHistory?: () => void;
   projectId?: string;
   linkedIssues?: LinkedIssueBrief[];
+  /** Callback to move note to a different project (or root workspace) */
+  onMove?: (projectId: string | null) => void;
   /** Callback to trigger issue extraction from note content */
   onExtractIssues?: (params: {
     noteId: string;

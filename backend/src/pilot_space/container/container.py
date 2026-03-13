@@ -721,7 +721,7 @@ _container: Container | None = None
 
 def get_container() -> Container:
     """Get or create the global container instance."""
-    global _container  # noqa: PLW0603
+    global _container
     if _container is None:
         _container = create_container()
     return _container

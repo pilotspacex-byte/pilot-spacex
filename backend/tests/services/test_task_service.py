@@ -129,11 +129,14 @@ class TestListTasks:
         self,
         task_service: TaskService,
         mock_task_repo: AsyncMock,
+        mock_issue_repo: AsyncMock,
         workspace_id: UUID,
         issue_id: UUID,
         mock_task: Task,
+        mock_issue: Issue,
     ) -> None:
         """Returns tasks with progress statistics."""
+        mock_issue_repo.get_by_id_scalar.return_value = mock_issue
         task2 = Task(
             id=uuid4(),
             workspace_id=workspace_id,
@@ -156,10 +159,13 @@ class TestListTasks:
         self,
         task_service: TaskService,
         mock_task_repo: AsyncMock,
+        mock_issue_repo: AsyncMock,
         workspace_id: UUID,
         issue_id: UUID,
+        mock_issue: Issue,
     ) -> None:
         """Returns empty list for issue with no tasks."""
+        mock_issue_repo.get_by_id_scalar.return_value = mock_issue
         mock_task_repo.list_by_issue.return_value = []
 
         result = await task_service.list_tasks(issue_id, workspace_id)
@@ -173,10 +179,13 @@ class TestListTasks:
         self,
         task_service: TaskService,
         mock_task_repo: AsyncMock,
+        mock_issue_repo: AsyncMock,
         workspace_id: UUID,
         issue_id: UUID,
+        mock_issue: Issue,
     ) -> None:
         """Calculates completion percentage correctly."""
+        mock_issue_repo.get_by_id_scalar.return_value = mock_issue
         tasks = [
             Task(
                 id=uuid4(),

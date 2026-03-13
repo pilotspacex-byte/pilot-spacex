@@ -4,7 +4,7 @@ import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   Home,
   FileText,
@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Plus,
   Compass,
+  PinIcon,
   Loader2,
   LogOut,
   User,
@@ -31,7 +32,10 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useUIStore, useNotificationStore, useAuthStore, useWorkspaceStore } from '@/stores';
-import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
+import { useCreateNote } from '@/features/notes/hooks';
+import { useProjects } from '@/features/projects/hooks/useProjects';
+import { TemplatePicker } from '@/features/notes/components/TemplatePicker';
+import { useNewNoteFlow } from './useNewNoteFlow';
 import { useProjects, selectAllProjects } from '@/features/projects/hooks/useProjects';
 import { ProjectPageTree } from '@/components/layout/ProjectPageTree';
 import { PersonalPagesList } from '@/components/layout/PersonalPagesList';
@@ -364,12 +368,32 @@ export const Sidebar = observer(function Sidebar() {
     }));
   }, [workspaceSlug]);
 
-  const handleNewNote = useCallback(() => {
-    createNote.mutate(createNoteDefaults());
-  }, [createNote]);
+  const { data: projectsData } = useProjects({ workspaceId, enabled: !!workspaceId });
+  const projectMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (projectsData?.items ?? []).forEach((p) => {
+      map[p.id] = p.name;
+    });
+    return map;
+  }, [projectsData]);
+
+  const pinnedNotes = useMemo(() => {
+    return noteStore.pinnedNotes.slice(0, 5).map((note) => ({
+      id: note.id,
+      title: note.title,
+      projectId: note.projectId,
+      href: `/${workspaceSlug}/notes/${note.id}`,
+    }));
+  }, [noteStore.pinnedNotes, workspaceSlug]);
+
+  const newNoteFlow = useNewNoteFlow({
+    onCreateNote: (data) => createNote.mutate(data),
+  });
+  const handleNewNote = newNoteFlow.open;
 
   return (
-    <div className="flex h-full flex-col">
+    <>
+      <div className="flex h-full flex-col">
       {/* Logo & Workspace */}
       <div
         className={cn(
@@ -503,38 +527,38 @@ export const Sidebar = observer(function Sidebar() {
       <ScrollArea className="flex-1 px-2 py-1.5">
         {!collapsed && (
           <>
-            {/* Project Page Trees */}
-            {projects.map((project) => (
-              <div key={project.id} className="mb-2">
-                <div className="mb-1 flex items-center gap-1.5 px-1.5">
-                  <FolderKanban className="h-2.5 w-2.5 text-muted-foreground" />
-                  <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {project.name}
-                  </span>
-                </div>
-                <ProjectPageTree
-                  workspaceId={workspaceId}
-                  workspaceSlug={workspaceSlug}
-                  projectId={project.id}
-                  projectName={project.name}
-                  currentNoteId={currentNoteId}
-                />
-              </div>
-            ))}
-
-            {/* Personal Pages */}
-            <div className="mb-2">
-              <div className="mb-1 flex items-center gap-1.5 px-1.5">
-                <FileText className="h-2.5 w-2.5 text-muted-foreground" />
+            {/* Pinned Notes */}
+            <div className="mb-3" data-testid="pinned-notes">
+              <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
+                <PinIcon className="h-2.5 w-2.5 text-muted-foreground" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  My Pages
+                  Pinned
                 </span>
               </div>
-              <PersonalPagesList
-                workspaceId={workspaceId}
-                workspaceSlug={workspaceSlug}
-                currentNoteId={currentNoteId}
-              />
+              <div className="space-y-px">
+                {pinnedNotes.map((note, index) => (
+                  <motion.div
+                    key={note.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <Link
+                      href={note.href}
+                      data-testid="note-item"
+                      className="group flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-sidebar-foreground transition-colors hover:bg-sidebar-accent/50"
+                    >
+                      <FileText className="h-3 w-3 text-muted-foreground" />
+                      <span className="truncate">{note.title}</span>
+                      {note.projectId && projectMap[note.projectId] && (
+                        <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60 truncate max-w-[60px]">
+                          {projectMap[note.projectId]}
+                        </span>
+                      )}
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
             </div>
           </>
         )}
@@ -619,5 +643,15 @@ export const Sidebar = observer(function Sidebar() {
         </Tooltip>
       </div>
     </div>
+
+    {newNoteFlow.showTemplatePicker && (
+      <TemplatePicker
+        workspaceId={workspaceId}
+        isAdmin={isAdminOrOwner}
+        onConfirm={newNoteFlow.handleTemplateConfirm}
+        onClose={newNoteFlow.handleTemplateClose}
+      />
+    )}
+    </>
   );
 });

@@ -26,7 +26,10 @@ async def check_database() -> dict[str, object]:
         engine = get_engine()
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-        return {"status": "ok", "latency_ms": round((time.monotonic() - start) * 1000, 1)}
+        return {
+            "status": "ok",
+            "latency_ms": round((time.monotonic() - start) * 1000, 1),
+        }
     except Exception as exc:
         return {"status": "error", "error": str(exc)}
 
@@ -76,6 +79,9 @@ async def check_supabase() -> dict[str, object]:
         async with httpx.AsyncClient(timeout=2.0) as client:
             r = await client.get(f"{settings.supabase_url}/health")
             r.raise_for_status()
-        return {"status": "ok", "latency_ms": round((time.monotonic() - start) * 1000, 1)}
+        return {
+            "status": "ok",
+            "latency_ms": round((time.monotonic() - start) * 1000, 1),
+        }
     except Exception as exc:
         return {"status": "error", "error": str(exc)}

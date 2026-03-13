@@ -6,7 +6,7 @@
  */
 import { useCallback, useMemo, useRef, useState, use } from 'react';
 import { observer } from 'mobx-react-lite';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
@@ -24,6 +24,7 @@ import {
   Calendar,
   Clock,
   Loader2,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -40,6 +41,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command';
 import {
   Select,
   SelectContent,
@@ -294,9 +302,13 @@ function EmptyState({ onCreate }: { onCreate?: () => void }) {
 const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
   const { workspaceSlug } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const workspaceStore = useWorkspaceStore();
   const canCreateContent = workspaceStore.currentUserRole !== 'guest';
+
+  // Seed project filter from ?projectId=<id> (e.g. from ProjectNotesPanel "View all" link)
+  const initialProjectId = searchParams.get('projectId');
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -304,6 +316,13 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
   const [sortBy, setSortBy] = useState<SortBy>('updated');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [filterPinned, setFilterPinned] = useState<boolean | undefined>(undefined);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(
+    initialProjectId ? [initialProjectId] : []
+  );
+  const [pendingProjectIds, setPendingProjectIds] = useState<string[]>(
+    initialProjectId ? [initialProjectId] : []
+  );
+  const [projectFilterOpen, setProjectFilterOpen] = useState(false);
 
   // Get workspace ID from store or slug
   const workspaceId = workspaceStore.currentWorkspace?.id ?? workspaceSlug;
@@ -324,10 +343,14 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
     return map;
   }, [projectsData]);
 
+  // Set for O(1) lookup in CommandItem renders
+  const pendingProjectIdSet = useMemo(() => new Set(pendingProjectIds), [pendingProjectIds]);
+
   // Fetch notes with infinite scroll
   const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteNotes({
     workspaceId,
     isPinned: filterPinned,
+    projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
     pageSize: 20,
     enabled: !!workspaceId,
   });
@@ -462,7 +485,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
 
         {/* View controls */}
         <div className="flex items-center gap-2">
-          {/* Filter */}
+          {/* Filter (pinned) */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
@@ -485,6 +508,67 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
                 <Pin className="mr-2 h-4 w-4" />
                 Pinned only
               </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Projects filter */}
+          <DropdownMenu
+            open={projectFilterOpen}
+            onOpenChange={(open) => {
+              setProjectFilterOpen(open);
+              if (open) setPendingProjectIds(selectedProjectIds);
+            }}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <FolderKanban className="h-4 w-4" />
+                Projects
+                {selectedProjectIds.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-[10px]">
+                    {selectedProjectIds.length}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 p-0">
+              <Command>
+                <CommandInput placeholder="Search projects..." />
+                <CommandEmpty>No projects found</CommandEmpty>
+                <CommandGroup className="max-h-48 overflow-y-auto">
+                  {(projectsData?.items ?? []).map((project) => {
+                    const isSelected = pendingProjectIdSet.has(project.id);
+                    return (
+                      <CommandItem
+                        key={project.id}
+                        onSelect={() => {
+                          setPendingProjectIds((prev) =>
+                            isSelected ? prev.filter((id) => id !== project.id) : [...prev, project.id]
+                          );
+                        }}
+                      >
+                        <div className={cn('mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary', isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50')}>
+                          {isSelected && <X className="h-3 w-3" />}
+                        </div>
+                        {project.icon && <span className="mr-2 text-sm">{project.icon}</span>}
+                        <FolderKanban className={cn('mr-2 h-4 w-4', project.icon ? 'hidden' : '')} />
+                        <span className="truncate">{project.name}</span>
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+                <div className="border-t border-border p-2">
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setSelectedProjectIds(pendingProjectIds);
+                      setProjectFilterOpen(false);
+                    }}
+                  >
+                    Done
+                  </Button>
+                </div>
+              </Command>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -555,6 +639,36 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
           </div>
         </div>
       </div>
+
+      {/* Project filter chips */}
+      {selectedProjectIds.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-4 py-2 sm:px-6 border-b border-border">
+          {selectedProjectIds.map((pid) => {
+            const project = projectMap.get(pid);
+            return (
+              <Badge key={pid} variant="secondary" className="gap-1 pr-1.5">
+                <FolderKanban className="h-3 w-3" />
+                {project?.name ?? pid}
+                <button
+                  type="button"
+                  className="ml-0.5 rounded-sm hover:bg-muted-foreground/20"
+                  onClick={() => setSelectedProjectIds((prev) => prev.filter((id) => id !== pid))}
+                  aria-label={`Remove ${project?.name ?? pid} filter`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            );
+          })}
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setSelectedProjectIds([])}
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
       {/* Content */}
       {isLoading ? (

@@ -119,15 +119,10 @@ class GetNoteService:
         Returns:
             List of notes.
         """
-        if project_id:
-            return await self._note_repo.get_by_project(
-                project_id,
-                include_deleted=include_deleted,
-                limit=limit,
-            )
-
-        return await self._note_repo.get_by_workspace(
+        
+        return await self._note_repo.list_notes(
             workspace_id,
+            project_ids=[project_id] if project_id else None,
             include_deleted=include_deleted,
             limit=limit,
             offset=offset,
@@ -160,15 +155,15 @@ class GetNoteService:
             return await self._note_repo.search_full_text(
                 workspace_id,
                 search_term,
-                project_id=project_id,
+                project_ids=[project_id] if project_id else None,
                 include_deleted=include_deleted,
                 limit=limit,
             )
 
-        return await self._note_repo.search_by_title(
+        return await self._note_repo.list_notes(
             workspace_id,
-            search_term,
-            project_id=project_id,
+            project_ids=[project_id] if project_id else None,
+            search=search_term,
             include_deleted=include_deleted,
             limit=limit,
         )
@@ -190,9 +185,10 @@ class GetNoteService:
         Returns:
             List of pinned notes.
         """
-        return await self._note_repo.get_pinned_notes(
+        return await self._note_repo.list_notes(
             workspace_id,
-            project_id=project_id,
+            project_ids=[project_id] if project_id else None,
+            is_pinned=True,
             limit=limit,
         )
 

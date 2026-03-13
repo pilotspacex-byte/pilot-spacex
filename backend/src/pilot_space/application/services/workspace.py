@@ -244,7 +244,9 @@ class WorkspaceService:
         Returns:
             Paginated workspace list.
         """
-        workspaces = await self.workspace_repo.get_user_workspaces(user_id=payload.user_id)
+        workspaces = await self.workspace_repo.get_user_workspaces(
+            user_id=payload.user_id
+        )
 
         # Apply simple pagination
         total = len(workspaces)
@@ -260,7 +262,9 @@ class WorkspaceService:
             workspaces=list(paginated),
             total=total,
             next_cursor=str(end_idx) if has_next else None,
-            prev_cursor=str(max(0, start_idx - payload.page_size)) if has_prev else None,
+            prev_cursor=(
+                str(max(0, start_idx - payload.page_size)) if has_prev else None
+            ),
             has_next=has_next,
             has_prev=has_prev,
         )
@@ -530,7 +534,9 @@ class WorkspaceService:
 
         if existing_user:
             # Check if already a member
-            is_member = await self.workspace_repo.is_member(workspace_id, existing_user.id)
+            is_member = await self.workspace_repo.is_member(
+                workspace_id, existing_user.id
+            )
             if is_member:
                 msg = "User is already a member of this workspace"
                 raise ValueError(msg)
@@ -554,7 +560,9 @@ class WorkspaceService:
             return InviteMemberResult(is_immediate=True, member=member)
 
         # User doesn't exist — check for duplicate pending invitation
-        has_pending = await self.invitation_repo.exists_pending(workspace_id, normalized_email)
+        has_pending = await self.invitation_repo.exists_pending(
+            workspace_id, normalized_email
+        )
         if has_pending:
             msg = "An invitation is already pending for this email"
             raise ValueError(msg)

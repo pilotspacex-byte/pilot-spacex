@@ -185,8 +185,11 @@ export function CloneContextPanel({
       textarea.style.cssText = 'position:fixed;opacity:0';
       document.body.appendChild(textarea);
       textarea.select();
-      document.execCommand('copy');
+      const success = document.execCommand('copy');
       document.body.removeChild(textarea);
+      if (!success) {
+        throw new Error('execCommand copy failed');
+      }
     }
   }, []);
 
