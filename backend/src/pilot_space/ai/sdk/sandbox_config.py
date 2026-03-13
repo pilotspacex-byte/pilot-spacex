@@ -387,6 +387,10 @@ def configure_sdk_for_space(
     env = space_context.to_sdk_env()
     if additional_env:
         env.update(additional_env)
+    # Forward custom Anthropic base URL if configured (admin override for proxy/staging)
+    _base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    if _base_url:
+        env.setdefault("ANTHROPIC_BASE_URL", _base_url)
 
     # Get hooks from hook_executor if provided
     hooks: dict[str, list[dict[str, Any]]] = {}

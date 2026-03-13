@@ -10,7 +10,6 @@ class (not inheriting SDKBaseAgent) following the same pattern as AIContextAgent
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 import tempfile
 from dataclasses import dataclass, field
@@ -22,6 +21,7 @@ from pilot_space.ai.prompts.implementation_plan import (
     build_plan_prompt,
     parse_plan_response,
 )
+from pilot_space.ai.sdk.config import build_sdk_env
 from pilot_space.ai.sdk.sandbox_config import ModelTier
 from pilot_space.infrastructure.logging import get_logger
 
@@ -190,11 +190,7 @@ class PlanGenerationAgent:
             setting_sources=[],
             stderr=_capture_stderr,
             extra_args={"debug-to-stderr": None},
-            env={
-                "ANTHROPIC_API_KEY": api_key,
-                "PATH": os.environ.get("PATH", ""),
-                "HOME": os.environ.get("HOME", ""),
-            },
+            env=build_sdk_env(api_key),
         )
 
         text_parts: list[str] = []

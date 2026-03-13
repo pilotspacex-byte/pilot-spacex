@@ -9,11 +9,16 @@ Design Decisions: DD-002 (BYOK), DD-058 (SDK mode clarification)
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Final
 from uuid import UUID
 
+from pilot_space.ai.sdk.sandbox_config import ModelTier
+
 # Centralized model ID constants (DD-011 provider routing)
+# These are default fallbacks; at runtime, use ModelTier.*.model_id or
+# get_model_for_task() which respect PILOTSPACE_MODEL_*_DEFAULT env vars.
 MODEL_SONNET: Final[str] = "claude-sonnet-4-20250514"
 MODEL_OPUS: Final[str] = "claude-opus-4-5-20251101"
 MODEL_HAIKU: Final[str] = "claude-haiku-4-5-20251001"
@@ -149,18 +154,48 @@ def get_model_for_task(task_type: str) -> str:
     - Latency-sensitive: Gemini Flash (fastest)
     - Embeddings: OpenAI text-embedding-3-large (best quality)
 
+    Anthropic model IDs are resolved via ModelTier.model_id which respects
+    PILOTSPACE_MODEL_*_DEFAULT env vars for deployment-time overrides.
+
     Args:
         task_type: Task classification (code, latency, embedding, general)
 
     Returns:
         Model identifier string
     """
-    model_mapping = {
-        "code": MODEL_SONNET,
-        "architecture": MODEL_OPUS,
+    model_mapping: dict[str, ModelTier | str] = {
+        "code": ModelTier.SONNET,
+        "architecture": ModelTier.OPUS,
         "latency": MODEL_GEMINI_FLASH,
         "embedding": MODEL_EMBEDDING,
-        "general": MODEL_SONNET,
+        "general": ModelTier.SONNET,
     }
 
-    return model_mapping.get(task_type, MODEL_SONNET)
+    tier_or_id = model_mapping.get(task_type, ModelTier.SONNET)
+    if isinstance(tier_or_id, ModelTier):
+        return tier_or_id.model_id
+    return tier_or_id
+
+
+def build_sdk_env(api_key: str) -> dict[str, str]:
+    """Build minimal env dict for SDK subprocess with base URL forwarding.
+
+    Centralizes the env dict pattern used by ai_context_agent,
+    plan_generation_agent, and subagents. Forwards ANTHROPIC_BASE_URL
+    when set, enabling admin-configured proxies/staging endpoints.
+
+    Args:
+        api_key: Anthropic API key for the workspace.
+
+    Returns:
+        Environment dict suitable for ClaudeAgentOptions.env.
+    """
+    env: dict[str, str] = {
+        "ANTHROPIC_API_KEY": api_key,
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": os.environ.get("HOME", ""),
+    }
+    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    if base_url:
+        env["ANTHROPIC_BASE_URL"] = base_url
+    return env

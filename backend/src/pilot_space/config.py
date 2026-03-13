@@ -91,6 +91,10 @@ class Settings(BaseSettings):
         default=None,
         description="Default Anthropic API key (Claude)",
     )
+    anthropic_base_url: str | None = Field(
+        default=None,
+        description="Custom Anthropic API base URL (proxy, staging). Forwarded to SDK subprocesses.",
+    )
     openai_api_key: SecretStr | None = Field(
         default=None,
         description="Default OpenAI API key (embeddings)",

@@ -24,7 +24,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
 from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
 from pilot_space.ai.context import clear_context, set_workspace_context
-from pilot_space.ai.sdk.config import MODEL_SONNET
+from pilot_space.ai.sdk.config import MODEL_SONNET, build_sdk_env
 
 _logger = structlog.get_logger(__name__)
 
@@ -400,10 +400,7 @@ Be constructive and focus on production reliability, security, and maintainabili
 
             # Create SDK options with env parameter (no os.environ mutation)
             sdk_options = self._create_agent_options(context)
-            sdk_env: dict[str, str] = {"ANTHROPIC_API_KEY": api_key}
-            if "PATH" not in sdk_env:
-                sdk_env["PATH"] = os.environ.get("PATH", "")
-            sdk_options.env = sdk_env
+            sdk_options.env = build_sdk_env(api_key)
 
             # Set context for observability
             set_workspace_context(context.workspace_id, context.user_id)

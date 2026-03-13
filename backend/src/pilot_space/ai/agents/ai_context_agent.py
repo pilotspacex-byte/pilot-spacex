@@ -24,6 +24,7 @@ from pilot_space.ai.prompts.ai_context import (
     build_refinement_prompt,
     parse_context_response,
 )
+from pilot_space.ai.sdk.config import build_sdk_env
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -293,8 +294,6 @@ class AIContextAgent:
         Uses SDK query() with no allowed_tools and max_turns=1 to get a clean
         JSON response without tool-calling interference.
         """
-        import os
-
         import claude_agent_sdk
 
         from pilot_space.ai.sdk.sandbox_config import ModelTier
@@ -330,11 +329,7 @@ class AIContextAgent:
             setting_sources=[],
             stderr=_capture_stderr,
             extra_args={"debug-to-stderr": None},
-            env={
-                "ANTHROPIC_API_KEY": api_key,
-                "PATH": os.environ.get("PATH", ""),
-                "HOME": os.environ.get("HOME", ""),
-            },
+            env=build_sdk_env(api_key),
         )
 
         text_parts: list[str] = []
