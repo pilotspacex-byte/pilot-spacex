@@ -301,7 +301,7 @@ class TestExportContext:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["format"] == "markdown"
-        assert "# Issue Context" in data["markdown"]
+        assert "# Issue Context" in data["content"]
         assert data["stats"]["tasks"] == 3
 
     async def test_export_context_claude_code_format(

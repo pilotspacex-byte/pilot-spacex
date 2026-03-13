@@ -110,7 +110,7 @@ async def test_get_encryption_status_no_key_configured(
         patch(_CHECK_PERMISSION_PATH, return_value=True),
         patch(_REPO_PATH, return_value=mock_repo),
     ):
-        response = await enc_client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/encryption/")
+        response = await enc_client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/encryption")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -138,7 +138,7 @@ async def test_get_encryption_status_key_configured(
         patch(_CHECK_PERMISSION_PATH, return_value=True),
         patch(_REPO_PATH, return_value=mock_repo),
     ):
-        response = await enc_client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/encryption/")
+        response = await enc_client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/encryption")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -154,7 +154,7 @@ async def test_get_encryption_requires_admin_permission(enc_client: Any) -> None
         patch(_RESOLVE_PATH, return_value=_WORKSPACE_ID),
         patch(_CHECK_PERMISSION_PATH, return_value=False),
     ):
-        response = await enc_client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/encryption/")
+        response = await enc_client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/encryption")
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -349,7 +349,7 @@ async def test_encrypted_workspace_key_never_in_any_response(enc_client: Any) ->
         patch(_CHECK_PERMISSION_PATH, return_value=True),
         patch(_REPO_PATH, return_value=mock_repo),
     ):
-        response = await enc_client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/encryption/")
+        response = await enc_client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/encryption")
 
     assert response.status_code == status.HTTP_200_OK
     # Verify the raw field name never appears anywhere in the JSON

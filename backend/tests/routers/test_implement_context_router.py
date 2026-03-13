@@ -116,7 +116,10 @@ async def implement_client(
     from httpx import ASGITransport, AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from pilot_space.api.v1.dependencies import _get_implement_context_service
+    from pilot_space.api.v1.dependencies_pilot import (
+        _get_cli_requester_context,
+        _get_implement_context_service,
+    )
     from pilot_space.api.v1.repository_deps import _get_issue_repository
     from pilot_space.dependencies.auth import get_current_user_id, get_session
     from pilot_space.dependencies.workspace import get_current_workspace_id
@@ -126,6 +129,7 @@ async def implement_client(
 
     app.dependency_overrides[_get_implement_context_service] = lambda: mock_service
     app.dependency_overrides[_get_issue_repository] = lambda: mock_issue_repo
+    app.dependency_overrides[_get_cli_requester_context] = lambda: (_USER_ID, _WORKSPACE_ID)
     app.dependency_overrides[get_current_user_id] = lambda: _USER_ID
     app.dependency_overrides[get_current_workspace_id] = lambda: _WORKSPACE_ID
     app.dependency_overrides[get_session] = lambda: mock_session
@@ -136,6 +140,7 @@ async def implement_client(
 
     app.dependency_overrides.pop(_get_implement_context_service, None)
     app.dependency_overrides.pop(_get_issue_repository, None)
+    app.dependency_overrides.pop(_get_cli_requester_context, None)
     app.dependency_overrides.pop(get_current_user_id, None)
     app.dependency_overrides.pop(get_current_workspace_id, None)
     app.dependency_overrides.pop(get_session, None)

@@ -43,7 +43,7 @@ async def validate_key_client(mock_service: AsyncMock) -> AsyncGenerator[Any, No
     """
     from httpx import ASGITransport, AsyncClient
 
-    from pilot_space.api.v1.dependencies import _get_validate_api_key_service
+    from pilot_space.api.v1.dependencies_pilot import _get_validate_api_key_service
     from pilot_space.dependencies.auth import get_session
     from pilot_space.main import app
 
