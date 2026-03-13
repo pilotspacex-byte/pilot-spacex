@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
-from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -203,11 +202,17 @@ class TestAuthMiddleware:
     @pytest.mark.asyncio
     async def test_that_authenticated_request_succeeds(
         self,
+        app: Any,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         mock_token_payload: TokenPayload,
     ) -> None:
         """Test that authenticated requests succeed."""
+        from unittest.mock import AsyncMock
+
+        from pilot_space.api.v1.dependencies import _get_auth_service
+        from pilot_space.application.services.auth import AuthService
+
         # Arrange - Create user in database
         user = User(
             id=mock_token_payload.user_id,
@@ -217,19 +222,20 @@ class TestAuthMiddleware:
         db_session.add(user)
         await db_session.flush()
 
-        # Patch the session dependency
-        with patch("pilot_space.dependencies.get_session") as mock_get_session:
+        # Create mock auth service that raises user not found (404 path)
+        mock_service = AsyncMock(spec=AuthService)
+        mock_service.get_profile.side_effect = ValueError("User not found")
 
-            async def mock_session_gen() -> Any:
-                yield db_session
-
-            mock_get_session.return_value = mock_session_gen()
-
+        # Override auth service DI — get_current_user is already overridden by authenticated_client
+        app.dependency_overrides[_get_auth_service] = lambda: mock_service
+        try:
             # Act
             response = await authenticated_client.get("/api/v1/auth/me")
+        finally:
+            app.dependency_overrides.pop(_get_auth_service, None)
 
-        # Assert - May return 404 if user not found (depends on test setup)
-        # The point is it doesn't return 401
+        # Assert - 404 because mock service raises user not found
+        # The point is it doesn't return 401 (auth passed)
         assert response.status_code in [status.HTTP_200_OK, status.HTTP_404_NOT_FOUND]
 
 
@@ -419,11 +425,27 @@ class TestSessionManagement:
     @pytest.mark.asyncio
     async def test_that_logout_returns_success(
         self,
+        app: Any,
         authenticated_client: AsyncClient,
+        mock_token_payload: TokenPayload,
     ) -> None:
         """Test that logout endpoint returns success."""
-        # Act
-        response = await authenticated_client.post("/api/v1/auth/logout")
+        from unittest.mock import AsyncMock
+
+        from pilot_space.api.v1.dependencies import _get_auth_service
+        from pilot_space.application.services.auth import AuthService
+
+        # Create mock auth service
+        mock_service = AsyncMock(spec=AuthService)
+        mock_service.logout.return_value = None
+
+        # Override auth service DI — get_current_user already overridden by authenticated_client
+        app.dependency_overrides[_get_auth_service] = lambda: mock_service
+        try:
+            # Act
+            response = await authenticated_client.post("/api/v1/auth/logout")
+        finally:
+            app.dependency_overrides.pop(_get_auth_service, None)
 
         # Assert
         assert response.status_code == status.HTTP_200_OK

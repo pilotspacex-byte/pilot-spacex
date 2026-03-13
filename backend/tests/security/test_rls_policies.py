@@ -11,6 +11,7 @@ Reference: docs/architect/rls-patterns.md
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -29,6 +30,12 @@ from .conftest import SecurityTestContext
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+_DB_URL = os.environ.get("DATABASE_URL", "sqlite")
+_requires_postgres = pytest.mark.skipif(
+    "sqlite" in _DB_URL,
+    reason="RLS tests require PostgreSQL (set_config is not supported in SQLite). Set DATABASE_URL.",
+)
 
 # =============================================================================
 # Test Helpers
@@ -65,8 +72,6 @@ async def create_test_state(
         workspace_id=workspace_id,
         sequence=1,
         group="backlog",
-        is_active=False,
-        is_terminal=False,
     )
     session.add(state)
     await session.flush()
@@ -123,6 +128,7 @@ async def create_test_note(
 # =============================================================================
 
 
+@_requires_postgres
 class TestWorkspaceIsolation:
     """Tests for cross-workspace data isolation."""
 
@@ -253,6 +259,7 @@ class TestWorkspaceIsolation:
 # =============================================================================
 
 
+@_requires_postgres
 class TestRoleBasedAccess:
     """Tests for role-based access control within a workspace."""
 
@@ -524,6 +531,7 @@ class TestRoleBasedAccess:
 # =============================================================================
 
 
+@_requires_postgres
 class TestSoftDeleteVisibility:
     """Tests for soft-delete visibility rules."""
 
@@ -623,6 +631,7 @@ class TestSoftDeleteVisibility:
 # =============================================================================
 
 
+@_requires_postgres
 class TestServiceRoleBypass:
     """Tests for service role (admin) bypass scenarios."""
 
@@ -690,6 +699,7 @@ class TestServiceRoleBypass:
 # =============================================================================
 
 
+@_requires_postgres
 class TestDataLeakagePrevention:
     """Tests to verify no data leakage between workspaces."""
 

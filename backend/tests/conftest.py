@@ -539,10 +539,26 @@ def sample_note(sample_workspace: Workspace, sample_user: User) -> Note:
     Returns:
         Note instance.
     """
-    return NoteFactory(
+    from uuid import uuid4 as _uuid4
+
+    from pilot_space.infrastructure.database.models.note import Note as _Note
+
+    # Build Note directly — NoteFactory's `owner` relationship field can
+    # override owner_id to None when added to a session without the user loaded.
+    return _Note(
+        id=_uuid4(),
+        title="Test Note",
         workspace_id=sample_workspace.id,
         owner_id=sample_user.id,
-        owner=sample_user,
+        content={
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Test content"}],
+                }
+            ],
+        },
     )
 
 
@@ -624,6 +640,9 @@ async def authenticated_client(
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create authenticated HTTP client for API testing.
 
+    Overrides get_current_user FastAPI dependency so the mock token payload
+    is returned directly, bypassing JWT validation.
+
     Args:
         app: FastAPI application.
         mock_auth: Mock auth instance.
@@ -632,13 +651,19 @@ async def authenticated_client(
     Yields:
         AsyncClient with auth headers.
     """
+    from pilot_space.dependencies.auth import get_current_user
+
+    app.dependency_overrides[get_current_user] = lambda: mock_token_payload
     transport = ASGITransport(app=app)
-    async with AsyncClient(
-        transport=transport,
-        base_url="http://test",
-        headers={"Authorization": "Bearer test-token"},
-    ) as ac:
-        yield ac
+    try:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"Authorization": "Bearer test-token"},
+        ) as ac:
+            yield ac
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture

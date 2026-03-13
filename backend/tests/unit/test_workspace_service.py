@@ -45,16 +45,24 @@ def invitation_repo() -> AsyncMock:
 
 
 @pytest.fixture
+def label_repo() -> AsyncMock:
+    """Mock label repository."""
+    return AsyncMock()
+
+
+@pytest.fixture
 def workspace_service(
     workspace_repo: AsyncMock,
     user_repo: AsyncMock,
     invitation_repo: AsyncMock,
+    label_repo: AsyncMock,
 ) -> WorkspaceService:
     """Create WorkspaceService with mocked dependencies."""
     return WorkspaceService(
         workspace_repo=workspace_repo,
         user_repo=user_repo,
         invitation_repo=invitation_repo,
+        label_repo=label_repo,
     )
 
 
@@ -86,7 +94,7 @@ class TestInviteMember:
         result = await workspace_service.invite_member(
             workspace_id=workspace_id,
             email="dev@example.com",
-            role="member",
+            role="MEMBER",
             invited_by=invited_by,
         )
 
@@ -117,7 +125,7 @@ class TestInviteMember:
             await workspace_service.invite_member(
                 workspace_id=uuid4(),
                 email="member@example.com",
-                role="member",
+                role="MEMBER",
                 invited_by=uuid4(),
             )
 
@@ -144,7 +152,7 @@ class TestInviteMember:
         result = await workspace_service.invite_member(
             workspace_id=workspace_id,
             email="new@example.com",
-            role="member",
+            role="MEMBER",
             invited_by=invited_by,
         )
 
@@ -173,7 +181,7 @@ class TestInviteMember:
             await workspace_service.invite_member(
                 workspace_id=uuid4(),
                 email="pending@example.com",
-                role="member",
+                role="MEMBER",
                 invited_by=uuid4(),
             )
 
@@ -197,7 +205,7 @@ class TestInviteMember:
         result = await workspace_service.invite_member(
             workspace_id=uuid4(),
             email="  Test@Example.COM  ",
-            role="member",
+            role="MEMBER",
             invited_by=uuid4(),
         )
 

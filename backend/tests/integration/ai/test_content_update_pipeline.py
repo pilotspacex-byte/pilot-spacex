@@ -38,7 +38,6 @@ def mock_deps() -> dict[str, Any]:
         "resilient_executor": MagicMock(),
         "permission_handler": MagicMock(),
         "session_handler": None,
-        "skill_registry": MagicMock(),
         "space_manager": None,
     }
 
@@ -432,11 +431,12 @@ class TestInsertInlineIssuePipeline:
 
         assert raw is not None
 
-        # Should produce 3 separate SSE events
+        # Should produce 3 content_update events + 1 tool_result event = 4 total
         events = _parse_all_sse_events(raw)
-        assert len(events) == 3
+        content_update_events = [(et, d) for et, d in events if et == "content_update"]
+        assert len(content_update_events) == 3
 
-        for idx, (event_type, data) in enumerate(events):
+        for idx, (event_type, data) in enumerate(content_update_events):
             assert event_type == "content_update"
             _assert_content_update_structure(data)
             assert data["noteId"] == note_id
@@ -472,11 +472,13 @@ class TestInsertInlineIssuePipeline:
 
         assert raw is not None
         events = _parse_all_sse_events(raw)
-        assert len(events) == 2
+        # 2 content_update events + 1 tool_result event = 3 total
+        content_update_events = [(et, d) for et, d in events if et == "content_update"]
+        assert len(content_update_events) == 2
 
         # First issue has block_id, second gets None
-        assert events[0][1]["blockId"] == "block-only-1"
-        assert events[1][1]["blockId"] is None
+        assert content_update_events[0][1]["blockId"] == "block-only-1"
+        assert content_update_events[1][1]["blockId"] is None
 
     def test_empty_issues_list_returns_empty(
         self, agent: PilotSpaceAgent, context: AgentContext
@@ -496,8 +498,8 @@ class TestInsertInlineIssuePipeline:
         message = _MockToolResultMessage("extract_issues", tool_result)
         raw = agent.transform_sdk_message(message, context)
 
-        # Empty issues → empty string
-        assert raw == ""
+        # Empty issues → None (handler returns None when issue list is empty)
+        assert raw is None
 
 
 # ===========================================================================
@@ -580,9 +582,13 @@ class TestNonContentOperationsPassThrough:
         result_msg.__class__.__name__ = "ResultMessage"
         result_msg.session_id = "sess-xyz"
         result_msg.is_error = False
+        result_msg.result = None  # No structured output
+        # Set all token fields to integers (MagicMock cached fields are not JSON serializable)
         result_msg.usage = MagicMock()
         result_msg.usage.input_tokens = 200
         result_msg.usage.output_tokens = 80
+        result_msg.usage.cached_read_input_tokens = 0
+        result_msg.usage.cached_creation_input_tokens = 0
         result_msg.usage.total_cost_usd = None
 
         raw = agent.transform_sdk_message(result_msg, context)
@@ -603,7 +609,11 @@ class TestPipelineEdgeCases:
     def test_missing_status_field_returns_none(
         self, agent: PilotSpaceAgent, context: AgentContext
     ) -> None:
-        """Tool result without status='pending_apply' should return None."""
+        """Tool result without status='pending_apply' does not emit content_update.
+
+        Falls through to the generic tool_result emitter, so raw is not None
+        but must not contain a content_update event.
+        """
         tool_result = {
             "tool": "update_note_block",
             "note_id": str(uuid4()),
@@ -614,10 +624,14 @@ class TestPipelineEdgeCases:
         message = _MockToolResultMessage("update_note_block", tool_result)
         raw = agent.transform_sdk_message(message, context)
 
-        assert raw is None
+        # Generic tool_result event is emitted; no content_update
+        assert raw is None or "event: content_update" not in raw
 
     def test_error_status_returns_none(self, agent: PilotSpaceAgent, context: AgentContext) -> None:
-        """Tool result with status='error' should not produce content_update."""
+        """Tool result with status='error' should not produce content_update.
+
+        Falls through to generic tool_result emitter; no content_update event.
+        """
         tool_result = {
             "tool": "update_note_block",
             "error": "Something failed",
@@ -626,7 +640,7 @@ class TestPipelineEdgeCases:
         message = _MockToolResultMessage("update_note_block", tool_result)
         raw = agent.transform_sdk_message(message, context)
 
-        assert raw is None
+        assert raw is None or "event: content_update" not in raw
 
     def test_missing_note_id_returns_none(
         self, agent: PilotSpaceAgent, context: AgentContext
@@ -648,23 +662,25 @@ class TestPipelineEdgeCases:
     def test_malformed_result_data_returns_none(
         self, agent: PilotSpaceAgent, context: AgentContext
     ) -> None:
-        """Completely malformed result dict should not crash."""
+        """Completely malformed result dict should not crash and emits no content_update."""
         tool_result = {"random_key": 42}
         message = _MockToolResultMessage("unknown_tool", tool_result)
         raw = agent.transform_sdk_message(message, context)
 
-        assert raw is None
+        # Generic tool_result event may be emitted; must not crash
+        assert raw is None or "event: content_update" not in raw
 
     def test_non_dict_result_returns_none(
         self, agent: PilotSpaceAgent, context: AgentContext
     ) -> None:
-        """Non-dict result attribute should be handled gracefully."""
+        """Non-dict result attribute should be handled gracefully without content_update."""
         message = _MockToolResultMessage("some_tool", {})
         # Override result to be non-dict
         message.result = "string_result"  # type: ignore[assignment]
         raw = agent.transform_sdk_message(message, context)
 
-        assert raw is None
+        # Generic tool_result event may be emitted; must not crash or emit content_update
+        assert raw is None or "event: content_update" not in raw
 
     def test_unknown_operation_returns_none(
         self, agent: PilotSpaceAgent, context: AgentContext
@@ -794,8 +810,10 @@ class TestSSEFormatCompliance:
         assert raw is not None
 
         events = _parse_all_sse_events(raw)
-        assert len(events) == 2
+        # 2 content_update events + 1 tool_result event = 3 total
+        content_update_events = [(et, d) for et, d in events if et == "content_update"]
+        assert len(content_update_events) == 2
 
-        for event_type, data in events:
+        for event_type, data in content_update_events:
             assert event_type == "content_update"
             _assert_content_update_structure(data)

@@ -267,8 +267,16 @@ class TestAuthCoreStartupValidation:
         self,
         rsa_keypair: tuple[str, str],
     ) -> None:
-        """get_jwt_provider() succeeds when authcore key is set."""
-        from pilot_space.dependencies.jwt_providers import AuthCoreJWTProvider, get_jwt_provider
+        """get_jwt_provider() returns DualJWTProvider when authcore key is set.
+
+        DualJWTProvider wraps AuthCoreJWTProvider internally and accepts both
+        Supabase and AuthCore tokens (dual-JWT support).
+        """
+        from pilot_space.dependencies.jwt_providers import (
+            AuthCoreJWTProvider,
+            DualJWTProvider,
+            get_jwt_provider,
+        )
 
         _, public_pem = rsa_keypair
         settings = MagicMock()
@@ -276,4 +284,6 @@ class TestAuthCoreStartupValidation:
         settings.authcore_public_key = public_pem
 
         provider = get_jwt_provider(settings)
-        assert isinstance(provider, AuthCoreJWTProvider)
+        # Returns DualJWTProvider which wraps AuthCoreJWTProvider internally
+        assert isinstance(provider, DualJWTProvider)
+        assert isinstance(provider._authcore, AuthCoreJWTProvider)

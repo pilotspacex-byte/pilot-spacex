@@ -177,19 +177,23 @@ def test_workspace_issue_response_includes_sort_order() -> None:
 
 
 def test_workspace_member_create_accepts_owner_role() -> None:
-    """W-3: WorkspaceMemberCreate must accept 'owner' role to match frontend WorkspaceRole."""
+    """W-3: WorkspaceMemberCreate must accept 'OWNER' role (uppercase per RLS convention)."""
     from pydantic import ValidationError
 
     from pilot_space.api.v1.schemas.workspace import WorkspaceMemberCreate
 
-    # Should not raise
-    member = WorkspaceMemberCreate(email="admin@example.com", role="owner")
-    assert member.role == "owner"
+    # Schema uses uppercase roles (RLS convention: OWNER, ADMIN, MEMBER, GUEST)
+    member = WorkspaceMemberCreate(email="admin@example.com", role="OWNER")
+    assert member.role == "OWNER"
 
-    # Other valid roles should still work
-    for role in ("admin", "member", "guest"):
+    # Other valid uppercase roles should work
+    for role in ("ADMIN", "MEMBER", "GUEST"):
         m = WorkspaceMemberCreate(email="user@example.com", role=role)
         assert m.role == role
+
+    # Lowercase roles are rejected (schema pattern requires uppercase)
+    with pytest.raises(ValidationError):
+        WorkspaceMemberCreate(email="admin@example.com", role="owner")
 
     # Invalid role should still raise
     with pytest.raises(ValidationError):

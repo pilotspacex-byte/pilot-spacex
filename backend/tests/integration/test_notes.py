@@ -133,12 +133,22 @@ class TestNoteCRUD:
     ) -> None:
         """Test that a note is properly created in the database."""
         # Arrange
+        from uuid import uuid4
+
         user = user_factory()
         workspace = workspace_factory(owner_id=user.id)
-        note = note_factory(
+        # Build Note directly to avoid factory relationship override clearing owner_id
+        note = Note(
+            id=uuid4(),
+            title="Test Note",
             workspace_id=workspace.id,
             owner_id=user.id,
-            title="Test Note",
+            content={
+                "type": "doc",
+                "content": [
+                    {"type": "paragraph", "content": [{"type": "text", "text": "Test content"}]}
+                ],
+            },
         )
 
         # Act
@@ -475,15 +485,26 @@ class TestNoteAnnotations:
     ) -> None:
         """Test that annotations are properly linked to notes."""
         # Arrange
-        from tests.factories import NoteAnnotationFactory, NoteFactory
+        from uuid import uuid4
 
-        note = NoteFactory(workspace_id=sample_workspace.id, owner_id=sample_user.id)
-        annotation = NoteAnnotationFactory(
+        # Build Note and Annotation directly to avoid factory relationship
+        # fields overriding FK columns (SQLAlchemy clears FK when relationship=None)
+        note = Note(
+            id=uuid4(),
+            title="Test Note for Annotation",
+            workspace_id=sample_workspace.id,
+            owner_id=sample_user.id,
+            content={"type": "doc", "content": []},
+        )
+        annotation = NoteAnnotation(
+            id=uuid4(),
             note_id=note.id,
             workspace_id=note.workspace_id,
             block_id="block-1",
             content="This could be an issue",
             type=AnnotationType.ISSUE_CANDIDATE,
+            confidence=0.85,
+            status=AnnotationStatus.PENDING,
         )
 
         db_session.add(sample_user)
@@ -582,20 +603,26 @@ class TestRLSIsolation:
     ) -> None:
         """Test that notes are scoped to their workspace."""
         # Arrange
+        from uuid import uuid4
+
         user1 = user_factory()
         user2 = user_factory()
         workspace1 = workspace_factory(owner_id=user1.id)
         workspace2 = workspace_factory(owner_id=user2.id)
 
-        note1 = note_factory(
+        note1 = Note(
+            id=uuid4(),
+            title="Workspace 1 Note",
             workspace_id=workspace1.id,
             owner_id=user1.id,
-            title="Workspace 1 Note",
+            content={"type": "doc", "content": []},
         )
-        note2 = note_factory(
+        note2 = Note(
+            id=uuid4(),
+            title="Workspace 2 Note",
             workspace_id=workspace2.id,
             owner_id=user2.id,
-            title="Workspace 2 Note",
+            content={"type": "doc", "content": []},
         )
 
         db_session.add_all([user1, user2, workspace1, workspace2, note1, note2])
@@ -621,22 +648,45 @@ class TestRLSIsolation:
     ) -> None:
         """Test that annotations are scoped to their workspace."""
         # Arrange
-        from tests.factories import NoteAnnotationFactory
+        from uuid import uuid4
 
         user = user_factory()
         workspace1 = workspace_factory(owner_id=user.id)
         workspace2 = workspace_factory(owner_id=user.id)
 
-        note1 = note_factory(workspace_id=workspace1.id, owner_id=user.id)
-        note2 = note_factory(workspace_id=workspace2.id, owner_id=user.id)
-
-        annotation1 = NoteAnnotationFactory(
+        note1 = Note(
+            id=uuid4(),
+            title="Note in WS1",
+            workspace_id=workspace1.id,
+            owner_id=user.id,
+            content={"type": "doc", "content": []},
+        )
+        note2 = Note(
+            id=uuid4(),
+            title="Note in WS2",
+            workspace_id=workspace2.id,
+            owner_id=user.id,
+            content={"type": "doc", "content": []},
+        )
+        annotation1 = NoteAnnotation(
+            id=uuid4(),
             note_id=note1.id,
             workspace_id=workspace1.id,
+            block_id="block-1",
+            type=AnnotationType.SUGGESTION,
+            content="Annotation in WS1",
+            confidence=0.7,
+            status=AnnotationStatus.PENDING,
         )
-        annotation2 = NoteAnnotationFactory(
+        annotation2 = NoteAnnotation(
+            id=uuid4(),
             note_id=note2.id,
             workspace_id=workspace2.id,
+            block_id="block-2",
+            type=AnnotationType.SUGGESTION,
+            content="Annotation in WS2",
+            confidence=0.7,
+            status=AnnotationStatus.PENDING,
         )
 
         db_session.add_all([user, workspace1, workspace2, note1, note2, annotation1, annotation2])
@@ -673,15 +723,24 @@ class TestNoteFiltering:
     ) -> None:
         """Test that pinned notes can be filtered."""
         # Arrange
-        note_pinned = note_factory(
+        from uuid import uuid4
+
+        # Build Notes directly — factory relationship field can override owner_id to None
+        note_pinned = Note(
+            id=uuid4(),
+            title="Pinned Note",
             workspace_id=sample_workspace.id,
             owner_id=sample_user.id,
             is_pinned=True,
+            content={"type": "doc", "content": []},
         )
-        note_regular = note_factory(
+        note_regular = Note(
+            id=uuid4(),
+            title="Regular Note",
             workspace_id=sample_workspace.id,
             owner_id=sample_user.id,
             is_pinned=False,
+            content={"type": "doc", "content": []},
         )
 
         db_session.add(sample_user)
@@ -721,15 +780,23 @@ class TestNoteFiltering:
         for state in sample_project.states:
             db_session.add(state)
 
-        note_in_project = note_factory(
+        from uuid import uuid4
+
+        note_in_project = Note(
+            id=uuid4(),
+            title="Project Note",
             workspace_id=sample_workspace.id,
             owner_id=sample_user.id,
             project_id=sample_project.id,
+            content={"type": "doc", "content": []},
         )
-        note_workspace_level = note_factory(
+        note_workspace_level = Note(
+            id=uuid4(),
+            title="Workspace Note",
             workspace_id=sample_workspace.id,
             owner_id=sample_user.id,
             project_id=None,
+            content={"type": "doc", "content": []},
         )
 
         db_session.add(note_in_project)

@@ -428,11 +428,13 @@ async def test_oauth_callback_redirect_includes_workspace_slug() -> None:
     workspace_id = uuid4()
     state = f"mcp_oauth_{server_id}_test-nonce"
 
+    user_id = uuid4()
     state_data = json.dumps(
         {
             "server_id": str(server_id),
             "workspace_id": str(workspace_id),
             "workspace_slug": workspace_slug,
+            "user_id": str(user_id),
             "nonce": "test-nonce",
         }
     )
@@ -508,11 +510,13 @@ async def test_oauth_callback_redirect_fallback_without_slug() -> None:
     workspace_id = uuid4()
     state = f"mcp_oauth_{server_id}_test-nonce"
 
-    # Legacy state_data: no workspace_slug key
+    user_id = uuid4()
+    # Legacy state_data: no workspace_slug key (but user_id is required)
     state_data = json.dumps(
         {
             "server_id": str(server_id),
             "workspace_id": str(workspace_id),
+            "user_id": str(user_id),
             "nonce": "test-nonce",
         }
     )

@@ -283,7 +283,7 @@ class TestApprovalActionExecutor:
         ):
             result = await executor.execute(
                 action_type="update_issue",
-                payload={"issue_id": str(issue_id), "title": "Updated title"},
+                payload={"issue_id": str(issue_id), "name": "Updated name"},
                 user_id=uuid4(),
             )
 

@@ -18,7 +18,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     UniqueConstraint,
-    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -72,10 +71,6 @@ class WorkspaceOnboarding(BaseModel):
             "first_note": False,
             "role_setup": False,
         },
-        server_default=text(
-            '\'{"ai_providers": false, "invite_members": false,'
-            ' "first_note": false, "role_setup": false}\'::jsonb'
-        ),
     )
 
     # Reference to guided note (optional)
@@ -110,7 +105,6 @@ class WorkspaceOnboarding(BaseModel):
     # Indexes and constraints
     __table_args__ = (
         UniqueConstraint("workspace_id", name="uq_workspace_onboardings_workspace_id"),
-        Index("ix_workspace_onboardings_workspace_id", "workspace_id"),
         Index("ix_workspace_onboardings_completed_at", "completed_at"),
     )
 

@@ -98,7 +98,6 @@ class MemoryEntry(WorkspaceScopedModel):
     )
 
     __table_args__ = (
-        Index("ix_memory_entries_workspace_id", "workspace_id"),
         Index("ix_memory_entries_source_type", "source_type"),
         Index("ix_memory_entries_pinned", "workspace_id", "pinned"),
         Index("ix_memory_entries_expires_at", "expires_at"),

@@ -43,7 +43,6 @@ class WorkspaceSession(WorkspaceScopedModel):
     __table_args__ = (
         Index("ix_workspace_sessions_token_hash", "session_token_hash"),
         Index("ix_workspace_sessions_user_id", "user_id"),
-        Index("ix_workspace_sessions_workspace_id", "workspace_id"),
     )
 
     # Session owner

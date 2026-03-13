@@ -46,7 +46,6 @@ class Template(WorkspaceScopedModel):
         JSONBCompat,
         nullable=False,
         default=dict,
-        server_default=text("'{}'::jsonb"),
     )
 
     # Organization

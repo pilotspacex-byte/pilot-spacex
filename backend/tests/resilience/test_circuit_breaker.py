@@ -49,7 +49,7 @@ class TestCircuitBreaker:
         with pytest.raises(ProviderUnavailableError) as exc:
             await breaker.execute(counting_operation)
 
-        assert "circuit" in str(exc.value).lower()
+        assert exc.value.circuit_open is True
         assert call_count == 0  # Operation not executed
 
     @pytest.mark.asyncio

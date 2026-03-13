@@ -88,11 +88,13 @@ def _make_button(
 @pytest.fixture
 async def admin_client() -> AsyncGenerator[AsyncClient, None]:
     """HTTP client with auth + admin guard mocked."""
+    from pilot_space.api.middleware.request_context import get_workspace_id
     from pilot_space.dependencies.auth import get_current_user
     from pilot_space.main import app
 
     token_payload = _make_token_payload()
     app.dependency_overrides[get_current_user] = lambda: token_payload
+    app.dependency_overrides[get_workspace_id] = lambda: WORKSPACE_ID
 
     with (
         patch(
@@ -117,6 +119,7 @@ async def admin_client() -> AsyncGenerator[AsyncClient, None]:
             yield client
 
     app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_workspace_id, None)
 
 
 @pytest.fixture
@@ -124,11 +127,13 @@ async def non_admin_client() -> AsyncGenerator[AsyncClient, None]:
     """HTTP client with auth but admin guard raises 403."""
     from fastapi import HTTPException, status
 
+    from pilot_space.api.middleware.request_context import get_workspace_id
     from pilot_space.dependencies.auth import get_current_user
     from pilot_space.main import app
 
     token_payload = _make_token_payload()
     app.dependency_overrides[get_current_user] = lambda: token_payload
+    app.dependency_overrides[get_workspace_id] = lambda: WORKSPACE_ID
 
     async def _reject_admin(*args: object, **kwargs: object) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
@@ -152,6 +157,7 @@ async def non_admin_client() -> AsyncGenerator[AsyncClient, None]:
             yield client
 
     app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_workspace_id, None)
 
 
 # ---------------------------------------------------------------------------

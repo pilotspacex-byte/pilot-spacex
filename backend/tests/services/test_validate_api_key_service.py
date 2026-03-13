@@ -7,7 +7,7 @@ Uses AsyncMock repositories for service-layer isolation.
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -72,6 +72,12 @@ def workspace_repo() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_session() -> AsyncMock:
+    """Mock AsyncSession for set_rls_context calls."""
+    return AsyncMock()
+
+
+@pytest.fixture
 def service(api_key_repo: AsyncMock, workspace_repo: AsyncMock) -> ValidateAPIKeyService:
     """Service under test."""
     return ValidateAPIKeyService(
@@ -89,6 +95,7 @@ async def test_valid_key_returns_workspace_slug(
     service: ValidateAPIKeyService,
     api_key_repo: AsyncMock,
     workspace_repo: AsyncMock,
+    mock_session: AsyncMock,
 ) -> None:
     """Valid, non-expired key returns correct workspace_slug and user_id."""
     raw_key = "ps_abc123"
@@ -99,7 +106,7 @@ async def test_valid_key_returns_workspace_slug(
     api_key_repo.get_by_key_hash.return_value = api_key
     workspace_repo.get_by_id.return_value = _make_workspace("acme-corp")
 
-    result = await service.execute(ValidateAPIKeyPayload(raw_key=raw_key))
+    result = await service.execute(ValidateAPIKeyPayload(raw_key=raw_key), session=mock_session)
 
     assert result.workspace_slug == "acme-corp"
     assert result.user_id == str(user_id)
@@ -109,6 +116,7 @@ async def test_valid_key_hashes_with_sha256_before_lookup(
     service: ValidateAPIKeyService,
     api_key_repo: AsyncMock,
     workspace_repo: AsyncMock,
+    mock_session: AsyncMock,
 ) -> None:
     """Service passes SHA-256 hash (not raw key) to the repository."""
     raw_key = "ps_secret"
@@ -118,7 +126,7 @@ async def test_valid_key_hashes_with_sha256_before_lookup(
     api_key_repo.get_by_key_hash.return_value = api_key
     workspace_repo.get_by_id.return_value = _make_workspace("slug")
 
-    await service.execute(ValidateAPIKeyPayload(raw_key=raw_key))
+    await service.execute(ValidateAPIKeyPayload(raw_key=raw_key), session=mock_session)
 
     api_key_repo.get_by_key_hash.assert_awaited_once_with(expected_hash)
 
@@ -127,6 +135,7 @@ async def test_mark_last_used_called_on_success(
     service: ValidateAPIKeyService,
     api_key_repo: AsyncMock,
     workspace_repo: AsyncMock,
+    mock_session: AsyncMock,
 ) -> None:
     """mark_last_used is called with the correct key id on successful validation."""
     raw_key = "ps_token"
@@ -134,7 +143,7 @@ async def test_mark_last_used_called_on_success(
     api_key_repo.get_by_key_hash.return_value = api_key
     workspace_repo.get_by_id.return_value = _make_workspace("slug")
 
-    await service.execute(ValidateAPIKeyPayload(raw_key=raw_key))
+    await service.execute(ValidateAPIKeyPayload(raw_key=raw_key), session=mock_session)
 
     api_key_repo.mark_last_used.assert_awaited_once_with(api_key.id)
 
@@ -143,6 +152,7 @@ async def test_workspace_looked_up_by_workspace_id(
     service: ValidateAPIKeyService,
     api_key_repo: AsyncMock,
     workspace_repo: AsyncMock,
+    mock_session: AsyncMock,
 ) -> None:
     """Workspace is fetched using the workspace_id from the API key record."""
     workspace_id = uuid4()
@@ -150,7 +160,7 @@ async def test_workspace_looked_up_by_workspace_id(
     api_key_repo.get_by_key_hash.return_value = api_key
     workspace_repo.get_by_id.return_value = _make_workspace("ws")
 
-    await service.execute(ValidateAPIKeyPayload(raw_key="ps_any"))
+    await service.execute(ValidateAPIKeyPayload(raw_key="ps_any"), session=mock_session)
 
     workspace_repo.get_by_id.assert_awaited_once_with(workspace_id)
 
@@ -159,6 +169,7 @@ async def test_never_expiring_key_is_valid(
     service: ValidateAPIKeyService,
     api_key_repo: AsyncMock,
     workspace_repo: AsyncMock,
+    mock_session: AsyncMock,
 ) -> None:
     """Key with expires_at=None (never expires) is treated as valid."""
     api_key = _make_api_key(expires_at=None)
@@ -167,7 +178,9 @@ async def test_never_expiring_key_is_valid(
     api_key_repo.get_by_key_hash.return_value = api_key
     workspace_repo.get_by_id.return_value = _make_workspace("ws")
 
-    result = await service.execute(ValidateAPIKeyPayload(raw_key="ps_forever"))
+    result = await service.execute(
+        ValidateAPIKeyPayload(raw_key="ps_forever"), session=mock_session
+    )
     assert result.workspace_slug == "ws"
 
 
@@ -179,40 +192,43 @@ async def test_never_expiring_key_is_valid(
 async def test_key_not_found_raises_value_error(
     service: ValidateAPIKeyService,
     api_key_repo: AsyncMock,
+    mock_session: AsyncMock,
 ) -> None:
     """Repository returning None raises ValueError('invalid_api_key')."""
     api_key_repo.get_by_key_hash.return_value = None
 
     with pytest.raises(ValueError, match="invalid_api_key"):
-        await service.execute(ValidateAPIKeyPayload(raw_key="ps_unknown"))
+        await service.execute(ValidateAPIKeyPayload(raw_key="ps_unknown"), session=mock_session)
 
 
-async def test_expired_key_raises_value_error(
+async def test_expired_key_returns_not_found(
     service: ValidateAPIKeyService,
     api_key_repo: AsyncMock,
+    mock_session: AsyncMock,
 ) -> None:
-    """Key whose is_expired property returns True raises ValueError('expired_api_key')."""
-    past = datetime.now(UTC) - timedelta(hours=1)
-    api_key = _make_api_key(expires_at=past)
-    assert api_key.is_expired is True
+    """Expired keys are filtered by the DB query; repository returns None.
 
-    api_key_repo.get_by_key_hash.return_value = api_key
+    The service delegates expiry enforcement to the SQL query. When the DB
+    returns None (key filtered as expired), the service raises invalid_api_key.
+    """
+    # DB query filters expired keys and returns None — service sees no key
+    api_key_repo.get_by_key_hash.return_value = None
 
-    with pytest.raises(ValueError, match="expired_api_key"):
-        await service.execute(ValidateAPIKeyPayload(raw_key="ps_expired"))
+    with pytest.raises(ValueError, match="invalid_api_key"):
+        await service.execute(ValidateAPIKeyPayload(raw_key="ps_expired"), session=mock_session)
 
 
 async def test_expired_key_does_not_call_mark_last_used(
     service: ValidateAPIKeyService,
     api_key_repo: AsyncMock,
+    mock_session: AsyncMock,
 ) -> None:
-    """mark_last_used must NOT be called when key is expired."""
-    past = datetime.now(UTC) - timedelta(hours=1)
-    api_key = _make_api_key(expires_at=past)
-    api_key_repo.get_by_key_hash.return_value = api_key
+    """mark_last_used is not called when DB returns no key (expired keys filtered by SQL)."""
+    # DB filters expired keys → repository returns None
+    api_key_repo.get_by_key_hash.return_value = None
 
-    with pytest.raises(ValueError, match="expired_api_key"):
-        await service.execute(ValidateAPIKeyPayload(raw_key="ps_old"))
+    with pytest.raises(ValueError, match="invalid_api_key"):
+        await service.execute(ValidateAPIKeyPayload(raw_key="ps_old"), session=mock_session)
 
     api_key_repo.mark_last_used.assert_not_awaited()
 
@@ -221,6 +237,7 @@ async def test_workspace_not_found_raises_value_error(
     service: ValidateAPIKeyService,
     api_key_repo: AsyncMock,
     workspace_repo: AsyncMock,
+    mock_session: AsyncMock,
 ) -> None:
     """Missing workspace record raises ValueError('workspace_not_found')."""
     api_key = _make_api_key()
@@ -228,4 +245,4 @@ async def test_workspace_not_found_raises_value_error(
     workspace_repo.get_by_id.return_value = None
 
     with pytest.raises(ValueError, match="workspace_not_found"):
-        await service.execute(ValidateAPIKeyPayload(raw_key="ps_orphan"))
+        await service.execute(ValidateAPIKeyPayload(raw_key="ps_orphan"), session=mock_session)

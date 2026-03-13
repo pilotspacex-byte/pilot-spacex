@@ -11,10 +11,11 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import Boolean, ForeignKey, Index, String, Text, text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 
 class WorkspacePlugin(WorkspaceScopedModel):
@@ -70,9 +71,9 @@ class WorkspacePlugin(WorkspaceScopedModel):
         nullable=False,
     )
     references: Mapped[list] = mapped_column(  # type: ignore[type-arg]
-        JSONB,
+        JSONBCompat,
         nullable=False,
-        server_default=text("'[]'::jsonb"),
+        default=list,
     )
     installed_sha: Mapped[str] = mapped_column(
         String(40),

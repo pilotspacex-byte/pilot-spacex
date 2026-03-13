@@ -7,11 +7,16 @@ Verify RLS policies on AI-related tables:
 - ai_sessions: user owns their sessions
 
 Reference: specs/004-mvp-agents-build/tasks/P15-T095-T110.md
+
+Note: Tests requiring database access use set_config() which is PostgreSQL-only.
+Set DATABASE_URL to a PostgreSQL instance to run these tests.
 """
 
 from __future__ import annotations
 
+import os
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import pytest
@@ -31,7 +36,14 @@ if TYPE_CHECKING:
 
     from tests.security.conftest import SecurityTestContext
 
+_DB_URL = os.environ.get("DATABASE_URL", "sqlite")
+_requires_postgres = pytest.mark.skipif(
+    "sqlite" in _DB_URL,
+    reason="RLS tests require PostgreSQL (set_config is not supported in SQLite). Set DATABASE_URL.",
+)
 
+
+@_requires_postgres
 class TestAITablesRLS:
     """T101: Verify RLS policies on AI-related tables.
 
@@ -123,16 +135,19 @@ class TestAITablesRLS:
         populated_db: SecurityTestContext,
     ) -> None:
         """Verify approval requests are workspace-isolated."""
+        now = datetime.now(UTC)
+
         # Create approval in workspace A
         approval_a = AIApprovalRequest(
             id=uuid.uuid4(),
             workspace_id=populated_db.workspace_a.id,
-            requested_by_id=populated_db.owner.id,
-            agent_type="issue_extractor",
+            user_id=populated_db.owner.id,
+            agent_name="issue_extractor",
             action_type="create_issues",
-            action_payload={"issues": []},
+            description="AI extracted issues",
+            payload={"issues": []},
+            expires_at=now + timedelta(hours=24),
             status=ApprovalStatus.PENDING,
-            confidence_score=0.9,
         )
         db_session.add(approval_a)
 
@@ -140,12 +155,13 @@ class TestAITablesRLS:
         approval_b = AIApprovalRequest(
             id=uuid.uuid4(),
             workspace_id=populated_db.workspace_b.id,
-            requested_by_id=populated_db.outsider.id,
-            agent_type="task_decomposer",
+            user_id=populated_db.outsider.id,
+            agent_name="task_decomposer",
             action_type="create_sub_issues",
-            action_payload={"tasks": []},
+            description="AI decomposed tasks",
+            payload={"tasks": []},
+            expires_at=now + timedelta(hours=24),
             status=ApprovalStatus.PENDING,
-            confidence_score=0.85,
         )
         db_session.add(approval_b)
         await db_session.commit()
@@ -249,15 +265,16 @@ class TestAITablesRLS:
         populated_db: SecurityTestContext,
     ) -> None:
         """Verify users can only see their own AI sessions."""
+        now = datetime.now(UTC)
+
         # Create session for owner
         session_owner = AISession(
             id=uuid.uuid4(),
             workspace_id=populated_db.workspace_a.id,
             user_id=populated_db.owner.id,
-            agent_type="conversation",
-            context_id=str(uuid.uuid4()),
-            message_history=[],
-            token_count=100,
+            agent_name="conversation",
+            session_data={},
+            expires_at=now + timedelta(hours=24),
         )
         db_session.add(session_owner)
 
@@ -266,10 +283,9 @@ class TestAITablesRLS:
             id=uuid.uuid4(),
             workspace_id=populated_db.workspace_a.id,
             user_id=populated_db.member.id,
-            agent_type="ai_context",
-            context_id=str(uuid.uuid4()),
-            message_history=[],
-            token_count=50,
+            agent_name="ai_context",
+            session_data={},
+            expires_at=now + timedelta(hours=24),
         )
         db_session.add(session_member)
         await db_session.commit()

@@ -130,7 +130,6 @@ class Task(WorkspaceScopedModel):
     # Indexes and constraints
     __table_args__ = (
         Index("ix_tasks_issue_id", "issue_id"),
-        Index("ix_tasks_workspace_id", "workspace_id"),
         Index("ix_tasks_status", "status"),
         Index("ix_tasks_issue_sort", "issue_id", "sort_order"),
         Index("ix_tasks_is_deleted", "is_deleted"),

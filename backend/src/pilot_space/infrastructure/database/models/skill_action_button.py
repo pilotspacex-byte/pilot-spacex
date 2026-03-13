@@ -12,10 +12,11 @@ import enum
 import uuid
 
 from sqlalchemy import Boolean, Enum, Index, Integer, String, text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 
 class BindingType(str, enum.Enum):
@@ -70,9 +71,9 @@ class SkillActionButton(WorkspaceScopedModel):
         nullable=True,
     )
     binding_metadata: Mapped[dict] = mapped_column(  # type: ignore[type-arg]
-        JSONB,
+        JSONBCompat,
         nullable=False,
-        server_default=text("'{}'::jsonb"),
+        default=dict,
     )
     sort_order: Mapped[int] = mapped_column(
         Integer,

@@ -48,7 +48,6 @@ class PilotAPIKey(WorkspaceScopedModel):
     __tablename__ = "pilot_api_keys"  # type: ignore[assignment]
     __table_args__ = (
         Index("ix_pilot_api_keys_key_hash", "key_hash", unique=True),
-        Index("ix_pilot_api_keys_workspace_id", "workspace_id"),
         Index("ix_pilot_api_keys_user_id", "user_id"),
     )
 

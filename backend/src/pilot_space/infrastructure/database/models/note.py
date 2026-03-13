@@ -77,7 +77,6 @@ class Note(WorkspaceScopedModel):
         JSONBCompat,
         nullable=False,
         default=dict,
-        server_default=text("'{}'::jsonb"),
     )
 
     # Metadata
@@ -229,12 +228,7 @@ class Note(WorkspaceScopedModel):
         Index("ix_notes_is_guided_template", "is_guided_template"),
         Index("ix_notes_created_at", "created_at"),
         Index("ix_notes_source_chat_session_id", "source_chat_session_id"),
-        # Full-text search index on title
-        Index(
-            "ix_notes_title_text",
-            text("to_tsvector('english', title)"),
-            postgresql_using="gin",
-        ),
+        # Full-text search GIN index on title (PostgreSQL only; see migration 042)
         # Tree hierarchy indexes
         Index("ix_notes_parent_id", "parent_id"),
         Index("ix_notes_parent_position", "parent_id", "position"),

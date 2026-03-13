@@ -19,6 +19,7 @@ def _make_link(
     link = MagicMock()
     link.id = uuid4()
     link.note_id = uuid4()
+    link.issue_id = uuid4()
     link.is_deleted = is_deleted
     link.link_type = MagicMock()
     link.link_type.value = link_type_value
@@ -89,16 +90,19 @@ class TestNoteIssueLinkBriefSchema:
         """All fields should be stored and serializable."""
         link_id = uuid4()
         note_id = uuid4()
+        issue_id = uuid4()
 
         schema = NoteIssueLinkBriefSchema(
             id=link_id,
             note_id=note_id,
+            issue_id=issue_id,
             link_type="EXTRACTED",
             note_title="My Planning Note",
         )
 
         assert schema.id == link_id
         assert schema.note_id == note_id
+        assert schema.issue_id == issue_id
         assert schema.link_type == "EXTRACTED"
         assert schema.note_title == "My Planning Note"
 
@@ -107,6 +111,7 @@ class TestNoteIssueLinkBriefSchema:
         schema = NoteIssueLinkBriefSchema(
             id=uuid4(),
             note_id=uuid4(),
+            issue_id=uuid4(),
             link_type="REFERENCED",
             note_title="Ref Note",
         )
@@ -118,6 +123,7 @@ class TestNoteIssueLinkBriefSchema:
         schema = NoteIssueLinkBriefSchema(
             id=uuid4(),
             note_id=uuid4(),
+            issue_id=uuid4(),
             link_type="CREATED",
             note_title="Spec doc",
         )
@@ -125,6 +131,7 @@ class TestNoteIssueLinkBriefSchema:
 
         assert isinstance(data["id"], UUID)
         assert isinstance(data["note_id"], UUID)
+        assert isinstance(data["issue_id"], UUID)
         assert isinstance(data["link_type"], str)
         assert isinstance(data["note_title"], str)
 

@@ -456,7 +456,7 @@ class TestSprintBoardRouter:
     @pytest.mark.asyncio
     async def test_sprint_board_returns_6_lanes(self) -> None:
         """GET sprint-board returns exactly 6 canonical state lanes (FR-049)."""
-        from pilot_space.api.v1.routers.pm_blocks import (
+        from pilot_space.api.v1.routers.pm_sprint_board import (
             SprintBoardIssueCard,
             SprintBoardLane,
             SprintBoardResponse,
@@ -507,7 +507,7 @@ class TestSprintBoardRouter:
     @pytest.mark.asyncio
     async def test_sprint_board_empty_lanes_when_no_issues(self) -> None:
         """Sprint board returns 6 empty lanes when cycle has no issues (FR-049)."""
-        from pilot_space.api.v1.routers.pm_blocks import SprintBoardLane, SprintBoardResponse
+        from pilot_space.api.v1.routers.pm_sprint_board import SprintBoardLane, SprintBoardResponse
 
         STATE_GROUP_ORDER = ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"]
         response = SprintBoardResponse(
@@ -533,7 +533,7 @@ class TestSprintBoardRouter:
     @pytest.mark.asyncio
     async def test_sprint_board_is_read_only_for_completed_cycle(self) -> None:
         """FR-060: Completed cycle sprint board returns is_read_only=True."""
-        from pilot_space.api.v1.routers.pm_blocks import SprintBoardResponse
+        from pilot_space.api.v1.routers.pm_sprint_board import SprintBoardResponse
 
         cycle = _make_cycle_orm(status="completed")
         # Simulate the is_read_only logic from the router
@@ -568,7 +568,7 @@ class TestSprintBoardRouter:
         """Sprint board accumulates multiple issues in the same lane."""
         from collections import defaultdict
 
-        from pilot_space.api.v1.routers.pm_blocks import SprintBoardIssueCard
+        from pilot_space.api.v1.routers.pm_sprint_board import SprintBoardIssueCard
 
         issues = [
             _make_issue_orm(issue_id=uuid.uuid4(), name=f"Issue {i}", state_name="todo")
@@ -606,7 +606,7 @@ class TestProposeTransitionRouter:
     @pytest.mark.asyncio
     async def test_propose_transition_request_schema(self) -> None:
         """ProposeTransitionRequest validates required fields."""
-        from pilot_space.api.v1.routers.pm_blocks import ProposeTransitionRequest
+        from pilot_space.api.v1.routers.pm_sprint_board import ProposeTransitionRequest
 
         req = ProposeTransitionRequest(
             issue_id=str(_ISSUE_1),
@@ -620,7 +620,7 @@ class TestProposeTransitionRouter:
     @pytest.mark.asyncio
     async def test_propose_transition_request_reason_optional(self) -> None:
         """ProposeTransitionRequest accepts missing reason (defaults to None)."""
-        from pilot_space.api.v1.routers.pm_blocks import ProposeTransitionRequest
+        from pilot_space.api.v1.routers.pm_sprint_board import ProposeTransitionRequest
 
         req = ProposeTransitionRequest(
             issue_id=str(_ISSUE_1),
@@ -631,7 +631,7 @@ class TestProposeTransitionRouter:
     @pytest.mark.asyncio
     async def test_propose_transition_response_schema(self) -> None:
         """ProposeTransitionResponse returns approval_id and pending status."""
-        from pilot_space.api.v1.routers.pm_blocks import ProposeTransitionResponse
+        from pilot_space.api.v1.routers.pm_sprint_board import ProposeTransitionResponse
 
         approval_id = uuid.uuid4()
         resp = ProposeTransitionResponse(approval_id=str(approval_id))
@@ -646,7 +646,7 @@ class TestProposeTransitionRouter:
         mock_approval_service.create_approval_request = AsyncMock(return_value=approval_id)
 
         from pilot_space.ai.infrastructure.approval import ActionType
-        from pilot_space.api.v1.routers.pm_blocks import ProposeTransitionRequest
+        from pilot_space.api.v1.routers.pm_sprint_board import ProposeTransitionRequest
 
         req = ProposeTransitionRequest(
             issue_id=str(_ISSUE_1),
@@ -688,7 +688,7 @@ class TestProposeTransitionRouter:
         """ProposeTransitionRequest raises ValidationError when issue_id is missing."""
         from pydantic import ValidationError
 
-        from pilot_space.api.v1.routers.pm_blocks import ProposeTransitionRequest
+        from pilot_space.api.v1.routers.pm_sprint_board import ProposeTransitionRequest
 
         with pytest.raises(ValidationError):
             ProposeTransitionRequest(proposed_state="done")  # type: ignore[call-arg]

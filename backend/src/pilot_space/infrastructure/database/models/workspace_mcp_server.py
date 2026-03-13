@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, Index, String
+from sqlalchemy import DateTime, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
@@ -44,10 +44,7 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
     """
 
     __tablename__ = "workspace_mcp_servers"  # type: ignore[assignment]
-    __table_args__ = (
-        Index("ix_workspace_mcp_servers_workspace_id", "workspace_id"),
-        {"schema": None},
-    )
+    __table_args__ = ({"schema": None},)
 
     display_name: Mapped[str] = mapped_column(
         String(128),

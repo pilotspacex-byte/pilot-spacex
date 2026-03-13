@@ -156,15 +156,14 @@ class UserRoleSkill(WorkspaceScopedModel):
             name="uq_user_role_skills_user_workspace_role",
         ),
         CheckConstraint(
-            "char_length(skill_content) <= 15000",
+            "length(skill_content) <= 15000",
             name="ck_user_role_skills_skill_content_length",
         ),
         CheckConstraint(
-            "char_length(role_name) <= 100",
+            "length(role_name) <= 100",
             name="ck_user_role_skills_role_name_length",
         ),
         Index("ix_user_role_skills_user_workspace", "user_id", "workspace_id"),
-        Index("ix_user_role_skills_workspace", "workspace_id"),
     )
 
     def __repr__(self) -> str:

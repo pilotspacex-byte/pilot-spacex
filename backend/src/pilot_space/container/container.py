@@ -357,7 +357,6 @@ class Container(SkillContainer, PluginContainer):
 
     get_cycle_service = providers.Factory(
         GetCycleService,
-        session=providers.Callable(get_current_session),
         cycle_repository=InfraContainer.cycle_repository,
     )
 

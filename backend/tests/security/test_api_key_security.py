@@ -11,6 +11,7 @@ Reference: specs/004-mvp-agents-build/tasks/P15-T095-T110.md
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
@@ -22,7 +23,17 @@ from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+_DB_URL = os.getenv("TEST_DATABASE_URL", "sqlite")
+_requires_postgres = pytest.mark.skipif(
+    "sqlite" in _DB_URL,
+    reason=(
+        "Requires PostgreSQL (workspace_api_keys.id uses gen_random_uuid() server default). "
+        "Set TEST_DATABASE_URL."
+    ),
+)
 
+
+@_requires_postgres
 class TestAPIKeySecurity:
     """Tests for API key security - ensure keys never leak to logs."""
 
@@ -312,6 +323,7 @@ class TestAPIKeyEnvironmentSecurity:
             assert master_secret not in str(record.args)
 
     @pytest.mark.asyncio
+    @_requires_postgres
     async def test_encrypted_key_not_in_logs(
         self,
         db_session: AsyncSession,

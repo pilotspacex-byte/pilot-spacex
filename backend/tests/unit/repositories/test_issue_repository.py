@@ -54,7 +54,7 @@ async def user(db_session: AsyncSession, workspace: Workspace) -> User:
     u = User(
         id=uuid4(),
         email="test@example.com",
-        display_name="Test User",
+        full_name="Test User",
     )
     db_session.add(u)
     await db_session.flush()
@@ -69,7 +69,6 @@ async def project(db_session: AsyncSession, workspace: Workspace, user: User) ->
         name="Test Project",
         identifier="TST",
         workspace_id=workspace.id,
-        created_by=user.id,
     )
     db_session.add(p)
     await db_session.flush()
@@ -77,14 +76,15 @@ async def project(db_session: AsyncSession, workspace: Workspace, user: User) ->
 
 
 @pytest.fixture
-async def state(db_session: AsyncSession, project: Project) -> State:
+async def state(db_session: AsyncSession, project: Project, workspace: Workspace) -> State:
     """Create a state for tests."""
     s = State(
         id=uuid4(),
         name="Backlog",
-        group=StateGroup.BACKLOG,
+        group=StateGroup.UNSTARTED,
         color="#9C9590",
         project_id=project.id,
+        workspace_id=workspace.id,
         sequence=0,
     )
     db_session.add(s)
@@ -104,7 +104,6 @@ async def issue(
     i = Issue(
         id=uuid4(),
         sequence_id=1,
-        identifier="TST-1",
         name="Test Issue",
         workspace_id=workspace.id,
         project_id=project.id,
@@ -252,7 +251,6 @@ class TestGetByIdForResponse:
         child = Issue(
             id=uuid4(),
             sequence_id=2,
-            identifier="TST-2",
             name="Child Issue",
             workspace_id=workspace.id,
             project_id=project.id,

@@ -75,11 +75,13 @@ class TestAddWorkspaceMember:
 
         from pilot_space.application.services.workspace import WorkspaceService
 
-        service = WorkspaceService(mock_workspace_repo, mock_user_repo, mock_invitation_repo)
+        service = WorkspaceService(
+            mock_workspace_repo, mock_user_repo, mock_invitation_repo, AsyncMock()
+        )
         result = await service.invite_member(
             workspace_id=workspace.id,
             email="dev@example.com",
-            role="member",
+            role="MEMBER",
             invited_by=admin.id,
         )
 
@@ -106,11 +108,13 @@ class TestAddWorkspaceMember:
 
         from pilot_space.application.services.workspace import WorkspaceService
 
-        service = WorkspaceService(mock_workspace_repo, mock_user_repo, mock_invitation_repo)
+        service = WorkspaceService(
+            mock_workspace_repo, mock_user_repo, mock_invitation_repo, AsyncMock()
+        )
         result = await service.invite_member(
             workspace_id=workspace.id,
             email="newuser@example.com",
-            role="member",
+            role="MEMBER",
             invited_by=admin.id,
         )
 
@@ -134,13 +138,15 @@ class TestAddWorkspaceMember:
 
         from pilot_space.application.services.workspace import WorkspaceService
 
-        service = WorkspaceService(mock_workspace_repo, mock_user_repo, mock_invitation_repo)
+        service = WorkspaceService(
+            mock_workspace_repo, mock_user_repo, mock_invitation_repo, AsyncMock()
+        )
 
         with pytest.raises(ValueError, match="already a member"):
             await service.invite_member(
                 workspace_id=workspace.id,
                 email="member@example.com",
-                role="member",
+                role="MEMBER",
                 invited_by=admin.id,
             )
 
@@ -158,13 +164,15 @@ class TestAddWorkspaceMember:
 
         from pilot_space.application.services.workspace import WorkspaceService
 
-        service = WorkspaceService(mock_workspace_repo, mock_user_repo, mock_invitation_repo)
+        service = WorkspaceService(
+            mock_workspace_repo, mock_user_repo, mock_invitation_repo, AsyncMock()
+        )
 
         with pytest.raises(ValueError, match="already pending"):
             await service.invite_member(
                 workspace_id=workspace.id,
                 email="pending@example.com",
-                role="member",
+                role="MEMBER",
                 invited_by=admin.id,
             )
 

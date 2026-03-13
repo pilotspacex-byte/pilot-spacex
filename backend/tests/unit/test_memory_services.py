@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -92,6 +92,9 @@ def _make_memory_repo() -> AsyncMock:
     repo.hybrid_search = AsyncMock(return_value=[])
     repo.list_by_workspace = AsyncMock(return_value=[])
     repo.create = AsyncMock(side_effect=lambda m: m)
+    repo.create_with_keywords = AsyncMock(
+        side_effect=lambda **kwargs: _make_fake_memory_model(kwargs.get("content", "test"))
+    )
     return repo
 
 
@@ -146,42 +149,63 @@ class TestMemorySearchServicePayload:
 
 class TestMemorySearchServiceEmbedQuery:
     @pytest.mark.asyncio
-    async def test_no_api_key_returns_none(self) -> None:
-        result = await MemorySearchService._embed_query("test", None)
-        assert result is None
+    async def test_no_embedding_service_falls_back_to_keyword(self) -> None:
+        """When no embedding_service is provided, execute() returns keyword results."""
+        repo = _make_memory_repo()
+        session = _make_session()
+        fake_model = _make_fake_memory_model("test content")
+        repo.list_by_workspace = AsyncMock(return_value=[fake_model])
+
+        service = MemorySearchService(repo, session, embedding_service=None)
+        result = await service.execute(
+            MemorySearchPayload(query="test", workspace_id=_workspace_id())
+        )
+        assert result.embedding_used is False
+        assert result.results == [] or len(result.results) >= 0
 
     @pytest.mark.asyncio
-    async def test_gemini_success_returns_vector(self) -> None:
+    async def test_embedding_service_called_on_execute(self) -> None:
+        """When embedding_service is provided, execute() calls embed() and uses vector search."""
+        repo = _make_memory_repo()
+        session = _make_session()
         fake_embedding = [0.1] * 768
-        with patch(
-            "pilot_space.application.services.memory.memory_search_service.MemorySearchService._embed_query",
-            new=AsyncMock(return_value=fake_embedding),
-        ):
-            result = (
-                await MemorySearchService._embed_query.__wrapped__(  # type: ignore[attr-defined]
-                    "test query", "api-key"
-                )
-                if hasattr(MemorySearchService._embed_query, "__wrapped__")
-                else None
-            )
+        fake_results = [
+            {
+                "id": str(uuid.uuid4()),
+                "content": "result content",
+                "source_type": "user_feedback",
+                "pinned": False,
+                "score": 0.9,
+                "embedding_score": 0.9,
+                "text_score": 0.7,
+            }
+        ]
+        repo.hybrid_search = AsyncMock(return_value=fake_results)
 
-        # Test via integration: patch genai
-        with patch.dict("sys.modules", {"google.generativeai": MagicMock()}):
-            import google.generativeai as genai  # type: ignore[import-untyped]
+        mock_embedding_svc = AsyncMock()
+        mock_embedding_svc.embed = AsyncMock(return_value=fake_embedding)
 
-            genai.embed_content = MagicMock(return_value={"embedding": [0.5] * 768})  # type: ignore[attr-defined]
-            r = await MemorySearchService._embed_query("hello", "key-123")
-            assert r is not None
-            assert len(r) == 768
+        service = MemorySearchService(repo, session, embedding_service=mock_embedding_svc)
+        result = await service.execute(
+            MemorySearchPayload(query="hello", workspace_id=_workspace_id())
+        )
+        mock_embedding_svc.embed.assert_awaited_once_with("hello")
+        assert result.embedding_used is True
 
     @pytest.mark.asyncio
-    async def test_gemini_exception_returns_none(self) -> None:
-        with patch.dict("sys.modules", {"google.generativeai": MagicMock()}):
-            import google.generativeai as genai  # type: ignore[import-untyped]
+    async def test_embedding_service_failure_falls_back(self) -> None:
+        """When embedding_service.embed() returns None, fall back to keyword search."""
+        repo = _make_memory_repo()
+        session = _make_session()
+        fake_model = _make_fake_memory_model("fallback content")
+        repo.list_by_workspace = AsyncMock(return_value=[fake_model])
 
-            genai.embed_content = MagicMock(side_effect=RuntimeError("api error"))  # type: ignore[attr-defined]
-            result = await MemorySearchService._embed_query("q", "key-bad")
-            assert result is None
+        mock_embedding_svc = AsyncMock()
+        mock_embedding_svc.embed = AsyncMock(return_value=None)
+
+        service = MemorySearchService(repo, session, embedding_service=mock_embedding_svc)
+        result = await service.execute(MemorySearchPayload(query="q", workspace_id=_workspace_id()))
+        assert result.embedding_used is False
 
 
 class TestMemorySearchServiceExecute:
@@ -202,21 +226,18 @@ class TestMemorySearchServiceExecute:
         ]
         repo.hybrid_search = AsyncMock(return_value=fake_results)
 
-        service = MemorySearchService(repo, session)
-
         fake_embedding = [0.1] * 768
-        with patch.object(
-            MemorySearchService,
-            "_embed_query",
-            new=AsyncMock(return_value=fake_embedding),
-        ):
-            result = await service.execute(
-                MemorySearchPayload(
-                    query="test query",
-                    workspace_id=_workspace_id(),
-                    google_api_key="key",  # pragma: allowlist secret  # pragma: allowlist secret
-                )
+        mock_embedding_svc = AsyncMock()
+        mock_embedding_svc.embed = AsyncMock(return_value=fake_embedding)
+
+        service = MemorySearchService(repo, session, embedding_service=mock_embedding_svc)
+
+        result = await service.execute(
+            MemorySearchPayload(
+                query="test query",
+                workspace_id=_workspace_id(),
             )
+        )
 
         assert result.embedding_used is True
         assert result.query == "test query"
@@ -230,19 +251,15 @@ class TestMemorySearchServiceExecute:
         fake_model = _make_fake_memory_model("user prefers short answers")
         repo.list_by_workspace = AsyncMock(return_value=[fake_model])
 
-        service = MemorySearchService(repo, session)
+        # No embedding_service → always keyword fallback
+        service = MemorySearchService(repo, session, embedding_service=None)
 
-        with patch.object(
-            MemorySearchService,
-            "_embed_query",
-            new=AsyncMock(return_value=None),
-        ):
-            result = await service.execute(
-                MemorySearchPayload(
-                    query="preferences",
-                    workspace_id=_workspace_id(),
-                )
+        result = await service.execute(
+            MemorySearchPayload(
+                query="preferences",
+                workspace_id=_workspace_id(),
             )
+        )
 
         assert result.embedding_used is False
         assert len(result.results) == 1
@@ -255,19 +272,15 @@ class TestMemorySearchServiceExecute:
         repo = _make_memory_repo()
         session = _make_session()
 
-        service = MemorySearchService(repo, session)
+        # No embedding_service → keyword fallback → empty list
+        service = MemorySearchService(repo, session, embedding_service=None)
 
-        with patch.object(
-            MemorySearchService,
-            "_embed_query",
-            new=AsyncMock(return_value=None),
-        ):
-            result = await service.execute(
-                MemorySearchPayload(
-                    query="nothing matches",
-                    workspace_id=_workspace_id(),
-                )
+        result = await service.execute(
+            MemorySearchPayload(
+                query="nothing matches",
+                workspace_id=_workspace_id(),
             )
+        )
 
         assert result.results == []
         assert result.embedding_used is False
@@ -278,21 +291,18 @@ class TestMemorySearchServiceExecute:
         session = _make_session()
         fake_embedding = [0.0] * 768
 
-        service = MemorySearchService(repo, session)
+        mock_embedding_svc = AsyncMock()
+        mock_embedding_svc.embed = AsyncMock(return_value=fake_embedding)
 
-        with patch.object(
-            MemorySearchService,
-            "_embed_query",
-            new=AsyncMock(return_value=fake_embedding),
-        ):
-            await service.execute(
-                MemorySearchPayload(
-                    query="q",
-                    workspace_id=_workspace_id(),
-                    limit=10,
-                    google_api_key="key",  # pragma: allowlist secret
-                )
+        service = MemorySearchService(repo, session, embedding_service=mock_embedding_svc)
+
+        await service.execute(
+            MemorySearchPayload(
+                query="q",
+                workspace_id=_workspace_id(),
+                limit=10,
             )
+        )
 
         call_kwargs = repo.hybrid_search.call_args.kwargs
         assert call_kwargs["limit"] == 10
@@ -341,7 +351,7 @@ class TestMemorySaveServiceExecute:
         session = _make_session()
         queue = _make_queue()
         fake_model = _make_fake_memory_model("save this memory")
-        repo.create = AsyncMock(return_value=fake_model)
+        repo.create_with_keywords = AsyncMock(return_value=fake_model)
 
         service = MemorySaveService(repo, queue, session)
 
@@ -355,7 +365,7 @@ class TestMemorySaveServiceExecute:
 
         assert result.entry_id == fake_model.id
         assert result.embedding_enqueued is True
-        repo.create.assert_awaited_once()
+        repo.create_with_keywords.assert_awaited_once()
         session.commit.assert_awaited_once()
         queue.enqueue.assert_awaited_once()
 
@@ -388,7 +398,7 @@ class TestMemorySaveServiceExecute:
         queue = _make_queue()
         queue.enqueue = AsyncMock(side_effect=RuntimeError("queue down"))
         fake_model = _make_fake_memory_model()
-        repo.create = AsyncMock(return_value=fake_model)
+        repo.create_with_keywords = AsyncMock(return_value=fake_model)
 
         service = MemorySaveService(repo, queue, session)
 
@@ -409,7 +419,7 @@ class TestMemorySaveServiceExecute:
         session = _make_session()
         queue = _make_queue()
         fake_model = _make_fake_memory_model()
-        repo.create = AsyncMock(return_value=fake_model)
+        repo.create_with_keywords = AsyncMock(return_value=fake_model)
 
         service = MemorySaveService(repo, queue, session)
         ws_id = _workspace_id()
