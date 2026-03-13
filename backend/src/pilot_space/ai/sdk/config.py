@@ -188,7 +188,7 @@ def build_sdk_env(api_key: str) -> dict[str, str]:
         api_key: Anthropic API key for the workspace.
 
     Returns:
-        Environment dict suitable for ClaudeAgentOptions.env.
+        Environment dict for SDK subprocess execution.
     """
     env: dict[str, str] = {
         "ANTHROPIC_API_KEY": api_key,

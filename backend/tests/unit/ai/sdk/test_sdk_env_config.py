@@ -13,6 +13,15 @@ import pytest
 
 from pilot_space.ai.sdk.config import MODEL_OPUS, build_sdk_env, get_model_for_task
 from pilot_space.ai.sdk.sandbox_config import ModelTier
+from pilot_space.config import get_settings
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> None:
+    """Prevent stale lru_cache across tests that mutate env vars."""
+    get_settings.cache_clear()
+    yield  # type: ignore[misc]
+    get_settings.cache_clear()
 
 
 class TestModelTierEnvOverride:
@@ -88,18 +97,12 @@ class TestBuildSdkEnv:
         assert "HOME" in env
 
     def test_forwards_base_url_when_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from pilot_space.config import get_settings
-
         monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://localhost:11434")
-        get_settings.cache_clear()
         env = build_sdk_env("sk-test")
         assert env["ANTHROPIC_BASE_URL"] == "http://localhost:11434"
 
     def test_omits_base_url_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from pilot_space.config import get_settings
-
         monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
-        get_settings.cache_clear()
         env = build_sdk_env("sk-test")
         assert "ANTHROPIC_BASE_URL" not in env
 
@@ -108,17 +111,15 @@ class TestSettingsAnthropicBaseUrl:
     """Settings.anthropic_base_url field."""
 
     def test_defaults_to_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from pilot_space.config import Settings, get_settings
+        from pilot_space.config import Settings
 
         monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
-        get_settings.cache_clear()
         settings = Settings()
         assert settings.anthropic_base_url is None
 
     def test_reads_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from pilot_space.config import Settings, get_settings
+        from pilot_space.config import Settings
 
         monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://localhost:11434")
-        get_settings.cache_clear()
         settings = Settings()
         assert settings.anthropic_base_url == "http://localhost:11434"
