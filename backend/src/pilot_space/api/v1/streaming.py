@@ -79,13 +79,13 @@ async def sse_stream_generator(
         if not disconnected:
             yield format_sse_event("done", {"status": "complete"})
 
-    except Exception as exc:
+    except Exception:
         _logger.exception("sse_stream_error")
         yield format_sse_event(
             "error",
             {
-                "message": str(exc),
-                "type": type(exc).__name__,
+                "message": "An internal error occurred during streaming.",
+                "type": "stream_error",
             },
         )
 
@@ -155,13 +155,13 @@ async def sse_json_stream_generator(
         if not disconnected:
             yield format_sse_event("done", {"status": "complete"})
 
-    except Exception as exc:
+    except Exception:
         _logger.exception("sse_json_stream_error")
         yield format_sse_event(
             "error",
             {
-                "message": str(exc),
-                "type": type(exc).__name__,
+                "message": "An internal error occurred during streaming.",
+                "type": "stream_error",
             },
         )
 

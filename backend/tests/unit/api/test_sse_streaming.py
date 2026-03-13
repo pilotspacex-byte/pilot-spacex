@@ -187,8 +187,8 @@ class TestSSEStreamGenerator:
         assert len(events) == 2
         assert "event: token" in events[0]
         assert "event: error" in events[1]
-        assert "Test error" in events[1]
-        assert "ValueError" in events[1]
+        assert "An internal error occurred during streaming." in events[1]
+        assert "stream_error" in events[1]
 
     @pytest.mark.asyncio
     async def test_handles_empty_stream(self) -> None:
@@ -345,8 +345,8 @@ class TestSSEJSONStreamGenerator:
 
         assert len(events) == 2
         assert "event: error" in events[1]
-        assert "Stream failed" in events[1]
-        assert "RuntimeError" in events[1]
+        assert "An internal error occurred during streaming." in events[1]
+        assert "stream_error" in events[1]
 
 
 class TestCreateSSEResponse:
