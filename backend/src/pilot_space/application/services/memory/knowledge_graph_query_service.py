@@ -331,19 +331,27 @@ class KnowledgeGraphQueryService:
         )
 
         # Step 4: Filter by node types if specified
+        # Center node is always kept regardless of node_types filter.
         allowed: set[str] | None = None
         if node_types:
             allowed = {t.strip() for t in node_types.split(",") if t.strip()}
-            nodes = [n for n in nodes if n.node_type.value in allowed][:max_nodes]
+            # Always include the center node even if its type is not in the filter.
+            center_graph_node = next((n for n in nodes if n.id == center_node_id), None)
+            filtered = [n for n in nodes if n.node_type.value in allowed]
+            if center_graph_node is not None and center_graph_node not in filtered:
+                filtered = [center_graph_node, *filtered]
+            nodes = filtered[:max_nodes]
             node_ids = {n.id for n in nodes}
             edges = [e for e in edges if e.source_id in node_ids and e.target_id in node_ids]
-            if center_node_id not in node_ids:
-                center_node_id = None
 
         # Step 5: Synthesize ephemeral GitHub nodes
+        # Only include GitHub nodes whose type matches the filter (if provided).
+        # Enforce max_nodes cap across persisted + synthesized nodes; never remove the center node.
         ephemeral_nodes = self._synthesize_github_nodes(nodes, integration_links)
         if allowed is not None:
             ephemeral_nodes = [n for n in ephemeral_nodes if n.node_type in allowed]
+        remaining_capacity = max(0, max_nodes - len(nodes))
+        ephemeral_nodes = ephemeral_nodes[:remaining_capacity]
 
         # Step 6: Sort nodes by importance tier
         nodes.sort(key=lambda n: node_tier(n.node_type.value))
@@ -360,24 +368,39 @@ class KnowledgeGraphQueryService:
         nodes: list[GraphNode],
         integration_links: Sequence[IntegrationLink],
     ) -> list[EphemeralNode]:
-        """Create ephemeral nodes from integration links not already in the graph."""
+        """Create ephemeral nodes from integration links not already in the graph.
+
+        Deduplicates both against existing graph nodes (by type+id key) and
+        across integration links themselves (by external_url) to handle the case
+        where the same PR is linked from multiple issues in a project graph.
+        """
         if not integration_links:
             return []
 
         seen_keys: set[str] = {
             f"{n.node_type.value}:{n.properties.get('external_url') or n.properties.get('external_id')}"
             for n in nodes
-            if n.properties and n.properties.get("external_id") is not None
+            if n.properties
+            and (
+                n.properties.get("external_id") is not None
+                or n.properties.get("external_url") is not None
+            )
         }
+        # Track synthesized URLs separately to deduplicate across multiple issues
+        # that reference the same PR (project-level graph expands many issues).
+        seen_urls: set[str] = set()
         now = datetime.now(tz=UTC)
         ephemeral: list[EphemeralNode] = []
 
         for link in integration_links:
             mapped_type = _GITHUB_NODE_TYPE_MAP.get(link.link_type, NodeType.NOTE.value)
             key = f"{mapped_type}:{link.external_url or link.external_id}"
-            if key in seen_keys:
+            url = link.external_url or link.external_id
+            if key in seen_keys or url in seen_urls:
                 continue
             seen_keys.add(key)
+            if url:
+                seen_urls.add(url)
             ephemeral.append(
                 EphemeralNode(
                     id=str(uuid5(NAMESPACE_URL, f"ephemeral:{key}")),

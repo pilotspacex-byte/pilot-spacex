@@ -167,8 +167,8 @@ function ProjectGraphCanvas({
 
   const handleNodeDoubleClick = useCallback(
     async (nodeId: string) => {
-      const totalNodes = mergedNodes.length;
-      if (totalNodes >= 200) {
+      const remaining = 200 - mergedNodes.length;
+      if (remaining <= 0) {
         toast.warning('Graph limit reached (200 nodes). Clear filters to reset the view.');
         return;
       }
@@ -180,7 +180,15 @@ function ProjectGraphCanvas({
         );
         setExtraNodes((prev) => {
           const ids = new Set(prev.map((n) => n.id));
-          return [...prev, ...neighbors.nodes.filter((n) => !ids.has(n.id))];
+          const newNodes = neighbors.nodes.filter((n) => !ids.has(n.id));
+          // Cap total nodes at 200: only add as many as the remaining capacity allows.
+          const nodesToAdd = newNodes.slice(0, remaining);
+          if (newNodes.length > nodesToAdd.length) {
+            toast.warning(
+              `Graph limit reached (200 nodes). ${newNodes.length - nodesToAdd.length} nodes were not added.`
+            );
+          }
+          return [...prev, ...nodesToAdd];
         });
         setExtraEdges((prev) => {
           const ids = new Set(prev.map((e) => e.id));
