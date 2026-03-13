@@ -33,16 +33,49 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = React.useState(false);
   const [hasChanges, setHasChanges] = React.useState(false);
 
+  // AI Model Defaults state
+  const [modelSonnet, setModelSonnet] = React.useState('');
+  const [modelHaiku, setModelHaiku] = React.useState('');
+  const [modelOpus, setModelOpus] = React.useState('');
+  const [baseUrl, setBaseUrl] = React.useState('');
+  const [isSavingAI, setIsSavingAI] = React.useState(false);
+  const [hasAIChanges, setHasAIChanges] = React.useState(false);
+
   React.useEffect(() => {
     if (user) {
       setDisplayName(user.name ?? '');
       setBio(user.bio ?? '');
+      setModelSonnet(user.aiSettings?.model_sonnet ?? '');
+      setModelHaiku(user.aiSettings?.model_haiku ?? '');
+      setModelOpus(user.aiSettings?.model_opus ?? '');
+      setBaseUrl(user.aiSettings?.base_url ?? '');
     }
   }, [user]);
+
+  // Fetch backend profile to get AI settings on mount
+  React.useEffect(() => {
+    if (user) {
+      void authStore.fetchBackendProfile();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   React.useEffect(() => {
     setHasChanges(displayName !== (user?.name ?? '') || bio !== (user?.bio ?? ''));
   }, [displayName, bio, user?.name, user?.bio]);
+
+  React.useEffect(() => {
+    const currentSonnet = user?.aiSettings?.model_sonnet ?? '';
+    const currentHaiku = user?.aiSettings?.model_haiku ?? '';
+    const currentOpus = user?.aiSettings?.model_opus ?? '';
+    const currentBaseUrl = user?.aiSettings?.base_url ?? '';
+    setHasAIChanges(
+      modelSonnet !== currentSonnet ||
+        modelHaiku !== currentHaiku ||
+        modelOpus !== currentOpus ||
+        baseUrl !== currentBaseUrl
+    );
+  }, [modelSonnet, modelHaiku, modelOpus, baseUrl, user?.aiSettings]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,15 +100,45 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
     }
   };
 
+  const handleSaveAI = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hasAIChanges) return;
+
+    setIsSavingAI(true);
+
+    // Build settings object with only non-empty values
+    const settings: Record<string, string> = {};
+    if (modelSonnet.trim()) settings.model_sonnet = modelSonnet.trim();
+    if (modelHaiku.trim()) settings.model_haiku = modelHaiku.trim();
+    if (modelOpus.trim()) settings.model_opus = modelOpus.trim();
+    if (baseUrl.trim()) settings.base_url = baseUrl.trim();
+
+    // If all fields are blank, send null to clear overrides
+    const payload = Object.keys(settings).length > 0 ? settings : null;
+
+    const success = await authStore.updateAiSettings(payload);
+    setIsSavingAI(false);
+
+    if (success) {
+      toast.success('AI settings updated', {
+        description: 'Your model defaults have been saved.',
+      });
+    } else {
+      toast.error('Failed to update AI settings', {
+        description: authStore.error ?? 'An unexpected error occurred. Please try again.',
+      });
+    }
+  };
+
   React.useEffect(() => {
-    if (!hasChanges) return;
+    if (!hasChanges && !hasAIChanges) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = ''; // Required for Chromium browsers
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [hasChanges]);
+  }, [hasChanges, hasAIChanges]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -278,6 +341,96 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
                 {hasChanges && (
                   <p className="text-sm text-muted-foreground" role="status">
                     You have unsaved changes.
+                  </p>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* AI Model Defaults Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>AI Model Defaults</CardTitle>
+            <CardDescription>
+              Override the system default model IDs for each tier. Leave blank to use system
+              defaults.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveAI} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="model-sonnet">Sonnet Model</Label>
+                <Input
+                  id="model-sonnet"
+                  type="text"
+                  placeholder="claude-sonnet-4-20250514"
+                  value={modelSonnet}
+                  onChange={(e) => setModelSonnet(e.target.value)}
+                  disabled={isSavingAI}
+                  className="w-full sm:max-w-md"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="model-haiku">Haiku Model</Label>
+                <Input
+                  id="model-haiku"
+                  type="text"
+                  placeholder="claude-haiku-4-5-20251001"
+                  value={modelHaiku}
+                  onChange={(e) => setModelHaiku(e.target.value)}
+                  disabled={isSavingAI}
+                  className="w-full sm:max-w-md"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="model-opus">Opus Model</Label>
+                <Input
+                  id="model-opus"
+                  type="text"
+                  placeholder="claude-opus-4-5-20251101"
+                  value={modelOpus}
+                  onChange={(e) => setModelOpus(e.target.value)}
+                  disabled={isSavingAI}
+                  className="w-full sm:max-w-md"
+                />
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="base-url">API Base URL</Label>
+                <Input
+                  id="base-url"
+                  type="text"
+                  placeholder="System default"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  disabled={isSavingAI}
+                  className="w-full sm:max-w-md"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Custom Anthropic API base URL for proxy or staging environments.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  type="submit"
+                  disabled={isSavingAI || !hasAIChanges}
+                  aria-busy={isSavingAI}
+                  className="min-w-[120px]"
+                >
+                  {isSavingAI && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  )}
+                  {isSavingAI ? 'Saving...' : 'Save AI Settings'}
+                </Button>
+                {hasAIChanges && (
+                  <p className="text-sm text-muted-foreground" role="status">
+                    You have unsaved AI settings changes.
                   </p>
                 )}
               </div>

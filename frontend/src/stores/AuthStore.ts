@@ -6,12 +6,20 @@ import type { AuthChangeEvent } from '@supabase/supabase-js';
 import { getAuthProvider, getAuthProviderSync } from '@/services/auth/providers';
 import type { AuthProvider as IAuthProvider } from '@/services/auth/providers';
 
+export interface AiSettings {
+  model_sonnet?: string;
+  model_haiku?: string;
+  model_opus?: string;
+  base_url?: string;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
   name: string;
   avatarUrl: string | null;
   bio?: string;
+  aiSettings?: AiSettings | null;
 }
 
 const MAX_REFRESH_FAILURES = 3;
@@ -416,6 +424,45 @@ export class AuthStore {
       runInAction(() => {
         this.error = err instanceof Error ? err.message : 'Profile update failed';
         this.isLoading = false;
+      });
+      return false;
+    }
+  }
+
+  async fetchBackendProfile(): Promise<void> {
+    try {
+      const { apiClient } = await import('@/services/api/client');
+      const profile = await apiClient.get<{ aiSettings?: AiSettings | null }>('/auth/me');
+
+      runInAction(() => {
+        if (this.user) {
+          this.user.aiSettings = profile.aiSettings ?? null;
+        }
+      });
+    } catch {
+      // Non-critical — AI settings will just show empty
+    }
+  }
+
+  async updateAiSettings(aiSettings: AiSettings | null): Promise<boolean> {
+    this.error = null;
+
+    try {
+      const { apiClient } = await import('@/services/api/client');
+      const profile = await apiClient.patch<{ aiSettings?: AiSettings | null }>('/auth/me', {
+        aiSettings,
+      });
+
+      runInAction(() => {
+        if (this.user) {
+          this.user.aiSettings = profile.aiSettings ?? null;
+        }
+      });
+
+      return true;
+    } catch (err) {
+      runInAction(() => {
+        this.error = err instanceof Error ? err.message : 'Failed to update AI settings';
       });
       return false;
     }
