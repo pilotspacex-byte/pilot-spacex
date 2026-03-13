@@ -36,7 +36,6 @@ import {
   useNotificationStore,
   useAuthStore,
   useWorkspaceStore,
-  useNoteStore,
 } from '@/stores';
 import { useCreateNote } from '@/features/notes/hooks';
 import { TemplatePicker } from '@/features/notes/components/TemplatePicker';
@@ -67,6 +66,7 @@ import { NotificationPanel } from '@/components/layout/notification-panel';
 import { addRecentWorkspace } from '@/components/workspace-selector';
 import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
 import { usePendingApprovalCount } from '@/features/approvals/hooks/use-approvals';
+import { usePinnedNotes } from '@/hooks/usePinnedNotes';
 
 interface NavItem {
   name: string;
@@ -283,7 +283,6 @@ function getWorkspaceSlugFromPathname(pathname: string): string {
 
 export const Sidebar = observer(function Sidebar() {
   const uiStore = useUIStore();
-  const noteStore = useNoteStore();
   const notificationStore = useNotificationStore();
   const authStore = useAuthStore();
   const workspaceStore = useWorkspaceStore();
@@ -373,14 +372,19 @@ export const Sidebar = observer(function Sidebar() {
     return map;
   }, [projectsData]);
 
+  const { data: rawPinnedNotes = [] } = usePinnedNotes({
+    workspaceId,
+    enabled: !!workspaceId && isAuthenticated && workspaceId.includes('-'),
+  });
+
   const pinnedNotes = useMemo(() => {
-    return noteStore.pinnedNotes.slice(0, 5).map((note) => ({
+    return rawPinnedNotes.slice(0, 5).map((note) => ({
       id: note.id,
       title: note.title,
       projectId: note.projectId,
       href: `/${workspaceSlug}/notes/${note.id}`,
     }));
-  }, [noteStore.pinnedNotes, workspaceSlug]);
+  }, [rawPinnedNotes, workspaceSlug]);
 
   const newNoteFlow = useNewNoteFlow({
     onCreateNote: (data) => createNote.mutate(data),
