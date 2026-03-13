@@ -187,6 +187,11 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     return projects.find((p) => p.id === note.projectId)?.name;
   }, [note?.projectId, projects]);
 
+  // Memoize sanitized content to avoid creating a new object reference on every render.
+  // sanitizeNoteContent returns a new object each call; memoizing prevents NoteCanvas from
+  // seeing unnecessary content reference changes between unrelated state updates.
+  const sanitizedContent = useMemo(() => sanitizeNoteContent(note?.content), [note?.content]);
+
   // Track previous noteId to detect navigation
   const prevNoteIdRef = useRef<string | null>(null);
   // Flag to enable autosave only after content is initialized AND baseline is set
@@ -417,7 +422,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
             <button
               type="button"
               className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
-              title={note.iconEmoji ? 'Change icon' : 'Add icon'}
+              aria-label={note.iconEmoji ? 'Change icon' : 'Add icon'}
             >
               {note.iconEmoji ? (
                 <span className="text-2xl leading-none">{note.iconEmoji}</span>
@@ -431,6 +436,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
               <Input
                 value={emojiInput}
                 onChange={(e) => setEmojiInput(e.target.value)}
+                aria-label="Page icon emoji"
                 placeholder="Type emoji..."
                 className="h-8 text-base"
                 maxLength={10}
@@ -465,7 +471,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
         <NoteCanvas
           key={noteId}
           noteId={noteId}
-          content={sanitizeNoteContent(note.content)}
+          content={sanitizedContent}
           readOnly={false}
           onChange={handleContentChange}
           onSave={handleSave}
