@@ -1083,3 +1083,16 @@ class TestRateLimitMiddlewareMainRegistration:
                 f"Expected 429 from rate limit, got {response.status_code}"
             )
             assert "Retry-After" in response.headers
+
+        # Reset the singleton middleware instance state that fake_resolve_redis set.
+        # patch.object restores the _resolve_redis METHOD but NOT the instance attributes
+        # (_redis_resolved=True, redis=mock_redis_raw) that leak into subsequent tests.
+        stack = app.middleware_stack
+        for _ in range(20):
+            if isinstance(stack, RateLimitMiddleware):
+                stack._redis_resolved = False
+                stack.redis = None
+                break
+            stack = getattr(stack, "app", None)
+            if stack is None:
+                break
