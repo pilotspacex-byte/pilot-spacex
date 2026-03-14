@@ -50,6 +50,7 @@ export const AISettingsPage = observer(function AISettingsPage() {
 
   const handleProviderSaved = () => {
     settings.loadSettings(workspaceId);
+    settings.loadModels(workspaceId);
   };
 
   if (settings.isLoading) {
@@ -90,7 +91,6 @@ export const AISettingsPage = observer(function AISettingsPage() {
               key={provider}
               provider={provider}
               status={settings.getProviderStatus(provider)}
-              workspaceId={workspaceId}
               onSaved={handleProviderSaved}
             />
           ))}

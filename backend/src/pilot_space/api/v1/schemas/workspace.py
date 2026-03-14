@@ -378,17 +378,19 @@ class APIKeyUpdate(BaseSchema):
     )
     api_key: str | None = Field(
         default=None,
-        description="API key to store (None to remove)",
+        description="API key to store (None to keep existing, empty string to remove)",
         min_length=1,
     )
     base_url: str | None = Field(
         default=None,
         description="Custom base URL for provider API",
-        pattern=r"^https?://[^\s]+$",
+        max_length=2048,
+        pattern=r"^https?://[^\s/]+(/[^\s]*)?$",
     )
     model_name: str | None = Field(
         default=None,
         description="Default model name override",
+        max_length=200,
     )
 
 

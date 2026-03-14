@@ -77,14 +77,9 @@ vi.mock('@/stores', () => ({
 }));
 
 vi.mock('@/features/settings/components/provider-row', () => ({
-  ProviderRow: ({
-    provider,
-  }: {
-    provider: string;
-    status: unknown;
-    workspaceId: string;
-    onSaved: () => void;
-  }) => <div data-testid={`provider-row-${provider}`}>{provider}</div>,
+  ProviderRow: ({ provider }: { provider: string; status: unknown; onSaved: () => void }) => (
+    <div data-testid={`provider-row-${provider}`}>{provider}</div>
+  ),
 }));
 
 vi.mock('@/features/settings/components/ai-feature-toggles', () => ({

@@ -202,11 +202,14 @@ async def update_ai_settings(
     # Process API key updates — merge with existing, store immediately
     if body.api_keys:
         for key_update in body.api_keys:
-            # Merge with existing config so omitted fields are preserved
-            existing_key = await key_storage.get_api_key(workspace_id, key_update.provider)
             existing_info = await key_storage.get_key_info(workspace_id, key_update.provider)
 
-            api_key = key_update.api_key if key_update.api_key is not None else existing_key
+            has_new_key = key_update.api_key is not None
+            has_metadata_change = (
+                key_update.base_url is not None or key_update.model_name is not None
+            )
+
+            # Merge metadata with existing values
             base_url = (
                 key_update.base_url
                 if key_update.base_url is not None
@@ -218,11 +221,12 @@ async def update_ai_settings(
                 else (existing_info.model_name if existing_info else None)
             )
 
-            if api_key:
+            if has_new_key:
+                # New API key provided — store with full upsert (resets validation)
                 await key_storage.store_api_key(
                     workspace_id=workspace_id,
                     provider=key_update.provider,
-                    api_key=api_key,
+                    api_key=key_update.api_key,  # type: ignore[arg-type]
                     base_url=base_url,
                     model_name=model_name,
                 )
@@ -234,18 +238,25 @@ async def update_ai_settings(
                         error_message=None,
                     )
                 )
-            elif existing_key is None:
-                # No existing key and no new key — nothing to store, skip
-                pass
-            else:
-                # Existing key with updated base_url/model_name only
-                await key_storage.store_api_key(
+            elif has_metadata_change and existing_info is not None:
+                # Only metadata changed — update without touching encrypted key or validation
+                await key_storage.update_metadata(
                     workspace_id=workspace_id,
                     provider=key_update.provider,
-                    api_key=existing_key,
                     base_url=base_url,
                     model_name=model_name,
                 )
+                updated_providers.append(key_update.provider)
+                validation_results.append(
+                    KeyValidationResult(
+                        provider=key_update.provider,
+                        is_valid=True,
+                        error_message=None,
+                    )
+                )
+            elif not has_new_key and not has_metadata_change and existing_info is not None:
+                # Explicit None api_key with no metadata changes — delete the key (H-1)
+                await key_storage.delete_api_key(workspace_id, key_update.provider)
                 updated_providers.append(key_update.provider)
                 validation_results.append(
                     KeyValidationResult(

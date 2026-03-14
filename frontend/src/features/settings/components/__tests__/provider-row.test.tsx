@@ -54,7 +54,6 @@ vi.mock('../api-key-input', () => ({
 import { ProviderRow } from '../provider-row';
 
 const defaultProps = {
-  workspaceId: 'ws-1',
   onSaved: vi.fn(),
 };
 

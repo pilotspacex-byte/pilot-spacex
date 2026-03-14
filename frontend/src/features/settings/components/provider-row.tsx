@@ -10,18 +10,17 @@
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { ChevronDown, ChevronUp, Loader2, Cpu } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, Cpu, CheckCircle2, XCircle, Circle } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { APIKeyInput } from './api-key-input';
 import { useStore } from '@/stores';
 import { toast } from 'sonner';
 import type { WorkspaceAISettingsProvider } from '@/services/api/ai';
-import { CheckCircle2, XCircle, Circle } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 
 interface ProviderConfig {
@@ -142,14 +141,12 @@ function getSubtitle(status: WorkspaceAISettingsProvider | undefined): string {
 export interface ProviderRowProps {
   provider: string;
   status: WorkspaceAISettingsProvider | undefined;
-  workspaceId: string;
   onSaved: () => void;
 }
 
 export const ProviderRow = observer(function ProviderRow({
   provider,
   status,
-  workspaceId: _workspaceId,
   onSaved,
 }: ProviderRowProps) {
   const { ai } = useStore();

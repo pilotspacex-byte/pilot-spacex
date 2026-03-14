@@ -80,6 +80,40 @@ class TestAPIKeyUpdateSchema:
         )
         assert update.base_url == "http://localhost:8080/v1"
 
+    def test_base_url_rejects_bare_scheme(self) -> None:
+        """M-2: base_url must have a host, not just 'https://'."""
+        with pytest.raises(pydantic.ValidationError, match="base_url"):
+            APIKeyUpdate(
+                provider="google",
+                api_key="AIza-test-key",  # pragma: allowlist secret
+                base_url="https://",
+            )
+
+    def test_model_name_max_length(self) -> None:
+        """M-1: model_name must not exceed 200 chars."""
+        with pytest.raises(pydantic.ValidationError, match="model_name"):
+            APIKeyUpdate(
+                provider="ai_agent",
+                api_key="sk-test-1234567890",  # pragma: allowlist secret
+                model_name="x" * 201,
+            )
+
+    def test_model_name_within_limit_accepted(self) -> None:
+        update = APIKeyUpdate(
+            provider="ai_agent",
+            api_key="sk-test-1234567890",  # pragma: allowlist secret
+            model_name="x" * 200,
+        )
+        assert len(update.model_name or "") == 200
+
+    def test_base_url_max_length(self) -> None:
+        with pytest.raises(pydantic.ValidationError, match="base_url"):
+            APIKeyUpdate(
+                provider="ai_agent",
+                api_key="sk-test-1234567890",  # pragma: allowlist secret
+                base_url="https://example.com/" + "x" * 2048,
+            )
+
 
 class TestProviderStatusSchema:
     """Tests for ProviderStatus Pydantic schema."""

@@ -124,6 +124,8 @@ class SecureKeyStorage:
     ) -> None:
         """Store encrypted API key for workspace.
 
+        Resets validation status since the key changed.
+
         Args:
             workspace_id: Workspace UUID.
             provider: Provider name (anthropic, openai, google, kimi, glm, ai_agent, custom).
@@ -174,6 +176,51 @@ class SecureKeyStorage:
             provider=provider,
             key_preview=self._mask_key(api_key),
         )
+
+    async def update_metadata(
+        self,
+        workspace_id: UUID,
+        provider: str,
+        base_url: str | None = None,
+        model_name: str | None = None,
+    ) -> bool:
+        """Update only metadata (base_url/model_name) without touching the encrypted key.
+
+        Preserves existing validation status and encrypted key.
+
+        Args:
+            workspace_id: Workspace UUID.
+            provider: Provider name.
+            base_url: New base URL (None keeps existing).
+            model_name: New model name (None keeps existing).
+
+        Returns:
+            True if row was updated, False if no existing key found.
+        """
+        from pilot_space.infrastructure.database.models import WorkspaceAPIKey
+
+        stmt = select(WorkspaceAPIKey).where(
+            WorkspaceAPIKey.workspace_id == workspace_id,
+            WorkspaceAPIKey.provider == provider,
+        )
+
+        result = await self.db.execute(stmt)
+        row = result.scalar_one_or_none()
+
+        if row is None:
+            return False
+
+        row.base_url = base_url
+        row.model_name = model_name
+        row.updated_at = datetime.now(UTC)  # type: ignore[assignment]
+        await self.db.commit()
+
+        logger.info(
+            "key_storage_metadata_updated",
+            workspace_id=str(workspace_id),
+            provider=provider,
+        )
+        return True
 
     async def get_api_key(
         self,
