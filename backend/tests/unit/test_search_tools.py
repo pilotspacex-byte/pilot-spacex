@@ -243,26 +243,59 @@ class TestSemanticSearchFallback:
 
 
 # ---------------------------------------------------------------------------
+# Tests for _map_content_types — filter semantics
+# ---------------------------------------------------------------------------
+
+
+class TestMapContentTypes:
+    """_map_content_types must distinguish None (all) from empty (no matches)."""
+
+    def test_none_returns_none(self) -> None:
+        from pilot_space.ai.tools.search_tools import _map_content_types
+
+        assert _map_content_types(None) is None
+
+    def test_valid_types_return_node_types(self) -> None:
+        from pilot_space.ai.tools.search_tools import _map_content_types
+
+        result = _map_content_types(["issue"])
+        assert result is not None
+        assert len(result) > 0
+
+    def test_unmapped_types_return_empty_list(self) -> None:
+        """Unmapped types return [] (no matches), not None (all types)."""
+        from pilot_space.ai.tools.search_tools import _map_content_types
+
+        result = _map_content_types(["page", "unknown"])
+        assert result is not None
+        assert result == []
+
+    def test_mixed_mapped_and_unmapped(self) -> None:
+        from pilot_space.ai.tools.search_tools import _map_content_types
+
+        result = _map_content_types(["issue", "page"])
+        assert result is not None
+        assert len(result) > 0  # Only "issue" maps
+
+    def test_empty_list_returns_empty_list(self) -> None:
+        from pilot_space.ai.tools.search_tools import _map_content_types
+
+        result = _map_content_types([])
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
 # Tests for search_codebase — not_implemented stub
 # ---------------------------------------------------------------------------
 
 
 class TestSearchCodebase:
-    """search_codebase should return honest not_implemented status."""
+    """search_codebase should return honest not_implemented status without DB query."""
 
-    async def test_returns_not_implemented_with_integrations(self) -> None:
+    async def test_returns_not_implemented_without_db_query(self) -> None:
         from pilot_space.ai.tools.search_tools import search_codebase
 
         session = AsyncMock()
-        mock_integration = MagicMock()
-        mock_integration.id = uuid4()
-        mock_integration.settings = {"repo_name": "my-repo"}
-        mock_integration.external_account_name = "github-user"
-
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [mock_integration]
-        session.execute = AsyncMock(return_value=mock_result)
-
         ctx = FakeToolContext(
             db_session=session,
             workspace_id=str(_WORKSPACE_ID),
@@ -273,22 +306,6 @@ class TestSearchCodebase:
         assert result["found"] is False
         assert result["status"] == "not_implemented"
         assert "not yet available" in result["message"].lower()
-        assert len(result["integrations"]) == 1
-
-    async def test_returns_error_when_no_integrations(self) -> None:
-        from pilot_space.ai.tools.search_tools import search_codebase
-
-        session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        session.execute = AsyncMock(return_value=mock_result)
-
-        ctx = FakeToolContext(
-            db_session=session,
-            workspace_id=str(_WORKSPACE_ID),
-        )
-
-        result = await search_codebase(query="test", ctx=ctx)
-
-        assert result["found"] is False
-        assert "No GitHub integration" in result.get("error", "")
+        assert result["query"] == "async def"
+        # Should NOT have queried the database
+        session.execute.assert_not_awaited()

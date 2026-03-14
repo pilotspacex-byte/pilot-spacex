@@ -280,13 +280,9 @@ class KnowledgeGraphRepository:
     ) -> list[GraphNode]:
         """Recursive CTE traversal for PostgreSQL.
 
-        edge_types filtering uses ANY(:edge_types) to prevent SQL injection
-        (C-1). workspace_id is pushed into the CTE anchor and final filter to
-        enforce cross-workspace boundary (C-2).
-
-        The CTE uses bidirectional CASE expressions so each direction pair is a
-        single SELECT — giving exactly one UNION ALL boundary between anchor
-        and recursive terms, which PostgreSQL requires.
+        Uses bidirectional CASE expressions (one UNION ALL boundary) with
+        anti-backtrack filter. edge_types uses ANY(:edge_types) (C-1),
+        workspace_id enforces cross-workspace boundary (C-2).
         """
         # Only static SQL string fragments are f-string-interpolated — no user
         # data ever enters the SQL text directly.
@@ -302,12 +298,20 @@ class KnowledgeGraphRepository:
                   FROM graph_edges
                   WHERE (source_id = :nid OR target_id = :nid) {edge_type_clause} {ws_clause}
                 UNION ALL
-                -- Recursive: expand in both directions
+                -- Recursive: expand in both directions.
+                -- The anti-backtrack filter (CASE...END != n.id) prevents the
+                -- recursive term from immediately walking back to the node it
+                -- came from, which would cause row-count explosion on dense or
+                -- cyclic graphs.  Full cycle elimination would require tracking
+                -- visited sets (e.g. via array accumulation), but for bounded
+                -- depth the DISTINCT + anti-backtrack is sufficient.
                 SELECT CASE WHEN e.source_id = n.id THEN e.target_id ELSE e.source_id END,
                        n.depth + 1
                   FROM graph_edges e
                   JOIN neighbors n ON (e.source_id = n.id OR e.target_id = n.id)
-                  WHERE n.depth < :md {edge_type_clause} {ws_clause}
+                  WHERE n.depth < :md
+                    AND CASE WHEN e.source_id = n.id THEN e.target_id ELSE e.source_id END != n.id
+                    {edge_type_clause} {ws_clause}
             )
             SELECT DISTINCT gn.id FROM graph_nodes gn JOIN neighbors nb ON gn.id = nb.id
             WHERE gn.is_deleted = false AND gn.id != :nid {ws_node_clause}

@@ -49,6 +49,7 @@ export class AuthStore {
   private authSubscription: { unsubscribe: () => void } | null = null;
   private refreshFailureCount = 0;
   private provider: IAuthProvider | null = null;
+  private fetchingBackendProfile = false;
 
   constructor() {
     makeAutoObservable(this, {
@@ -204,12 +205,16 @@ export class AuthStore {
   }
 
   private mapSupabaseUser(supabaseUser: User): AuthUser {
+    // Preserve aiSettings across auth state changes — Supabase user metadata
+    // doesn't contain AI settings, so we carry forward the existing value.
+    const preservedAiSettings = this.user?.aiSettings ?? null;
     return {
       id: supabaseUser.id,
       email: supabaseUser.email || '',
       name: supabaseUser.user_metadata?.name || supabaseUser.user_metadata?.full_name || '',
       avatarUrl: supabaseUser.user_metadata?.avatar_url || null,
       bio: supabaseUser.user_metadata?.['bio'] as string | undefined,
+      aiSettings: preservedAiSettings,
     };
   }
 
@@ -430,6 +435,8 @@ export class AuthStore {
   }
 
   async fetchBackendProfile(): Promise<void> {
+    if (this.fetchingBackendProfile) return;
+    this.fetchingBackendProfile = true;
     try {
       const { apiClient } = await import('@/services/api/client');
       const profile = await apiClient.get<{ aiSettings?: AiSettings | null }>('/auth/me');
@@ -441,6 +448,8 @@ export class AuthStore {
       });
     } catch {
       // Non-critical — AI settings will just show empty
+    } finally {
+      this.fetchingBackendProfile = false;
     }
   }
 

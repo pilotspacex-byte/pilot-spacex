@@ -23,6 +23,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useStore } from '@/stores';
 
+const MODEL_TIERS = [
+  { key: 'model_sonnet', label: 'Sonnet Model', placeholder: 'claude-sonnet-4-20250514' },
+  { key: 'model_haiku', label: 'Haiku Model', placeholder: 'claude-haiku-4-5-20251001' },
+  { key: 'model_opus', label: 'Opus Model', placeholder: 'claude-opus-4-5-20251101' },
+] as const;
+
 export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
   const { authStore } = useStore();
   const user = authStore.user;
@@ -34,9 +40,11 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
   const [hasChanges, setHasChanges] = React.useState(false);
 
   // AI Model Defaults state
-  const [modelSonnet, setModelSonnet] = React.useState('');
-  const [modelHaiku, setModelHaiku] = React.useState('');
-  const [modelOpus, setModelOpus] = React.useState('');
+  const [modelOverrides, setModelOverrides] = React.useState<Record<string, string>>({
+    model_sonnet: '',
+    model_haiku: '',
+    model_opus: '',
+  });
   const [baseUrl, setBaseUrl] = React.useState('');
   const [isSavingAI, setIsSavingAI] = React.useState(false);
   const [hasAIChanges, setHasAIChanges] = React.useState(false);
@@ -45,9 +53,11 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
     if (user) {
       setDisplayName(user.name ?? '');
       setBio(user.bio ?? '');
-      setModelSonnet(user.aiSettings?.model_sonnet ?? '');
-      setModelHaiku(user.aiSettings?.model_haiku ?? '');
-      setModelOpus(user.aiSettings?.model_opus ?? '');
+      setModelOverrides({
+        model_sonnet: user.aiSettings?.model_sonnet ?? '',
+        model_haiku: user.aiSettings?.model_haiku ?? '',
+        model_opus: user.aiSettings?.model_opus ?? '',
+      });
       setBaseUrl(user.aiSettings?.base_url ?? '');
     }
   }, [user]);
@@ -65,17 +75,14 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
   }, [displayName, bio, user?.name, user?.bio]);
 
   React.useEffect(() => {
-    const currentSonnet = user?.aiSettings?.model_sonnet ?? '';
-    const currentHaiku = user?.aiSettings?.model_haiku ?? '';
-    const currentOpus = user?.aiSettings?.model_opus ?? '';
-    const currentBaseUrl = user?.aiSettings?.base_url ?? '';
-    setHasAIChanges(
-      modelSonnet !== currentSonnet ||
-        modelHaiku !== currentHaiku ||
-        modelOpus !== currentOpus ||
-        baseUrl !== currentBaseUrl
-    );
-  }, [modelSonnet, modelHaiku, modelOpus, baseUrl, user?.aiSettings]);
+    const ai = user?.aiSettings;
+    const changed =
+      modelOverrides.model_sonnet !== (ai?.model_sonnet ?? '') ||
+      modelOverrides.model_haiku !== (ai?.model_haiku ?? '') ||
+      modelOverrides.model_opus !== (ai?.model_opus ?? '') ||
+      baseUrl !== (ai?.base_url ?? '');
+    setHasAIChanges(changed);
+  }, [modelOverrides, baseUrl, user?.aiSettings]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,9 +115,9 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
 
     // Build settings object with only non-empty values
     const settings: Record<string, string> = {};
-    if (modelSonnet.trim()) settings.model_sonnet = modelSonnet.trim();
-    if (modelHaiku.trim()) settings.model_haiku = modelHaiku.trim();
-    if (modelOpus.trim()) settings.model_opus = modelOpus.trim();
+    for (const [key, value] of Object.entries(modelOverrides)) {
+      if (value.trim()) settings[key] = value.trim();
+    }
     if (baseUrl.trim()) settings.base_url = baseUrl.trim();
 
     // If all fields are blank, send null to clear overrides
@@ -359,44 +366,22 @@ export const ProfileSettingsPage = observer(function ProfileSettingsPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSaveAI} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="model-sonnet">Sonnet Model</Label>
-                <Input
-                  id="model-sonnet"
-                  type="text"
-                  placeholder="claude-sonnet-4-20250514"
-                  value={modelSonnet}
-                  onChange={(e) => setModelSonnet(e.target.value)}
-                  disabled={isSavingAI}
-                  className="w-full sm:max-w-md"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="model-haiku">Haiku Model</Label>
-                <Input
-                  id="model-haiku"
-                  type="text"
-                  placeholder="claude-haiku-4-5-20251001"
-                  value={modelHaiku}
-                  onChange={(e) => setModelHaiku(e.target.value)}
-                  disabled={isSavingAI}
-                  className="w-full sm:max-w-md"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="model-opus">Opus Model</Label>
-                <Input
-                  id="model-opus"
-                  type="text"
-                  placeholder="claude-opus-4-5-20251101"
-                  value={modelOpus}
-                  onChange={(e) => setModelOpus(e.target.value)}
-                  disabled={isSavingAI}
-                  className="w-full sm:max-w-md"
-                />
-              </div>
+              {MODEL_TIERS.map(({ key, label, placeholder }) => (
+                <div key={key} className="space-y-2">
+                  <Label htmlFor={key}>{label}</Label>
+                  <Input
+                    id={key}
+                    type="text"
+                    placeholder={placeholder}
+                    value={modelOverrides[key]}
+                    onChange={(e) =>
+                      setModelOverrides((prev) => ({ ...prev, [key]: e.target.value }))
+                    }
+                    disabled={isSavingAI}
+                    className="w-full sm:max-w-md"
+                  />
+                </div>
+              ))}
 
               <Separator />
 

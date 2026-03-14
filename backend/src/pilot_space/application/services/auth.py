@@ -8,16 +8,13 @@ Migrated from direct repo/settings usage in auth router per DD-064.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import (
-    dataclass,
-    field,
-    field as dataclass_field,
-)
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pilot_space.domain.types import UNSET
 from pilot_space.infrastructure.database.models.user import User
 from pilot_space.infrastructure.database.repositories.pilot_api_key_repository import (
     PilotAPIKeyRepository,
@@ -31,9 +28,6 @@ from pilot_space.infrastructure.database.repositories.workspace_repository impor
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Sentinel to distinguish "not provided" from "explicitly None"
-UNSET: Any = object()
 
 
 @dataclass
@@ -75,7 +69,7 @@ class UpdateProfilePayload:
     avatar_url: str | None = None
     bio: str | None = None
     default_sdlc_role: str | None = None
-    ai_settings: dict[str, Any] | None = dataclass_field(default_factory=lambda: UNSET)
+    ai_settings: dict[str, Any] | None = field(default_factory=lambda: UNSET)
 
 
 @dataclass

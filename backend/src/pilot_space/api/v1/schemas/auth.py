@@ -7,12 +7,40 @@ OAuth callback and token refresh are handled client-side by Supabase SDK (RD-002
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
-from pydantic import EmailStr, Field
+from pydantic import EmailStr, Field, field_validator
 
 from pilot_space.api.v1.schemas.base import BaseSchema
+
+
+class AiSettingsSchema(BaseSchema):
+    """Per-user AI provider settings.
+
+    All fields optional — omitted fields fall back to system defaults.
+    base_url must be HTTPS with a public hostname (validated server-side
+    in build_sdk_env to prevent SSRF).
+    """
+
+    model_sonnet: str | None = Field(
+        default=None, max_length=200, description="Custom Sonnet model ID"
+    )
+    model_haiku: str | None = Field(
+        default=None, max_length=200, description="Custom Haiku model ID"
+    )
+    model_opus: str | None = Field(default=None, max_length=200, description="Custom Opus model ID")
+    base_url: str | None = Field(
+        default=None, max_length=500, description="Custom Anthropic API base URL (HTTPS only)"
+    )
+
+    @field_validator("base_url")
+    @classmethod
+    def _validate_base_url(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        from pilot_space.ai.sdk.config import validate_base_url
+
+        return validate_base_url(v)
 
 
 class LoginRequest(BaseSchema):
@@ -68,7 +96,7 @@ class UserProfileResponse(BaseSchema):
     avatar_url: str | None = Field(default=None, description="Profile image URL")
     bio: str | None = Field(default=None, description="Short bio displayed to teammates")
     default_sdlc_role: str | None = Field(default=None, description="User's default SDLC role")
-    ai_settings: dict[str, Any] | None = Field(
+    ai_settings: AiSettingsSchema | None = Field(
         default=None, description="Per-user AI provider settings (model overrides, base_url)"
     )
     created_at: datetime = Field(description="Account creation timestamp")
@@ -89,12 +117,13 @@ class UserProfileUpdateRequest(BaseSchema):
     default_sdlc_role: str | None = Field(
         default=None, max_length=50, description="Default SDLC role"
     )
-    ai_settings: dict[str, Any] | None = Field(
+    ai_settings: AiSettingsSchema | None = Field(
         default=None, description="Per-user AI provider settings (model overrides, base_url)"
     )
 
 
 __all__ = [
+    "AiSettingsSchema",
     "LoginRequest",
     "TokenResponse",
     "UserProfileResponse",

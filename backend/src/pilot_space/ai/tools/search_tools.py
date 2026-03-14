@@ -23,8 +23,6 @@ from pilot_space.application.services.memory.graph_search_service import (
 )
 from pilot_space.domain.graph_node import NodeType
 from pilot_space.infrastructure.database.models import (
-    Integration,
-    IntegrationProvider,
     Issue,
     Note,
 )
@@ -43,7 +41,9 @@ def _map_content_types(content_types: list[str] | None) -> list[NodeType] | None
         content_types: List of content type strings (e.g., ["issue", "note"]).
 
     Returns:
-        List of NodeType enums, or None if no filter requested.
+        None if no filter requested (content_types is None — means "all types").
+        Empty list if content_types was provided but none mapped (means "no matches").
+        Non-empty list of NodeType enums for valid mappings.
     """
     if content_types is None:
         return None
@@ -52,7 +52,9 @@ def _map_content_types(content_types: list[str] | None) -> list[NodeType] | None
         mapped = _CONTENT_TYPE_TO_NODE_TYPES.get(ct)
         if mapped:
             node_types.extend(mapped)
-    return node_types or None
+    # Return empty list (not None) when all entries are unmapped —
+    # this signals "no valid types" rather than "search everything".
+    return node_types
 
 
 def _format_graph_results(result: GraphSearchResult) -> dict[str, Any]:
@@ -122,7 +124,7 @@ async def semantic_search(
         return _format_graph_results(result)
 
     # Fallback: ILIKE text search (backward compatibility)
-    return await _text_fallback_search(query, ctx, content_types, limit)
+    return await _text_fallback_search(query, ctx, content_types, limit, workspace_uuid)
 
 
 async def _text_fallback_search(
@@ -130,6 +132,7 @@ async def _text_fallback_search(
     ctx: ToolContext,
     content_types: list[str] | None,
     limit: int,
+    workspace_uuid: UUID,
 ) -> dict[str, Any]:
     """ILIKE text search fallback when GraphSearchService is unavailable.
 
@@ -138,13 +141,13 @@ async def _text_fallback_search(
         ctx: Tool context with db_session.
         content_types: Filter by type (issue, note).
         limit: Maximum results.
+        workspace_uuid: Pre-parsed workspace UUID.
 
     Returns:
         Search results dict with text_similarity method.
     """
     search_pattern = f"%{query.lower()}%"
     results: list[dict[str, Any]] = []
-    workspace_uuid = UUID(ctx.workspace_id)
 
     # Search issues
     if content_types is None or "issue" in content_types:
@@ -236,7 +239,7 @@ async def search_codebase(
     """Check codebase search availability.
 
     Code indexing from GitHub integration is not yet implemented.
-    Returns connected integrations and an explicit not_implemented status.
+    Returns an explicit not_implemented status without querying the database.
 
     Args:
         query: Search query
@@ -246,49 +249,12 @@ async def search_codebase(
         limit: Maximum results (default 10, max 50)
 
     Returns:
-        Status dict with found=False and integration info
+        Status dict with found=False and not_implemented status
     """
-    limit = min(limit, 50)
-    workspace_uuid = UUID(ctx.workspace_id)
-
-    # Check if GitHub integration exists
-    integration_query = select(Integration).where(
-        Integration.workspace_id == workspace_uuid,
-        Integration.provider == IntegrationProvider.GITHUB,
-        Integration.is_deleted.is_(False),
-    )
-
-    if repo_id:
-        integration_query = integration_query.where(Integration.id == UUID(repo_id))
-
-    result = await ctx.db_session.execute(integration_query)
-    integrations = result.scalars().all()
-
-    if not integrations:
-        return {
-            "error": "No GitHub integration found for this workspace",
-            "found": False,
-            "matches": [],
-            "query": query,
-        }
-
-    integration_info = []
-    for integration in integrations:
-        metadata = integration.settings or {}
-        integration_info.append(
-            {
-                "id": str(integration.id),
-                "repo_name": metadata.get("repo_name"),
-                "external_account": integration.external_account_name,
-            }
-        )
-
     return {
         "found": False,
         "status": "not_implemented",
-        "message": "Code search is not yet available. GitHub integration is connected but code indexing has not been implemented.",
-        "integrations": integration_info,
+        "message": "Code search is not yet available. Code indexing has not been implemented.",
         "query": query,
         "file_pattern": file_pattern,
-        "limit": limit,
     }

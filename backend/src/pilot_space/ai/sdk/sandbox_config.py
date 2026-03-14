@@ -81,57 +81,47 @@ class ModelTier(str, Enum):
         return limits[self]
 
 
-def resolve_model_for_user(
-    tier: ModelTier,
+def resolve_model(
+    model: str | ModelTier,
     user_ai_settings: dict[str, Any] | None = None,
 ) -> str:
-    """Resolve tier to model ID with user override priority.
+    """Resolve a model identifier to a full model ID.
 
-    Priority chain:
+    Accepts either a ModelTier enum or a raw model string.
+    If a ModelTier is provided, resolves via env var (with optional user override).
+    If a raw string matching a tier name is provided, treats it as a tier.
+    Otherwise returns the string as-is (for custom/direct model IDs).
+
+    Priority chain (when tier is resolved):
     1. user_ai_settings["model_{tier}"] (user override)
     2. PILOTSPACE_MODEL_{TIER}_DEFAULT env var (admin override)
     3. Hardcoded defaults
 
     Args:
-        tier: Model tier to resolve.
+        model: ModelTier enum, tier name ("sonnet"/"opus"), or full model ID
         user_ai_settings: Optional per-user AI settings dict.
 
     Returns:
-        Full model identifier string.
+        Full model identifier string
     """
+    # Resolve string to tier if possible
+    tier: ModelTier | None = None
+    if isinstance(model, ModelTier):
+        tier = model
+    else:
+        try:
+            tier = ModelTier(model.lower())
+        except ValueError:
+            return model
+
     # Check user override first
     if user_ai_settings:
         user_model = user_ai_settings.get(f"model_{tier.value}")
         if user_model:
             return str(user_model)
 
-    # Fall back to env var then hardcoded default (existing behavior)
+    # Fall back to env var then hardcoded default
     return tier.model_id
-
-
-def resolve_model(model: str | ModelTier) -> str:
-    """Resolve a model identifier to a full model ID.
-
-    Accepts either a ModelTier enum or a raw model string.
-    If a ModelTier is provided, resolves via env var.
-    If a raw string matching a tier name is provided, treats it as a tier.
-    Otherwise returns the string as-is (for custom/direct model IDs).
-
-    Args:
-        model: ModelTier enum, tier name ("sonnet"/"opus"), or full model ID
-
-    Returns:
-        Full model identifier string
-    """
-    if isinstance(model, ModelTier):
-        return model.model_id
-
-    # Check if string matches a tier name
-    try:
-        tier = ModelTier(model.lower())
-        return tier.model_id
-    except ValueError:
-        return model
 
 
 class HookExecutor(Protocol):
