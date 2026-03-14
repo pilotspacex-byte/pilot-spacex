@@ -312,6 +312,119 @@ class TestUserSummary:
         assert summary.total_output_tokens == 1500
 
 
+class TestGetCostTrends:
+    """Test get_cost_trends query construction."""
+
+    @pytest.mark.asyncio
+    async def test_get_cost_trends_daily_empty(self) -> None:
+        """Verify daily trends returns empty list when no records exist."""
+        from datetime import date
+        from unittest.mock import AsyncMock, MagicMock
+
+        session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.__iter__ = MagicMock(return_value=iter([]))
+        session.execute = AsyncMock(return_value=mock_result)
+
+        tracker = CostTracker(session)
+        ws_id = uuid.uuid4()
+
+        result = await tracker.get_cost_trends(
+            workspace_id=ws_id,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 31),
+            granularity="daily",
+        )
+
+        assert result == []
+        session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_cost_trends_weekly_empty(self) -> None:
+        """Verify weekly trends returns empty list when no records exist."""
+        from datetime import date
+        from unittest.mock import AsyncMock, MagicMock
+
+        session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.__iter__ = MagicMock(return_value=iter([]))
+        session.execute = AsyncMock(return_value=mock_result)
+
+        tracker = CostTracker(session)
+        ws_id = uuid.uuid4()
+
+        result = await tracker.get_cost_trends(
+            workspace_id=ws_id,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 3, 31),
+            granularity="weekly",
+        )
+
+        assert result == []
+        session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_cost_trends_daily_with_data(self) -> None:
+        """Verify daily trends correctly formats results."""
+        from datetime import date
+        from unittest.mock import AsyncMock, MagicMock
+
+        session = MagicMock()
+        row = MagicMock()
+        row.period = date(2026, 1, 15)
+        row.total_cost_usd = Decimal("0.025")
+        row.request_count = 5
+        mock_result = MagicMock()
+        mock_result.__iter__ = MagicMock(return_value=iter([row]))
+        session.execute = AsyncMock(return_value=mock_result)
+
+        tracker = CostTracker(session)
+        ws_id = uuid.uuid4()
+
+        result = await tracker.get_cost_trends(
+            workspace_id=ws_id,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 31),
+            granularity="daily",
+        )
+
+        assert len(result) == 1
+        assert result[0]["period"] == "2026-01-15"
+        assert result[0]["total_cost_usd"] == pytest.approx(0.025, abs=1e-6)
+        assert result[0]["request_count"] == 5
+        assert result[0]["avg_cost_per_request"] == pytest.approx(0.005, abs=1e-6)
+
+    @pytest.mark.asyncio
+    async def test_get_cost_trends_weekly_with_data(self) -> None:
+        """Verify weekly trends correctly formats string period."""
+        from datetime import date
+        from unittest.mock import AsyncMock, MagicMock
+
+        session = MagicMock()
+        row = MagicMock()
+        row.period = "2026-03"  # ISO week format
+        row.total_cost_usd = Decimal("1.50")
+        row.request_count = 10
+        mock_result = MagicMock()
+        mock_result.__iter__ = MagicMock(return_value=iter([row]))
+        session.execute = AsyncMock(return_value=mock_result)
+
+        tracker = CostTracker(session)
+        ws_id = uuid.uuid4()
+
+        result = await tracker.get_cost_trends(
+            workspace_id=ws_id,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 3, 31),
+            granularity="weekly",
+        )
+
+        assert len(result) == 1
+        assert result[0]["period"] == "2026-03"
+        assert result[0]["total_cost_usd"] == pytest.approx(1.50, abs=1e-6)
+        assert result[0]["request_count"] == 10
+
+
 class TestPricingTable:
     """Test pricing table completeness."""
 

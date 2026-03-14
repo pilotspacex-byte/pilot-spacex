@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Final
 from uuid import UUID
 
-from sqlalchemy import Date, cast, func, select
+from sqlalchemy import Date, cast, func, literal_column, select
 
 from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
 from pilot_space.infrastructure.logging import get_logger
@@ -614,28 +614,21 @@ class CostTracker:
 
         if granularity == "weekly":
             # PostgreSQL week aggregation (ISO week)
-            query = (
-                select(
-                    func.to_char(AICostRecord.created_at, "IYYY-IW").label("period"),
-                    func.sum(AICostRecord.cost_usd).label("total_cost_usd"),
-                    func.count(AICostRecord.id).label("request_count"),
-                )
-                .where(base_filter)
-                .group_by(func.to_char(AICostRecord.created_at, "IYYY-IW"))
-                .order_by(func.to_char(AICostRecord.created_at, "IYYY-IW"))
-            )
+            period_expr = func.to_char(AICostRecord.created_at, "IYYY-IW")
         else:
-            # Daily aggregation
-            query = (
-                select(
-                    func.to_char(AICostRecord.created_at, "YYYY-MM-DD").label("period"),
-                    func.sum(AICostRecord.cost_usd).label("total_cost_usd"),
-                    func.count(AICostRecord.id).label("request_count"),
-                )
-                .where(base_filter)
-                .group_by(func.to_char(AICostRecord.created_at, "YYYY-MM-DD"))
-                .order_by(func.to_char(AICostRecord.created_at, "YYYY-MM-DD"))
+            # Daily aggregation — cast to Date for simple day grouping
+            period_expr = cast(AICostRecord.created_at, Date)
+
+        query = (
+            select(
+                period_expr.label("period"),
+                func.sum(AICostRecord.cost_usd).label("total_cost_usd"),
+                func.count(AICostRecord.id).label("request_count"),
             )
+            .where(base_filter)
+            .group_by(literal_column("period"))
+            .order_by(literal_column("period"))
+        )
 
         result = await self.session.execute(query)
 
@@ -643,9 +636,12 @@ class CostTracker:
         for row in result:
             total_cost = float(row.total_cost_usd)
             count = int(row.request_count)
+            period = row.period
+            if isinstance(period, date):
+                period = period.isoformat()
             trends.append(
                 {
-                    "period": row.period,
+                    "period": str(period),
                     "total_cost_usd": total_cost,
                     "request_count": count,
                     "avg_cost_per_request": total_cost / count if count > 0 else 0.0,
