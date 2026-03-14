@@ -460,7 +460,7 @@ async def get_ai_status(
 
     configured_providers: list[str] = []
     for provider in ("anthropic", "openai", "google"):
-        key_info = await key_storage.get_key_info(workspace_id, provider)
+        key_info = await key_storage.get_key_info(workspace_id, provider, "llm")
         if key_info is not None and key_info.is_valid:
             configured_providers.append(provider)
 

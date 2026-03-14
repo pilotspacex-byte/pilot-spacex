@@ -162,7 +162,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         if workspace_id is not None:
             # Workspace-scoped: BYOK required, no env fallback
             if self._key_storage:
-                key = await self._key_storage.get_api_key(workspace_id, "anthropic")
+                key = await self._key_storage.get_api_key(workspace_id, "anthropic", "llm")
                 if key:
                     return key
             raise AINotConfiguredError(workspace_id=workspace_id)

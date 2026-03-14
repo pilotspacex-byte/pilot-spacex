@@ -191,7 +191,7 @@ class GhostTextService:
                 }
 
         # BYOK key resolution
-        api_key = await self._key_storage.get_api_key(workspace_id, "anthropic")
+        api_key = await self._key_storage.get_api_key(workspace_id, "anthropic", "llm")
         if not api_key:
             settings = get_settings()
             api_key = (

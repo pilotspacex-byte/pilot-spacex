@@ -28,11 +28,12 @@ class WorkspaceAPIKey(Base, TimestampMixin, WorkspaceScopedMixin):
     """Encrypted API key storage for AI providers.
 
     Implements BYOK (Bring Your Own Key) model per DD-002.
-    Each workspace can have one key per provider (anthropic, openai, google).
+    Each workspace can have one key per provider per service type.
 
     Attributes:
         workspace_id: Reference to parent workspace.
-        provider: LLM provider name (anthropic, openai, google).
+        provider: Provider name (google, anthropic, ollama).
+        service_type: Service category ('embedding' or 'llm').
         encrypted_key: Fernet-encrypted API key.
         is_valid: Whether the key has been validated.
         last_validated_at: Last successful validation timestamp.
@@ -42,7 +43,10 @@ class WorkspaceAPIKey(Base, TimestampMixin, WorkspaceScopedMixin):
     __tablename__ = "workspace_api_keys"
     __table_args__ = (
         UniqueConstraint(
-            "workspace_id", "provider", name="uq_workspace_api_keys_workspace_provider"
+            "workspace_id",
+            "provider",
+            "service_type",
+            name="uq_workspace_api_keys_workspace_provider_service",
         ),
         {"schema": None},
     )
@@ -52,18 +56,26 @@ class WorkspaceAPIKey(Base, TimestampMixin, WorkspaceScopedMixin):
         server_default="gen_random_uuid()",
     )
 
-    # Provider (anthropic, openai, google)
+    # Provider (google, anthropic, ollama)
     provider: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        doc="LLM provider name",
+        doc="Provider name",
     )
 
-    # Encrypted API key (Supabase Vault or Fernet)
-    encrypted_key: Mapped[str] = mapped_column(
-        Text,
+    # Service type (embedding or llm)
+    service_type: Mapped[str] = mapped_column(
+        String(20),
         nullable=False,
-        doc="Fernet-encrypted API key",
+        server_default="llm",
+        doc="Service category: 'embedding' or 'llm'",
+    )
+
+    # Encrypted API key (Fernet) — nullable for providers like Ollama
+    encrypted_key: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="Fernet-encrypted API key (optional for local providers)",
     )
 
     # Validation status
@@ -108,5 +120,6 @@ class WorkspaceAPIKey(Base, TimestampMixin, WorkspaceScopedMixin):
         """Return string representation."""
         return (
             f"<WorkspaceAPIKey(workspace_id={self.workspace_id}, "
-            f"provider={self.provider}, is_valid={self.is_valid})>"
+            f"provider={self.provider}, service_type={self.service_type}, "
+            f"is_valid={self.is_valid})>"
         )

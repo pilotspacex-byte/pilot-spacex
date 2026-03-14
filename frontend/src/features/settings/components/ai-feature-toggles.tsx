@@ -73,7 +73,7 @@ export const AIFeatureToggles = observer(function AIFeatureToggles() {
     }
   };
 
-  const allKeysConfigured = settings.anthropicKeySet && settings.openaiKeySet;
+  const allKeysConfigured = settings.anthropicKeySet && settings.embeddingConfigured;
   const isDisabled = settings.isSaving || !allKeysConfigured;
 
   return (

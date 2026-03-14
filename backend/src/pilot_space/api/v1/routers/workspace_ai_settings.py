@@ -3,6 +3,9 @@
 Provides endpoints for managing workspace AI provider configuration,
 API key validation, and feature toggles (T062-T066).
 Routes are mounted under /workspaces/{workspace_id}/ai/settings.
+
+Service-based architecture: 2 service slots (embedding + llm).
+Supported providers: google (embedding), anthropic (llm), ollama (both).
 """
 
 from __future__ import annotations
@@ -33,16 +36,18 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+# Provider → service type mapping
+# Each tuple: (provider, service_type, supports_both)
+PROVIDER_SERVICE_SLOTS: list[tuple[str, str, bool]] = [
+    ("google", "embedding", False),
+    ("ollama", "embedding", True),
+    ("anthropic", "llm", False),
+    ("ollama", "llm", True),
+]
+
 
 def _get_workspace_features(workspace: Workspace) -> AIFeatureToggles:
-    """Extract feature toggles from workspace settings.
-
-    Args:
-        workspace: Workspace model.
-
-    Returns:
-        AI feature toggles (defaults if not configured).
-    """
+    """Extract feature toggles from workspace settings."""
     if not workspace.settings or "ai_features" not in workspace.settings:
         return AIFeatureToggles()
 
@@ -55,20 +60,7 @@ async def _get_admin_workspace(
     current_user: CurrentUser,
     session: DbSession,
 ) -> Workspace:
-    """Resolve workspace and verify admin access.
-
-    Args:
-        workspace_id: Workspace identifier.
-        current_user: Authenticated user.
-        session: Database session.
-
-    Returns:
-        Workspace model.
-
-    Raises:
-        HTTPException: If workspace not found or user not admin.
-    """
-    # H-4 fix: use get_with_members to eagerly load members (avoids MissingGreenlet)
+    """Resolve workspace and verify admin access."""
     workspace_repo = WorkspaceRepository(session=session)
     workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
@@ -100,25 +92,13 @@ async def get_ai_settings(
     current_user: CurrentUser,
     session: DbSession,
 ) -> WorkspaceAISettingsResponse:
-    """Get workspace AI settings (T062).
+    """Get workspace AI settings.
 
-    Returns configured providers (not keys) and feature toggles.
+    Returns provider statuses grouped by service type and feature toggles.
     Requires workspace admin permission.
-
-    Args:
-        workspace_id: Workspace identifier.
-        current_user: Authenticated user.
-        session: Database session.
-
-    Returns:
-        Current AI settings.
-
-    Raises:
-        HTTPException: If workspace not found or user not admin.
     """
     workspace = await _get_admin_workspace(workspace_id, current_user, session)
 
-    # Import here to avoid circular dependencies
     from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
     from pilot_space.config import get_settings
 
@@ -127,22 +107,22 @@ async def get_ai_settings(
         db=session, master_secret=settings.encryption_key.get_secret_value()
     )
 
-    # Get provider statuses for all 6 providers
     providers = []
-    for provider in ["anthropic", "openai", "google", "kimi", "glm", "ai_agent"]:
-        key_info = await key_storage.get_key_info(workspace_id, provider)
+    for provider, service_type, supports_both in PROVIDER_SERVICE_SLOTS:
+        key_info = await key_storage.get_key_info(workspace_id, provider, service_type)
         providers.append(
             ProviderStatus(
                 provider=provider,
+                service_type=service_type,
                 is_configured=key_info is not None,
                 is_valid=key_info.is_valid if key_info else None,
                 last_validated_at=key_info.last_validated_at if key_info else None,
                 base_url=key_info.base_url if key_info else None,
                 model_name=key_info.model_name if key_info else None,
+                supports_both=supports_both,
             )
         )
 
-    # Get feature toggles from workspace settings
     features = _get_workspace_features(workspace)
 
     return WorkspaceAISettingsResponse(
@@ -167,26 +147,13 @@ async def update_ai_settings(
     current_user: CurrentUser,
     session: DbSession,
 ) -> WorkspaceAISettingsUpdateResponse:
-    """Update workspace AI settings (T063).
+    """Update workspace AI settings.
 
-    Validates API keys before saving. Keys are encrypted with Fernet.
+    Stores API keys (encrypted with Fernet) and feature toggles.
     Requires workspace admin permission.
-
-    Args:
-        workspace_id: Workspace identifier.
-        body: Settings update data.
-        current_user: Authenticated user.
-        session: Database session.
-
-    Returns:
-        Update results with validation feedback.
-
-    Raises:
-        HTTPException: If workspace not found or user not admin.
     """
     workspace = await _get_admin_workspace(workspace_id, current_user, session)
 
-    # Import here to avoid circular dependencies
     from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
     from pilot_space.config import get_settings
 
@@ -199,12 +166,14 @@ async def update_ai_settings(
     validation_results: list[KeyValidationResult] = []
     updated_providers: list[str] = []
 
-    # Process API key updates — merge with existing, store immediately
     if body.api_keys:
         for key_update in body.api_keys:
+            provider = key_update.provider
+            service_type = key_update.service_type
+
             # Merge with existing config so omitted fields are preserved
-            existing_key = await key_storage.get_api_key(workspace_id, key_update.provider)
-            existing_info = await key_storage.get_key_info(workspace_id, key_update.provider)
+            existing_key = await key_storage.get_api_key(workspace_id, provider, service_type)
+            existing_info = await key_storage.get_key_info(workspace_id, provider, service_type)
 
             api_key = key_update.api_key if key_update.api_key is not None else existing_key
             base_url = (
@@ -218,42 +187,40 @@ async def update_ai_settings(
                 else (existing_info.model_name if existing_info else None)
             )
 
-            if api_key:
-                await key_storage.store_api_key(
-                    workspace_id=workspace_id,
-                    provider=key_update.provider,
-                    api_key=api_key,
-                    base_url=base_url,
-                    model_name=model_name,
-                )
-                updated_providers.append(key_update.provider)
+            # For providers that need an API key (google, anthropic),
+            # skip if no key provided and none exists
+            needs_api_key = provider in ("google", "anthropic")
+            if needs_api_key and not api_key:
+                continue
+
+            # For Ollama, base_url is required
+            if provider == "ollama" and not base_url:
                 validation_results.append(
                     KeyValidationResult(
-                        provider=key_update.provider,
-                        is_valid=True,
-                        error_message=None,
+                        provider=provider,
+                        is_valid=False,
+                        error_message="Base URL is required for Ollama",
                     )
                 )
-            elif existing_key is None:
-                # No existing key and no new key — nothing to store, skip
-                pass
-            else:
-                # Existing key with updated base_url/model_name only
-                await key_storage.store_api_key(
-                    workspace_id=workspace_id,
-                    provider=key_update.provider,
-                    api_key=existing_key,
-                    base_url=base_url,
-                    model_name=model_name,
+                continue
+
+            await key_storage.store_api_key(
+                workspace_id=workspace_id,
+                provider=provider,
+                service_type=service_type,
+                api_key=api_key,
+                base_url=base_url,
+                model_name=model_name,
+            )
+            provider_label = f"{provider}:{service_type}"
+            updated_providers.append(provider_label)
+            validation_results.append(
+                KeyValidationResult(
+                    provider=provider_label,
+                    is_valid=True,
+                    error_message=None,
                 )
-                updated_providers.append(key_update.provider)
-                validation_results.append(
-                    KeyValidationResult(
-                        provider=key_update.provider,
-                        is_valid=True,
-                        error_message=None,
-                    )
-                )
+            )
 
     # Update feature toggles
     updated_features = False

@@ -62,9 +62,15 @@ export const APIKeyForm = observer(function APIKeyForm() {
     }
 
     // Only send non-empty keys (unchanged keys remain empty)
-    const apiKeys: Array<{ provider: string; api_key: string }> = [];
-    if (anthropicKey) apiKeys.push({ provider: 'anthropic', api_key: anthropicKey });
-    if (openaiKey) apiKeys.push({ provider: 'openai', api_key: openaiKey });
+    const apiKeys: Array<{
+      provider: string;
+      service_type: 'embedding' | 'llm';
+      api_key: string;
+    }> = [];
+    if (anthropicKey)
+      apiKeys.push({ provider: 'anthropic', service_type: 'llm', api_key: anthropicKey });
+    if (openaiKey)
+      apiKeys.push({ provider: 'google', service_type: 'embedding', api_key: openaiKey });
 
     if (apiKeys.length === 0) {
       toast.info('No changes to save');
@@ -132,14 +138,14 @@ export const APIKeyForm = observer(function APIKeyForm() {
             label="OpenAI API Key"
             value={openaiKey}
             onChange={setOpenaiKey}
-            isSet={settings.openaiKeySet}
+            isSet={settings.embeddingConfigured}
             required
             error={
               validationErrors.openai ?? (settings.validationErrors['openai'] as string | undefined)
             }
             disabled={settings.isSaving}
             provider="openai"
-            placeholder={settings.openaiKeySet ? '••••••••••••••••••••' : 'sk-...'}
+            placeholder={settings.embeddingConfigured ? '••••••••••••••••••••' : 'sk-...'}
           />
         </div>
 

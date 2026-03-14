@@ -1,7 +1,8 @@
 /**
  * Tests for ProviderRow component.
  *
- * Verifies unified provider row with expandable config fields.
+ * Verifies service-based provider row with expandable config fields.
+ * Supports 3 providers: Google Gemini (embedding), Anthropic (llm), Ollama (both).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -64,38 +65,50 @@ describe('ProviderRow', () => {
     mockSettings.saveSettings = vi.fn().mockResolvedValue(undefined);
   });
 
-  it('renders Anthropic provider name', () => {
-    render(<ProviderRow {...defaultProps} provider="anthropic" status={undefined} />);
-    expect(screen.getByText('Anthropic')).toBeInTheDocument();
-  });
-
-  it('renders OpenAI provider name', () => {
-    render(<ProviderRow {...defaultProps} provider="openai" status={undefined} />);
-    expect(screen.getByText('OpenAI')).toBeInTheDocument();
-  });
-
   it('renders Google Gemini provider name', () => {
-    render(<ProviderRow {...defaultProps} provider="google" status={undefined} />);
+    render(
+      <ProviderRow {...defaultProps} provider="google" serviceType="embedding" status={undefined} />
+    );
     expect(screen.getByText('Google Gemini')).toBeInTheDocument();
   });
 
-  it('renders Kimi provider name', () => {
-    render(<ProviderRow {...defaultProps} provider="kimi" status={undefined} />);
-    expect(screen.getByText('Kimi (Moonshot)')).toBeInTheDocument();
+  it('renders Anthropic provider name', () => {
+    render(
+      <ProviderRow {...defaultProps} provider="anthropic" serviceType="llm" status={undefined} />
+    );
+    expect(screen.getByText('Anthropic')).toBeInTheDocument();
   });
 
-  it('renders GLM provider name', () => {
-    render(<ProviderRow {...defaultProps} provider="glm" status={undefined} />);
-    expect(screen.getByText('GLM (Zhipu)')).toBeInTheDocument();
+  it('renders Ollama provider name', () => {
+    render(
+      <ProviderRow {...defaultProps} provider="ollama" serviceType="llm" status={undefined} />
+    );
+    expect(screen.getByText('Ollama')).toBeInTheDocument();
   });
 
-  it('renders AI Agent provider name', () => {
-    render(<ProviderRow {...defaultProps} provider="ai_agent" status={undefined} />);
-    expect(screen.getByText('AI Agent')).toBeInTheDocument();
+  it('shows "Embedding + LLM" badge for Ollama when supports_both', () => {
+    render(
+      <ProviderRow
+        {...defaultProps}
+        provider="ollama"
+        serviceType="embedding"
+        status={{
+          provider: 'ollama',
+          serviceType: 'embedding',
+          isConfigured: false,
+          isValid: null,
+          lastValidatedAt: null,
+          supportsBoth: true,
+        }}
+      />
+    );
+    expect(screen.getByText('Embedding + LLM')).toBeInTheDocument();
   });
 
   it('shows "Not configured" badge when status is undefined', () => {
-    render(<ProviderRow {...defaultProps} provider="anthropic" status={undefined} />);
+    render(
+      <ProviderRow {...defaultProps} provider="anthropic" serviceType="llm" status={undefined} />
+    );
     expect(screen.getByText('Not configured')).toBeInTheDocument();
   });
 
@@ -104,84 +117,86 @@ describe('ProviderRow', () => {
       <ProviderRow
         {...defaultProps}
         provider="anthropic"
+        serviceType="llm"
         status={{
           provider: 'anthropic',
+          serviceType: 'llm',
           isConfigured: true,
           isValid: true,
           lastValidatedAt: null,
+          supportsBoth: false,
         }}
       />
     );
     expect(screen.getByText('Connected')).toBeInTheDocument();
   });
 
-  it('shows "Configured" badge when provider is configured but not validated', () => {
+  it('shows "Configured" badge when configured but not validated', () => {
     render(
       <ProviderRow
         {...defaultProps}
         provider="anthropic"
+        serviceType="llm"
         status={{
           provider: 'anthropic',
+          serviceType: 'llm',
           isConfigured: true,
           isValid: null,
           lastValidatedAt: null,
+          supportsBoth: false,
         }}
       />
     );
     expect(screen.getByText('Configured')).toBeInTheDocument();
   });
 
-  it('expands to show config fields when clicked', async () => {
+  it('Anthropic shows api_key + base_url fields when expanded', async () => {
     const user = userEvent.setup();
-    render(<ProviderRow {...defaultProps} provider="anthropic" status={undefined} />);
+    render(
+      <ProviderRow {...defaultProps} provider="anthropic" serviceType="llm" status={undefined} />
+    );
 
     const trigger = screen.getByRole('button', { name: /Configure Anthropic/i });
     await user.click(trigger);
 
     expect(screen.getByTestId('api-key-input-anthropic')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Base URL/)).toBeInTheDocument();
   });
 
-  it('Google Gemini row shows api_key + base_url fields when expanded', async () => {
+  it('Google Gemini shows api_key + base_url fields when expanded', async () => {
     const user = userEvent.setup();
-    render(<ProviderRow {...defaultProps} provider="google" status={undefined} />);
+    render(
+      <ProviderRow {...defaultProps} provider="google" serviceType="embedding" status={undefined} />
+    );
 
     const trigger = screen.getByRole('button', { name: /Configure Google Gemini/i });
     await user.click(trigger);
 
     expect(screen.getByTestId('api-key-input-google')).toBeInTheDocument();
-    expect(screen.getByLabelText('Base URL')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Model Name')).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Base URL/)).toBeInTheDocument();
   });
 
-  it('AI Agent row shows base_url + model_name + api_key fields when expanded', async () => {
+  it('Ollama shows base_url + model_name + api_key fields when expanded', async () => {
     const user = userEvent.setup();
-    render(<ProviderRow {...defaultProps} provider="ai_agent" status={undefined} />);
+    render(
+      <ProviderRow {...defaultProps} provider="ollama" serviceType="llm" status={undefined} />
+    );
 
-    const trigger = screen.getByRole('button', { name: /Configure AI Agent/i });
+    const trigger = screen.getByRole('button', { name: /Configure Ollama/i });
     await user.click(trigger);
 
     expect(screen.getByLabelText('Base URL')).toBeInTheDocument();
     expect(screen.getByLabelText('Model Name')).toBeInTheDocument();
-    expect(screen.getByTestId('api-key-input-ai_agent')).toBeInTheDocument();
-  });
-
-  it('Anthropic row shows only api_key field when expanded', async () => {
-    const user = userEvent.setup();
-    render(<ProviderRow {...defaultProps} provider="anthropic" status={undefined} />);
-
-    const trigger = screen.getByRole('button', { name: /Configure Anthropic/i });
-    await user.click(trigger);
-
-    expect(screen.getByTestId('api-key-input-anthropic')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Model Name')).not.toBeInTheDocument();
+    expect(screen.getByTestId('api-key-input-ollama')).toBeInTheDocument();
   });
 
   it('Save button is present in expanded state', async () => {
     const user = userEvent.setup();
-    render(<ProviderRow {...defaultProps} provider="openai" status={undefined} />);
+    render(
+      <ProviderRow {...defaultProps} provider="anthropic" serviceType="llm" status={undefined} />
+    );
 
-    const trigger = screen.getByRole('button', { name: /Configure OpenAI/i });
+    const trigger = screen.getByRole('button', { name: /Configure Anthropic/i });
     await user.click(trigger);
 
     expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();

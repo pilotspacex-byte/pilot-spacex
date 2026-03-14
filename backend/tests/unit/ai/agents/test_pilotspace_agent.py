@@ -49,7 +49,7 @@ async def test_get_api_key_raises_when_no_workspace_key() -> None:
 
     assert exc_info.value.workspace_id == workspace_id
     # Ensure env ANTHROPIC_API_KEY was NOT used as fallback
-    key_storage.get_api_key.assert_awaited_once_with(workspace_id, "anthropic")
+    key_storage.get_api_key.assert_awaited_once_with(workspace_id, "anthropic", "llm")
 
 
 async def test_get_api_key_succeeds_when_key_exists() -> None:
@@ -69,7 +69,7 @@ async def test_get_api_key_succeeds_when_key_exists() -> None:
     result = await agent._get_api_key(workspace_id)
 
     assert result == expected_key
-    key_storage.get_api_key.assert_awaited_once_with(workspace_id, "anthropic")
+    key_storage.get_api_key.assert_awaited_once_with(workspace_id, "anthropic", "llm")
 
 
 async def test_system_only_uses_env_key_when_no_workspace_id() -> None:

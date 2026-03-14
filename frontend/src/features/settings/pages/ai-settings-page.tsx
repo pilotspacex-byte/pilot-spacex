@@ -1,9 +1,8 @@
 /**
  * AISettingsPage - Workspace AI configuration.
  *
- * Unified provider list with expandable rows.
- * All 6 providers (Anthropic, OpenAI, Google Gemini, Kimi, GLM, AI Agent)
- * appear in a single list. Each row is expandable with provider-specific fields.
+ * Two service sections: Embedding Service and AI LLM Service.
+ * Supported providers: Google Gemini (embedding), Anthropic (llm), Ollama (both).
  */
 
 'use client';
@@ -11,15 +10,13 @@
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { useParams } from 'next/navigation';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Database, BrainCircuit } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { ProviderRow } from '../components/provider-row';
 import { AIFeatureToggles } from '../components/ai-feature-toggles';
 import { useStore } from '@/stores';
-
-const ALL_PROVIDERS = ['anthropic', 'openai', 'google', 'kimi', 'glm', 'ai_agent'] as const;
 
 function LoadingSkeleton() {
   return (
@@ -72,29 +69,68 @@ export const AISettingsPage = observer(function AISettingsPage() {
     );
   }
 
+  const embeddingProviders = settings.getProvidersByService('embedding');
+  const llmProviders = settings.getProvidersByService('llm');
+
   return (
     <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="space-y-6">
         {/* Header */}
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">AI Providers</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">AI Services</h1>
           <p className="text-sm text-muted-foreground">
-            Configure AI provider API keys and manage AI-powered features for your workspace.
+            Configure the two AI services required for your workspace: Embedding and LLM.
           </p>
         </div>
 
-        {/* Unified Provider List */}
-        <div className="space-y-2">
-          {ALL_PROVIDERS.map((provider) => (
-            <ProviderRow
-              key={provider}
-              provider={provider}
-              status={settings.getProviderStatus(provider)}
-              workspaceId={workspaceId}
-              onSaved={handleProviderSaved}
-            />
-          ))}
-        </div>
+        {/* Embedding Service Section */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Database className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-medium">Embedding Service</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-3">
+            Used for semantic search, knowledge graph, and RAG. Configure one provider.
+          </p>
+          <div className="space-y-2">
+            {embeddingProviders.map((p) => (
+              <ProviderRow
+                key={`${p.provider}-${p.serviceType}`}
+                provider={p.provider}
+                serviceType="embedding"
+                status={p}
+                workspaceId={workspaceId}
+                onSaved={handleProviderSaved}
+              />
+            ))}
+          </div>
+        </section>
+
+        <Separator />
+
+        {/* AI LLM Service Section */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <BrainCircuit className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-medium">AI LLM Service</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-3">
+            Used for AI agents, ghost text, PR review, and issue extraction. Anthropic-compatible
+            API.
+          </p>
+          <div className="space-y-2">
+            {llmProviders.map((p) => (
+              <ProviderRow
+                key={`${p.provider}-${p.serviceType}`}
+                provider={p.provider}
+                serviceType="llm"
+                status={p}
+                workspaceId={workspaceId}
+                onSaved={handleProviderSaved}
+              />
+            ))}
+          </div>
+        </section>
 
         <Separator />
 
@@ -106,8 +142,8 @@ export const AISettingsPage = observer(function AISettingsPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Security & Privacy</AlertTitle>
           <AlertDescription>
-            API keys are encrypted using Supabase Vault before storage. Keys are never logged or
-            exposed in responses. Each AI request is tracked for cost monitoring and audit purposes.
+            API keys are encrypted at rest using Fernet encryption. Keys are never logged or exposed
+            in responses. Each AI request is tracked for cost monitoring and audit purposes.
           </AlertDescription>
         </Alert>
       </div>

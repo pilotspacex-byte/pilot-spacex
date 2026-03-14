@@ -302,16 +302,19 @@ class ProviderStatus(BaseSchema):
     """Status of a configured AI provider.
 
     Attributes:
-        provider: Provider name (anthropic, openai, google, kimi, glm, ai_agent).
-        is_configured: Whether an API key exists for this provider.
+        provider: Provider name (google, anthropic, ollama).
+        service_type: Service category ('embedding' or 'llm').
+        is_configured: Whether the provider is configured for this service.
         is_valid: Whether the key has been validated (None if never validated).
         last_validated_at: Timestamp of last successful validation.
         base_url: Custom base URL for provider API (if configured).
         model_name: Default model name override (if configured).
+        supports_both: Whether this provider can serve both embedding and LLM.
     """
 
     provider: str = Field(description="Provider name")
-    is_configured: bool = Field(description="Whether API key is configured")
+    service_type: str = Field(description="Service category: 'embedding' or 'llm'")
+    is_configured: bool = Field(description="Whether provider is configured for this service")
     is_valid: bool | None = Field(
         default=None, description="Validation status (None if never validated)"
     )
@@ -320,6 +323,7 @@ class ProviderStatus(BaseSchema):
     )
     base_url: str | None = Field(default=None, description="Custom base URL for provider API")
     model_name: str | None = Field(default=None, description="Default model name override")
+    supports_both: bool = Field(default=False, description="Supports both embedding and LLM")
 
 
 class AIFeatureToggles(BaseSchema):
@@ -366,19 +370,24 @@ class APIKeyUpdate(BaseSchema):
     """API key update for a provider.
 
     Attributes:
-        provider: Provider name (anthropic, openai, google, kimi, glm, ai_agent).
-        api_key: API key to store (None to remove).
-        base_url: Optional custom base URL for provider API.
-        model_name: Optional default model name override.
+        provider: Provider name (google, anthropic, ollama).
+        service_type: Service category ('embedding' or 'llm').
+        api_key: API key to store (optional for ollama).
+        base_url: Custom base URL for provider API (required for ollama).
+        model_name: Default model name override.
     """
 
     provider: str = Field(
         description="Provider name",
-        pattern="^(anthropic|openai|google|kimi|glm|ai_agent)$",
+        pattern="^(google|anthropic|ollama)$",
+    )
+    service_type: str = Field(
+        description="Service category",
+        pattern="^(embedding|llm)$",
     )
     api_key: str | None = Field(
         default=None,
-        description="API key to store (None to remove)",
+        description="API key (optional for local providers like Ollama)",
         min_length=1,
     )
     base_url: str | None = Field(

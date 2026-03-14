@@ -175,7 +175,7 @@ class DigestJobHandler:
                 return self._fallback_suggestions()
 
             key_storage = SecureKeyStorage(db=self._session, master_secret=encryption_key)
-            api_key = await key_storage.get_api_key(workspace_id, "anthropic")
+            api_key = await key_storage.get_api_key(workspace_id, "anthropic", "llm")
             if not api_key:
                 logger.warning(
                     "Anthropic API key not configured for workspace %s",

@@ -1,6 +1,6 @@
-"""Unit tests for SecureKeyStorage (T065).
+"""Unit tests for SecureKeyStorage.
 
-Tests encryption, decryption, validation, and key info retrieval.
+Tests encryption, decryption, validation, service_type support, and key info retrieval.
 """
 
 from __future__ import annotations
@@ -48,16 +48,15 @@ class TestSecureKeyStorage:
         workspace_id = uuid4()
         api_key = "sk-ant-test-key-12345"  # pragma: allowlist secret
 
-        # Mock the execute to simulate successful insert
         mock_session.execute.return_value = None
 
         await key_storage.store_api_key(
             workspace_id=workspace_id,
             provider="anthropic",
+            service_type="llm",
             api_key=api_key,
         )
 
-        # Verify session methods were called
         mock_session.execute.assert_called_once()
         mock_session.commit.assert_called_once()
 
@@ -72,11 +71,68 @@ class TestSecureKeyStorage:
             await key_storage.store_api_key(
                 workspace_id=workspace_id,
                 provider="invalid-provider",
+                service_type="llm",
                 api_key="test-key",  # pragma: allowlist secret
             )
 
-        # Should not call database
         mock_session.execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_store_key_validates_service_type(
+        self, key_storage: SecureKeyStorage, mock_session: MagicMock
+    ) -> None:
+        """Verify invalid service_type raises ValueError."""
+        workspace_id = uuid4()
+
+        with pytest.raises(ValueError, match="Invalid service_type"):
+            await key_storage.store_api_key(
+                workspace_id=workspace_id,
+                provider="anthropic",
+                service_type="invalid",
+                api_key="test-key",  # pragma: allowlist secret
+            )
+
+        mock_session.execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_store_key_without_api_key_for_ollama(
+        self, key_storage: SecureKeyStorage, mock_session: MagicMock
+    ) -> None:
+        """Verify Ollama can be stored without API key."""
+        workspace_id = uuid4()
+
+        mock_session.execute.return_value = None
+
+        await key_storage.store_api_key(
+            workspace_id=workspace_id,
+            provider="ollama",
+            service_type="llm",
+            api_key=None,
+            base_url="http://localhost:11434",
+        )
+
+        mock_session.execute.assert_called_once()
+        mock_session.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_store_ollama_for_embedding(
+        self, key_storage: SecureKeyStorage, mock_session: MagicMock
+    ) -> None:
+        """Verify Ollama can be stored as embedding service."""
+        workspace_id = uuid4()
+
+        mock_session.execute.return_value = None
+
+        await key_storage.store_api_key(
+            workspace_id=workspace_id,
+            provider="ollama",
+            service_type="embedding",
+            base_url="http://localhost:11434",
+            model_name="nomic-embed-text",
+        )
+
+        mock_session.execute.assert_called_once()
+        mock_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_key_decrypts_from_storage(
@@ -86,15 +142,13 @@ class TestSecureKeyStorage:
         workspace_id = uuid4()
         original_key = "sk-ant-test-key-12345"  # pragma: allowlist secret
 
-        # First store the key to get encrypted version
         encrypted = key_storage._encrypt(original_key)
 
-        # Mock the execute to return encrypted key
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = encrypted
         mock_session.execute.return_value = mock_result
 
-        retrieved_key = await key_storage.get_api_key(workspace_id, "anthropic")
+        retrieved_key = await key_storage.get_api_key(workspace_id, "anthropic", "llm")
 
         assert retrieved_key == original_key
         mock_session.execute.assert_called_once()
@@ -106,12 +160,11 @@ class TestSecureKeyStorage:
         """Verify None returned when key doesn't exist."""
         workspace_id = uuid4()
 
-        # Mock empty result
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_session.execute.return_value = mock_result
 
-        key = await key_storage.get_api_key(workspace_id, "anthropic")
+        key = await key_storage.get_api_key(workspace_id, "anthropic", "llm")
 
         assert key is None
 
@@ -119,16 +172,15 @@ class TestSecureKeyStorage:
     async def test_delete_key_removes_from_storage(
         self, key_storage: SecureKeyStorage, mock_session: MagicMock
     ) -> None:
-        """Verify key deletion."""
+        """Verify key deletion with service_type."""
         workspace_id = uuid4()
 
-        # Mock existing key
         mock_row = MagicMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_row
         mock_session.execute.return_value = mock_result
 
-        deleted = await key_storage.delete_api_key(workspace_id, "anthropic")
+        deleted = await key_storage.delete_api_key(workspace_id, "anthropic", "llm")
 
         assert deleted is True
         mock_session.delete.assert_called_once_with(mock_row)
@@ -141,12 +193,11 @@ class TestSecureKeyStorage:
         """Verify False returned when key doesn't exist."""
         workspace_id = uuid4()
 
-        # Mock empty result
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_session.execute.return_value = mock_result
 
-        deleted = await key_storage.delete_api_key(workspace_id, "anthropic")
+        deleted = await key_storage.delete_api_key(workspace_id, "anthropic", "llm")
 
         assert deleted is False
         mock_session.delete.assert_not_called()
@@ -155,30 +206,32 @@ class TestSecureKeyStorage:
     async def test_get_key_info_returns_metadata(
         self, key_storage: SecureKeyStorage, mock_session: MagicMock
     ) -> None:
-        """Verify key info returns metadata without actual key."""
+        """Verify key info returns metadata including service_type."""
         workspace_id = uuid4()
 
-        # Mock key info
         mock_row = MagicMock()
         mock_row.workspace_id = workspace_id
         mock_row.provider = "anthropic"
+        mock_row.service_type = "llm"
         mock_row.is_valid = True
         mock_row.last_validated_at = datetime.now(UTC)
         mock_row.validation_error = None
         mock_row.created_at = datetime.now(UTC)
         mock_row.updated_at = datetime.now(UTC)
+        mock_row.base_url = None
+        mock_row.model_name = None
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_row
         mock_session.execute.return_value = mock_result
 
-        key_info = await key_storage.get_key_info(workspace_id, "anthropic")
+        key_info = await key_storage.get_key_info(workspace_id, "anthropic", "llm")
 
         assert key_info is not None
         assert key_info.workspace_id == workspace_id
         assert key_info.provider == "anthropic"
+        assert key_info.service_type == "llm"
         assert key_info.is_valid is True
-        assert key_info.validation_error is None
 
     @pytest.mark.asyncio
     async def test_get_key_info_returns_none_if_not_found(
@@ -187,12 +240,11 @@ class TestSecureKeyStorage:
         """Verify None returned when key info doesn't exist."""
         workspace_id = uuid4()
 
-        # Mock empty result
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_session.execute.return_value = mock_result
 
-        key_info = await key_storage.get_key_info(workspace_id, "anthropic")
+        key_info = await key_storage.get_key_info(workspace_id, "anthropic", "llm")
 
         assert key_info is None
 
@@ -203,16 +255,32 @@ class TestSecureKeyStorage:
         """Verify list of configured providers."""
         workspace_id = uuid4()
 
-        # Mock providers
         mock_result = MagicMock()
         mock_scalars = MagicMock()
-        mock_scalars.all.return_value = ["anthropic", "openai"]
+        mock_scalars.all.return_value = ["anthropic", "google"]
         mock_result.scalars.return_value = mock_scalars
         mock_session.execute.return_value = mock_result
 
         providers = await key_storage.list_providers(workspace_id)
 
-        assert providers == ["anthropic", "openai"]
+        assert providers == ["anthropic", "google"]
+
+    @pytest.mark.asyncio
+    async def test_list_providers_filters_by_service_type(
+        self, key_storage: SecureKeyStorage, mock_session: MagicMock
+    ) -> None:
+        """Verify list_providers filters by service_type."""
+        workspace_id = uuid4()
+
+        mock_result = MagicMock()
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = ["google"]
+        mock_result.scalars.return_value = mock_scalars
+        mock_session.execute.return_value = mock_result
+
+        providers = await key_storage.list_providers(workspace_id, service_type="embedding")
+
+        assert providers == ["google"]
 
     @pytest.mark.asyncio
     async def test_mask_key_hides_middle_characters(self, key_storage: SecureKeyStorage) -> None:
@@ -241,7 +309,6 @@ class TestSecureKeyStorage:
         key_storage: SecureKeyStorage,
     ) -> None:
         """Verify Anthropic key validation."""
-        # Mock successful API call
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock()
         mock_anthropic.return_value = mock_client
@@ -259,7 +326,6 @@ class TestSecureKeyStorage:
         key_storage: SecureKeyStorage,
     ) -> None:
         """Verify failed Anthropic key validation."""
-        # Mock failed API call
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(side_effect=Exception("Invalid API key"))
         mock_anthropic.return_value = mock_client
@@ -267,24 +333,6 @@ class TestSecureKeyStorage:
         is_valid = await key_storage.validate_api_key("anthropic", "sk-ant-invalid")
 
         assert is_valid is False
-
-    @pytest.mark.asyncio
-    @patch("openai.AsyncOpenAI")
-    async def test_validate_api_key_openai_success(
-        self,
-        mock_openai: MagicMock,
-        key_storage: SecureKeyStorage,
-    ) -> None:
-        """Verify OpenAI key validation."""
-        # Mock successful API call
-        mock_client = AsyncMock()
-        mock_client.models.list = AsyncMock()
-        mock_openai.return_value = mock_client
-
-        is_valid = await key_storage.validate_api_key("openai", "sk-test")
-
-        assert is_valid is True
-        mock_client.models.list.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("google.generativeai.GenerativeModel")
@@ -296,7 +344,6 @@ class TestSecureKeyStorage:
         key_storage: SecureKeyStorage,
     ) -> None:
         """Verify Google key validation."""
-        # Mock successful API call
         mock_model = AsyncMock()
         mock_model.generate_content_async = AsyncMock()
         mock_model_class.return_value = mock_model
@@ -309,11 +356,53 @@ class TestSecureKeyStorage:
         mock_configure.assert_called_once_with(api_key="test-key")  # pragma: allowlist secret
 
     @pytest.mark.asyncio
+    @patch("httpx.AsyncClient")
+    async def test_validate_ollama_success(
+        self,
+        mock_httpx_client: MagicMock,
+        key_storage: SecureKeyStorage,
+    ) -> None:
+        """Verify Ollama validation via /api/tags health check."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.get = AsyncMock(return_value=mock_response)
+        mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+        mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx_client.return_value = mock_client_instance
+
+        is_valid = await key_storage.validate_api_key(
+            "ollama", None, base_url="http://localhost:11434"
+        )
+
+        assert is_valid is True
+
+    @pytest.mark.asyncio
     async def test_validate_api_key_unknown_provider(self, key_storage: SecureKeyStorage) -> None:
         """Verify unknown provider returns False."""
         is_valid = await key_storage.validate_api_key("unknown", "test-key")
 
         assert is_valid is False
+
+    @pytest.mark.asyncio
+    async def test_validate_anthropic_without_key_returns_false(
+        self, key_storage: SecureKeyStorage
+    ) -> None:
+        """Verify Anthropic validation fails without API key."""
+        is_valid = await key_storage.validate_api_key("anthropic", None)
+
+        assert is_valid is False
+
+    @pytest.mark.asyncio
+    async def test_valid_providers_set(self, key_storage: SecureKeyStorage) -> None:
+        """Verify only google, anthropic, ollama are valid."""
+        assert frozenset({"google", "anthropic", "ollama"}) == key_storage.VALID_PROVIDERS
+
+    @pytest.mark.asyncio
+    async def test_valid_service_types_set(self, key_storage: SecureKeyStorage) -> None:
+        """Verify only embedding and llm are valid service types."""
+        assert frozenset({"embedding", "llm"}) == key_storage.VALID_SERVICE_TYPES
 
     @pytest.mark.asyncio
     @patch("anthropic.AsyncAnthropic")
@@ -326,10 +415,25 @@ class TestSecureKeyStorage:
         """Verify validate_and_update marks key as valid."""
         workspace_id = uuid4()
 
-        # Mock get_api_key to return a key
+        # Mock get_api_key
         encrypted = key_storage._encrypt("sk-ant-test")
         mock_result_get = MagicMock()
         mock_result_get.scalar_one_or_none.return_value = encrypted
+
+        # Mock get_key_info (for base_url)
+        mock_info_row = MagicMock()
+        mock_info_row.workspace_id = workspace_id
+        mock_info_row.provider = "anthropic"
+        mock_info_row.service_type = "llm"
+        mock_info_row.is_valid = False
+        mock_info_row.last_validated_at = None
+        mock_info_row.validation_error = None
+        mock_info_row.created_at = datetime.now(UTC)
+        mock_info_row.updated_at = datetime.now(UTC)
+        mock_info_row.base_url = None
+        mock_info_row.model_name = None
+        mock_result_info = MagicMock()
+        mock_result_info.scalar_one_or_none.return_value = mock_info_row
 
         # Mock the row for update
         mock_row = MagicMock()
@@ -337,14 +441,18 @@ class TestSecureKeyStorage:
         mock_result_update = MagicMock()
         mock_result_update.scalar_one_or_none.return_value = mock_row
 
-        mock_session.execute.side_effect = [mock_result_get, mock_result_update]
+        mock_session.execute.side_effect = [
+            mock_result_get,
+            mock_result_info,
+            mock_result_update,
+        ]
 
         # Mock successful validation
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock()
         mock_anthropic.return_value = mock_client
 
-        is_valid = await key_storage.validate_and_update(workspace_id, "anthropic")
+        is_valid = await key_storage.validate_and_update(workspace_id, "anthropic", "llm")
 
         assert is_valid is True
         assert mock_row.is_valid is True

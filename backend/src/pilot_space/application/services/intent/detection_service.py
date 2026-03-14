@@ -489,7 +489,7 @@ class IntentDetectionService:
             encryption_key = settings.encryption_key.get_secret_value()
             if encryption_key:
                 storage = SecureKeyStorage(self._session, encryption_key)
-                key = await storage.get_api_key(workspace_id, "anthropic")
+                key = await storage.get_api_key(workspace_id, "anthropic", "llm")
                 if key:
                     return key
         except (ValueError, AttributeError) as e:

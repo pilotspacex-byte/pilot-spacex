@@ -193,7 +193,9 @@ async def test_ai_status_byok_configured(gov_client: AsyncClient) -> None:
         mock_key_info.is_valid = True
         mock_key_info.last_validated_at = None
 
-        async def _get_key_info(workspace_id: object, provider: str) -> object:
+        async def _get_key_info(
+            workspace_id: object, provider: str, service_type: str = "llm"
+        ) -> object:
             if provider == "anthropic":
                 return mock_key_info
             return None

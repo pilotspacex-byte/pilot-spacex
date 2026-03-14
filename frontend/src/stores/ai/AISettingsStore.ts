@@ -2,10 +2,11 @@
  * AI Settings Store for workspace configuration.
  *
  * Manages workspace-level AI settings with:
+ * - Service-based provider config (embedding + llm)
  * - API key management (encrypted server-side)
  * - Feature toggles (ghost text, annotations, etc.)
  * - Validation and error handling
- * - Model listing (13-03: availableModels + loadModels)
+ * - Model listing
  */
 import { makeAutoObservable, runInAction, computed } from 'mobx';
 import {
@@ -39,14 +40,13 @@ export class AISettingsStore {
   validationErrors: Record<string, string> = {};
   currentWorkspaceId: string | null = null;
 
-  // Model listing (13-03)
   availableModels: ProviderModelItem[] = [];
   isLoadingModels = false;
 
   constructor(_rootStore: AIStore) {
     makeAutoObservable(this, {
       anthropicKeySet: computed,
-      openaiKeySet: computed,
+      embeddingConfigured: computed,
       ghostTextEnabled: computed,
       marginAnnotationsEnabled: computed,
       aiContextEnabled: computed,
@@ -55,13 +55,16 @@ export class AISettingsStore {
 
   get anthropicKeySet(): boolean {
     return (
-      this.settings?.providers?.some((p) => p.provider === 'anthropic' && p.isConfigured) ?? false
+      this.settings?.providers?.some(
+        (p) => p.provider === 'anthropic' && p.serviceType === 'llm' && p.isConfigured
+      ) ?? false
     );
   }
 
-  get openaiKeySet(): boolean {
+  get embeddingConfigured(): boolean {
     return (
-      this.settings?.providers?.some((p) => p.provider === 'openai' && p.isConfigured) ?? false
+      this.settings?.providers?.some((p) => p.serviceType === 'embedding' && p.isConfigured) ??
+      false
     );
   }
 
@@ -77,8 +80,18 @@ export class AISettingsStore {
     return this.settings?.features?.aiContextEnabled ?? false;
   }
 
-  getProviderStatus(provider: string): WorkspaceAISettingsProvider | undefined {
-    return this.settings?.providers?.find((p) => p.provider === provider);
+  getProviderStatus(
+    provider: string,
+    serviceType: 'embedding' | 'llm'
+  ): WorkspaceAISettingsProvider | undefined {
+    return this.settings?.providers?.find(
+      (p) => p.provider === provider && p.serviceType === serviceType
+    );
+  }
+
+  /** Get all providers for a given service type. */
+  getProvidersByService(serviceType: 'embedding' | 'llm'): WorkspaceAISettingsProvider[] {
+    return this.settings?.providers?.filter((p) => p.serviceType === serviceType) ?? [];
   }
 
   async loadSettings(workspaceId: string): Promise<void> {
@@ -105,6 +118,7 @@ export class AISettingsStore {
   async saveSettings(data: {
     api_keys?: Array<{
       provider: string;
+      service_type: 'embedding' | 'llm';
       api_key?: string;
       base_url?: string;
       model_name?: string;
@@ -125,7 +139,6 @@ export class AISettingsStore {
         data
       );
 
-      // Check per-provider validation results — backend only stores keys that pass validation
       if (!result.success && result.validationResults.length > 0) {
         const failed = result.validationResults.filter((r) => !r.isValid);
         const messages = failed.map((r) => `${r.provider}: ${r.errorMessage ?? 'invalid key'}`);
@@ -140,7 +153,6 @@ export class AISettingsStore {
         throw err;
       }
 
-      // Reload full settings so provider isConfigured status reflects the saved key
       const refreshed = await aiApi.getWorkspaceSettings(this.currentWorkspaceId);
       runInAction(() => {
         this.settings = refreshed;
@@ -157,10 +169,6 @@ export class AISettingsStore {
     }
   }
 
-  /**
-   * Load available models for all configured providers in this workspace.
-   * Fetches GET /ai/configurations/models?workspace_id={id}
-   */
   async loadModels(workspaceId: string): Promise<void> {
     runInAction(() => {
       this.isLoadingModels = true;
@@ -183,30 +191,20 @@ export class AISettingsStore {
     }
   }
 
-  /**
-   * Validate API key format (client-side basic check)
-   */
   validateKey(provider: string, key: string): boolean {
+    if (provider === 'ollama') return true; // No API key required
     if (key.length < 10) return false;
 
     switch (provider) {
       case 'anthropic':
         return key.startsWith('sk-ant-');
-      case 'openai':
-        return key.startsWith('sk-');
       case 'google':
         return key.startsWith('AIza');
-      case 'kimi':
-      case 'glm':
-      case 'custom':
       default:
-        return true; // Length check sufficient for providers without known prefix
+        return true;
     }
   }
 
-  /**
-   * Reset store to initial state
-   */
   reset(): void {
     this.settings = null;
     this.isLoading = false;

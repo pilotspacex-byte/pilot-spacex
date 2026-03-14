@@ -1,16 +1,15 @@
 /**
  * ProviderRow - Expandable provider configuration row.
  *
- * Unified row component for AI provider settings.
- * Each row shows icon, name, status badge, and expandable config fields.
- * Supports api_key, base_url, and model_name fields per provider.
+ * Supports 3 providers: Google Gemini, Anthropic, Ollama.
+ * Shows "Supports Embedding + LLM" badge for providers that handle both services.
  */
 
 'use client';
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { ChevronDown, ChevronUp, Loader2, Cpu } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, Cpu, Sparkles } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,24 +27,40 @@ interface ProviderConfig {
   name: string;
   fields: ('api_key' | 'base_url' | 'model_name')[];
   iconColor: string;
+  apiKeyOptional?: boolean;
+  baseUrlRequired?: boolean;
+  baseUrlPlaceholder?: string;
+  modelPlaceholder?: string;
 }
 
 const PROVIDER_CONFIG: Record<string, ProviderConfig> = {
-  anthropic: { name: 'Anthropic', fields: ['api_key'], iconColor: 'orange' },
-  openai: { name: 'OpenAI', fields: ['api_key'], iconColor: 'green' },
-  google: { name: 'Google Gemini', fields: ['api_key', 'base_url'], iconColor: 'blue' },
-  kimi: { name: 'Kimi (Moonshot)', fields: ['api_key'], iconColor: 'purple' },
-  glm: { name: 'GLM (Zhipu)', fields: ['api_key'], iconColor: 'red' },
-  ai_agent: { name: 'AI Agent', fields: ['base_url', 'model_name', 'api_key'], iconColor: 'cyan' },
+  google: {
+    name: 'Google Gemini',
+    fields: ['api_key', 'base_url'],
+    iconColor: 'blue',
+    baseUrlPlaceholder: 'https://generativelanguage.googleapis.com (optional)',
+  },
+  anthropic: {
+    name: 'Anthropic',
+    fields: ['api_key', 'base_url'],
+    iconColor: 'orange',
+    baseUrlPlaceholder: 'https://api.anthropic.com (optional)',
+  },
+  ollama: {
+    name: 'Ollama',
+    fields: ['base_url', 'model_name', 'api_key'],
+    iconColor: 'purple',
+    apiKeyOptional: true,
+    baseUrlRequired: true,
+    baseUrlPlaceholder: 'http://localhost:11434',
+    modelPlaceholder: 'e.g. nomic-embed-text, qwen2.5',
+  },
 };
 
 const ICON_COLOR_CLASSES: Record<string, string> = {
   orange: 'bg-orange-500/10 text-orange-600',
-  green: 'bg-green-500/10 text-green-600',
   blue: 'bg-blue-500/10 text-blue-600',
   purple: 'bg-purple-500/10 text-purple-600',
-  red: 'bg-red-500/10 text-red-600',
-  cyan: 'bg-cyan-500/10 text-cyan-600',
 };
 
 function ProviderIcon({ provider, iconColor }: { provider: string; iconColor: string }) {
@@ -64,15 +79,13 @@ function ProviderIcon({ provider, iconColor }: { provider: string; iconColor: st
     );
   }
 
-  if (provider === 'openai') {
+  if (provider === 'google') {
     return (
       <div
         className={`flex h-10 w-10 items-center justify-center rounded-lg ${colorClass}`}
         aria-hidden="true"
       >
-        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-          <circle cx="12" cy="12" r="10" />
-        </svg>
+        <Sparkles className="h-5 w-5" />
       </div>
     );
   }
@@ -130,7 +143,7 @@ function StatusBadge({ status }: { status: WorkspaceAISettingsProvider | undefin
 }
 
 function getSubtitle(status: WorkspaceAISettingsProvider | undefined): string {
-  if (!status || !status.isConfigured) return 'No API key set';
+  if (!status || !status.isConfigured) return 'Not configured';
   if (!status.lastValidatedAt) return 'Not validated yet';
   try {
     return `Last validated ${formatDistanceToNow(new Date(status.lastValidatedAt), { addSuffix: true })}`;
@@ -141,6 +154,7 @@ function getSubtitle(status: WorkspaceAISettingsProvider | undefined): string {
 
 export interface ProviderRowProps {
   provider: string;
+  serviceType: 'embedding' | 'llm';
   status: WorkspaceAISettingsProvider | undefined;
   workspaceId: string;
   onSaved: () => void;
@@ -148,6 +162,7 @@ export interface ProviderRowProps {
 
 export const ProviderRow = observer(function ProviderRow({
   provider,
+  serviceType,
   status,
   workspaceId: _workspaceId,
   onSaved,
@@ -167,12 +182,12 @@ export const ProviderRow = observer(function ProviderRow({
   const handleSave = async () => {
     const entry: {
       provider: string;
+      service_type: 'embedding' | 'llm';
       api_key?: string;
       base_url?: string;
       model_name?: string;
-    } = { provider };
+    } = { provider, service_type: serviceType };
 
-    // Include fields that have values; only omit truly untouched fields
     const hasApiKey = apiKey.trim().length > 0;
     const hasBaseUrl = baseUrl.trim().length > 0;
     const hasModelName = modelName.trim().length > 0;
@@ -180,6 +195,12 @@ export const ProviderRow = observer(function ProviderRow({
     if (hasApiKey) entry.api_key = apiKey.trim();
     if (hasBaseUrl) entry.base_url = baseUrl.trim();
     if (hasModelName) entry.model_name = modelName.trim();
+
+    // Validate required fields
+    if (config.baseUrlRequired && !hasBaseUrl && !status?.baseUrl) {
+      toast.error('Base URL is required for this provider');
+      return;
+    }
 
     if (!hasApiKey && !hasBaseUrl && !hasModelName) {
       toast.info('No changes to save');
@@ -217,7 +238,14 @@ export const ProviderRow = observer(function ProviderRow({
             <div className="flex items-center gap-3">
               <ProviderIcon provider={provider} iconColor={config.iconColor} />
               <div>
-                <p className="font-medium">{config.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">{config.name}</p>
+                  {status?.supportsBoth && (
+                    <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                      Embedding + LLM
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">{getSubtitle(status)}</p>
               </div>
             </div>
@@ -234,25 +262,18 @@ export const ProviderRow = observer(function ProviderRow({
 
         <CollapsibleContent>
           <div className="border-t px-4 pb-4 pt-4 space-y-4">
-            {config.fields.includes('api_key') && (
-              <APIKeyInput
-                label="API Key"
-                value={apiKey}
-                onChange={setApiKey}
-                isSet={status?.isConfigured ?? false}
-                provider={provider}
-                disabled={isSaving}
-              />
-            )}
-
             {config.fields.includes('base_url') && (
               <div className="space-y-2">
-                <Label htmlFor={`${provider}-base-url`}>Base URL</Label>
+                <Label htmlFor={`${provider}-${serviceType}-base-url`}>
+                  Base URL{config.baseUrlRequired ? '' : ' (optional)'}
+                </Label>
                 <Input
-                  id={`${provider}-base-url`}
+                  id={`${provider}-${serviceType}-base-url`}
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder={status?.baseUrl ?? 'https://api.example.com/v1'}
+                  placeholder={
+                    status?.baseUrl ?? config.baseUrlPlaceholder ?? 'https://api.example.com/v1'
+                  }
                   disabled={isSaving}
                   autoComplete="off"
                 />
@@ -264,12 +285,12 @@ export const ProviderRow = observer(function ProviderRow({
 
             {config.fields.includes('model_name') && (
               <div className="space-y-2">
-                <Label htmlFor={`${provider}-model-name`}>Model Name</Label>
+                <Label htmlFor={`${provider}-${serviceType}-model-name`}>Model Name</Label>
                 <Input
-                  id={`${provider}-model-name`}
+                  id={`${provider}-${serviceType}-model-name`}
                   value={modelName}
                   onChange={(e) => setModelName(e.target.value)}
-                  placeholder={status?.modelName ?? 'claude-3-5-sonnet-20241022'}
+                  placeholder={status?.modelName ?? config.modelPlaceholder ?? 'Model name'}
                   disabled={isSaving}
                   autoComplete="off"
                 />
@@ -277,6 +298,17 @@ export const ProviderRow = observer(function ProviderRow({
                   <p className="text-xs text-muted-foreground">Current: {status.modelName}</p>
                 )}
               </div>
+            )}
+
+            {config.fields.includes('api_key') && (
+              <APIKeyInput
+                label={config.apiKeyOptional ? 'API Key (optional)' : 'API Key'}
+                value={apiKey}
+                onChange={setApiKey}
+                isSet={status?.isConfigured ?? false}
+                provider={provider}
+                disabled={isSaving}
+              />
             )}
 
             <div className="flex justify-end pt-2">

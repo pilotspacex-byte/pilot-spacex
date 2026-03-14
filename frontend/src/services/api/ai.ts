@@ -39,11 +39,13 @@ export interface WorkspaceAISettingsFeatures {
 
 export interface WorkspaceAISettingsProvider {
   provider: string;
+  serviceType: 'embedding' | 'llm';
   isConfigured: boolean;
   isValid: boolean | null;
   lastValidatedAt: string | null;
   baseUrl?: string | null;
   modelName?: string | null;
+  supportsBoth: boolean;
 }
 
 export interface WorkspaceAISettings {
@@ -216,6 +218,7 @@ export const aiApi = {
     data: {
       api_keys?: Array<{
         provider: string;
+        service_type: 'embedding' | 'llm';
         api_key?: string;
         base_url?: string;
         model_name?: string;

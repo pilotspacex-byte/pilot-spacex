@@ -127,10 +127,10 @@ async def create_agent_options(
         Exception: If key decryption fails
     """
     # Retrieve API key from secure storage
-    # SecureKeyStorage.get_api_key only takes workspace_id and provider
     api_key = await key_storage.get_api_key(
         workspace_id=UUID(workspace_id),
         provider="anthropic",
+        service_type="llm",
     )
 
     if not api_key:

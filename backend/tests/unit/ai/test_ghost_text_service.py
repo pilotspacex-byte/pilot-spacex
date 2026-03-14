@@ -458,7 +458,7 @@ class TestBYOKIntegration:
             context="ctx", prefix="pre", workspace_id=WORKSPACE_ID, user_id=TEST_USER_ID
         )
 
-        mock_key_storage.get_api_key.assert_awaited_once_with(WORKSPACE_ID, "anthropic")
+        mock_key_storage.get_api_key.assert_awaited_once_with(WORKSPACE_ID, "anthropic", "llm")
 
     @pytest.mark.asyncio
     async def test_client_pool_called_with_workspace_key(

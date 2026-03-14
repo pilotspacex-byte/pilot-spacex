@@ -617,7 +617,7 @@ async def get_workspace_openai_key(db_session: Any, workspace_id: Any) -> str | 
             db=db_session,
             master_secret=get_settings().encryption_key.get_secret_value(),
         )
-        return await storage.get_api_key(workspace_id, "openai")
+        return await storage.get_api_key(workspace_id, "openai", "llm")
     except Exception:
         return None
 
