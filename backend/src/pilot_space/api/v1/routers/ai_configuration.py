@@ -135,9 +135,9 @@ def _config_to_response(config: AIConfiguration) -> AIConfigurationResponse:
 async def list_ai_configurations(
     workspace_id: UUID,
     current_user: CurrentUser,
+    session: DbSession,
     ai_config_repo: AIConfigRepo,
     workspace_repo: WorkspaceRepositoryDep,
-    session: DbSession,
 ) -> AIConfigurationListResponse:
     """List AI configurations for a workspace.
 
@@ -171,9 +171,9 @@ async def create_ai_configuration(
     workspace_id: UUID,
     request: AIConfigurationCreate,
     current_user: CurrentUser,
+    session: DbSession,
     ai_config_repo: AIConfigRepo,
     workspace_repo: WorkspaceRepositoryDep,
-    session: DbSession,
 ) -> AIConfigurationResponse:
     """Create an AI configuration for a workspace.
 
@@ -253,8 +253,8 @@ async def create_ai_configuration(
 async def list_available_models(
     workspace_id: UUID,
     current_user: CurrentUser,
-    workspace_repo: WorkspaceRepositoryDep,
     session: DbSession,
+    workspace_repo: WorkspaceRepositoryDep,
 ) -> ModelListResponse:
     """List all models available from active provider configurations.
 
@@ -304,9 +304,9 @@ async def get_ai_configuration(
     workspace_id: UUID,
     config_id: UUID,
     current_user: CurrentUser,
+    session: DbSession,
     ai_config_repo: AIConfigRepo,
     workspace_repo: WorkspaceRepositoryDep,
-    session: DbSession,
 ) -> AIConfigurationResponse:
     """Get a specific AI configuration.
 
@@ -348,9 +348,9 @@ async def update_ai_configuration(
     config_id: UUID,
     request: AIConfigurationUpdate,
     current_user: CurrentUser,
+    session: DbSession,
     ai_config_repo: AIConfigRepo,
     workspace_repo: WorkspaceRepositoryDep,
-    session: DbSession,
 ) -> AIConfigurationResponse:
     """Update an AI configuration.
 
@@ -425,9 +425,9 @@ async def delete_ai_configuration(
     workspace_id: UUID,
     config_id: UUID,
     current_user: CurrentUser,
+    session: DbSession,
     ai_config_repo: AIConfigRepo,
     workspace_repo: WorkspaceRepositoryDep,
-    session: DbSession,
 ) -> DeleteResponse:
     """Delete an AI configuration.
 
@@ -482,9 +482,9 @@ async def test_ai_configuration(
     workspace_id: UUID,
     config_id: UUID,
     current_user: CurrentUser,
+    session: DbSession,
     ai_config_repo: AIConfigRepo,
     workspace_repo: WorkspaceRepositoryDep,
-    session: DbSession,
 ) -> AIConfigurationTestResponse:
     """Test an AI configuration by validating the API key.
 
