@@ -56,9 +56,9 @@ const STEP_CONFIG: Record<
   }
 > = {
   ai_providers: {
-    title: 'Connect AI Provider',
-    description: 'Add your Anthropic API key to enable AI features',
-    actionLabel: 'Add API Key',
+    title: 'Connect AI Services',
+    description: 'Add API keys for Anthropic (LLM) and Google Gemini (Embedding)',
+    actionLabel: 'Add API Keys',
     icon: 'key',
   },
   invite_members: {

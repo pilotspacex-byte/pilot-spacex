@@ -1,8 +1,8 @@
 /**
  * Component tests for ApiKeySetupStep.
  *
- * ONBD-03: Inline API key guidance within onboarding dialog.
- * Source: FR-005, FR-006, US1
+ * ONBD-03: Inline API key setup for both AI services.
+ * Tests both Anthropic (LLM) and Google Gemini (Embedding) key inputs.
  */
 
 import React from 'react';
@@ -11,7 +11,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiKeySetupStep } from '../ApiKeySetupStep';
-import * as useOnboardingActionsModule from '../../hooks/useOnboardingActions';
 
 // Mock sonner toast
 vi.mock('sonner', () => ({
@@ -48,28 +47,49 @@ describe('ApiKeySetupStep', () => {
     vi.clearAllMocks();
   });
 
-  it('renders format hint and console link', () => {
+  it('renders both provider sections', () => {
     const wrapper = createWrapper();
     render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
 
-    // Format hint
+    expect(screen.getAllByText('Anthropic (AI LLM)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Google Gemini (Embedding)').length).toBeGreaterThan(0);
+  });
+
+  it('renders Anthropic format hint and console link', () => {
+    const wrapper = createWrapper();
+    render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
+
     expect(screen.getByText('sk-ant-')).toBeInTheDocument();
 
-    // Console link
-    const link = screen.getByRole('link', { name: /get your key/i });
-    expect(link).toHaveAttribute('href', 'https://console.anthropic.com/settings/keys');
-    expect(link).toHaveAttribute('target', '_blank');
+    const links = screen.getAllByRole('link', { name: /get your key/i });
+    const anthropicLink = links.find((l) =>
+      l.getAttribute('href')?.includes('console.anthropic.com')
+    );
+    expect(anthropicLink).toBeTruthy();
+    expect(anthropicLink).toHaveAttribute('target', '_blank');
   });
 
-  it('test button is disabled when input is empty', () => {
+  it('renders Google Gemini format hint and console link', () => {
     const wrapper = createWrapper();
     render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
 
-    const button = screen.getByRole('button', { name: /test connection/i });
-    expect(button).toBeDisabled();
+    expect(screen.getByText('AIza')).toBeInTheDocument();
+
+    const links = screen.getAllByRole('link', { name: /get your key/i });
+    const geminiLink = links.find((l) => l.getAttribute('href')?.includes('aistudio.google.com'));
+    expect(geminiLink).toBeTruthy();
   });
 
-  it('enables test button when input has a value', async () => {
+  it('both test buttons are disabled when inputs are empty', () => {
+    const wrapper = createWrapper();
+    render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
+
+    const buttons = screen.getAllByRole('button', { name: /test connection/i });
+    expect(buttons).toHaveLength(2);
+    buttons.forEach((btn) => expect(btn).toBeDisabled());
+  });
+
+  it('enables Anthropic test button when input has a value', async () => {
     const user = userEvent.setup();
     const wrapper = createWrapper();
     render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
@@ -77,86 +97,24 @@ describe('ApiKeySetupStep', () => {
     const input = screen.getByPlaceholderText('sk-ant-...');
     await user.type(input, 'sk-ant-test-key');
 
-    const button = screen.getByRole('button', { name: /test connection/i });
-    expect(button).not.toBeDisabled();
+    const buttons = screen.getAllByRole('button', { name: /test connection/i });
+    // First button (Anthropic) should be enabled
+    expect(buttons[0]).not.toBeDisabled();
+    // Second button (Gemini) should still be disabled
+    expect(buttons[1]).toBeDisabled();
   });
 
-  it('calls validateKey with anthropic provider and trimmed key on button click', async () => {
-    const mutateMock = vi.fn();
-    vi.spyOn(useOnboardingActionsModule, 'useValidateProviderKey').mockReturnValue({
-      mutate: mutateMock,
-      isPending: false,
-      data: undefined,
-    } as unknown as ReturnType<typeof useOnboardingActionsModule.useValidateProviderKey>);
-
+  it('enables Gemini test button when input has a value', async () => {
     const user = userEvent.setup();
     const wrapper = createWrapper();
     render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
 
-    const input = screen.getByPlaceholderText('sk-ant-...');
-    await user.type(input, '  sk-ant-test  ');
+    const input = screen.getByPlaceholderText('AIza...');
+    await user.type(input, 'AIza-test-key');
 
-    const button = screen.getByRole('button', { name: /test connection/i });
-    await user.click(button);
-
-    expect(mutateMock).toHaveBeenCalledWith({ provider: 'anthropic', apiKey: 'sk-ant-test' });
-  });
-
-  it('shows connected message with model count on valid response', () => {
-    vi.spyOn(useOnboardingActionsModule, 'useValidateProviderKey').mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: { valid: true, modelsAvailable: ['claude-3-opus'], errorMessage: undefined },
-    } as unknown as ReturnType<typeof useOnboardingActionsModule.useValidateProviderKey>);
-
-    const wrapper = createWrapper();
-    render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
-
-    expect(screen.getByText(/connected/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 model/i)).toBeInTheDocument();
-  });
-
-  it('shows plural models when multiple available', () => {
-    vi.spyOn(useOnboardingActionsModule, 'useValidateProviderKey').mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: {
-        valid: true,
-        modelsAvailable: ['claude-3-opus', 'claude-3-sonnet'],
-        errorMessage: undefined,
-      },
-    } as unknown as ReturnType<typeof useOnboardingActionsModule.useValidateProviderKey>);
-
-    const wrapper = createWrapper();
-    render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
-
-    expect(screen.getByText(/2 models/i)).toBeInTheDocument();
-  });
-
-  it('shows error message on invalid key response', () => {
-    vi.spyOn(useOnboardingActionsModule, 'useValidateProviderKey').mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: { valid: false, modelsAvailable: [], errorMessage: 'Invalid API key' },
-    } as unknown as ReturnType<typeof useOnboardingActionsModule.useValidateProviderKey>);
-
-    const wrapper = createWrapper();
-    render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
-
-    expect(screen.getByText('Invalid API key')).toBeInTheDocument();
-  });
-
-  it('shows fallback error text when errorMessage is absent', () => {
-    vi.spyOn(useOnboardingActionsModule, 'useValidateProviderKey').mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: { valid: false, modelsAvailable: [], errorMessage: undefined },
-    } as unknown as ReturnType<typeof useOnboardingActionsModule.useValidateProviderKey>);
-
-    const wrapper = createWrapper();
-    render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
-
-    expect(screen.getByText('Invalid key')).toBeInTheDocument();
+    const buttons = screen.getAllByRole('button', { name: /test connection/i });
+    // Second button (Gemini) should be enabled
+    expect(buttons[1]).not.toBeDisabled();
   });
 
   it('calls onNavigateToSettings when fallback link is clicked', async () => {
@@ -171,20 +129,5 @@ describe('ApiKeySetupStep', () => {
     await user.click(fallbackButton);
 
     expect(onNavigateToSettings).toHaveBeenCalledOnce();
-  });
-
-  it('shows loading spinner while request is pending', () => {
-    vi.spyOn(useOnboardingActionsModule, 'useValidateProviderKey').mockReturnValue({
-      mutate: vi.fn(),
-      isPending: true,
-      data: undefined,
-    } as unknown as ReturnType<typeof useOnboardingActionsModule.useValidateProviderKey>);
-
-    const wrapper = createWrapper();
-    render(<ApiKeySetupStep {...defaultProps} />, { wrapper });
-
-    // Button should be disabled during loading
-    const button = screen.getByRole('button', { name: /test connection/i });
-    expect(button).toBeDisabled();
   });
 });

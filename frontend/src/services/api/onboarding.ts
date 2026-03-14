@@ -42,7 +42,7 @@ export interface OnboardingState {
 /**
  * AI provider types for validation.
  */
-export type AIProviderType = 'anthropic';
+export type AIProviderType = 'anthropic' | 'google';
 
 /**
  * Key validation response.
