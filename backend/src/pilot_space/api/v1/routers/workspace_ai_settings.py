@@ -127,9 +127,9 @@ async def get_ai_settings(
         db=session, master_secret=settings.encryption_key.get_secret_value()
     )
 
-    # Get provider statuses
+    # Get provider statuses for all 6 providers
     providers = []
-    for provider in ["anthropic", "openai", "google"]:
+    for provider in ["anthropic", "openai", "google", "kimi", "glm", "ai_agent"]:
         key_info = await key_storage.get_key_info(workspace_id, provider)
         providers.append(
             ProviderStatus(
@@ -137,6 +137,8 @@ async def get_ai_settings(
                 is_configured=key_info is not None,
                 is_valid=key_info.is_valid if key_info else None,
                 last_validated_at=key_info.last_validated_at if key_info else None,
+                base_url=key_info.base_url if key_info else None,
+                model_name=key_info.model_name if key_info else None,
             )
         )
 
@@ -197,15 +199,32 @@ async def update_ai_settings(
     validation_results: list[KeyValidationResult] = []
     updated_providers: list[str] = []
 
-    # Process API key updates — store immediately, validate in background
+    # Process API key updates — merge with existing, store immediately
     if body.api_keys:
         for key_update in body.api_keys:
-            if key_update.api_key:
-                # Store key immediately without blocking validation
+            # Merge with existing config so omitted fields are preserved
+            existing_key = await key_storage.get_api_key(workspace_id, key_update.provider)
+            existing_info = await key_storage.get_key_info(workspace_id, key_update.provider)
+
+            api_key = key_update.api_key if key_update.api_key is not None else existing_key
+            base_url = (
+                key_update.base_url
+                if key_update.base_url is not None
+                else (existing_info.base_url if existing_info else None)
+            )
+            model_name = (
+                key_update.model_name
+                if key_update.model_name is not None
+                else (existing_info.model_name if existing_info else None)
+            )
+
+            if api_key:
                 await key_storage.store_api_key(
                     workspace_id=workspace_id,
                     provider=key_update.provider,
-                    api_key=key_update.api_key,
+                    api_key=api_key,
+                    base_url=base_url,
+                    model_name=model_name,
                 )
                 updated_providers.append(key_update.provider)
                 validation_results.append(
@@ -215,9 +234,18 @@ async def update_ai_settings(
                         error_message=None,
                     )
                 )
+            elif existing_key is None:
+                # No existing key and no new key — nothing to store, skip
+                pass
             else:
-                # Remove key
-                await key_storage.delete_api_key(workspace_id, key_update.provider)
+                # Existing key with updated base_url/model_name only
+                await key_storage.store_api_key(
+                    workspace_id=workspace_id,
+                    provider=key_update.provider,
+                    api_key=existing_key,
+                    base_url=base_url,
+                    model_name=model_name,
+                )
                 updated_providers.append(key_update.provider)
                 validation_results.append(
                     KeyValidationResult(

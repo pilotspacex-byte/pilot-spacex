@@ -42,6 +42,8 @@ export interface WorkspaceAISettingsProvider {
   isConfigured: boolean;
   isValid: boolean | null;
   lastValidatedAt: string | null;
+  baseUrl?: string | null;
+  modelName?: string | null;
 }
 
 export interface WorkspaceAISettings {
@@ -206,31 +208,24 @@ export const aiApi = {
   /**
    * Update AI settings for workspace.
    * @param workspaceId - Workspace UUID
-   * @param settings - Partial settings update with optional API keys
+   * @param data - Settings update with optional API keys array and feature toggles
    * @returns Updated workspace AI settings
    */
   updateWorkspaceSettings: (
     workspaceId: string,
-    settings: Partial<WorkspaceAISettings> & {
-      anthropic_api_key?: string;
-      openai_api_key?: string;
+    data: {
+      api_keys?: Array<{
+        provider: string;
+        api_key?: string;
+        base_url?: string;
+        model_name?: string;
+      }>;
+      features?: Partial<WorkspaceAISettingsFeatures>;
     }
   ): Promise<WorkspaceAISettingsUpdateResponse> => {
-    // Transform flat keys to backend's { api_keys: [{ provider, api_key }] } format
-    const apiKeys: Array<{ provider: string; api_key: string }> = [];
-    if (settings.anthropic_api_key) {
-      apiKeys.push({ provider: 'anthropic', api_key: settings.anthropic_api_key });
-    }
-    if (settings.openai_api_key) {
-      apiKeys.push({ provider: 'openai', api_key: settings.openai_api_key });
-    }
-    const { anthropic_api_key: _a, openai_api_key: _o, ...rest } = settings;
     return apiClient.patch<WorkspaceAISettingsUpdateResponse>(
       `/workspaces/${workspaceId}/ai/settings`,
-      {
-        ...rest,
-        ...(apiKeys.length > 0 ? { api_keys: apiKeys } : {}),
-      }
+      data
     );
   },
 

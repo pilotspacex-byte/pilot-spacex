@@ -21,7 +21,7 @@ export interface APIKeyInputProps {
   error?: string;
   disabled?: boolean;
   placeholder?: string;
-  provider?: 'anthropic' | 'openai';
+  provider?: string;
 }
 
 export function APIKeyInput({

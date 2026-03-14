@@ -302,13 +302,15 @@ class ProviderStatus(BaseSchema):
     """Status of a configured AI provider.
 
     Attributes:
-        provider: Provider name (anthropic, openai, google).
+        provider: Provider name (anthropic, openai, google, kimi, glm, ai_agent).
         is_configured: Whether an API key exists for this provider.
         is_valid: Whether the key has been validated (None if never validated).
         last_validated_at: Timestamp of last successful validation.
+        base_url: Custom base URL for provider API (if configured).
+        model_name: Default model name override (if configured).
     """
 
-    provider: str = Field(description="Provider name (anthropic, openai, google)")
+    provider: str = Field(description="Provider name")
     is_configured: bool = Field(description="Whether API key is configured")
     is_valid: bool | None = Field(
         default=None, description="Validation status (None if never validated)"
@@ -316,6 +318,8 @@ class ProviderStatus(BaseSchema):
     last_validated_at: datetime | None = Field(
         default=None, description="Last validation timestamp"
     )
+    base_url: str | None = Field(default=None, description="Custom base URL for provider API")
+    model_name: str | None = Field(default=None, description="Default model name override")
 
 
 class AIFeatureToggles(BaseSchema):
@@ -362,18 +366,29 @@ class APIKeyUpdate(BaseSchema):
     """API key update for a provider.
 
     Attributes:
-        provider: Provider name (anthropic, openai, google).
+        provider: Provider name (anthropic, openai, google, kimi, glm, ai_agent).
         api_key: API key to store (None to remove).
+        base_url: Optional custom base URL for provider API.
+        model_name: Optional default model name override.
     """
 
     provider: str = Field(
         description="Provider name",
-        pattern="^(anthropic|openai|google)$",
+        pattern="^(anthropic|openai|google|kimi|glm|ai_agent)$",
     )
     api_key: str | None = Field(
         default=None,
         description="API key to store (None to remove)",
         min_length=1,
+    )
+    base_url: str | None = Field(
+        default=None,
+        description="Custom base URL for provider API",
+        pattern=r"^https?://[^\s]+$",
+    )
+    model_name: str | None = Field(
+        default=None,
+        description="Default model name override",
     )
 
 

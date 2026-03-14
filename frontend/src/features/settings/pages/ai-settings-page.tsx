@@ -1,8 +1,9 @@
 /**
  * AISettingsPage - Workspace AI configuration.
  *
- * T178: Main settings page with API keys, feature toggles, provider status.
- * 13-03: Expanded to show all 5 built-in providers + custom provider registration.
+ * Unified provider list with expandable rows.
+ * All 6 providers (Anthropic, OpenAI, Google Gemini, Kimi, GLM, AI Agent)
+ * appear in a single list. Each row is expandable with provider-specific fields.
  */
 
 'use client';
@@ -14,14 +15,11 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { APIKeyForm } from '../components/api-key-form';
+import { ProviderRow } from '../components/provider-row';
 import { AIFeatureToggles } from '../components/ai-feature-toggles';
-import { ProviderStatusCard } from '../components/provider-status-card';
-import { CustomProviderForm } from '../components/custom-provider-form';
 import { useStore } from '@/stores';
-import type { WorkspaceAISettingsProvider } from '@/services/api/ai';
 
-const BUILT_IN_PROVIDERS = ['anthropic', 'openai', 'kimi', 'glm', 'google'] as const;
+const ALL_PROVIDERS = ['anthropic', 'openai', 'google', 'kimi', 'glm', 'ai_agent'] as const;
 
 function LoadingSkeleton() {
   return (
@@ -50,15 +48,8 @@ export const AISettingsPage = observer(function AISettingsPage() {
     }
   }, [workspaceId, settings]);
 
-  const getProviderStatus = (provider: string): WorkspaceAISettingsProvider | undefined =>
-    settings.settings?.providers?.find((p) => p.provider === provider);
-
-  const customProviders =
-    settings.settings?.providers?.filter((p) => p.provider === 'custom') ?? [];
-
-  const handleCustomProviderSuccess = () => {
+  const handleProviderSaved = () => {
     settings.loadSettings(workspaceId);
-    settings.loadModels(workspaceId);
   };
 
   if (settings.isLoading) {
@@ -92,61 +83,23 @@ export const AISettingsPage = observer(function AISettingsPage() {
           </p>
         </div>
 
-        {/* Provider Status Cards — all 5 built-in providers */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Provider Status</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {BUILT_IN_PROVIDERS.map((provider) => {
-              const providerData = getProviderStatus(provider);
-              return (
-                <ProviderStatusCard
-                  key={provider}
-                  provider={provider}
-                  isKeySet={providerData?.isConfigured ?? false}
-                  lastValidated={providerData?.lastValidatedAt}
-                  status={providerData?.isValid ? 'connected' : 'unknown'}
-                />
-              );
-            })}
-          </div>
+        {/* Unified Provider List */}
+        <div className="space-y-2">
+          {ALL_PROVIDERS.map((provider) => (
+            <ProviderRow
+              key={provider}
+              provider={provider}
+              status={settings.getProviderStatus(provider)}
+              workspaceId={workspaceId}
+              onSaved={handleProviderSaved}
+            />
+          ))}
         </div>
-
-        <Separator />
-
-        {/* API Key Configuration */}
-        <APIKeyForm />
 
         <Separator />
 
         {/* Feature Toggles */}
         <AIFeatureToggles />
-
-        <Separator />
-
-        {/* Custom Providers Section */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Custom Providers</h2>
-          <p className="text-sm text-muted-foreground">
-            Add OpenAI-compatible API endpoints to use with Pilot Space.
-          </p>
-
-          {/* Existing custom provider cards */}
-          {customProviders.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {customProviders.map((p, idx) => (
-                <ProviderStatusCard
-                  key={`${p.provider}-${idx}`}
-                  provider="custom"
-                  isKeySet={p.isConfigured}
-                  lastValidated={p.lastValidatedAt}
-                  status={p.isValid ? 'connected' : 'unknown'}
-                />
-              ))}
-            </div>
-          )}
-
-          <CustomProviderForm workspaceId={workspaceId} onSuccess={handleCustomProviderSuccess} />
-        </div>
 
         {/* Info Alert */}
         <Alert>

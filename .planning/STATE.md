@@ -4,8 +4,8 @@ milestone: v1.0.0-alpha2
 milestone_name: Notion-Style Restructure
 status: completed
 stopped_at: Milestone archived
-last_updated: "2026-03-13"
-last_activity: "2026-03-13 — Completed quick task 6: Phase 1 UI/UX quick wins (fonts, tokens, hover)"
+last_updated: "2026-03-14"
+last_activity: "2026-03-14 — Completed quick task 8: Unified AI Providers settings UI with expandable provider rows"
 progress:
   total_phases: 18
   completed_phases: 17
@@ -61,10 +61,11 @@ None.
 | 4 | Fix all preexisting pytest failures | 2026-03-13 | 1bd09554 | [4-checkout-new-branch-from-main-then-fix-a](./quick/4-checkout-new-branch-from-main-then-fix-a/) |
 | 5 | Per-user AI model defaults and base_url overrides | 2026-03-13 | bd06487e | [5-allow-user-to-setup-default-claude-agent](./quick/5-allow-user-to-setup-default-claude-agent/) |
 | 6 | Phase 1 UI/UX quick wins (fonts, tokens, hover) | 2026-03-13 | 04ad972d | [6-implement-phase-1-ui-ux-quick-wins-from-](./quick/6-implement-phase-1-ui-ux-quick-wins-from-/) |
+| 8 | Unified AI Providers settings UI with expandable rows | 2026-03-14 | ca12777e | [8-enhance-ai-providers-settings-ui-unified](./quick/8-enhance-ai-providers-settings-ui-unified/) |
 
 ## Session Continuity
 
-Last session: 2026-03-13
-Stopped at: Completed quick task 6 (Phase 1 UI/UX quick wins)
+Last session: 2026-03-14
+Stopped at: Completed quick task 8 (Unified AI Providers settings UI)
 Resume file: None
 Next action: `/gsd:new-milestone`
