@@ -85,6 +85,18 @@ class WorkspaceAPIKey(Base, TimestampMixin, WorkspaceScopedMixin):
         doc="Error message from last failed validation",
     )
 
+    base_url: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="Custom base URL for provider API",
+    )
+
+    model_name: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+        doc="Default model name override",
+    )
+
     # Relationships
     workspace: Mapped[Workspace] = relationship(
         "Workspace",

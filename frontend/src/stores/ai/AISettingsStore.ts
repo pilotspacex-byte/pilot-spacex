@@ -11,6 +11,8 @@ import { makeAutoObservable, runInAction, computed } from 'mobx';
 import {
   aiApi,
   type WorkspaceAISettings,
+  type WorkspaceAISettingsFeatures,
+  type WorkspaceAISettingsProvider,
   type WorkspaceAISettingsUpdateResponse,
 } from '@/services/api/ai';
 import { apiClient } from '@/services/api/client';
@@ -75,6 +77,10 @@ export class AISettingsStore {
     return this.settings?.features?.aiContextEnabled ?? false;
   }
 
+  getProviderStatus(provider: string): WorkspaceAISettingsProvider | undefined {
+    return this.settings?.providers?.find((p) => p.provider === provider);
+  }
+
   async loadSettings(workspaceId: string): Promise<void> {
     runInAction(() => {
       this.isLoading = true;
@@ -96,12 +102,15 @@ export class AISettingsStore {
     }
   }
 
-  async saveSettings(
-    updates: Partial<WorkspaceAISettings> & {
-      anthropic_api_key?: string;
-      openai_api_key?: string;
-    }
-  ): Promise<void> {
+  async saveSettings(data: {
+    api_keys?: Array<{
+      provider: string;
+      api_key?: string;
+      base_url?: string;
+      model_name?: string;
+    }>;
+    features?: Partial<WorkspaceAISettingsFeatures>;
+  }): Promise<void> {
     if (!this.currentWorkspaceId) return;
 
     runInAction(() => {
@@ -113,7 +122,7 @@ export class AISettingsStore {
     try {
       const result: WorkspaceAISettingsUpdateResponse = await aiApi.updateWorkspaceSettings(
         this.currentWorkspaceId,
-        updates
+        data
       );
 
       // Check per-provider validation results — backend only stores keys that pass validation

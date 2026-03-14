@@ -41,6 +41,8 @@ class APIKeyInfo:
     validation_error: str | None
     created_at: datetime
     updated_at: datetime
+    base_url: str | None = None
+    model_name: str | None = None
 
 
 class SecureKeyStorage:
@@ -60,7 +62,9 @@ class SecureKeyStorage:
         key = await storage.get_api_key(workspace_id, "anthropic")
     """
 
-    VALID_PROVIDERS = frozenset({"anthropic", "openai", "google", "kimi", "glm", "custom"})
+    VALID_PROVIDERS = frozenset(
+        {"anthropic", "openai", "google", "kimi", "glm", "ai_agent", "custom"}
+    )
 
     def __init__(
         self,
@@ -115,13 +119,17 @@ class SecureKeyStorage:
         workspace_id: UUID,
         provider: str,
         api_key: str,
+        base_url: str | None = None,
+        model_name: str | None = None,
     ) -> None:
         """Store encrypted API key for workspace.
 
         Args:
             workspace_id: Workspace UUID.
-            provider: Provider name (anthropic, openai, google).
+            provider: Provider name (anthropic, openai, google, kimi, glm, ai_agent, custom).
             api_key: Raw API key to encrypt and store.
+            base_url: Optional custom base URL for provider API.
+            model_name: Optional default model name override.
 
         Raises:
             ValueError: If provider is not valid.
@@ -141,6 +149,8 @@ class SecureKeyStorage:
             is_valid=True,
             last_validated_at=None,
             validation_error=None,
+            base_url=base_url,
+            model_name=model_name,
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=["workspace_id", "provider"],
@@ -148,6 +158,9 @@ class SecureKeyStorage:
                 "encrypted_key": encrypted,
                 "is_valid": True,
                 "validation_error": None,
+                "last_validated_at": None,
+                "base_url": base_url,
+                "model_name": model_name,
                 "updated_at": datetime.now(UTC),
             },
         )
@@ -379,6 +392,8 @@ class SecureKeyStorage:
             validation_error=row.validation_error,
             created_at=row.created_at,
             updated_at=row.updated_at,
+            base_url=row.base_url,
+            model_name=row.model_name,
         )
 
 

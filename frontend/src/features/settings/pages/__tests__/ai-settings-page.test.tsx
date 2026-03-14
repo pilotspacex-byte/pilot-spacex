@@ -1,7 +1,8 @@
 /**
  * Tests for AISettingsPage.
  *
- * T178: AI provider configuration with API keys, feature toggles, provider status.
+ * Unified provider list view with expandable rows.
+ * All 6 providers appear in a single list.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -14,6 +15,11 @@ vi.mock('mobx-react-lite', () => ({
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceSlug: 'test-workspace' }),
 }));
+
+const findProviderStatus = (provider: string) => {
+  const providers = mockSettings.settings?.providers as Array<{ provider: string }> | undefined;
+  return providers?.find((p) => p.provider === provider);
+};
 
 const mockSettings = {
   isLoading: false,
@@ -56,6 +62,7 @@ const mockSettings = {
   saveSettings: vi.fn(),
   validateKey: vi.fn().mockReturnValue(true),
   validationErrors: {} as Record<string, string>,
+  getProviderStatus: vi.fn(findProviderStatus),
 };
 
 const mockWorkspaceStore = {
@@ -69,36 +76,19 @@ vi.mock('@/stores', () => ({
   }),
 }));
 
-vi.mock('@/features/settings/components/api-key-form', () => ({
-  APIKeyForm: () => <div data-testid="api-key-form">APIKeyForm</div>,
+vi.mock('@/features/settings/components/provider-row', () => ({
+  ProviderRow: ({
+    provider,
+  }: {
+    provider: string;
+    status: unknown;
+    workspaceId: string;
+    onSaved: () => void;
+  }) => <div data-testid={`provider-row-${provider}`}>{provider}</div>,
 }));
 
 vi.mock('@/features/settings/components/ai-feature-toggles', () => ({
   AIFeatureToggles: () => <div data-testid="ai-feature-toggles">AIFeatureToggles</div>,
-}));
-
-vi.mock('@/features/settings/components/provider-status-card', () => ({
-  ProviderStatusCard: ({
-    provider,
-    isKeySet,
-  }: {
-    provider: string;
-    isKeySet: boolean;
-    status: string;
-    lastValidated?: string;
-  }) => (
-    <div data-testid={`provider-status-${provider}`}>
-      {provider}: {isKeySet ? 'set' : 'not set'}
-    </div>
-  ),
-}));
-
-vi.mock('@/features/settings/components/custom-provider-form', () => ({
-  CustomProviderForm: ({ workspaceId }: { workspaceId: string; onSuccess: () => void }) => (
-    <div data-testid="custom-provider-form" data-workspace-id={workspaceId}>
-      CustomProviderForm
-    </div>
-  ),
 }));
 
 import { AISettingsPage } from '@/features/settings/pages/ai-settings-page';
@@ -135,13 +125,13 @@ describe('AISettingsPage', () => {
       defaultProvider: 'anthropic',
       costLimitUsd: null,
     };
+    mockSettings.getProviderStatus = vi.fn(findProviderStatus);
   });
 
   it('renders loading skeleton when loading', () => {
     mockSettings.isLoading = true;
     const { container } = render(<AISettingsPage />);
 
-    // Skeleton elements should be present (Skeleton component renders divs)
     expect(
       container.querySelectorAll('[class*="animate-pulse"], [data-slot="skeleton"]').length
     ).toBeGreaterThanOrEqual(0);
@@ -158,35 +148,44 @@ describe('AISettingsPage', () => {
     expect(screen.getByText('Failed to connect')).toBeInTheDocument();
   });
 
-  it('renders full page when settings loaded', () => {
+  it('renders the AI Providers heading', () => {
+    render(<AISettingsPage />);
+    expect(screen.getByText('AI Providers')).toBeInTheDocument();
+  });
+
+  it('renders all 6 provider rows and queries status for each', () => {
     render(<AISettingsPage />);
 
-    expect(screen.getByText('AI Providers')).toBeInTheDocument();
-    expect(screen.getByText('Provider Status')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-status-anthropic')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-status-openai')).toBeInTheDocument();
-    expect(screen.getByTestId('api-key-form')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-row-anthropic')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-row-openai')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-row-google')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-row-kimi')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-row-glm')).toBeInTheDocument();
+    expect(screen.getByTestId('provider-row-ai_agent')).toBeInTheDocument();
+
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledTimes(6);
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('anthropic');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('openai');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('google');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('kimi');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('glm');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('ai_agent');
+  });
+
+  it('renders AIFeatureToggles component', () => {
+    render(<AISettingsPage />);
     expect(screen.getByTestId('ai-feature-toggles')).toBeInTheDocument();
   });
 
   it('shows security notice', () => {
     render(<AISettingsPage />);
-
     expect(screen.getByText('Security & Privacy')).toBeInTheDocument();
     expect(screen.getByText(/API keys are encrypted/)).toBeInTheDocument();
   });
 
   it('calls loadSettings on mount with workspace ID', () => {
     render(<AISettingsPage />);
-
     expect(mockSettings.loadSettings).toHaveBeenCalledWith('ws-1');
-  });
-
-  it('renders provider status cards with correct key state', () => {
-    render(<AISettingsPage />);
-
-    expect(screen.getByTestId('provider-status-anthropic')).toHaveTextContent('anthropic: set');
-    expect(screen.getByTestId('provider-status-openai')).toHaveTextContent('openai: not set');
   });
 
   it('uses consistent padding matching other settings pages', () => {
@@ -198,30 +197,11 @@ describe('AISettingsPage', () => {
     expect(mainDiv.className).toContain('lg:px-8');
   });
 
-  // 13-03: All 5 built-in provider cards must be rendered
-  it('renders provider status cards for all 5 built-in providers', () => {
+  it('does NOT render old ProviderStatusCard or APIKeyForm sections', () => {
     render(<AISettingsPage />);
 
-    expect(screen.getByTestId('provider-status-anthropic')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-status-openai')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-status-kimi')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-status-glm')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-status-google')).toBeInTheDocument();
-  });
-
-  // 13-03: CustomProviderForm must be rendered below built-in providers
-  it('renders CustomProviderForm under Custom Providers heading', () => {
-    render(<AISettingsPage />);
-
-    expect(screen.getByText('Custom Providers')).toBeInTheDocument();
-    expect(screen.getByTestId('custom-provider-form')).toBeInTheDocument();
-  });
-
-  // 13-03: CustomProviderForm receives workspace ID
-  it('passes workspaceId to CustomProviderForm', () => {
-    render(<AISettingsPage />);
-
-    const form = screen.getByTestId('custom-provider-form');
-    expect(form).toHaveAttribute('data-workspace-id', 'ws-1');
+    expect(screen.queryByText('Provider Status')).not.toBeInTheDocument();
+    expect(screen.queryByText('API Keys')).not.toBeInTheDocument();
+    expect(screen.queryByText('Custom Providers')).not.toBeInTheDocument();
   });
 });

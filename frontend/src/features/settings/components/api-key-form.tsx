@@ -62,21 +62,17 @@ export const APIKeyForm = observer(function APIKeyForm() {
     }
 
     // Only send non-empty keys (unchanged keys remain empty)
-    const updates: {
-      anthropic_api_key?: string;
-      openai_api_key?: string;
-    } = {};
+    const apiKeys: Array<{ provider: string; api_key: string }> = [];
+    if (anthropicKey) apiKeys.push({ provider: 'anthropic', api_key: anthropicKey });
+    if (openaiKey) apiKeys.push({ provider: 'openai', api_key: openaiKey });
 
-    if (anthropicKey) updates.anthropic_api_key = anthropicKey;
-    if (openaiKey) updates.openai_api_key = openaiKey;
-
-    if (Object.keys(updates).length === 0) {
+    if (apiKeys.length === 0) {
       toast.info('No changes to save');
       return;
     }
 
     try {
-      await settings.saveSettings(updates);
+      await settings.saveSettings({ api_keys: apiKeys });
 
       // Clear input fields after successful save
       setAnthropicKey('');
