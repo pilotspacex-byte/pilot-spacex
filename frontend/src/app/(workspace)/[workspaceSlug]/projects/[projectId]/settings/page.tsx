@@ -46,7 +46,6 @@ function ProjectSettingsForm({
       projectId: project.id,
       data: {
         name: name.trim(),
-        identifier: identifier.trim(),
         description: description.trim() || undefined,
         icon: icon.trim() || undefined,
       },

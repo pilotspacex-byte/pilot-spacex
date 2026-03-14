@@ -92,21 +92,35 @@ export interface ProjectBrief {
   identifier: string;
 }
 
+export interface ProjectLeadBrief {
+  id: string;
+  email: string;
+  displayName: string | null;
+}
+
+export interface ProjectState {
+  id: string;
+  name: string;
+  group: string;
+  color: string;
+  sequence: number;
+}
+
 export interface Project {
   id: string;
   name: string;
   description?: string;
   identifier: string;
-  slug?: string;
   workspaceId: string;
   leadId?: string;
-  lead?: { id: string; email: string; displayName?: string | null };
+  lead?: ProjectLeadBrief;
   icon?: string;
-  memberIds?: string[];
-  members?: User[];
   issueCount: number;
   openIssueCount: number;
+  /** Computed client-side as issueCount - openIssueCount (not sent by backend). */
   completedIssueCount?: number;
+  settings?: Record<string, unknown>;
+  states?: ProjectState[];
   createdAt: string;
   updatedAt: string;
 }

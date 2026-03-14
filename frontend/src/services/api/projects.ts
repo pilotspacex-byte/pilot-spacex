@@ -3,7 +3,7 @@ import type { Project } from '@/types';
 
 export interface CreateProjectData {
   name: string;
-  identifier?: string;
+  identifier: string;
   description?: string;
   icon?: string;
   leadId?: string;
@@ -11,10 +11,10 @@ export interface CreateProjectData {
 
 export interface UpdateProjectData {
   name?: string;
-  identifier?: string;
   description?: string;
   icon?: string;
   leadId?: string;
+  settings?: Record<string, unknown>;
 }
 
 export const projectsApi = {
