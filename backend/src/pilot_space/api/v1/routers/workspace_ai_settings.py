@@ -254,6 +254,15 @@ async def update_ai_settings(
                         error_message=None,
                     )
                 )
+            elif has_metadata_change and existing_info is None:
+                # Cannot update metadata without an existing API key
+                validation_results.append(
+                    KeyValidationResult(
+                        provider=key_update.provider,
+                        is_valid=False,
+                        error_message="API key required before updating provider metadata",
+                    )
+                )
             elif not has_new_key and not has_metadata_change and existing_info is not None:
                 # Explicit None api_key with no metadata changes — delete the key (H-1)
                 await key_storage.delete_api_key(workspace_id, key_update.provider)

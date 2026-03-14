@@ -155,8 +155,10 @@ export const ProviderRow = observer(function ProviderRow({
 
   const [isOpen, setIsOpen] = React.useState(false);
   const [apiKey, setApiKey] = React.useState('');
-  const [baseUrl, setBaseUrl] = React.useState('');
-  const [modelName, setModelName] = React.useState('');
+  const [baseUrl, setBaseUrl] = React.useState(status?.baseUrl ?? '');
+  const [modelName, setModelName] = React.useState(status?.modelName ?? '');
+  const [baseUrlDirty, setBaseUrlDirty] = React.useState(false);
+  const [modelNameDirty, setModelNameDirty] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
 
   if (!config) return null;
@@ -169,16 +171,14 @@ export const ProviderRow = observer(function ProviderRow({
       model_name?: string;
     } = { provider };
 
-    // Include fields that have values; only omit truly untouched fields
     const hasApiKey = apiKey.trim().length > 0;
-    const hasBaseUrl = baseUrl.trim().length > 0;
-    const hasModelName = modelName.trim().length > 0;
-
     if (hasApiKey) entry.api_key = apiKey.trim();
-    if (hasBaseUrl) entry.base_url = baseUrl.trim();
-    if (hasModelName) entry.model_name = modelName.trim();
 
-    if (!hasApiKey && !hasBaseUrl && !hasModelName) {
+    // Include dirty metadata fields — empty string clears the existing value
+    if (baseUrlDirty) entry.base_url = baseUrl.trim() || undefined;
+    if (modelNameDirty) entry.model_name = modelName.trim() || undefined;
+
+    if (!hasApiKey && !baseUrlDirty && !modelNameDirty) {
       toast.info('No changes to save');
       return;
     }
@@ -190,6 +190,8 @@ export const ProviderRow = observer(function ProviderRow({
       setApiKey('');
       setBaseUrl('');
       setModelName('');
+      setBaseUrlDirty(false);
+      setModelNameDirty(false);
       setIsOpen(false);
       onSaved();
     } catch (error) {
@@ -248,14 +250,14 @@ export const ProviderRow = observer(function ProviderRow({
                 <Input
                   id={`${provider}-base-url`}
                   value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder={status?.baseUrl ?? 'https://api.example.com/v1'}
+                  onChange={(e) => {
+                    setBaseUrl(e.target.value);
+                    setBaseUrlDirty(true);
+                  }}
+                  placeholder="https://api.example.com/v1"
                   disabled={isSaving}
                   autoComplete="off"
                 />
-                {status?.baseUrl && (
-                  <p className="text-xs text-muted-foreground">Current: {status.baseUrl}</p>
-                )}
               </div>
             )}
 
@@ -265,14 +267,14 @@ export const ProviderRow = observer(function ProviderRow({
                 <Input
                   id={`${provider}-model-name`}
                   value={modelName}
-                  onChange={(e) => setModelName(e.target.value)}
-                  placeholder={status?.modelName ?? 'claude-3-5-sonnet-20241022'}
+                  onChange={(e) => {
+                    setModelName(e.target.value);
+                    setModelNameDirty(true);
+                  }}
+                  placeholder="claude-3-5-sonnet-20241022"
                   disabled={isSaving}
                   autoComplete="off"
                 />
-                {status?.modelName && (
-                  <p className="text-xs text-muted-foreground">Current: {status.modelName}</p>
-                )}
               </div>
             )}
 

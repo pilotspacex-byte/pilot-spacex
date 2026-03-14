@@ -5,7 +5,7 @@ Revises: 081_add_user_ai_settings
 Create Date: 2026-03-14
 
 Changes:
-- DDL: Add base_url (Text, nullable) to workspace_api_keys
+- DDL: Add base_url (String(2048), nullable) to workspace_api_keys
   Stores custom provider base URL (e.g. Azure OpenAI endpoint).
 - DDL: Add model_name (String(200), nullable) to workspace_api_keys
   Stores default model name override per provider.
@@ -23,7 +23,7 @@ depends_on: str | None = None
 
 
 def upgrade() -> None:
-    op.add_column("workspace_api_keys", sa.Column("base_url", sa.Text(), nullable=True))
+    op.add_column("workspace_api_keys", sa.Column("base_url", sa.String(2048), nullable=True))
     op.add_column("workspace_api_keys", sa.Column("model_name", sa.String(200), nullable=True))
 
 

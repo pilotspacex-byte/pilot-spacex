@@ -378,7 +378,7 @@ class APIKeyUpdate(BaseSchema):
     )
     api_key: str | None = Field(
         default=None,
-        description="API key to store (None to keep existing, empty string to remove)",
+        description="API key to store (None to keep existing)",
         min_length=1,
     )
     base_url: str | None = Field(

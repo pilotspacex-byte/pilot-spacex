@@ -210,8 +210,10 @@ class SecureKeyStorage:
         if row is None:
             return False
 
-        row.base_url = base_url
-        row.model_name = model_name
+        if base_url is not None:
+            row.base_url = base_url
+        if model_name is not None:
+            row.model_name = model_name
         row.updated_at = datetime.now(UTC)  # type: ignore[assignment]
         await self.db.commit()
 
