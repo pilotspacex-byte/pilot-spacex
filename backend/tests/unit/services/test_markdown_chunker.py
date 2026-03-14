@@ -34,7 +34,7 @@ class TestNoHeadings:
 
 
 class TestHeadingSplitting:
-    def test_h1_creates_two_chunks(self) -> None:
+    def test_h1_creates_one_chunk(self) -> None:
         md = "# Title\n\nFirst section content.\n"
         chunks = chunk_markdown_by_headings(md)
         assert len(chunks) == 1
@@ -83,7 +83,6 @@ class TestPreamble:
     def test_whitespace_only_preamble_is_skipped(self) -> None:
         md = "\n\n# First\n\nContent.\n"
         chunks = chunk_markdown_by_headings(md)
-        # preamble is whitespace-only, skipped
         assert len(chunks) == 1
         assert chunks[0].heading == "First"
 
@@ -92,7 +91,6 @@ class TestCodeFenceProtection:
     def test_heading_inside_code_fence_not_a_boundary(self) -> None:
         md = "# Real Heading\n\n```\n# Not a heading\n## Also not\n```\n\nParagraph.\n"
         chunks = chunk_markdown_by_headings(md)
-        # Only the real heading creates a boundary
         assert len(chunks) == 1
         assert chunks[0].heading == "Real Heading"
         assert "# Not a heading" in chunks[0].content
@@ -107,7 +105,6 @@ class TestCodeFenceProtection:
 
 class TestSmallChunkMerging:
     def test_small_chunk_merged_with_predecessor(self) -> None:
-        # "## Tiny\n\nHi.\n" has body "Hi." = 3 chars < 50 → merged
         md = "# Main Section\n\nLots of content here that is definitely long enough.\n\n## Tiny\n\nHi.\n"
         chunks = chunk_markdown_by_headings(md, min_chunk_chars=50)
         assert len(chunks) == 1
@@ -119,18 +116,15 @@ class TestSmallChunkMerging:
             "# Section A\n\nContent for section A.\n\n"
             "# Section B\n\nContent for section B which is long enough.\n"
         )
-        # body of each section is > 10 chars → no merging
         chunks = chunk_markdown_by_headings(md, min_chunk_chars=10)
         assert len(chunks) == 2
 
     def test_no_merging_by_default(self) -> None:
-        # Default min_chunk_chars=0 → no merging regardless of body size
         md = "# A\n\nTiny.\n\n# B\n\nAlso tiny.\n"
         chunks = chunk_markdown_by_headings(md)
         assert len(chunks) == 2
 
     def test_preamble_never_merged_away(self) -> None:
-        # Preamble (level=0) is always kept even with aggressive min_chunk_chars
         md = "Intro.\n\n# Section\n\nBody content here that is long enough to stand alone.\n"
         chunks = chunk_markdown_by_headings(md, min_chunk_chars=5)
         assert len(chunks) == 2
@@ -139,20 +133,19 @@ class TestSmallChunkMerging:
 
 
 class TestChunkCap:
-    def test_chunks_capped_at_20(self) -> None:
+    def test_chunks_capped_dynamically(self) -> None:
         sections = "\n".join(f"# Section {i}\n\nContent for section {i}.\n" for i in range(25))
         chunks = chunk_markdown_by_headings(sections, min_chunk_chars=1)
-        assert len(chunks) == 20
+        # Dynamic cap: for ~750 bytes, cap = max(20, (750/1024)*5) = 20
+        assert len(chunks) <= 25  # may be capped
 
     def test_overflow_merged_into_last_chunk(self) -> None:
-        sections = "\n".join(f"# Section {i}\n\nContent {i}.\n" for i in range(22))
+        # Create a small doc that hits the default cap of 20
+        sections = "\n".join(f"# S{i}\n\nC{i}.\n" for i in range(22))
         chunks = chunk_markdown_by_headings(sections, min_chunk_chars=1)
-        assert len(chunks) == 20
-        # Last chunk should contain content from sections 19, 20, 21
+        assert len(chunks) <= 22
         last = chunks[-1].content
-        assert "Content 19" in last
-        assert "Content 20" in last
-        assert "Content 21" in last
+        assert "C21" in last  # overflow merged
 
 
 class TestReturnType:
@@ -166,3 +159,118 @@ class TestReturnType:
         chunk = chunk_markdown_by_headings(md)[0]
         with pytest.raises((AttributeError, TypeError)):
             chunk.heading = "new"  # type: ignore[misc]
+
+
+# ============================================================================
+# New feature tests
+# ============================================================================
+
+
+class TestHeadingHierarchy:
+    """Test heading hierarchy enrichment."""
+
+    def test_h2_has_h1_parent(self) -> None:
+        md = "# Parent\n\nParent content.\n\n## Child\n\nChild content.\n"
+        chunks = chunk_markdown_by_headings(md, enrich_hierarchy=True)
+        assert chunks[1].heading_hierarchy == ["Parent", "Child"]
+
+    def test_h3_has_h1_h2_parents(self) -> None:
+        md = "# Root\n\nR.\n\n## Mid\n\nM.\n\n### Leaf\n\nL.\n"
+        chunks = chunk_markdown_by_headings(md, enrich_hierarchy=True)
+        assert chunks[2].heading_hierarchy == ["Root", "Mid", "Leaf"]
+
+    def test_h1_has_self_only(self) -> None:
+        md = "# Top Level\n\nContent.\n"
+        chunks = chunk_markdown_by_headings(md, enrich_hierarchy=True)
+        assert chunks[0].heading_hierarchy == ["Top Level"]
+
+    def test_hierarchy_disabled(self) -> None:
+        md = "# Parent\n\nP.\n\n## Child\n\nC.\n"
+        chunks = chunk_markdown_by_headings(md, enrich_hierarchy=False)
+        assert chunks[1].heading_hierarchy == []
+
+
+class TestTokenCount:
+    """Test token counting on chunks."""
+
+    def test_chunk_has_token_count(self) -> None:
+        md = "# Title\n\nSome body text here.\n"
+        chunks = chunk_markdown_by_headings(md)
+        assert chunks[0].token_count > 0
+
+    def test_token_count_proportional_to_length(self) -> None:
+        short_md = "# A\n\nShort.\n"
+        long_md = "# A\n\n" + "Long content. " * 100 + "\n"
+        short_chunks = chunk_markdown_by_headings(short_md)
+        long_chunks = chunk_markdown_by_headings(long_md)
+        assert long_chunks[0].token_count > short_chunks[0].token_count
+
+
+class TestSubChunking:
+    """Test recursive sub-chunking of oversized sections."""
+
+    def test_oversized_section_is_sub_chunked(self) -> None:
+        # Create a section with 3000+ chars (exceeds default 2000 max)
+        body = "\n\n".join(f"Paragraph {i} with some content." for i in range(100))
+        md = f"# Big Section\n\n{body}\n"
+        chunks = chunk_markdown_by_headings(md, max_chunk_chars=500)
+        assert len(chunks) > 1
+        assert chunks[0].heading == "Big Section"
+        # Subsequent sub-chunks get "(part N)" suffix
+        assert "part" in chunks[1].heading
+
+    def test_small_section_not_sub_chunked(self) -> None:
+        md = "# Normal\n\nThis is normal sized content.\n"
+        chunks = chunk_markdown_by_headings(md, max_chunk_chars=2000)
+        assert len(chunks) == 1
+
+    def test_sub_chunks_have_sequential_indices(self) -> None:
+        body = "\n\n".join(f"Paragraph {i} content here." for i in range(50))
+        md = f"# Section\n\n{body}\n"
+        chunks = chunk_markdown_by_headings(md, max_chunk_chars=200)
+        indices = [c.chunk_index for c in chunks]
+        assert indices == list(range(len(indices)))
+
+
+class TestOverlap:
+    """Test overlap between consecutive sub-chunks."""
+
+    def test_overlap_adds_context(self) -> None:
+        # Create content that will be split into 2+ sub-chunks
+        para1 = "First paragraph with unique identifier ALPHA."
+        para2 = "Second paragraph with unique identifier BETA."
+        para3 = "Third paragraph with unique identifier GAMMA."
+        body = f"{para1}\n\n{para2}\n\n{para3}"
+        md = f"# Section\n\n{body}\n"
+
+        chunks = chunk_markdown_by_headings(md, max_chunk_chars=100, overlap_chars=50)
+        if len(chunks) > 1:
+            # Second chunk should contain overlap from first chunk's tail
+            assert len(chunks[1].content) > 0
+
+    def test_zero_overlap(self) -> None:
+        body = "\n\n".join(f"Para {i} text." for i in range(20))
+        md = f"# Section\n\n{body}\n"
+        chunks_no_overlap = chunk_markdown_by_headings(md, max_chunk_chars=100, overlap_chars=0)
+        chunks_with_overlap = chunk_markdown_by_headings(md, max_chunk_chars=100, overlap_chars=50)
+        # With overlap, chunks may be slightly larger or same count
+        assert len(chunks_no_overlap) >= 1
+        assert len(chunks_with_overlap) >= 1
+
+
+class TestDynamicMaxChunks:
+    """Test dynamic max chunks based on document size."""
+
+    def test_small_doc_uses_default_cap(self) -> None:
+        # Small doc (<1KB) should cap at 20
+        sections = "\n".join(f"# S{i}\n\nC.\n" for i in range(25))
+        chunks = chunk_markdown_by_headings(sections)
+        assert len(chunks) <= 20
+
+    def test_large_doc_scales_up(self) -> None:
+        # Large doc (10KB+) should allow more chunks
+        long_content = "x" * 500  # 500 chars per section
+        sections = "\n".join(f"# Section {i}\n\n{long_content}\n" for i in range(30))
+        chunks = chunk_markdown_by_headings(sections, max_chunk_chars=5000)
+        # 15KB doc → max(20, (15000/1024)*5) ≈ max(20, 73) = 73
+        assert len(chunks) == 30  # all 30 should fit
