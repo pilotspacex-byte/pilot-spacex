@@ -246,11 +246,18 @@ export function SsoSettingsPage() {
   if (!isAdmin) {
     return (
       <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
-        <Alert variant="destructive">
+        <div className="space-y-1 mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight">SSO Configuration</h1>
+          <p className="text-sm text-muted-foreground">
+            Configure SAML 2.0 and OIDC for enterprise single sign-on.
+          </p>
+        </div>
+        <Alert className="border-amber-500/30 bg-amber-50 text-amber-800">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Access restricted</AlertTitle>
           <AlertDescription>
-            Only workspace admins and owners can manage SSO settings.
+            Only workspace admins and owners can manage SSO settings. Contact your workspace admin
+            to configure SSO.
           </AlertDescription>
         </Alert>
       </div>

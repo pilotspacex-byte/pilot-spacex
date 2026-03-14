@@ -5,7 +5,7 @@ import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Compass, Github, Mail, Loader2, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { Compass, Github, Mail, Loader2, Eye, EyeOff, KeyRound, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -277,10 +277,11 @@ const LoginPage = observer(function LoginPage() {
               {error && (
                 <div
                   id="auth-error"
-                  className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+                  className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
                   role="alert"
                 >
-                  {error}
+                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{error}</span>
                 </div>
               )}
 
@@ -304,10 +305,11 @@ const LoginPage = observer(function LoginPage() {
           {ssoRequired && error && (
             <div
               id="auth-error"
-              className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+              className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
               role="alert"
             >
-              {error}
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{error}</span>
             </div>
           )}
 
@@ -365,7 +367,25 @@ const LoginPage = observer(function LoginPage() {
           )}
 
           <p className="text-center text-xs text-muted-foreground">
-            By continuing, you agree to our Terms of Service and Privacy Policy.
+            By continuing, you agree to our{' '}
+            <a
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Privacy Policy
+            </a>
+            .
           </p>
         </CardContent>
       </Card>

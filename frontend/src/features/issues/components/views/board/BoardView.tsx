@@ -179,23 +179,30 @@ export const BoardView = observer(function BoardView({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className={cn('flex h-full gap-3 overflow-x-auto p-3', className)}>
-        {BOARD_COLUMNS.map((col) => (
-          <DroppableColumn
-            key={col.state}
-            column={col}
-            issues={issuesByState[col.state] ?? []}
-            density={viewStore.cardDensity}
-            isCollapsed={viewStore.collapsedColumns.has(col.state)}
-            wipLimit={viewStore.wipLimits.get(col.state)}
-            isLoading={false}
-            onToggleCollapse={() => viewStore.toggleColumnCollapsed(col.state)}
-            onIssueClick={onIssueClick}
-            onCreateIssue={
-              onCreateIssue ? (name) => onCreateIssue(col.state as IssueState, name) : undefined
-            }
-          />
-        ))}
+      <div className="relative">
+        <div className={cn('flex h-full gap-3 overflow-x-auto p-3', className)}>
+          {BOARD_COLUMNS.map((col) => (
+            <DroppableColumn
+              key={col.state}
+              column={col}
+              issues={issuesByState[col.state] ?? []}
+              density={viewStore.cardDensity}
+              isCollapsed={viewStore.collapsedColumns.has(col.state)}
+              wipLimit={viewStore.wipLimits.get(col.state)}
+              isLoading={false}
+              onToggleCollapse={() => viewStore.toggleColumnCollapsed(col.state)}
+              onIssueClick={onIssueClick}
+              onCreateIssue={
+                onCreateIssue ? (name) => onCreateIssue(col.state as IssueState, name) : undefined
+              }
+            />
+          ))}
+        </div>
+        {/* Right-edge fade indicator for horizontal scroll */}
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-background to-transparent"
+          aria-hidden="true"
+        />
       </div>
 
       <DragOverlay>

@@ -83,11 +83,7 @@ function ProjectSettingsForm({
         <CardContent className="space-y-4">
           <div className="grid gap-2">
             <Label htmlFor="settings-name">Name</Label>
-            <Input
-              id="settings-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <Input id="settings-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
@@ -115,6 +111,9 @@ function ProjectSettingsForm({
                 onChange={(e) => setIcon(e.target.value)}
                 maxLength={4}
               />
+              <p className="text-xs text-muted-foreground">
+                Enter an emoji or a single letter to identify this project.
+              </p>
             </div>
           </div>
           <div className="grid gap-2">
@@ -184,5 +183,7 @@ export default function ProjectSettingsPage() {
   if (!project) return null;
 
   // Key-based reset: form re-mounts with correct initial values when project data changes
-  return <ProjectSettingsForm key={project.id} project={project} workspaceSlug={params.workspaceSlug} />;
+  return (
+    <ProjectSettingsForm key={project.id} project={project} workspaceSlug={params.workspaceSlug} />
+  );
 }

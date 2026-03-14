@@ -127,7 +127,10 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
   const [issuesExpanded, setIssuesExpanded] = useState(false);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
 
-  const firstName = authStore.userDisplayName?.split(' ')[0] ?? '';
+  const rawDisplayName = authStore.userDisplayName ?? '';
+  const emailPrefix = authStore.user?.email?.split('@')[0] ?? '';
+  const firstName =
+    rawDisplayName && rawDisplayName !== emailPrefix ? rawDisplayName.split(' ')[0] : '';
   const todayFormatted = format(new Date(), 'EEEE, MMMM d, yyyy');
 
   // --- Data fetching ---

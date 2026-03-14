@@ -224,7 +224,11 @@ const CycleCard = React.memo(function CycleCard({
             <span className="text-muted-foreground">Progress</span>
             <span className="font-medium">{completionPercentage}%</span>
           </div>
-          <Progress value={completionPercentage} className="h-2" />
+          {completionPercentage > 0 ? (
+            <Progress value={completionPercentage} className="h-2" />
+          ) : (
+            <p className="text-sm text-muted-foreground">0%</p>
+          )}
         </div>
 
         {/* Metrics */}

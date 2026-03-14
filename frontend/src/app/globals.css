@@ -44,6 +44,8 @@
   --color-ai-border: var(--ai-border);
   --color-ai-hover: var(--ai-hover);
   --color-ai-bg: var(--ai-bg);
+  --color-primary-text: var(--primary-text);
+  --color-ai-text: var(--ai-text);
 
   /* Issue state colors */
   --color-state-backlog: var(--state-backlog);
@@ -74,7 +76,9 @@
   --font-display: 'Fraunces', Georgia, serif;
   --font-sans:
     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  --font-mono: var(--font-dm-mono), var(--font-geist-mono), 'SF Mono', monospace;
+  --font-mono:
+    var(--font-jetbrains-mono), 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code',
+    ui-monospace, monospace;
 
   /* Border radius (Apple squircle style) */
   --radius-sm: 6px;
@@ -128,7 +132,7 @@
 
   /* Muted */
   --muted: #f1f1ef;
-  --muted-foreground: #787774;
+  --muted-foreground: #6f6e6b;
 
   /* Accent */
   --accent: #f1f1ef;
@@ -190,6 +194,10 @@
   --sidebar-width: 260px;
   --sidebar-collapsed-width: 60px;
   --content-max-width: 1200px;
+
+  /* Accessible text colors (AA compliant) */
+  --primary-text: #1f7d66;
+  --ai-text: #4a6f8f;
 }
 
 /* =============================================================================
@@ -279,6 +287,10 @@
   --sidebar-accent-foreground: #ebebeb;
   --sidebar-border: #3c3c3c;
   --sidebar-ring: #3db896;
+
+  /* Accessible text colors (AA compliant) */
+  --primary-text: #4ecaa8;
+  --ai-text: #8fb5d3;
 }
 
 /* =============================================================================

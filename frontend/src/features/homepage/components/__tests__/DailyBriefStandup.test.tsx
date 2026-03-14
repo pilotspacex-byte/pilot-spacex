@@ -22,9 +22,14 @@ vi.mock('date-fns', () => ({
   format: vi.fn(() => 'Thursday, February 20, 2026'),
 }));
 
-// Mock RootStore hooks
+// Mock RootStore hooks — overridable per test
+const mockAuthStore = {
+  userDisplayName: 'Tin Dang',
+  user: { email: 'tin@example.com' },
+};
+
 vi.mock('@/stores/RootStore', () => ({
-  useAuthStore: () => ({ userDisplayName: 'Tin Dang' }),
+  useAuthStore: () => mockAuthStore,
   useWorkspaceStore: () => ({
     currentWorkspace: { id: 'ws-1', slug: 'test-ws' },
   }),
@@ -143,6 +148,9 @@ import { DailyBrief } from '../DailyBrief';
 describe('DailyBrief standup button', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset to default display name with real name
+    mockAuthStore.userDisplayName = 'Tin Dang';
+    mockAuthStore.user = { email: 'tin@example.com' };
   });
 
   it('renders the standup button with correct aria-label', () => {
@@ -175,5 +183,52 @@ describe('DailyBrief standup button', () => {
 
     expect(mockSendMessage).toHaveBeenCalledOnce();
     expect(mockSendMessage).toHaveBeenCalledWith('\\daily-standup');
+  });
+});
+
+describe('DailyBrief greeting display name', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows first name when display name is a real name (not email-derived)', () => {
+    mockAuthStore.userDisplayName = 'Tin Dang';
+    mockAuthStore.user = { email: 'tin@example.com' };
+
+    render(<DailyBrief workspaceSlug="test-ws" />);
+
+    expect(screen.getByText(/Good (morning|afternoon|evening), Tin/)).toBeInTheDocument();
+  });
+
+  it('omits name from greeting when display name equals email prefix', () => {
+    // e2e-test@pilotspace.dev → userDisplayName = 'e2e-test' (from Supabase fallback)
+    mockAuthStore.userDisplayName = 'e2e-test';
+    mockAuthStore.user = { email: 'e2e-test@pilotspace.dev' };
+
+    render(<DailyBrief workspaceSlug="test-ws" />);
+
+    // Greeting should NOT include 'e2e-test'
+    expect(screen.queryByText(/e2e-test/)).not.toBeInTheDocument();
+    // Should show bare greeting
+    expect(screen.getByText(/^Good (morning|afternoon|evening)$/)).toBeInTheDocument();
+  });
+
+  it('shows first name when display name differs from email prefix', () => {
+    mockAuthStore.userDisplayName = 'Alice Smith';
+    mockAuthStore.user = { email: 'alice.smith@company.com' };
+
+    render(<DailyBrief workspaceSlug="test-ws" />);
+
+    // 'Alice Smith' !== 'alice.smith' so first name should be shown
+    expect(screen.getByText(/Good (morning|afternoon|evening), Alice/)).toBeInTheDocument();
+  });
+
+  it('shows bare greeting when display name is empty', () => {
+    mockAuthStore.userDisplayName = '';
+    mockAuthStore.user = { email: 'user@example.com' };
+
+    render(<DailyBrief workspaceSlug="test-ws" />);
+
+    expect(screen.getByText(/^Good (morning|afternoon|evening)$/)).toBeInTheDocument();
   });
 });

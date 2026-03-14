@@ -143,6 +143,18 @@ describe('SecuritySettingsPage', () => {
     expect(screen.getByRole('alertdialog')).toHaveTextContent(/Terminate session/i);
   });
 
+  it('shows page heading and amber alert for non-admin users', () => {
+    mockWorkspaceStore.isAdmin = false;
+    render(<SecuritySettingsPage />);
+
+    expect(screen.getByRole('heading', { name: 'Security' })).toBeInTheDocument();
+    expect(screen.getByText(/Manage active sessions/i)).toBeInTheDocument();
+    expect(screen.getByText('Access restricted')).toBeInTheDocument();
+    expect(screen.getByText(/Contact your workspace admin/i)).toBeInTheDocument();
+    // Should not show the sessions table for non-admins
+    expect(screen.queryByText('Active Sessions')).not.toBeInTheDocument();
+  });
+
   it('SCIM URL displays workspace slug in URL', () => {
     render(<SecuritySettingsPage />);
 

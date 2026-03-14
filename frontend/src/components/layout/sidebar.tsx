@@ -555,7 +555,7 @@ export const Sidebar = observer(function Sidebar() {
                 disabled={createNote.isPending}
                 className={cn(
                   'shadow-warm-sm transition-all duration-200',
-                  'hover:shadow-warm-md hover:-translate-y-0.5',
+                  'hover:shadow-warm-md',
                   collapsed ? 'h-8 w-8' : 'w-full'
                 )}
               >

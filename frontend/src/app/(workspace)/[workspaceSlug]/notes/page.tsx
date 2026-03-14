@@ -86,10 +86,7 @@ function NoteGridCard({
   return (
     <Link href={`/${workspaceSlug}/notes/${note.id}`} onMouseEnter={onPrefetch}>
       <Card
-        className={cn(
-          'group cursor-pointer transition-all duration-200',
-          'hover:shadow-warm-md hover:-translate-y-0.5'
-        )}
+        className={cn('group cursor-pointer transition-all duration-200', 'hover:shadow-warm-md')}
       >
         <CardContent className="p-5">
           <div className="mb-3 flex items-start justify-between">
@@ -120,7 +117,7 @@ function NoteGridCard({
             </div>
           )}
 
-          {/* Linked issues with state colors, or topics fallback */}
+          {/* Linked issues with state colors, or content preview/topics fallback */}
           {linkedIssues.length > 0 ? (
             <div className="flex items-center gap-1 mb-3 flex-wrap">
               {linkedIssues.slice(0, 3).map((issue) => (
@@ -143,12 +140,20 @@ function NoteGridCard({
             </div>
           ) : (
             <p className="mb-3 line-clamp-2 text-sm text-muted-foreground">
-              {topics.length > 0 ? topics.join(', ') : 'No topics'}
+              {note.summary
+                ? note.summary.slice(0, 100)
+                : topics.length > 0
+                  ? topics.join(', ')
+                  : null}
             </p>
           )}
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{(note.wordCount ?? 0).toLocaleString()} words</span>
+            {(note.wordCount ?? 0) > 0 ? (
+              <span>{note.wordCount!.toLocaleString()} words</span>
+            ) : (
+              <span />
+            )}
             <span>Updated {updatedAt}</span>
           </div>
         </CardContent>
@@ -203,12 +208,16 @@ function NoteListRow({
             )}
             {project && topics.length > 0 && <span className="text-border">&middot;</span>}
             <span className="truncate">
-              {topics.length > 0 ? topics.join(', ') : !project ? 'No topics' : ''}
+              {note.summary
+                ? note.summary.slice(0, 80)
+                : topics.length > 0
+                  ? topics.join(', ')
+                  : ''}
             </span>
           </div>
         </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground shrink-0">
-          <span>{(note.wordCount ?? 0).toLocaleString()} words</span>
+          {(note.wordCount ?? 0) > 0 && <span>{note.wordCount!.toLocaleString()} words</span>}
           {linkedIssues.length > 0 && (
             <div className="flex items-center gap-1">
               {linkedIssues.slice(0, 3).map((issue) => (
@@ -490,7 +499,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
 
           {/* Sort */}
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortBy)}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="min-w-[140px]">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>

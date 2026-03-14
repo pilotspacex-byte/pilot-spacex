@@ -157,6 +157,17 @@ describe('SsoSettingsPage', () => {
     expect(screen.queryByText('SAML 2.0 Configuration')).not.toBeInTheDocument();
   });
 
+  it('non-admin view shows SSO heading and amber alert with guidance', () => {
+    mockWorkspaceStore.isAdmin = false;
+    render(<SsoSettingsPage />);
+
+    expect(screen.getByRole('heading', { name: 'SSO Configuration' })).toBeInTheDocument();
+    expect(screen.getByText(/Configure SAML 2.0 and OIDC/i)).toBeInTheDocument();
+    expect(screen.getByText(/Contact your workspace admin to configure SSO/i)).toBeInTheDocument();
+    // Amber styling via class — content check is sufficient for unit tests
+    expect(screen.getByText('Access restricted')).toBeInTheDocument();
+  });
+
   it('calls updateSamlConfig mutation on save', async () => {
     const mockMutateAsync = vi.fn().mockResolvedValue({});
     mockUseUpdateSamlConfig.mockReturnValue({ mutateAsync: mockMutateAsync, isPending: false });

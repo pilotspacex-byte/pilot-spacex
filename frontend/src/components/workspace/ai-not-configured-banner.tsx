@@ -6,7 +6,7 @@
  *
  * - Visible to Owner only (isOwner=false returns null immediately)
  * - Queries ai-status endpoint lazily — only fetches when isOwner=true
- * - Dismissable per browser session (sessionStorage key; resets on next browser session)
+ * - Dismissable with 7-day TTL persisted in localStorage
  * - Links to Settings > AI Providers
  * - Non-Owner members: no banner; AI controls simply disabled without explanation
  */
@@ -16,7 +16,8 @@ import { X } from 'lucide-react';
 import Link from 'next/link';
 import { useAIStatus } from '@/hooks/use-ai-status';
 
-const DISMISS_KEY = 'ai_banner_dismissed';
+const DISMISS_KEY = 'ai_banner_dismissed_at';
+const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface AiNotConfiguredBannerProps {
   workspaceSlug: string;
@@ -24,9 +25,12 @@ interface AiNotConfiguredBannerProps {
 }
 
 export function AiNotConfiguredBanner({ workspaceSlug, isOwner }: AiNotConfiguredBannerProps) {
-  const [dismissed, setDismissed] = useState(
-    () => typeof window !== 'undefined' && sessionStorage.getItem(DISMISS_KEY) === 'true'
-  );
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const ts = localStorage.getItem(DISMISS_KEY);
+    if (!ts) return false;
+    return Date.now() - parseInt(ts, 10) < DISMISS_TTL_MS;
+  });
 
   // Only fetch AI status for owners — non-owners never see this banner
   const { data } = useAIStatus(isOwner ? workspaceSlug : '');
@@ -52,7 +56,7 @@ export function AiNotConfiguredBanner({ workspaceSlug, isOwner }: AiNotConfigure
       <button
         type="button"
         onClick={() => {
-          sessionStorage.setItem(DISMISS_KEY, 'true');
+          localStorage.setItem(DISMISS_KEY, String(Date.now()));
           setDismissed(true);
         }}
         className="ml-4 text-amber-600 hover:text-amber-800 shrink-0"

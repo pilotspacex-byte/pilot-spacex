@@ -199,6 +199,16 @@ describe('RolesSettingsPage', () => {
     expect(screen.queryByRole('button', { name: /Create Role/i })).not.toBeInTheDocument();
   });
 
+  it('non-admin view shows page heading above access restricted alert', () => {
+    mockWorkspaceStore.isAdmin = false;
+    render(<RolesSettingsPage />);
+
+    expect(screen.getByRole('heading', { name: 'Custom Roles' })).toBeInTheDocument();
+    expect(screen.getByText(/Define custom permission sets/i)).toBeInTheDocument();
+    expect(screen.getByText('Access restricted')).toBeInTheDocument();
+    expect(screen.getByText(/Contact your workspace admin/i)).toBeInTheDocument();
+  });
+
   it('shows inline error for duplicate role name (409)', async () => {
     const { ApiError } = await import('@/services/api');
     const conflictError = new ApiError({ status: 409, title: 'Role name already exists' });

@@ -33,10 +33,25 @@ vi.mock('@/services/api', async (importOriginal) => {
 
 const mockUseAuditLog = vi.fn();
 const mockUseExportAuditLog = vi.fn();
+const mockUseWorkspaceMembers = vi.fn();
+
+vi.mock('@/stores', () => ({
+  useStore: () => ({
+    workspaceStore: {
+      getWorkspaceBySlug: vi.fn().mockReturnValue({ id: 'ws-123', slug: 'test-workspace' }),
+      isAdmin: true,
+    },
+  }),
+}));
+
+vi.mock('@/features/issues/hooks/use-workspace-members', () => ({
+  useWorkspaceMembers: (...args: unknown[]) => mockUseWorkspaceMembers(...args),
+}));
 
 vi.mock('@/features/settings/hooks/use-audit-log', () => ({
   useAuditLog: (...args: unknown[]) => mockUseAuditLog(...args),
   useExportAuditLog: (...args: unknown[]) => mockUseExportAuditLog(...args),
+  useRollbackAIArtifact: () => ({ mutate: vi.fn(), isPending: false, variables: null }),
 }));
 
 const mockAuditEntries = [
@@ -83,6 +98,18 @@ const mockPaginatedResponse = {
   pageSize: 50,
 };
 
+const mockMembers = [
+  {
+    userId: 'user-abc123de',
+    email: 'alice@example.com',
+    fullName: 'Alice Johnson',
+    avatarUrl: null,
+    role: 'member' as const,
+    joinedAt: '2026-01-01T00:00:00Z',
+    weeklyAvailableHours: 40,
+  },
+];
+
 function setupDefaultMocks() {
   mockUseAuditLog.mockReturnValue({
     data: mockPaginatedResponse,
@@ -94,6 +121,7 @@ function setupDefaultMocks() {
     triggerExport: vi.fn(),
     isExporting: false,
   });
+  mockUseWorkspaceMembers.mockReturnValue({ data: mockMembers });
 }
 
 import { AuditSettingsPage } from '../audit-settings-page';
@@ -129,8 +157,8 @@ describe('AuditSettingsPage', () => {
   it('renders audit log rows', () => {
     render(<AuditSettingsPage />);
 
-    expect(screen.getByText('issue.create')).toBeInTheDocument();
-    expect(screen.getByText('issue.update')).toBeInTheDocument();
+    expect(screen.getByText('Issue Created')).toBeInTheDocument();
+    expect(screen.getByText('Issue Updated')).toBeInTheDocument();
   });
 
   it('renders no delete or edit buttons on rows', () => {
@@ -227,5 +255,54 @@ describe('AuditSettingsPage', () => {
     // If it were wrapped in observer, displayName would contain 'observer'
     const displayName = (AuditSettingsPage as { displayName?: string }).displayName ?? '';
     expect(displayName).not.toContain('observer');
+  });
+
+  it('resolves actor UUID to display name when member is found', () => {
+    render(<AuditSettingsPage />);
+
+    // actorId 'user-abc123de' should be resolved to 'Alice Johnson' (from mockMembers)
+    expect(screen.getByText('Alice Johnson')).toBeInTheDocument();
+    // Raw UUID should not appear as actor label
+    expect(screen.queryByText('user-abc')).not.toBeInTheDocument();
+  });
+
+  it('falls back to truncated UUID when actor is not in members list', () => {
+    // mockAuditEntries has actorId 'user-abc123de' which is in members.
+    // Provide empty members to force fallback.
+    mockUseWorkspaceMembers.mockReturnValue({ data: [] });
+
+    render(<AuditSettingsPage />);
+
+    // truncate('user-abc123de', 8) = 'user-abc' (8 chars) + '…' (unicode ellipsis)
+    expect(screen.getByText('user-abc\u2026')).toBeInTheDocument();
+  });
+
+  it('renders dash for null actorId', () => {
+    render(<AuditSettingsPage />);
+
+    // Second entry has actorId: null (AI actor) — should show '—'
+    const dashes = screen.getAllByText('—');
+    expect(dashes.length).toBeGreaterThan(0);
+  });
+
+  it('uses email prefix as fallback when member has no fullName', () => {
+    mockUseWorkspaceMembers.mockReturnValue({
+      data: [
+        {
+          userId: 'user-abc123de',
+          email: 'alice@example.com',
+          fullName: null,
+          avatarUrl: null,
+          role: 'member' as const,
+          joinedAt: '2026-01-01T00:00:00Z',
+          weeklyAvailableHours: 40,
+        },
+      ],
+    });
+
+    render(<AuditSettingsPage />);
+
+    // fullName is null, so email prefix 'alice' should be shown
+    expect(screen.getByText('alice')).toBeInTheDocument();
   });
 });

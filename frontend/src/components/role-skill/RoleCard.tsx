@@ -101,7 +101,7 @@ export function RoleCard({
         // States
         selected
           ? 'border-2 border-primary bg-primary/5'
-          : 'border border-border bg-[#F7F5F2] hover:-translate-y-0.5 hover:shadow-md',
+          : 'border border-border bg-[#F7F5F2] hover:shadow-md',
         // Disabled
         disabled && 'pointer-events-none opacity-50'
       )}

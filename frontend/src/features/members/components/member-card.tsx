@@ -75,7 +75,7 @@ export function MemberCard({
     <Card
       className={cn(
         'relative cursor-pointer px-4 py-4 transition-all duration-200',
-        'hover:-translate-y-0.5 hover:shadow-md',
+        'hover:shadow-md',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         isCurrentUser && 'ring-1 ring-primary/20'
       )}
@@ -178,10 +178,12 @@ export function MemberCard({
           {isCurrentUser && <span className="ml-1 text-muted-foreground font-normal">(you)</span>}
         </p>
 
-        {/* Email */}
-        <p className="text-center text-xs text-muted-foreground truncate max-w-full">
-          {member.email}
-        </p>
+        {/* Email — only show when we have a real display name, otherwise name already shows email-derived text */}
+        {member.fullName && (
+          <p className="text-center text-xs text-muted-foreground truncate max-w-full">
+            {member.email}
+          </p>
+        )}
 
         {/* Meta row */}
         <p className="text-center text-xs text-muted-foreground mt-1" data-testid="member-meta">

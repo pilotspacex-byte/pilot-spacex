@@ -110,6 +110,9 @@ export function GraphEmptyState({
       </svg>
 
       <p className="text-sm text-muted-foreground">No knowledge graph yet</p>
+      <p className="mt-1 text-xs text-muted-foreground max-w-xs text-center">
+        The knowledge graph visualizes relationships between your notes, issues, and code.
+      </p>
 
       {onOpenChat && (
         <button

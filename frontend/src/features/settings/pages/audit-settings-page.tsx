@@ -1,13 +1,7 @@
 /**
  * AuditSettingsPage - Read-only audit log viewer for workspace admins.
- *
- * AUDIT-03: Filter UI (actor, action, resource type, date range).
- * AUDIT-04: Export UI (JSON/CSV) with 10k-row warning.
- * AUDIT-05: Retention note shown (API-only enforcement, no UI controls in this phase).
- * AUDIT-06: Zero write affordances — no delete, edit, or action buttons.
- *
- * NOTE: This component MUST NOT be wrapped in observer(). It is a plain React
- * component. All state is managed with useState. Data fetching via TanStack Query.
+ * AUDIT-03..06: Filter UI, Export UI, Retention note, zero write affordances.
+ * NOTE: MUST NOT be wrapped in observer() — plain React component.
  */
 
 'use client';
@@ -48,6 +42,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useStore } from '@/stores';
+import { useWorkspaceMembers } from '@/features/issues/hooks/use-workspace-members';
 import {
   useAuditLog,
   useExportAuditLog,
@@ -56,8 +52,6 @@ import {
   type AuditLogEntry,
 } from '../hooks/use-audit-log';
 import { formatAction, formatResourceType } from '../utils/audit-labels';
-
-// ---- Constants ----
 
 const EXPORT_WARNING_THRESHOLD = 10_000;
 
@@ -86,8 +80,6 @@ const RESOURCE_TYPE_OPTIONS = [
   { value: 'settings', label: 'settings' },
   { value: 'ai', label: 'ai' },
 ];
-
-// ---- Helpers ----
 
 function formatTimestamp(isoString: string): string {
   return new Date(isoString).toLocaleString(undefined, {
@@ -119,8 +111,6 @@ function ActorTypeBadge({ actorType }: { actorType: AuditLogEntry['actorType'] }
   );
 }
 
-// ---- Skeleton ----
-
 function AuditSkeletonRows() {
   return (
     <>
@@ -136,8 +126,6 @@ function AuditSkeletonRows() {
     </>
   );
 }
-
-// ---- Expanded Row ----
 
 function ExpandedRowContent({
   entry,
@@ -220,13 +208,18 @@ function ExpandedRowContent({
   );
 }
 
-// ---- Main Component ----
-
 export function AuditSettingsPage() {
   const params = useParams();
   const workspaceSlug = params?.workspaceSlug as string;
+  const { workspaceStore } = useStore();
+  const workspaceId = workspaceStore.getWorkspaceBySlug?.(workspaceSlug)?.id ?? workspaceSlug;
 
-  // ---- Filter state ----
+  const { data: members = [] } = useWorkspaceMembers(workspaceId);
+  const actorNameMap = React.useMemo(
+    () => new Map(members.map((m) => [m.userId, m.fullName ?? m.email.split('@')[0] ?? m.email])),
+    [members]
+  );
+
   const [actorInput, setActorInput] = React.useState('');
   const [debouncedActorId, setDebouncedActorId] = React.useState('');
   const [selectedActorType, setSelectedActorType] = React.useState<'AI' | 'USER' | 'SYSTEM' | ''>(
@@ -261,16 +254,13 @@ export function AuditSettingsPage() {
     ...(endDate ? { end_date: endDate } : {}),
   };
 
-  // ---- Data ----
   const { data, isLoading, error, isFetching } = useAuditLog(workspaceSlug, filters, cursor);
   const { triggerExport, isExporting } = useExportAuditLog(workspaceSlug);
   const rollbackMutation = useRollbackAIArtifact(workspaceSlug);
 
-  // ---- Export state ----
   const [exportFormat, setExportFormat] = React.useState<'json' | 'csv' | null>(null);
   const [showExportWarning, setShowExportWarning] = React.useState(false);
 
-  // ---- Expanded rows ----
   const [expandedRowIds, setExpandedRowIds] = React.useState<Set<string>>(new Set());
 
   const toggleRow = (id: string) => {
@@ -285,7 +275,6 @@ export function AuditSettingsPage() {
     });
   };
 
-  // ---- Export handlers ----
   const handleExportClick = (format: 'json' | 'csv') => {
     const totalCount = data?.items.length ?? 0;
     if (totalCount > EXPORT_WARNING_THRESHOLD) {
@@ -581,9 +570,13 @@ export function AuditSettingsPage() {
                             {/* Actor */}
                             <TableCell>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-xs">
-                                  {truncate(entry.actorId, 8)}
-                                </span>
+                                {entry.actorId ? (
+                                  <span className="text-xs">
+                                    {actorNameMap.get(entry.actorId) ?? truncate(entry.actorId, 8)}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
                                 <ActorTypeBadge actorType={entry.actorType} />
                               </div>
                             </TableCell>
