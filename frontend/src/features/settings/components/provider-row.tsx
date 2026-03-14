@@ -15,7 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { APIKeyInput } from './api-key-input';
 import { useStore } from '@/stores';
 import { toast } from 'sonner';
@@ -172,11 +172,16 @@ export const ProviderRow = observer(function ProviderRow({
       model_name?: string;
     } = { provider };
 
-    if (apiKey.trim()) entry.api_key = apiKey.trim();
-    if (baseUrl.trim()) entry.base_url = baseUrl.trim();
-    if (modelName.trim()) entry.model_name = modelName.trim();
+    // Include fields that have values; only omit truly untouched fields
+    const hasApiKey = apiKey.trim().length > 0;
+    const hasBaseUrl = baseUrl.trim().length > 0;
+    const hasModelName = modelName.trim().length > 0;
 
-    if (Object.keys(entry).length === 1) {
+    if (hasApiKey) entry.api_key = apiKey.trim();
+    if (hasBaseUrl) entry.base_url = baseUrl.trim();
+    if (hasModelName) entry.model_name = modelName.trim();
+
+    if (!hasApiKey && !hasBaseUrl && !hasModelName) {
       toast.info('No changes to save');
       return;
     }
@@ -203,9 +208,9 @@ export const ProviderRow = observer(function ProviderRow({
     <Card>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
-          <CardContent
-            className="flex cursor-pointer items-center justify-between p-4 hover:bg-muted/30 transition-colors"
-            role="button"
+          <button
+            type="button"
+            className="flex w-full cursor-pointer items-center justify-between p-4 hover:bg-muted/30 transition-colors text-left"
             aria-expanded={isOpen}
             aria-label={`Configure ${config.name}`}
           >
@@ -224,7 +229,7 @@ export const ProviderRow = observer(function ProviderRow({
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               )}
             </div>
-          </CardContent>
+          </button>
         </CollapsibleTrigger>
 
         <CollapsibleContent>

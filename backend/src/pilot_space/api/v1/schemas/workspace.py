@@ -384,6 +384,7 @@ class APIKeyUpdate(BaseSchema):
     base_url: str | None = Field(
         default=None,
         description="Custom base URL for provider API",
+        pattern=r"^https?://[^\s]+$",
     )
     model_name: str | None = Field(
         default=None,

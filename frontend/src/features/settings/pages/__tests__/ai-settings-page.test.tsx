@@ -16,6 +16,11 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceSlug: 'test-workspace' }),
 }));
 
+const findProviderStatus = (provider: string) => {
+  const providers = mockSettings.settings?.providers as Array<{ provider: string }> | undefined;
+  return providers?.find((p) => p.provider === provider);
+};
+
 const mockSettings = {
   isLoading: false,
   isSaving: false,
@@ -57,10 +62,7 @@ const mockSettings = {
   saveSettings: vi.fn(),
   validateKey: vi.fn().mockReturnValue(true),
   validationErrors: {} as Record<string, string>,
-  getProviderStatus: vi.fn((provider: string) => {
-    const providers = mockSettings.settings?.providers as Array<{ provider: string }> | undefined;
-    return providers?.find((p) => p.provider === provider);
-  }),
+  getProviderStatus: vi.fn(findProviderStatus),
 };
 
 const mockWorkspaceStore = {
@@ -123,10 +125,7 @@ describe('AISettingsPage', () => {
       defaultProvider: 'anthropic',
       costLimitUsd: null,
     };
-    mockSettings.getProviderStatus = vi.fn((provider: string) => {
-      const providers = mockSettings.settings?.providers as Array<{ provider: string }> | undefined;
-      return providers?.find((p) => p.provider === provider);
-    });
+    mockSettings.getProviderStatus = vi.fn(findProviderStatus);
   });
 
   it('renders loading skeleton when loading', () => {
@@ -154,7 +153,7 @@ describe('AISettingsPage', () => {
     expect(screen.getByText('AI Providers')).toBeInTheDocument();
   });
 
-  it('renders all 6 provider rows', () => {
+  it('renders all 6 provider rows and queries status for each', () => {
     render(<AISettingsPage />);
 
     expect(screen.getByTestId('provider-row-anthropic')).toBeInTheDocument();
@@ -163,6 +162,14 @@ describe('AISettingsPage', () => {
     expect(screen.getByTestId('provider-row-kimi')).toBeInTheDocument();
     expect(screen.getByTestId('provider-row-glm')).toBeInTheDocument();
     expect(screen.getByTestId('provider-row-ai_agent')).toBeInTheDocument();
+
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledTimes(6);
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('anthropic');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('openai');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('google');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('kimi');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('glm');
+    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('ai_agent');
   });
 
   it('renders AIFeatureToggles component', () => {

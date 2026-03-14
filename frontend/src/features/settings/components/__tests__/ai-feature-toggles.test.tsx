@@ -20,8 +20,10 @@ const mockSettings = {
   marginAnnotationsEnabled: false,
   aiContextEnabled: true,
   settings: {
-    issue_extraction_enabled: false,
-    pr_review_enabled: true,
+    features: {
+      issueExtractionEnabled: false,
+      prReviewEnabled: true,
+    },
   } as Record<string, unknown> | null,
   saveSettings: vi.fn(),
 };
@@ -44,8 +46,10 @@ describe('AIFeatureToggles', () => {
     mockSettings.marginAnnotationsEnabled = false;
     mockSettings.aiContextEnabled = true;
     mockSettings.settings = {
-      issue_extraction_enabled: false,
-      pr_review_enabled: true,
+      features: {
+        issueExtractionEnabled: false,
+        prReviewEnabled: true,
+      },
     };
     mockSettings.saveSettings = vi.fn().mockResolvedValue(undefined);
   });

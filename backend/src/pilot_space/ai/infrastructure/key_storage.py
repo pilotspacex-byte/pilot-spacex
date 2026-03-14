@@ -158,6 +158,7 @@ class SecureKeyStorage:
                 "encrypted_key": encrypted,
                 "is_valid": True,
                 "validation_error": None,
+                "last_validated_at": None,
                 "base_url": base_url,
                 "model_name": model_name,
                 "updated_at": datetime.now(UTC),

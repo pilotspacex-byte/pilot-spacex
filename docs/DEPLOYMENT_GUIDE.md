@@ -4,7 +4,7 @@ Deploy Pilot Space to production using **$0/month** free-tier services.
 
 ## Architecture Overview
 
-```
+```text
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
 │   Vercel         │────▶│   Render          │────▶│   Supabase Cloud    │
 │   (Frontend)     │     │   (Backend API)   │     │   (DB + Auth + RLS) │
@@ -21,12 +21,12 @@ Deploy Pilot Space to production using **$0/month** free-tier services.
 
 ## Free Tier Summary
 
-| Service          | Role                | Free Tier Limits                     |
-|------------------|---------------------|--------------------------------------|
-| **Vercel**       | Frontend hosting    | 100GB bandwidth, serverless, edge    |
-| **Render**       | Backend API         | 750h/month, spins down after 15min   |
-| **Supabase**     | DB + Auth + Storage | 500MB DB, 1GB storage, 50K MAU       |
-| **Upstash**      | Redis / Queues      | 10K commands/day, 256MB              |
+| Service          | Role                | Free Tier Limits (as of March 2026)                          | Pricing Page                                              |
+|------------------|---------------------|--------------------------------------------------------------|-----------------------------------------------------------|
+| **Vercel**       | Frontend hosting    | 4 CPU-hrs, 360 GB-hrs memory, 1M invocations, 50K analytics | [vercel.com/pricing](https://vercel.com/pricing)          |
+| **Render**       | Backend API         | 750h/month, spins down after 15min idle                      | [render.com/pricing](https://render.com/pricing)          |
+| **Supabase**     | DB + Auth + Storage | 500MB DB, 1GB storage, 50K MAU, 500K edge invocations       | [supabase.com/pricing](https://supabase.com/pricing)      |
+| **Upstash**      | Redis / Queues      | 500K commands/month, 256MB, 1 free database                 | [upstash.com/pricing](https://upstash.com/docs/redis/overall/pricing) |
 
 > **Cold start warning**: Render free tier sleeps after 15 min of inactivity. First request after sleep takes ~30s. Supabase free projects pause after 7 days of inactivity.
 

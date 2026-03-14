@@ -4,6 +4,7 @@ Tests for APIKeyUpdate and ProviderStatus Pydantic schemas covering:
 - All 6 providers accepted in APIKeyUpdate
 - base_url/model_name optional fields in both schemas
 - Invalid provider rejection
+- URL validation on base_url
 """
 
 from __future__ import annotations
@@ -11,38 +12,7 @@ from __future__ import annotations
 import pydantic
 import pytest
 
-
-def _load_workspace_schemas() -> tuple[type, type]:
-    """Load schemas directly avoiding container import chain."""
-    # Import only what we need, bypassing the container chain
-    import pydantic
-    from pydantic import Field
-
-    # Replicate the BaseSchema minimal base
-    class BaseSchema(pydantic.BaseModel):
-        model_config = pydantic.ConfigDict(populate_by_name=True)
-
-    class APIKeyUpdate(BaseSchema):
-        provider: str = Field(
-            description="Provider name",
-            pattern="^(anthropic|openai|google|kimi|glm|ai_agent)$",
-        )
-        api_key: str | None = Field(default=None, min_length=1)
-        base_url: str | None = Field(default=None)
-        model_name: str | None = Field(default=None)
-
-    class ProviderStatus(BaseSchema):
-        provider: str = Field(description="Provider name")
-        is_configured: bool = Field(description="Whether API key is configured")
-        is_valid: bool | None = Field(default=None)
-        last_validated_at: str | None = Field(default=None)
-        base_url: str | None = Field(default=None)
-        model_name: str | None = Field(default=None)
-
-    return APIKeyUpdate, ProviderStatus
-
-
-APIKeyUpdate, ProviderStatus = _load_workspace_schemas()
+from pilot_space.api.v1.schemas.workspace import APIKeyUpdate, ProviderStatus
 
 
 class TestAPIKeyUpdateSchema:
@@ -93,6 +63,22 @@ class TestAPIKeyUpdateSchema:
     def test_api_key_none_allowed(self) -> None:
         update = APIKeyUpdate(provider="openai", api_key=None)
         assert update.api_key is None
+
+    def test_base_url_rejects_invalid_url(self) -> None:
+        with pytest.raises(pydantic.ValidationError, match="base_url"):
+            APIKeyUpdate(
+                provider="google",
+                api_key="AIza-test-key",  # pragma: allowlist secret
+                base_url="not-a-url",
+            )
+
+    def test_base_url_accepts_http(self) -> None:
+        update = APIKeyUpdate(
+            provider="ai_agent",
+            api_key="sk-test-1234567890",  # pragma: allowlist secret
+            base_url="http://localhost:8080/v1",
+        )
+        assert update.base_url == "http://localhost:8080/v1"
 
 
 class TestProviderStatusSchema:

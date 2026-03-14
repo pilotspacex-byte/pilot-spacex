@@ -127,7 +127,7 @@ export const AIFeatureToggles = observer(function AIFeatureToggles() {
           description="Extract actionable issues from notes using AI"
           checked={settings.settings?.features?.issueExtractionEnabled ?? false}
           disabled={isDisabled}
-          onCheckedChange={(checked) => handleToggle('issueExtractionEnabled', checked)}
+          onCheckedChange={(checked) => handleToggle('issue_extraction_enabled', checked)}
         />
         <Separator />
         <FeatureToggle
@@ -136,7 +136,7 @@ export const AIFeatureToggles = observer(function AIFeatureToggles() {
           description="AI-powered pull request reviews with architecture and security analysis"
           checked={settings.settings?.features?.prReviewEnabled ?? false}
           disabled={isDisabled}
-          onCheckedChange={(checked) => handleToggle('prReviewEnabled', checked)}
+          onCheckedChange={(checked) => handleToggle('pr_review_enabled', checked)}
         />
       </CardContent>
     </Card>
