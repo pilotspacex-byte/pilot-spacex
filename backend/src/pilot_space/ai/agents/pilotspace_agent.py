@@ -152,25 +152,29 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         return build_subagent_definitions()
 
     async def _get_api_key(self, workspace_id: UUID | None) -> str:
-        """Get API key. AIGOV-05 BYOK: workspace calls require WorkspaceAPIKey row; no env fallback.
-        workspace_id=None (system/background agents) is the only permitted env-key path.
-        """
+        """Get API key (AIGOV-05 BYOK). workspace_id=None uses env fallback."""
         if getattr(self, "_resolved_model", None) is not None:
             return self._resolved_model.api_key  # type: ignore[union-attr]
         from pilot_space.ai.exceptions import AINotConfiguredError
 
         if workspace_id is not None:
-            # Workspace-scoped: BYOK required, no env fallback
-            if self._key_storage:
-                key = await self._key_storage.get_api_key(workspace_id, "anthropic", "llm")
-                if key:
-                    return key
+            try:
+                from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+                from pilot_space.config import get_settings
+                from pilot_space.dependencies.auth import get_current_session
+
+                ks = SecureKeyStorage(
+                    db=get_current_session(),
+                    master_secret=get_settings().encryption_key.get_secret_value(),
+                )
+            except RuntimeError:
+                ks = self._key_storage
+            if ks and (key := await ks.get_api_key(workspace_id, "anthropic", "llm")):
+                return key
             raise AINotConfiguredError(workspace_id=workspace_id)
-        # System-only path: env key permitted
-        api_key = os.getenv("ANTHROPIC_API_KEY")  # _SYSTEM_ONLY: never for workspace calls
-        if not api_key:
-            raise AINotConfiguredError(workspace_id=None)
-        return api_key
+        if api_key := os.getenv("ANTHROPIC_API_KEY"):
+            return api_key
+        raise AINotConfiguredError(workspace_id=None)
 
     async def interrupt_session(self, session_id: str) -> bool:
         client = self._active_clients.get(session_id)
@@ -685,11 +689,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             chunk[6:] if chunk.startswith("data: ") else chunk
             async for chunk in self.stream(input_data, context)
         ]
-        sid = (
-            input_data.session_id
-            or context.operation_id
-            or UUID("00000000-0000-0000-0000-000000000000")
-        )
+        sid = input_data.session_id or context.operation_id or UUID(int=0)
         return ChatOutput(
             response="".join(chunks),
             session_id=sid,
