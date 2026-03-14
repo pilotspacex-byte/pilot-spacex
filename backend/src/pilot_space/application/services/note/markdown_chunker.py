@@ -10,6 +10,8 @@ Improvements over naive splitting:
   3. Token-aware max size uses tiktoken when available, falls back to char count.
   4. Heading hierarchy enrichment adds parent headings as context prefix.
   5. Dynamic max chunks scales with document size instead of fixed cap.
+  6. Code block preservation — fenced code blocks never split across sub-chunks.
+  7. Table preservation — markdown tables never split mid-row.
 
 Feature 016: Knowledge Graph — automated KG population from notes.
 """
@@ -110,6 +112,120 @@ def _build_heading_hierarchy(
     return ancestors
 
 
+def _is_fence_opener(line: str) -> bool:
+    """Return True if *line* starts a fenced code block (3+ backticks at start).
+
+    Lines like '```python' or '````' are openers.
+    A backtick sequence that appears mid-line (after other chars) is NOT an opener.
+    """
+    stripped = line.lstrip()
+    return stripped.startswith("```") and (
+        len(stripped) == 3 or not stripped[3].strip() or stripped[3].isalpha()
+    )
+
+
+def _is_fence_closer(line: str) -> bool:
+    """Return True if *line* is a closing fence (exactly 3+ backticks, nothing else)."""
+    stripped = line.strip()
+    return len(stripped) >= 3 and all(c == "`" for c in stripped)
+
+
+def _merge_atomic_blocks(paragraphs: list[str]) -> list[str]:
+    """Merge paragraphs that belong to the same atomic block.
+
+    Atomic blocks that must never be split:
+    - Fenced code blocks (``` ... ```) — possibly containing blank lines.
+    - Markdown tables (consecutive paragraphs whose lines start with '|').
+
+    Algorithm:
+    1. Iterate through paragraphs (split on ``\\n\\n``).
+    2. Track ``in_code_fence`` state via fence openers/closers.
+    3. While inside a fence, accumulate paragraphs (rejoin with ``\\n\\n``).
+    4. For table lines (lines starting with ``|``), merge consecutive table paragraphs.
+    """
+    if not paragraphs:
+        return paragraphs
+
+    merged: list[str] = []
+    in_code_fence = False
+    current_block: list[str] = []
+
+    def _is_table_paragraph(para: str) -> bool:
+        """Return True if every non-empty line in the paragraph starts with '|'."""
+        lines = para.splitlines()
+        non_empty = [ln for ln in lines if ln.strip()]
+        return bool(non_empty) and all(ln.lstrip().startswith("|") for ln in non_empty)
+
+    def _para_toggles_fence(para: str) -> tuple[bool, bool]:
+        """Return (opens_fence, closes_fence) for a paragraph.
+
+        Scans each line for fence markers, tracking state.
+        Returns the state of in_code_fence before and after processing the paragraph.
+        """
+        state = False
+        opened = False
+        closed = False
+        for line in para.splitlines():
+            if not state and _is_fence_opener(line):
+                state = True
+                opened = True
+            elif state and _is_fence_closer(line):
+                state = False
+                closed = True
+        return opened, closed
+
+    i = 0
+    while i < len(paragraphs):
+        para = paragraphs[i]
+
+        if in_code_fence:
+            # Inside a fence — accumulate unconditionally
+            current_block.append(para)
+            # Check if this paragraph closes the fence
+            _, closes = _para_toggles_fence(para)
+            if closes:
+                in_code_fence = False
+                merged.append("\n\n".join(current_block))
+                current_block = []
+            i += 1
+            continue
+
+        # Check if this paragraph opens a fence
+        opens, closes = _para_toggles_fence(para)
+        if opens and not closes:
+            # Fence opens but does not close in this paragraph — start accumulating
+            in_code_fence = True
+            current_block = [para]
+            i += 1
+            continue
+        if opens and closes:
+            # Fence opens and closes in the same paragraph — atomic, emit directly
+            merged.append(para)
+            i += 1
+            continue
+
+        # Check if this is a table paragraph
+        if _is_table_paragraph(para):
+            # Accumulate consecutive table paragraphs
+            table_parts = [para]
+            i += 1
+            while i < len(paragraphs) and _is_table_paragraph(paragraphs[i]):
+                table_parts.append(paragraphs[i])
+                i += 1
+            merged.append("\n\n".join(table_parts))
+            continue
+
+        # Regular paragraph — emit as-is
+        merged.append(para)
+        i += 1
+
+    # Unclosed fence (defensive): flush whatever was accumulated
+    if current_block:
+        merged.append("\n\n".join(current_block))
+
+    return merged
+
+
 def _sub_chunk_by_paragraphs(
     content: str,
     max_chars: int,
@@ -120,11 +236,13 @@ def _sub_chunk_by_paragraphs(
     Splits at double-newline boundaries. If a single paragraph exceeds
     max_chars, it is kept as-is (no mid-sentence splitting).
     Adds overlap from the end of the previous chunk to the start of the next.
+
+    Atomic blocks (code fences, tables) are never split — see _merge_atomic_blocks.
     """
     if len(content) <= max_chars:
         return [content]
 
-    paragraphs = content.split("\n\n")
+    paragraphs = _merge_atomic_blocks(content.split("\n\n"))
     sub_chunks: list[str] = []
     current_parts: list[str] = []
     current_len = 0
