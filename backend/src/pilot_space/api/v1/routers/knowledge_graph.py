@@ -23,7 +23,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
-from pilot_space.ai.agents.pilotspace_stream_utils import get_workspace_openai_key
+from pilot_space.ai.agents.pilotspace_stream_utils import get_workspace_embedding_key
 from pilot_space.api.v1.dependencies import KnowledgeGraphQueryServiceDep
 from pilot_space.api.v1.schemas.knowledge_graph import (
     GraphEdgeDTO,
@@ -195,7 +195,7 @@ async def search_knowledge_graph(
 
     parsed_types: list[NodeType] | None = _parse_csv_enum(node_types, NodeType, "node_type")
 
-    openai_api_key = await get_workspace_openai_key(session, workspace_id)
+    openai_api_key = await get_workspace_embedding_key(session, workspace_id)
     embedding_svc = EmbeddingService(EmbeddingConfig(openai_api_key=openai_api_key))
 
     repo = KnowledgeGraphRepository(session)

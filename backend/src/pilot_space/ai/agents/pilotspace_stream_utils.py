@@ -607,8 +607,8 @@ def build_graph_write_service_for_session(db_session: Any, queue_client: Any) ->
     )
 
 
-async def get_workspace_openai_key(db_session: Any, workspace_id: Any) -> str | None:
-    """Look up the workspace BYOK OpenAI API key, returning None on any failure."""
+async def get_workspace_embedding_key(db_session: Any, workspace_id: Any) -> str | None:
+    """Look up the workspace BYOK embedding API key (Google), returning None on any failure."""
     try:
         from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
         from pilot_space.config import get_settings
@@ -617,9 +617,13 @@ async def get_workspace_openai_key(db_session: Any, workspace_id: Any) -> str | 
             db=db_session,
             master_secret=get_settings().encryption_key.get_secret_value(),
         )
-        return await storage.get_api_key(workspace_id, "openai", "embedding")
+        return await storage.get_api_key(workspace_id, "google", "embedding")
     except Exception:
         return None
+
+
+# Backward-compatible alias
+get_workspace_openai_key = get_workspace_embedding_key
 
 
 async def _load_remote_mcp_servers(  # pyright: ignore[reportUnusedFunction]

@@ -22,6 +22,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
+from pilot_space.ai.providers.constants import VALID_PROVIDERS
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -63,7 +64,7 @@ class SecureKeyStorage:
         key = await storage.get_api_key(workspace_id, "anthropic", "llm")
     """
 
-    VALID_PROVIDERS = frozenset({"google", "anthropic", "ollama"})
+    VALID_PROVIDERS = VALID_PROVIDERS
     VALID_SERVICE_TYPES = frozenset({"embedding", "llm"})
 
     def __init__(
@@ -422,6 +423,38 @@ class SecureKeyStorage:
             base_url=row.base_url,
             model_name=row.model_name,
         )
+
+    async def get_all_key_infos(self, workspace_id: UUID) -> list[APIKeyInfo]:
+        """Get all API key metadata for a workspace in a single query.
+
+        Args:
+            workspace_id: Workspace UUID.
+
+        Returns:
+            List of APIKeyInfo for all configured providers.
+        """
+        from pilot_space.infrastructure.database.models import WorkspaceAPIKey
+
+        stmt = select(WorkspaceAPIKey).where(
+            WorkspaceAPIKey.workspace_id == workspace_id,
+        )
+        result = await self.db.execute(stmt)
+        rows = result.scalars().all()
+        return [
+            APIKeyInfo(
+                workspace_id=r.workspace_id,
+                provider=r.provider,
+                service_type=r.service_type,
+                is_valid=r.is_valid,
+                last_validated_at=r.last_validated_at,
+                validation_error=r.validation_error,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+                base_url=r.base_url,
+                model_name=r.model_name,
+            )
+            for r in rows
+        ]
 
 
 __all__ = ["APIKeyInfo", "SecureKeyStorage"]

@@ -25,6 +25,7 @@ from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel
 
 from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+from pilot_space.ai.providers.constants import PROVIDER_SERVICE_SLOTS
 from pilot_space.application.services.issue.update_issue_service import (
     UNCHANGED,
     UpdateIssuePayload,
@@ -459,8 +460,9 @@ async def get_ai_status(
     )
 
     configured_providers: list[str] = []
-    provider_service_map = {"anthropic": "llm", "google": "embedding", "openai": "llm"}
-    for provider, service_type in provider_service_map.items():
+    # Derive unique (provider, service_type) pairs from canonical slots
+    provider_service_pairs = {(p, st) for p, st, _ in PROVIDER_SERVICE_SLOTS}
+    for provider, service_type in provider_service_pairs:
         key_info = await key_storage.get_key_info(workspace_id, provider, service_type)
         if key_info is not None and key_info.is_valid:
             configured_providers.append(provider)

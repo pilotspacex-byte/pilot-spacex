@@ -18,6 +18,8 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
     detect_skill_from_message,
     extract_question_data_from_blocks,
     extract_tool_calls_from_blocks,
+    get_workspace_embedding_key,
+    get_workspace_openai_key,
     merge_sdk_and_queue,
 )
 
@@ -650,3 +652,11 @@ class TestExtractToolCallsFromBlocks:
         assert len(result) == 2
         names = {r["name"] for r in result}
         assert names == {"get_issue", "update_issue"}
+
+
+class TestGetWorkspaceEmbeddingKey:
+    """Test renamed get_workspace_embedding_key and backward-compat alias."""
+
+    def test_alias_points_to_same_function(self) -> None:
+        """get_workspace_openai_key is an alias for get_workspace_embedding_key."""
+        assert get_workspace_openai_key is get_workspace_embedding_key

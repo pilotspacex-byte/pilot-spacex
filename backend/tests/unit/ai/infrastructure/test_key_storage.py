@@ -459,3 +459,66 @@ class TestSecureKeyStorage:
         assert mock_row.last_validated_at is not None
         assert mock_row.validation_error is None
         mock_session.commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_all_key_infos_returns_all_rows(
+        self, key_storage: SecureKeyStorage, mock_session: MagicMock
+    ) -> None:
+        """Verify get_all_key_infos returns all configured keys for a workspace."""
+        workspace_id = uuid4()
+        now = datetime.now(UTC)
+
+        mock_row_1 = MagicMock()
+        mock_row_1.workspace_id = workspace_id
+        mock_row_1.provider = "anthropic"
+        mock_row_1.service_type = "llm"
+        mock_row_1.is_valid = True
+        mock_row_1.last_validated_at = now
+        mock_row_1.validation_error = None
+        mock_row_1.created_at = now
+        mock_row_1.updated_at = now
+        mock_row_1.base_url = None
+        mock_row_1.model_name = None
+
+        mock_row_2 = MagicMock()
+        mock_row_2.workspace_id = workspace_id
+        mock_row_2.provider = "google"
+        mock_row_2.service_type = "embedding"
+        mock_row_2.is_valid = True
+        mock_row_2.last_validated_at = now
+        mock_row_2.validation_error = None
+        mock_row_2.created_at = now
+        mock_row_2.updated_at = now
+        mock_row_2.base_url = None
+        mock_row_2.model_name = None
+
+        mock_result = MagicMock()
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = [mock_row_1, mock_row_2]
+        mock_result.scalars.return_value = mock_scalars
+        mock_session.execute.return_value = mock_result
+
+        infos = await key_storage.get_all_key_infos(workspace_id)
+
+        assert len(infos) == 2
+        assert infos[0].provider == "anthropic"
+        assert infos[0].service_type == "llm"
+        assert infos[1].provider == "google"
+        assert infos[1].service_type == "embedding"
+
+    @pytest.mark.asyncio
+    async def test_get_all_key_infos_returns_empty_list(
+        self, key_storage: SecureKeyStorage, mock_session: MagicMock
+    ) -> None:
+        """Verify get_all_key_infos returns empty list when no keys configured."""
+        workspace_id = uuid4()
+
+        mock_result = MagicMock()
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = []
+        mock_result.scalars.return_value = mock_scalars
+        mock_session.execute.return_value = mock_result
+
+        infos = await key_storage.get_all_key_infos(workspace_id)
+
+        assert infos == []

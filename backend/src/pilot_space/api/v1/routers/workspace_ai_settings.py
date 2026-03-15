@@ -14,6 +14,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 
+from pilot_space.ai.providers.constants import PROVIDER_SERVICE_SLOTS
 from pilot_space.api.v1.schemas.workspace import (
     AIFeatureToggles,
     KeyValidationResult,
@@ -35,15 +36,6 @@ from pilot_space.infrastructure.logging import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-# Provider → service type mapping
-# Each tuple: (provider, service_type, supports_both)
-PROVIDER_SERVICE_SLOTS: list[tuple[str, str, bool]] = [
-    ("google", "embedding", False),
-    ("ollama", "embedding", True),
-    ("anthropic", "llm", False),
-    ("ollama", "llm", True),
-]
 
 
 def _get_workspace_features(workspace: Workspace) -> AIFeatureToggles:
@@ -107,9 +99,13 @@ async def get_ai_settings(
         db=session, master_secret=settings.encryption_key.get_secret_value()
     )
 
+    # Batch-fetch all key infos in one query instead of N+1
+    all_key_infos = await key_storage.get_all_key_infos(workspace_id)
+    key_info_map = {(ki.provider, ki.service_type): ki for ki in all_key_infos}
+
     providers = []
     for provider, service_type, supports_both in PROVIDER_SERVICE_SLOTS:
-        key_info = await key_storage.get_key_info(workspace_id, provider, service_type)
+        key_info = key_info_map.get((provider, service_type))
         providers.append(
             ProviderStatus(
                 provider=provider,
@@ -172,10 +168,15 @@ async def update_ai_settings(
             service_type = key_update.service_type
 
             # Merge with existing config so omitted fields are preserved
-            existing_key = await key_storage.get_api_key(workspace_id, provider, service_type)
             existing_info = await key_storage.get_key_info(workspace_id, provider, service_type)
 
-            api_key = key_update.api_key if key_update.api_key is not None else existing_key
+            # Only decrypt the existing key when needed (no new key provided)
+            if key_update.api_key is not None:
+                api_key = key_update.api_key
+            elif existing_info is not None:
+                api_key = await key_storage.get_api_key(workspace_id, provider, service_type)
+            else:
+                api_key = None
             base_url = (
                 key_update.base_url
                 if key_update.base_url is not None

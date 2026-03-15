@@ -403,12 +403,9 @@ class APIKeyUpdate(BaseSchema):
     @model_validator(mode="after")
     def check_provider_service_combo(self) -> APIKeyUpdate:
         """Validate that provider + service_type is a supported combination."""
-        valid_combos: dict[str, set[str]] = {
-            "google": {"embedding"},
-            "anthropic": {"llm"},
-            "ollama": {"embedding", "llm"},
-        }
-        allowed = valid_combos.get(self.provider)
+        from pilot_space.ai.providers.constants import VALID_PROVIDER_SERVICES
+
+        allowed = VALID_PROVIDER_SERVICES.get(self.provider)
         if allowed is not None and self.service_type not in allowed:
             msg = (
                 f"Invalid combination: {self.provider} does not support "

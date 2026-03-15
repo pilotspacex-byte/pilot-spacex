@@ -38,7 +38,7 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
     classify_effort,
     detect_skill_from_message,
     estimate_tokens,
-    get_workspace_openai_key,
+    get_workspace_embedding_key,
     merge_sdk_and_queue,
     save_session_messages,
 )
@@ -328,7 +328,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         effort = classify_effort(input_data.message)
         streaming_input = estimate_tokens(input_data) > 30_000
 
-        _openai_key_for_recall = await get_workspace_openai_key(db_session, context.workspace_id)
+        _openai_key_for_recall = await get_workspace_embedding_key(db_session, context.workspace_id)
         graph_context = await recall_graph_context(
             workspace_id=context.workspace_id,
             user_id=context.user_id,

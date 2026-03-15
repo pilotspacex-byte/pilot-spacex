@@ -34,7 +34,7 @@ async def build_graph_search(
         Tuple of (GraphSearchService, EmbeddingService).
     """
     from pilot_space.ai.agents.pilotspace_stream_utils import (
-        get_workspace_openai_key,
+        get_workspace_embedding_key,
     )
     from pilot_space.application.services.embedding_service import (
         EmbeddingConfig,
@@ -47,7 +47,7 @@ async def build_graph_search(
         KnowledgeGraphRepository,
     )
 
-    openai_key = await get_workspace_openai_key(db_session, workspace_id)
+    openai_key = await get_workspace_embedding_key(db_session, workspace_id)
     embedding_svc = EmbeddingService(EmbeddingConfig(openai_api_key=openai_key))
     kg_repo = KnowledgeGraphRepository(db_session)
     return GraphSearchService(kg_repo, embedding_service=embedding_svc), embedding_svc
