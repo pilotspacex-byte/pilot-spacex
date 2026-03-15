@@ -243,6 +243,10 @@ async def create_extracted_issues(
         CreateIssuePayload,
     )
     from pilot_space.infrastructure.database.models.issue import IssuePriority
+    from pilot_space.infrastructure.database.models.note_issue_link import (
+        NoteIssueLink,
+        NoteLinkType,
+    )
     from pilot_space.infrastructure.database.repositories.project_repository import (
         ProjectRepository,
     )
@@ -291,6 +295,16 @@ async def create_extracted_issues(
         )
         result = await create_issue_service.execute(payload)
         created_ids.append(str(result.issue.id))
+
+        # Create NoteIssueLink to track extraction traceability
+        link = NoteIssueLink(
+            note_id=note_id,
+            issue_id=result.issue.id,
+            link_type=NoteLinkType.EXTRACTED,
+            block_id=extracted.source_block_id,
+            workspace_id=workspace.id,
+        )
+        session.add(link)
 
     await session.commit()
 
