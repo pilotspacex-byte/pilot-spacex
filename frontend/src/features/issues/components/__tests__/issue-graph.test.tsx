@@ -108,13 +108,13 @@ describe('IssueGraph', () => {
           id: 'nl-1',
           noteId: 'note-1',
           issueId: 'issue-1',
-          linkType: 'CREATED',
+          linkType: 'related' as const,
           noteTitle: 'My Note',
         },
       ],
     });
     expect(screen.getByText('My Note')).toBeInTheDocument();
-    expect(screen.getByText('Created from')).toBeInTheDocument();
+    expect(screen.getByText('Related to')).toBeInTheDocument();
   });
 
   it('links each note to the correct URL', () => {
@@ -124,7 +124,7 @@ describe('IssueGraph', () => {
           id: 'nl-1',
           noteId: 'note-abc',
           issueId: 'issue-1',
-          linkType: 'EXTRACTED',
+          linkType: 'extracted' as const,
           noteTitle: 'Note A',
         },
       ],
@@ -141,7 +141,7 @@ describe('IssueGraph', () => {
         id: `nl-${i}`,
         noteId: `note-${i}`,
         issueId: 'issue-1',
-        linkType: 'REFERENCED' as const,
+        linkType: 'referenced' as const,
         noteTitle: `Note ${i}`,
       })),
     });
@@ -157,7 +157,7 @@ describe('IssueGraph', () => {
         id: `nl-${i}`,
         noteId: `note-${i}`,
         issueId: 'issue-1',
-        linkType: 'REFERENCED' as const,
+        linkType: 'referenced' as const,
         noteTitle: `Note ${i}`,
       })),
     });

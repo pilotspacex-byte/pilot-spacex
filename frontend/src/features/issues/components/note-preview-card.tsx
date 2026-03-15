@@ -7,14 +7,15 @@ import { cn } from '@/lib/utils';
 interface NotePreviewCardProps {
   noteId: string;
   noteTitle: string;
-  linkType: 'CREATED' | 'EXTRACTED' | 'REFERENCED';
+  linkType: 'extracted' | 'referenced' | 'related' | 'inline';
   workspaceSlug: string;
 }
 
 const LINK_TYPE_BADGE: Record<NotePreviewCardProps['linkType'], string> = {
-  EXTRACTED: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  CREATED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  REFERENCED: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+  extracted: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  referenced: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+  related: 'bg-slate-100 text-slate-700 dark:bg-slate-800/30 dark:text-slate-400',
+  inline: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
 export function NotePreviewCard({
@@ -49,7 +50,7 @@ export function NotePreviewCard({
           LINK_TYPE_BADGE[linkType]
         )}
       >
-        {linkType.charAt(0) + linkType.slice(1).toLowerCase()}
+        {linkType.charAt(0).toUpperCase() + linkType.slice(1)}
       </span>
     </div>
   );

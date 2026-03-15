@@ -311,7 +311,7 @@ describe('IssuePropertiesPanel', () => {
         id: 'nl-1',
         noteId: 'note-1',
         issueId: 'issue-1',
-        linkType: 'EXTRACTED',
+        linkType: 'extracted',
         noteTitle: 'Meeting notes',
       },
     ];

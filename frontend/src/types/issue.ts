@@ -158,11 +158,12 @@ export interface IntegrationLink {
 }
 
 // Note Issue Link (matches backend NoteIssueLinkBriefSchema)
+// linkType values are lowercase to match backend NoteLinkType enum string values
 export interface NoteIssueLink {
   id: string;
   noteId: string;
   issueId: string;
-  linkType: 'CREATED' | 'EXTRACTED' | 'REFERENCED';
+  linkType: 'extracted' | 'referenced' | 'related' | 'inline';
   noteTitle: string;
 }
 
