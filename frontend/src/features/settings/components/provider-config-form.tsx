@@ -125,7 +125,16 @@ export function ProviderConfigForm({
     setIsSaving(true);
     try {
       await settings.saveSettings({ api_keys: [entry] });
-      toast.success(`${config.name} settings saved`);
+      // Check for validation warnings (saved but validation failed, e.g. Ollama not running)
+      const providerLabel = `${provider}:${serviceType}`;
+      const validationWarning = settings.validationErrors[providerLabel];
+      if (validationWarning) {
+        toast.warning(`${config.name} saved with warning`, {
+          description: validationWarning,
+        });
+      } else {
+        toast.success(`${config.name} settings saved`);
+      }
       setApiKey('');
       onSaved();
     } catch (error) {

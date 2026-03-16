@@ -260,13 +260,43 @@ async def update_ai_settings(
                     )
                 )
             elif has_metadata_change and existing_info is None:
-                validation_results.append(
-                    KeyValidationResult(
-                        provider=provider_label,
-                        is_valid=False,
-                        error_message="API key required before updating provider metadata",
+                # Ollama can be configured with just base_url (no API key required)
+                if provider == "ollama":
+                    await key_storage.store_api_key(
+                        workspace_id=workspace_id,
+                        provider=provider,
+                        service_type=service_type,
+                        api_key=None,
+                        base_url=base_url,
+                        model_name=model_name,
                     )
-                )
+                    updated_providers.append(provider_label)
+
+                    # Validate connectivity
+                    try:
+                        is_valid = await key_storage.validate_api_key(
+                            provider=provider,
+                            api_key=None,
+                            base_url=base_url,
+                        )
+                    except Exception:
+                        is_valid = False
+
+                    validation_results.append(
+                        KeyValidationResult(
+                            provider=provider_label,
+                            is_valid=is_valid,
+                            error_message=None if is_valid else "Connection validation failed",
+                        )
+                    )
+                else:
+                    validation_results.append(
+                        KeyValidationResult(
+                            provider=provider_label,
+                            is_valid=False,
+                            error_message="API key required before updating provider metadata",
+                        )
+                    )
             elif not has_new_key and not has_metadata_change and existing_info is not None:
                 # Explicit None api_key with no metadata changes — delete the key
                 await key_storage.delete_api_key(workspace_id, provider, service_type)

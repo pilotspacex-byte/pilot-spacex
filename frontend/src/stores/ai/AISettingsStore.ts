@@ -142,6 +142,21 @@ export class AISettingsStore {
       if (!result.success && result.validationResults.length > 0) {
         const failed = result.validationResults.filter((r) => !r.isValid);
         const messages = failed.map((r) => `${r.provider}: ${r.errorMessage ?? 'invalid key'}`);
+
+        // If providers were updated despite validation failure (e.g. Ollama saved
+        // but connectivity check failed), refresh settings and surface as warning
+        if (result.updatedProviders.length > 0) {
+          const refreshed = await aiApi.getWorkspaceSettings(this.currentWorkspaceId);
+          runInAction(() => {
+            this.settings = refreshed;
+            this.validationErrors = Object.fromEntries(
+              failed.map((r) => [r.provider, r.errorMessage ?? 'Validation failed'])
+            );
+            this.isSaving = false;
+          });
+          return;
+        }
+
         const err = new Error(messages.join('; '));
         runInAction(() => {
           this.validationErrors = Object.fromEntries(
