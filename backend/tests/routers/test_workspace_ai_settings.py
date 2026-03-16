@@ -191,3 +191,74 @@ class TestOllamaMetadataOnlySave:
         assert data["success"] is False
         assert data["validationResults"][0]["isValid"] is False
         assert "Connection validation failed" in data["validationResults"][0]["errorMessage"]
+
+
+class TestDefaultProviderSelection:
+    """Per-service-type default provider selection."""
+
+    async def test_set_default_llm_provider(self, ai_settings_client: Any) -> None:
+        """Setting default_llm_provider persists to workspace settings."""
+        mock_workspace = _mock_workspace()
+        mock_repo = AsyncMock()
+
+        with (
+            patch(_ADMIN_WORKSPACE_PATH, return_value=mock_workspace),
+            patch(
+                "pilot_space.api.v1.routers.workspace_ai_settings.WorkspaceRepository",
+                return_value=mock_repo,
+            ),
+            patch(_GET_SETTINGS_PATH) as mock_settings,
+        ):
+            mock_settings.return_value = MagicMock(
+                encryption_key=MagicMock(get_secret_value=lambda: "test-secret")
+            )
+
+            resp = await ai_settings_client.patch(
+                f"/api/v1/workspaces/{_WORKSPACE_ID}/ai/settings",
+                json={"defaultLlmProvider": "ollama"},
+            )
+
+        assert resp.status_code == status.HTTP_200_OK
+        data = resp.json()
+        assert data["updatedFeatures"] is True
+        # Verify workspace settings were updated with the new default
+        assert mock_workspace.settings["default_llm_provider"] == "ollama"
+
+    async def test_set_default_embedding_provider(self, ai_settings_client: Any) -> None:
+        """Setting default_embedding_provider persists to workspace settings."""
+        mock_workspace = _mock_workspace()
+        mock_repo = AsyncMock()
+
+        with (
+            patch(_ADMIN_WORKSPACE_PATH, return_value=mock_workspace),
+            patch(
+                "pilot_space.api.v1.routers.workspace_ai_settings.WorkspaceRepository",
+                return_value=mock_repo,
+            ),
+            patch(_GET_SETTINGS_PATH) as mock_settings,
+        ):
+            mock_settings.return_value = MagicMock(
+                encryption_key=MagicMock(get_secret_value=lambda: "test-secret")
+            )
+
+            resp = await ai_settings_client.patch(
+                f"/api/v1/workspaces/{_WORKSPACE_ID}/ai/settings",
+                json={"defaultEmbeddingProvider": "ollama"},
+            )
+
+        assert resp.status_code == status.HTTP_200_OK
+        data = resp.json()
+        assert data["updatedFeatures"] is True
+        assert mock_workspace.settings["default_embedding_provider"] == "ollama"
+
+    async def test_invalid_provider_rejected(self, ai_settings_client: Any) -> None:
+        """Invalid provider name for default_llm_provider is rejected by schema."""
+        mock_workspace = _mock_workspace()
+
+        with patch(_ADMIN_WORKSPACE_PATH, return_value=mock_workspace):
+            resp = await ai_settings_client.patch(
+                f"/api/v1/workspaces/{_WORKSPACE_ID}/ai/settings",
+                json={"defaultLlmProvider": "invalid_provider"},
+            )
+
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

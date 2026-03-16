@@ -121,14 +121,16 @@ async def get_ai_settings(
 
     features = _get_workspace_features(workspace)
 
+    ws_settings = workspace.settings or {}
+
     return WorkspaceAISettingsResponse(
         workspace_id=workspace_id,
         providers=providers,
         features=features,
-        default_provider=workspace.settings.get("default_ai_provider", "anthropic")
-        if workspace.settings
-        else "anthropic",
-        cost_limit_usd=workspace.settings.get("ai_cost_limit_usd") if workspace.settings else None,
+        default_provider=ws_settings.get("default_ai_provider", "anthropic"),
+        default_llm_provider=ws_settings.get("default_llm_provider", "anthropic"),
+        default_embedding_provider=ws_settings.get("default_embedding_provider", "google"),
+        cost_limit_usd=ws_settings.get("ai_cost_limit_usd"),
     )
 
 
@@ -309,9 +311,15 @@ async def update_ai_settings(
                     )
                 )
 
-    # Update feature toggles
+    # Update feature toggles and default providers
     updated_features = False
-    if body.features or body.cost_limit_usd is not None:
+    needs_settings_update = (
+        body.features
+        or body.cost_limit_usd is not None
+        or body.default_llm_provider is not None
+        or body.default_embedding_provider is not None
+    )
+    if needs_settings_update:
         workspace_settings = workspace.settings or {}
 
         if body.features:
@@ -320,6 +328,14 @@ async def update_ai_settings(
 
         if body.cost_limit_usd is not None:
             workspace_settings["ai_cost_limit_usd"] = body.cost_limit_usd
+            updated_features = True
+
+        if body.default_llm_provider is not None:
+            workspace_settings["default_llm_provider"] = body.default_llm_provider
+            updated_features = True
+
+        if body.default_embedding_provider is not None:
+            workspace_settings["default_embedding_provider"] = body.default_embedding_provider
             updated_features = True
 
         workspace.settings = workspace_settings

@@ -362,7 +362,13 @@ class WorkspaceAISettingsResponse(BaseSchema):
     workspace_id: UUID = Field(description="Workspace UUID")
     providers: list[ProviderStatus] = Field(description="Provider statuses")
     features: AIFeatureToggles = Field(description="Feature toggles")
-    default_provider: str = Field(default="anthropic", description="Default AI provider")
+    default_provider: str = Field(default="anthropic", description="Default AI provider (legacy)")
+    default_llm_provider: str = Field(
+        default="anthropic", description="Active LLM provider for this workspace"
+    )
+    default_embedding_provider: str = Field(
+        default="google", description="Active embedding provider for this workspace"
+    )
     cost_limit_usd: float | None = Field(default=None, description="Monthly cost limit USD")
 
 
@@ -430,6 +436,16 @@ class WorkspaceAISettingsUpdate(BaseSchema):
     api_keys: list[APIKeyUpdate] | None = Field(default=None, description="API key updates")
     features: AIFeatureToggles | None = Field(default=None, description="Feature toggle updates")
     cost_limit_usd: float | None = Field(default=None, description="Monthly cost limit USD", ge=0)
+    default_llm_provider: str | None = Field(
+        default=None,
+        description="Set active LLM provider",
+        pattern="^(anthropic|ollama)$",
+    )
+    default_embedding_provider: str | None = Field(
+        default=None,
+        description="Set active embedding provider",
+        pattern="^(google|ollama)$",
+    )
 
 
 class KeyValidationResult(BaseSchema):

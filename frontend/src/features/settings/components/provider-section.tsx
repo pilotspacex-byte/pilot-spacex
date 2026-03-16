@@ -90,20 +90,28 @@ export const ProviderSection = observer(function ProviderSection({
   const { settings } = ai;
   const providers = settings.getProvidersByService(serviceType);
 
-  // Auto-select first configured provider, or first provider if none configured
-  const defaultProvider = React.useMemo(() => {
-    const configured = providers.find((p) => p.isConfigured);
-    return configured?.provider ?? providers[0]?.provider ?? '';
-  }, [providers]);
+  // Use persisted default provider for this service type
+  const storedDefault = settings.getDefaultProvider(serviceType);
+  const fallback = providers[0]?.provider ?? '';
+  const resolvedDefault = providers.some((p) => p.provider === storedDefault)
+    ? storedDefault
+    : fallback;
 
-  const [selectedProvider, setSelectedProvider] = React.useState(defaultProvider);
+  const [selectedProvider, setSelectedProvider] = React.useState(resolvedDefault);
 
-  // Update selection when providers load
+  // Sync when settings load/change
   React.useEffect(() => {
-    if (defaultProvider && !selectedProvider) {
-      setSelectedProvider(defaultProvider);
+    if (resolvedDefault && selectedProvider !== resolvedDefault) {
+      setSelectedProvider(resolvedDefault);
     }
-  }, [defaultProvider, selectedProvider]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedDefault]);
+
+  const handleProviderChange = (provider: string) => {
+    setSelectedProvider(provider);
+    // Persist selection as the active/default provider for this service type
+    settings.setDefaultProvider(serviceType, provider);
+  };
 
   const selectedStatus = providers.find((p) => p.provider === selectedProvider);
 
@@ -120,7 +128,7 @@ export const ProviderSection = observer(function ProviderSection({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-3">
-          <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+          <Select value={selectedProvider} onValueChange={handleProviderChange}>
             <SelectTrigger className="w-[240px]">
               <SelectValue placeholder="Select provider" />
             </SelectTrigger>

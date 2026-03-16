@@ -53,6 +53,8 @@ export interface WorkspaceAISettings {
   providers: WorkspaceAISettingsProvider[];
   features: WorkspaceAISettingsFeatures;
   defaultProvider: string;
+  defaultLlmProvider: string;
+  defaultEmbeddingProvider: string;
   costLimitUsd: number | null;
 }
 
@@ -224,6 +226,8 @@ export const aiApi = {
         model_name?: string;
       }>;
       features?: Partial<WorkspaceAISettingsFeatures>;
+      default_llm_provider?: string;
+      default_embedding_provider?: string;
     }
   ): Promise<WorkspaceAISettingsUpdateResponse> => {
     return apiClient.patch<WorkspaceAISettingsUpdateResponse>(

@@ -94,6 +94,34 @@ export class AISettingsStore {
     return this.settings?.providers?.filter((p) => p.serviceType === serviceType) ?? [];
   }
 
+  /** Get the default/active provider for a service type. */
+  getDefaultProvider(serviceType: 'embedding' | 'llm'): string {
+    if (serviceType === 'llm') {
+      return this.settings?.defaultLlmProvider ?? 'anthropic';
+    }
+    return this.settings?.defaultEmbeddingProvider ?? 'google';
+  }
+
+  /** Set the default/active provider for a service type. */
+  async setDefaultProvider(serviceType: 'embedding' | 'llm', provider: string): Promise<void> {
+    if (!this.currentWorkspaceId) return;
+
+    const data =
+      serviceType === 'llm'
+        ? { default_llm_provider: provider }
+        : { default_embedding_provider: provider };
+
+    try {
+      await aiApi.updateWorkspaceSettings(this.currentWorkspaceId, data);
+      const refreshed = await aiApi.getWorkspaceSettings(this.currentWorkspaceId);
+      runInAction(() => {
+        this.settings = refreshed;
+      });
+    } catch (err) {
+      console.error('Failed to set default provider:', err);
+    }
+  }
+
   async loadSettings(workspaceId: string): Promise<void> {
     runInAction(() => {
       this.isLoading = true;
