@@ -1,7 +1,7 @@
 """Fix personal page RLS policy to include workspace_id scope.
 
-Revision ID: 083_fix_personal_page_rls_workspace_scope
-Revises: 082_add_base_url_model_name_to_api_keys
+Revision ID: 083_fix_personal_page_rls_scope
+Revises: 082_add_base_url_model_name
 Create Date: 2026-03-13
 
 Changes:
@@ -10,12 +10,11 @@ Changes:
   personal pages in workspaces they have since been removed from.
 """
 
+from alembic import op
 from sqlalchemy import text
 
-from alembic import op
-
-revision = "083_fix_personal_page_rls_workspace_scope"
-down_revision = "082_add_base_url_model_name_to_api_keys"
+revision = "083_fix_personal_page_rls_scope"
+down_revision = "082_add_base_url_model_name"
 branch_labels = None
 depends_on = None
 
@@ -23,7 +22,8 @@ depends_on = None
 def upgrade() -> None:
     """Replace personal page RLS policy with workspace-scoped version."""
     op.execute(
-        text("""
+        text(
+            """
         DROP POLICY IF EXISTS "notes_personal_page_policy" ON notes;
 
         CREATE POLICY "notes_personal_page_policy"
@@ -49,14 +49,16 @@ def upgrade() -> None:
                   AND wm.is_deleted = false
             )
         );
-        """)
+        """
+        )
     )
 
 
 def downgrade() -> None:
     """Restore personal page RLS policy without workspace scope."""
     op.execute(
-        text("""
+        text(
+            """
         DROP POLICY IF EXISTS "notes_personal_page_policy" ON notes;
 
         CREATE POLICY "notes_personal_page_policy"
@@ -70,5 +72,6 @@ def downgrade() -> None:
             project_id IS NULL
             AND owner_id = current_setting('app.current_user_id', true)::uuid
         );
-        """)
+        """
+        )
     )

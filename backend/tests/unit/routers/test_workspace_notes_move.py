@@ -7,8 +7,8 @@ Covers all conditional branches in the move_workspace_note handler:
 - note workspace mismatch (note.workspace_id != workspace.id)
 - project not found (project_repo returns None when project_id provided)
 - project workspace mismatch (project.workspace_id != workspace.id)
-- ValueError raised by UpdateNoteService.execute → 404 problem response
-- workspace not found (workspace_repo returns None) → 404
+- ValueError raised by UpdateNoteService.execute → JSONResponse 404
+- workspace not found (workspace_repo returns None) → HTTPException 404
 
 Handler under test:
     pilot_space.api.v1.routers.workspace_notes.move_workspace_note
@@ -16,6 +16,7 @@ Handler under test:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
@@ -66,9 +67,11 @@ def _make_project(workspace_id: UUID) -> MagicMock:
 
 
 def _workspace_repo(workspace: MagicMock) -> AsyncMock:
+    """Repo that returns workspace from both scalar and non-scalar lookups."""
     repo = AsyncMock()
-    repo.get_by_id.return_value = workspace
-    repo.get_by_slug.return_value = workspace
+    # _resolve_workspace calls get_by_id_scalar / get_by_slug_scalar
+    repo.get_by_id_scalar.return_value = workspace
+    repo.get_by_slug_scalar.return_value = workspace
     return repo
 
 
@@ -300,22 +303,19 @@ class TestMoveToRoot:
 
 
 # ---------------------------------------------------------------------------
-# 404 branches — note validation
+# JSONResponse 404 branches — note validation
 # ---------------------------------------------------------------------------
 
 
 class TestNoteNotFound:
-    """note_repo.get_by_id returns None → 404."""
+    """note_repo.get_by_id returns None → JSONResponse 404."""
 
-    async def test_raises_http_404(self) -> None:
+    async def test_returns_json_response_404(self) -> None:
         ws_id = uuid4()
         workspace = _make_workspace(ws_id)
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
-        ):
-            await move_workspace_note(
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            response = await move_workspace_note(
                 workspace_id=str(ws_id),
                 note_id=uuid4(),
                 move_data=NoteMove(project_id=None),
@@ -327,24 +327,23 @@ class TestNoteNotFound:
                 project_repo=_project_repo(),
             )
 
-        assert exc_info.value.status_code == 404
-        assert "Note not found" in exc_info.value.detail
+        assert isinstance(response, JSONResponse)
+        assert response.status_code == 404
+        body = json.loads(response.body)
+        assert "Note not found" in body.get("detail", "")
 
 
 class TestNoteWorkspaceMismatch:
-    """note.workspace_id != workspace.id → 404."""
+    """note.workspace_id != workspace.id → JSONResponse 404."""
 
-    async def test_raises_http_404(self) -> None:
+    async def test_returns_json_response_404(self) -> None:
         ws_id = uuid4()
         workspace = _make_workspace(ws_id)
         # Note belongs to a *different* workspace
         note = _make_note(workspace_id=uuid4())
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
-        ):
-            await move_workspace_note(
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            response = await move_workspace_note(
                 workspace_id=str(ws_id),
                 note_id=note.id,
                 move_data=NoteMove(project_id=None),
@@ -356,28 +355,27 @@ class TestNoteWorkspaceMismatch:
                 project_repo=_project_repo(),
             )
 
-        assert exc_info.value.status_code == 404
-        assert "Note not found" in exc_info.value.detail
+        assert isinstance(response, JSONResponse)
+        assert response.status_code == 404
+        body = json.loads(response.body)
+        assert "Note not found" in body.get("detail", "")
 
 
 # ---------------------------------------------------------------------------
-# 404 branches — project validation
+# JSONResponse 404 branches — project validation
 # ---------------------------------------------------------------------------
 
 
 class TestProjectNotFound:
-    """project_repo.get_by_id returns None when project_id provided → 404."""
+    """project_repo.get_by_id returns None when project_id provided → JSONResponse 404."""
 
-    async def test_raises_http_404(self) -> None:
+    async def test_returns_json_response_404(self) -> None:
         ws_id = uuid4()
         workspace = _make_workspace(ws_id)
         note = _make_note(ws_id)
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
-        ):
-            await move_workspace_note(
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            response = await move_workspace_note(
                 workspace_id=str(ws_id),
                 note_id=note.id,
                 move_data=NoteMove(project_id=uuid4()),  # project_id is set
@@ -389,25 +387,24 @@ class TestProjectNotFound:
                 project_repo=_project_repo(None),  # project missing
             )
 
-        assert exc_info.value.status_code == 404
-        assert "Project not found" in exc_info.value.detail
+        assert isinstance(response, JSONResponse)
+        assert response.status_code == 404
+        body = json.loads(response.body)
+        assert "Project not found" in body.get("detail", "")
 
 
 class TestProjectWorkspaceMismatch:
-    """project.workspace_id != workspace.id → 404."""
+    """project.workspace_id != workspace.id → JSONResponse 404."""
 
-    async def test_raises_http_404(self) -> None:
+    async def test_returns_json_response_404(self) -> None:
         ws_id = uuid4()
         workspace = _make_workspace(ws_id)
         note = _make_note(ws_id)
         # Project belongs to a *different* workspace
         project = _make_project(workspace_id=uuid4())
 
-        with (
-            patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
-        ):
-            await move_workspace_note(
+        with patch(_RLS_PATCH, new_callable=AsyncMock):
+            response = await move_workspace_note(
                 workspace_id=str(ws_id),
                 note_id=note.id,
                 move_data=NoteMove(project_id=project.id),
@@ -419,21 +416,23 @@ class TestProjectWorkspaceMismatch:
                 project_repo=_project_repo(project),
             )
 
-        assert exc_info.value.status_code == 404
-        assert "Project not found" in exc_info.value.detail
+        assert isinstance(response, JSONResponse)
+        assert response.status_code == 404
+        body = json.loads(response.body)
+        assert "Project not found" in body.get("detail", "")
 
 
 # ---------------------------------------------------------------------------
-# 404 branch — workspace resolution
+# HTTPException 404 — workspace resolution (raised by _resolve_workspace)
 # ---------------------------------------------------------------------------
 
 
 class TestWorkspaceNotFound:
-    """_resolve_workspace raises 404 when workspace is missing."""
+    """_resolve_workspace raises HTTPException 404 when workspace is missing."""
 
     async def test_uuid_workspace_not_found_raises_404(self) -> None:
         ws_repo = AsyncMock()
-        ws_repo.get_by_id.return_value = None
+        ws_repo.get_by_id_scalar.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
             await move_workspace_note(
@@ -453,7 +452,7 @@ class TestWorkspaceNotFound:
 
     async def test_slug_workspace_not_found_raises_404(self) -> None:
         ws_repo = AsyncMock()
-        ws_repo.get_by_slug.return_value = None
+        ws_repo.get_by_slug_scalar.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
             await move_workspace_note(
@@ -504,8 +503,6 @@ class TestServiceValueError:
         assert response.status_code == 404
 
     async def test_value_error_detail_propagated(self) -> None:
-        import json as _json
-
         ws_id = uuid4()
         workspace = _make_workspace(ws_id)
         note = _make_note(ws_id)
@@ -526,5 +523,5 @@ class TestServiceValueError:
                 project_repo=_project_repo(),
             )
 
-        body = _json.loads(response.body)
+        body = json.loads(response.body)
         assert error_msg in body.get("detail", "")
