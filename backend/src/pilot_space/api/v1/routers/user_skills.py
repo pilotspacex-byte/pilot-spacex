@@ -183,6 +183,7 @@ async def update_user_skill(
     """
     await set_rls_context(session, current_user_id, workspace_id)
     repo = UserSkillRepository(session)
+    # is_deleted is filtered inside get_by_id_with_template query
     skill = await repo.get_by_id_with_template(skill_id)
 
     if skill is None or skill.workspace_id != workspace_id:
@@ -240,6 +241,7 @@ async def delete_user_skill(
     """
     await set_rls_context(session, current_user_id, workspace_id)
     repo = UserSkillRepository(session)
+    # is_deleted is filtered inside get_by_id_with_template query
     skill = await repo.get_by_id_with_template(skill_id)
 
     if skill is None or skill.workspace_id != workspace_id:

@@ -124,6 +124,9 @@ class UserSkillRepository(BaseRepository[UserSkill]):
         Inactive skills are shown with reduced opacity in the UI so the user
         can toggle them back to active.
 
+        For the materializer hot-path (only active skills), use
+        :meth:`get_active_by_user_workspace` instead.
+
         Args:
             user_id: The user UUID.
             workspace_id: The workspace UUID.
@@ -138,6 +141,39 @@ class UserSkillRepository(BaseRepository[UserSkill]):
                 and_(
                     UserSkill.user_id == user_id,
                     UserSkill.workspace_id == workspace_id,
+                    UserSkill.is_deleted == False,  # noqa: E712
+                )
+            )
+            .order_by(UserSkill.created_at.asc())
+        )
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
+    async def get_active_by_user_workspace(
+        self,
+        user_id: UUID,
+        workspace_id: UUID,
+    ) -> Sequence[UserSkill]:
+        """Get active, non-deleted skills for a user in a workspace.
+
+        Materializer hot-path: only returns skills where is_active=True
+        so that deactivated skills are NOT written to the agent sandbox.
+
+        Args:
+            user_id: The user UUID.
+            workspace_id: The workspace UUID.
+
+        Returns:
+            Active UserSkill rows for the user in the workspace.
+        """
+        query = (
+            select(UserSkill)
+            .options(selectinload(UserSkill.template))
+            .where(
+                and_(
+                    UserSkill.user_id == user_id,
+                    UserSkill.workspace_id == workspace_id,
+                    UserSkill.is_active == True,  # noqa: E712
                     UserSkill.is_deleted == False,  # noqa: E712
                 )
             )

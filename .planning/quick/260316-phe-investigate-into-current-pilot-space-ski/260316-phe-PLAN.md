@@ -103,7 +103,7 @@ Workspace slug: "workspace"
 
 <tasks>
 
-<task type="auto">
+<task type="investigation">
   <name>Task 1: Browser validation of all skill features</name>
   <files>None (investigation only)</files>
   <action>
