@@ -17,15 +17,6 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "entire hooks claude-code session-start"
-          }
-        ]
-      },
-      {
         "hooks": [
           {
             "type": "command",
@@ -34,83 +25,13 @@
         ]
       }
     ],
-    "SessionEnd": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "entire hooks claude-code session-end"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "entire hooks claude-code user-prompt-submit"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "entire hooks claude-code stop"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "entire hooks claude-code pre-task"
-          }
-        ]
-      },
       {
         "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
             "command": ".claude/hooks/guard-alembic-edit.sh"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "entire hooks claude-code post-task"
-          }
-        ]
-      },
-      {
-        "matcher": "TodoWrite",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "entire hooks claude-code post-todo"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .claude/hooks/gsd-context-monitor.js"
           }
         ]
       }
@@ -130,9 +51,5 @@
     "agent-sdk-dev@claude-code-plugins": false,
     "plugin-dev@claude-plugins-official": false,
     "claude-memory@Claudest": true
-  },
-  "statusLine": {
-    "type": "command",
-    "command": "node .claude/hooks/gsd-statusline.js"
   }
 }
