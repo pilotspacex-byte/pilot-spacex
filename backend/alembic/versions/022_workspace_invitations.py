@@ -26,10 +26,10 @@ def upgrade() -> None:
     """Create workspace_invitations table with indexes and RLS policies."""
     # Create invitation_status enum
     invitation_status = postgresql.ENUM(
-        "PENDING",
-        "ACCEPTED",
-        "EXPIRED",
-        "CANCELLED",
+        "pending",
+        "accepted",
+        "expired",
+        "cancelled",
         name="invitation_status",
         create_type=False,
     )
@@ -83,15 +83,15 @@ def upgrade() -> None:
         sa.Column(
             "status",
             postgresql.ENUM(
-                "PENDING",
-                "ACCEPTED",
-                "EXPIRED",
-                "CANCELLED",
+                "pending",
+                "accepted",
+                "expired",
+                "cancelled",
                 name="invitation_status",
                 create_type=False,
             ),
             nullable=False,
-            server_default="PENDING",
+            server_default="pending",
         ),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=True),

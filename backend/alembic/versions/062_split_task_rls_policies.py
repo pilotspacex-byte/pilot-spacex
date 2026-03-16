@@ -50,7 +50,7 @@ def upgrade() -> None:
             EXISTS (
                 SELECT 1 FROM workspace_members wm
                 WHERE wm.workspace_id = tasks.workspace_id
-                AND wm.user_id::text = current_setting('app.current_user_id', true)
+                AND wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
             )
         )
@@ -65,7 +65,7 @@ def upgrade() -> None:
             EXISTS (
                 SELECT 1 FROM workspace_members wm
                 WHERE wm.workspace_id = tasks.workspace_id
-                AND wm.user_id::text = current_setting('app.current_user_id', true)
+                AND wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
             )
         )
@@ -82,7 +82,7 @@ def upgrade() -> None:
             EXISTS (
                 SELECT 1 FROM workspace_members wm
                 WHERE wm.workspace_id = tasks.workspace_id
-                AND wm.user_id::text = current_setting('app.current_user_id', true)
+                AND wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
             )
         )
@@ -90,7 +90,7 @@ def upgrade() -> None:
             EXISTS (
                 SELECT 1 FROM workspace_members wm
                 WHERE wm.workspace_id = tasks.workspace_id
-                AND wm.user_id::text = current_setting('app.current_user_id', true)
+                AND wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
             )
         )
@@ -107,7 +107,7 @@ def upgrade() -> None:
             EXISTS (
                 SELECT 1 FROM workspace_members wm
                 WHERE wm.workspace_id = tasks.workspace_id
-                AND wm.user_id::text = current_setting('app.current_user_id', true)
+                AND wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
                 AND wm.role IN ('OWNER', 'ADMIN')
             )
