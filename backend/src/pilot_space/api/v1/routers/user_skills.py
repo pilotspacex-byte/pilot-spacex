@@ -183,9 +183,10 @@ async def update_user_skill(
     """
     await set_rls_context(session, current_user_id, workspace_id)
     repo = UserSkillRepository(session)
-    skill = await repo.get_by_id(skill_id)
+    # is_deleted is filtered inside get_by_id_with_template query
+    skill = await repo.get_by_id_with_template(skill_id)
 
-    if skill is None or skill.is_deleted or skill.workspace_id != workspace_id:
+    if skill is None or skill.workspace_id != workspace_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User skill not found",
@@ -240,9 +241,10 @@ async def delete_user_skill(
     """
     await set_rls_context(session, current_user_id, workspace_id)
     repo = UserSkillRepository(session)
-    skill = await repo.get_by_id(skill_id)
+    # is_deleted is filtered inside get_by_id_with_template query
+    skill = await repo.get_by_id_with_template(skill_id)
 
-    if skill is None or skill.is_deleted or skill.workspace_id != workspace_id:
+    if skill is None or skill.workspace_id != workspace_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User skill not found",

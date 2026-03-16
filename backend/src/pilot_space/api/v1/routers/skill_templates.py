@@ -33,6 +33,7 @@ from pilot_space.infrastructure.database.models.workspace_member import (
 from pilot_space.infrastructure.database.repositories.skill_template_repository import (
     SkillTemplateRepository,
 )
+from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -102,6 +103,7 @@ async def list_skill_templates(
     Returns:
         List of SkillTemplateSchema ordered by sort_order.
     """
+    await set_rls_context(session, current_user_id, workspace_id)
     repo = SkillTemplateRepository(session)
     templates = await repo.get_by_workspace(workspace_id)
     return [SkillTemplateSchema.model_validate(t) for t in templates]
@@ -134,6 +136,7 @@ async def create_skill_template(
     Raises:
         HTTPException: 403 if not admin/owner.
     """
+    await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
     repo = SkillTemplateRepository(session)
@@ -195,6 +198,7 @@ async def update_skill_template(
         HTTPException: 403 if not admin or trying to edit built-in fields.
         HTTPException: 404 if template not found.
     """
+    await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
     repo = SkillTemplateRepository(session)
@@ -257,6 +261,7 @@ async def delete_skill_template(
         HTTPException: 403 if not admin/owner.
         HTTPException: 404 if template not found.
     """
+    await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
     repo = SkillTemplateRepository(session)

@@ -236,7 +236,7 @@ async def test_update_user_skill_returns_200(auth_client: AsyncClient) -> None:
         "pilot_space.api.v1.routers.user_skills.UserSkillRepository",
     ) as mock_repo_cls:
         mock_repo = mock_repo_cls.return_value
-        mock_repo.get_by_id = AsyncMock(return_value=mock_skill)
+        mock_repo.get_by_id_with_template = AsyncMock(return_value=mock_skill)
         mock_repo.update = AsyncMock(return_value=mock_skill)
 
         resp = await auth_client.patch(
@@ -253,7 +253,7 @@ async def test_update_user_skill_404_not_found(auth_client: AsyncClient) -> None
         "pilot_space.api.v1.routers.user_skills.UserSkillRepository",
     ) as mock_repo_cls:
         mock_repo = mock_repo_cls.return_value
-        mock_repo.get_by_id = AsyncMock(return_value=None)
+        mock_repo.get_by_id_with_template = AsyncMock(return_value=None)
 
         resp = await auth_client.patch(
             f"{BASE_URL}/{SKILL_ID}",
@@ -271,7 +271,7 @@ async def test_update_user_skill_403_not_owner(auth_client: AsyncClient) -> None
         "pilot_space.api.v1.routers.user_skills.UserSkillRepository",
     ) as mock_repo_cls:
         mock_repo = mock_repo_cls.return_value
-        mock_repo.get_by_id = AsyncMock(return_value=mock_skill)
+        mock_repo.get_by_id_with_template = AsyncMock(return_value=mock_skill)
 
         resp = await auth_client.patch(
             f"{BASE_URL}/{SKILL_ID}",
@@ -294,7 +294,7 @@ async def test_delete_user_skill_returns_204(auth_client: AsyncClient) -> None:
         "pilot_space.api.v1.routers.user_skills.UserSkillRepository",
     ) as mock_repo_cls:
         mock_repo = mock_repo_cls.return_value
-        mock_repo.get_by_id = AsyncMock(return_value=mock_skill)
+        mock_repo.get_by_id_with_template = AsyncMock(return_value=mock_skill)
         mock_repo.soft_delete = AsyncMock(return_value=mock_skill)
 
         resp = await auth_client.delete(f"{BASE_URL}/{SKILL_ID}")
@@ -308,7 +308,7 @@ async def test_delete_user_skill_404_not_found(auth_client: AsyncClient) -> None
         "pilot_space.api.v1.routers.user_skills.UserSkillRepository",
     ) as mock_repo_cls:
         mock_repo = mock_repo_cls.return_value
-        mock_repo.get_by_id = AsyncMock(return_value=None)
+        mock_repo.get_by_id_with_template = AsyncMock(return_value=None)
 
         resp = await auth_client.delete(f"{BASE_URL}/{SKILL_ID}")
 
@@ -323,7 +323,7 @@ async def test_delete_user_skill_403_not_owner(auth_client: AsyncClient) -> None
         "pilot_space.api.v1.routers.user_skills.UserSkillRepository",
     ) as mock_repo_cls:
         mock_repo = mock_repo_cls.return_value
-        mock_repo.get_by_id = AsyncMock(return_value=mock_skill)
+        mock_repo.get_by_id_with_template = AsyncMock(return_value=mock_skill)
 
         resp = await auth_client.delete(f"{BASE_URL}/{SKILL_ID}")
 

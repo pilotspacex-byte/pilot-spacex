@@ -337,7 +337,7 @@ class TestCreateUserSkill:
 class TestGetByUserWorkspace:
     """Tests for get_by_user_workspace()."""
 
-    async def test_returns_active_skills(
+    async def test_returns_all_non_deleted_skills(
         self,
         db_session: AsyncSession,
         user: User,
@@ -345,27 +345,28 @@ class TestGetByUserWorkspace:
         user_skill: UserSkill,
         second_user_skill: UserSkill,
     ) -> None:
-        """Returns all active, non-deleted skills for user in workspace."""
+        """Returns all non-deleted skills for user in workspace."""
         repo = UserSkillRepository(db_session)
         results = await repo.get_by_user_workspace(user.id, workspace.id)
 
         assert len(results) == 2
 
-    async def test_excludes_inactive_skills(
+    async def test_includes_inactive_skills(
         self,
         db_session: AsyncSession,
         user: User,
         workspace: Workspace,
         user_skill: UserSkill,
     ) -> None:
-        """Inactive skills excluded from results."""
+        """Inactive skills included so UI can display them for re-activation."""
         user_skill.is_active = False
         await db_session.flush()
 
         repo = UserSkillRepository(db_session)
         results = await repo.get_by_user_workspace(user.id, workspace.id)
 
-        assert len(results) == 0
+        assert len(results) == 1
+        assert results[0].is_active is False
 
     async def test_excludes_soft_deleted(
         self,
@@ -420,6 +421,98 @@ class TestGetByUserWorkspace:
         results = await repo.get_by_user_workspace(user.id, workspace.id)
 
         assert len(results) == 0
+
+
+class TestGetActiveByUserWorkspace:
+    """Tests for get_active_by_user_workspace() — materializer hot-path."""
+
+    async def test_returns_only_active_skills(
+        self,
+        db_session: AsyncSession,
+        user: User,
+        workspace: Workspace,
+        user_skill: UserSkill,
+        second_user_skill: UserSkill,
+    ) -> None:
+        """Returns only active, non-deleted skills."""
+        repo = UserSkillRepository(db_session)
+        results = await repo.get_active_by_user_workspace(user.id, workspace.id)
+
+        assert len(results) == 2
+
+    async def test_excludes_inactive_skills(
+        self,
+        db_session: AsyncSession,
+        user: User,
+        workspace: Workspace,
+        user_skill: UserSkill,
+    ) -> None:
+        """Inactive skills excluded from materializer results."""
+        user_skill.is_active = False
+        await db_session.flush()
+
+        repo = UserSkillRepository(db_session)
+        results = await repo.get_active_by_user_workspace(user.id, workspace.id)
+
+        assert len(results) == 0
+
+    async def test_excludes_soft_deleted(
+        self,
+        db_session: AsyncSession,
+        user: User,
+        workspace: Workspace,
+        user_skill: UserSkill,
+    ) -> None:
+        """Soft-deleted skills excluded."""
+        user_skill.soft_delete()
+        await db_session.flush()
+
+        repo = UserSkillRepository(db_session)
+        results = await repo.get_active_by_user_workspace(user.id, workspace.id)
+
+        assert len(results) == 0
+
+
+class TestGetByIdWithTemplate:
+    """Tests for get_by_id_with_template()."""
+
+    async def test_returns_skill_with_template_loaded(
+        self,
+        db_session: AsyncSession,
+        user_skill: UserSkill,
+    ) -> None:
+        """Returns skill with template relationship eagerly loaded."""
+        repo = UserSkillRepository(db_session)
+        result = await repo.get_by_id_with_template(user_skill.id)
+
+        assert result is not None
+        assert result.id == user_skill.id
+
+    async def test_excludes_soft_deleted(
+        self,
+        db_session: AsyncSession,
+        user_skill: UserSkill,
+    ) -> None:
+        """Soft-deleted skills not returned."""
+        user_skill.soft_delete()
+        await db_session.flush()
+
+        repo = UserSkillRepository(db_session)
+        result = await repo.get_by_id_with_template(user_skill.id)
+
+        assert result is None
+
+    async def test_returns_none_for_nonexistent(
+        self,
+        db_session: AsyncSession,
+    ) -> None:
+        """Returns None for non-existent skill ID."""
+        from uuid import uuid4
+
+        repo = UserSkillRepository(db_session)
+        result = await repo.get_by_id_with_template(uuid4())
+
+        assert result is None
 
 
 class TestGetByUserWorkspaceTemplate:

@@ -5,7 +5,7 @@ milestone_name: Notion-Style Restructure
 status: completed
 stopped_at: Milestone archived
 last_updated: "2026-03-15"
-last_activity: "2026-03-15 — Completed quick task 12: validate 3 AI flows, fix LLMProvider enum case mismatch"
+last_activity: "2026-03-16 — Completed quick task 260316-phe: investigate & fix skill features"
 progress:
   total_phases: 18
   completed_phases: 17
@@ -65,10 +65,12 @@ None.
 | 10 | Investigate Note-to-Issue pipeline: 5 pathways traced, 28 tests run | 2026-03-15 | n/a (investigation only) | Verified | [10-investigate-into-codebase-of-pilotspace-](./quick/10-investigate-into-codebase-of-pilotspace-/) |
 | 11 | Fix AI config POST 500, NoteIssueLink creation, linkType enum alignment | 2026-03-15 | d4a62dd5 | Done | [11-fix-all-issues-found-in-browser-testing-](./quick/11-fix-all-issues-found-in-browser-testing-/) |
 | 12 | Validate 3 AI flows + fix LLMProvider enum case mismatch | 2026-03-15 | 4e47d6d4 | Done | [12-validate-3-ai-issue-flows-via-browser-ex](./quick/12-validate-3-ai-issue-flows-via-browser-ex/) |
+| 260316-kaf | Remove note emoji selector | 2026-03-16 | 636933f8 | Done | [260316-kaf-remove-note-emoji-selector-in-new-branch](./quick/260316-kaf-remove-note-emoji-selector-in-new-branch/) |
+| 260316-phe | Investigate & fix skill features (7 issues fixed) | 2026-03-16 | f01d76a0 | Verified | [260316-phe-investigate-into-current-pilot-space-ski](./quick/260316-phe-investigate-into-current-pilot-space-ski/) |
 
 ## Session Continuity
 
-Last session: 2026-03-15
-Stopped at: Completed quick task 12 (3-flow validation + enum fix)
+Last session: 2026-03-16
+Stopped at: Completed quick task 260316-phe (skill feature investigation & fixes)
 Resume file: None
 Next action: `/gsd:new-milestone`

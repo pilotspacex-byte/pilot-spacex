@@ -128,8 +128,8 @@ async def _materialize_from_new_tables(
     user_repo = UserSkillRepository(db_session)
     template_repo = SkillTemplateRepository(db_session)
 
-    # Load user's active skills
-    user_skills = await user_repo.get_by_user_workspace(user_id, workspace_id)
+    # Load user's active skills (materializer needs only is_active=True)
+    user_skills = await user_repo.get_active_by_user_workspace(user_id, workspace_id)
 
     expected_dirs: set[str] = set()
     covered_template_ids: set[UUID] = set()

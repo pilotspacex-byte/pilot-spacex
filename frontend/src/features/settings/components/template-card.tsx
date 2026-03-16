@@ -8,7 +8,23 @@
 
 'use client';
 
-import { Lock, MoreVertical, Power, Pencil, Trash2, Wand2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Code,
+  Container,
+  FileSearch,
+  GanttChart,
+  GitBranch,
+  Layers,
+  Lock,
+  MoreVertical,
+  Pencil,
+  Power,
+  Target,
+  TestTube,
+  Trash2,
+  Wand2,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,6 +44,19 @@ interface TemplateCardProps {
   onDelete?: (template: SkillTemplate) => void;
   isAdmin: boolean;
 }
+
+/** Map of Lucide icon name strings to components for dynamic rendering. */
+const ICON_MAP: Record<string, LucideIcon> = {
+  Code,
+  Container,
+  FileSearch,
+  GanttChart,
+  GitBranch,
+  Layers,
+  Target,
+  TestTube,
+  Wand2,
+};
 
 const SOURCE_BADGE_STYLES: Record<string, string> = {
   built_in: 'border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400',
@@ -62,9 +91,23 @@ export function TemplateCard({
     >
       {/* Icon hero area */}
       <div className="flex items-center justify-center py-6 px-4 bg-muted/30 rounded-t-xl border-b border-border/40">
-        <span className="text-4xl select-none" role="img" aria-label={template.name}>
-          {template.icon || '🎯'}
-        </span>
+        {(() => {
+          const IconComponent = template.icon ? ICON_MAP[template.icon] : undefined;
+          if (IconComponent) {
+            return (
+              <IconComponent
+                className="h-10 w-10 text-muted-foreground/60"
+                aria-label={template.name}
+              />
+            );
+          }
+          // Fallback: render icon value as emoji, or default emoji
+          return (
+            <span className="text-4xl select-none" role="img" aria-label={template.name}>
+              {template.icon || '\uD83C\uDFAF'}
+            </span>
+          );
+        })()}
       </div>
 
       {/* Content */}

@@ -99,9 +99,15 @@ async def admin_client() -> AsyncGenerator[AsyncClient, None]:
     token_payload = _make_token_payload()
     app.dependency_overrides[get_current_user] = lambda: token_payload
 
-    with patch(
-        "pilot_space.api.v1.routers.skill_templates._require_admin",
-        new=AsyncMock(),
+    with (
+        patch(
+            "pilot_space.api.v1.routers.skill_templates._require_admin",
+            new=AsyncMock(),
+        ),
+        patch(
+            "pilot_space.api.v1.routers.skill_templates.set_rls_context",
+            new=AsyncMock(),
+        ),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(
@@ -134,9 +140,15 @@ async def non_admin_client() -> AsyncGenerator[AsyncClient, None]:
             detail="Admin or owner role required",
         )
 
-    with patch(
-        "pilot_space.api.v1.routers.skill_templates._require_admin",
-        new=AsyncMock(side_effect=_raise_403),
+    with (
+        patch(
+            "pilot_space.api.v1.routers.skill_templates._require_admin",
+            new=AsyncMock(side_effect=_raise_403),
+        ),
+        patch(
+            "pilot_space.api.v1.routers.skill_templates.set_rls_context",
+            new=AsyncMock(),
+        ),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(

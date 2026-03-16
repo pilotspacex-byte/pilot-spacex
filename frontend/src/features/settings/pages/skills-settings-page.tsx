@@ -370,7 +370,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
               open={!!templateToDelete}
               onCancel={() => setTemplateToDelete(null)}
               onConfirm={handleDeleteTemplateConfirm}
-              title={`Delete ${templateToDelete.name} Template?`}
+              title={`Delete "${templateToDelete.name}"?`}
               description="This will permanently delete this workspace template. Members who created skills from this template will keep their existing skills."
               confirmLabel="Delete Template"
               variant="destructive"

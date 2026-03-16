@@ -79,17 +79,39 @@ export function useCreateUserSkill(workspaceSlug: string) {
 
 export function useUpdateUserSkill(workspaceSlug: string) {
   const qc = useQueryClient();
+  const queryKey = ['user-skills', workspaceSlug];
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UserSkillUpdate }) =>
       userSkillsApi.updateUserSkill(workspaceSlug, id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['user-skills', workspaceSlug] }),
+    onMutate: async ({ id, data }) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<UserSkill[]>(queryKey);
+      qc.setQueryData<UserSkill[]>(queryKey, (old) =>
+        old?.map((s) => (s.id === id ? { ...s, ...data } : s))
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey }),
   });
 }
 
 export function useDeleteUserSkill(workspaceSlug: string) {
   const qc = useQueryClient();
+  const queryKey = ['user-skills', workspaceSlug];
   return useMutation({
     mutationFn: (id: string) => userSkillsApi.deleteUserSkill(workspaceSlug, id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['user-skills', workspaceSlug] }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<UserSkill[]>(queryKey);
+      qc.setQueryData<UserSkill[]>(queryKey, (old) => old?.filter((s) => s.id !== id));
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) qc.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey }),
   });
 }
