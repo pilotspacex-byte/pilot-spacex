@@ -32,9 +32,17 @@ class UserSkillSchema(BaseModel):
 
 
 class UserSkillCreate(BaseModel):
-    """Request body for creating a user skill from a template."""
+    """Request body for creating a user skill.
 
-    template_id: UUID = Field(description="Source template UUID")
+    Either template_id (template-based) or skill_content (custom) is required.
+    """
+
+    template_id: UUID | None = Field(default=None, description="Source template UUID")
+    skill_content: str | None = Field(
+        default=None,
+        description="Skill markdown content (for custom skills without template)",
+        max_length=15000,
+    )
     experience_description: str | None = Field(
         default=None,
         description="Natural language input for AI personalization",

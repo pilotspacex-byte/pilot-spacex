@@ -120,6 +120,13 @@ async def create_user_skill(
         HTTPException: 400/409 on validation errors.
     """
     await set_rls_context(session, current_user_id, workspace_id)
+
+    if not body.template_id and not body.skill_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either template_id or skill_content is required",
+        )
+
     svc = CreateUserSkillService(session)
     try:
         skill = await svc.create(
@@ -127,6 +134,7 @@ async def create_user_skill(
             workspace_id=workspace_id,
             template_id=body.template_id,
             experience_description=body.experience_description or "",
+            skill_content=body.skill_content,
         )
     except ValueError as exc:
         msg = str(exc)

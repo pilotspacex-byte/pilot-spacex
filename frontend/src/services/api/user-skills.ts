@@ -25,7 +25,8 @@ export interface UserSkill {
 }
 
 export interface UserSkillCreate {
-  template_id: string;
+  template_id?: string;
+  skill_content?: string;
   experience_description?: string;
 }
 

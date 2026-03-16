@@ -172,22 +172,12 @@ export function SkillGeneratorModal({
 
     if (mode === 'personal') {
       try {
-        // If seeded from a template, save to user_skills table (Phase 20)
-        if (template?.id) {
-          await createUserSkill.mutateAsync({
-            template_id: template.id,
-            experience_description: description || undefined,
-          });
-        } else {
-          // Legacy path for custom skills without a template
-          await createPersonal.mutateAsync({
-            roleType: 'custom',
-            roleName: editableName || preview.suggestedName,
-            skillContent: preview.content,
-            experienceDescription: description || undefined,
-            isPrimary: false,
-          });
-        }
+        // Save to user_skills table — template-based or custom
+        await createUserSkill.mutateAsync({
+          template_id: template?.id,
+          skill_content: template?.id ? undefined : preview.content,
+          experience_description: description || undefined,
+        });
         handleClose();
       } catch {
         // Error toast from mutation hook
