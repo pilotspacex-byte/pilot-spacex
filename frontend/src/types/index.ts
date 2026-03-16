@@ -41,8 +41,11 @@ export type {
   IntegrationLink,
   IssueRelation,
   NoteIssueLink,
+  NoteLinkType,
   RelatedSuggestion,
 } from './issue';
+
+export { VALID_NOTE_LINK_TYPES } from './issue';
 
 export type {
   // Note domain

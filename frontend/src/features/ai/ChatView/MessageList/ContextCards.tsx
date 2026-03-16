@@ -4,6 +4,7 @@ import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { NotePreviewCard } from '@/features/issues/components/note-preview-card';
 import { IssueReferenceCard } from '@/features/issues/components/issue-reference-card';
+import { VALID_NOTE_LINK_TYPES, type NoteLinkType } from '@/types';
 
 // ─── ContextNotesResultCard ───────────────────────────────────────────────
 
@@ -41,10 +42,8 @@ export const ContextNotesResultCard = memo<ContextNotesResultCardProps>(
                 noteId={note.noteId}
                 noteTitle={note.noteTitle}
                 linkType={
-                  (['extracted', 'referenced', 'related', 'inline'] as const).includes(
-                    note.linkType as 'extracted' | 'referenced' | 'related' | 'inline'
-                  )
-                    ? (note.linkType as 'extracted' | 'referenced' | 'related' | 'inline')
+                  VALID_NOTE_LINK_TYPES.includes(note.linkType as NoteLinkType)
+                    ? (note.linkType as NoteLinkType)
                     : 'related'
                 }
                 workspaceSlug={note.workspaceSlug ?? topSlug}

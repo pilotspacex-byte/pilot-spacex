@@ -3,11 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { NoteLinkType } from '@/types';
 
 interface NotePreviewCardProps {
   noteId: string;
   noteTitle: string;
-  linkType: 'extracted' | 'referenced' | 'related' | 'inline';
+  linkType: NoteLinkType;
   workspaceSlug: string;
 }
 
