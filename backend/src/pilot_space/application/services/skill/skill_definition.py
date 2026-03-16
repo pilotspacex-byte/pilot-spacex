@@ -9,14 +9,14 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 
-class ApprovalMode(str, Enum):
+class ApprovalMode(StrEnum):
     """Approval modes for skill executions (DD-003)."""
 
     AUTO = "auto"
@@ -24,7 +24,7 @@ class ApprovalMode(str, Enum):
     REQUIRE = "require"
 
 
-class RequiredApprovalRole(str, Enum):
+class RequiredApprovalRole(StrEnum):
     """Minimum workspace role required to approve (C-7)."""
 
     ADMIN = "admin"

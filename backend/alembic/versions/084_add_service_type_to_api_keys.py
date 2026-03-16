@@ -1,7 +1,7 @@
 """Add service_type column to workspace_api_keys.
 
 Revision ID: 084_add_service_type_to_api_keys
-Revises: 083_fix_personal_page_rls_workspace_scope
+Revises: 083_fix_personal_page_rls_scope
 Create Date: 2026-03-14
 
 Adds service_type column ('embedding' | 'llm') to support service-based
@@ -12,13 +12,12 @@ Backfills existing rows: google -> embedding, all others -> llm.
 """
 
 import sqlalchemy as sa
-from sqlalchemy import text
-
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision: str = "084_add_service_type_to_api_keys"
-down_revision: str | None = "083_fix_personal_page_rls_workspace_scope"
+down_revision: str | None = "083_fix_personal_page_rls_scope"
 branch_labels: tuple[str, ...] | None = None
 depends_on: tuple[str, ...] | None = None
 
@@ -38,7 +37,9 @@ def upgrade() -> None:
 
     # Backfill: google provider -> embedding
     op.execute(
-        text("UPDATE workspace_api_keys SET service_type = 'embedding' WHERE provider = 'google'")
+        text(
+            "UPDATE workspace_api_keys SET service_type = 'embedding' WHERE provider = 'google'"
+        )
     )
 
     # Drop old unique constraint

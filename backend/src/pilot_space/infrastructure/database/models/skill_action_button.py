@@ -19,7 +19,7 @@ from pilot_space.infrastructure.database.base import WorkspaceScopedModel
 from pilot_space.infrastructure.database.types import JSONBCompat
 
 
-class BindingType(str, enum.Enum):
+class BindingType(enum.StrEnum):
     """Type of action button binding."""
 
     SKILL = "skill"

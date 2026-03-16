@@ -7,7 +7,7 @@ Supports blocks, blocked_by, duplicates, and related link types.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.issue import Issue
 
 
-class IssueLinkType(str, Enum):
+class IssueLinkType(StrEnum):
     """Type of relationship between two issues.
 
     Link types represent directional or symmetric relationships:

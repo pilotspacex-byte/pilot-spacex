@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class ExportFormat(str, Enum):
+class ExportFormat(StrEnum):
     """Export format options."""
 
     MARKDOWN = "markdown"

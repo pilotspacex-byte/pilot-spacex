@@ -111,7 +111,7 @@ describe('TaskDependencyGraph', () => {
   it('canvas container has correct classes', () => {
     render(<TaskDependencyGraph tasks={tasksWithDeps} />);
     const graph = screen.getByTestId('task-dependency-graph');
-    expect(graph.className).toContain('bg-[#F8F7F5]');
+    expect(graph.className).toContain('bg-muted/30');
     expect(graph.className).toContain('border');
     expect(graph.className).toContain('rounded-[10px]');
   });

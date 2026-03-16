@@ -1,6 +1,6 @@
 """Add issue_suggestion_dismissals table with RLS policies.
 
-Revision ID: 072_add_issue_suggestion_dismissals
+Revision ID: 072_add_issue_suggestion
 Revises: 071_add_workspace_mcp_servers
 Create Date: 2026-03-10
 
@@ -26,12 +26,11 @@ Downgrade reverses all changes: drops policies, indexes, and table.
 from __future__ import annotations
 
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import text
 
-from alembic import op
-
 # revision identifiers, used by Alembic.
-revision: str = "072_add_issue_suggestion_dismissals"
+revision: str = "072_add_issue_suggestion"
 down_revision: str = "071_add_workspace_mcp_servers"
 branch_labels: None = None
 depends_on: None = None
@@ -140,7 +139,9 @@ def upgrade() -> None:
     )
 
     # Enable RLS
-    op.execute(text("ALTER TABLE issue_suggestion_dismissals ENABLE ROW LEVEL SECURITY"))
+    op.execute(
+        text("ALTER TABLE issue_suggestion_dismissals ENABLE ROW LEVEL SECURITY")
+    )
     op.execute(text("ALTER TABLE issue_suggestion_dismissals FORCE ROW LEVEL SECURITY"))
 
     # Workspace isolation policy: users see rows in workspaces they are members of

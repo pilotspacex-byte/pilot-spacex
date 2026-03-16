@@ -1,6 +1,6 @@
 """Add skill_templates and user_skills tables with data migration.
 
-Revision ID: 077_add_skill_templates_and_user_skills
+Revision ID: 077_add_skill_templates
 Revises: 076_add_previous_encrypted_key
 Create Date: 2026-03-11
 
@@ -39,12 +39,11 @@ Downgrade: drops user_skills then skill_templates (policies, indexes, tables).
 from __future__ import annotations
 
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import text
 
-from alembic import op
-
 # revision identifiers, used by Alembic.
-revision: str = "077_add_skill_templates_and_user_skills"
+revision: str = "077_add_skill_templates"
 down_revision: str = "076_add_previous_encrypted_key"
 branch_labels: None = None
 depends_on: None = None
@@ -425,7 +424,9 @@ def downgrade() -> None:
 
     # Drop user_skills RLS policies
     op.execute(text('DROP POLICY IF EXISTS "user_skills_service_role" ON user_skills'))
-    op.execute(text('DROP POLICY IF EXISTS "user_skills_workspace_isolation" ON user_skills'))
+    op.execute(
+        text('DROP POLICY IF EXISTS "user_skills_workspace_isolation" ON user_skills')
+    )
 
     # Drop user_skills indexes
     op.execute(text("DROP INDEX IF EXISTS uq_user_skills_user_workspace_template"))
@@ -436,9 +437,13 @@ def downgrade() -> None:
     op.drop_table("user_skills")
 
     # Drop skill_templates RLS policies
-    op.execute(text('DROP POLICY IF EXISTS "skill_templates_service_role" ON skill_templates'))
     op.execute(
-        text('DROP POLICY IF EXISTS "skill_templates_workspace_isolation" ON skill_templates')
+        text('DROP POLICY IF EXISTS "skill_templates_service_role" ON skill_templates')
+    )
+    op.execute(
+        text(
+            'DROP POLICY IF EXISTS "skill_templates_workspace_isolation" ON skill_templates'
+        )
     )
 
     # Drop skill_templates indexes

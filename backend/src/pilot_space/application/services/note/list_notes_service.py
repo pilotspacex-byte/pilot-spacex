@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -23,7 +23,7 @@ class ListNotesPayload:
 
     Attributes:
         workspace_id: The workspace ID to filter by.
-        project_id: Optional project filter.
+        project_ids: Optional list of project IDs to filter by (any match).
         is_pinned: Optional pin status filter.
         search: Optional search query.
         limit: Maximum number of notes to return.
@@ -31,7 +31,7 @@ class ListNotesPayload:
     """
 
     workspace_id: UUID
-    project_id: UUID | None = None
+    project_ids: list[UUID] = field(default_factory=list)
     is_pinned: bool | None = None
     search: str | None = None
     limit: int = 20
@@ -56,11 +56,8 @@ class ListNotesResult:
 class ListNotesService:
     """Service for listing notes with filtering.
 
-    Handles different filtering strategies:
-    - Search by title
-    - Filter by project
-    - Filter by pin status
-    - Workspace-scoped listing
+    Delegates to NoteRepository.list_notes, which composes all filters
+    (project_ids, is_pinned, search) into a single query.
     """
 
     def __init__(
@@ -86,30 +83,14 @@ class ListNotesService:
         Returns:
             ListNotesResult with notes and pagination info.
         """
-        # Apply appropriate filtering strategy
-        if payload.search:
-            notes = await self._note_repo.search_by_title(
-                payload.workspace_id,
-                payload.search,
-                project_id=payload.project_id,
-                limit=payload.limit,
-            )
-        elif payload.project_id:
-            notes = await self._note_repo.get_by_project(
-                payload.project_id,
-                limit=payload.limit,
-            )
-        elif payload.is_pinned:
-            notes = await self._note_repo.get_pinned_notes(
-                payload.workspace_id,
-                limit=payload.limit,
-            )
-        else:
-            notes = await self._note_repo.get_by_workspace(
-                payload.workspace_id,
-                limit=payload.limit,
-                offset=payload.offset,
-            )
+        notes = await self._note_repo.list_notes(
+            payload.workspace_id,
+            project_ids=payload.project_ids or None,
+            is_pinned=payload.is_pinned,
+            search=payload.search,
+            limit=payload.limit,
+            offset=payload.offset,
+        )
 
         total = len(notes)
         has_next = len(notes) == payload.limit

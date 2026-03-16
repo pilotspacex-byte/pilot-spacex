@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import (
     DateTime,
@@ -23,7 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
 
 
-class NotificationType(str, Enum):
+class NotificationType(StrEnum):
     """Notification event type.
 
     Determines the icon and grouping in the notification feed.
@@ -36,7 +36,7 @@ class NotificationType(str, Enum):
     GENERAL = "general"
 
 
-class NotificationPriority(str, Enum):
+class NotificationPriority(StrEnum):
     """Notification urgency level.
 
     Controls ordering and visual emphasis in the notification feed.

@@ -30,7 +30,7 @@ router = APIRouter(prefix="/notes", tags=["notes-ai"])
 # Type alias for dependency injection
 PilotSpaceAgentDep = Annotated[
     PilotSpaceAgent,
-    Depends(lambda: Container.pilotspace_agent()),
+    Depends(Container.pilotspace_agent),
 ]
 
 

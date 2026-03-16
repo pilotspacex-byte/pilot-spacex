@@ -9,7 +9,7 @@ T003: Onboarding schemas.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import Field, field_validator
@@ -17,7 +17,7 @@ from pydantic import Field, field_validator
 from pilot_space.api.v1.schemas.base import BaseSchema, EntitySchema
 
 
-class OnboardingStep(str, Enum):
+class OnboardingStep(StrEnum):
     """Valid onboarding step names."""
 
     AI_PROVIDERS = "ai_providers"
@@ -99,7 +99,7 @@ class OnboardingUpdateRequest(BaseSchema):
         return v
 
 
-class AIProviderType(str, Enum):
+class AIProviderType(StrEnum):
     """Supported AI provider types."""
 
     ANTHROPIC = "anthropic"

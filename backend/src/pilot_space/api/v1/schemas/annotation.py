@@ -8,7 +8,7 @@ T093: Annotation schemas.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -17,7 +17,7 @@ from pydantic import Field, field_validator
 from pilot_space.api.v1.schemas.base import BaseSchema, EntitySchema, PaginatedResponse
 
 
-class AnnotationType(str, Enum):
+class AnnotationType(StrEnum):
     """Types of margin annotations.
 
     Aligns with AI agent output (margin_annotation_agent_sdk.py)
@@ -33,7 +33,7 @@ class AnnotationType(str, Enum):
     INFO = "info"  # Informational (DB compatibility)
 
 
-class AnnotationStatus(str, Enum):
+class AnnotationStatus(StrEnum):
     """Status of an annotation.
 
     Aligns with database model (note_annotation.py).

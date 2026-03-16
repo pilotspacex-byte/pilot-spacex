@@ -42,7 +42,7 @@ async def test_e2e_client() -> AsyncGenerator[AsyncClient, None]:
 
     # Create mock Redis client with working operations
     mock_redis_client = MagicMock()
-    mock_redis_client.get = AsyncMock(side_effect=lambda key: redis_cache.get(key))
+    mock_redis_client.get = AsyncMock(side_effect=redis_cache.get)
 
     def mock_set(key: str, value: Any, **_kwargs: Any) -> bool:
         redis_cache[key] = value

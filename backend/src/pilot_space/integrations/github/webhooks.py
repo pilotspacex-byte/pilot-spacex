@@ -9,7 +9,7 @@ import hashlib
 import hmac
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from pilot_space.infrastructure.logging import get_logger
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class GitHubEventType(str, Enum):
+class GitHubEventType(StrEnum):
     """Supported GitHub webhook event types."""
 
     PUSH = "push"
@@ -32,7 +32,7 @@ class GitHubEventType(str, Enum):
     CHECK_SUITE = "check_suite"
 
 
-class GitHubPRAction(str, Enum):
+class GitHubPRAction(StrEnum):
     """Pull request actions we care about."""
 
     OPENED = "opened"

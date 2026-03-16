@@ -285,7 +285,7 @@ async def test_create_note_warning_header_at_80pct() -> None:
         patch(f"{NOTE_MODULE}._check_storage_quota", return_value=(True, warning_pct)),
         patch(f"{NOTE_MODULE}._update_storage_usage", new_callable=AsyncMock),
         patch(f"{NOTE_MODULE}._resolve_workspace", return_value=workspace),
-        patch(f"{NOTE_MODULE}._note_to_response") as mock_to_response,
+        patch(f"{NOTE_MODULE}._note_to_detail_response") as mock_to_response,
     ):
         mock_response = MagicMock()
         mock_response.headers = {}

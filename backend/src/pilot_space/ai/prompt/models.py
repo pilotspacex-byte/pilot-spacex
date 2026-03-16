@@ -9,13 +9,13 @@ Defines the data structures used across all prompt layers:
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class UserIntent(str, Enum):
+class UserIntent(StrEnum):
     """Classifies user messages for intent-aware prompt assembly.
 
     Each intent maps to specific rule files and behavioral layers

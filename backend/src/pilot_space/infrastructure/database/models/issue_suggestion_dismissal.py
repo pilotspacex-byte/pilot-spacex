@@ -5,7 +5,7 @@ suggestions are excluded from future responses for that user/issue pair.
 
 References:
 - specs/015-related-issues, Phase 0 scaffolding
-- Migration: 072_add_issue_suggestion_dismissals
+- Migration: 072_add_issue_suggestion
 """
 
 from __future__ import annotations

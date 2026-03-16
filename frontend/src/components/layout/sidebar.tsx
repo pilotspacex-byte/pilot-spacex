@@ -4,7 +4,7 @@ import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   Home,
   FileText,
@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Plus,
   Compass,
+  PinIcon,
   Loader2,
   LogOut,
   User,
@@ -30,11 +31,16 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useUIStore, useNotificationStore, useAuthStore, useWorkspaceStore } from '@/stores';
-import { useCreateNote, createNoteDefaults } from '@/features/notes/hooks';
-import { useProjects, selectAllProjects } from '@/features/projects/hooks/useProjects';
-import { ProjectPageTree } from '@/components/layout/ProjectPageTree';
-import { PersonalPagesList } from '@/components/layout/PersonalPagesList';
+import {
+  useUIStore,
+  useNotificationStore,
+  useAuthStore,
+  useWorkspaceStore,
+} from '@/stores';
+import { useCreateNote } from '@/features/notes/hooks';
+import { TemplatePicker } from '@/features/notes/components/TemplatePicker';
+import { useNewNoteFlow } from './useNewNoteFlow';
+import { useProjects } from '@/features/projects/hooks/useProjects';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -60,6 +66,7 @@ import { NotificationPanel } from '@/components/layout/notification-panel';
 import { addRecentWorkspace } from '@/components/workspace-selector';
 import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
 import { usePendingApprovalCount } from '@/features/approvals/hooks/use-approvals';
+import { usePinnedNotes } from '@/hooks/usePinnedNotes';
 
 interface NavItem {
   name: string;
@@ -301,6 +308,10 @@ export const Sidebar = observer(function Sidebar() {
     workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id ??
     workspaceStore.currentWorkspaceId ??
     workspaceSlug;
+  // A verified UUID — undefined when workspaceId is still a slug (e.g. "acme-inc" also
+  // contains '-' so the old .includes('-') guard was insufficient).
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const resolvedWorkspaceId = UUID_RE.test(workspaceId) ? workspaceId : undefined;
 
   // Store workspace slug in localStorage for redirect on root URL
   useEffect(() => {
@@ -323,7 +334,7 @@ export const Sidebar = observer(function Sidebar() {
   }, [workspaceId, isAuthenticated, notificationStore]);
 
   const createNote = useCreateNote({
-    workspaceId,
+    workspaceId: resolvedWorkspaceId ?? '',
     onSuccess: (note) => {
       router.push(`/${workspaceSlug}/notes/${note.id}`);
     },
@@ -345,13 +356,6 @@ export const Sidebar = observer(function Sidebar() {
     workspaceId,
     enabled: !!workspaceId && isAuthenticated,
   });
-  const projects = selectAllProjects(projectsData);
-
-  // Extract current note ID from URL: /{workspaceSlug}/notes/{noteId}
-  const currentNoteId = useMemo(() => {
-    const match = pathname.match(/\/notes\/([^/]+)/);
-    return match?.[1] ?? undefined;
-  }, [pathname]);
 
   const navigation = useMemo(() => {
     return navigationSections.map((section) => ({
@@ -364,260 +368,307 @@ export const Sidebar = observer(function Sidebar() {
     }));
   }, [workspaceSlug]);
 
-  const handleNewNote = useCallback(() => {
-    createNote.mutate(createNoteDefaults());
-  }, [createNote]);
+  const projectMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (projectsData?.items ?? []).forEach((p) => {
+      map[p.id] = p.name;
+    });
+    return map;
+  }, [projectsData]);
+
+  const { data: rawPinnedNotes = [] } = usePinnedNotes({
+    workspaceId: resolvedWorkspaceId ?? '',
+    enabled: !!resolvedWorkspaceId && isAuthenticated,
+  });
+
+  const pinnedNotes = useMemo(() => {
+    return rawPinnedNotes.slice(0, 5).map((note) => ({
+      id: note.id,
+      title: note.title,
+      projectId: note.projectId,
+      href: `/${workspaceSlug}/notes/${note.id}`,
+    }));
+  }, [rawPinnedNotes, workspaceSlug]);
+
+  const newNoteFlow = useNewNoteFlow({
+    onCreateNote: (data) => createNote.mutate(data),
+  });
+  const handleNewNote = newNoteFlow.open;
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Logo & Workspace */}
-      <div
-        className={cn(
-          'flex h-10 items-center gap-2 border-b border-sidebar-border',
-          collapsed ? 'justify-center px-0' : 'px-3'
-        )}
-      >
-        <motion.div
-          whileHover={{ rotate: 15 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+    <>
+      <div className="flex h-full flex-col">
+        {/* Logo & Workspace */}
+        <div
+          className={cn(
+            'flex h-10 items-center gap-2 border-b border-sidebar-border',
+            collapsed ? 'justify-center px-0' : 'px-3'
+          )}
         >
-          <Compass className="h-5 w-5 text-primary" />
-        </motion.div>
-        {collapsed ? (
-          <WorkspaceSwitcher currentSlug={workspaceSlug} collapsed />
-        ) : (
           <motion.div
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            className="flex flex-col"
+            whileHover={{ rotate: 15 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 10 }}
           >
-            <WorkspaceSwitcher currentSlug={workspaceSlug} />
+            <Compass className="h-5 w-5 text-primary" />
           </motion.div>
-        )}
-      </div>
+          {collapsed ? (
+            <WorkspaceSwitcher currentSlug={workspaceSlug} collapsed />
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              className="flex flex-col"
+            >
+              <WorkspaceSwitcher currentSlug={workspaceSlug} />
+            </motion.div>
+          )}
+        </div>
 
-      {/* Main Navigation */}
-      <div className="flex flex-col gap-0.5 p-2">
-        {navigation.map((section, sectionIndex) => (
-          <nav
-            key={section.label}
-            aria-label={`${section.label} navigation`}
-            className={cn(sectionIndex > 0 && 'mt-3')}
-          >
-            {!collapsed ? (
-              <div className="mb-1 flex items-center gap-1.5 px-2.5" aria-hidden="true">
-                {section.icon && (
-                  <section.icon className="h-2.5 w-2.5 text-sidebar-foreground/40" />
-                )}
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                  {section.label}
-                </span>
-              </div>
-            ) : (
-              sectionIndex > 0 && (
-                <div
-                  className="mx-auto mb-1.5 h-px w-4 rounded-full bg-sidebar-border"
-                  aria-hidden="true"
-                />
-              )
-            )}
-            {section.items.map((item) => {
-              // Hide adminOnly items from non-Owner/Admin members
-              if (item.adminOnly && !isAdminOrOwner) return null;
-
-              const isActive = item.path
-                ? pathname === item.href || pathname.startsWith(`${item.href}/`)
-                : pathname === item.href;
-
-              const badgeCount =
-                item.badgeKey !== undefined ? (badgeValues[item.badgeKey] ?? 0) : 0;
-
-              return (
-                <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href={item.href}
-                      data-testid={item.testId}
-                      aria-current={isActive ? 'page' : undefined}
-                      className={cn(
-                        'group relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200',
-                        isActive
-                          ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
-                          : 'text-sidebar-foreground hover:bg-sidebar-accent/50',
-                        collapsed && 'justify-center px-2'
-                      )}
-                    >
-                      <item.icon
-                        className={cn(
-                          'h-4 w-4 shrink-0 transition-colors',
-                          isActive
-                            ? 'text-sidebar-primary'
-                            : 'text-muted-foreground group-hover:text-sidebar-foreground'
-                        )}
-                      />
-                      {!collapsed && (
-                        <motion.span
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="flex flex-1 items-center justify-between"
-                        >
-                          {item.name}
-                          {badgeCount > 0 && (
-                            <span
-                              className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
-                              aria-label={`${badgeCount} pending`}
-                              data-testid={`${item.testId}-badge`}
-                            >
-                              {badgeCount}
-                            </span>
-                          )}
-                        </motion.span>
-                      )}
-                      {/* Collapsed badge dot */}
-                      {collapsed && badgeCount > 0 && (
-                        <span
-                          className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary"
-                          aria-hidden
-                        />
-                      )}
-                    </Link>
-                  </TooltipTrigger>
-                  {collapsed && (
-                    <TooltipContent side="right" className="font-medium">
-                      {item.name}
-                      {badgeCount > 0 && ` (${badgeCount} pending)`}
-                    </TooltipContent>
+        {/* Main Navigation */}
+        <div className="flex flex-col gap-0.5 p-2">
+          {navigation.map((section, sectionIndex) => (
+            <nav
+              key={section.label}
+              aria-label={`${section.label} navigation`}
+              className={cn(sectionIndex > 0 && 'mt-3')}
+            >
+              {!collapsed ? (
+                <div className="mb-1 flex items-center gap-1.5 px-2.5" aria-hidden="true">
+                  {section.icon && (
+                    <section.icon className="h-2.5 w-2.5 text-sidebar-foreground/40" />
                   )}
-                </Tooltip>
-              );
-            })}
-          </nav>
-        ))}
-      </div>
-
-      <Separator className="mx-2" />
-
-      {/* Notes sections — Project page trees + Personal pages */}
-      <ScrollArea className="flex-1 px-2 py-1.5">
-        {!collapsed && (
-          <>
-            {/* Project Page Trees */}
-            {projects.map((project) => (
-              <div key={project.id} className="mb-2">
-                <div className="mb-1 flex items-center gap-1.5 px-1.5">
-                  <FolderKanban className="h-2.5 w-2.5 text-muted-foreground" />
-                  <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {project.name}
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                    {section.label}
                   </span>
                 </div>
-                <ProjectPageTree
-                  workspaceId={workspaceId}
-                  workspaceSlug={workspaceSlug}
-                  projectId={project.id}
-                  projectName={project.name}
-                  currentNoteId={currentNoteId}
-                />
-              </div>
-            ))}
+              ) : (
+                sectionIndex > 0 && (
+                  <div
+                    className="mx-auto mb-1.5 h-px w-4 rounded-full bg-sidebar-border"
+                    aria-hidden="true"
+                  />
+                )
+              )}
+              {section.items.map((item) => {
+                // Hide adminOnly items from non-Owner/Admin members
+                if (item.adminOnly && !isAdminOrOwner) return null;
 
-            {/* Personal Pages */}
-            <div className="mb-2">
-              <div className="mb-1 flex items-center gap-1.5 px-1.5">
-                <FileText className="h-2.5 w-2.5 text-muted-foreground" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  My Pages
-                </span>
+                const isActive = item.path
+                  ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                  : pathname === item.href;
+
+                const badgeCount =
+                  item.badgeKey !== undefined ? (badgeValues[item.badgeKey] ?? 0) : 0;
+
+                return (
+                  <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
+                    <TooltipTrigger asChild>
+                      <Link
+                        href={item.href}
+                        data-testid={item.testId}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={cn(
+                          'group relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200',
+                          isActive
+                            ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent/50',
+                          collapsed && 'justify-center px-2'
+                        )}
+                      >
+                        <item.icon
+                          className={cn(
+                            'h-4 w-4 shrink-0 transition-colors',
+                            isActive
+                              ? 'text-sidebar-primary'
+                              : 'text-muted-foreground group-hover:text-sidebar-foreground'
+                          )}
+                        />
+                        {!collapsed && (
+                          <motion.span
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="flex flex-1 items-center justify-between"
+                          >
+                            {item.name}
+                            {badgeCount > 0 && (
+                              <span
+                                className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+                                aria-label={`${badgeCount} pending`}
+                                data-testid={`${item.testId}-badge`}
+                              >
+                                {badgeCount}
+                              </span>
+                            )}
+                          </motion.span>
+                        )}
+                        {/* Collapsed badge dot */}
+                        {collapsed && badgeCount > 0 && (
+                          <span
+                            className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary"
+                            aria-hidden
+                          />
+                        )}
+                      </Link>
+                    </TooltipTrigger>
+                    {collapsed && (
+                      <TooltipContent side="right" className="font-medium">
+                        {item.name}
+                        {badgeCount > 0 && ` (${badgeCount} pending)`}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                );
+              })}
+            </nav>
+          ))}
+        </div>
+
+        <Separator className="mx-2" />
+
+        {/* Notes sections — Project page trees + Personal pages */}
+        <ScrollArea className="flex-1 px-2 py-1.5">
+          {!collapsed && (
+            <>
+              {/* Pinned Notes */}
+              <div className="mb-3" data-testid="pinned-notes">
+                <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
+                  <PinIcon className="h-2.5 w-2.5 text-muted-foreground" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Pinned
+                  </span>
+                </div>
+                <div className="space-y-px">
+                  {pinnedNotes.map((note, index) => {
+                    const isActive = pathname === note.href;
+                    return (
+                    <motion.div
+                      key={note.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <Link
+                        href={note.href}
+                        data-testid="note-item"
+                        aria-current={isActive ? 'page' : undefined}
+                        className={cn(
+                          'group flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors',
+                          isActive
+                            ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                        )}
+                      >
+                        <FileText className="h-3 w-3 text-muted-foreground" />
+                        <span className="truncate">{note.title}</span>
+                        {note.projectId && projectMap[note.projectId] && (
+                          <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60 truncate max-w-[60px]">
+                            {projectMap[note.projectId]}
+                          </span>
+                        )}
+                      </Link>
+                    </motion.div>
+                  );
+                  })}
+                </div>
               </div>
-              <PersonalPagesList
-                workspaceId={workspaceId}
-                workspaceSlug={workspaceSlug}
-                currentNoteId={currentNoteId}
-              />
-            </div>
-          </>
+            </>
+          )}
+        </ScrollArea>
+
+        {/* New Note Button — hidden for guests */}
+        {canCreateContent && (
+          <div
+            className={cn('border-t border-sidebar-border p-2', collapsed && 'flex justify-center')}
+          >
+            <Tooltip delayDuration={collapsed ? 0 : 1000}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="default"
+                  size={collapsed ? 'icon' : 'sm'}
+                  data-testid="new-note-button"
+                  onClick={handleNewNote}
+                  disabled={createNote.isPending || !resolvedWorkspaceId}
+                  className={cn(
+                    'shadow-warm-sm transition-all duration-200',
+                    'hover:shadow-warm-md',
+                    collapsed ? 'h-8 w-8' : 'w-full'
+                  )}
+                >
+                  {createNote.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5" />
+                  )}
+                  {!collapsed && (
+                    <span className="ml-1.5 text-xs">
+                      {createNote.isPending ? 'Creating...' : 'New Note'}
+                    </span>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              {collapsed && <TooltipContent side="right">New Note</TooltipContent>}
+            </Tooltip>
+          </div>
         )}
-      </ScrollArea>
 
-      {/* New Note Button — hidden for guests */}
-      {canCreateContent && (
-        <div
-          className={cn('border-t border-sidebar-border p-2', collapsed && 'flex justify-center')}
-        >
-          <Tooltip delayDuration={collapsed ? 0 : 1000}>
+        {/* Notification + User Controls */}
+        <SidebarUserControls
+          collapsed={collapsed}
+          workspaceSlug={workspaceSlug}
+          workspaceId={workspaceId}
+          authStore={authStore}
+          notificationStore={notificationStore}
+          uiStore={uiStore}
+        />
+
+        {/* Collapse Toggle — close button on mobile, chevron toggle on desktop */}
+        <div className="border-t border-sidebar-border p-1.5">
+          <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <Button
-                variant="default"
-                size={collapsed ? 'icon' : 'sm'}
-                data-testid="new-note-button"
-                onClick={handleNewNote}
-                disabled={createNote.isPending}
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  isSmallScreen ? uiStore.setSidebarCollapsed(true) : uiStore.toggleSidebar()
+                }
+                aria-label={
+                  isSmallScreen
+                    ? 'Close sidebar'
+                    : collapsed
+                      ? 'Expand sidebar'
+                      : 'Collapse sidebar'
+                }
                 className={cn(
-                  'shadow-warm-sm transition-all duration-200',
-                  'hover:shadow-warm-md',
-                  collapsed ? 'h-8 w-8' : 'w-full'
+                  'h-6 w-full justify-center text-muted-foreground hover:text-sidebar-foreground',
+                  collapsed && 'px-2'
                 )}
               >
-                {createNote.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {isSmallScreen ? (
+                  <X className="h-3.5 w-3.5" />
+                ) : collapsed ? (
+                  <ChevronRight className="h-3.5 w-3.5" />
                 ) : (
-                  <Plus className="h-3.5 w-3.5" />
-                )}
-                {!collapsed && (
-                  <span className="ml-1.5 text-xs">
-                    {createNote.isPending ? 'Creating...' : 'New Note'}
-                  </span>
+                  <ChevronLeft className="h-3.5 w-3.5" />
                 )}
               </Button>
             </TooltipTrigger>
-            {collapsed && <TooltipContent side="right">New Note</TooltipContent>}
+            <TooltipContent side={collapsed ? 'right' : 'top'}>
+              {isSmallScreen ? 'Close sidebar' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            </TooltipContent>
           </Tooltip>
         </div>
-      )}
-
-      {/* Notification + User Controls */}
-      <SidebarUserControls
-        collapsed={collapsed}
-        workspaceSlug={workspaceSlug}
-        workspaceId={workspaceId}
-        authStore={authStore}
-        notificationStore={notificationStore}
-        uiStore={uiStore}
-      />
-
-      {/* Collapse Toggle — close button on mobile, chevron toggle on desktop */}
-      <div className="border-t border-sidebar-border p-1.5">
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                isSmallScreen ? uiStore.setSidebarCollapsed(true) : uiStore.toggleSidebar()
-              }
-              aria-label={
-                isSmallScreen ? 'Close sidebar' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'
-              }
-              className={cn(
-                'h-6 w-full justify-center text-muted-foreground hover:text-sidebar-foreground',
-                collapsed && 'px-2'
-              )}
-            >
-              {isSmallScreen ? (
-                <X className="h-3.5 w-3.5" />
-              ) : collapsed ? (
-                <ChevronRight className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronLeft className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side={collapsed ? 'right' : 'top'}>
-            {isSmallScreen ? 'Close sidebar' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          </TooltipContent>
-        </Tooltip>
       </div>
-    </div>
+
+      {newNoteFlow.showTemplatePicker && resolvedWorkspaceId && (
+        <TemplatePicker
+          workspaceId={resolvedWorkspaceId}
+          isAdmin={isAdminOrOwner}
+          onConfirm={newNoteFlow.handleTemplateConfirm}
+          onClose={newNoteFlow.handleTemplateClose}
+        />
+      )}
+    </>
   );
 });

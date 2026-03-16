@@ -1,6 +1,6 @@
 """Extend ai_configurations for custom/kimi/glm provider support.
 
-Revision ID: 070_extend_ai_config_custom_provider
+Revision ID: 070_ai_config_custom_provider
 Revises: 069_add_operation_type_to_costs
 Create Date: 2026-03-09
 
@@ -20,12 +20,11 @@ Only the base_url and display_name columns are dropped on downgrade.
 from __future__ import annotations
 
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import text
 
-from alembic import op
-
 # revision identifiers, used by Alembic.
-revision = "070_extend_ai_config_custom_provider"
+revision = "070_ai_config_custom_provider"
 down_revision = "069_add_operation_type_to_costs"
 branch_labels = None
 depends_on = None

@@ -25,6 +25,7 @@ import {
   Cloud,
   CloudOff,
   Loader2,
+  FolderInput,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useProject } from '@/features/projects/hooks/useProject';
+import { MoveNoteDialog } from './MoveNoteDialog';
 
 /**
  * Deterministic color mapping for topic tags.
@@ -108,6 +111,10 @@ export interface InlineNoteHeaderProps {
   topics?: string[];
   /** Workspace slug for breadcrumb */
   workspaceSlug: string;
+  /** Project ID — when set, renders project name in breadcrumb */
+  projectId?: string;
+  /** Workspace ID — needed for Move dialog and project link */
+  workspaceId?: string;
   /** Save status for cloud icon */
   saveStatus?: SaveStatus;
   /** Callback for share action */
@@ -120,6 +127,8 @@ export interface InlineNoteHeaderProps {
   onTogglePin?: () => void;
   /** Callback for version history */
   onVersionHistory?: () => void;
+  /** Callback for move note to project */
+  onMove?: (projectId: string | null) => void;
   /** Whether actions are disabled */
   disabled?: boolean;
   /** Additional className for styling */
@@ -191,16 +200,25 @@ export function InlineNoteHeader({
   isAIAssisted = false,
   topics,
   workspaceSlug,
+  projectId,
+  workspaceId,
   saveStatus = 'idle',
   onShare,
   onExport,
   onDelete,
   onTogglePin,
   onVersionHistory,
+  onMove,
   disabled = false,
   className,
 }: InlineNoteHeaderProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+
+  const { data: project } = useProject({
+    projectId: projectId ?? '',
+    enabled: !!projectId,
+  });
 
   const createdAtDate = useMemo(() => new Date(createdAt), [createdAt]);
 
@@ -238,6 +256,17 @@ export function InlineNoteHeader({
             <span className="hidden sm:inline">Notes</span>
           </Link>
           <ChevronRight className="h-3 w-3 flex-shrink-0" />
+          {project && (
+            <>
+              <Link
+                href={`/${workspaceSlug}/projects/${projectId}/overview`}
+                className="hover:text-foreground transition-colors hidden sm:inline truncate max-w-[80px]"
+              >
+                {project.name}
+              </Link>
+              <ChevronRight className="h-3 w-3 flex-shrink-0 hidden sm:block" />
+            </>
+          )}
           <span className="text-foreground truncate max-w-[80px] sm:max-w-[120px] md:max-w-[180px] lg:max-w-[240px] font-medium">
             {title || 'Untitled'}
           </span>
@@ -393,6 +422,12 @@ export function InlineNoteHeader({
                     Export
                   </DropdownMenuItem>
                 )}
+                {onMove && (
+                  <DropdownMenuItem onClick={() => setShowMoveDialog(true)}>
+                    <FolderInput className="mr-2 h-4 w-4" />
+                    Move...
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 {onDelete && (
                   <DropdownMenuItem
@@ -455,6 +490,20 @@ export function InlineNoteHeader({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Move note dialog */}
+      {showMoveDialog && workspaceId && (
+        <MoveNoteDialog
+          workspaceId={workspaceId}
+          currentProjectId={projectId ?? null}
+          confirmLabel="Move Note"
+          onSelect={(newProjectId) => {
+            setShowMoveDialog(false);
+            onMove?.(newProjectId);
+          }}
+          onClose={() => setShowMoveDialog(false)}
+        />
+      )}
     </>
   );
 }

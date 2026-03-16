@@ -7,7 +7,7 @@ Feature 015: AI Workforce Platform (C-1, C-7)
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import (
@@ -25,7 +25,7 @@ from pilot_space.infrastructure.database.types import JSONBCompat
 from .work_intent import WorkIntent
 
 
-class SkillApprovalStatus(str, Enum):
+class SkillApprovalStatus(StrEnum):
     """Approval lifecycle for a skill execution."""
 
     AUTO_APPROVED = "auto_approved"
@@ -35,7 +35,7 @@ class SkillApprovalStatus(str, Enum):
     EXPIRED = "expired"
 
 
-class SkillApprovalRole(str, Enum):
+class SkillApprovalRole(StrEnum):
     """Minimum workspace role required to approve (C-7)."""
 
     ADMIN = "admin"

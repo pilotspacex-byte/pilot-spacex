@@ -7,7 +7,7 @@ Supports wiki-style [[links]] and /link-note block embeds.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.note import Note
 
 
-class NoteNoteLinkType(str, Enum):
+class NoteNoteLinkType(StrEnum):
     """Type of link between two Notes.
 
     - inline: Wiki-style [[link]] within text content

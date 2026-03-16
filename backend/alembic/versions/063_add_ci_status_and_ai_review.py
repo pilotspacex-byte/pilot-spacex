@@ -20,7 +20,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "063_add_ci_status_and_ai_review"
-down_revision = "062_add_notifications_table"
+down_revision = "062_split_task_rls_policies"
 branch_labels = None
 depends_on = None
 

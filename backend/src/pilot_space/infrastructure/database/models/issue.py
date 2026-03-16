@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.user import User
 
 
-class IssuePriority(str, Enum):
+class IssuePriority(StrEnum):
     """Issue priority levels.
 
     Per spec.md US-02: Priority options are none, low, medium, high, urgent.
@@ -300,7 +300,7 @@ class Issue(WorkspaceScopedModel):
         "Task",
         back_populates="issue",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
     )
 
     # Indexes and constraints

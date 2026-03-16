@@ -9,7 +9,7 @@ T135: Create Embedding model for RAG pipeline.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import (
@@ -27,7 +27,7 @@ from pilot_space.infrastructure.database.base import WorkspaceScopedModel
 from pilot_space.infrastructure.database.types import JSONBCompat
 
 
-class EmbeddingType(str, Enum):
+class EmbeddingType(StrEnum):
     """Types of content that can be embedded.
 
     Each type has different preprocessing and retrieval patterns.

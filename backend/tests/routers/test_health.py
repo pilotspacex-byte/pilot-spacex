@@ -103,9 +103,8 @@ async def test_readiness_db_down(health_client: AsyncClient) -> None:
     ):
         response = await health_client.get("/health/ready")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
     data = response.json()
-    assert data["status"] == "unhealthy"
     assert data["checks"]["database"]["status"] == "error"
 
 

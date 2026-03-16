@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.user import User
 
 
-class ModuleStatus(str, Enum):
+class ModuleStatus(StrEnum):
     """Status for module lifecycle.
 
     Modules progress through: planned → active → completed/cancelled

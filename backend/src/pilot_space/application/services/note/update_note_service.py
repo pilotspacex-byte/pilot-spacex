@@ -62,6 +62,7 @@ class UpdateNotePayload:
     summary: str | None = None
     is_pinned: bool | None = None
     project_id: UUID | None = None
+    clear_project_id: bool = False
     expected_updated_at: datetime | None = None
     # UNSET = field omitted (no-op); None = explicit clear; str = set value
     icon_emoji: str | None | object = field(default_factory=lambda: UNSET)
@@ -167,7 +168,10 @@ class UpdateNoteService:
             note.is_pinned = payload.is_pinned
             fields_updated.append("is_pinned")
 
-        if payload.project_id is not None:
+        if payload.clear_project_id:
+            note.project_id = None
+            fields_updated.append("project_id")
+        elif payload.project_id is not None:
             note.project_id = payload.project_id
             fields_updated.append("project_id")
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Protocol
 
 # Valid model ID: alphanumeric, dashes, dots, underscores, colons, slashes
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from pilot_space.spaces.base import SpaceContext
 
 
-class ModelTier(str, Enum):
+class ModelTier(StrEnum):
     """Model tier enum for DD-011 provider routing.
 
     Users select a tier (sonnet/opus/haiku), which resolves to a full model ID

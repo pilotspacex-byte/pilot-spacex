@@ -25,10 +25,12 @@ class UpdateAnnotationPayload:
 
     Attributes:
         annotation_id: The annotation ID to update.
+        note_id: The note the annotation must belong to (ownership check).
         status: New annotation status.
     """
 
     annotation_id: UUID
+    note_id: UUID
     status: AnnotationStatus
 
 
@@ -78,6 +80,10 @@ class UpdateAnnotationService:
         # Get annotation
         annotation = await self._annotation_repo.get_by_id(payload.annotation_id)
         if not annotation:
+            raise ValueError("Annotation not found")
+
+        # Verify annotation belongs to the requested note before any mutation
+        if annotation.note_id != payload.note_id:
             raise ValueError("Annotation not found")
 
         # Update status

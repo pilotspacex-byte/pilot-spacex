@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any, ClassVar
 
 from pilot_space.infrastructure.logging import get_logger
@@ -22,7 +22,7 @@ from pilot_space.infrastructure.logging import get_logger
 logger = get_logger(__name__)
 
 
-class Language(str, Enum):
+class Language(StrEnum):
     """Supported programming languages."""
 
     PYTHON = "python"
@@ -492,7 +492,7 @@ class CodeContextExtractor:
         }
 
         patterns = entry_point_patterns.get(language, [])
-        file_name = file_path.split("/")[-1] if "/" in file_path else file_path
+        file_name = file_path.rsplit("/", maxsplit=1)[-1] if "/" in file_path else file_path
 
         return any(file_name == pattern or pattern in file_path for pattern in patterns)
 

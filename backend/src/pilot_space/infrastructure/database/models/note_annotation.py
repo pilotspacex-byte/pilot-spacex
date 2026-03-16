@@ -7,7 +7,7 @@ Each annotation is linked to a specific block within a Note.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.note import Note
 
 
-class AnnotationType(str, Enum):
+class AnnotationType(StrEnum):
     """Type of AI annotation.
 
     Different types affect rendering and user interaction:
@@ -51,7 +51,7 @@ class AnnotationType(str, Enum):
     INFO = "info"
 
 
-class AnnotationStatus(str, Enum):
+class AnnotationStatus(StrEnum):
     """Status of annotation processing.
 
     User can accept, reject, or dismiss annotations:

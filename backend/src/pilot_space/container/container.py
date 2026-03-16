@@ -714,12 +714,12 @@ def create_container(settings: Settings | None = None) -> Container:
 
 
 # Global container instance (lazy-loaded to avoid circular imports)
-_container: Container | None = None
+# Uses a list to avoid `global` statement (PLW0603)
+_container: list[Container] = []
 
 
 def get_container() -> Container:
     """Get or create the global container instance."""
-    global _container  # noqa: PLW0603
-    if _container is None:
-        _container = create_container()
-    return _container
+    if not _container:
+        _container.append(create_container())
+    return _container[0]

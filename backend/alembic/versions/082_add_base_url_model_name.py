@@ -1,6 +1,6 @@
 """Add base_url and model_name columns to workspace_api_keys table.
 
-Revision ID: 082_add_base_url_model_name_to_api_keys
+Revision ID: 082_add_base_url_model_name
 Revises: 081_add_user_ai_settings
 Create Date: 2026-03-14
 
@@ -12,19 +12,22 @@ Changes:
 """
 
 import sqlalchemy as sa
-
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "082_add_base_url_model_name_to_api_keys"
+revision: str = "082_add_base_url_model_name"
 down_revision: str = "081_add_user_ai_settings"
 branch_labels: str | None = None
 depends_on: str | None = None
 
 
 def upgrade() -> None:
-    op.add_column("workspace_api_keys", sa.Column("base_url", sa.String(2048), nullable=True))
-    op.add_column("workspace_api_keys", sa.Column("model_name", sa.String(200), nullable=True))
+    op.add_column(
+        "workspace_api_keys", sa.Column("base_url", sa.String(2048), nullable=True)
+    )
+    op.add_column(
+        "workspace_api_keys", sa.Column("model_name", sa.String(200), nullable=True)
+    )
 
 
 def downgrade() -> None:

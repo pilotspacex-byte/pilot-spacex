@@ -308,7 +308,7 @@ async def export_context(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
     return ContextExportResponse(
-        content=result["markdown"],
+        content=result["content"],
         format=result["format"],
         generated_at=result["generated_at"],
         stats=result["stats"],

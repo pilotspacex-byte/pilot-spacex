@@ -115,6 +115,15 @@ class NotePinUpdate(BaseSchema):
     is_pinned: bool = Field(description="Pin status")
 
 
+class NoteMove(BaseSchema):
+    """Schema for moving a note to a different project or root workspace."""
+
+    project_id: UUID | None = Field(
+        ...,
+        description="New project ID, or null to remove project association",
+    )
+
+
 class NoteResponse(EntitySchema):
     """Schema for note response.
 

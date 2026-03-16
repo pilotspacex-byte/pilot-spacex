@@ -1,7 +1,7 @@
 """Add workspace_ai_policy table.
 
 Revision ID: 068_add_workspace_ai_policy
-Revises: 067_workspace_encryption_and_quota
+Revises: 067_workspace_encryption_quota
 Create Date: 2026-03-08
 
 Phase 4 — AI Governance (AIGOV-01):
@@ -21,14 +21,13 @@ RLS Design:
 from __future__ import annotations
 
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import UUID
 
-from alembic import op
-
 # revision identifiers, used by Alembic
 revision: str = "068_add_workspace_ai_policy"
-down_revision: str = "067_workspace_encryption_and_quota"
+down_revision: str = "067_workspace_encryption_quota"
 branch_labels: str | None = None
 depends_on: str | None = None
 
@@ -118,7 +117,8 @@ def upgrade() -> None:
 
     # READ: OWNER and ADMIN can view policy rows
     op.execute(
-        text("""
+        text(
+            """
             CREATE POLICY "workspace_ai_policy_read_workspace_members"
             ON workspace_ai_policy FOR SELECT
             USING (
@@ -129,12 +129,14 @@ def upgrade() -> None:
                     AND wm.is_deleted = false
                 )
             )
-        """)
+        """
+        )
     )
 
     # WRITE: OWNER only can create/update/delete policy rows
     op.execute(
-        text("""
+        text(
+            """
             CREATE POLICY "workspace_ai_policy_write_owner_only"
             ON workspace_ai_policy FOR ALL
             USING (
@@ -145,18 +147,21 @@ def upgrade() -> None:
                     AND wm.is_deleted = false
                 )
             )
-        """)
+        """
+        )
     )
 
     # service_role bypass — backend service operations bypass RLS
     op.execute(
-        text("""
+        text(
+            """
             CREATE POLICY "workspace_ai_policy_service_role_bypass"
             ON workspace_ai_policy FOR ALL
             TO service_role
             USING (true)
             WITH CHECK (true)
-        """)
+        """
+        )
     )
 
 
@@ -169,7 +174,9 @@ def downgrade() -> None:
         )
     )
     op.execute(
-        text('DROP POLICY IF EXISTS "workspace_ai_policy_write_owner_only" ON workspace_ai_policy')
+        text(
+            'DROP POLICY IF EXISTS "workspace_ai_policy_write_owner_only" ON workspace_ai_policy'
+        )
     )
     op.execute(
         text(

@@ -9,7 +9,7 @@ Requirements: AUDIT-01, AUDIT-02
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import Index, String, Text
@@ -24,7 +24,7 @@ from pilot_space.infrastructure.database.base import (
 from pilot_space.infrastructure.database.types import JSONBCompat
 
 
-class ActorType(str, Enum):
+class ActorType(StrEnum):
     """Type of actor that performed an audited action.
 
     USER: A human workspace member.

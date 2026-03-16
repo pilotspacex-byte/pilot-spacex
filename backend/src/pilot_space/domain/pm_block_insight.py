@@ -11,11 +11,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 
-class InsightSeverity(str, Enum):
+class InsightSeverity(StrEnum):
     """Traffic-light severity for a PM block insight."""
 
     GREEN = "green"
@@ -23,7 +23,7 @@ class InsightSeverity(str, Enum):
     RED = "red"
 
 
-class PMBlockType(str, Enum):
+class PMBlockType(StrEnum):
     """PM block types that can carry AI insights (Feature 017)."""
 
     SPRINT_BOARD = "sprint_board"

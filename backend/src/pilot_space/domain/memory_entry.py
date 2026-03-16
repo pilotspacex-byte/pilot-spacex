@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 
-class MemorySourceType(str, Enum):
+class MemorySourceType(StrEnum):
     """Source of a memory entry."""
 
     INTENT = "intent"

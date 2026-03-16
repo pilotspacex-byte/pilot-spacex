@@ -6,7 +6,7 @@ Junction table for User-Workspace relationships with role information.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.workspace import Workspace
 
 
-class WorkspaceRole(str, Enum):
+class WorkspaceRole(StrEnum):
     """Roles for workspace membership.
 
     Hierarchy: owner > admin > member > guest

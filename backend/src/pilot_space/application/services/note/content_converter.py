@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from pilot_space.ai.mcp.block_ref_map import BlockRefMap
 
 
-class BlockChangeType(str, Enum):
+class BlockChangeType(StrEnum):
     """Type of change detected between two document versions."""
 
     REPLACE = "replace"

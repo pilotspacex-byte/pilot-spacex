@@ -9,7 +9,7 @@ T094: Discussion schemas.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -18,7 +18,7 @@ from pydantic import Field
 from pilot_space.api.v1.schemas.base import BaseSchema, EntitySchema, PaginatedResponse
 
 
-class DiscussionStatus(str, Enum):
+class DiscussionStatus(StrEnum):
     """Status of a discussion thread."""
 
     OPEN = "open"
@@ -26,7 +26,7 @@ class DiscussionStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class CommentType(str, Enum):
+class CommentType(StrEnum):
     """Type of comment in a discussion."""
 
     USER = "user"  # Regular user comment

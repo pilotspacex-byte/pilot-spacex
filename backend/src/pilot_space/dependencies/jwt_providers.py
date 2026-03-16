@@ -205,7 +205,7 @@ class DualJWTProvider:
     def _peek_algorithm(token: str) -> str:
         """Read the alg field from the unverified JWT header."""
         try:
-            header_b64 = token.split(".")[0]
+            header_b64 = token.split(".", maxsplit=1)[0]
             # Pad base64url to standard base64
             padding = 4 - len(header_b64) % 4
             if padding < 4:

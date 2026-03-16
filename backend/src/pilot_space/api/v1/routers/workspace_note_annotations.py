@@ -153,20 +153,14 @@ async def update_annotation_status(
         )
 
     try:
-        # Execute service
+        # Execute service — ownership is validated inside before any DB write
         result = await update_annotation_service.execute(
             UpdateAnnotationPayload(
                 annotation_id=annotation_id,
+                note_id=note_id,
                 status=DBAnnotationStatus(status_update.status.value),
             )
         )
-
-        # Verify annotation belongs to note
-        if result.annotation.note_id != note_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Annotation not found",
-            )
 
         logger.info(
             "Annotation status updated",

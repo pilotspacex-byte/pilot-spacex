@@ -4,7 +4,7 @@ Verifies that the notes_personal_page_policy enforces workspace_id membership,
 preventing users from accessing personal pages in workspaces they have been
 removed from.
 
-Reference: alembic/versions/083_fix_personal_page_rls_workspace_scope.py
+Reference: alembic/versions/083_fix_personal_page_rls_scope.py
 """
 
 from __future__ import annotations

@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class DiffType(str, Enum):
+class DiffType(StrEnum):
     """Type of change for a block."""
 
     ADDED = "added"

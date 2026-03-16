@@ -29,7 +29,7 @@ def _register_sqlite_functions(dbapi_conn, connection_record) -> None:
     # Allow UUID objects as parameters by registering an adapter
     import sqlite3
 
-    sqlite3.register_adapter(uuid.UUID, lambda u: str(u))
+    sqlite3.register_adapter(uuid.UUID, str)
 
 
 _CREATE_TABLES_SQL = """

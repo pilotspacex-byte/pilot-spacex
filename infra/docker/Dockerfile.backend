@@ -122,6 +122,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_ENV=production \
     HOST=0.0.0.0 \
     PORT=8000 \
+    WORKERS=1 \
     # Use the venv from builder
     VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
@@ -163,7 +164,7 @@ EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/health/live || exit 1
 
 # Production command — uvicorn is on PATH via /app/.venv/bin
-CMD ["uvicorn", "pilot_space.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--loop", "uvloop", "--http", "httptools"]
+CMD ["uvicorn", "pilot_space.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--loop", "uvloop", "--http", "httptools"]

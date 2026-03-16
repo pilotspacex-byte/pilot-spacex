@@ -23,10 +23,15 @@ import {
   Plus,
   Check,
   X,
+  Folder,
+  Search,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { templatesApi, type NoteTemplate } from '@/services/api/templates';
+import { useProjects, selectAllProjects } from '@/features/projects/hooks/useProjects';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -36,7 +41,7 @@ export interface TemplatePickerProps {
   workspaceId: string;
   /** Whether the current user has admin or owner role (FR-065). */
   isAdmin: boolean;
-  onConfirm: (template: NoteTemplate | null) => void;
+  onConfirm: (template: NoteTemplate | null, projectId: string | null) => void;
   onClose: () => void;
 }
 
@@ -177,6 +182,9 @@ function CreateTemplateCard({
 
 export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: TemplatePickerProps) {
   const [selected, setSelected] = useState<TemplateId>('blank');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const blankRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -188,8 +196,23 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
     staleTime: 5 * 60_000,
   });
 
-  const systemTemplates = data?.templates.filter((t) => t.isSystem) ?? [];
-  const customTemplates = data?.templates.filter((t) => !t.isSystem) ?? [];
+  // Fetch projects for project selector
+  const { data: projectsData } = useProjects({ workspaceId });
+  const allProjects = useMemo(() => selectAllProjects(projectsData), [projectsData]);
+
+  const filteredProjects = useMemo(() => {
+    if (!projectSearch.trim()) return allProjects;
+    const q = projectSearch.toLowerCase();
+    return allProjects.filter((p) => p.name.toLowerCase().includes(q));
+  }, [allProjects, projectSearch]);
+
+  const selectedProject = useMemo(
+    () => allProjects.find((p) => p.id === selectedProjectId) ?? null,
+    [allProjects, selectedProjectId]
+  );
+
+  const systemTemplates = useMemo(() => data?.templates.filter((t) => t.isSystem) ?? [], [data]);
+  const customTemplates = useMemo(() => data?.templates.filter((t) => !t.isSystem) ?? [], [data]);
 
   // Focus blank on mount
   useEffect(() => {
@@ -233,8 +256,8 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
 
   const handleConfirm = useCallback(() => {
     // FR-064: creates an independent copy by passing template (caller does the deep clone)
-    onConfirm(selectedTemplate);
-  }, [selectedTemplate, onConfirm]);
+    onConfirm(selectedTemplate, selectedProjectId);
+  }, [selectedTemplate, selectedProjectId, onConfirm]);
 
   // Build flat list of all focusable items for roving tabindex
   const allIds = useMemo<TemplateId[]>(
@@ -447,16 +470,131 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
               </div>
             </section>
           )}
+
+          <section>
+            {/* Project selector */}
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Add to project
+            </p>
+            <div className="relative">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm transition-colors hover:border-primary/40"
+                onClick={() => setShowProjectDropdown((v) => !v)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); } }}
+              >
+                {selectedProject ? (
+                  <>
+                    <span className="shrink-0">
+                      {selectedProject.icon ?? <Folder className="h-4 w-4 text-muted-foreground" />}
+                    </span>
+                    <span className="flex-1 truncate text-left text-foreground">
+                      {selectedProject.name}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Folder className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="flex-1 text-left text-muted-foreground">
+                      No project (workspace root)
+                    </span>
+                  </>
+                )}
+                <ChevronDown
+                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </button>
+
+              {showProjectDropdown && (
+                <div
+                  className="absolute bottom-full left-0 right-0 mb-1 z-10 flex max-h-48 flex-col overflow-hidden rounded-lg border border-border bg-background shadow-lg"
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); } }}
+                >
+                  <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+                    <Search
+                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <Input
+                      autoFocus
+                      value={projectSearch}
+                      onChange={(e) => setProjectSearch(e.target.value)}
+                      placeholder="Search projects…"
+                      className="h-6 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); } }}
+                    />
+                  </div>
+                  <div className="overflow-y-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProjectId(null);
+                        setShowProjectDropdown(false);
+                        setProjectSearch('');
+                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); } }}
+                      className={cn(
+                        'flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors',
+                        selectedProjectId === null
+                          ? 'bg-primary/5 text-foreground'
+                          : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                      )}
+                    >
+                      <Folder className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span className="flex-1 text-left">No project (workspace root)</span>
+                      {selectedProjectId === null && (
+                        <Check className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
+                      )}
+                    </button>
+                    {filteredProjects.map((project) => (
+                      <button
+                        key={project.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedProjectId(project.id);
+                          setShowProjectDropdown(false);
+                          setProjectSearch('');
+                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); } }}
+                        className={cn(
+                          'flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors',
+                          selectedProjectId === project.id
+                            ? 'bg-primary/5 text-foreground'
+                            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                        )}
+                      >
+                        {project.icon ? (
+                          <span className="shrink-0 text-sm leading-none">{project.icon}</span>
+                        ) : (
+                          <Folder className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        )}
+                        <span className="flex-1 truncate text-left">{project.name}</span>
+                        {selectedProjectId === project.id && (
+                          <Check className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
+                        )}
+                      </button>
+                    ))}
+                    {filteredProjects.length === 0 && (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">No projects found</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={handleConfirm} disabled={!selected}>
-            {createLabel} →
-          </Button>
+        <div className="flex flex-col gap-3 border-t border-border px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleConfirm} disabled={!selected}>
+              {createLabel} →
+            </Button>
+          </div>
         </div>
       </div>
     </div>

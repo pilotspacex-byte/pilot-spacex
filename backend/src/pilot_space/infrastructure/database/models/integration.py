@@ -10,7 +10,7 @@ T173: Create IntegrationLink model.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.issue import Issue
 
 
-class IntegrationProvider(str, Enum):
+class IntegrationProvider(StrEnum):
     """Supported integration providers.
 
     MVP supports GitHub and Slack per spec.md US-18.
@@ -42,7 +42,7 @@ class IntegrationProvider(str, Enum):
     SLACK = "slack"
 
 
-class IntegrationLinkType(str, Enum):
+class IntegrationLinkType(StrEnum):
     """Type of link between issue and external resource.
 
     Links track commits, PRs, branches for GitHub integration.

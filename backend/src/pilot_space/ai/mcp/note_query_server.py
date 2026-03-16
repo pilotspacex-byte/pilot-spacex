@@ -86,10 +86,10 @@ def create_note_query_server(
             include_content = args.get("include_content", False)
 
             repo = NoteRepository(tool_context.db_session)
-            notes = await repo.search_by_title(
-                workspace_id=workspace_id,
-                search_term=query,
-                project_id=project_id,
+            notes = await repo.list_notes(
+                workspace_id,
+                project_ids=[project_id] if project_id else None,
+                search=query,
                 limit=limit,
             )
 

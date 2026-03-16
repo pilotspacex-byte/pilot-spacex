@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
 
-class VersionTrigger(str, Enum):
+class VersionTrigger(StrEnum):
     """What initiated this version snapshot."""
 
     AUTO = "auto"

@@ -105,6 +105,12 @@ export interface NoteCanvasProps {
   onVersionHistory?: () => void;
   projectId?: string;
   linkedIssues?: LinkedIssueBrief[];
+  /** Callback to move note to a different project (or root workspace) */
+  onMove?: (projectId: string | null) => void;
+  /** Emoji icon for the note (Notion-style page icon) */
+  iconEmoji?: string | null;
+  /** Callback when the emoji icon is changed or removed */
+  onEmojiChange?: (emoji: string | null) => void;
   /** Callback to trigger issue extraction from note content */
   onExtractIssues?: (params: {
     noteId: string;

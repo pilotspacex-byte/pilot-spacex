@@ -15,7 +15,7 @@ import type {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
 interface NoteFilters {
-  projectId?: string;
+  projectIds?: string[];
   isPinned?: boolean;
   authorId?: string;
   search?: string;
@@ -28,17 +28,22 @@ export const notesApi = {
     page = 1,
     pageSize = 50
   ): Promise<PaginatedResponse<Note>> {
-    const params: Record<string, string> = {
-      page: String(page),
-      pageSize: String(pageSize),
-    };
+    const searchParams = new URLSearchParams();
+    const offset = (page - 1) * pageSize;
+    searchParams.set('cursor', String(offset));
+    searchParams.set('page_size', String(pageSize));
 
-    if (filters?.projectId) params.projectId = filters.projectId;
-    if (filters?.isPinned !== undefined) params.isPinned = String(filters.isPinned);
-    if (filters?.authorId) params.authorId = filters.authorId;
-    if (filters?.search) params.search = filters.search;
+    for (const id of filters?.projectIds ?? []) {
+      searchParams.append('project_ids', id);
+    }
 
-    return apiClient.get<PaginatedResponse<Note>>(`/workspaces/${workspaceId}/notes`, { params });
+    if (filters?.isPinned) searchParams.set('is_pinned', String(filters.isPinned));
+    if (filters?.authorId) searchParams.set('author_id', filters.authorId);
+    if (filters?.search) searchParams.set('search', filters.search);
+
+    return apiClient.get<PaginatedResponse<Note>>(
+      `/workspaces/${workspaceId}/notes?${searchParams.toString()}`
+    );
   },
 
   get(workspaceId: string, noteId: string): Promise<Note> {
@@ -59,6 +64,12 @@ export const notesApi = {
 
   delete(workspaceId: string, noteId: string): Promise<void> {
     return apiClient.delete<void>(`/workspaces/${workspaceId}/notes/${noteId}`);
+  },
+
+  moveNote(workspaceId: string, noteId: string, projectId: string | null): Promise<Note> {
+    return apiClient.post<Note>(`/workspaces/${workspaceId}/notes/${noteId}/move`, {
+      project_id: projectId,
+    });
   },
 
   pin(workspaceId: string, noteId: string): Promise<Note> {

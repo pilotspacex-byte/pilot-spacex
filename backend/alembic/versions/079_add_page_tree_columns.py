@@ -1,7 +1,7 @@
 """Add page tree columns to notes table, migrate existing data, replace RLS policies.
 
 Revision ID: 079_add_page_tree_columns
-Revises: 078_fix_rls_policies_and_missing_indexes
+Revises: 078_fix_rls_policies
 Create Date: 2026-03-12
 
 Changes:
@@ -17,13 +17,12 @@ Changes:
 """
 
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 
-from alembic import op
-
 revision = "079_add_page_tree_columns"
-down_revision = "078_fix_rls_policies_and_missing_indexes"
+down_revision = "078_fix_rls_policies"
 branch_labels = None
 depends_on = None
 
@@ -80,7 +79,9 @@ def upgrade() -> None:
         )
     )
     op.execute(
-        text("ALTER TABLE notes ADD CONSTRAINT chk_notes_no_self_parent CHECK (parent_id != id)")
+        text(
+            "ALTER TABLE notes ADD CONSTRAINT chk_notes_no_self_parent CHECK (parent_id != id)"
+        )
     )
 
     # -------------------------------------------------------------------------
@@ -101,7 +102,8 @@ def upgrade() -> None:
     # created_at. All rows are classified regardless of is_deleted status.
     # -------------------------------------------------------------------------
     op.execute(
-        text("""
+        text(
+            """
         UPDATE notes
         SET
             depth = 0,
@@ -119,7 +121,8 @@ def upgrade() -> None:
         ) sub
         WHERE notes.id = sub.id
           AND notes.project_id IS NOT NULL
-        """)
+        """
+        )
     )
 
     # -------------------------------------------------------------------------
@@ -128,7 +131,8 @@ def upgrade() -> None:
     # created_at. All rows classified regardless of is_deleted status.
     # -------------------------------------------------------------------------
     op.execute(
-        text("""
+        text(
+            """
         UPDATE notes
         SET
             depth = 0,
@@ -146,7 +150,8 @@ def upgrade() -> None:
         ) sub
         WHERE notes.id = sub.id
           AND notes.project_id IS NULL
-        """)
+        """
+        )
     )
 
     # -------------------------------------------------------------------------
@@ -158,7 +163,8 @@ def upgrade() -> None:
     # Also creates notes_service_role bypass (no bypass existed before this).
     # -------------------------------------------------------------------------
     op.execute(
-        text("""
+        text(
+            """
         DROP POLICY IF EXISTS "notes_workspace_member" ON notes;
 
         CREATE POLICY "notes_project_page_policy"
@@ -203,7 +209,8 @@ def upgrade() -> None:
         TO service_role
         USING (true)
         WITH CHECK (true);
-        """)
+        """
+        )
     )
 
 
@@ -215,7 +222,8 @@ def downgrade() -> None:
     # this migration (migration 005 never created one for notes).
     # -------------------------------------------------------------------------
     op.execute(
-        text("""
+        text(
+            """
         DROP POLICY IF EXISTS "notes_project_page_policy" ON notes;
         DROP POLICY IF EXISTS "notes_personal_page_policy" ON notes;
         DROP POLICY IF EXISTS "notes_service_role" ON notes;
@@ -239,7 +247,8 @@ def downgrade() -> None:
                   AND wm.is_deleted = false
             )
         );
-        """)
+        """
+        )
     )
 
     # -------------------------------------------------------------------------
@@ -258,8 +267,12 @@ def downgrade() -> None:
     # -------------------------------------------------------------------------
     # Step 4: DDL — Drop CHECK constraints
     # -------------------------------------------------------------------------
-    op.execute(text("ALTER TABLE notes DROP CONSTRAINT IF EXISTS chk_notes_depth_range"))
-    op.execute(text("ALTER TABLE notes DROP CONSTRAINT IF EXISTS chk_notes_no_self_parent"))
+    op.execute(
+        text("ALTER TABLE notes DROP CONSTRAINT IF EXISTS chk_notes_depth_range")
+    )
+    op.execute(
+        text("ALTER TABLE notes DROP CONSTRAINT IF EXISTS chk_notes_no_self_parent")
+    )
 
     # -------------------------------------------------------------------------
     # Step 5: DDL — Drop columns (position and depth before parent_id)

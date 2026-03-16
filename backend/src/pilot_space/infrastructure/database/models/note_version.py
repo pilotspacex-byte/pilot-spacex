@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.user import User
 
 
-class VersionTrigger(str, Enum):
+class VersionTrigger(StrEnum):
     """Trigger source for a note version snapshot."""
 
     AUTO = "auto"

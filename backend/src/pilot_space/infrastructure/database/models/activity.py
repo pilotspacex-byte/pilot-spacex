@@ -8,7 +8,7 @@ T120: Create Activity model for issue history.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.user import User
 
 
-class ActivityType(str, Enum):
+class ActivityType(StrEnum):
     """Types of activities tracked on issues.
 
     Covers all major issue lifecycle events per US-02 spec.

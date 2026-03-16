@@ -11,11 +11,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 
-class RuleSeverity(str, Enum):
+class RuleSeverity(StrEnum):
     """RFC 2119 severity levels for constitution rules (lowercase)."""
 
     MUST = "must"

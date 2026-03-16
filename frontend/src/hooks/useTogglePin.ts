@@ -1,8 +1,3 @@
-'use client';
-
-/**
- * useTogglePin - Mutation hook for toggling note pin status
- */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { notesApi } from '@/services/api';
@@ -36,20 +31,16 @@ export function useTogglePin({ workspaceId, onSuccess, onError }: UseTogglePinOp
 
     onMutate: async ({ noteId, isPinned }) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({
-        queryKey: notesKeys.detail(workspaceId, noteId),
-      });
-      await queryClient.cancelQueries({
-        queryKey: notesKeys.lists(),
-      });
+      await queryClient.cancelQueries({ queryKey: notesKeys.detail(workspaceId, noteId) });
+      await queryClient.cancelQueries({ queryKey: notesKeys.lists() });
 
-      // Get previous values
+      // Snapshot previous values for rollback
       const previousNote = queryClient.getQueryData<Note>(notesKeys.detail(workspaceId, noteId));
       const previousLists = queryClient.getQueriesData<PaginatedResponse<Note>>({
         queryKey: notesKeys.lists(),
       });
 
-      // Optimistically update the note
+      // Optimistically update the note detail
       if (previousNote) {
         queryClient.setQueryData<Note>(notesKeys.detail(workspaceId, noteId), {
           ...previousNote,
@@ -57,11 +48,12 @@ export function useTogglePin({ workspaceId, onSuccess, onError }: UseTogglePinOp
         });
       }
 
-      // Optimistically update lists
+      // Optimistically update paginated lists (PaginatedResponse<Note> shape).
+      // Guard against Note[] shape (e.g. usePinnedNotes stores plain arrays).
       queryClient.setQueriesData<PaginatedResponse<Note>>(
         { queryKey: notesKeys.lists() },
         (old) => {
-          if (!old) return old;
+          if (!old || !old.items) return old;
           return {
             ...old,
             items: old.items.map((note) =>
@@ -71,7 +63,26 @@ export function useTogglePin({ workspaceId, onSuccess, onError }: UseTogglePinOp
         }
       );
 
-      return { previousNote, previousLists, isPinned };
+      // Optimistically update the pinned notes sidebar list (Note[] shape).
+      const pinnedKey = notesKeys.list(workspaceId, { isPinned: true });
+      const previousPinned = queryClient.getQueryData<Note[]>(pinnedKey);
+      if (previousPinned !== undefined) {
+        if (isPinned) {
+          // Unpinning: remove from pinned list
+          queryClient.setQueryData<Note[]>(
+            pinnedKey,
+            previousPinned.filter((n) => n.id !== noteId)
+          );
+        } else if (previousNote) {
+          // Pinning: add to pinned list
+          queryClient.setQueryData<Note[]>(pinnedKey, [
+            { ...previousNote, isPinned: true },
+            ...previousPinned,
+          ]);
+        }
+      }
+
+      return { previousNote, previousLists, previousPinned, isPinned };
     },
 
     onSuccess: (note, { isPinned }) => {
@@ -86,14 +97,19 @@ export function useTogglePin({ workspaceId, onSuccess, onError }: UseTogglePinOp
     },
 
     onError: (error: Error, { noteId, isPinned }, context) => {
-      // Rollback on error
+      // Rollback note detail
       if (context?.previousNote) {
         queryClient.setQueryData(notesKeys.detail(workspaceId, noteId), context.previousNote);
       }
+      // Rollback paginated lists
       if (context?.previousLists) {
         context.previousLists.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data);
         });
+      }
+      // Rollback pinned list
+      if (context?.previousPinned !== undefined) {
+        queryClient.setQueryData(notesKeys.list(workspaceId, { isPinned: true }), context.previousPinned);
       }
 
       toast.error(`Failed to ${isPinned ? 'unpin' : 'pin'} note`, {
@@ -104,10 +120,8 @@ export function useTogglePin({ workspaceId, onSuccess, onError }: UseTogglePinOp
     },
 
     onSettled: () => {
-      // Invalidate to ensure consistency
-      queryClient.invalidateQueries({
-        queryKey: notesKeys.lists(),
-      });
+      // Refetch to ensure consistency
+      void queryClient.invalidateQueries({ queryKey: notesKeys.lists() });
     },
   });
 }

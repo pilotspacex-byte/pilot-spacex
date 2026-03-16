@@ -7,7 +7,7 @@ Supports the Note-First workflow where issues emerge from notes.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.note import Note
 
 
-class NoteLinkType(str, Enum):
+class NoteLinkType(StrEnum):
     """Type of link between Note and Issue.
 
     Different link types represent different relationships:

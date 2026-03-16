@@ -1,7 +1,7 @@
 """Add workspace_role_skills table with RLS policies.
 
 Revision ID: 073_add_workspace_role_skills
-Revises: 072_add_issue_suggestion_dismissals
+Revises: 072_add_issue_suggestion
 Create Date: 2026-03-10
 
 Phase 16 — Workspace Role Skills (WRSKL-01..04):
@@ -26,14 +26,13 @@ Downgrade reverses all changes: drops policies, indexes, and table.
 from __future__ import annotations
 
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 
-from alembic import op
-
 # revision identifiers, used by Alembic.
 revision: str = "073_add_workspace_role_skills"
-down_revision: str = "072_add_issue_suggestion_dismissals"
+down_revision: str = "072_add_issue_suggestion"
 branch_labels: None = None
 depends_on: None = None
 
@@ -198,7 +197,9 @@ def downgrade() -> None:
 
     # Drop RLS policies
     op.execute(
-        text('DROP POLICY IF EXISTS "workspace_role_skills_service_role" ON workspace_role_skills')
+        text(
+            'DROP POLICY IF EXISTS "workspace_role_skills_service_role" ON workspace_role_skills'
+        )
     )
     op.execute(
         text(
@@ -216,7 +217,9 @@ def downgrade() -> None:
         "ix_workspace_role_skills_workspace_active",
         table_name="workspace_role_skills",
     )
-    op.execute(text("DROP INDEX IF EXISTS uq_workspace_role_skills_workspace_role_active"))
+    op.execute(
+        text("DROP INDEX IF EXISTS uq_workspace_role_skills_workspace_role_active")
+    )
 
     # Drop table
     op.drop_table("workspace_role_skills")

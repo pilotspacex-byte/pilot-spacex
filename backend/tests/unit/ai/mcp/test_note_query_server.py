@@ -77,6 +77,7 @@ class TestSearchNotesWithoutContext:
         assert "tool_context not available" in text
 
 
+# NoteRepository is lazily imported inside search_notes handler; patch at source
 _NOTE_REPO_PATH = "pilot_space.infrastructure.database.repositories.note_repository.NoteRepository"
 
 
@@ -102,7 +103,7 @@ class TestSearchNotesWithContext:
         note1.content = {}
 
         mock_repo_instance = AsyncMock()
-        mock_repo_instance.search_by_title = AsyncMock(return_value=[note1])
+        mock_repo_instance.list_notes = AsyncMock(return_value=[note1])
 
         tools = _capture_tools(tool_context=mock_context)
         search_tool = tools["search_notes"]
@@ -128,7 +129,7 @@ class TestSearchNotesWithContext:
         mock_context.db_session = AsyncMock()
 
         mock_repo_instance = AsyncMock()
-        mock_repo_instance.search_by_title = AsyncMock(return_value=[])
+        mock_repo_instance.list_notes = AsyncMock(return_value=[])
 
         tools = _capture_tools(tool_context=mock_context)
         search_tool = tools["search_notes"]
@@ -152,7 +153,7 @@ class TestSearchNotesWithContext:
         mock_context.db_session = AsyncMock()
 
         mock_repo_instance = AsyncMock()
-        mock_repo_instance.search_by_title = AsyncMock(return_value=[])
+        mock_repo_instance.list_notes = AsyncMock(return_value=[])
 
         tools = _capture_tools(tool_context=mock_context)
         search_tool = tools["search_notes"]
@@ -160,7 +161,7 @@ class TestSearchNotesWithContext:
         with patch(_NOTE_REPO_PATH, return_value=mock_repo_instance):
             await search_tool.handler({"query": "test", "limit": 999})
 
-        call_kwargs = mock_repo_instance.search_by_title.call_args.kwargs
+        call_kwargs = mock_repo_instance.list_notes.call_args.kwargs
         assert call_kwargs["limit"] <= 100
 
     @pytest.mark.asyncio
@@ -182,7 +183,7 @@ class TestSearchNotesWithContext:
         note1.content = {}
 
         mock_repo_instance = AsyncMock()
-        mock_repo_instance.search_by_title = AsyncMock(return_value=[note1])
+        mock_repo_instance.list_notes = AsyncMock(return_value=[note1])
 
         tools = _capture_tools(tool_context=mock_context)
         search_tool = tools["search_notes"]

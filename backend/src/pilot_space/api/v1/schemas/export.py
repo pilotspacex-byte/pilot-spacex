@@ -7,7 +7,7 @@ Excludes sensitive data (tokens, passwords, encrypted keys).
 from __future__ import annotations
 
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -27,7 +27,7 @@ EXPORT_SCHEMA_VERSION = "1.0.0"
 # =============================================================================
 
 
-class ConflictMode(str, Enum):
+class ConflictMode(StrEnum):
     """Conflict resolution strategy during import.
 
     Attributes:

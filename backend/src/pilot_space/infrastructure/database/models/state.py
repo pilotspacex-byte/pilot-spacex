@@ -6,7 +6,7 @@ State represents workflow states for issues (e.g., Backlog, In Progress, Done).
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.project import Project
 
 
-class StateGroup(str, Enum):
+class StateGroup(StrEnum):
     """Groups for workflow states.
 
     Per FR-003: States are grouped for filtering and reporting.

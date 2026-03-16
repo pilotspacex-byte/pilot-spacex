@@ -30,7 +30,7 @@ export function useProjectPageTree(workspaceId: string, projectId: string, enabl
       let hasNext = true;
 
       while (hasNext) {
-        const result = await notesApi.list(workspaceId, { projectId }, page, PAGE_SIZE);
+        const result = await notesApi.list(workspaceId, { projectIds: [projectId] }, page, PAGE_SIZE);
         allItems = [...allItems, ...result.items];
         hasNext = result.hasNext;
         page++;

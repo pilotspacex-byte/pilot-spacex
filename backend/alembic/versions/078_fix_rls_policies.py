@@ -1,7 +1,7 @@
 """Fix RLS policy scoping and missing indexes on new tables.
 
-Revision ID: 078_fix_rls_policies_and_missing_indexes
-Revises: 077_add_skill_templates_and_user_skills
+Revision ID: 078_fix_rls_policies
+Revises: 077_add_skill_templates
 Create Date: 2026-03-12
 
 Fixes:
@@ -14,12 +14,11 @@ Fixes:
 - M-4: Add UNIQUE constraint on workspace_github_credentials.workspace_id
 """
 
+from alembic import op
 from sqlalchemy import text
 
-from alembic import op
-
-revision = "078_fix_rls_policies_and_missing_indexes"
-down_revision = "077_add_skill_templates_and_user_skills"
+revision = "078_fix_rls_policies"
+down_revision = "077_add_skill_templates"
 branch_labels = None
 depends_on = None
 
@@ -57,7 +56,8 @@ def upgrade() -> None:
         policy_name = f"{table}_workspace_isolation"
         op.execute(text(f'DROP POLICY IF EXISTS "{policy_name}" ON {table}'))
         op.execute(
-            text(f"""
+            text(
+                f"""
             CREATE POLICY "{policy_name}"
             ON {table}
             FOR ALL
@@ -69,7 +69,8 @@ def upgrade() -> None:
                     AND wm.is_deleted = false
                 )
             )
-        """)
+        """
+            )
         )
 
 
@@ -80,7 +81,8 @@ def downgrade() -> None:
         policy_name = f"{table}_workspace_isolation"
         op.execute(text(f'DROP POLICY IF EXISTS "{policy_name}" ON {table}'))
         op.execute(
-            text(f"""
+            text(
+                f"""
             CREATE POLICY "{policy_name}"
             ON {table}
             FOR ALL
@@ -93,7 +95,8 @@ def downgrade() -> None:
                     AND wm.is_deleted = false
                 )
             )
-        """)
+        """
+            )
         )
 
     # Revert M-4

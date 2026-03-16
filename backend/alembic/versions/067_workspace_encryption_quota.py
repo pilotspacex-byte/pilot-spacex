@@ -1,6 +1,6 @@
 """Add workspace_encryption_keys table and workspace quota columns.
 
-Revision ID: 067_workspace_encryption_and_quota
+Revision ID: 067_workspace_encryption_quota
 Revises: 066_fix_rls_enum_case
 Create Date: 2026-03-08
 
@@ -27,13 +27,12 @@ RLS Design for workspace_encryption_keys:
 from __future__ import annotations
 
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import UUID
 
-from alembic import op
-
 # revision identifiers, used by Alembic
-revision: str = "067_workspace_encryption_and_quota"
+revision: str = "067_workspace_encryption_quota"
 down_revision: str = "066_fix_rls_enum_case"
 branch_labels: str | None = None
 depends_on: str | None = None
@@ -112,27 +111,31 @@ def upgrade() -> None:
     # Intentionally NO user-facing SELECT policy:
     # encrypted_workspace_key must never reach the client via any API path.
     op.execute(
-        text("""
+        text(
+            """
             CREATE POLICY "service_role_bypass" ON workspace_encryption_keys
                 AS PERMISSIVE
                 FOR ALL
                 TO service_role
                 USING (true)
                 WITH CHECK (true);
-        """)
+        """
+        )
     )
 
     # ------------------------------------------------------------------
     # Step 3: Add quota columns to workspaces table
     # ------------------------------------------------------------------
     op.execute(
-        text("""
+        text(
+            """
             ALTER TABLE workspaces
                 ADD COLUMN IF NOT EXISTS rate_limit_standard_rpm INTEGER,
                 ADD COLUMN IF NOT EXISTS rate_limit_ai_rpm INTEGER,
                 ADD COLUMN IF NOT EXISTS storage_quota_mb INTEGER,
                 ADD COLUMN IF NOT EXISTS storage_used_bytes BIGINT NOT NULL DEFAULT 0;
-        """)
+        """
+        )
     )
 
 
@@ -141,20 +144,24 @@ def downgrade() -> None:
 
     # Remove quota columns from workspaces
     op.execute(
-        text("""
+        text(
+            """
             ALTER TABLE workspaces
                 DROP COLUMN IF EXISTS storage_used_bytes,
                 DROP COLUMN IF EXISTS storage_quota_mb,
                 DROP COLUMN IF EXISTS rate_limit_ai_rpm,
                 DROP COLUMN IF EXISTS rate_limit_standard_rpm;
-        """)
+        """
+        )
     )
 
     # Drop RLS policy before dropping the table
     op.execute(
-        text("""
+        text(
+            """
             DROP POLICY IF EXISTS "service_role_bypass" ON workspace_encryption_keys;
-        """)
+        """
+        )
     )
 
     # Drop the table (cascades unique constraint and indexes)

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -31,7 +31,7 @@ _UUID_PATTERN = re.compile(
 )
 
 
-class ReferenceType(str, Enum):
+class ReferenceType(StrEnum):
     """Type of entity reference found in version content."""
 
     ISSUE = "issue"

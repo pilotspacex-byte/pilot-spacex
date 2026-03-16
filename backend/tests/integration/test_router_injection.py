@@ -415,7 +415,7 @@ class TestSessionDependencyInjection:
             patch("pilot_space.dependencies.auth.get_current_session") as mock_get_session,
         ):
             # Configure mock to return a valid session (will be set by get_session)
-            mock_get_session.side_effect = lambda: MagicMock()
+            mock_get_session.side_effect = MagicMock
 
             response = await client.get(f"/api/v1/workspaces/{workspace.slug}/notes")
 

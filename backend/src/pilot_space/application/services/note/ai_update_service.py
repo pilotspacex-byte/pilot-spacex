@@ -7,7 +7,7 @@ Provides audit trail and conflict detection separate from user autosave.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     )
 
 
-class AIUpdateOperation(str, Enum):
+class AIUpdateOperation(StrEnum):
     """AI update operation types."""
 
     REPLACE_BLOCK = "replace_block"

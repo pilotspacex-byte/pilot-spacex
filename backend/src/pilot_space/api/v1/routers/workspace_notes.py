@@ -10,15 +10,20 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Query, Response, status
+from fastapi.responses import JSONResponse
 
+from pilot_space.api.middleware import create_problem_response
 from pilot_space.api.v1.dependencies import (
     CreateNoteServiceDep,
     DeleteNoteServiceDep,
     GetNoteServiceDep,
+    ListAnnotationsServiceDep,
     ListNotesServiceDep,
-    MovePageServiceDep,
+    NoteRepositoryDep,
     PinNoteServiceDep,
+    ProjectRepositoryDep,
     ReorderPageServiceDep,
+    UpdateAnnotationServiceDep,
     UpdateNoteServiceDep,
     WorkspaceRepositoryDep,
 )
@@ -26,12 +31,18 @@ from pilot_space.api.v1.routers.workspace_quota import (
     _check_storage_quota,  # pyright: ignore[reportPrivateUsage]
     _update_storage_usage,  # pyright: ignore[reportPrivateUsage]
 )
+from pilot_space.api.v1.schemas.annotation import (
+    AnnotationResponse,
+    AnnotationStatus,
+    AnnotationStatusUpdate,
+    AnnotationType,
+)
 from pilot_space.api.v1.schemas.base import DeleteResponse, PaginatedResponse
 from pilot_space.api.v1.schemas.issue import IssueBriefResponse
 from pilot_space.api.v1.schemas.note import (
-    MovePageRequest,
     NoteCreate,
     NoteDetailResponse,
+    NoteMove,
     NoteResponse,
     NoteUpdate,
     PageTreeResponse,
@@ -40,6 +51,7 @@ from pilot_space.api.v1.schemas.note import (
 )
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, SyncedUserId
 from pilot_space.infrastructure.database.models.note import Note
+from pilot_space.infrastructure.database.models.note_annotation import NoteAnnotation
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
@@ -79,9 +91,9 @@ async def _resolve_workspace(
         HTTPException: If workspace not found.
     """
     if _is_valid_uuid(workspace_id_or_slug):
-        workspace = await workspace_repo.get_by_id(UUID(workspace_id_or_slug))
+        workspace = await workspace_repo.get_by_id_scalar(UUID(workspace_id_or_slug))
     else:
-        workspace = await workspace_repo.get_by_slug(workspace_id_or_slug)
+        workspace = await workspace_repo.get_by_slug_scalar(workspace_id_or_slug)
 
     if not workspace:
         raise HTTPException(
@@ -165,12 +177,12 @@ def _note_to_tree_response(note: Note) -> PageTreeResponse:
     summary="List notes in workspace",
 )
 async def list_workspace_notes(
-    _: SessionDep,
+    session: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     current_user_id: CurrentUserId,
     list_service: ListNotesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-    project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
+    project_ids: list[UUID] = Query(default=[], description="Filter by one or more projects"),
     is_pinned: Annotated[bool | None, Query(description="Filter by pin status")] = None,
     search: Annotated[str | None, Query(description="Search query")] = None,
     cursor: Annotated[str | None, Query(description="Pagination cursor")] = None,
@@ -180,6 +192,7 @@ async def list_workspace_notes(
     from pilot_space.application.services.note import ListNotesPayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Get notes via service
     offset = int(cursor) if cursor and cursor.isdigit() else 0
@@ -187,7 +200,7 @@ async def list_workspace_notes(
     result = await list_service.execute(
         ListNotesPayload(
             workspace_id=workspace.id,
-            project_id=project_id,
+            project_ids=project_ids,
             is_pinned=is_pinned,
             search=search,
             limit=page_size,
@@ -216,7 +229,7 @@ async def list_workspace_notes(
     summary="Get note by ID",
 )
 async def get_workspace_note(
-    _: SessionDep,
+    session: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
@@ -227,6 +240,7 @@ async def get_workspace_note(
     from pilot_space.application.services.note import GetNoteOptions
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Get note with all relations via service
     note = await get_service.get_by_id(
@@ -245,7 +259,7 @@ async def get_workspace_note(
 
 @router.post(
     "/{workspace_id}/notes",
-    response_model=NoteResponse,
+    response_model=NoteDetailResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["workspace-notes"],
     summary="Create a new note",
@@ -258,7 +272,7 @@ async def create_workspace_note(
     create_service: CreateNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
     response: Response = Response(),
-) -> NoteResponse:
+) -> NoteDetailResponse:
     """Create a new note in the workspace.
 
     Args:
@@ -273,14 +287,20 @@ async def create_workspace_note(
     Returns:
         Created note.
     """
-    from pilot_space.application.services.note.create_note_service import CreateNotePayload
+    from pilot_space.application.services.note.create_note_service import (
+        CreateNotePayload,
+    )
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Prepare content
     content_dict: dict[str, Any] | None = None
     if note_data.content:
-        content_dict = {"type": note_data.content.type, "content": note_data.content.content}
+        content_dict = {
+            "type": note_data.content.type,
+            "content": note_data.content.content,
+        }
 
     delta_bytes = len(json.dumps(content_dict or {}).encode("utf-8"))
     _quota_ok, _warning_pct = await _check_storage_quota(session, workspace.id, delta_bytes)
@@ -313,7 +333,7 @@ async def create_workspace_note(
         extra={"note_id": str(result.note.id), "workspace_id": str(workspace.id)},
     )
 
-    return _note_to_response(result.note)
+    return _note_to_detail_response(result.note)
 
 
 @router.patch(
@@ -347,9 +367,13 @@ async def update_workspace_note(
     Returns:
         Updated note.
     """
-    from pilot_space.application.services.note.update_note_service import UNSET, UpdateNotePayload
+    from pilot_space.application.services.note.update_note_service import (
+        UNSET,
+        UpdateNotePayload,
+    )
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     # Prepare update fields
     update_data = note_data.model_dump(exclude_unset=True)
@@ -404,7 +428,7 @@ async def update_workspace_note(
     summary="Delete a note",
 )
 async def delete_workspace_note(
-    _: SessionDep,
+    session: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
@@ -415,6 +439,7 @@ async def delete_workspace_note(
     from pilot_space.application.services.note import DeleteNotePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     try:
         # Execute service
@@ -441,65 +466,88 @@ async def delete_workspace_note(
 
 @router.post(
     "/{workspace_id}/notes/{note_id}/move",
-    response_model=PageTreeResponse,
+    response_model=NoteResponse,
     tags=["workspace-notes"],
-    summary="Move a page to a new parent",
+    summary="Move a note to a different project or root workspace",
 )
-async def move_page(
+async def move_workspace_note(
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
-    body: MovePageRequest,
+    move_data: NoteMove,
     current_user_id: CurrentUserId,
-    session: SessionDep,  # CRITICAL: populates DI ContextVar
-    move_service: MovePageServiceDep,
+    session: SessionDep,
+    update_service: UpdateNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
-) -> PageTreeResponse:
-    """Move a page to a different parent within the same project.
+    note_repo: NoteRepositoryDep,
+    project_repo: ProjectRepositoryDep,
+) -> NoteResponse | JSONResponse:
+    """Move a note to a different project or root workspace.
+
+    Pass project_id=null to remove project association (move to root workspace).
 
     Args:
         workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID to move.
-        body: Move request with target parent ID (None promotes to root).
+        note_id: The note ID.
+        move_data: Move data with new project_id (nullable).
         current_user_id: Current user ID.
-        session: Database session (required for DI ContextVar).
-        move_service: Move page service.
+        session: Database session.
+        update_service: Update note service.
         workspace_repo: Workspace repository.
+        note_repo: Note repository (used to validate note workspace).
+        project_repo: Project repository (used to validate project workspace).
 
     Returns:
-        Updated page with tree fields (parent_id, depth, position).
-
-    Raises:
-        HTTPException 422: If depth limit exceeded, cross-project move, or note not found.
+        Updated note with new project association.
     """
-    from pilot_space.application.services.note.move_page_service import MovePagePayload
+    from pilot_space.application.services.note.update_note_service import (
+        UpdateNotePayload,
+    )
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
 
-    try:
-        result = await move_service.execute(
-            MovePagePayload(
-                note_id=note_id,
-                new_parent_id=body.new_parent_id,
-                workspace_id=workspace.id,
-                actor_id=current_user_id,
-            )
+    note = await note_repo.get_by_id(note_id)
+    if note is None or note.workspace_id != workspace.id:
+        return create_problem_response(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Note not found in this workspace",
+            instance=f"/workspaces/{workspace_id}/notes/{note_id}",
         )
-    except ValueError as e:
-        msg = str(e)
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if "not found" in msg.lower()
-            else status.HTTP_422_UNPROCESSABLE_ENTITY
-        )
-        raise HTTPException(status_code=status_code, detail=msg) from e
 
-    logger.info(
-        "Page moved",
-        extra={"note_id": str(note_id), "new_parent_id": str(body.new_parent_id)},
+    if move_data.project_id is not None:
+        project = await project_repo.get_by_id(move_data.project_id)
+        if project is None or project.workspace_id != workspace.id:
+            return create_problem_response(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found in this workspace",
+                instance=f"/workspaces/{workspace_id}/projects/{move_data.project_id}",
+            )
+
+    payload = UpdateNotePayload(
+        note_id=note_id,
+        actor_id=current_user_id,
+        clear_project_id=move_data.project_id is None,
+        project_id=move_data.project_id,
     )
 
-    return _note_to_tree_response(result.note)
+    try:
+        result = await update_service.execute(payload)
+    except ValueError as e:
+        return create_problem_response(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+    logger.info(
+        "Note moved",
+        extra={
+            "note_id": str(note_id),
+            "workspace_id": str(workspace.id),
+            "project_id": str(move_data.project_id) if move_data.project_id else None,
+        },
+    )
+
+    return _note_to_response(result.note)
 
 
 @router.post(
@@ -534,7 +582,9 @@ async def reorder_page(
     Raises:
         HTTPException 422: If note not found or personal page attempted.
     """
-    from pilot_space.application.services.note.reorder_page_service import ReorderPagePayload
+    from pilot_space.application.services.note.reorder_page_service import (
+        ReorderPagePayload,
+    )
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
@@ -572,7 +622,7 @@ async def reorder_page(
     summary="Pin a note",
 )
 async def pin_workspace_note(
-    _: SessionDep,
+    session: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
@@ -583,6 +633,7 @@ async def pin_workspace_note(
     from pilot_space.application.services.note import PinNotePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     try:
         # Execute service
@@ -616,7 +667,7 @@ async def pin_workspace_note(
     summary="Unpin a note",
 )
 async def unpin_workspace_note(
-    _: SessionDep,
+    session: SessionDep,
     workspace_id: WorkspaceIdOrSlug,
     note_id: NoteIdPath,
     current_user_id: CurrentUserId,
@@ -627,6 +678,7 @@ async def unpin_workspace_note(
     from pilot_space.application.services.note import PinNotePayload
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
 
     try:
         # Execute service
@@ -645,6 +697,128 @@ async def unpin_workspace_note(
             )
 
         return _note_to_response(result.note)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
+
+
+# =============================================================================
+# Annotation Endpoints
+# =============================================================================
+
+
+def _annotation_to_response(annotation: NoteAnnotation) -> AnnotationResponse:
+    """Convert NoteAnnotation model to AnnotationResponse schema."""
+    return AnnotationResponse(
+        id=annotation.id,
+        created_at=annotation.created_at,
+        updated_at=annotation.updated_at,
+        note_id=annotation.note_id,
+        block_id=annotation.block_id,
+        type=AnnotationType(annotation.type.value),
+        content=annotation.content,
+        confidence=annotation.confidence,
+        status=AnnotationStatus(annotation.status.value),
+        highlight_start=None,
+        highlight_end=None,
+        is_ai_generated=True,  # All annotations from DB are AI-generated
+        created_by_id=None,
+        converted_issue_id=None,
+    )
+
+
+@router.get(
+    "/{workspace_id}/notes/{note_id}/annotations",
+    response_model=list[AnnotationResponse],
+    tags=["workspace-notes"],
+    summary="Get note annotations",
+)
+async def get_note_annotations(
+    session: SessionDep,
+    workspace_id: WorkspaceIdOrSlug,
+    note_id: NoteIdPath,
+    current_user_id: CurrentUserId,
+    list_annotations_service: ListAnnotationsServiceDep,
+    get_note_service: GetNoteServiceDep,
+    workspace_repo: WorkspaceRepositoryDep,
+) -> list[AnnotationResponse]:
+    """Get all annotations for a note."""
+    from pilot_space.application.services.note import ListAnnotationsPayload
+
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
+
+    # Verify note exists and belongs to workspace
+    note = await get_note_service.get_by_id(note_id)
+    if not note or note.workspace_id != workspace.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Note not found",
+        )
+
+    # Get annotations via service
+    result = await list_annotations_service.execute(ListAnnotationsPayload(note_id=note_id))
+
+    return [_annotation_to_response(a) for a in result.annotations]
+
+
+@router.patch(
+    "/{workspace_id}/notes/{note_id}/annotations/{annotation_id}",
+    response_model=AnnotationResponse,
+    tags=["workspace-notes"],
+    summary="Update annotation status",
+)
+async def update_annotation_status(
+    session: SessionDep,
+    workspace_id: WorkspaceIdOrSlug,
+    note_id: NoteIdPath,
+    annotation_id: Annotated[UUID, Path(description="Annotation ID")],
+    status_update: AnnotationStatusUpdate,
+    current_user_id: CurrentUserId,
+    update_annotation_service: UpdateAnnotationServiceDep,
+    get_note_service: GetNoteServiceDep,
+    workspace_repo: WorkspaceRepositoryDep,
+) -> AnnotationResponse:
+    """Update annotation status (accept/reject/dismiss)."""
+    from pilot_space.application.services.note import UpdateAnnotationPayload
+    from pilot_space.infrastructure.database.models.note_annotation import (
+        AnnotationStatus as DBAnnotationStatus,
+    )
+
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
+
+    # Verify note exists and belongs to workspace
+    note = await get_note_service.get_by_id(note_id)
+    if not note or note.workspace_id != workspace.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Note not found",
+        )
+
+    try:
+        # Execute service — ownership is validated inside before any DB write
+        result = await update_annotation_service.execute(
+            UpdateAnnotationPayload(
+                annotation_id=annotation_id,
+                note_id=note_id,
+                status=DBAnnotationStatus(status_update.status.value),
+            )
+        )
+
+        logger.info(
+            "Annotation status updated",
+            extra={
+                "annotation_id": str(annotation_id),
+                "note_id": str(note_id),
+                "new_status": status_update.status.value,
+            },
+        )
+
+        return _annotation_to_response(result.annotation)
 
     except ValueError as e:
         raise HTTPException(

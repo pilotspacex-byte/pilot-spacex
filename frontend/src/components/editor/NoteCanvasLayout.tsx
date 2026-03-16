@@ -22,7 +22,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { notesKeys } from '@/features/notes/hooks';
 import { EditorContent } from '@tiptap/react';
 import { motion } from 'motion/react';
-import { History, Users, MessageSquare } from 'lucide-react';
+import { History, Users, MessageSquare, SmilePlus } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 const ChatView = lazy(() =>
   import('@/features/ai/ChatView/ChatView').then((m) => ({ default: m.ChatView }))
@@ -103,6 +106,9 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
     onVersionHistory,
     projectId,
     linkedIssues = [],
+    onMove,
+    iconEmoji,
+    onEmojiChange,
   } = props;
 
   // Issue extraction SSE pipeline (Feature 009)
@@ -160,6 +166,10 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
   // T-216: Version history — VersionStore instance (stable, per-editor-mount)
   const [versionStore] = useState(() => new VersionStore());
 
+  // Emoji picker state (Notion-style page icon)
+  const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
+  const [emojiInput, setEmojiInput] = useState('');
+
   // Count top-level doc nodes for large-note warning
   const blockCount = useMemo(() => {
     if (!editor) return 0;
@@ -201,6 +211,8 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
           isAIAssisted={isAIAssisted}
           topics={topics}
           workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          workspaceId={workspaceId}
           onShare={onShare}
           onExport={onExport}
           onDelete={onDelete}
@@ -209,8 +221,75 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
             sidebar.openSidebar('versions');
             onVersionHistory?.();
           }}
+          onMove={onMove}
           disabled={readOnly}
         />
+      )}
+
+      {/* Emoji icon picker — Notion-style page icon, shown above the editor content */}
+      {onEmojiChange && (
+        <div className="px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 pt-3 pb-0">
+          <div className="mx-auto max-w-full sm:max-w-[640px] md:max-w-[680px] lg:max-w-[720px] xl:max-w-[760px] 2xl:max-w-[800px]">
+            <Popover
+              open={emojiPopoverOpen}
+              onOpenChange={(open) => {
+                setEmojiPopoverOpen(open);
+                if (open) setEmojiInput(iconEmoji ?? '');
+              }}
+            >
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+                  aria-label={iconEmoji ? 'Change icon' : 'Add icon'}
+                >
+                  {iconEmoji ? (
+                    <span className="text-2xl leading-none">{iconEmoji}</span>
+                  ) : (
+                    <SmilePlus className="h-5 w-5" />
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="start">
+                <div className="flex gap-2">
+                  <Input
+                    value={emojiInput}
+                    onChange={(e) => setEmojiInput(e.target.value)}
+                    aria-label="Page icon emoji"
+                    placeholder="Type emoji..."
+                    className="h-8 text-base"
+                    maxLength={10}
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={() => {
+                      onEmojiChange(emojiInput.trim() || null);
+                      setEmojiPopoverOpen(false);
+                      setEmojiInput('');
+                    }}
+                  >
+                    Set
+                  </Button>
+                </div>
+                {iconEmoji && (
+                  <button
+                    type="button"
+                    className="mt-1 w-full text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => {
+                      onEmojiChange(null);
+                      setEmojiPopoverOpen(false);
+                      setEmojiInput('');
+                    }}
+                  >
+                    Remove icon
+                  </button>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
       )}
 
       {/* Note health badges (T024) */}

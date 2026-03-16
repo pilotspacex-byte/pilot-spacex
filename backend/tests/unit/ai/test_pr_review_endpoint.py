@@ -331,7 +331,7 @@ class TestStreamPRReviewEndpoint:
         workspace_id = uuid4()
 
         app = _build_test_app()
-        app.dependency_overrides[get_current_user_id] = lambda: uuid4()
+        app.dependency_overrides[get_current_user_id] = uuid4
         app.dependency_overrides[get_current_workspace_id] = lambda: workspace_id
 
         async with AsyncClient(
@@ -354,7 +354,7 @@ class TestStreamPRReviewEndpoint:
         workspace_id = uuid4()
 
         app = _build_test_app()
-        app.dependency_overrides[get_current_user_id] = lambda: uuid4()
+        app.dependency_overrides[get_current_user_id] = uuid4
         app.dependency_overrides[get_current_workspace_id] = lambda: workspace_id
 
         async with AsyncClient(

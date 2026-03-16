@@ -7,7 +7,7 @@ Each discussion can be attached to a specific block or the entire note.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.user import User
 
 
-class DiscussionStatus(str, Enum):
+class DiscussionStatus(StrEnum):
     """Status of a threaded discussion.
 
     Discussions can be open for new comments or resolved.

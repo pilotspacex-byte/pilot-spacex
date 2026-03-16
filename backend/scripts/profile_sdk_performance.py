@@ -19,10 +19,10 @@ import os
 import time
 import tracemalloc
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
+import anyio
 import psutil
 
 # Setup logging
@@ -236,8 +236,8 @@ async def profile_sdk_client_lifecycle() -> None:
 
         async def note_sync_op():
             # Simulate syncing a note (mock implementation)
-            test_space = Path("/tmp/pilot-space-profile-test")
-            test_space.mkdir(exist_ok=True)
+            test_space = anyio.Path("/tmp/pilot-space-profile-test")
+            await test_space.mkdir(exist_ok=True)
 
             # Create large mock note content
             large_note_markdown = "# Large Note\n\n" + ("- Item\n" * 10000)
@@ -265,8 +265,8 @@ async def profile_sdk_client_lifecycle() -> None:
 
         # Profile 4: Cleanup
         async def cleanup_op():
-            test_space = Path("/tmp/pilot-space-profile-test")
-            if test_space.exists():
+            test_space = anyio.Path("/tmp/pilot-space-profile-test")
+            if await test_space.exists():
                 import shutil
 
                 shutil.rmtree(test_space)

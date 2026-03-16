@@ -7,7 +7,7 @@ and Claude Code prompt export.
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.issue import Issue
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     """Task status values."""
 
     TODO = "todo"

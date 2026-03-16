@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.workspace import Workspace
 
 
-class InvitationStatus(str, Enum):
+class InvitationStatus(StrEnum):
     """Status of a workspace invitation."""
 
     PENDING = "pending"

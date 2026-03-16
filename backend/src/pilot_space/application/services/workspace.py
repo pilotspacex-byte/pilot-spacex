@@ -260,7 +260,7 @@ class WorkspaceService:
             workspaces=list(paginated),
             total=total,
             next_cursor=str(end_idx) if has_next else None,
-            prev_cursor=str(max(0, start_idx - payload.page_size)) if has_prev else None,
+            prev_cursor=(str(max(0, start_idx - payload.page_size)) if has_prev else None),
             has_next=has_next,
             has_prev=has_prev,
         )

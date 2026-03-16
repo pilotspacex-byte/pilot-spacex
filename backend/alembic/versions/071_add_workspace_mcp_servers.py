@@ -1,7 +1,7 @@
 """Add workspace_mcp_servers table with mcp_auth_type enum and RLS policies.
 
 Revision ID: 071_add_workspace_mcp_servers
-Revises: 070_extend_ai_config_custom_provider
+Revises: 070_ai_config_custom_provider
 Create Date: 2026-03-10
 
 Phase 14 — Remote MCP Server Management (MCP-01, MCP-02, MCP-06):
@@ -26,13 +26,12 @@ Downgrade reverses all changes: drops policies, table, and enum.
 from __future__ import annotations
 
 import sqlalchemy as sa
-from sqlalchemy import text
-
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision: str = "071_add_workspace_mcp_servers"
-down_revision: str = "070_extend_ai_config_custom_provider"
+down_revision: str = "070_ai_config_custom_provider"
 branch_labels: None = None
 depends_on: None = None
 
@@ -40,8 +39,7 @@ depends_on: None = None
 def upgrade() -> None:
     """Create mcp_auth_type enum, workspace_mcp_servers table, and RLS policies."""
 
-    # 1+2. Create mcp_auth_type enum and workspace_mcp_servers table
-    # sa.Enum without create_type=False lets op.create_table emit CREATE TYPE automatically.
+    # 1. Create workspace_mcp_servers table
     op.create_table(
         "workspace_mcp_servers",
         # Primary key
@@ -89,7 +87,7 @@ def upgrade() -> None:
         sa.Column("url", sa.String(512), nullable=False),
         sa.Column(
             "auth_type",
-            sa.Enum("bearer", "oauth2", name="mcp_auth_type"),
+            sa.Enum("bearer", "oauth2", name="mcp_auth_type", create_type=True),
             nullable=False,
             server_default=text("'bearer'::mcp_auth_type"),
         ),
@@ -105,11 +103,11 @@ def upgrade() -> None:
         sa.Column("last_status_checked_at", sa.DateTime(timezone=True), nullable=True),
     )
 
-    # 3. Enable RLS on workspace_mcp_servers
+    # 2. Enable RLS on workspace_mcp_servers
     op.execute(text("ALTER TABLE workspace_mcp_servers ENABLE ROW LEVEL SECURITY"))
     op.execute(text("ALTER TABLE workspace_mcp_servers FORCE ROW LEVEL SECURITY"))
 
-    # 4. Workspace isolation policy: users see rows in workspaces they are members of
+    # 3. Workspace isolation policy: users see rows in workspaces they are members of
     op.execute(
         text(
             """
@@ -128,7 +126,7 @@ def upgrade() -> None:
         )
     )
 
-    # 5. Service-role bypass policy (for admin/background operations)
+    # 4. Service-role bypass policy (for admin/background operations)
     op.execute(
         text(
             """
@@ -140,13 +138,6 @@ def upgrade() -> None:
             WITH CHECK (true)
             """
         )
-    )
-
-    # 6. Index on workspace_id for efficient workspace-scoped queries
-    op.create_index(
-        "ix_workspace_mcp_servers_workspace_id",
-        "workspace_mcp_servers",
-        ["workspace_id"],
     )
 
 
@@ -161,14 +152,13 @@ def downgrade() -> None:
         )
     )
     op.execute(
-        text('DROP POLICY IF EXISTS "workspace_mcp_servers_service_role" ON workspace_mcp_servers')
+        text(
+            'DROP POLICY IF EXISTS "workspace_mcp_servers_service_role" ON workspace_mcp_servers'
+        )
     )
 
-    # 2. Drop index
-    op.drop_index("ix_workspace_mcp_servers_workspace_id", table_name="workspace_mcp_servers")
-
-    # 3. Drop table
+    # 2. Drop table
     op.drop_table("workspace_mcp_servers")
 
-    # 4. Drop the enum type
+    # 3. Drop the enum type
     op.execute(text("DROP TYPE IF EXISTS mcp_auth_type"))
