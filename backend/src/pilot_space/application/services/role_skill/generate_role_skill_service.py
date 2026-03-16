@@ -173,7 +173,7 @@ class GenerateRoleSkillService:
         template_content = await self._get_template_content(payload.role_type)
         display_name = await self._get_template_display_name(payload.role_type)
 
-        # Try AI generation first, fall back to template
+        # Generate via configured LLM provider (no silent fallback)
         ai_result = await self._try_generate_via_ai(
             role_type=payload.role_type,
             display_name=display_name,
@@ -194,7 +194,7 @@ class GenerateRoleSkillService:
                 generation_time_ms=elapsed_ms,
             )
 
-        # Fallback: template-based generation
+        # Only reach here if no LLM provider configured — use template
         skill_content = self._generate_content_from_template(
             template_content=template_content,
             display_name=display_name,
@@ -225,15 +225,19 @@ class GenerateRoleSkillService:
         role_name: str | None,
         workspace_id: UUID | None,
     ) -> tuple[str, str, str] | None:
-        """Attempt AI-powered generation via Claude Sonnet.
+        """Attempt AI-powered generation using the workspace's configured LLM provider.
+
+        Supports Anthropic (direct) and Ollama (OpenAI-compatible).
 
         Returns:
             Tuple of (skill_content, suggested_role_name, model_name) or None.
         """
-        api_key = await self._resolve_api_key(workspace_id)
-        if api_key is None:
-            logger.info("No Anthropic API key available, using template fallback")
+        provider_info = await self._resolve_llm_provider(workspace_id)
+        if provider_info is None:
+            logger.info("No LLM provider configured, using template fallback")
             return None
+
+        provider, api_key, base_url, model_name = provider_info
 
         prompt = _build_generation_prompt(
             role_type=role_type,
@@ -243,45 +247,117 @@ class GenerateRoleSkillService:
             role_name=role_name,
         )
 
-        selector = ProviderSelector()
-        config = selector.select_with_config(TaskType.TEMPLATE_FILLING)
-        model = config.model
+        # Use workspace model if configured, otherwise fall back to provider defaults
+        if model_name:
+            model = model_name
+        elif provider == "anthropic":
+            selector = ProviderSelector()
+            config = selector.select_with_config(TaskType.TEMPLATE_FILLING)
+            model = config.model
+        else:
+            model = "llama3.2"  # Ollama default
 
         executor = ResilientExecutor()
         retry_config = RetryConfig(max_retries=2, base_delay_seconds=1.0)
 
+        raw_response: str | None = None
         try:
-            from anthropic import AsyncAnthropic
-
-            client = AsyncAnthropic(api_key=api_key)
-
-            async def _call_api() -> str:
-                response = await client.messages.create(
+            if provider == "ollama":
+                raw_response = await self._call_ollama(
+                    base_url=base_url or "http://localhost:11434",
                     model=model,
-                    max_tokens=2048,
-                    messages=[{"role": "user", "content": prompt}],
+                    prompt=prompt,
+                    api_key=api_key,
+                    executor=executor,
+                    retry_config=retry_config,
                 )
-                # Extract text from response
-                for block in response.content:
-                    if block.type == "text":
-                        return block.text
-                return ""
+            else:
+                raw_response = await self._call_anthropic(
+                    api_key=api_key,
+                    model=model,
+                    prompt=prompt,
+                    executor=executor,
+                    retry_config=retry_config,
+                )
+        except ProviderUnavailableError as e:
+            msg = f"{provider} provider unavailable: {e}"
+            raise SkillGenerationError(msg) from e
+        except Exception as e:
+            msg = f"AI skill generation failed ({provider}): {e}"
+            raise SkillGenerationError(msg) from e
 
-            raw_response = await executor.execute(
-                provider="anthropic",
-                operation=_call_api,
-                timeout_sec=30.0,
-                retry_config=retry_config,
+        result = self._parse_ai_response(raw_response or "", display_name, role_name, model)
+        if result is None:
+            msg = "AI returned invalid or insufficient content"
+            raise SkillGenerationError(msg)
+        return result
+
+    async def _call_anthropic(
+        self,
+        api_key: str,
+        model: str,
+        prompt: str,
+        executor: ResilientExecutor,
+        retry_config: RetryConfig,
+    ) -> str:
+        """Call Anthropic API for skill generation."""
+        from anthropic import AsyncAnthropic
+
+        client = AsyncAnthropic(api_key=api_key)
+
+        async def _call_api() -> str:
+            response = await client.messages.create(
+                model=model,
+                max_tokens=2048,
+                messages=[{"role": "user", "content": prompt}],
             )
+            for block in response.content:
+                if block.type == "text":
+                    return block.text
+            return ""
 
-            return self._parse_ai_response(raw_response, display_name, role_name, model)
+        return await executor.execute(
+            provider="anthropic",
+            operation=_call_api,
+            timeout_sec=30.0,
+            retry_config=retry_config,
+        )
 
-        except ProviderUnavailableError:
-            logger.warning("Anthropic provider unavailable, using template fallback")
-            return None
-        except Exception:
-            logger.exception("AI skill generation failed, using template fallback")
-            return None
+    async def _call_ollama(
+        self,
+        base_url: str,
+        model: str,
+        prompt: str,
+        api_key: str | None,
+        executor: ResilientExecutor,
+        retry_config: RetryConfig,
+    ) -> str:
+        """Call Ollama via OpenAI-compatible API for skill generation."""
+        import httpx
+
+        url = f"{base_url.rstrip('/')}/api/chat"
+
+        async def _call_api() -> str:
+            headers: dict[str, str] = {"Content-Type": "application/json"}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+            }
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                return data.get("message", {}).get("content", "")
+
+        return await executor.execute(
+            provider="ollama",
+            operation=_call_api,
+            timeout_sec=60.0,
+            retry_config=retry_config,
+        )
 
     def _parse_ai_response(
         self,
@@ -318,31 +394,67 @@ class GenerateRoleSkillService:
             logger.warning("Failed to parse AI response as JSON, using fallback")
             return None
 
-    async def _resolve_api_key(self, workspace_id: UUID | None) -> str | None:
-        """Resolve Anthropic API key: workspace-level then app-level."""
-        # Try workspace-level key first
+    async def _resolve_llm_provider(
+        self, workspace_id: UUID | None
+    ) -> tuple[str, str, str | None, str | None] | None:
+        """Resolve the workspace's configured LLM provider.
+
+        Returns:
+            Tuple of (provider, api_key, base_url, model_name) or None.
+        """
         if workspace_id is not None:
             try:
+                from sqlalchemy import select as sa_select
+
                 from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
                 from pilot_space.config import get_settings
+                from pilot_space.infrastructure.database.models.workspace import Workspace
 
                 settings = get_settings()
                 encryption_key = settings.encryption_key.get_secret_value()
-                if encryption_key:
-                    storage = SecureKeyStorage(self._session, encryption_key)
-                    key = await storage.get_api_key(workspace_id, "anthropic", "llm")
-                    if key:
-                        return key
-            except Exception:
-                logger.debug("Could not retrieve workspace API key", exc_info=True)
+                if not encryption_key:
+                    return None
 
-        # Fall back to app-level key
+                # Determine which LLM provider the workspace has selected
+                stmt = sa_select(Workspace.settings).where(Workspace.id == workspace_id)
+                result = await self._session.execute(stmt)
+                ws_settings = result.scalar_one_or_none() or {}
+                default_llm = ws_settings.get("default_llm_provider", "anthropic")
+
+                storage = SecureKeyStorage(self._session, encryption_key)
+                key_info = await storage.get_key_info(workspace_id, default_llm, "llm")
+
+                if key_info is not None:
+                    api_key = await storage.get_api_key(workspace_id, default_llm, "llm")
+                    return (
+                        default_llm,
+                        api_key or "",
+                        key_info.base_url,
+                        key_info.model_name,
+                    )
+
+                # If default provider has no key, try any configured LLM provider
+                all_keys = await storage.get_all_key_infos(workspace_id)
+                for ki in all_keys:
+                    if ki.service_type == "llm":
+                        api_key = await storage.get_api_key(workspace_id, ki.provider, "llm")
+                        return (ki.provider, api_key or "", ki.base_url, ki.model_name)
+
+            except Exception:
+                logger.debug("Could not retrieve workspace LLM provider", exc_info=True)
+
+        # Fall back to app-level Anthropic key
         try:
             from pilot_space.config import get_settings
 
             settings = get_settings()
             if settings.anthropic_api_key:
-                return settings.anthropic_api_key.get_secret_value()
+                return (
+                    "anthropic",
+                    settings.anthropic_api_key.get_secret_value(),
+                    None,
+                    None,
+                )
         except Exception:
             logger.debug("Could not retrieve app-level API key", exc_info=True)
 

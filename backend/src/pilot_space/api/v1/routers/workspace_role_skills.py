@@ -132,6 +132,17 @@ async def create_workspace_skill(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
+    except Exception as exc:
+        from pilot_space.application.services.role_skill.generate_role_skill_service import (
+            SkillGenerationError,
+        )
+
+        if isinstance(exc, SkillGenerationError):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+        raise
 
     logger.info(
         "[WorkspaceRoleSkills] Created skill workspace=%s role_type=%s user=%s",
