@@ -39,13 +39,16 @@ export function CustomProviderForm({ workspaceId, onSuccess }: CustomProviderFor
     setError(null);
 
     try {
-      await apiClient.post('/ai/configurations', {
-        provider: 'custom',
-        display_name: displayName.trim(),
-        base_url: baseUrl.trim(),
-        api_key: apiKey.trim(),
-        workspace_id: workspaceId,
-      });
+      await apiClient.post(
+        '/ai/configurations',
+        {
+          provider: 'custom',
+          display_name: displayName.trim(),
+          base_url: baseUrl.trim(),
+          api_key: apiKey.trim(),
+        },
+        { params: { workspace_id: workspaceId } }
+      );
 
       toast.success('Custom provider added');
       setDisplayName('');

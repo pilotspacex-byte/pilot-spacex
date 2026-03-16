@@ -53,7 +53,12 @@ class AIConfiguration(WorkspaceScopedModel):
 
     # Provider configuration
     provider: Mapped[LLMProvider] = mapped_column(
-        Enum(LLMProvider, name="llm_provider", create_type=False),
+        Enum(
+            LLMProvider,
+            name="llm_provider",
+            create_type=False,
+            values_callable=lambda e: [member.value for member in e],
+        ),
         nullable=False,
     )
     api_key_encrypted: Mapped[str] = mapped_column(

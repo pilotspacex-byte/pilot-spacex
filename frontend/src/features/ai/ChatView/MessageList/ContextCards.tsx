@@ -40,7 +40,7 @@ export const ContextNotesResultCard = memo<ContextNotesResultCardProps>(
                 key={note.noteId ?? idx}
                 noteId={note.noteId}
                 noteTitle={note.noteTitle}
-                linkType={note.linkType as 'CREATED' | 'EXTRACTED' | 'REFERENCED'}
+                linkType={note.linkType as 'extracted' | 'referenced' | 'related' | 'inline'}
                 workspaceSlug={note.workspaceSlug ?? topSlug}
               />
             ))}

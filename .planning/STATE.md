@@ -4,8 +4,8 @@ milestone: v1.0.0-alpha2
 milestone_name: Notion-Style Restructure
 status: completed
 stopped_at: Milestone archived
-last_updated: "2026-03-14"
-last_activity: "2026-03-14 — Completed quick task 8: Unified AI Providers settings UI with expandable provider rows"
+last_updated: "2026-03-15"
+last_activity: "2026-03-15 — Completed quick task 12: validate 3 AI flows, fix LLMProvider enum case mismatch"
 progress:
   total_phases: 18
   completed_phases: 17
@@ -53,19 +53,22 @@ None.
 
 ### Quick Tasks Completed
 
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 1 | Fix 8 code issues from PR #32 CodeRabbit review | 2026-03-13 | ebeaa9db | [1-review-all-comments-of-pr-32-then-fix-an](./quick/1-review-all-comments-of-pr-32-then-fix-an/) |
-| 2 | Fix remaining 5 CodeRabbit issues from PR #32 | 2026-03-13 | 4d9b7b7a | [2-review-all-comments-of-pr-32-then-fix-an](./quick/2-review-all-comments-of-pr-32-then-fix-an/) |
-| 3 | Review and merge PR #31, #32, #33 | 2026-03-13 | 4e50a10c | [3-review-carefully-opening-pr-31-32-33-the](./quick/3-review-carefully-opening-pr-31-32-33-the/) |
-| 4 | Fix all preexisting pytest failures | 2026-03-13 | 1bd09554 | [4-checkout-new-branch-from-main-then-fix-a](./quick/4-checkout-new-branch-from-main-then-fix-a/) |
-| 5 | Per-user AI model defaults and base_url overrides | 2026-03-13 | bd06487e | [5-allow-user-to-setup-default-claude-agent](./quick/5-allow-user-to-setup-default-claude-agent/) |
-| 6 | Phase 1 UI/UX quick wins (fonts, tokens, hover) | 2026-03-13 | 04ad972d | [6-implement-phase-1-ui-ux-quick-wins-from-](./quick/6-implement-phase-1-ui-ux-quick-wins-from-/) |
-| 8 | Unified AI Providers settings UI with expandable rows | 2026-03-14 | ca12777e | [8-enhance-ai-providers-settings-ui-unified](./quick/8-enhance-ai-providers-settings-ui-unified/) |
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 1 | Fix 8 code issues from PR #32 CodeRabbit review | 2026-03-13 | ebeaa9db | | [1-review-all-comments-of-pr-32-then-fix-an](./quick/1-review-all-comments-of-pr-32-then-fix-an/) |
+| 2 | Fix remaining 5 CodeRabbit issues from PR #32 | 2026-03-13 | 4d9b7b7a | | [2-review-all-comments-of-pr-32-then-fix-an](./quick/2-review-all-comments-of-pr-32-then-fix-an/) |
+| 3 | Review and merge PR #31, #32, #33 | 2026-03-13 | 4e50a10c | | [3-review-carefully-opening-pr-31-32-33-the](./quick/3-review-carefully-opening-pr-31-32-33-the/) |
+| 4 | Fix all preexisting pytest failures | 2026-03-13 | 1bd09554 | | [4-checkout-new-branch-from-main-then-fix-a](./quick/4-checkout-new-branch-from-main-then-fix-a/) |
+| 5 | Per-user AI model defaults and base_url overrides | 2026-03-13 | bd06487e | | [5-allow-user-to-setup-default-claude-agent](./quick/5-allow-user-to-setup-default-claude-agent/) |
+| 6 | Phase 1 UI/UX quick wins (fonts, tokens, hover) | 2026-03-13 | 04ad972d | | [6-implement-phase-1-ui-ux-quick-wins-from-](./quick/6-implement-phase-1-ui-ux-quick-wins-from-/) |
+| 8 | Unified AI Providers settings UI with expandable rows | 2026-03-14 | ca12777e | | [8-enhance-ai-providers-settings-ui-unified](./quick/8-enhance-ai-providers-settings-ui-unified/) |
+| 10 | Investigate Note-to-Issue pipeline: 5 pathways traced, 28 tests run | 2026-03-15 | n/a (investigation only) | Verified | [10-investigate-into-codebase-of-pilotspace-](./quick/10-investigate-into-codebase-of-pilotspace-/) |
+| 11 | Fix AI config POST 500, NoteIssueLink creation, linkType enum alignment | 2026-03-15 | d4a62dd5 | Done | [11-fix-all-issues-found-in-browser-testing-](./quick/11-fix-all-issues-found-in-browser-testing-/) |
+| 12 | Validate 3 AI flows + fix LLMProvider enum case mismatch | 2026-03-15 | 4e47d6d4 | Done | [12-validate-3-ai-issue-flows-via-browser-ex](./quick/12-validate-3-ai-issue-flows-via-browser-ex/) |
 
 ## Session Continuity
 
-Last session: 2026-03-14
-Stopped at: Completed quick task 8 (Unified AI Providers settings UI)
+Last session: 2026-03-15
+Stopped at: Completed quick task 12 (3-flow validation + enum fix)
 Resume file: None
 Next action: `/gsd:new-milestone`

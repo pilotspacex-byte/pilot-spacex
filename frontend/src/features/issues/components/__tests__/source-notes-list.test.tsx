@@ -31,7 +31,7 @@ function createNoteLink(overrides?: Partial<NoteIssueLink>): NoteIssueLink {
     id: 'nl-1',
     noteId: 'note-1',
     issueId: 'issue-1',
-    linkType: 'EXTRACTED',
+    linkType: 'extracted',
     noteTitle: 'Meeting Notes',
     ...overrides,
   };
@@ -59,10 +59,10 @@ describe('SourceNotesList', () => {
     expect(screen.getByText('Design Review')).toBeInTheDocument();
   });
 
-  it('shows EXTRACTED link type badge with amber color', () => {
+  it('shows extracted link type badge with amber color', () => {
     render(
       <SourceNotesList
-        links={[createNoteLink({ linkType: 'EXTRACTED' })]}
+        links={[createNoteLink({ linkType: 'extracted' })]}
         workspaceSlug="my-team"
       />
     );
@@ -72,20 +72,20 @@ describe('SourceNotesList', () => {
     expect(badge.className).toContain('text-amber-700');
   });
 
-  it('shows CREATED link type badge with emerald color', () => {
+  it('shows related link type badge with slate color', () => {
     render(
-      <SourceNotesList links={[createNoteLink({ linkType: 'CREATED' })]} workspaceSlug="my-team" />
+      <SourceNotesList links={[createNoteLink({ linkType: 'related' })]} workspaceSlug="my-team" />
     );
 
-    const badge = screen.getByText('Created');
-    expect(badge.className).toContain('bg-emerald-100');
-    expect(badge.className).toContain('text-emerald-700');
+    const badge = screen.getByText('Related');
+    expect(badge.className).toContain('bg-slate-100');
+    expect(badge.className).toContain('text-slate-700');
   });
 
-  it('shows REFERENCED link type badge with sky color', () => {
+  it('shows referenced link type badge with sky color', () => {
     render(
       <SourceNotesList
-        links={[createNoteLink({ linkType: 'REFERENCED' })]}
+        links={[createNoteLink({ linkType: 'referenced' })]}
         workspaceSlug="my-team"
       />
     );
@@ -106,9 +106,9 @@ describe('SourceNotesList', () => {
 
   it('multiple notes render correctly', () => {
     const links = [
-      createNoteLink({ id: 'nl-1', noteId: 'n1', noteTitle: 'Note A', linkType: 'EXTRACTED' }),
-      createNoteLink({ id: 'nl-2', noteId: 'n2', noteTitle: 'Note B', linkType: 'CREATED' }),
-      createNoteLink({ id: 'nl-3', noteId: 'n3', noteTitle: 'Note C', linkType: 'REFERENCED' }),
+      createNoteLink({ id: 'nl-1', noteId: 'n1', noteTitle: 'Note A', linkType: 'extracted' }),
+      createNoteLink({ id: 'nl-2', noteId: 'n2', noteTitle: 'Note B', linkType: 'related' }),
+      createNoteLink({ id: 'nl-3', noteId: 'n3', noteTitle: 'Note C', linkType: 'referenced' }),
     ];
 
     render(<SourceNotesList links={links} workspaceSlug="ws" />);
@@ -140,9 +140,9 @@ describe('SourceNotesList', () => {
       expect(link).toHaveAttribute('href', '/acme-team/notes/note-abc');
     });
 
-    it('EXTRACTED link type badge renders with amber styling classes', () => {
+    it('extracted link type badge renders with amber styling classes', () => {
       render(
-        <SourceNotesList links={[createNoteLink({ linkType: 'EXTRACTED' })]} workspaceSlug="ws" />
+        <SourceNotesList links={[createNoteLink({ linkType: 'extracted' })]} workspaceSlug="ws" />
       );
 
       const badge = screen.getByText('Extracted');
@@ -150,19 +150,19 @@ describe('SourceNotesList', () => {
       expect(badge.className).toContain('text-amber-700');
     });
 
-    it('CREATED link type badge renders with emerald styling classes', () => {
+    it('inline link type badge renders with purple styling classes', () => {
       render(
-        <SourceNotesList links={[createNoteLink({ linkType: 'CREATED' })]} workspaceSlug="ws" />
+        <SourceNotesList links={[createNoteLink({ linkType: 'inline' })]} workspaceSlug="ws" />
       );
 
-      const badge = screen.getByText('Created');
-      expect(badge.className).toContain('bg-emerald-100');
-      expect(badge.className).toContain('text-emerald-700');
+      const badge = screen.getByText('Inline');
+      expect(badge.className).toContain('bg-purple-100');
+      expect(badge.className).toContain('text-purple-700');
     });
 
-    it('REFERENCED link type badge renders with sky styling classes', () => {
+    it('referenced link type badge renders with sky styling classes', () => {
       render(
-        <SourceNotesList links={[createNoteLink({ linkType: 'REFERENCED' })]} workspaceSlug="ws" />
+        <SourceNotesList links={[createNoteLink({ linkType: 'referenced' })]} workspaceSlug="ws" />
       );
 
       const badge = screen.getByText('Referenced');
