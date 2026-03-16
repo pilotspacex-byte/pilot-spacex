@@ -40,7 +40,13 @@ export const ContextNotesResultCard = memo<ContextNotesResultCardProps>(
                 key={note.noteId ?? idx}
                 noteId={note.noteId}
                 noteTitle={note.noteTitle}
-                linkType={note.linkType as 'extracted' | 'referenced' | 'related' | 'inline'}
+                linkType={
+                  (['extracted', 'referenced', 'related', 'inline'] as const).includes(
+                    note.linkType as 'extracted' | 'referenced' | 'related' | 'inline'
+                  )
+                    ? (note.linkType as 'extracted' | 'referenced' | 'related' | 'inline')
+                    : 'related'
+                }
                 workspaceSlug={note.workspaceSlug ?? topSlug}
               />
             ))}

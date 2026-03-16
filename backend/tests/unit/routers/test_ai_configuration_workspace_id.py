@@ -7,14 +7,10 @@ expects workspace_id as a non-body query parameter (not in request body).
 from __future__ import annotations
 
 import inspect
-from uuid import uuid4
 
 import pytest
 
 pytestmark = pytest.mark.asyncio
-
-WORKSPACE_ID = uuid4()
-USER_ID = uuid4()
 
 
 async def test_create_ai_configuration_workspace_id_is_query_param() -> None:

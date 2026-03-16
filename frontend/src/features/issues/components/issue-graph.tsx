@@ -5,7 +5,7 @@
  *
  * Renders three sections:
  *   Project     — pill linking to the project page
- *   Notes       — noteLinks grouped by CREATED / EXTRACTED / REFERENCED
+ *   Notes       — noteLinks grouped by extracted / referenced / related / inline
  *   Relations   — issue-to-issue links (blocks / blocked_by / duplicates / related)
  *
  * Presentational component: receives `relations` and `relationsLoading` as props

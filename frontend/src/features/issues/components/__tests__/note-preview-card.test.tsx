@@ -94,6 +94,11 @@ describe('NotePreviewCard', () => {
     expect(screen.getByText('Referenced')).toBeInTheDocument();
   });
 
+  it('shows badge text "Inline" for linkType inline', () => {
+    render(<NotePreviewCard {...BASE_PROPS} linkType="inline" />);
+    expect(screen.getByText('Inline')).toBeInTheDocument();
+  });
+
   it('uses workspaceSlug and noteId in the pushed path', () => {
     render(
       <NotePreviewCard
