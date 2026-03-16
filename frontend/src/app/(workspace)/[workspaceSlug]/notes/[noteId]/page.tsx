@@ -7,20 +7,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useRouter, useParams } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { FileX, ArrowLeft, SmilePlus } from 'lucide-react';
+import { FileX, ArrowLeft } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NoteCanvas } from '@/components/editor/NoteCanvas';
 import { PageBreadcrumb } from '@/components/editor/PageBreadcrumb';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
 import { useNote, useUpdateNote, useAutoSave, useProjectPageTree } from '@/features/notes/hooks';
-import { projectTreeKeys } from '@/features/notes/hooks/useProjectPageTree';
-import { personalPagesKeys } from '@/features/notes/hooks/usePersonalPages';
 import { useDeleteNote } from '@/features/notes/hooks/useDeleteNote';
 import { useTogglePin } from '@/hooks/useTogglePin';
 import { useNoteVersions, useRestoreNoteVersion } from '@/hooks/useNoteVersions';
@@ -142,12 +137,6 @@ const NoteDetailPage = observer(function NoteDetailPage() {
 
   // Get workspace ID from context (preferred) or workspaceSlug fallback
   const workspaceId = workspace?.id ?? workspaceSlug;
-
-  const queryClient = useQueryClient();
-
-  // Emoji picker state
-  const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
-  const [emojiInput, setEmojiInput] = useState('');
 
   // Check if params are available (used for conditional rendering later, not early return)
   const hasValidParams = !!workspaceSlug && !!noteId;
@@ -362,26 +351,6 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     setShowVersionHistory((prev) => !prev);
   }, []);
 
-  // Handle emoji update — immediate (not debounced), invalidates tree cache so sidebar refreshes
-  const handleEmojiChange = useCallback(
-    (emoji: string | null) => {
-      updateNote.mutate({ iconEmoji: emoji });
-      // Invalidate the page tree so the sidebar emoji updates immediately
-      if (note?.projectId) {
-        void queryClient.invalidateQueries({
-          queryKey: projectTreeKeys.tree(workspaceId, note.projectId),
-        });
-      } else {
-        void queryClient.invalidateQueries({
-          queryKey: personalPagesKeys.all,
-        });
-      }
-      setEmojiPopoverOpen(false);
-      setEmojiInput('');
-    },
-    [updateNote, queryClient, workspaceId, note?.projectId]
-  );
-
   // Handle version restore
   const handleRestoreVersion = useCallback(
     async (version: NoteVersion) => {
@@ -413,63 +382,6 @@ const NoteDetailPage = observer(function NoteDetailPage() {
           />
         </div>
       )}
-
-      {/* Emoji picker — Notion-style icon button above the editor */}
-      <div className="px-6 pt-3 pb-1">
-        <Popover
-          open={emojiPopoverOpen}
-          onOpenChange={(open) => {
-            setEmojiPopoverOpen(open);
-            if (open) setEmojiInput(note.iconEmoji ?? '');
-          }}
-        >
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
-              aria-label={note.iconEmoji ? 'Change icon' : 'Add icon'}
-            >
-              {note.iconEmoji ? (
-                <span className="text-2xl leading-none">{note.iconEmoji}</span>
-              ) : (
-                <SmilePlus className="h-5 w-5" />
-              )}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-48 p-2" align="start">
-            <div className="flex gap-2">
-              <Input
-                value={emojiInput}
-                onChange={(e) => setEmojiInput(e.target.value)}
-                aria-label="Page icon emoji"
-                placeholder="Type emoji..."
-                className="h-8 text-base"
-                maxLength={10}
-                autoFocus
-              />
-              <Button
-                size="sm"
-                className="h-8 shrink-0"
-                onClick={() => {
-                  const emoji = emojiInput.trim() || null;
-                  handleEmojiChange(emoji);
-                }}
-              >
-                Set
-              </Button>
-            </div>
-            {note.iconEmoji && (
-              <button
-                type="button"
-                className="mt-1 w-full text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => handleEmojiChange(null)}
-              >
-                Remove icon
-              </button>
-            )}
-          </PopoverContent>
-        </Popover>
-      </div>
 
       {/* Editor with merged header - Three-column layout per Prototype v4 */}
       <div className="relative flex-1 overflow-hidden">
