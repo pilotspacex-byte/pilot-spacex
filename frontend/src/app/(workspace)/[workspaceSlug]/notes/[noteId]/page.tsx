@@ -25,6 +25,8 @@ import { getAncestors, flattenTree } from '@/lib/tree-utils';
 import { notesApi } from '@/services/api';
 import { notesKeys } from '@/features/notes/hooks';
 import type { JSONContent } from '@/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 /**
  * Strips propertyBlock nodes from TipTap content to prevent unknown node errors
