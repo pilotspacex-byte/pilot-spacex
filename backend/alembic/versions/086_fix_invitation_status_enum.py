@@ -1,6 +1,6 @@
 """Rename invitation_status enum values from lowercase to UPPERCASE.
 
-Revision ID: 081_fix_invitation_status_enum
+Revision ID: 086_fix_invitation_status_enum
 Revises: 072_merge_rls_and_mcp
 Create Date: 2026-03-16
 
@@ -24,8 +24,8 @@ from __future__ import annotations
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "081_fix_invitation_status_enum"
-down_revision: str = "080_add_note_icon_emoji"
+revision: str = "086_fix_invitation_status_enum"
+down_revision: str = "085_fix_084_downgrade_safety"
 branch_labels: tuple[str, ...] | None = None
 depends_on: tuple[str, ...] | None = None
 
