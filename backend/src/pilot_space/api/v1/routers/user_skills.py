@@ -52,9 +52,11 @@ def _to_schema(skill: object) -> UserSkillSchema:
         UserSkillSchema with template_name populated from joined template.
     """
     data = UserSkillSchema.model_validate(skill)
-    template = getattr(skill, "template", None)
-    if template is not None:
-        data.template_name = getattr(template, "name", None)
+    # Only access template relationship if template_id is set (avoids lazy='raise')
+    if getattr(skill, "template_id", None) is not None:
+        template = getattr(skill, "template", None)
+        if template is not None:
+            data.template_name = getattr(template, "name", None)
     return data
 
 
