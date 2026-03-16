@@ -200,7 +200,7 @@ class IssueResponse(BaseSchema):
                     id=link.id,
                     note_id=link.note_id,
                     issue_id=link.issue_id,
-                    link_type=link.link_type.value.upper(),
+                    link_type=link.link_type.value,
                     note_title=link.note.title if link.note else "",
                 )
                 # Issue.note_links uses lazy="selectin" with no is_deleted join filter,
