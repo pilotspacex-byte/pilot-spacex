@@ -1,10 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: unknown
-stopped_at: "Completed quick task 260317-0ce: fix skill editing — AI parser + skill_name + expandable cards"
-last_updated: "2026-03-16T17:33:40.112Z"
+milestone: v1.0.0-alpha2
+milestone_name: Notion-Style Restructure
+status: completed
+stopped_at: Milestone archived
+last_updated: "2026-03-17"
+last_activity: "2026-03-17 — Completed quick task 260317-0ce: fix skill editing (AI parser + skill_name + expandable cards)"
 progress:
   total_phases: 18
   completed_phases: 17
@@ -67,10 +68,11 @@ None.
 | 260316-kaf | Remove note emoji selector | 2026-03-16 | 636933f8 | Done | [260316-kaf-remove-note-emoji-selector-in-new-branch](./quick/260316-kaf-remove-note-emoji-selector-in-new-branch/) |
 | 260316-phe | Investigate & fix skill features (7 issues fixed) | 2026-03-16 | f01d76a0 | Verified | [260316-phe-investigate-into-current-pilot-space-ski](./quick/260316-phe-investigate-into-current-pilot-space-ski/) |
 | 260316-v8c | Improve provider setup UI/UX with dropdown selection | 2026-03-16 | 34d7e3cd | Done | [260316-v8c-improve-provider-setup-ui-ux-with-llm-em](./quick/260316-v8c-improve-provider-setup-ui-ux-with-llm-em/) |
+| 260317-0ce | Fix skill editing: AI parser, skill_name, expandable cards, editable preview | 2026-03-17 | c234324c | Verified | [260317-0ce-fix-skill-editing-allow-edit-skill-conte](./quick/260317-0ce-fix-skill-editing-allow-edit-skill-conte/) |
 
 ## Session Continuity
 
-Last session: 2026-03-16T17:33:40.108Z
-Stopped at: Completed quick task 260317-0ce: fix skill editing — AI parser + skill_name + expandable cards
+Last session: 2026-03-17
+Stopped at: Completed quick task 260317-0ce (skill editing fixes)
 Resume file: None
 Next action: `/gsd:new-milestone`
