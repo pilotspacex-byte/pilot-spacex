@@ -1,0 +1,193 @@
+/**
+ * ProviderConfigForm - Configuration form for a single AI provider.
+ *
+ * Renders base_url, model_name, and api_key fields based on provider config.
+ * Handles save logic with validation and toast feedback.
+ */
+
+'use client';
+
+import * as React from 'react';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { APIKeyInput } from './api-key-input';
+import { useStore } from '@/stores';
+import { toast } from 'sonner';
+import type { WorkspaceAISettingsProvider } from '@/services/api/ai';
+
+interface ProviderFieldConfig {
+  name: string;
+  fields: ('api_key' | 'base_url' | 'model_name')[];
+  apiKeyOptional?: boolean;
+  baseUrlRequired?: boolean;
+  baseUrlPlaceholder?: string;
+  modelPlaceholder?: string;
+}
+
+const PROVIDER_CONFIG: Record<string, ProviderFieldConfig> = {
+  google: {
+    name: 'Google Gemini',
+    fields: ['api_key', 'base_url'],
+    baseUrlPlaceholder: 'https://generativelanguage.googleapis.com (optional)',
+  },
+  anthropic: {
+    name: 'Anthropic',
+    fields: ['api_key', 'base_url'],
+    baseUrlPlaceholder: 'https://api.anthropic.com (optional)',
+  },
+  ollama: {
+    name: 'Ollama',
+    fields: ['base_url', 'model_name', 'api_key'],
+    apiKeyOptional: true,
+    baseUrlRequired: true,
+    baseUrlPlaceholder: 'http://localhost:11434',
+    modelPlaceholder: 'e.g. nomic-embed-text, qwen2.5',
+  },
+};
+
+/** Resolve model placeholder based on provider + service type. */
+function getModelPlaceholder(
+  provider: string,
+  serviceType: 'embedding' | 'llm',
+  config: ProviderFieldConfig
+): string {
+  if (provider === 'ollama' && serviceType === 'embedding') {
+    return 'nomic-embed-text-v2-moe';
+  }
+  if (provider === 'ollama' && serviceType === 'llm') {
+    return 'qwen2.5';
+  }
+  return config.modelPlaceholder ?? 'Model name';
+}
+
+export interface ProviderConfigFormProps {
+  provider: string;
+  serviceType: 'embedding' | 'llm';
+  status: WorkspaceAISettingsProvider | undefined;
+  onSaved: () => void;
+}
+
+export function ProviderConfigForm({
+  provider,
+  serviceType,
+  status,
+  onSaved,
+}: ProviderConfigFormProps) {
+  const { ai } = useStore();
+  const { settings } = ai;
+  const config = PROVIDER_CONFIG[provider];
+
+  const [apiKey, setApiKey] = React.useState('');
+  const [baseUrl, setBaseUrl] = React.useState(status?.baseUrl ?? '');
+  const [modelName, setModelName] = React.useState(status?.modelName ?? '');
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  // Reset fields when provider or status changes
+  React.useEffect(() => {
+    setApiKey('');
+    setBaseUrl(status?.baseUrl ?? '');
+    setModelName(status?.modelName ?? '');
+  }, [provider, status?.baseUrl, status?.modelName]);
+
+  if (!config) return null;
+
+  const modelPlaceholder = getModelPlaceholder(provider, serviceType, config);
+
+  const handleSave = async () => {
+    const entry: {
+      provider: string;
+      service_type: 'embedding' | 'llm';
+      api_key?: string;
+      base_url?: string;
+      model_name?: string;
+    } = { provider, service_type: serviceType };
+
+    const hasApiKey = apiKey.trim().length > 0;
+    if (hasApiKey) entry.api_key = apiKey.trim();
+
+    const hasBaseUrl = baseUrl.trim().length > 0;
+    const hasModelName = modelName.trim().length > 0;
+    if (hasBaseUrl) entry.base_url = baseUrl.trim();
+    if (hasModelName) entry.model_name = modelName.trim();
+
+    if (config.baseUrlRequired && !hasBaseUrl && !status?.baseUrl) {
+      toast.error('Base URL is required for this provider');
+      return;
+    }
+
+    if (!hasApiKey && !hasBaseUrl && !hasModelName) {
+      toast.info('No changes to save');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await settings.saveSettings({ api_keys: [entry] });
+      toast.success(`${config.name} settings saved`);
+      setApiKey('');
+      onSaved();
+    } catch (error) {
+      toast.error(`Failed to save ${config.name} settings`, {
+        description: error instanceof Error ? error.message : 'Please try again',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 pt-2">
+      {config.fields.includes('base_url') && (
+        <div className="space-y-2">
+          <Label htmlFor={`${provider}-${serviceType}-base-url`}>
+            Base URL{config.baseUrlRequired ? '' : ' (optional)'}
+          </Label>
+          <Input
+            id={`${provider}-${serviceType}-base-url`}
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder={
+              status?.baseUrl ?? config.baseUrlPlaceholder ?? 'https://api.example.com/v1'
+            }
+            disabled={isSaving}
+            autoComplete="off"
+          />
+        </div>
+      )}
+
+      {config.fields.includes('model_name') && (
+        <div className="space-y-2">
+          <Label htmlFor={`${provider}-${serviceType}-model-name`}>Model Name</Label>
+          <Input
+            id={`${provider}-${serviceType}-model-name`}
+            value={modelName}
+            onChange={(e) => setModelName(e.target.value)}
+            placeholder={status?.modelName ?? modelPlaceholder}
+            disabled={isSaving}
+            autoComplete="off"
+          />
+        </div>
+      )}
+
+      {config.fields.includes('api_key') && (
+        <APIKeyInput
+          label={config.apiKeyOptional ? 'API Key (optional)' : 'API Key'}
+          value={apiKey}
+          onChange={setApiKey}
+          isSet={!config.apiKeyOptional && (status?.isConfigured ?? false)}
+          provider={provider}
+          disabled={isSaving}
+        />
+      )}
+
+      <div className="flex justify-end pt-2">
+        <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px]">
+          {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isSaving ? 'Saving...' : 'Save'}
+        </Button>
+      </div>
+    </div>
+  );
+}
