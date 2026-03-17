@@ -394,6 +394,26 @@ class GenerateRoleSkillService:
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
 
+        # Third attempt: extract fields via regex for malformed JSON
+        # (e.g., kimi returns JSON with unescaped newlines in string values)
+        sc_match = re.search(
+            r'"skill_content"\s*:\s*"((?:[^"\\]|\\.)*)"|'
+            r'"skill_content"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*\})',
+            text,
+        )
+        if sc_match:
+            raw_content = sc_match.group(1) or sc_match.group(2) or ""
+            # Unescape JSON escape sequences
+            skill_content = raw_content.replace("\\n", "\n").replace('\\"', '"')
+            if skill_content and len(skill_content.strip()) >= 50:
+                name_match = re.search(r'"suggested_role_name"\s*:\s*"([^"]*)"', text)
+                suggested_name = name_match.group(1) if name_match else (role_name or display_name)
+                logger.info(
+                    "AI response parsed via regex field extraction (malformed JSON)",
+                    extra={"model": model, "content_length": len(skill_content)},
+                )
+                return (skill_content, suggested_name, model)
+
         # Fallback: treat raw response as markdown skill content directly
         if len(text.strip()) >= 50:
             suggested_name = self._suggest_role_name_heuristic(

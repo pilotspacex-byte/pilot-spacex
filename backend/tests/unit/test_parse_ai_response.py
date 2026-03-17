@@ -83,6 +83,25 @@ def test_parse_json_embedded_in_text(service: GenerateRoleSkillService) -> None:
     assert not content.startswith('{"skill_content"')
 
 
+def test_parse_malformed_json_with_unescaped_newlines(service: GenerateRoleSkillService) -> None:
+    """JSON with real newlines in string values (common with kimi/Ollama) is extracted."""
+    raw = (
+        '{\n  "skill_content": "# Custom Role\n\n## Context\n'
+        "This is AI assistant config with enough content to exceed"
+        ' the fifty character minimum for validation.",\n'
+        '  "suggested_role_name": "Senior Backend Developer"\n}'
+    )
+    result = service._parse_ai_response(raw, "Custom Role", None, "kimi")
+    assert result is not None
+    content, name, model = result
+    assert content.startswith("# Custom Role")
+    assert name == "Senior Backend Developer"
+    assert model == "kimi"
+    # Must NOT contain JSON keys
+    assert '"skill_content"' not in content
+    assert '"suggested_role_name"' not in content
+
+
 def test_parse_pure_markdown_no_json(service: GenerateRoleSkillService) -> None:
     """Pure markdown (no JSON at all) is returned as skill_content (stripped)."""
     markdown = (
