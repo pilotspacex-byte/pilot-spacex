@@ -13,9 +13,9 @@
  * @see IssueLinkExtension — template for this pattern
  */
 import { Extension } from '@tiptap/core';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 
 /**
  * Entity match found in document text
@@ -70,8 +70,9 @@ let activeTimeout: ReturnType<typeof setTimeout> | null = null;
 // ---------------------------------------------------------------------------
 function onDocumentPointerMove(event: PointerEvent): void {
   if (activeCard === null && activeTimeout === null) return;
-  const target = event.target as HTMLElement | null;
-  if (!target?.classList?.contains('entity-highlight')) {
+  const el =
+    event.target instanceof Element ? event.target : (event.target as Node | null)?.parentElement;
+  if (!el?.closest('.entity-highlight')) {
     hideCard();
   }
 }
@@ -88,6 +89,22 @@ function detachDocumentListener(): void {
   if (!documentListenerAttached) return;
   document.removeEventListener('pointermove', onDocumentPointerMove);
   documentListenerAttached = false;
+}
+
+// ---------------------------------------------------------------------------
+// @internal — exported only for unit tests (not part of the public API)
+// ---------------------------------------------------------------------------
+/** @internal */
+export function _showCard(entity: EntityMatch, rect: DOMRect): void {
+  showCard(entity, rect);
+}
+/** @internal */
+export function _hideCard(): void {
+  hideCard();
+}
+/** @internal */
+export function _isDocumentListenerAttached(): boolean {
+  return documentListenerAttached;
 }
 
 /**
