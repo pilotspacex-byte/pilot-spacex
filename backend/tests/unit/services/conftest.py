@@ -475,8 +475,7 @@ CREATE TABLE IF NOT EXISTS user_role_skills (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_deleted BOOLEAN DEFAULT 0 NOT NULL,
-    deleted_at DATETIME,
-    UNIQUE(user_id, workspace_id, role_type)
+    deleted_at DATETIME
 );
 """
 

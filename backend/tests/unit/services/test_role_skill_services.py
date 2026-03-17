@@ -223,25 +223,26 @@ class TestCreateRoleSkillService:
                 )
             )
 
-    async def test_create_rejects_duplicate_role_type(
+    async def test_create_allows_duplicate_role_type(
         self,
         db_session: AsyncSession,
         user: User,
         workspace: Workspace,
         existing_skill: UserRoleSkill,
     ) -> None:
-        """Reject duplicate role_type in same workspace."""
+        """Allow duplicate role_type in same workspace (constraint dropped in migration 087)."""
         service = CreateRoleSkillService(db_session)
-        with pytest.raises(ValueError, match="already exists"):
-            await service.execute(
-                CreateRoleSkillPayload(
-                    user_id=user.id,
-                    workspace_id=workspace.id,
-                    role_type="developer",
-                    role_name="Another Dev",
-                    skill_content="Content",
-                )
+        result = await service.execute(
+            CreateRoleSkillPayload(
+                user_id=user.id,
+                workspace_id=workspace.id,
+                role_type="developer",
+                role_name="Another Dev",
+                skill_content="Content",
             )
+        )
+        assert result.role_type == "developer"
+        assert result.role_name == "Another Dev"
 
     async def test_create_primary_demotes_existing(
         self,

@@ -5,7 +5,7 @@ Tests for APIKeyUpdate and ProviderStatus Pydantic schemas covering:
 - service_type required field
 - base_url/model_name optional fields
 - api_key optional for ollama
-- supports_both field on ProviderStatus
+- base_url/model_name optional fields on ProviderStatus
 """
 
 from __future__ import annotations
@@ -174,23 +174,6 @@ class TestProviderStatusSchema:
             is_configured=True,
         )
         assert status.service_type == "embedding"
-
-    def test_supports_both_defaults_false(self) -> None:
-        status = ProviderStatus(
-            provider="anthropic",
-            service_type="llm",
-            is_configured=False,
-        )
-        assert status.supports_both is False
-
-    def test_supports_both_true_for_ollama(self) -> None:
-        status = ProviderStatus(
-            provider="ollama",
-            service_type="llm",
-            is_configured=True,
-            supports_both=True,
-        )
-        assert status.supports_both is True
 
     def test_base_url_and_model_name_fields_present(self) -> None:
         status = ProviderStatus(

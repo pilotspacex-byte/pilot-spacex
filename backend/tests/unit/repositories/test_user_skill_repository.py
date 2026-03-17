@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS user_skills (
     template_id TEXT REFERENCES skill_templates(id) ON DELETE SET NULL,
     skill_content TEXT NOT NULL,
     experience_description TEXT,
+    skill_name TEXT,
     is_active BOOLEAN NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,

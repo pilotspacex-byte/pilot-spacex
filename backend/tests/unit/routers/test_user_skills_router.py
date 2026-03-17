@@ -78,6 +78,7 @@ def _make_skill(
     skill.template_id = template_id or TEMPLATE_ID
     skill.skill_content = "# My Skill\nPersonalized content."
     skill.experience_description = "5 years experience"
+    skill.skill_name = None
     skill.is_active = is_active
     skill.is_deleted = is_deleted
     skill.created_at = datetime.now(tz=UTC)
