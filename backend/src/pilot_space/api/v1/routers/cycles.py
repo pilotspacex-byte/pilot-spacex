@@ -26,6 +26,8 @@ from pilot_space.api.v1.schemas.cycle import (
     CycleUpdateRequest,
     RolloverCycleRequest,
     RolloverCycleResponse,
+    VelocityChartResponse,
+    VelocityDataPoint,
 )
 from pilot_space.api.v1.schemas.issue import (
     IssueBriefResponse,
@@ -195,6 +197,49 @@ async def get_active_cycle(
         return None
 
     return CycleResponse.from_cycle(result.cycle, metrics=result.metrics)
+
+
+@router.get(
+    "/velocity",
+    response_model=VelocityChartResponse,
+    summary="Get velocity chart data",
+)
+async def get_velocity_chart(
+    session: SessionDep,
+    workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
+    get_service: GetCycleServiceDep,
+    project_id: UUID,
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> VelocityChartResponse:
+    """Get velocity chart data for a project.
+
+    Returns velocity data points from completed cycles.
+
+    Args:
+        workspace_id: Current workspace.
+        get_service: Cycle get service.
+        project_id: Project ID.
+        limit: Maximum number of cycles to include.
+
+    Returns:
+        Velocity chart data with data points and average.
+    """
+    result = await get_service.get_velocity_chart(project_id, limit=limit)
+
+    return VelocityChartResponse(
+        project_id=result.project_id,
+        data_points=[
+            VelocityDataPoint(
+                cycle_id=dp.cycle_id,
+                cycle_name=dp.cycle_name,
+                completed_points=dp.completed_points,
+                committed_points=dp.committed_points,
+                velocity=dp.velocity,
+            )
+            for dp in result.data_points
+        ],
+        average_velocity=result.average_velocity,
+    )
 
 
 @router.get(

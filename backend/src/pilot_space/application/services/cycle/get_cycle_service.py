@@ -44,6 +44,26 @@ class GetCycleResult:
 
 
 @dataclass
+class VelocityDataPoint:
+    """Single velocity data point for a completed cycle."""
+
+    cycle_id: UUID
+    cycle_name: str
+    completed_points: int
+    committed_points: int
+    velocity: float
+
+
+@dataclass
+class VelocityChartResult:
+    """Result from velocity chart query."""
+
+    project_id: UUID
+    data_points: list[VelocityDataPoint]
+    average_velocity: float
+
+
+@dataclass
 class ListCyclesPayload:
     """Payload for listing cycles.
 
@@ -204,6 +224,48 @@ class GetCycleService:
             page_size=page.page_size,
         )
 
+    async def get_velocity_chart(
+        self,
+        project_id: UUID,
+        *,
+        limit: int = 10,
+    ) -> VelocityChartResult:
+        """Get velocity chart data for a project.
+
+        Returns velocity data points from the most recent completed cycles.
+
+        Args:
+            project_id: Project UUID.
+            limit: Maximum number of cycles to include.
+
+        Returns:
+            VelocityChartResult with data points and average.
+        """
+        pairs = await self._cycle_repo.get_completed_cycles_with_metrics(project_id, limit=limit)
+
+        data_points: list[VelocityDataPoint] = []
+        total_velocity = 0.0
+
+        # Reverse to show oldest first (chronological order)
+        for cycle, metrics in reversed(pairs):
+            point = VelocityDataPoint(
+                cycle_id=cycle.id,
+                cycle_name=cycle.name,
+                completed_points=metrics.completed_points,
+                committed_points=metrics.total_points,
+                velocity=metrics.velocity,
+            )
+            data_points.append(point)
+            total_velocity += metrics.velocity
+
+        average_velocity = total_velocity / len(data_points) if data_points else 0.0
+
+        return VelocityChartResult(
+            project_id=project_id,
+            data_points=data_points,
+            average_velocity=average_velocity,
+        )
+
 
 __all__ = [
     "GetCyclePayload",
@@ -211,4 +273,6 @@ __all__ = [
     "GetCycleService",
     "ListCyclesPayload",
     "ListCyclesResult",
+    "VelocityChartResult",
+    "VelocityDataPoint",
 ]

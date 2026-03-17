@@ -375,6 +375,51 @@ class CycleRepository(BaseRepository[Cycle]):
             velocity=velocity,
         )
 
+    async def get_completed_cycles_with_metrics(
+        self,
+        project_id: UUID,
+        *,
+        limit: int = 10,
+    ) -> list[tuple[Cycle, CycleMetrics]]:
+        """Get completed cycles with their metrics for velocity chart.
+
+        Returns cycles ordered by sequence descending (most recent first).
+
+        Args:
+            project_id: Project UUID.
+            limit: Maximum number of cycles to return.
+
+        Returns:
+            List of (cycle, metrics) tuples.
+        """
+        query = (
+            select(Cycle)
+            .options(
+                joinedload(Cycle.project),
+                joinedload(Cycle.owned_by),
+            )
+            .where(
+                and_(
+                    Cycle.project_id == project_id,
+                    Cycle.status == CycleStatus.COMPLETED,
+                    Cycle.is_deleted == False,  # noqa: E712
+                )
+            )
+            .order_by(desc(Cycle.sequence))
+            .limit(limit)
+        )
+
+        result = await self.session.execute(query)
+        cycles = list(result.unique().scalars().all())
+
+        pairs: list[tuple[Cycle, CycleMetrics]] = []
+        for cycle in cycles:
+            metrics = await self.get_cycle_metrics(cycle.id)
+            if metrics:
+                pairs.append((cycle, metrics))
+
+        return pairs
+
     async def get_next_sequence(self, project_id: UUID) -> int:
         """Get the next sequence number for a project.
 

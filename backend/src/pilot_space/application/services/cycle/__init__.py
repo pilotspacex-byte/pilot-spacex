@@ -21,6 +21,8 @@ from pilot_space.application.services.cycle.get_cycle_service import (
     GetCycleService,
     ListCyclesPayload,
     ListCyclesResult,
+    VelocityChartResult,
+    VelocityDataPoint,
 )
 from pilot_space.application.services.cycle.rollover_cycle_service import (
     RolloverCyclePayload,
@@ -53,4 +55,6 @@ __all__ = [
     "UpdateCyclePayload",
     "UpdateCycleResult",
     "UpdateCycleService",
+    "VelocityChartResult",
+    "VelocityDataPoint",
 ]
