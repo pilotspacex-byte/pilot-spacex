@@ -28,8 +28,8 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# In-memory sliding window rate limiter: max 5 generations/hour/user (FR-003)
-_RATE_LIMIT_MAX = 5
+# In-memory sliding window rate limiter: max 30 generations/hour/user (FR-003)
+_RATE_LIMIT_MAX = 30
 _RATE_LIMIT_WINDOW_SECONDS = 3600
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 
