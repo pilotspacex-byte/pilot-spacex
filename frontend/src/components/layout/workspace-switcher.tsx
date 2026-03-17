@@ -2,7 +2,7 @@
 
 import { observer } from 'mobx-react-lite';
 import { useRouter } from 'next/navigation';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Building2, Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores';
 import { workspacesApi } from '@/services/api/workspaces';
@@ -303,6 +303,13 @@ export const WorkspaceSwitcher = observer(function WorkspaceSwitcher({
 
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Fetch all workspaces when popover opens so the list is populated
+  useEffect(() => {
+    if (popoverOpen) {
+      workspaceStore.fetchWorkspaces();
+    }
+  }, [popoverOpen, workspaceStore]);
 
   const currentWorkspace: Workspace | undefined =
     workspaceStore.workspaceList.find((ws) => ws.slug === currentSlug) ??

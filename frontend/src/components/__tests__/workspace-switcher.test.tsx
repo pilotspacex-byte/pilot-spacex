@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Workspace } from '@/types';
 
@@ -44,10 +44,12 @@ const wsB: Workspace = {
 };
 
 // Mock workspace store
+const mockFetchWorkspaces = vi.fn();
 const mockWorkspaceStore = {
   workspaceList: [wsA, wsB],
   currentWorkspace: wsA,
   selectWorkspace: vi.fn(),
+  fetchWorkspaces: mockFetchWorkspaces,
 };
 
 vi.mock('@/stores', () => ({
@@ -61,7 +63,19 @@ vi.mock('@/components/workspace-selector', () => ({
 
 // Minimal UI component stubs
 vi.mock('@/components/ui/popover', () => ({
-  Popover: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Popover: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) => (
+    <div data-open={open} data-testid="popover-root" onClick={() => onOpenChange?.(!open)}>
+      {children}
+    </div>
+  ),
   PopoverTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) =>
     asChild ? <>{children}</> : <div>{children}</div>,
   PopoverContent: ({ children }: { children: React.ReactNode }) => (
@@ -124,6 +138,7 @@ describe('WorkspaceSwitcher', () => {
     mockPush.mockClear();
     mockGetLastWorkspacePath.mockClear();
     mockWorkspaceStore.selectWorkspace.mockClear();
+    mockFetchWorkspaces.mockClear();
   });
 
   it('renders member count for each workspace', () => {
@@ -161,5 +176,25 @@ describe('WorkspaceSwitcher', () => {
 
     expect(mockGetLastWorkspacePath).toHaveBeenCalledWith('ws-beta');
     expect(mockPush).toHaveBeenCalledWith('/ws-beta');
+  });
+
+  it('fetches workspaces when popover opens', () => {
+    render(<WorkspaceSwitcher currentSlug="ws-alpha" />);
+
+    // fetchWorkspaces should NOT be called on initial render (popover is closed)
+    expect(mockFetchWorkspaces).not.toHaveBeenCalled();
+
+    // Click the trigger button to open the popover
+    const triggerButton = screen.getByRole('button', { name: /Switch workspace/i });
+    act(() => {
+      fireEvent.click(triggerButton);
+    });
+
+    expect(mockFetchWorkspaces).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fetch workspaces when popover is closed', () => {
+    render(<WorkspaceSwitcher currentSlug="ws-alpha" />);
+    expect(mockFetchWorkspaces).not.toHaveBeenCalled();
   });
 });
