@@ -46,16 +46,7 @@ from pilot_space.ai.agents.role_skill_materializer import materialize_role_skill
 from pilot_space.ai.agents.sse_delta_buffer import DeltaBuffer
 from pilot_space.ai.context import clear_context, set_workspace_context
 from pilot_space.ai.prompt import PromptLayerConfig, assemble_system_prompt
-from pilot_space.ai.sdk.hooks import PermissionAwareHookExecutor
 from pilot_space.ai.sdk.sandbox_config import ModelTier, configure_sdk_for_space
-from pilot_space.infrastructure.database import get_db_session
-from pilot_space.infrastructure.database.repositories.role_skill_repository import (
-    RoleSkillRepository,
-)
-from pilot_space.infrastructure.database.repositories.user_skill_repository import (
-    UserSkillRepository,
-)
-from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.spaces.manager import SpaceManager
 
@@ -292,6 +283,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         from pilot_space.ai.sdk.output_schemas import get_skill_output_format
         from pilot_space.ai.sdk.question_adapter import create_can_use_tool_callback
         from pilot_space.ai.tools.mcp_server import ToolContext
+        from pilot_space.infrastructure.database.repositories.role_skill_repository import (
+            RoleSkillRepository,
+        )
+        from pilot_space.infrastructure.database.repositories.user_skill_repository import (
+            UserSkillRepository,
+        )
+        from pilot_space.infrastructure.database.rls import set_rls_context
 
         await set_rls_context(db_session, context.user_id, context.workspace_id)
 
@@ -308,20 +306,21 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         )
 
         # Load user skills for prompt-level awareness (separate from disk materialization)
-        _active_skills = await UserSkillRepository(db_session).get_active_by_user_workspace(
-            context.user_id, context.workspace_id
-        )
-        _user_skills_for_prompt: list[dict[str, str]] = [
-            {
-                "name": _s.skill_name or (_s.template.name if _s.template else str(_s.id)[:8]),
-                "description": (
+        _user_skills_for_prompt: list[dict[str, str]] = []
+        try:
+            _active_skills = await UserSkillRepository(db_session).get_active_by_user_workspace(
+                context.user_id, context.workspace_id
+            )
+            for _s in _active_skills:
+                name = _s.skill_name or (_s.template.name if _s.template else str(_s.id)[:8])
+                desc = (
                     f"Personalized {_s.template.name} skill"
                     if _s.template
                     else (_s.experience_description or "")[:120]
-                ),
-            }
-            for _s in _active_skills
-        ]
+                )
+                _user_skills_for_prompt.append({"name": name, "description": desc})
+        except Exception:
+            logger.warning("Failed to load user skills for prompt", exc_info=True)
 
         _role_repo = RoleSkillRepository(db_session)
         _primary_role = await _role_repo.get_primary_by_user_workspace(
@@ -494,6 +493,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 )
                 logger.debug("[SDK/Space] Loaded hooks from %s", space_context.hooks_file)
 
+            from pilot_space.ai.sdk.hooks import PermissionAwareHookExecutor
+
             hook_executor = PermissionAwareHookExecutor(
                 permission_handler=self._permission_handler,
                 workspace_id=context.workspace_id,
@@ -502,6 +503,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 event_queue=tool_event_queue,
                 session_factory=self._session_factory,
             )
+
+            from pilot_space.infrastructure.database import get_db_session
 
             db_session_cm = get_db_session()
             db_session: AsyncSession | None = None
