@@ -109,3 +109,65 @@ def test_parse_too_short_response_returns_none(service: GenerateRoleSkillService
     """Responses under 50 chars return None (insufficient content)."""
     result = service._parse_ai_response("short", "Engineer", None, "claude-3-5-sonnet")
     assert result is None
+
+
+class TestCallLlmBlockExtraction:
+    """Test _call_api response block extraction logic.
+
+    Some providers (e.g., kimi via Ollama) return content in thinking blocks
+    instead of text blocks. The extraction must handle both.
+    """
+
+    def test_text_block_preferred_over_thinking(self) -> None:
+        """Text blocks are used when present, thinking blocks ignored."""
+        text_parts: list[str] = []
+        thinking_parts: list[str] = []
+
+        # Simulate blocks: thinking + text
+        blocks = [
+            {"type": "thinking", "thinking": "Let me think..."},
+            {"type": "text", "text": "Hello world"},
+        ]
+        for block_dict in blocks:
+            if block_dict["type"] == "text" and block_dict.get("text"):
+                text_parts.append(block_dict["text"])
+            elif block_dict["type"] == "thinking" and block_dict.get("thinking"):
+                thinking_parts.append(block_dict["thinking"])
+
+        result = "\n".join(text_parts) or "\n".join(thinking_parts)
+        assert result == "Hello world"
+
+    def test_thinking_block_fallback_when_no_text(self) -> None:
+        """Thinking blocks are used as fallback when no text blocks exist."""
+        text_parts: list[str] = []
+        thinking_parts: list[str] = []
+
+        blocks = [
+            {"type": "thinking", "thinking": "The answer is 42"},
+        ]
+        for block_dict in blocks:
+            if block_dict["type"] == "text" and block_dict.get("text"):
+                text_parts.append(block_dict["text"])
+            elif block_dict["type"] == "thinking" and block_dict.get("thinking"):
+                thinking_parts.append(block_dict["thinking"])
+
+        result = "\n".join(text_parts) or "\n".join(thinking_parts)
+        assert result == "The answer is 42"
+
+    def test_empty_text_block_falls_back_to_thinking(self) -> None:
+        """Empty text blocks are skipped, thinking block is used."""
+        text_parts: list[str] = []
+        thinking_parts: list[str] = []
+
+        blocks = [
+            {"type": "thinking", "thinking": "Reasoning content here"},
+            {"type": "text", "text": ""},
+        ]
+        for block_dict in blocks:
+            if block_dict["type"] == "text" and block_dict.get("text"):
+                text_parts.append(block_dict["text"])
+            elif block_dict["type"] == "thinking" and block_dict.get("thinking"):
+                thinking_parts.append(block_dict["thinking"])
+
+        result = "\n".join(text_parts) or "\n".join(thinking_parts)
+        assert result == "Reasoning content here"
