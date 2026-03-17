@@ -20,3 +20,4 @@ export { SkillCard } from './skill-card';
 export { SkillEditor } from './skill-editor';
 export { WordCountBar } from './word-count-bar';
 export { RegenerateSkillModal } from './regenerate-skill-modal';
+export { SkillDetailModal } from './skill-detail-modal';

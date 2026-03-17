@@ -23,6 +23,7 @@ import type { UserSkill } from '@/services/api/user-skills';
 import { useUpdateSkillTemplate, useDeleteSkillTemplate } from '@/services/api/skill-templates';
 import type { SkillTemplate } from '@/services/api/skill-templates';
 import { MySkillCard } from '../components/my-skill-card';
+import { SkillDetailModal } from '../components/skill-detail-modal';
 import { TemplateCatalog } from '../components/template-catalog';
 import { CreateTemplateModal } from '../components/create-template-modal';
 import { EditTemplateModal } from '../components/edit-template-modal';
@@ -104,6 +105,9 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   // Create/edit template modal state
   const [createTemplateOpen, setCreateTemplateOpen] = React.useState(false);
   const [templateToEdit, setTemplateToEdit] = React.useState<SkillTemplate | null>(null);
+
+  // Skill detail modal state
+  const [skillToView, setSkillToView] = React.useState<UserSkill | null>(null);
 
   // Confirm dialogs
   const [skillToDelete, setSkillToDelete] = React.useState<UserSkill | null>(null);
@@ -303,7 +307,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
                       skill={skill}
                       onToggleActive={handleToggleSkillActive}
                       onDelete={handleDeleteSkill}
-                      onEdit={handleEditSkill}
+                      onClick={setSkillToView}
                     />
                   ))}
                 </div>
@@ -342,6 +346,19 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
             workspaceId={workspaceId}
             workspaceSlug={workspaceSlug}
             template={selectedTemplate}
+          />
+
+          {/* Skill Detail Modal */}
+          <SkillDetailModal
+            skill={skillToView}
+            open={!!skillToView}
+            onOpenChange={(v) => {
+              if (!v) setSkillToView(null);
+            }}
+            onEdit={handleEditSkill}
+            onToggleActive={handleToggleSkillActive}
+            onDelete={handleDeleteSkill}
+            isSaving={updateUserSkill.isPending}
           />
 
           {/* Create Template Modal (admin only) */}
