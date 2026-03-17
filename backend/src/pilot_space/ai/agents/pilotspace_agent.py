@@ -780,6 +780,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                     ],
                                     issue_id=_issue_id_uuid,
                                     anthropic_api_key=provider_config.api_key,
+                                    base_url=provider_config.base_url,
                                 )
 
                     await client.disconnect()

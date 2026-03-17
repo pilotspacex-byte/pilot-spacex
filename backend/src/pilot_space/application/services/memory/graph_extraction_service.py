@@ -58,7 +58,8 @@ class ConversationExtractionPayload:
         workspace_id: Owning workspace for all extracted nodes.
         user_id: Optional user whose conversation produced the messages.
         issue_id: Optional issue context UUID for this conversation.
-        api_key: Anthropic API key. None → skip extraction (BYOK pattern).
+        api_key: LLM API key. None → skip extraction (BYOK pattern).
+        base_url: Optional base URL for Anthropic-compatible providers (e.g., Ollama).
     """
 
     messages: list[dict[str, str]]
@@ -66,6 +67,7 @@ class ConversationExtractionPayload:
     user_id: UUID | None = None
     issue_id: UUID | None = None
     api_key: str | None = None
+    base_url: str | None = None
 
 
 @dataclass
@@ -326,7 +328,7 @@ class GraphExtractionService:
             logger.debug("GraphExtractionService: empty messages list — returning empty result")
             return _empty_result()
 
-        raw_response = await self._call_llm(payload.api_key, payload.messages)
+        raw_response = await self._call_llm(payload.api_key, payload.messages, payload.base_url)
         if raw_response is None:
             return _empty_result()
 
@@ -340,12 +342,15 @@ class GraphExtractionService:
     # Private helpers
     # ------------------------------------------------------------------
 
-    async def _call_llm(self, api_key: str, messages: list[dict[str, str]]) -> str | None:
-        """Call Anthropic Claude Haiku for extraction.
+    async def _call_llm(
+        self, api_key: str, messages: list[dict[str, str]], base_url: str | None = None
+    ) -> str | None:
+        """Call LLM for extraction via Anthropic-compatible API.
 
         Args:
-            api_key: Anthropic API key.
+            api_key: LLM API key.
             messages: Conversation messages.
+            base_url: Optional base URL for Anthropic-compatible providers.
 
         Returns:
             Raw LLM response text, or None on failure.
@@ -354,18 +359,26 @@ class GraphExtractionService:
             import anthropic  # type: ignore[import-untyped]
 
             prompt = _build_prompt(messages)
-            client = anthropic.AsyncAnthropic(api_key=api_key)
+            client = anthropic.AsyncAnthropic(
+                api_key=api_key,
+                base_url=base_url or None,
+            )
             message = await client.messages.create(
                 model=_EXTRACTION_MODEL,
                 max_tokens=_MAX_TOKENS,
                 messages=[{"role": "user", "content": prompt}],
             )
-            # Extract text from the first content block (safe for all block union types)
+            # Extract text or thinking blocks (some providers return thinking only)
             if message.content:
-                first_block = message.content[0]
-                text_val = getattr(first_block, "text", None)
-                if text_val is not None:
-                    return str(text_val)
+                for block in message.content:
+                    text_val = getattr(block, "text", None)
+                    if text_val:
+                        return str(text_val)
+                # Fallback to thinking blocks
+                for block in message.content:
+                    thinking_val = getattr(block, "thinking", None)
+                    if thinking_val:
+                        return str(thinking_val)
             return None
         except Exception:
             logger.warning(
