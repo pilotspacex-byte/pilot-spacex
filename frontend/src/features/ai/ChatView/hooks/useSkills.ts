@@ -19,11 +19,11 @@ function userSkillToDefinition(skill: UserSkill): SkillDefinition {
   const description = lines[0]?.trim().slice(0, 100) || displayName;
 
   // Use kebab-case display name for the menu label (e.g., "senior-tdd-developer")
-  const slug =
-    displayName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '') || `skill-${skill.id.slice(0, 8)}`;
+  const baseSlug = displayName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  const slug = baseSlug ? `${baseSlug}-${skill.id.slice(0, 8)}` : `skill-${skill.id.slice(0, 8)}`;
 
   return {
     name: slug,

@@ -16,6 +16,7 @@ Layer order:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from pilot_space.ai.prompt.intent_classifier import (
@@ -166,8 +167,6 @@ def _sanitize_skill_text(text: str, max_length: int) -> str:
     Returns:
         Sanitized text safe for system prompt inclusion.
     """
-    import re
-
     cleaned = re.sub(r"\s+", " ", text).strip()
     return cleaned[:max_length]
 

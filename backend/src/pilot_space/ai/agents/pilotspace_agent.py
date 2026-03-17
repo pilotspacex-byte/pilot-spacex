@@ -234,7 +234,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         if key_info is not None:
             api_key = await ks.get_api_key(workspace_id, default_provider, "llm")
             return _ProviderConfig(
-                api_key=api_key or "ollama",  # Ollama doesn't need a real key
+                api_key=api_key or "no-key-required",  # Ollama doesn't need a real key
                 base_url=key_info.base_url,
                 model_name=key_info.model_name,
                 provider=default_provider,
@@ -247,7 +247,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 api_key = await ks.get_api_key(workspace_id, ki.provider, "llm")
                 if api_key or ki.base_url:  # Ollama has base_url but no key
                     return _ProviderConfig(
-                        api_key=api_key or "ollama",
+                        api_key=api_key or "no-key-required",
                         base_url=ki.base_url,
                         model_name=ki.model_name,
                         provider=ki.provider,
