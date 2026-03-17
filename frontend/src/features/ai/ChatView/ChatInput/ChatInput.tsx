@@ -92,7 +92,7 @@ export const ChatInput = observer<ChatInputProps>(
     sessionId,
     className,
   }) => {
-    const { skills: dynamicSkills } = useSkills();
+    const { skills: dynamicSkills } = useSkills(workspaceId);
     const { attachments, attachmentIds, addFile, addFromDrive, removeFile, reset } = useAttachments(
       {
         workspaceId: workspaceId ?? '',

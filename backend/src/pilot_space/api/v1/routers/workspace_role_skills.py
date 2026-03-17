@@ -16,8 +16,10 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
+from pilot_space.api.middleware import create_problem_response
 from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.api.v1.schemas.workspace_role_skill import (
     GenerateWorkspaceSkillRequest,
@@ -93,7 +95,7 @@ async def create_workspace_skill(
     request: GenerateWorkspaceSkillRequest,
     session: DbSession,
     current_user_id: CurrentUserId,
-) -> WorkspaceRoleSkillResponse:
+) -> WorkspaceRoleSkillResponse | JSONResponse:
     """Generate + create a workspace role skill.
 
     Args:
@@ -103,14 +105,16 @@ async def create_workspace_skill(
         current_user_id: Authenticated user UUID.
 
     Returns:
-        Created WorkspaceRoleSkillResponse with is_active=False.
-
-    Raises:
-        HTTPException: 403 if not admin/owner; 422 if invalid role_type.
+        Created WorkspaceRoleSkillResponse with is_active=False,
+        or RFC 7807 problem response on error.
     """
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
+    from pilot_space.application.services.role_skill.generate_role_skill_service import (
+        SkillGenerationError,
+        SkillGenerationRateLimitError,
+    )
     from pilot_space.application.services.workspace_role_skill import (
         CreateWorkspaceSkillPayload,
         CreateWorkspaceSkillService,
@@ -128,10 +132,22 @@ async def create_workspace_skill(
             )
         )
     except ValueError as exc:
-        raise HTTPException(
+        return create_problem_response(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
-        ) from exc
+        )
+    except SkillGenerationRateLimitError as exc:
+        return create_problem_response(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(exc),
+        )
+    except SkillGenerationError as exc:
+        return create_problem_response(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        )
+    except Exception:
+        raise
 
     logger.info(
         "[WorkspaceRoleSkills] Created skill workspace=%s role_type=%s user=%s",

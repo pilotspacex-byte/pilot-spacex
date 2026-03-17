@@ -22,6 +22,8 @@ from pilot_space.ai.providers.provider_selector import (
     ProviderConfig,
     ProviderSelector,
     TaskType,
+    WorkspaceLLMConfig,
+    resolve_workspace_llm_config,
 )
 
 __all__ = [
@@ -29,4 +31,6 @@ __all__ = [
     "ProviderConfig",
     "ProviderSelector",
     "TaskType",
+    "WorkspaceLLMConfig",
+    "resolve_workspace_llm_config",
 ]

@@ -10,6 +10,7 @@ Source: 011-role-based-skills, T010, FR-003, FR-004
 from __future__ import annotations
 
 import json
+import re
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -18,7 +19,11 @@ from uuid import UUID
 
 from pilot_space.ai.exceptions import ProviderUnavailableError
 from pilot_space.ai.infrastructure.resilience import ResilientExecutor, RetryConfig
-from pilot_space.ai.providers.provider_selector import ProviderSelector, TaskType
+from pilot_space.ai.providers.provider_selector import (
+    ProviderSelector,
+    TaskType,
+    resolve_workspace_llm_config,
+)
 from pilot_space.application.services.role_skill.types import VALID_ROLE_TYPES
 from pilot_space.infrastructure.logging import get_logger
 
@@ -27,8 +32,8 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# In-memory sliding window rate limiter: max 5 generations/hour/user (FR-003)
-_RATE_LIMIT_MAX = 5
+# In-memory sliding window rate limiter: max 30 generations/hour/user (FR-003)
+_RATE_LIMIT_MAX = 30
 _RATE_LIMIT_WINDOW_SECONDS = 3600
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 
@@ -43,7 +48,10 @@ class SkillGenerationError(Exception):
 class SkillGenerationRateLimitError(Exception):
     """Raised when user exceeds generation rate limit."""
 
-    def __init__(self, message: str = "Rate limit exceeded: max 5 generations per hour") -> None:
+    def __init__(
+        self,
+        message: str = f"Rate limit exceeded: max {_RATE_LIMIT_MAX} generations per hour",
+    ) -> None:
         super().__init__(message)
 
 
@@ -173,7 +181,7 @@ class GenerateRoleSkillService:
         template_content = await self._get_template_content(payload.role_type)
         display_name = await self._get_template_display_name(payload.role_type)
 
-        # Try AI generation first, fall back to template
+        # Generate via configured LLM provider (no silent fallback)
         ai_result = await self._try_generate_via_ai(
             role_type=payload.role_type,
             display_name=display_name,
@@ -194,7 +202,7 @@ class GenerateRoleSkillService:
                 generation_time_ms=elapsed_ms,
             )
 
-        # Fallback: template-based generation
+        # Only reach here if no LLM provider configured — use template
         skill_content = self._generate_content_from_template(
             template_content=template_content,
             display_name=display_name,
@@ -225,14 +233,17 @@ class GenerateRoleSkillService:
         role_name: str | None,
         workspace_id: UUID | None,
     ) -> tuple[str, str, str] | None:
-        """Attempt AI-powered generation via Claude Sonnet.
+        """Attempt AI-powered generation using the workspace's configured LLM provider.
+
+        All providers use the Anthropic API format. Provider-specific
+        base_url and api_key are passed per-request from workspace config.
 
         Returns:
             Tuple of (skill_content, suggested_role_name, model_name) or None.
         """
-        api_key = await self._resolve_api_key(workspace_id)
-        if api_key is None:
-            logger.info("No Anthropic API key available, using template fallback")
+        ws_config = await resolve_workspace_llm_config(self._session, workspace_id)
+        if ws_config is None:
+            logger.info("No LLM provider configured, using template fallback")
             return None
 
         prompt = _build_generation_prompt(
@@ -244,44 +255,96 @@ class GenerateRoleSkillService:
         )
 
         selector = ProviderSelector()
-        config = selector.select_with_config(TaskType.TEMPLATE_FILLING)
+        config = selector.select_with_config(
+            TaskType.TEMPLATE_FILLING, workspace_override=ws_config
+        )
         model = config.model
+        api_key = ws_config.api_key
+        base_url = ws_config.base_url
+        provider = ws_config.provider
 
         executor = ResilientExecutor()
         retry_config = RetryConfig(max_retries=2, base_delay_seconds=1.0)
+        # Cloud-proxied models (e.g., kimi-k2.5:cloud via Ollama) need longer
+        # timeouts since they relay to remote APIs
+        timeout_sec = 90.0 if provider == "ollama" else 30.0
 
+        raw_response: str | None = None
         try:
-            from anthropic import AsyncAnthropic
-
-            client = AsyncAnthropic(api_key=api_key)
-
-            async def _call_api() -> str:
-                response = await client.messages.create(
-                    model=model,
-                    max_tokens=2048,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                # Extract text from response
-                for block in response.content:
-                    if block.type == "text":
-                        return block.text
-                return ""
-
-            raw_response = await executor.execute(
-                provider="anthropic",
-                operation=_call_api,
-                timeout_sec=30.0,
+            raw_response = await self._call_llm(
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                prompt=prompt,
+                provider=provider,
+                executor=executor,
                 retry_config=retry_config,
+                timeout_sec=timeout_sec,
             )
+        except ProviderUnavailableError as e:
+            msg = f"{provider} provider unavailable: {e}"
+            raise SkillGenerationError(msg) from e
+        except Exception as e:
+            msg = f"AI skill generation failed ({provider}): {e}"
+            raise SkillGenerationError(msg) from e
 
-            return self._parse_ai_response(raw_response, display_name, role_name, model)
+        result = self._parse_ai_response(raw_response or "", display_name, role_name, model)
+        if result is None:
+            msg = "AI returned invalid or insufficient content"
+            raise SkillGenerationError(msg)
+        return result
 
-        except ProviderUnavailableError:
-            logger.warning("Anthropic provider unavailable, using template fallback")
-            return None
-        except Exception:
-            logger.exception("AI skill generation failed, using template fallback")
-            return None
+    async def _call_llm(
+        self,
+        api_key: str,
+        base_url: str | None,
+        model: str,
+        prompt: str,
+        provider: str,
+        executor: ResilientExecutor,
+        retry_config: RetryConfig,
+        timeout_sec: float = 30.0,
+    ) -> str:
+        """Call LLM via Anthropic API format with provider-specific base_url/api_key."""
+        from anthropic import AsyncAnthropic
+
+        client = AsyncAnthropic(
+            api_key=api_key or None,
+            base_url=base_url or None,
+        )
+
+        async def _call_api() -> str:
+            response = await client.messages.create(
+                model=model,
+                max_tokens=2048,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            # Prefer text blocks, fall back to thinking blocks
+            # (some models like kimi via Ollama return only thinking blocks)
+            text_parts: list[str] = []
+            thinking_parts: list[str] = []
+            for block in response.content:
+                if block.type == "text" and block.text:
+                    text_parts.append(block.text)
+                elif block.type == "thinking" and getattr(block, "thinking", None):
+                    thinking_parts.append(block.thinking)
+            return "\n".join(text_parts) or "\n".join(thinking_parts)
+
+        logger.info(
+            "Calling LLM for skill generation",
+            extra={"provider": provider, "model": model, "has_base_url": bool(base_url)},
+        )
+        result = await executor.execute(
+            provider=provider,
+            operation=_call_api,
+            timeout_sec=timeout_sec,
+            retry_config=retry_config,
+        )
+        logger.info(
+            "LLM response received",
+            extra={"provider": provider, "response_length": len(result)},
+        )
+        return result
 
     def _parse_ai_response(
         self,
@@ -290,62 +353,98 @@ class GenerateRoleSkillService:
         role_name: str | None,
         model: str,
     ) -> tuple[str, str, str] | None:
-        """Parse AI response JSON into (skill_content, suggested_name, model).
+        """Parse AI response into (skill_content, suggested_name, model).
 
-        Returns None if parsing fails.
+        Tries JSON first, then treats raw text as markdown skill content.
+        Returns None only if content is empty or too short.
         """
-        try:
-            # Strip markdown fences if present
-            text = raw_response.strip()
-            if text.startswith("```"):
-                lines = text.split("\n")
-                lines = lines[1:]  # Remove opening fence
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                text = "\n".join(lines)
-
-            data = json.loads(text)
-            skill_content = data.get("skill_content", "")
-            suggested_name = data.get("suggested_role_name", role_name or display_name)
-
-            if not skill_content or len(skill_content.strip()) < 50:
-                logger.warning("AI returned insufficient skill content, using fallback")
-                return None
-
-            return (skill_content, suggested_name, model)
-
-        except (json.JSONDecodeError, KeyError, TypeError):
-            logger.warning("Failed to parse AI response as JSON, using fallback")
+        text = raw_response.strip()
+        if not text:
+            logger.warning("AI returned empty response")
             return None
 
-    async def _resolve_api_key(self, workspace_id: UUID | None) -> str | None:
-        """Resolve Anthropic API key: workspace-level then app-level."""
-        # Try workspace-level key first
-        if workspace_id is not None:
-            try:
-                from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
-                from pilot_space.config import get_settings
+        # Strip markdown fences if present
+        if text.startswith("```"):
+            lines = text.split("\n")
+            lines = lines[1:]  # Remove opening fence
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines)
 
-                settings = get_settings()
-                encryption_key = settings.encryption_key.get_secret_value()
-                if encryption_key:
-                    storage = SecureKeyStorage(self._session, encryption_key)
-                    key = await storage.get_api_key(workspace_id, "anthropic", "llm")
-                    if key:
-                        return key
-            except Exception:
-                logger.debug("Could not retrieve workspace API key", exc_info=True)
-
-        # Fall back to app-level key
+        # Try JSON parse first (expected format)
+        # strict=False allows literal control characters (newlines, tabs) inside
+        # JSON string values — common with Ollama/kimi models that don't escape them.
         try:
-            from pilot_space.config import get_settings
+            data = json.loads(text, strict=False)
+            if isinstance(data, dict):
+                skill_content = data.get("skill_content", "")
+                suggested_name = data.get("suggested_role_name", role_name or display_name)
 
-            settings = get_settings()
-            if settings.anthropic_api_key:
-                return settings.anthropic_api_key.get_secret_value()
-        except Exception:
-            logger.debug("Could not retrieve app-level API key", exc_info=True)
+                if skill_content and len(skill_content.strip()) >= 50:
+                    return (skill_content, suggested_name, model)
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
 
+        # Second attempt: extract JSON object from surrounding text via regex
+        # Handles AI responses like "Here is your skill: {...} Hope this helps!"
+        match = re.search(r"\{[\s\S]*\}", text)
+        if match:
+            try:
+                data = json.loads(match.group(), strict=False)
+                if not isinstance(data, dict):
+                    data = {}
+                skill_content = data.get("skill_content", "")
+                suggested_name = data.get("suggested_role_name", role_name or display_name)
+
+                if skill_content and len(skill_content.strip()) >= 50:
+                    logger.info(
+                        "AI response parsed via regex JSON extraction",
+                        extra={"model": model, "content_length": len(skill_content)},
+                    )
+                    return (skill_content, suggested_name, model)
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
+
+        # Third attempt: extract fields via regex for malformed JSON
+        # (e.g., kimi returns JSON with unescaped newlines in string values)
+        sc_match = re.search(
+            r'"skill_content"\s*:\s*"((?:[^"\\]|\\.)*)"|'
+            r'"skill_content"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*\})',
+            text,
+        )
+        if sc_match:
+            raw_content = sc_match.group(1) or sc_match.group(2) or ""
+            # Unescape JSON escape sequences
+            skill_content = raw_content.replace("\\n", "\n").replace('\\"', '"')
+            if skill_content and len(skill_content.strip()) >= 50:
+                name_match = re.search(r'"suggested_role_name"\s*:\s*"([^"]*)"', text)
+                suggested_name = name_match.group(1) if name_match else (role_name or display_name)
+                logger.info(
+                    "AI response parsed via regex field extraction (malformed JSON)",
+                    extra={"model": model, "content_length": len(skill_content)},
+                )
+                return (skill_content, suggested_name, model)
+
+        # Fallback: treat raw response as markdown skill content directly,
+        # but guard against leaking raw JSON as user-visible content.
+        stripped = text.strip()
+        is_leaked_json = stripped.startswith("{") and '"skill_content"' in stripped
+        if not is_leaked_json and len(stripped) >= 50:
+            suggested_name = self._suggest_role_name_heuristic(
+                display_name=display_name,
+                experience_description=text[:200],
+                provided_name=role_name,
+            )
+            logger.info(
+                "AI response parsed as raw markdown (non-JSON)",
+                extra={"model": model, "content_length": len(text)},
+            )
+            return (text, suggested_name, model)
+
+        logger.warning(
+            "AI returned invalid or insufficient content",
+            extra={"model": model, "response_length": len(text)},
+        )
         return None
 
     async def _get_template_content(self, role_type: str) -> str:

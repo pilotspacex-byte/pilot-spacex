@@ -23,6 +23,7 @@ import type { UserSkill } from '@/services/api/user-skills';
 import { useUpdateSkillTemplate, useDeleteSkillTemplate } from '@/services/api/skill-templates';
 import type { SkillTemplate } from '@/services/api/skill-templates';
 import { MySkillCard } from '../components/my-skill-card';
+import { SkillDetailModal } from '../components/skill-detail-modal';
 import { TemplateCatalog } from '../components/template-catalog';
 import { CreateTemplateModal } from '../components/create-template-modal';
 import { EditTemplateModal } from '../components/edit-template-modal';
@@ -105,9 +106,24 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   const [createTemplateOpen, setCreateTemplateOpen] = React.useState(false);
   const [templateToEdit, setTemplateToEdit] = React.useState<SkillTemplate | null>(null);
 
+  // Skill detail modal state
+  const [skillToView, setSkillToView] = React.useState<UserSkill | null>(null);
+
   // Confirm dialogs
   const [skillToDelete, setSkillToDelete] = React.useState<UserSkill | null>(null);
   const [templateToDelete, setTemplateToDelete] = React.useState<SkillTemplate | null>(null);
+
+  // Reconcile skillToView with latest data after mutations
+  React.useEffect(() => {
+    if (skillToView && userSkills) {
+      const updated = userSkills.find((s) => s.id === skillToView.id);
+      if (!updated) {
+        setSkillToView(null);
+      } else if (updated !== skillToView) {
+        setSkillToView(updated);
+      }
+    }
+  }, [userSkills, skillToView]);
 
   // ---------------------------------------------------------------------------
   // Handlers: User Skills
@@ -129,6 +145,19 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
 
   const handleDeleteSkill = (skill: UserSkill) => {
     setSkillToDelete(skill);
+  };
+
+  const handleEditSkill = (
+    skill: UserSkill,
+    updates: { skill_content?: string; skill_name?: string }
+  ) => {
+    updateUserSkill.mutate(
+      { id: skill.id, data: updates },
+      {
+        onSuccess: () => toast.success('Skill updated'),
+        onError: () => toast.error('Failed to update skill'),
+      }
+    );
   };
 
   const handleDeleteSkillConfirm = () => {
@@ -290,6 +319,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
                       skill={skill}
                       onToggleActive={handleToggleSkillActive}
                       onDelete={handleDeleteSkill}
+                      onClick={setSkillToView}
                     />
                   ))}
                 </div>
@@ -330,6 +360,19 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
             template={selectedTemplate}
           />
 
+          {/* Skill Detail Modal */}
+          <SkillDetailModal
+            skill={skillToView}
+            open={!!skillToView}
+            onOpenChange={(v) => {
+              if (!v) setSkillToView(null);
+            }}
+            onEdit={handleEditSkill}
+            onToggleActive={handleToggleSkillActive}
+            onDelete={handleDeleteSkill}
+            isSaving={updateUserSkill.isPending}
+          />
+
           {/* Create Template Modal (admin only) */}
           {isAdmin && (
             <CreateTemplateModal
@@ -357,7 +400,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
               open={!!skillToDelete}
               onCancel={() => setSkillToDelete(null)}
               onConfirm={handleDeleteSkillConfirm}
-              title={`Remove ${skillToDelete.template_name ?? 'Custom'} Skill?`}
+              title={`Remove ${skillToDelete.skill_name ?? skillToDelete.template_name ?? 'Custom'} Skill?`}
               description="This will permanently delete this skill. The AI assistant will no longer use this skill in your conversations."
               confirmLabel="Remove Skill"
               variant="destructive"

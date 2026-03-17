@@ -14,7 +14,7 @@ import { AlertCircle, Database, BrainCircuit } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { ProviderRow } from '../components/provider-row';
+import { ProviderSection } from '../components/provider-section';
 import { AIFeatureToggles } from '../components/ai-feature-toggles';
 import { useStore } from '@/stores';
 
@@ -70,9 +70,6 @@ export const AISettingsPage = observer(function AISettingsPage() {
     );
   }
 
-  const embeddingProviders = settings.getProvidersByService('embedding');
-  const llmProviders = settings.getProvidersByService('llm');
-
   return (
     <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="space-y-6">
@@ -85,51 +82,24 @@ export const AISettingsPage = observer(function AISettingsPage() {
         </div>
 
         {/* Embedding Service Section */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Database className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-lg font-medium">Embedding Service</h2>
-          </div>
-          <p className="text-sm text-muted-foreground mb-3">
-            Used for semantic search, knowledge graph, and RAG. Configure one provider.
-          </p>
-          <div className="space-y-2">
-            {embeddingProviders.map((p) => (
-              <ProviderRow
-                key={`${p.provider}-${p.serviceType}`}
-                provider={p.provider}
-                serviceType="embedding"
-                status={p}
-                onSaved={handleProviderSaved}
-              />
-            ))}
-          </div>
-        </section>
+        <ProviderSection
+          serviceType="embedding"
+          icon={Database}
+          title="Embedding Service"
+          description="Used for semantic search, knowledge graph, and RAG. Configure one provider."
+          onSaved={handleProviderSaved}
+        />
 
         <Separator />
 
         {/* AI LLM Service Section */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <BrainCircuit className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-lg font-medium">AI LLM Service</h2>
-          </div>
-          <p className="text-sm text-muted-foreground mb-3">
-            Used for AI agents, ghost text, PR review, and issue extraction. Anthropic-compatible
-            API.
-          </p>
-          <div className="space-y-2">
-            {llmProviders.map((p) => (
-              <ProviderRow
-                key={`${p.provider}-${p.serviceType}`}
-                provider={p.provider}
-                serviceType="llm"
-                status={p}
-                onSaved={handleProviderSaved}
-              />
-            ))}
-          </div>
-        </section>
+        <ProviderSection
+          serviceType="llm"
+          icon={BrainCircuit}
+          title="AI LLM Service"
+          description="Used for AI agents, ghost text, PR review, and issue extraction."
+          onSaved={handleProviderSaved}
+        />
 
         <Separator />
 

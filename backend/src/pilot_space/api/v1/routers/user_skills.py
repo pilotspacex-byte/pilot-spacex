@@ -17,7 +17,9 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import JSONResponse
 
+from pilot_space.api.middleware import create_problem_response
 from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.api.v1.schemas.user_skill import (
     UserSkillCreate,
@@ -52,9 +54,11 @@ def _to_schema(skill: object) -> UserSkillSchema:
         UserSkillSchema with template_name populated from joined template.
     """
     data = UserSkillSchema.model_validate(skill)
-    template = getattr(skill, "template", None)
-    if template is not None:
-        data.template_name = getattr(template, "name", None)
+    # Only access template relationship if template_id is set (avoids lazy='raise')
+    if getattr(skill, "template_id", None) is not None:
+        template = getattr(skill, "template", None)
+        if template is not None:
+            data.template_name = getattr(template, "name", None)
     return data
 
 
@@ -101,7 +105,7 @@ async def create_user_skill(
     body: UserSkillCreate,
     session: DbSession,
     current_user_id: CurrentUserId,
-) -> UserSkillSchema:
+) -> UserSkillSchema | JSONResponse:
     """Create a user skill from a template.
 
     Delegates to CreateUserSkillService for template validation,
@@ -114,12 +118,16 @@ async def create_user_skill(
         current_user_id: Authenticated user UUID.
 
     Returns:
-        Created UserSkillSchema.
-
-    Raises:
-        HTTPException: 400/409 on validation errors.
+        Created UserSkillSchema or RFC 7807 problem response on error.
     """
     await set_rls_context(session, current_user_id, workspace_id)
+
+    if not body.template_id and not body.skill_content:
+        return create_problem_response(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either template_id or skill_content is required",
+        )
+
     svc = CreateUserSkillService(session)
     try:
         skill = await svc.create(
@@ -127,18 +135,20 @@ async def create_user_skill(
             workspace_id=workspace_id,
             template_id=body.template_id,
             experience_description=body.experience_description or "",
+            skill_content=body.skill_content,
+            skill_name=body.skill_name,
         )
     except ValueError as exc:
         msg = str(exc)
         if "already has" in msg:
-            raise HTTPException(
+            return create_problem_response(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=msg,
-            ) from exc
-        raise HTTPException(
+            )
+        return create_problem_response(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=msg,
-        ) from exc
+        )
 
     logger.info(
         "[UserSkills] Created skill=%s user=%s workspace=%s",

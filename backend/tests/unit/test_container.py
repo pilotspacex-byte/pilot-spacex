@@ -495,6 +495,34 @@ class TestAIInfrastructureProviders:
         # If Redis configured, should return SessionManager
         assert session_manager is None or hasattr(session_manager, "create_session")
 
+    def test_create_session_manager_returns_none_when_redis_disconnected(self) -> None:
+        """Test that create_session_manager returns None when redis not connected."""
+        from pilot_space.container._factories import create_session_manager
+
+        mock_redis = MagicMock()
+        mock_redis.is_connected = False
+
+        result = create_session_manager(mock_redis)
+        assert result is None
+
+    def test_create_session_manager_returns_instance_when_redis_connected(self) -> None:
+        """Test that create_session_manager returns SessionManager when redis connected."""
+        from pilot_space.container._factories import create_session_manager
+
+        mock_redis = MagicMock()
+        mock_redis.is_connected = True
+
+        result = create_session_manager(mock_redis)
+        assert result is not None
+        assert hasattr(result, "create_session")
+
+    def test_create_session_manager_returns_none_when_no_redis(self) -> None:
+        """Test that create_session_manager returns None when redis is None."""
+        from pilot_space.container._factories import create_session_manager
+
+        result = create_session_manager(None)
+        assert result is None
+
 
 # ============================================================================
 # Optional Infrastructure Provider Tests

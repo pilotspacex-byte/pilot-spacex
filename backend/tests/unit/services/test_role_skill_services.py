@@ -9,6 +9,7 @@ Source: 011-role-based-skills, T014
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -222,25 +223,26 @@ class TestCreateRoleSkillService:
                 )
             )
 
-    async def test_create_rejects_duplicate_role_type(
+    async def test_create_allows_duplicate_role_type(
         self,
         db_session: AsyncSession,
         user: User,
         workspace: Workspace,
         existing_skill: UserRoleSkill,
     ) -> None:
-        """Reject duplicate role_type in same workspace."""
+        """Allow duplicate role_type in same workspace (constraint dropped in migration 087)."""
         service = CreateRoleSkillService(db_session)
-        with pytest.raises(ValueError, match="already exists"):
-            await service.execute(
-                CreateRoleSkillPayload(
-                    user_id=user.id,
-                    workspace_id=workspace.id,
-                    role_type="developer",
-                    role_name="Another Dev",
-                    skill_content="Content",
-                )
+        result = await service.execute(
+            CreateRoleSkillPayload(
+                user_id=user.id,
+                workspace_id=workspace.id,
+                role_type="developer",
+                role_name="Another Dev",
+                skill_content="Content",
             )
+        )
+        assert result.role_type == "developer"
+        assert result.role_name == "Another Dev"
 
     async def test_create_primary_demotes_existing(
         self,
@@ -521,6 +523,15 @@ class TestListRoleSkillsService:
 class TestGenerateRoleSkillService:
     """Tests for GenerateRoleSkillService."""
 
+    @pytest.fixture(autouse=True)
+    def mock_no_llm_config(self) -> None:
+        """Ensure no LLM provider is resolved so tests use template fallback."""
+        with patch(
+            "pilot_space.application.services.role_skill.generate_role_skill_service.resolve_workspace_llm_config",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     async def test_generate_with_template(
         self,
         db_session: AsyncSession,
@@ -615,6 +626,15 @@ class TestGenerateRoleSkillService:
 class TestGenerateRoleSkillAI:
     """Tests for AI generation, fallback, rate limiting, and response parsing."""
 
+    @pytest.fixture(autouse=True)
+    def mock_no_llm_config(self) -> None:
+        """Ensure no LLM provider is resolved so tests use template fallback."""
+        with patch(
+            "pilot_space.application.services.role_skill.generate_role_skill_service.resolve_workspace_llm_config",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     async def test_fallback_to_template_without_api_key(
         self,
         db_session: AsyncSession,
@@ -639,8 +659,9 @@ class TestGenerateRoleSkillAI:
         self,
         db_session: AsyncSession,
     ) -> None:
-        """FR-003: Rate limit of 5 generations/hour/user is enforced."""
+        """FR-003: Rate limit of _RATE_LIMIT_MAX generations/hour/user is enforced."""
         from pilot_space.application.services.role_skill.generate_role_skill_service import (
+            _RATE_LIMIT_MAX,
             SkillGenerationRateLimitError,
             _rate_limit_store,
         )
@@ -651,8 +672,8 @@ class TestGenerateRoleSkillAI:
 
         service = GenerateRoleSkillService(db_session)
 
-        # First 5 should succeed
-        for _ in range(5):
+        # First _RATE_LIMIT_MAX should succeed
+        for _ in range(_RATE_LIMIT_MAX):
             result = await service.execute(
                 GenerateRoleSkillPayload(
                     role_type="custom",
@@ -662,7 +683,7 @@ class TestGenerateRoleSkillAI:
             )
             assert result.generation_model == "template-v1"
 
-        # 6th should raise rate limit error
+        # Next one should raise rate limit error
         with pytest.raises(SkillGenerationRateLimitError):
             await service.execute(
                 GenerateRoleSkillPayload(
@@ -766,6 +787,55 @@ class TestAIResponseParsing:
         skill_content, name, _ = result
         assert "Dev Role" in skill_content
         assert name == "Dev"
+
+    def test_parse_ai_response_with_literal_newlines(self) -> None:
+        """Parses JSON with literal (unescaped) newlines in string values.
+
+        Some models (Ollama/kimi) return JSON with actual newline bytes instead
+        of \\n escape sequences. strict=False handles this.
+        """
+        service = GenerateRoleSkillService.__new__(GenerateRoleSkillService)
+
+        # Build JSON with literal newlines inside the skill_content value
+        raw = (
+            '{"skill_content": "# Senior Developer\n\n'
+            "## Context\n\n"
+            "This skill is configured for a **Developer** role.\n\n"
+            "## Experience & Background\n\n"
+            "10 years of full-stack development with Python and TypeScript.\n\n"
+            "## Expertise Areas\n\n"
+            '- Backend: Python, FastAPI, SQLAlchemy", '
+            '"suggested_role_name": "Senior Full-Stack Developer"}'
+        )
+        result = service._parse_ai_response(raw, "Developer", None, "test-model")
+
+        assert result is not None
+        skill_content, name, model = result
+        assert "Senior Developer" in skill_content
+        assert name == "Senior Full-Stack Developer"
+        assert model == "test-model"
+
+    def test_parse_ai_response_rejects_leaked_json_wrapper(self) -> None:
+        """Raw JSON with skill_content key must not leak as skill content.
+
+        When all JSON parsing attempts fail (e.g. unescaped quotes inside
+        values), the fallback must NOT return the raw JSON blob as markdown.
+        """
+        service = GenerateRoleSkillService.__new__(GenerateRoleSkillService)
+
+        # JSON with unescaped quotes that breaks all parsers
+        raw = (
+            '{"skill_content": "# Role with "emphasis" in the title and '
+            "enough text to pass the 50-char threshold easily for content "
+            'validation purposes", "suggested_role_name": "Dev"}'
+        )
+        result = service._parse_ai_response(raw, "Developer", None, "test-model")
+
+        # Should either parse successfully or return None — never the raw JSON
+        if result is not None:
+            skill_content, _, _ = result
+            assert not skill_content.startswith("{")
+            assert '"skill_content"' not in skill_content
 
     def test_parse_ai_response_invalid_json(self) -> None:
         """Returns None for unparseable AI response."""

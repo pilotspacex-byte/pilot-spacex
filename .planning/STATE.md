@@ -4,8 +4,8 @@ milestone: v1.0.0-alpha2
 milestone_name: Notion-Style Restructure
 status: completed
 stopped_at: Milestone archived
-last_updated: "2026-03-15"
-last_activity: "2026-03-16 — Completed quick task 260316-phe: investigate & fix skill features"
+last_updated: "2026-03-17"
+last_activity: "2026-03-17 — Completed quick task 260317-hms: migrate provider settings to workspace level"
 progress:
   total_phases: 18
   completed_phases: 17
@@ -42,6 +42,10 @@ Next: `/gsd:new-milestone` to define next milestone
 Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase quick-04]: Skip SQLite-incompatible execute tests with @pytest.mark.skip and TEST_DATABASE_URL hint
 - [Phase quick-04]: Remove sys.modules module-level mocks that leak across test session
+- [quick-260317-bch]: pilotspace_agent.py, pilotspace_agent_helpers.py, pilotspace_stream_utils.py excluded from pre-commit 700-line check (orchestrator files like container.py)
+- [quick-260317-bch]: Second DB query for skills in _build_stream_config acceptable — same session, SQLAlchemy identity map caches results, lightweight indexed query
+- [quick-260317-hms]: WorkspaceLLMConfig is frozen dataclass in provider_selector.py (colocation with resolver avoids circular imports); test patch uses pilot_space.ai.infrastructure.key_storage.SecureKeyStorage since lazy import inside function
+- [quick-260317-hms]: test_rate_limit_enforced fixed to use _RATE_LIMIT_MAX constant (was hardcoded 5, actual limit is 30 — pre-existing bug revealed by proper mocking)
 
 ### Pending Todos
 
@@ -67,10 +71,14 @@ None.
 | 12 | Validate 3 AI flows + fix LLMProvider enum case mismatch | 2026-03-15 | 4e47d6d4 | Done | [12-validate-3-ai-issue-flows-via-browser-ex](./quick/12-validate-3-ai-issue-flows-via-browser-ex/) |
 | 260316-kaf | Remove note emoji selector | 2026-03-16 | 636933f8 | Done | [260316-kaf-remove-note-emoji-selector-in-new-branch](./quick/260316-kaf-remove-note-emoji-selector-in-new-branch/) |
 | 260316-phe | Investigate & fix skill features (7 issues fixed) | 2026-03-16 | f01d76a0 | Verified | [260316-phe-investigate-into-current-pilot-space-ski](./quick/260316-phe-investigate-into-current-pilot-space-ski/) |
+| 260316-v8c | Improve provider setup UI/UX with dropdown selection | 2026-03-16 | 34d7e3cd | Done | [260316-v8c-improve-provider-setup-ui-ux-with-llm-em](./quick/260316-v8c-improve-provider-setup-ui-ux-with-llm-em/) |
+| 260317-0ce | Fix skill editing: AI parser, skill_name, expandable cards, editable preview | 2026-03-17 | c234324c | Verified | [260317-0ce-fix-skill-editing-allow-edit-skill-conte](./quick/260317-0ce-fix-skill-editing-allow-edit-skill-conte/) |
+| 260317-bch | User skills in agent system prompt (layer 4.5, TDD) | 2026-03-17 | a743eb3f | Verified | [260317-bch-check-change-of-feat-provider-setup-enha](./quick/260317-bch-check-change-of-feat-provider-setup-enha/) |
+| 260317-hms | Migrate provider settings to workspace level (shared resolver, workspace_override) | 2026-03-17 | da3c5101 | Done | [260317-hms-migrate-provider-settings-to-workspace-l](./quick/260317-hms-migrate-provider-settings-to-workspace-l/) |
 
 ## Session Continuity
 
-Last session: 2026-03-16
-Stopped at: Completed quick task 260316-phe (skill feature investigation & fixes)
+Last session: 2026-03-17
+Stopped at: Completed quick task 260317-hms (migrate provider settings to workspace level)
 Resume file: None
 Next action: `/gsd:new-milestone`

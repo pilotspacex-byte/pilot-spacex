@@ -64,6 +64,10 @@ class UserSkill(WorkspaceScopedModel):
         Text,
         nullable=True,
     )
+    skill_name: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

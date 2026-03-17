@@ -284,6 +284,75 @@ class TestSessionLayer:
         assert "session" not in result.layers_loaded
 
 
+class TestSkillsLayer:
+    """Tests for skills layer (between workspace and session)."""
+
+    @pytest.mark.asyncio
+    async def test_with_user_skills(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            user_message="hello",
+            user_skills=[
+                {"name": "Python Expert", "description": "Advanced Python development"},
+                {"name": "TDD Coach", "description": "Test-driven development practices"},
+            ],
+        )
+        result = await assemble_system_prompt(config)
+
+        assert "Your Skills" in result.prompt
+        assert "Python Expert" in result.prompt
+        assert "Advanced Python development" in result.prompt
+        assert "TDD Coach" in result.prompt
+        assert "Test-driven development practices" in result.prompt
+        assert "skills" in result.layers_loaded
+
+    @pytest.mark.asyncio
+    async def test_no_skills_skips_layer(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            user_message="hello",
+            user_skills=[],
+        )
+        result = await assemble_system_prompt(config)
+
+        assert "Your Skills" not in result.prompt
+        assert "skills" not in result.layers_loaded
+
+    @pytest.mark.asyncio
+    async def test_skill_without_description(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            user_message="hello",
+            user_skills=[
+                {"name": "No Desc Skill", "description": ""},
+            ],
+        )
+        result = await assemble_system_prompt(config)
+
+        assert "No Desc Skill" in result.prompt
+        # Should appear without colon-description suffix
+        assert "No Desc Skill**:" not in result.prompt
+        assert "skills" in result.layers_loaded
+
+    @pytest.mark.asyncio
+    async def test_skills_section_ordering(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            workspace_name="my-team",
+            user_message="hello",
+            user_skills=[{"name": "Skill A", "description": "Desc A"}],
+            memory_entries=[{"source_type": "note", "content": "Some memory"}],
+        )
+        result = await assemble_system_prompt(config)
+
+        workspace_pos = result.prompt.find("Workspace Context")
+        skills_pos = result.prompt.find("Your Skills")
+        memory_pos = result.prompt.find("Workspace Memory Context")
+
+        # Skills must appear after workspace context and before session/memory
+        assert workspace_pos < skills_pos < memory_pos
+
+
 class TestFullAssembly:
     """Tests for backward-compatible full assembly."""
 
@@ -300,6 +369,9 @@ class TestFullAssembly:
             pending_approvals=2,
             budget_warning="80% used",
             conversation_summary="Prior discussion about auth.",
+            user_skills=[
+                {"name": "Python Expert", "description": "Advanced Python development"},
+            ],
         )
         result = await assemble_system_prompt(config)
 
@@ -312,11 +384,13 @@ class TestFullAssembly:
         assert "Conversation Summary" in result.prompt
         assert "pending approval" in result.prompt
         assert "Budget: 80% used" in result.prompt
+        assert "Your Skills" in result.prompt
 
         assert "identity" in result.layers_loaded
         assert "safety_tools_style" in result.layers_loaded
         assert "role:developer" in result.layers_loaded
         assert "workspace" in result.layers_loaded
         assert "session" in result.layers_loaded
+        assert "skills" in result.layers_loaded
         assert len(result.rules_loaded) > 0
         assert result.estimated_tokens > 0

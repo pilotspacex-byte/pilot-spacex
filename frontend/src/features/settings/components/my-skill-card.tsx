@@ -2,6 +2,7 @@
  * MySkillCard — Displays a user's personalized skill.
  *
  * Compact card with status indicator, toggle, and delete actions.
+ * Click card to open SkillDetailModal for viewing/editing.
  * Plain component (NOT observer) — receives all data via props.
  * Source: Phase 20, P20-10
  */
@@ -16,17 +17,29 @@ interface MySkillCardProps {
   skill: UserSkill;
   onToggleActive: (skill: UserSkill) => void;
   onDelete: (skill: UserSkill) => void;
+  onClick: (skill: UserSkill) => void;
 }
 
-export function MySkillCard({ skill, onToggleActive, onDelete }: MySkillCardProps) {
-  const displayName = skill.template_name ?? 'Custom Skill';
+export function MySkillCard({ skill, onToggleActive, onDelete, onClick }: MySkillCardProps) {
+  const displayName = skill.skill_name ?? skill.template_name ?? 'Custom Skill';
 
   return (
     <article
-      className={`group relative flex items-center gap-3 rounded-xl border bg-card p-3 transition-all duration-200 hover:shadow-md hover:border-border/80 ${
+      className={`group relative flex items-center gap-3 rounded-xl border bg-card p-3 transition-all duration-200 hover:shadow-md hover:border-border/80 cursor-pointer ${
         !skill.is_active ? 'opacity-50' : ''
       }`}
       data-testid="my-skill-card"
+      onClick={() => onClick(skill)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          // Ignore events bubbling from inner buttons (toggle, delete)
+          if (e.target !== e.currentTarget) return;
+          e.preventDefault();
+          onClick(skill);
+        }
+      }}
     >
       {/* Status dot */}
       <div
@@ -47,7 +60,10 @@ export function MySkillCard({ skill, onToggleActive, onDelete }: MySkillCardProp
       </div>
 
       {/* Actions — visible on hover */}
-      <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div
+        className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button
           variant="ghost"
           size="icon"

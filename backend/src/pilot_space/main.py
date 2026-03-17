@@ -137,11 +137,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     get_jwt_provider(settings)  # raises ValueError for invalid/incomplete config
     logger.info("jwt_provider_validated", auth_provider=settings.auth_provider or "supabase")
 
-    # Initialize DI container and connections
-    app.state.container = get_container()
-
-    # Connect to Redis for session management
-    redis_client = app.state.container.redis_client()
+    # Connect to Redis for session management (must happen BEFORE session_manager
+    # singleton resolves, since create_session_manager checks redis_client.is_connected)
+    redis_client = container.redis_client()
+    if redis_client is not None:
+        await redis_client.connect()
+        if redis_client.is_connected:
+            logger.info("redis_connected")
+        else:
+            logger.warning("redis_connect_failed — running in degraded mode")
+            redis_client = None
 
     # Start digest worker for homepage digest generation
     digest_worker_task: asyncio.Task[None] | None = None
@@ -152,7 +157,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # T-030: Start notification worker for persisting queued notifications
     notification_worker_task: asyncio.Task[None] | None = None
     notification_worker = None
-    queue_client = app.state.container.queue_client()
+    queue_client = container.queue_client()
     if queue_client and redis_client:
         from pilot_space.infrastructure.queue.models import QueueName
         from pilot_space.infrastructure.queue.supabase_queue import QueueConnectionError
@@ -166,7 +171,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             queue_client = None
 
     if queue_client and redis_client:
-        session_factory = app.state.container.session_factory()
+        session_factory = container.session_factory()
 
         from pilot_space.ai.workers.digest_worker import DigestWorker
 

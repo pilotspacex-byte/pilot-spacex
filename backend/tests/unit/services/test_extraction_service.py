@@ -242,7 +242,10 @@ class TestIssueExtractionService:
         self, service: IssueExtractionService, sample_payload: ExtractIssuesPayload
     ) -> None:
         """No API key returns empty result gracefully."""
-        with patch.object(service, "_resolve_api_key", return_value=None):
+        with patch(
+            "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
+            new=AsyncMock(return_value=None),
+        ):
             result = await service.extract(sample_payload)
             assert result.total_count == 0
             assert result.model == "noop"
@@ -276,7 +279,17 @@ class TestIssueExtractionService:
         )
 
         with (
-            patch.object(service, "_resolve_api_key", return_value="sk-test-key"),
+            patch(
+                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        provider="anthropic",
+                        api_key="sk-test-key",  # pragma: allowlist secret
+                        base_url=None,
+                        model_name=None,
+                    )
+                ),
+            ),
             patch(
                 "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
             ) as mock_executor_cls,
@@ -337,7 +350,17 @@ class TestIssueExtractionService:
         )
 
         with (
-            patch.object(service, "_resolve_api_key", return_value="sk-test-key"),
+            patch(
+                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        provider="anthropic",
+                        api_key="sk-test-key",  # pragma: allowlist secret
+                        base_url=None,
+                        model_name=None,
+                    )
+                ),
+            ),
             patch(
                 "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
             ) as mock_executor_cls,
@@ -355,7 +378,17 @@ class TestIssueExtractionService:
     ) -> None:
         """LLM errors are handled gracefully, returning empty."""
         with (
-            patch.object(service, "_resolve_api_key", return_value="sk-test-key"),
+            patch(
+                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        provider="anthropic",
+                        api_key="sk-test-key",  # pragma: allowlist secret
+                        base_url=None,
+                        model_name=None,
+                    )
+                ),
+            ),
             patch(
                 "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
             ) as mock_executor_cls,
@@ -397,7 +430,17 @@ class TestIssueExtractionService:
         )
 
         with (
-            patch.object(service, "_resolve_api_key", return_value="sk-test-key"),
+            patch(
+                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        provider="anthropic",
+                        api_key="sk-test-key",  # pragma: allowlist secret
+                        base_url=None,
+                        model_name=None,
+                    )
+                ),
+            ),
             patch(
                 "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
             ) as mock_executor_cls,
@@ -446,7 +489,17 @@ class TestIssueExtractionService:
         )
 
         with (
-            patch.object(service, "_resolve_api_key", return_value="sk-test-key"),
+            patch(
+                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        provider="anthropic",
+                        api_key="sk-test-key",  # pragma: allowlist secret
+                        base_url=None,
+                        model_name=None,
+                    )
+                ),
+            ),
             patch(
                 "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
             ) as mock_executor_cls,

@@ -38,6 +38,7 @@ from pilot_space.application.services.role_skill import (
     UpdateRoleSkillPayload,
 )
 from pilot_space.application.services.role_skill.generate_role_skill_service import (
+    SkillGenerationError,
     SkillGenerationRateLimitError,
 )
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep, WorkspaceMemberId
@@ -173,20 +174,9 @@ async def create_role_skill(
             )
         )
     except ValueError as e:
-        error_msg = str(e)
-        if "Maximum" in error_msg:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_msg,
-            ) from e
-        if "already exists" in error_msg:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=error_msg,
-            ) from e
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_msg,
+            detail=str(e),
         ) from e
 
     return RoleSkillResponse(
@@ -345,6 +335,11 @@ async def generate_role_skill(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=str(e),
         ) from e
+    except SkillGenerationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -419,6 +414,11 @@ async def regenerate_role_skill(
     except SkillGenerationRateLimitError as e:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(e),
+        ) from e
+    except SkillGenerationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e),
         ) from e
     except ValueError as e:

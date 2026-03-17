@@ -13,6 +13,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy.orm.attributes import flag_modified
 
 from pilot_space.ai.providers.constants import PROVIDER_SERVICE_SLOTS
 from pilot_space.api.v1.schemas.workspace import (
@@ -104,7 +105,7 @@ async def get_ai_settings(
     key_info_map = {(ki.provider, ki.service_type): ki for ki in all_key_infos}
 
     providers = []
-    for provider, service_type, supports_both in PROVIDER_SERVICE_SLOTS:
+    for provider, service_type, _supports_both in PROVIDER_SERVICE_SLOTS:
         key_info = key_info_map.get((provider, service_type))
         providers.append(
             ProviderStatus(
@@ -115,20 +116,20 @@ async def get_ai_settings(
                 last_validated_at=key_info.last_validated_at if key_info else None,
                 base_url=key_info.base_url if key_info else None,
                 model_name=key_info.model_name if key_info else None,
-                supports_both=supports_both,
             )
         )
 
     features = _get_workspace_features(workspace)
 
+    ws_settings = workspace.settings or {}
+
     return WorkspaceAISettingsResponse(
         workspace_id=workspace_id,
         providers=providers,
         features=features,
-        default_provider=workspace.settings.get("default_ai_provider", "anthropic")
-        if workspace.settings
-        else "anthropic",
-        cost_limit_usd=workspace.settings.get("ai_cost_limit_usd") if workspace.settings else None,
+        default_llm_provider=ws_settings.get("default_llm_provider", "anthropic"),
+        default_embedding_provider=ws_settings.get("default_embedding_provider", "google"),
+        cost_limit_usd=ws_settings.get("ai_cost_limit_usd"),
     )
 
 
@@ -226,20 +227,17 @@ async def update_ai_settings(
                 updated_providers.append(provider_label)
 
                 # Validate the stored key
-                try:
-                    is_valid = await key_storage.validate_api_key(
-                        provider=provider,
-                        api_key=key_update.api_key,
-                        base_url=base_url,
-                    )
-                except Exception:
-                    is_valid = False
+                is_valid, val_error = await key_storage.validate_api_key(
+                    provider=provider,
+                    api_key=key_update.api_key,
+                    base_url=base_url,
+                )
 
                 validation_results.append(
                     KeyValidationResult(
                         provider=provider_label,
                         is_valid=is_valid,
-                        error_message=None if is_valid else "Key validation failed",
+                        error_message=val_error,
                     )
                 )
             elif has_metadata_change and existing_info is not None:
@@ -260,13 +258,40 @@ async def update_ai_settings(
                     )
                 )
             elif has_metadata_change and existing_info is None:
-                validation_results.append(
-                    KeyValidationResult(
-                        provider=provider_label,
-                        is_valid=False,
-                        error_message="API key required before updating provider metadata",
+                # Ollama can be configured with just base_url (no API key required)
+                if provider == "ollama":
+                    await key_storage.store_api_key(
+                        workspace_id=workspace_id,
+                        provider=provider,
+                        service_type=service_type,
+                        api_key=None,
+                        base_url=base_url,
+                        model_name=model_name,
                     )
-                )
+                    updated_providers.append(provider_label)
+
+                    # Validate connectivity
+                    is_valid, val_error = await key_storage.validate_api_key(
+                        provider=provider,
+                        api_key=None,
+                        base_url=base_url,
+                    )
+
+                    validation_results.append(
+                        KeyValidationResult(
+                            provider=provider_label,
+                            is_valid=is_valid,
+                            error_message=val_error,
+                        )
+                    )
+                else:
+                    validation_results.append(
+                        KeyValidationResult(
+                            provider=provider_label,
+                            is_valid=False,
+                            error_message="API key required before updating provider metadata",
+                        )
+                    )
             elif not has_new_key and not has_metadata_change and existing_info is not None:
                 # Explicit None api_key with no metadata changes — delete the key
                 await key_storage.delete_api_key(workspace_id, provider, service_type)
@@ -279,9 +304,15 @@ async def update_ai_settings(
                     )
                 )
 
-    # Update feature toggles
+    # Update feature toggles and default providers
     updated_features = False
-    if body.features or body.cost_limit_usd is not None:
+    needs_settings_update = (
+        body.features
+        or body.cost_limit_usd is not None
+        or body.default_llm_provider is not None
+        or body.default_embedding_provider is not None
+    )
+    if needs_settings_update:
         workspace_settings = workspace.settings or {}
 
         if body.features:
@@ -292,8 +323,18 @@ async def update_ai_settings(
             workspace_settings["ai_cost_limit_usd"] = body.cost_limit_usd
             updated_features = True
 
+        if body.default_llm_provider is not None:
+            workspace_settings["default_llm_provider"] = body.default_llm_provider
+            updated_features = True
+
+        if body.default_embedding_provider is not None:
+            workspace_settings["default_embedding_provider"] = body.default_embedding_provider
+            updated_features = True
+
         workspace.settings = workspace_settings
+        flag_modified(workspace, "settings")
         await workspace_repo.update(workspace)
+        await session.commit()
 
     logger.info(
         "Workspace AI settings updated",

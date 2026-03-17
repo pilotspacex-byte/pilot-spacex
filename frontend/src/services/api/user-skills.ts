@@ -22,16 +22,21 @@ export interface UserSkill {
   created_at: string;
   updated_at: string;
   template_name: string | null;
+  skill_name: string | null;
 }
 
 export interface UserSkillCreate {
-  template_id: string;
+  template_id?: string;
+  skill_content?: string;
   experience_description?: string;
+  skill_name?: string;
 }
 
 export interface UserSkillUpdate {
   is_active?: boolean;
   experience_description?: string;
+  skill_content?: string;
+  skill_name?: string;
 }
 
 // ---------------------------------------------------------------------------

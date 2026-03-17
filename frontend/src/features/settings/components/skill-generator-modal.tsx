@@ -89,6 +89,7 @@ export function SkillGeneratorModal({
   const [description, setDescription] = React.useState('');
   const [preview, setPreview] = React.useState<SkillPreview | null>(null);
   const [editableName, setEditableName] = React.useState('');
+  const [editableContent, setEditableContent] = React.useState('');
   const [showError, setShowError] = React.useState(false);
 
   // Reset mode when defaultMode changes (e.g. different button clicked)
@@ -124,6 +125,7 @@ export function SkillGeneratorModal({
     setDescription('');
     setPreview(null);
     setEditableName('');
+    setEditableContent('');
     setShowError(false);
   }, []);
 
@@ -149,6 +151,7 @@ export function SkillGeneratorModal({
           wordCount: result.wordCount,
         });
         setEditableName(result.suggestedRoleName);
+        setEditableContent(result.skillContent);
       } else {
         const skill = await generateWorkspace.mutateAsync({
           experience_description: description,
@@ -159,6 +162,7 @@ export function SkillGeneratorModal({
           wordCount: skill.skill_content.split(/\s+/).length,
         });
         setEditableName(skill.role_name);
+        setEditableContent(skill.skill_content);
       }
       setStep('preview');
     } catch {
@@ -172,22 +176,13 @@ export function SkillGeneratorModal({
 
     if (mode === 'personal') {
       try {
-        // If seeded from a template, save to user_skills table (Phase 20)
-        if (template?.id) {
-          await createUserSkill.mutateAsync({
-            template_id: template.id,
-            experience_description: description || undefined,
-          });
-        } else {
-          // Legacy path for custom skills without a template
-          await createPersonal.mutateAsync({
-            roleType: 'custom',
-            roleName: editableName || preview.suggestedName,
-            skillContent: preview.content,
-            experienceDescription: description || undefined,
-            isPrimary: false,
-          });
-        }
+        // Save to user_skills table — always send the (possibly edited) content
+        await createUserSkill.mutateAsync({
+          template_id: template?.id,
+          skill_content: editableContent,
+          experience_description: description || undefined,
+          skill_name: editableName || undefined,
+        });
         handleClose();
       } catch {
         // Error toast from mutation hook
@@ -200,8 +195,8 @@ export function SkillGeneratorModal({
     preview,
     mode,
     editableName,
+    editableContent,
     description,
-    createPersonal,
     createUserSkill,
     template,
     handleClose,
@@ -236,13 +231,14 @@ export function SkillGeneratorModal({
             {step === 'generating' && <GeneratingStep />}
             {step === 'preview' && preview && (
               <PreviewStep
-                preview={preview}
                 editableName={editableName}
                 onNameChange={setEditableName}
+                editableContent={editableContent}
+                onContentChange={setEditableContent}
                 onSave={handleSave}
                 onRetry={handleRetry}
                 onBack={() => setStep('form')}
-                isSaving={createPersonal.isPending}
+                isSaving={createUserSkill.isPending}
                 mode={mode}
               />
             )}
@@ -504,9 +500,10 @@ function GeneratingStep() {
 // ---------------------------------------------------------------------------
 
 interface PreviewStepProps {
-  preview: SkillPreview;
   editableName: string;
   onNameChange: (name: string) => void;
+  editableContent: string;
+  onContentChange: (content: string) => void;
   onSave: () => void;
   onRetry: () => void;
   onBack: () => void;
@@ -515,9 +512,10 @@ interface PreviewStepProps {
 }
 
 function PreviewStep({
-  preview,
   editableName,
   onNameChange,
+  editableContent,
+  onContentChange,
   onSave,
   onRetry,
   onBack,
@@ -525,6 +523,9 @@ function PreviewStep({
   mode,
 }: PreviewStepProps) {
   const saveLabel = mode === 'personal' ? 'Save & Activate' : 'Done';
+  const wordCount = editableContent.trim().split(/\s+/).filter(Boolean).length;
+  // Workspace skills are persisted during generation — preview is read-only
+  const isReadOnly = mode === 'workspace';
 
   return (
     <div className="flex flex-col flex-1 gap-3">
@@ -548,7 +549,7 @@ function PreviewStep({
 
       <div>
         <label htmlFor="skill-name" className="text-xs text-muted-foreground">
-          Skill Name (auto-generated — click to edit)
+          {isReadOnly ? 'Skill Name' : 'Skill Name (auto-generated — click to edit)'}
         </label>
         <div className="relative mt-1">
           <input
@@ -556,29 +557,39 @@ function PreviewStep({
             type="text"
             value={editableName}
             onChange={(e) => onNameChange(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 pr-8 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            readOnly={isReadOnly}
+            className={cn(
+              'w-full rounded-md border border-border bg-background px-3 py-2 pr-8 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30',
+              isReadOnly && 'opacity-60 cursor-default'
+            )}
           />
-          <Pencil
-            className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none"
-            aria-hidden="true"
-          />
+          {!isReadOnly && (
+            <Pencil
+              className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none"
+              aria-hidden="true"
+            />
+          )}
         </div>
       </div>
 
-      <div
-        className="flex-1 max-h-[220px] overflow-y-auto rounded-md border bg-muted/30 p-3"
-        aria-label="Generated skill preview"
-      >
-        <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
-          {preview.content}
-        </pre>
-      </div>
+      <Textarea
+        value={editableContent}
+        onChange={(e) => onContentChange(e.target.value)}
+        readOnly={isReadOnly}
+        className={cn(
+          'flex-1 max-h-[220px] font-mono text-xs leading-relaxed resize-none',
+          isReadOnly && 'opacity-60 cursor-default'
+        )}
+        aria-label={
+          isReadOnly ? 'Generated skill content (read-only)' : 'Edit generated skill content'
+        }
+      />
 
       <div className="text-right">
         <span
-          className={`text-xs ${preview.wordCount >= 1800 ? 'text-destructive' : 'text-muted-foreground'}`}
+          className={`text-xs ${wordCount >= 1800 ? 'text-destructive' : 'text-muted-foreground'}`}
         >
-          {preview.wordCount} / 2000 words
+          {wordCount} / 2000 words
         </span>
       </div>
 

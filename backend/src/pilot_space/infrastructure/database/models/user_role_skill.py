@@ -19,7 +19,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -149,12 +148,6 @@ class UserRoleSkill(WorkspaceScopedModel):
     )
 
     __table_args__ = (
-        UniqueConstraint(
-            "user_id",
-            "workspace_id",
-            "role_type",
-            name="uq_user_role_skills_user_workspace_role",
-        ),
         CheckConstraint(
             "length(skill_content) <= 15000",
             name="ck_user_role_skills_skill_content_length",

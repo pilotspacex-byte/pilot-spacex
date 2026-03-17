@@ -18,10 +18,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final
+from typing import TYPE_CHECKING, Final
+from uuid import UUID
 
 from pilot_space.ai.circuit_breaker import CircuitBreaker
 from pilot_space.infrastructure.logging import get_logger
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -75,6 +79,7 @@ class ProviderConfig:
         reason: Human-readable explanation for selection.
         fallback_provider: Alternative provider if primary fails.
         fallback_model: Model to use with fallback provider.
+        base_url: Custom base URL for provider API (workspace override).
     """
 
     provider: str
@@ -82,6 +87,24 @@ class ProviderConfig:
     reason: str
     fallback_provider: str | None = None
     fallback_model: str | None = None
+    base_url: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceLLMConfig:
+    """Resolved workspace LLM provider configuration.
+
+    Attributes:
+        provider: LLM provider name (anthropic, ollama, etc.).
+        api_key: API key for the provider.
+        base_url: Custom base URL for the provider API.
+        model_name: Model name override from workspace config.
+    """
+
+    provider: str
+    api_key: str
+    base_url: str | None = None
+    model_name: str | None = None
 
 
 class ProviderSelector:
@@ -280,12 +303,16 @@ class ProviderSelector:
         self,
         task_type: TaskType,
         user_override: tuple[str, str] | None = None,
+        workspace_override: WorkspaceLLMConfig | None = None,
     ) -> ProviderConfig:
         """Select provider with full configuration including fallback.
 
         Args:
             task_type: Type of AI task to perform.
             user_override: Optional (provider, model) override from user preferences.
+            workspace_override: Optional workspace-level LLM config. When provided and
+                model_name is set, overrides the static routing table model. Circuit
+                breaker health checks still apply to the provider.
 
         Returns:
             ProviderConfig with selected provider and fallback information.
@@ -314,6 +341,46 @@ class ProviderSelector:
                     reason="User preference override",
                     fallback_provider=self._ROUTING_TABLE[task_type].provider,
                     fallback_model=self._ROUTING_TABLE[task_type].model,
+                )
+
+        # Workspace override: use workspace provider/model/base_url when configured
+        if workspace_override is not None:
+            ws_provider = workspace_override.provider
+            ws_model = workspace_override.model_name or self._ROUTING_TABLE[task_type].model
+            ws_base_url = workspace_override.base_url
+            static_config = self._ROUTING_TABLE[task_type]
+
+            if self.is_provider_healthy(ws_provider):
+                logger.info(
+                    "provider_selected",
+                    task_type=task_type.value,
+                    provider=ws_provider,
+                    model=ws_model,
+                    reason="workspace_override",
+                )
+                return ProviderConfig(
+                    provider=ws_provider,
+                    model=ws_model,
+                    reason="Workspace LLM provider override",
+                    fallback_provider=static_config.provider,
+                    fallback_model=static_config.model,
+                    base_url=ws_base_url,
+                )
+
+            # Workspace provider unhealthy — fall back to static routing table
+            logger.warning(
+                "workspace_provider_unhealthy",
+                task_type=task_type.value,
+                workspace_provider=ws_provider,
+                fallback_provider=static_config.provider,
+            )
+            if self.is_provider_healthy(static_config.provider):
+                return ProviderConfig(
+                    provider=static_config.provider,
+                    model=static_config.model,
+                    reason=f"Fallback from workspace provider {ws_provider} (circuit breaker open)",
+                    fallback_provider=static_config.fallback_provider,
+                    fallback_model=static_config.fallback_model,
                 )
 
         config = self._ROUTING_TABLE[task_type]
@@ -454,9 +521,100 @@ class ProviderSelector:
         return self._circuit_breakers[provider]
 
 
+async def resolve_workspace_llm_config(
+    session: AsyncSession,
+    workspace_id: UUID | None,
+) -> WorkspaceLLMConfig | None:
+    """Resolve the LLM provider configuration for a workspace.
+
+    Shared helper that encapsulates the workspace LLM resolution pattern
+    used across AI services (extraction, intent detection, skill generation).
+
+    Resolution priority:
+    1. Workspace's default_llm_provider setting + SecureKeyStorage key
+    2. Any other configured LLM provider in the workspace
+    3. App-level ANTHROPIC_API_KEY environment variable
+    4. None (caller should handle gracefully)
+
+    Args:
+        session: Async database session.
+        workspace_id: Workspace UUID, or None to skip workspace lookup.
+
+    Returns:
+        WorkspaceLLMConfig with provider, api_key, base_url, model_name or None.
+    """
+    if workspace_id is not None:
+        try:
+            from sqlalchemy import select as sa_select
+
+            from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+            from pilot_space.config import get_settings
+            from pilot_space.infrastructure.database.models.workspace import Workspace
+
+            settings = get_settings()
+            encryption_key = settings.encryption_key.get_secret_value()
+            if not encryption_key:
+                logger.debug(
+                    "encryption_key empty — skipping workspace lookup, trying app-level fallback"
+                )
+                # Fall through to app-level Anthropic key below
+            else:
+                # Determine which LLM provider the workspace has selected
+                stmt = sa_select(Workspace.settings).where(Workspace.id == workspace_id)
+                result = await session.execute(stmt)
+                ws_settings = result.scalar_one_or_none() or {}
+                default_llm = ws_settings.get("default_llm_provider", "anthropic")
+
+                storage = SecureKeyStorage(session, encryption_key)
+                key_info = await storage.get_key_info(workspace_id, default_llm, "llm")
+
+                if key_info is not None:
+                    api_key = await storage.get_api_key(workspace_id, default_llm, "llm")
+                    return WorkspaceLLMConfig(
+                        provider=default_llm,
+                        api_key=api_key or "",
+                        base_url=key_info.base_url,
+                        model_name=key_info.model_name,
+                    )
+
+                # If default provider has no key, try any configured LLM provider
+                all_keys = await storage.get_all_key_infos(workspace_id)
+                for ki in all_keys:
+                    if ki.service_type == "llm":
+                        api_key = await storage.get_api_key(workspace_id, ki.provider, "llm")
+                        return WorkspaceLLMConfig(
+                            provider=ki.provider,
+                            api_key=api_key or "",
+                            base_url=ki.base_url,
+                            model_name=ki.model_name,
+                        )
+
+        except Exception:
+            logger.debug("Could not retrieve workspace LLM provider", exc_info=True)
+
+    # Fall back to app-level Anthropic key
+    try:
+        from pilot_space.config import get_settings
+
+        settings = get_settings()
+        if settings.anthropic_api_key:
+            return WorkspaceLLMConfig(
+                provider="anthropic",
+                api_key=settings.anthropic_api_key.get_secret_value(),
+                base_url=None,
+                model_name=None,
+            )
+    except Exception:
+        logger.debug("Could not retrieve app-level API key", exc_info=True)
+
+    return None
+
+
 __all__ = [
     "Provider",
     "ProviderConfig",
     "ProviderSelector",
     "TaskType",
+    "WorkspaceLLMConfig",
+    "resolve_workspace_llm_config",
 ]

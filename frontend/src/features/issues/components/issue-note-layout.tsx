@@ -140,7 +140,7 @@ export function IssueNoteLayout({
       <div
         className={cn(
           'flex-1 overflow-hidden min-h-0',
-          hasGraphTab && rightPanelTab === 'knowledge-graph' ? 'hidden' : 'flex'
+          hasGraphTab && rightPanelTab === 'knowledge-graph' ? 'hidden' : null
         )}
         role="tabpanel"
         aria-label="Chat panel"

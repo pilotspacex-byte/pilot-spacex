@@ -309,7 +309,7 @@ class SecureKeyStorage:
         provider: str,
         api_key: str | None,
         base_url: str | None = None,
-    ) -> bool:
+    ) -> tuple[bool, str | None]:
         """Validate API key by making test call to provider.
 
         Args:
@@ -318,15 +318,18 @@ class SecureKeyStorage:
             base_url: Custom base URL (for Ollama).
 
         Returns:
-            True if key/connection is valid, False otherwise.
+            Tuple of (is_valid, error_message). error_message is None on success.
         """
         try:
             if provider == "anthropic":
                 if not api_key:
-                    return False
+                    return False, "API key is required"
                 from anthropic import AsyncAnthropic
 
-                client = AsyncAnthropic(api_key=api_key)
+                client = AsyncAnthropic(
+                    api_key=api_key,
+                    base_url=base_url or None,
+                )
                 await client.messages.create(
                     model="claude-3-5-haiku-20241022",
                     max_tokens=1,
@@ -334,7 +337,7 @@ class SecureKeyStorage:
                 )
             elif provider == "google":
                 if not api_key:
-                    return False
+                    return False, "API key is required"
                 import google.generativeai as genai  # type: ignore[import-untyped]
 
                 genai.configure(api_key=api_key)  # type: ignore[attr-defined]
@@ -349,24 +352,23 @@ class SecureKeyStorage:
                 validate_ollama_base_url(url)
                 async with httpx.AsyncClient(timeout=5.0) as client:
                     resp = await client.get(f"{url}/api/tags")
-                    return resp.status_code == 200
+                    if resp.status_code != 200:
+                        return False, f"Ollama returned HTTP {resp.status_code}"
             else:
-                logger.warning(
-                    "key_storage_unknown_provider",
-                    provider=provider,
-                )
-                return False
+                logger.warning("key_storage_unknown_provider", provider=provider)
+                return False, f"Unknown provider: {provider}"
 
-            return True
+            return True, None
 
         except Exception as e:
+            error_msg = str(e)
             logger.warning(
                 "key_storage_validation_failed",
                 provider=provider,
-                error=str(e),
+                error=error_msg,
                 key_preview=self._mask_key(api_key) if api_key else "none",
             )
-            return False
+            return False, error_msg
 
     async def validate_and_update(
         self,
@@ -392,7 +394,7 @@ class SecureKeyStorage:
         key_info = await self.get_key_info(workspace_id, provider, service_type)
         base_url = key_info.base_url if key_info else None
 
-        is_valid = await self.validate_api_key(provider, api_key, base_url)
+        is_valid, error_msg = await self.validate_api_key(provider, api_key, base_url)
 
         stmt = select(WorkspaceAPIKey).where(
             WorkspaceAPIKey.workspace_id == workspace_id,
@@ -406,7 +408,7 @@ class SecureKeyStorage:
         if row:
             row.is_valid = is_valid
             row.last_validated_at = datetime.now(UTC)
-            row.validation_error = None if is_valid else "Validation failed"
+            row.validation_error = error_msg
             await self.db.commit()
 
         return is_valid

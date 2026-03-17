@@ -313,9 +313,10 @@ class TestSecureKeyStorage:
         mock_client.messages.create = AsyncMock()
         mock_anthropic.return_value = mock_client
 
-        is_valid = await key_storage.validate_api_key("anthropic", "sk-ant-test")
+        is_valid, error = await key_storage.validate_api_key("anthropic", "sk-ant-test")
 
         assert is_valid is True
+        assert error is None
         mock_client.messages.create.assert_called_once()
 
     @pytest.mark.asyncio
@@ -330,9 +331,10 @@ class TestSecureKeyStorage:
         mock_client.messages.create = AsyncMock(side_effect=Exception("Invalid API key"))
         mock_anthropic.return_value = mock_client
 
-        is_valid = await key_storage.validate_api_key("anthropic", "sk-ant-invalid")
+        is_valid, error = await key_storage.validate_api_key("anthropic", "sk-ant-invalid")
 
         assert is_valid is False
+        assert error is not None
 
     @pytest.mark.asyncio
     @patch("google.generativeai.GenerativeModel")
@@ -348,11 +350,12 @@ class TestSecureKeyStorage:
         mock_model.generate_content_async = AsyncMock()
         mock_model_class.return_value = mock_model
 
-        is_valid = await key_storage.validate_api_key(
+        is_valid, error = await key_storage.validate_api_key(
             "google", "test-key"
         )  # pragma: allowlist secret
 
         assert is_valid is True
+        assert error is None
         mock_configure.assert_called_once_with(api_key="test-key")  # pragma: allowlist secret
 
     @pytest.mark.asyncio
@@ -372,27 +375,30 @@ class TestSecureKeyStorage:
         mock_client_instance.__aexit__ = AsyncMock(return_value=False)
         mock_httpx_client.return_value = mock_client_instance
 
-        is_valid = await key_storage.validate_api_key(
+        is_valid, error = await key_storage.validate_api_key(
             "ollama", None, base_url="http://localhost:11434"
         )
 
         assert is_valid is True
+        assert error is None
 
     @pytest.mark.asyncio
     async def test_validate_api_key_unknown_provider(self, key_storage: SecureKeyStorage) -> None:
         """Verify unknown provider returns False."""
-        is_valid = await key_storage.validate_api_key("unknown", "test-key")
+        is_valid, error = await key_storage.validate_api_key("unknown", "test-key")
 
         assert is_valid is False
+        assert error is not None
 
     @pytest.mark.asyncio
     async def test_validate_anthropic_without_key_returns_false(
         self, key_storage: SecureKeyStorage
     ) -> None:
         """Verify Anthropic validation fails without API key."""
-        is_valid = await key_storage.validate_api_key("anthropic", None)
+        is_valid, error = await key_storage.validate_api_key("anthropic", None)
 
         assert is_valid is False
+        assert error is not None
 
     @pytest.mark.asyncio
     async def test_valid_providers_set(self, key_storage: SecureKeyStorage) -> None:

@@ -180,6 +180,7 @@ export const AGENTS: AgentDefinition[] = [
  */
 export const SKILL_CATEGORIES = [
   { id: 'session', label: 'Session', icon: 'History' },
+  { id: 'my-skills', label: 'My Skills', icon: 'UserCog' },
   { id: 'writing', label: 'Writing', icon: 'PenTool' },
   { id: 'notes', label: 'Notes', icon: 'FileText' },
   { id: 'issues', label: 'Issues', icon: 'ListTodo' },

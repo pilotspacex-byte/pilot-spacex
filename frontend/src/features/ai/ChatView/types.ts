@@ -88,7 +88,15 @@ export interface ProjectContext {
 export interface SkillDefinition {
   name: string;
   description: string;
-  category: 'session' | 'writing' | 'notes' | 'issues' | 'code' | 'documentation' | 'planning';
+  category:
+    | 'session'
+    | 'writing'
+    | 'notes'
+    | 'issues'
+    | 'code'
+    | 'documentation'
+    | 'planning'
+    | 'my-skills';
   icon: string;
   examples?: string[];
 }

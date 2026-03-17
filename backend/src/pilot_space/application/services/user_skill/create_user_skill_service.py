@@ -56,16 +56,20 @@ class CreateUserSkillService:
         *,
         user_id: UUID,
         workspace_id: UUID,
-        template_id: UUID,
+        template_id: UUID | None,
         experience_description: str,
+        skill_content: str | None = None,
+        skill_name: str | None = None,
     ) -> UserSkill:
-        """Create a personalized user skill from a template.
+        """Create a user skill from template or custom content.
 
         Args:
             user_id: The user creating the skill.
             workspace_id: The workspace context.
-            template_id: The source template UUID.
+            template_id: Source template UUID (None for custom skills).
             experience_description: User's experience for AI personalization.
+            skill_content: Pre-generated skill content (for custom skills).
+            skill_name: User-visible skill name (AI-suggested or user-edited).
 
         Returns:
             The created UserSkill.
@@ -74,46 +78,60 @@ class CreateUserSkillService:
             ValueError: If template not found, inactive, deleted, wrong workspace,
                 or user already has a skill from this template.
         """
-        template_repo = SkillTemplateRepository(self._session)
         user_skill_repo = UserSkillRepository(self._session)
 
-        # 1. Load and validate template
-        template = await template_repo.get_by_id(template_id)
-        if template is None:
-            msg = f"Template not found: {template_id}"
-            raise ValueError(msg)
+        if template_id is not None:
+            # Template-based: validate, check duplicate
+            template_repo = SkillTemplateRepository(self._session)
+            template = await template_repo.get_by_id(template_id)
+            if template is None:
+                msg = f"Template not found: {template_id}"
+                raise ValueError(msg)
 
-        if not template.is_active or template.is_deleted or template.workspace_id != workspace_id:
-            msg = f"Template {template_id} is not active in workspace {workspace_id}"
-            raise ValueError(msg)
+            if (
+                not template.is_active
+                or template.is_deleted
+                or template.workspace_id != workspace_id
+            ):
+                msg = f"Template {template_id} is not active in workspace {workspace_id}"
+                raise ValueError(msg)
 
-        # 2. Check for duplicate
-        existing = await user_skill_repo.get_by_user_workspace_template(
-            user_id, workspace_id, template_id
-        )
-        if existing is not None:
-            msg = f"User already has a skill from template {template_id}"
-            raise ValueError(msg)
+            existing = await user_skill_repo.get_by_user_workspace_template(
+                user_id, workspace_id, template_id
+            )
+            if existing is not None:
+                msg = f"User already has a skill from template {template_id}"
+                raise ValueError(msg)
 
-        # 3. Generate personalized content via AI
-        skill_content = await self._generate_content(
-            template=template,
-            experience_description=experience_description,
-            user_id=user_id,
-            workspace_id=workspace_id,
-        )
+            if skill_content and skill_content.strip():
+                # Frontend already generated + user may have edited — use as-is
+                content = skill_content
+            else:
+                # No pre-generated content — AI-generate from template
+                content = await self._generate_content(
+                    template=template,
+                    experience_description=experience_description,
+                    user_id=user_id,
+                    workspace_id=workspace_id,
+                )
+        else:
+            # Custom skill: use provided content directly
+            if not skill_content or not skill_content.strip():
+                msg = "skill_content is required for custom skills (no template_id)"
+                raise ValueError(msg)
+            content = skill_content
 
-        # 4. Create UserSkill row
         user_skill = await user_skill_repo.create(
             user_id=user_id,
             workspace_id=workspace_id,
             template_id=template_id,
-            skill_content=skill_content,
+            skill_content=content,
             experience_description=experience_description,
+            skill_name=skill_name,
         )
 
         logger.info(
-            "Created user skill from template %s for user %s in workspace %s",
+            "Created user skill template=%s user=%s workspace=%s",
             template_id,
             user_id,
             workspace_id,

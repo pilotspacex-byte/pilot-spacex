@@ -16,6 +16,7 @@ Layer order:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from pilot_space.ai.prompt.intent_classifier import (
@@ -94,6 +95,12 @@ async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
         sections.append(workspace_section)
         layers_loaded.append("workspace")
 
+    # Layer 4.5: User skills (between workspace and session)
+    skills_section = _build_skills_section(config)
+    if skills_section:
+        sections.append(skills_section)
+        layers_loaded.append("skills")
+
     # Layer 5: Session state (memory, summary — placed before rules for recency)
     session_parts = _build_session_section(config)
     if session_parts:
@@ -146,6 +153,46 @@ def _build_workspace_section(config: PromptLayerConfig) -> str | None:
         parts.append(f"Active projects: {', '.join(config.project_names[:10])}")
 
     return "\n".join(parts)
+
+
+def _sanitize_skill_text(text: str, max_length: int) -> str:
+    """Sanitize user-controlled skill text for safe prompt injection.
+
+    Strips newlines, collapses whitespace, and truncates to max_length.
+
+    Args:
+        text: Raw user-provided text.
+        max_length: Maximum allowed character count.
+
+    Returns:
+        Sanitized text safe for system prompt inclusion.
+    """
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    return cleaned[:max_length]
+
+
+def _build_skills_section(config: PromptLayerConfig) -> str | None:
+    """Build the user skills section for the prompt (layer 4.5).
+
+    Positioned between workspace context (layer 4) and session state (layer 5)
+    so the agent can reference available skills when forming responses.
+
+    Returns:
+        Formatted "## Your Skills" section, or None if no active skills.
+    """
+    if not config.user_skills:
+        return None
+    lines = ["## Your Skills", "", "You have access to the following personalized skills:"]
+    for skill in config.user_skills:
+        name = _sanitize_skill_text(skill.get("name", "Unknown"), 80) or "Unnamed Skill"
+        desc = _sanitize_skill_text(skill.get("description", ""), 240)
+        if desc:
+            lines.append(f"- **{name}**: {desc}")
+        else:
+            lines.append(f"- **{name}**")
+    lines.append("")
+    lines.append("Proactively suggest relevant skills when they match the user's request.")
+    return "\n".join(lines)
 
 
 def _build_session_section(config: PromptLayerConfig) -> list[str]:

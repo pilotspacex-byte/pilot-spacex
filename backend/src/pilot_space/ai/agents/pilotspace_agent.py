@@ -95,6 +95,16 @@ class ChatOutput:
 
 
 @dataclass(frozen=True, slots=True)
+class _ProviderConfig:
+    """Resolved LLM provider configuration for the workspace."""
+
+    api_key: str
+    base_url: str | None = None
+    model_name: str | None = None
+    provider: str = "anthropic"
+
+
+@dataclass(frozen=True, slots=True)
 class _StreamConfig:
     sdk_options: ClaudeAgentOptions
     ref_map: BlockRefMap | None
@@ -151,10 +161,21 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
     def _build_subagent_definitions(self) -> dict[str, AgentDefinition]:
         return build_subagent_definitions()
 
-    async def _get_api_key(self, workspace_id: UUID | None) -> str:
-        """Get API key (AIGOV-05 BYOK). workspace_id=None uses env fallback."""
+    async def _get_provider_config(self, workspace_id: UUID | None) -> _ProviderConfig:
+        """Resolve LLM provider config from workspace settings (AIGOV-05 BYOK).
+
+        Reads workspace.settings.default_llm_provider, then looks up that
+        provider's api_key, base_url, and model_name from workspace_api_keys.
+        Falls back to app-level ANTHROPIC_API_KEY env var.
+        """
+        # AIPR-04: explicit model override from frontend takes priority
         if getattr(self, "_resolved_model", None) is not None:
-            return self._resolved_model.api_key  # type: ignore[union-attr]
+            return _ProviderConfig(
+                api_key=self._resolved_model.api_key,  # type: ignore[union-attr]
+                base_url=getattr(self._resolved_model, "base_url", None),
+                model_name=getattr(self._resolved_model, "model", None),
+            )
+
         from pilot_space.ai.exceptions import AINotConfiguredError
 
         if workspace_id is not None:
@@ -169,12 +190,70 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 )
             except RuntimeError:
                 ks = self._key_storage
-            if ks and (key := await ks.get_api_key(workspace_id, "anthropic", "llm")):
-                return key
+
+            if ks:
+                config = await self._resolve_workspace_provider(ks, workspace_id)
+                if config is not None:
+                    return config
+
             raise AINotConfiguredError(workspace_id=workspace_id)
+
         if api_key := os.getenv("ANTHROPIC_API_KEY"):
-            return api_key
+            return _ProviderConfig(api_key=api_key)
         raise AINotConfiguredError(workspace_id=None)
+
+    async def _resolve_workspace_provider(
+        self,
+        ks: Any,
+        workspace_id: UUID,
+    ) -> _ProviderConfig | None:
+        """Resolve provider from workspace settings → workspace_api_keys."""
+        from sqlalchemy import select as sa_select
+
+        from pilot_space.infrastructure.database.models.workspace import Workspace
+
+        # Determine default LLM provider from workspace settings.
+        # Try request-scoped session first; fall back to key_storage's own session
+        # so provider resolution works outside request contexts (e.g. background tasks).
+        db = getattr(ks, "db", None)
+        if db is None:
+            try:
+                from pilot_space.dependencies.auth import get_current_session
+
+                db = get_current_session()
+            except RuntimeError:
+                return None
+
+        stmt = sa_select(Workspace.settings).where(Workspace.id == workspace_id)
+        result = await db.execute(stmt)
+        ws_settings = result.scalar_one_or_none() or {}
+        default_provider = ws_settings.get("default_llm_provider", "anthropic")
+
+        # Try the default provider first
+        key_info = await ks.get_key_info(workspace_id, default_provider, "llm")
+        if key_info is not None:
+            api_key = await ks.get_api_key(workspace_id, default_provider, "llm")
+            return _ProviderConfig(
+                api_key=api_key or "no-key-required",  # Ollama doesn't need a real key
+                base_url=key_info.base_url,
+                model_name=key_info.model_name,
+                provider=default_provider,
+            )
+
+        # Fall back to any configured LLM provider
+        all_keys = await ks.get_all_key_infos(workspace_id)
+        for ki in all_keys:
+            if ki.service_type == "llm":
+                api_key = await ks.get_api_key(workspace_id, ki.provider, "llm")
+                if api_key or ki.base_url:  # Ollama has base_url but no key
+                    return _ProviderConfig(
+                        api_key=api_key or "no-key-required",
+                        base_url=ki.base_url,
+                        model_name=ki.model_name,
+                        provider=ki.provider,
+                    )
+
+        return None
 
     async def interrupt_session(self, session_id: str) -> bool:
         client = self._active_clients.get(session_id)
@@ -276,7 +355,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         hook_executor: Any,
         tool_event_queue: asyncio.Queue[str],
         subagent_definitions: dict[str, AgentDefinition],
-        api_key: str,
+        provider_config: _ProviderConfig,
         resume_id: str | None,
     ) -> _StreamConfig:
         """Build SDK options and MCP config for a streaming session."""
@@ -285,6 +364,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         from pilot_space.ai.tools.mcp_server import ToolContext
         from pilot_space.infrastructure.database.repositories.role_skill_repository import (
             RoleSkillRepository,
+        )
+        from pilot_space.infrastructure.database.repositories.user_skill_repository import (
+            UserSkillRepository,
         )
         from pilot_space.infrastructure.database.rls import set_rls_context
 
@@ -301,6 +383,23 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             has_skill_files,
             space_context.skills_dir,
         )
+
+        # Load user skills for prompt-level awareness (separate from disk materialization)
+        _user_skills_for_prompt: list[dict[str, str]] = []
+        try:
+            _active_skills = await UserSkillRepository(db_session).get_active_by_user_workspace(
+                context.user_id, context.workspace_id
+            )
+            for _s in _active_skills:
+                name = _s.skill_name or (_s.template.name if _s.template else str(_s.id)[:8])
+                desc = (
+                    f"Personalized {_s.template.name} skill"
+                    if _s.template
+                    else (_s.experience_description or "")[:120]
+                )
+                _user_skills_for_prompt.append({"name": name, "description": desc})
+        except Exception:
+            logger.warning("Failed to load user skills for prompt", exc_info=True)
 
         _role_repo = RoleSkillRepository(db_session)
         _primary_role = await _role_repo.get_primary_by_user_workspace(
@@ -346,7 +445,21 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 user_message=input_data.message,
                 has_note_context="<note_context>" in input_data.message,
                 graph_context=graph_context,
+                user_skills=_user_skills_for_prompt,
             )
+        )
+
+        # Build env with workspace provider's API key and base URL
+        provider_env: dict[str, str] = {
+            "ANTHROPIC_API_KEY": provider_config.api_key,
+        }
+        if provider_config.base_url:
+            provider_env["ANTHROPIC_BASE_URL"] = provider_config.base_url
+        logger.info(
+            "[SDK/Space] Provider: %s, base_url=%s, model=%s",
+            provider_config.provider,
+            provider_config.base_url or "default",
+            provider_config.model_name or "default",
         )
 
         sdk_config = configure_sdk_for_space(
@@ -354,9 +467,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             permission_mode="default",
             model=self.DEFAULT_MODEL_TIER,
             additional_tools=ALL_TOOL_NAMES,
-            additional_env={
-                "ANTHROPIC_API_KEY": api_key,
-            },
+            additional_env=provider_env,
             hook_executor=hook_executor,
             include_partial_messages=True,
             memory_enabled=True,
@@ -377,8 +488,17 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         can_use_tool_cb = create_can_use_tool_callback(tool_event_queue, context.user_id)
 
         _r = getattr(self, "_resolved_model", None)  # AIPR-04 model override
+        # Model priority: AIPR-04 override > workspace provider config > SDK default
+        _model = (
+            _r.model
+            if _r
+            else (
+                provider_config.model_name
+                or sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id)
+            )
+        )
         sdk_options = ClaudeAgentOptions(
-            model=_r.model if _r else sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
+            model=_model,
             cwd=sdk_params.get("cwd"),
             setting_sources=sdk_params.get("setting_sources", ["project"]),
             allowed_tools=sdk_params.get("allowed_tools", []),
@@ -420,7 +540,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
     ) -> AsyncIterator[str]:
         try:
             self._resolved_model = input_data.resolved_model  # AIPR-04
-            api_key = await self._get_api_key(context.workspace_id)
+            provider_config = await self._get_provider_config(context.workspace_id)
             subagent_definitions = self._build_subagent_definitions()
             session_id_str = str(input_data.session_id) if input_data.session_id else None
 
@@ -434,7 +554,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             async for chunk in self._stream_with_space(
                 input_data=input_data,
                 context=context,
-                api_key=api_key,
+                provider_config=provider_config,
                 subagent_definitions=subagent_definitions,
                 session_id_str=session_id_str,
                 resume_id=resume_id,
@@ -449,7 +569,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self,
         input_data: ChatInput,
         context: AgentContext,
-        api_key: str,
+        provider_config: _ProviderConfig,
         subagent_definitions: dict[str, AgentDefinition],
         session_id_str: str | None,
         resume_id: str | None = None,
@@ -505,7 +625,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     hook_executor=hook_executor,
                     tool_event_queue=tool_event_queue,
                     subagent_definitions=subagent_definitions,
-                    api_key=api_key,
+                    provider_config=provider_config,
                     resume_id=resume_id,
                 )
                 sdk_options = config.sdk_options
@@ -663,7 +783,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                         {"role": "assistant", "content": assistant_texts[-1]},
                                     ],
                                     issue_id=_issue_id_uuid,
-                                    anthropic_api_key=api_key,
+                                    anthropic_api_key=provider_config.api_key,
+                                    base_url=provider_config.base_url,
+                                    model_name=provider_config.model_name,
                                 )
 
                     await client.disconnect()

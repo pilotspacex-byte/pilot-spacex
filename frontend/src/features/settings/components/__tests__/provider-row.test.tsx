@@ -85,23 +85,11 @@ describe('ProviderRow', () => {
     expect(screen.getByText('Ollama')).toBeInTheDocument();
   });
 
-  it('shows "Embedding + LLM" badge for Ollama when supports_both', () => {
+  it('renders Ollama with Not configured badge when no status', () => {
     render(
-      <ProviderRow
-        {...defaultProps}
-        provider="ollama"
-        serviceType="embedding"
-        status={{
-          provider: 'ollama',
-          serviceType: 'embedding',
-          isConfigured: false,
-          isValid: null,
-          lastValidatedAt: null,
-          supportsBoth: true,
-        }}
-      />
+      <ProviderRow {...defaultProps} provider="ollama" serviceType="embedding" status={undefined} />
     );
-    expect(screen.getByText('Embedding + LLM')).toBeInTheDocument();
+    expect(screen.getByText('Not configured')).toBeInTheDocument();
   });
 
   it('shows "Not configured" badge when status is undefined', () => {
@@ -123,7 +111,6 @@ describe('ProviderRow', () => {
           isConfigured: true,
           isValid: true,
           lastValidatedAt: null,
-          supportsBoth: false,
         }}
       />
     );
@@ -142,7 +129,6 @@ describe('ProviderRow', () => {
           isConfigured: true,
           isValid: null,
           lastValidatedAt: null,
-          supportsBoth: false,
         }}
       />
     );

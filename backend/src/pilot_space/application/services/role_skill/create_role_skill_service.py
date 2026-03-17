@@ -93,14 +93,6 @@ class CreateRoleSkillService:
             msg = f"Maximum {MAX_ROLES_PER_USER_WORKSPACE} roles per workspace"
             raise ValueError(msg)
 
-        # Check duplicate role_type
-        existing = await self._repo.get_by_user_workspace_role_type(
-            payload.user_id, payload.workspace_id, payload.role_type
-        )
-        if existing is not None:
-            msg = f"Role type '{payload.role_type}' already exists in this workspace"
-            raise ValueError(msg)
-
         # Get template version if predefined type
         template_version: int | None = None
         if payload.role_type != "custom":

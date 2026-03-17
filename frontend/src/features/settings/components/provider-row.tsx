@@ -246,11 +246,6 @@ export const ProviderRow = observer(function ProviderRow({
               <div>
                 <div className="flex items-center gap-2">
                   <p className="font-medium">{config.name}</p>
-                  {status?.supportsBoth && (
-                    <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                      Embedding + LLM
-                    </Badge>
-                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">{getSubtitle(status)}</p>
               </div>

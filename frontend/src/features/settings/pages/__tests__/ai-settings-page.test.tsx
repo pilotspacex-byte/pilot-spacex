@@ -49,7 +49,8 @@ const mockSettings = {
       prReviewEnabled: false,
       autoApproveNonDestructive: false,
     },
-    defaultProvider: 'anthropic',
+    defaultLlmProvider: 'anthropic',
+    defaultEmbeddingProvider: 'google',
     costLimitUsd: null,
   } as Record<string, unknown> | null,
   anthropicKeySet: true,
@@ -117,7 +118,8 @@ describe('AISettingsPage', () => {
         prReviewEnabled: false,
         autoApproveNonDestructive: false,
       },
-      defaultProvider: 'anthropic',
+      defaultLlmProvider: 'anthropic',
+      defaultEmbeddingProvider: 'google',
       costLimitUsd: null,
     };
     mockSettings.getProviderStatus = vi.fn(findProviderStatus);

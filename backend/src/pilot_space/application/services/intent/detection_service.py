@@ -17,7 +17,11 @@ from uuid import UUID
 
 from pilot_space.ai.exceptions import ProviderUnavailableError
 from pilot_space.ai.infrastructure.resilience import ResilientExecutor, RetryConfig
-from pilot_space.ai.providers.provider_selector import ProviderSelector, TaskType
+from pilot_space.ai.providers.provider_selector import (
+    ProviderSelector,
+    TaskType,
+    resolve_workspace_llm_config,
+)
 from pilot_space.domain.work_intent import DedupStatus, IntentStatus, WorkIntent
 from pilot_space.infrastructure.logging import get_logger
 
@@ -371,29 +375,33 @@ class IntentDetectionService:
         source: IntentSource,
         workspace_id: UUID,
     ) -> tuple[list[WorkIntent], str]:
-        """Call Sonnet for structured intent detection.
+        """Call LLM for structured intent detection using workspace provider config.
 
         Returns:
             Tuple of (intents list, model name used).
         """
-        api_key = await self._resolve_api_key(workspace_id)
-        if api_key is None:
-            logger.info("No API key available for intent detection, returning empty")
+        ws_config = await resolve_workspace_llm_config(self._session, workspace_id)
+        if ws_config is None:
+            logger.info("No LLM provider configured for intent detection")
             return [], "noop"
 
         selector = ProviderSelector()
-        config = selector.select_with_config(TaskType.ISSUE_EXTRACTION)
+        config = selector.select_with_config(
+            TaskType.ISSUE_EXTRACTION, workspace_override=ws_config
+        )
         model = config.model
 
         prompt = _DETECTION_PROMPT.replace("{source}", source.value).replace("{text}", text[:8000])
 
         executor = ResilientExecutor()
         retry_config = RetryConfig(max_retries=2, base_delay_seconds=1.0)
+        # Cloud-proxied Ollama models relay to remote APIs and need longer timeouts
+        timeout_sec = 90.0 if ws_config.provider == "ollama" else 30.0
 
         try:
             from anthropic import AsyncAnthropic
 
-            client = AsyncAnthropic(api_key=api_key)
+            client = AsyncAnthropic(api_key=ws_config.api_key, base_url=ws_config.base_url or None)
 
             async def _call_api() -> str:
                 response = await client.messages.create(
@@ -401,15 +409,21 @@ class IntentDetectionService:
                     max_tokens=2048,
                     messages=[{"role": "user", "content": prompt}],
                 )
+                # Prefer text blocks, fall back to thinking blocks
+                # (some models like kimi via Ollama return only thinking blocks)
+                text_parts: list[str] = []
+                thinking_parts: list[str] = []
                 for block in response.content:
-                    if block.type == "text":
-                        return block.text
-                return "[]"
+                    if block.type == "text" and block.text:
+                        text_parts.append(block.text)
+                    elif block.type == "thinking" and getattr(block, "thinking", None):
+                        thinking_parts.append(block.thinking)
+                return "\n".join(text_parts) or "\n".join(thinking_parts) or "[]"
 
             raw = await executor.execute(
-                provider="anthropic",
+                provider=ws_config.provider,
                 operation=_call_api,
-                timeout_sec=30.0,
+                timeout_sec=timeout_sec,
                 retry_config=retry_config,
             )
 
@@ -423,7 +437,10 @@ class IntentDetectionService:
             return intents, model
 
         except ProviderUnavailableError:
-            logger.warning("Anthropic provider unavailable for intent detection")
+            logger.warning(
+                "Provider unavailable for intent detection",
+                extra={"provider": ws_config.provider},
+            )
             return [], "noop"
         except Exception:
             logger.exception("Intent detection LLM call failed")
@@ -478,36 +495,3 @@ class IntentDetectionService:
             created_at=created.created_at,
             updated_at=created.updated_at,
         )
-
-    async def _resolve_api_key(self, workspace_id: UUID) -> str | None:
-        """Resolve Anthropic API key from workspace Vault or app-level settings."""
-        try:
-            from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
-            from pilot_space.config import get_settings
-
-            settings = get_settings()
-            encryption_key = settings.encryption_key.get_secret_value()
-            if encryption_key:
-                storage = SecureKeyStorage(self._session, encryption_key)
-                key = await storage.get_api_key(workspace_id, "anthropic", "llm")
-                if key:
-                    return key
-        except (ValueError, AttributeError) as e:
-            logger.warning("Workspace API key config error: %s", e)
-        except Exception:
-            logger.error("Unexpected error fetching workspace API key", exc_info=True)
-            raise
-
-        try:
-            from pilot_space.config import get_settings
-
-            settings = get_settings()
-            if settings.anthropic_api_key:
-                return settings.anthropic_api_key.get_secret_value()
-        except (ValueError, AttributeError) as e:
-            logger.warning("App-level API key config error: %s", e)
-        except Exception:
-            logger.error("Unexpected error fetching app-level API key", exc_info=True)
-            raise
-
-        return None

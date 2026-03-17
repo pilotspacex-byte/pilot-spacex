@@ -19,7 +19,11 @@ from uuid import UUID
 
 from pilot_space.ai.exceptions import ProviderUnavailableError
 from pilot_space.ai.infrastructure.resilience import ResilientExecutor, RetryConfig
-from pilot_space.ai.providers.provider_selector import ProviderSelector, TaskType
+from pilot_space.ai.providers.provider_selector import (
+    ProviderSelector,
+    TaskType,
+    resolve_workspace_llm_config,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -277,18 +281,20 @@ class IssueExtractionService:
         payload: ExtractIssuesPayload,
         note_text: str,
     ) -> tuple[list[dict[str, Any]], str]:
-        """Call Claude Sonnet for structured issue extraction.
+        """Call LLM for structured issue extraction using workspace provider config.
 
         Returns:
             Tuple of (raw issue dicts, model name).
         """
-        api_key = await self._resolve_api_key(payload.workspace_id)
-        if api_key is None:
-            logger.info("No API key available for issue extraction, returning empty")
+        ws_config = await resolve_workspace_llm_config(self._session, payload.workspace_id)
+        if ws_config is None:
+            logger.info("No LLM provider configured for issue extraction")
             return [], "noop"
 
         selector = ProviderSelector()
-        config = selector.select_with_config(TaskType.ISSUE_EXTRACTION)
+        config = selector.select_with_config(
+            TaskType.ISSUE_EXTRACTION, workspace_override=ws_config
+        )
         model = config.model
 
         # Build prompt
@@ -316,11 +322,13 @@ class IssueExtractionService:
 
         executor = ResilientExecutor()
         retry_config = RetryConfig(max_retries=2, base_delay_seconds=1.0)
+        # Cloud-proxied Ollama models relay to remote APIs and need longer timeouts
+        timeout_sec = 90.0 if ws_config.provider == "ollama" else 60.0
 
         try:
             from anthropic import AsyncAnthropic
 
-            client = AsyncAnthropic(api_key=api_key)
+            client = AsyncAnthropic(api_key=ws_config.api_key, base_url=ws_config.base_url or None)
 
             async def _call_api() -> str:
                 response = await client.messages.create(
@@ -334,51 +342,20 @@ class IssueExtractionService:
                 return "[]"
 
             raw = await executor.execute(
-                provider="anthropic",
+                provider=ws_config.provider,
                 operation=_call_api,
-                timeout_sec=60.0,
+                timeout_sec=timeout_sec,
                 retry_config=retry_config,
             )
 
             return _parse_extraction_response(raw), model
 
         except ProviderUnavailableError:
-            logger.warning("Anthropic provider unavailable for issue extraction")
+            logger.warning(
+                "Provider unavailable for issue extraction",
+                extra={"provider": ws_config.provider},
+            )
             return [], "noop"
         except Exception:
             logger.exception("Issue extraction LLM call failed")
             return [], "noop"
-
-    async def _resolve_api_key(self, workspace_id: UUID) -> str | None:
-        """Resolve Anthropic API key from workspace Vault or app-level settings."""
-        try:
-            from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
-            from pilot_space.config import get_settings
-
-            settings = get_settings()
-            encryption_key = settings.encryption_key.get_secret_value()
-            if encryption_key:
-                storage = SecureKeyStorage(self._session, encryption_key)
-                key = await storage.get_api_key(workspace_id, "anthropic", "llm")
-                if key:
-                    return key
-        except (ValueError, AttributeError) as e:
-            logger.warning("Workspace API key config error: %s", e)
-        except Exception:
-            # exc_info=False intentional: avoids logging potential key material in tracebacks
-            logger.error("Unexpected error fetching workspace API key", exc_info=False)  # noqa: TRY400
-
-        try:
-            from pilot_space.config import get_settings
-
-            settings = get_settings()
-            if settings.anthropic_api_key:
-                return settings.anthropic_api_key.get_secret_value()
-        except (ValueError, AttributeError) as e:
-            logger.warning("App-level API key config error: %s", e)
-        except Exception:
-            # exc_info=False intentional: avoids logging potential key material in tracebacks
-            logger.error("Unexpected error fetching app-level API key", exc_info=False)  # noqa: TRY400
-            return None
-
-        return None

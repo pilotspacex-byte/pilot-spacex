@@ -94,6 +94,37 @@ export class AISettingsStore {
     return this.settings?.providers?.filter((p) => p.serviceType === serviceType) ?? [];
   }
 
+  /** Get the default/active provider for a service type. */
+  getDefaultProvider(serviceType: 'embedding' | 'llm'): string {
+    if (serviceType === 'llm') {
+      return this.settings?.defaultLlmProvider ?? 'anthropic';
+    }
+    return this.settings?.defaultEmbeddingProvider ?? 'google';
+  }
+
+  /** Set the default/active provider for a service type. */
+  async setDefaultProvider(serviceType: 'embedding' | 'llm', provider: string): Promise<void> {
+    if (!this.currentWorkspaceId) return;
+
+    const data =
+      serviceType === 'llm'
+        ? { default_llm_provider: provider }
+        : { default_embedding_provider: provider };
+
+    try {
+      await aiApi.updateWorkspaceSettings(this.currentWorkspaceId, data);
+      const refreshed = await aiApi.getWorkspaceSettings(this.currentWorkspaceId);
+      runInAction(() => {
+        this.settings = refreshed;
+      });
+    } catch (err) {
+      runInAction(() => {
+        this.error = err instanceof Error ? err.message : 'Failed to set default provider';
+      });
+      throw err;
+    }
+  }
+
   async loadSettings(workspaceId: string): Promise<void> {
     runInAction(() => {
       this.isLoading = true;
@@ -124,6 +155,8 @@ export class AISettingsStore {
       model_name?: string;
     }>;
     features?: Partial<WorkspaceAISettingsFeatures>;
+    default_llm_provider?: string;
+    default_embedding_provider?: string;
   }): Promise<void> {
     if (!this.currentWorkspaceId) return;
 
@@ -142,6 +175,21 @@ export class AISettingsStore {
       if (!result.success && result.validationResults.length > 0) {
         const failed = result.validationResults.filter((r) => !r.isValid);
         const messages = failed.map((r) => `${r.provider}: ${r.errorMessage ?? 'invalid key'}`);
+
+        // If providers were updated despite validation failure (e.g. Ollama saved
+        // but connectivity check failed), refresh settings and surface as warning
+        if (result.updatedProviders.length > 0) {
+          const refreshed = await aiApi.getWorkspaceSettings(this.currentWorkspaceId);
+          runInAction(() => {
+            this.settings = refreshed;
+            this.validationErrors = Object.fromEntries(
+              failed.map((r) => [r.provider, r.errorMessage ?? 'Validation failed'])
+            );
+            this.isSaving = false;
+          });
+          return;
+        }
+
         const err = new Error(messages.join('; '));
         runInAction(() => {
           this.validationErrors = Object.fromEntries(

@@ -65,6 +65,10 @@ class PromptLayerConfig(BaseModel):
         pending_approvals: Count of pending approval requests.
         budget_warning: Optional budget/token warning message.
         conversation_summary: Optional summary of prior conversation turns.
+        user_skills: Active skills for the user in the workspace. Each entry
+            is a dict with keys ``name`` (str) and ``description`` (str).
+            Used to populate the "Your Skills" section in the assembled prompt
+            so the agent can proactively suggest relevant skills.
     """
 
     base_prompt: str = ""
@@ -78,6 +82,7 @@ class PromptLayerConfig(BaseModel):
     pending_approvals: int = 0
     budget_warning: str | None = None
     conversation_summary: str | None = None
+    user_skills: list[dict[str, str]] = Field(default_factory=list)
 
 
 class AssembledPrompt(BaseModel):
