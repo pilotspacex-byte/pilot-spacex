@@ -25,7 +25,6 @@ from pilot_space.ai.agents.pilotspace_agent_helpers import (
 )
 from pilot_space.ai.agents.pilotspace_intent_pipeline import (
     ConfirmationBus,
-    extract_and_persist_to_graph,
     recall_graph_context,
     run_intent_pipeline_step,
 )
@@ -82,24 +81,71 @@ async def _background_graph_extraction(
 ) -> None:
     """Run graph extraction in a background task with its own DB session.
 
-    Opens a dedicated DB session so the request-scoped session can close
-    immediately, allowing the SSE connection to terminate without waiting
-    for the LLM extraction call (~20-25s).
+    Separates the slow LLM call from the write phase so the DB session is
+    held only during the actual persistence step, not during the ~20-25s
+    LLM round-trip.
+
+    Phase 1 (no DB session): LLM extraction — identifies decisions, patterns,
+      and user preferences from the conversation.
+    Phase 2 (scoped DB session with RLS): persistence — writes extracted nodes
+      and edges to the RLS-protected graph tables.
     """
-    from pilot_space.infrastructure.database import get_db_session
+    if not messages:
+        return
+    if not anthropic_api_key and not base_url:
+        return
 
     try:
-        async with get_db_session() as bg_session:
-            graph_write_svc = build_graph_write_service_for_session(bg_session, graph_queue_client)
-            await extract_and_persist_to_graph(
-                graph_write_service=graph_write_svc,
+        from pilot_space.application.services.memory.graph_extraction_service import (
+            ConversationExtractionPayload,
+            GraphExtractionService,
+        )
+        from pilot_space.application.services.memory.graph_write_service import GraphWritePayload
+        from pilot_space.infrastructure.database import get_db_session
+        from pilot_space.infrastructure.database.rls import set_rls_context
+
+        # Phase 1: LLM call — outside DB session to avoid holding a connection
+        # for the full ~20-25s extraction round-trip.
+        extraction_svc = GraphExtractionService()
+        result = await extraction_svc.execute(
+            ConversationExtractionPayload(
+                messages=messages,
                 workspace_id=workspace_id,
                 user_id=user_id,
-                messages=messages,
                 issue_id=issue_id,
-                anthropic_api_key=anthropic_api_key,
+                api_key=anthropic_api_key or "ollama",
                 base_url=base_url,
                 model_name=model_name,
+            )
+        )
+
+        if not result.nodes:
+            logger.debug(
+                "[SDK/BackgroundGraph] No meaningful nodes extracted workspace=%s",
+                workspace_id,
+            )
+            return
+
+        # Phase 2: Write phase — open session only now that we have data to persist.
+        # set_rls_context is required: graph tables are RLS-protected and inserts
+        # will be denied without the app.current_user_id session variable.
+        async with get_db_session() as bg_session:
+            if user_id is not None:
+                await set_rls_context(bg_session, user_id, workspace_id)
+            graph_write_svc = build_graph_write_service_for_session(bg_session, graph_queue_client)
+            await graph_write_svc.execute(
+                GraphWritePayload(
+                    workspace_id=workspace_id,
+                    nodes=result.nodes,
+                    edges=result.edges,
+                    user_id=user_id,
+                )
+            )
+            logger.info(
+                "[SDK/BackgroundGraph] Extracted %d nodes, %d edges to knowledge graph workspace=%s",
+                len(result.nodes),
+                len(result.edges),
+                workspace_id,
             )
     except Exception:
         logger.warning(
@@ -195,6 +241,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._session_factory = session_factory
         self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
         self._active_clients: dict[str, ClaudeSDKClient] = {}
+        # Strong references to fire-and-forget background tasks.
+        # asyncio only keeps weak references to tasks; without this set a task
+        # can be garbage-collected mid-execution before it completes.
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     def _build_subagent_definitions(self) -> dict[str, AgentDefinition]:
         return build_subagent_definitions()
@@ -863,11 +913,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                         model_name=provider_config.model_name,
                                     )
                                 )
-                                _bg_task.add_done_callback(
-                                    lambda t: t.result()
-                                    if not t.cancelled() and not t.exception()
-                                    else None
-                                )
+                                # Keep a strong reference so asyncio's weak-ref
+                                # GC cannot discard the task mid-execution.
+                                self._background_tasks.add(_bg_task)
+                                _bg_task.add_done_callback(self._background_tasks.discard)
 
                     await client.disconnect()
                 clear_context()

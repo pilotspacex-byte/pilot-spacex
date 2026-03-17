@@ -507,24 +507,40 @@ class TestBackgroundGraphExtraction:
 
     @pytest.mark.asyncio
     async def test_runs_extraction_with_own_db_session(self) -> None:
+        """DB session opened only during write phase, after LLM extraction completes."""
         from pilot_space.ai.agents.pilotspace_agent import _background_graph_extraction
 
+        mock_result = MagicMock()
+        mock_result.nodes = [MagicMock()]
+        mock_result.edges = []
+
+        mock_extraction_svc = MagicMock()
+        mock_extraction_svc.execute = AsyncMock(return_value=mock_result)
+
+        mock_write_svc = MagicMock()
+        mock_write_svc.execute = AsyncMock()
+
         mock_session = AsyncMock()
-        mock_cm = AsyncMock()
+        mock_cm = MagicMock()
         mock_cm.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_cm.__aexit__ = AsyncMock(return_value=None)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
 
         with (
+            patch(
+                "pilot_space.application.services.memory.graph_extraction_service.GraphExtractionService",
+                return_value=mock_extraction_svc,
+            ),
             patch(
                 "pilot_space.infrastructure.database.get_db_session",
                 return_value=mock_cm,
             ) as mock_get_db,
             patch(
-                "pilot_space.ai.agents.pilotspace_agent.extract_and_persist_to_graph",
-                new_callable=AsyncMock,
-            ) as mock_extract,
+                "pilot_space.infrastructure.database.rls.set_rls_context",
+                new=AsyncMock(),
+            ),
             patch(
                 "pilot_space.ai.agents.pilotspace_agent.build_graph_write_service_for_session",
+                return_value=mock_write_svc,
             ) as mock_build_svc,
         ):
             ws_id = uuid4()
@@ -539,21 +555,35 @@ class TestBackgroundGraphExtraction:
                 anthropic_api_key="sk-test",  # pragma: allowlist secret
             )
 
-            mock_get_db.assert_called_once()
-            mock_build_svc.assert_called_once_with(mock_session, None)
-            mock_extract.assert_awaited_once()
+        # DB session must be opened (for write phase)
+        mock_get_db.assert_called_once()
+        mock_build_svc.assert_called_once_with(mock_session, None)
+        mock_write_svc.execute.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_swallows_exceptions_without_raising(self) -> None:
         from pilot_space.ai.agents.pilotspace_agent import _background_graph_extraction
 
-        mock_cm = AsyncMock()
-        mock_cm.__aenter__ = AsyncMock(side_effect=RuntimeError("DB unavailable"))
-        mock_cm.__aexit__ = AsyncMock(return_value=None)
+        mock_result = MagicMock()
+        mock_result.nodes = [MagicMock()]
+        mock_result.edges = []
 
-        with patch(
-            "pilot_space.infrastructure.database.get_db_session",
-            return_value=mock_cm,
+        mock_extraction_svc = MagicMock()
+        mock_extraction_svc.execute = AsyncMock(return_value=mock_result)
+
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(side_effect=RuntimeError("DB unavailable"))
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch(
+                "pilot_space.application.services.memory.graph_extraction_service.GraphExtractionService",
+                return_value=mock_extraction_svc,
+            ),
+            patch(
+                "pilot_space.infrastructure.database.get_db_session",
+                return_value=mock_cm,
+            ),
         ):
             # Must not raise
             await _background_graph_extraction(
@@ -561,4 +591,5 @@ class TestBackgroundGraphExtraction:
                 workspace_id=uuid4(),
                 user_id=uuid4(),
                 messages=[{"role": "user", "content": "test"}],
+                anthropic_api_key="sk-test",  # pragma: allowlist secret
             )
