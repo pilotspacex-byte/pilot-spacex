@@ -224,7 +224,11 @@ async def get_velocity_chart(
     Returns:
         Velocity chart data with data points and average.
     """
-    result = await get_service.get_velocity_chart(project_id, limit=limit)
+    result = await get_service.get_velocity_chart(
+        project_id,
+        workspace_id,
+        limit=limit,
+    )
 
     return VelocityChartResponse(
         project_id=result.project_id,

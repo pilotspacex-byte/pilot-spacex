@@ -375,18 +375,133 @@ class CycleRepository(BaseRepository[Cycle]):
             velocity=velocity,
         )
 
+    async def get_metrics_for_cycles(
+        self,
+        cycle_ids: list[UUID],
+    ) -> dict[UUID, CycleMetrics]:
+        """Calculate metrics for multiple cycles in a single aggregate query.
+
+        Issues are joined to their state group and aggregated per cycle_id,
+        eliminating the N+1 pattern from calling get_cycle_metrics() in a loop.
+
+        Args:
+            cycle_ids: List of cycle UUIDs to compute metrics for.
+
+        Returns:
+            Mapping of cycle_id -> CycleMetrics. Cycles with no issues are
+            not included.
+        """
+        if not cycle_ids:
+            return {}
+
+        from pilot_space.infrastructure.database.models import State
+
+        # Fetch cycles to compute velocity (needs start/end dates)
+        cycles_query = select(Cycle).where(Cycle.id.in_(cycle_ids))
+        cycles_result = await self.session.execute(cycles_query)
+        cycles_by_id: dict[UUID, Cycle] = {c.id: c for c in cycles_result.scalars().all()}
+
+        # Single aggregate query: counts and points per (cycle_id, state_group)
+        agg_query = (
+            select(
+                Issue.cycle_id,
+                State.group,
+                func.count(Issue.id).label("count"),
+                func.coalesce(func.sum(Issue.estimate_points), 0).label("points"),
+            )
+            .select_from(Issue)
+            .join(Issue.state)
+            .where(
+                and_(
+                    Issue.cycle_id.in_(cycle_ids),
+                    Issue.is_deleted == False,  # noqa: E712
+                )
+            )
+            .group_by(Issue.cycle_id, State.group)
+        )
+
+        agg_result = await self.session.execute(agg_query)
+        rows = agg_result.all()
+
+        # Accumulate per-cycle counters, skipping cancelled
+        accum: dict[UUID, dict[str, int]] = {}
+        for row in rows:
+            cid: UUID = row[0]
+            group: StateGroup = row[1]
+            count: int = row[2]
+            points: int = row[3]
+
+            if group == StateGroup.CANCELLED:
+                continue
+
+            if cid not in accum:
+                accum[cid] = {
+                    "total_issues": 0,
+                    "completed_issues": 0,
+                    "in_progress_issues": 0,
+                    "not_started_issues": 0,
+                    "total_points": 0,
+                    "completed_points": 0,
+                }
+
+            accum[cid]["total_issues"] += count
+            accum[cid]["total_points"] += points
+
+            if group == StateGroup.COMPLETED:
+                accum[cid]["completed_issues"] += count
+                accum[cid]["completed_points"] += points
+            elif group == StateGroup.STARTED:
+                accum[cid]["in_progress_issues"] += count
+            elif group == StateGroup.UNSTARTED:
+                accum[cid]["not_started_issues"] += count
+
+        metrics: dict[UUID, CycleMetrics] = {}
+        for cid, counts in accum.items():
+            cycle = cycles_by_id.get(cid)
+
+            total_issues = counts["total_issues"]
+            completed_issues = counts["completed_issues"]
+            completed_points = counts["completed_points"]
+
+            completion_percentage = (
+                (completed_issues / total_issues) * 100 if total_issues > 0 else 0.0
+            )
+
+            velocity = 0.0
+            if cycle and cycle.start_date and cycle.end_date:
+                days = (cycle.end_date - cycle.start_date).days
+                if days > 0:
+                    velocity = completed_points / days
+
+            metrics[cid] = CycleMetrics(
+                cycle_id=cid,
+                total_issues=total_issues,
+                completed_issues=completed_issues,
+                in_progress_issues=counts["in_progress_issues"],
+                not_started_issues=counts["not_started_issues"],
+                total_points=counts["total_points"],
+                completed_points=completed_points,
+                completion_percentage=completion_percentage,
+                velocity=velocity,
+            )
+
+        return metrics
+
     async def get_completed_cycles_with_metrics(
         self,
         project_id: UUID,
+        workspace_id: UUID,
         *,
         limit: int = 10,
     ) -> list[tuple[Cycle, CycleMetrics]]:
         """Get completed cycles with their metrics for velocity chart.
 
         Returns cycles ordered by sequence descending (most recent first).
+        Scoped to the given workspace to enforce tenant isolation.
 
         Args:
             project_id: Project UUID.
+            workspace_id: Workspace UUID — enforces tenant isolation boundary.
             limit: Maximum number of cycles to return.
 
         Returns:
@@ -401,6 +516,7 @@ class CycleRepository(BaseRepository[Cycle]):
             .where(
                 and_(
                     Cycle.project_id == project_id,
+                    Cycle.workspace_id == workspace_id,
                     Cycle.status == CycleStatus.COMPLETED,
                     Cycle.is_deleted == False,  # noqa: E712
                 )
@@ -412,11 +528,17 @@ class CycleRepository(BaseRepository[Cycle]):
         result = await self.session.execute(query)
         cycles = list(result.unique().scalars().all())
 
+        if not cycles:
+            return []
+
+        cycle_ids = [c.id for c in cycles]
+        metrics_map = await self.get_metrics_for_cycles(cycle_ids)
+
         pairs: list[tuple[Cycle, CycleMetrics]] = []
         for cycle in cycles:
-            metrics = await self.get_cycle_metrics(cycle.id)
-            if metrics:
-                pairs.append((cycle, metrics))
+            cycle_metrics = metrics_map.get(cycle.id)
+            if cycle_metrics:
+                pairs.append((cycle, cycle_metrics))
 
         return pairs
 

@@ -17,6 +17,7 @@ from pilot_space.infrastructure.database.repositories.cycle_repository import (
 pytestmark = pytest.mark.asyncio
 
 _PROJECT_ID = uuid4()
+_WORKSPACE_ID = uuid4()
 
 
 def _make_cycle(name: str, sequence: int) -> MagicMock:
@@ -49,7 +50,7 @@ class TestGetVelocityChart:
         repo.get_completed_cycles_with_metrics = AsyncMock(return_value=[])
 
         service = GetCycleService(cycle_repository=repo)
-        result = await service.get_velocity_chart(_PROJECT_ID)
+        result = await service.get_velocity_chart(_PROJECT_ID, _WORKSPACE_ID)
 
         assert result.project_id == _PROJECT_ID
         assert result.data_points == []
@@ -74,7 +75,7 @@ class TestGetVelocityChart:
         )
 
         service = GetCycleService(cycle_repository=repo)
-        result = await service.get_velocity_chart(_PROJECT_ID, limit=10)
+        result = await service.get_velocity_chart(_PROJECT_ID, _WORKSPACE_ID, limit=10)
 
         assert len(result.data_points) == 2
         # Should be chronological: Sprint 1 first
@@ -98,7 +99,7 @@ class TestGetVelocityChart:
         )
 
         service = GetCycleService(cycle_repository=repo)
-        result = await service.get_velocity_chart(_PROJECT_ID)
+        result = await service.get_velocity_chart(_PROJECT_ID, _WORKSPACE_ID)
 
         assert result.average_velocity == pytest.approx(4.0)
 
@@ -107,6 +108,39 @@ class TestGetVelocityChart:
         repo.get_completed_cycles_with_metrics = AsyncMock(return_value=[])
 
         service = GetCycleService(cycle_repository=repo)
-        await service.get_velocity_chart(_PROJECT_ID, limit=5)
+        await service.get_velocity_chart(_PROJECT_ID, _WORKSPACE_ID, limit=5)
 
-        repo.get_completed_cycles_with_metrics.assert_called_once_with(_PROJECT_ID, limit=5)
+        repo.get_completed_cycles_with_metrics.assert_called_once_with(
+            _PROJECT_ID, _WORKSPACE_ID, limit=5
+        )
+
+    async def test_passes_workspace_id_to_repository(self) -> None:
+        """workspace_id must be forwarded to the repository for tenant isolation."""
+        other_workspace = uuid4()
+        repo = AsyncMock()
+        repo.get_completed_cycles_with_metrics = AsyncMock(return_value=[])
+
+        service = GetCycleService(cycle_repository=repo)
+        await service.get_velocity_chart(_PROJECT_ID, other_workspace, limit=10)
+
+        repo.get_completed_cycles_with_metrics.assert_called_once_with(
+            _PROJECT_ID, other_workspace, limit=10
+        )
+
+    async def test_workspace_scoping_isolates_separate_workspaces(self) -> None:
+        """Calls with different workspace_ids must pass distinct values to the repository."""
+        workspace_a = uuid4()
+        workspace_b = uuid4()
+
+        repo = AsyncMock()
+        repo.get_completed_cycles_with_metrics = AsyncMock(return_value=[])
+
+        service = GetCycleService(cycle_repository=repo)
+
+        await service.get_velocity_chart(_PROJECT_ID, workspace_a)
+        await service.get_velocity_chart(_PROJECT_ID, workspace_b)
+
+        calls = repo.get_completed_cycles_with_metrics.call_args_list
+        assert calls[0].args[1] == workspace_a
+        assert calls[1].args[1] == workspace_b
+        assert calls[0].args[1] != calls[1].args[1]

@@ -227,21 +227,26 @@ class GetCycleService:
     async def get_velocity_chart(
         self,
         project_id: UUID,
+        workspace_id: UUID,
         *,
         limit: int = 10,
     ) -> VelocityChartResult:
         """Get velocity chart data for a project.
 
         Returns velocity data points from the most recent completed cycles.
+        Scoped to workspace_id to enforce tenant isolation.
 
         Args:
             project_id: Project UUID.
+            workspace_id: Workspace UUID — enforces tenant isolation boundary.
             limit: Maximum number of cycles to include.
 
         Returns:
             VelocityChartResult with data points and average.
         """
-        pairs = await self._cycle_repo.get_completed_cycles_with_metrics(project_id, limit=limit)
+        pairs = await self._cycle_repo.get_completed_cycles_with_metrics(
+            project_id, workspace_id, limit=limit
+        )
 
         data_points: list[VelocityDataPoint] = []
         total_velocity = 0.0
