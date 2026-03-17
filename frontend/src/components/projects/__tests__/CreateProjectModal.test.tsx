@@ -23,6 +23,10 @@ vi.mock('@/features/projects/hooks', () => ({
   })),
 }));
 
+vi.mock('@/features/issues/hooks/use-workspace-members', () => ({
+  useWorkspaceMembers: vi.fn(() => ({ data: [], isLoading: false })),
+}));
+
 import { useCreateProject } from '@/features/projects/hooks';
 
 // ---------------------------------------------------------------------------
@@ -75,7 +79,7 @@ describe('CreateProjectModal', () => {
     expect(identifierInput.value).toBe('AS');
   });
 
-  it('auto-generates identifier from single word name', async () => {
+  it('auto-generates identifier from single word name with at least 2 chars', async () => {
     const user = userEvent.setup();
     render(<CreateProjectModal {...defaultProps} />);
 
@@ -83,7 +87,20 @@ describe('CreateProjectModal', () => {
     await user.type(nameInput, 'Backend');
 
     const identifierInput = screen.getByLabelText(/identifier/i) as HTMLInputElement;
-    expect(identifierInput.value).toBe('B');
+    expect(identifierInput.value).toBe('BAC');
+  });
+
+  it('disables submit when identifier is less than 2 characters', async () => {
+    const user = userEvent.setup();
+    render(<CreateProjectModal {...defaultProps} />);
+
+    const identifierInput = screen.getByLabelText(/identifier/i);
+    await user.type(screen.getByLabelText(/name/i), 'Test');
+    await user.clear(identifierInput);
+    await user.type(identifierInput, 'A');
+
+    const submitButton = screen.getByRole('button', { name: /create project/i });
+    expect(submitButton).toBeDisabled();
   });
 
   it('stops auto-generating identifier after manual edit', async () => {

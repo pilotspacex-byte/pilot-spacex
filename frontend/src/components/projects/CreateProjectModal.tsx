@@ -31,12 +31,18 @@ interface CreateProjectModalProps {
 }
 
 function generateIdentifier(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join('')
-    .slice(0, 5);
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '';
+  const initials = words.map((w) => w.charAt(0).toUpperCase()).join('');
+  // For single-word names, take first 2-3 chars to meet min_length=2
+  if (initials.length < 2 && words.length === 1) {
+    const word = words[0]!;
+    return word
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 3);
+  }
+  return initials.slice(0, 5);
 }
 
 export function CreateProjectModal({
@@ -95,7 +101,7 @@ export function CreateProjectModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !identifier.trim()) return;
+    if (!name.trim() || identifier.trim().length < 2) return;
 
     createProject({
       name: name.trim(),
@@ -137,7 +143,9 @@ export function CreateProjectModal({
                   className="font-mono"
                   maxLength={5}
                 />
-                <p className="text-[11px] text-muted-foreground">Auto-generated. Max 5 chars.</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Auto-generated. 2–5 uppercase chars.
+                </p>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="project-icon">Icon</Label>
@@ -188,7 +196,10 @@ export function CreateProjectModal({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || !identifier.trim() || isPending}>
+            <Button
+              type="submit"
+              disabled={!name.trim() || identifier.trim().length < 2 || isPending}
+            >
               {isPending ? 'Creating...' : 'Create Project'}
             </Button>
           </DialogFooter>
