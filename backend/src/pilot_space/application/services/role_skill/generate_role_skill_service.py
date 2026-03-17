@@ -48,7 +48,10 @@ class SkillGenerationError(Exception):
 class SkillGenerationRateLimitError(Exception):
     """Raised when user exceeds generation rate limit."""
 
-    def __init__(self, message: str = "Rate limit exceeded: max 5 generations per hour") -> None:
+    def __init__(
+        self,
+        message: str = f"Rate limit exceeded: max {_RATE_LIMIT_MAX} generations per hour",
+    ) -> None:
         super().__init__(message)
 
 

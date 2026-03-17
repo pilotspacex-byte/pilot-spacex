@@ -6,9 +6,10 @@ Source: Phase 20, P20-06
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class UserSkillSchema(BaseModel):
@@ -53,6 +54,14 @@ class UserSkillCreate(BaseModel):
         description="User-visible skill name (AI-suggested or user-edited)",
         max_length=200,
     )
+
+    @model_validator(mode="after")
+    def require_template_or_content(self) -> Self:
+        """Ensure either template_id or skill_content is provided."""
+        if not self.template_id and not self.skill_content:
+            msg = "Either template_id or skill_content is required"
+            raise ValueError(msg)
+        return self
 
 
 class UserSkillUpdate(BaseModel):

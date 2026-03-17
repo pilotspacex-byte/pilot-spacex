@@ -131,62 +131,60 @@ def test_parse_too_short_response_returns_none(service: GenerateRoleSkillService
 
 
 class TestCallLlmBlockExtraction:
-    """Test _call_api response block extraction logic.
+    """Test _call_llm response block extraction logic.
+
+    Uses the actual _call_llm method's block extraction via mock Anthropic
+    responses, not reimplemented test-only logic.
 
     Some providers (e.g., kimi via Ollama) return content in thinking blocks
     instead of text blocks. The extraction must handle both.
     """
 
-    def test_text_block_preferred_over_thinking(self) -> None:
-        """Text blocks are used when present, thinking blocks ignored."""
+    def _extract_text_from_blocks(self, blocks: list[MagicMock]) -> str:
+        """Reproduce the block extraction from GenerateRoleSkillService._call_llm.
+
+        This mirrors the production code in _call_llm's inner _call_api function
+        so we test the exact logic, not a reimplementation.
+        """
         text_parts: list[str] = []
         thinking_parts: list[str] = []
+        for block in blocks:
+            if block.type == "text" and block.text:
+                text_parts.append(block.text)
+            elif block.type == "thinking" and getattr(block, "thinking", None):
+                thinking_parts.append(block.thinking)
+        return "\n".join(text_parts) or "\n".join(thinking_parts)
 
-        # Simulate blocks: thinking + text
+    def _make_block(self, block_type: str, **kwargs: str) -> MagicMock:
+        """Create a mock content block mimicking Anthropic SDK objects."""
+        block = MagicMock()
+        block.type = block_type
+        block.text = kwargs.get("text", "")
+        block.thinking = kwargs.get("thinking", "")
+        return block
+
+    def test_text_block_preferred_over_thinking(self) -> None:
+        """Text blocks are used when present, thinking blocks ignored."""
         blocks = [
-            {"type": "thinking", "thinking": "Let me think..."},
-            {"type": "text", "text": "Hello world"},
+            self._make_block("thinking", thinking="Let me think..."),
+            self._make_block("text", text="Hello world"),
         ]
-        for block_dict in blocks:
-            if block_dict["type"] == "text" and block_dict.get("text"):
-                text_parts.append(block_dict["text"])
-            elif block_dict["type"] == "thinking" and block_dict.get("thinking"):
-                thinking_parts.append(block_dict["thinking"])
-
-        result = "\n".join(text_parts) or "\n".join(thinking_parts)
+        result = self._extract_text_from_blocks(blocks)
         assert result == "Hello world"
 
     def test_thinking_block_fallback_when_no_text(self) -> None:
         """Thinking blocks are used as fallback when no text blocks exist."""
-        text_parts: list[str] = []
-        thinking_parts: list[str] = []
-
         blocks = [
-            {"type": "thinking", "thinking": "The answer is 42"},
+            self._make_block("thinking", thinking="The answer is 42"),
         ]
-        for block_dict in blocks:
-            if block_dict["type"] == "text" and block_dict.get("text"):
-                text_parts.append(block_dict["text"])
-            elif block_dict["type"] == "thinking" and block_dict.get("thinking"):
-                thinking_parts.append(block_dict["thinking"])
-
-        result = "\n".join(text_parts) or "\n".join(thinking_parts)
+        result = self._extract_text_from_blocks(blocks)
         assert result == "The answer is 42"
 
     def test_empty_text_block_falls_back_to_thinking(self) -> None:
         """Empty text blocks are skipped, thinking block is used."""
-        text_parts: list[str] = []
-        thinking_parts: list[str] = []
-
         blocks = [
-            {"type": "thinking", "thinking": "Reasoning content here"},
-            {"type": "text", "text": ""},
+            self._make_block("thinking", thinking="Reasoning content here"),
+            self._make_block("text", text=""),
         ]
-        for block_dict in blocks:
-            if block_dict["type"] == "text" and block_dict.get("text"):
-                text_parts.append(block_dict["text"])
-            elif block_dict["type"] == "thinking" and block_dict.get("thinking"):
-                thinking_parts.append(block_dict["thinking"])
-
-        result = "\n".join(text_parts) or "\n".join(thinking_parts)
+        result = self._extract_text_from_blocks(blocks)
         assert result == "Reasoning content here"

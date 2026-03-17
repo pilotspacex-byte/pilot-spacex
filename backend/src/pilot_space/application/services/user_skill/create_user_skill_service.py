@@ -103,7 +103,7 @@ class CreateUserSkillService:
                 msg = f"User already has a skill from template {template_id}"
                 raise ValueError(msg)
 
-            if skill_content:
+            if skill_content and skill_content.strip():
                 # Frontend already generated + user may have edited — use as-is
                 content = skill_content
             else:
@@ -116,7 +116,7 @@ class CreateUserSkillService:
                 )
         else:
             # Custom skill: use provided content directly
-            if not skill_content:
+            if not skill_content or not skill_content.strip():
                 msg = "skill_content is required for custom skills (no template_id)"
                 raise ValueError(msg)
             content = skill_content

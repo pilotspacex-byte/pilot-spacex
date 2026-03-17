@@ -151,6 +151,8 @@ class TestOllamaMetadataOnlySave:
         failed = [r for r in data["validationResults"] if not r["isValid"]]
         assert len(failed) == 1
         assert "API key required" in failed[0]["errorMessage"]
+        # Rejected path must NOT persist a record
+        mock_storage.store_api_key.assert_not_called()
 
     async def test_ollama_metadata_only_validation_failure(self, ai_settings_client: Any) -> None:
         """Ollama saved but validation fails (e.g. not running) — still saves."""
@@ -223,6 +225,8 @@ class TestDefaultProviderSelection:
         assert data["updatedFeatures"] is True
         # Verify workspace settings were updated with the new default
         assert mock_workspace.settings["default_llm_provider"] == "ollama"
+        # Verify the repo was asked to persist the workspace
+        mock_repo.update.assert_called_once()
 
     async def test_set_default_embedding_provider(self, ai_settings_client: Any) -> None:
         """Setting default_embedding_provider persists to workspace settings."""
@@ -262,3 +266,4 @@ class TestDefaultProviderSelection:
             )
 
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert resp.headers.get("content-type", "").startswith("application/problem+json")
