@@ -71,7 +71,7 @@ None.
 | 260316-phe | Investigate & fix skill features (7 issues fixed) | 2026-03-16 | f01d76a0 | Verified | [260316-phe-investigate-into-current-pilot-space-ski](./quick/260316-phe-investigate-into-current-pilot-space-ski/) |
 | 260316-v8c | Improve provider setup UI/UX with dropdown selection | 2026-03-16 | 34d7e3cd | Done | [260316-v8c-improve-provider-setup-ui-ux-with-llm-em](./quick/260316-v8c-improve-provider-setup-ui-ux-with-llm-em/) |
 | 260317-0ce | Fix skill editing: AI parser, skill_name, expandable cards, editable preview | 2026-03-17 | c234324c | Verified | [260317-0ce-fix-skill-editing-allow-edit-skill-conte](./quick/260317-0ce-fix-skill-editing-allow-edit-skill-conte/) |
-| 260317-bch | User skills in agent system prompt (layer 4.5, TDD) | 2026-03-17 | a743eb3f | Done | [260317-bch-check-change-of-feat-provider-setup-enha](./quick/260317-bch-check-change-of-feat-provider-setup-enha/) |
+| 260317-bch | User skills in agent system prompt (layer 4.5, TDD) | 2026-03-17 | a743eb3f | Verified | [260317-bch-check-change-of-feat-provider-setup-enha](./quick/260317-bch-check-change-of-feat-provider-setup-enha/) |
 
 ## Session Continuity
 
