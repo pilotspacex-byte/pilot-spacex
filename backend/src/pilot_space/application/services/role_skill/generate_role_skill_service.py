@@ -19,7 +19,11 @@ from uuid import UUID
 
 from pilot_space.ai.exceptions import ProviderUnavailableError
 from pilot_space.ai.infrastructure.resilience import ResilientExecutor, RetryConfig
-from pilot_space.ai.providers.provider_selector import ProviderSelector, TaskType
+from pilot_space.ai.providers.provider_selector import (
+    ProviderSelector,
+    TaskType,
+    resolve_workspace_llm_config,
+)
 from pilot_space.application.services.role_skill.types import VALID_ROLE_TYPES
 from pilot_space.infrastructure.logging import get_logger
 
@@ -234,12 +238,10 @@ class GenerateRoleSkillService:
         Returns:
             Tuple of (skill_content, suggested_role_name, model_name) or None.
         """
-        provider_info = await self._resolve_llm_provider(workspace_id)
-        if provider_info is None:
+        ws_config = await resolve_workspace_llm_config(self._session, workspace_id)
+        if ws_config is None:
             logger.info("No LLM provider configured, using template fallback")
             return None
-
-        provider, api_key, base_url, model_name = provider_info
 
         prompt = _build_generation_prompt(
             role_type=role_type,
@@ -249,13 +251,14 @@ class GenerateRoleSkillService:
             role_name=role_name,
         )
 
-        # Use workspace model if configured, otherwise provider default
-        if model_name:
-            model = model_name
-        else:
-            selector = ProviderSelector()
-            config = selector.select_with_config(TaskType.TEMPLATE_FILLING)
-            model = config.model
+        selector = ProviderSelector()
+        config = selector.select_with_config(
+            TaskType.TEMPLATE_FILLING, workspace_override=ws_config
+        )
+        model = config.model
+        api_key = ws_config.api_key
+        base_url = ws_config.base_url
+        provider = ws_config.provider
 
         executor = ResilientExecutor()
         retry_config = RetryConfig(max_retries=2, base_delay_seconds=1.0)
@@ -436,72 +439,6 @@ class GenerateRoleSkillService:
             "AI returned invalid or insufficient content",
             extra={"model": model, "response_length": len(text), "preview": stripped[:200]},
         )
-        return None
-
-    async def _resolve_llm_provider(
-        self, workspace_id: UUID | None
-    ) -> tuple[str, str, str | None, str | None] | None:
-        """Resolve the workspace's configured LLM provider.
-
-        Returns:
-            Tuple of (provider, api_key, base_url, model_name) or None.
-        """
-        if workspace_id is not None:
-            try:
-                from sqlalchemy import select as sa_select
-
-                from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
-                from pilot_space.config import get_settings
-                from pilot_space.infrastructure.database.models.workspace import Workspace
-
-                settings = get_settings()
-                encryption_key = settings.encryption_key.get_secret_value()
-                if not encryption_key:
-                    return None
-
-                # Determine which LLM provider the workspace has selected
-                stmt = sa_select(Workspace.settings).where(Workspace.id == workspace_id)
-                result = await self._session.execute(stmt)
-                ws_settings = result.scalar_one_or_none() or {}
-                default_llm = ws_settings.get("default_llm_provider", "anthropic")
-
-                storage = SecureKeyStorage(self._session, encryption_key)
-                key_info = await storage.get_key_info(workspace_id, default_llm, "llm")
-
-                if key_info is not None:
-                    api_key = await storage.get_api_key(workspace_id, default_llm, "llm")
-                    return (
-                        default_llm,
-                        api_key or "",
-                        key_info.base_url,
-                        key_info.model_name,
-                    )
-
-                # If default provider has no key, try any configured LLM provider
-                all_keys = await storage.get_all_key_infos(workspace_id)
-                for ki in all_keys:
-                    if ki.service_type == "llm":
-                        api_key = await storage.get_api_key(workspace_id, ki.provider, "llm")
-                        return (ki.provider, api_key or "", ki.base_url, ki.model_name)
-
-            except Exception:
-                logger.debug("Could not retrieve workspace LLM provider", exc_info=True)
-
-        # Fall back to app-level Anthropic key
-        try:
-            from pilot_space.config import get_settings
-
-            settings = get_settings()
-            if settings.anthropic_api_key:
-                return (
-                    "anthropic",
-                    settings.anthropic_api_key.get_secret_value(),
-                    None,
-                    None,
-                )
-        except Exception:
-            logger.debug("Could not retrieve app-level API key", exc_info=True)
-
         return None
 
     async def _get_template_content(self, role_type: str) -> str:

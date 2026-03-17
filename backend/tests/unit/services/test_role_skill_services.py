@@ -9,6 +9,7 @@ Source: 011-role-based-skills, T014
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -521,6 +522,15 @@ class TestListRoleSkillsService:
 class TestGenerateRoleSkillService:
     """Tests for GenerateRoleSkillService."""
 
+    @pytest.fixture(autouse=True)
+    def mock_no_llm_config(self) -> None:
+        """Ensure no LLM provider is resolved so tests use template fallback."""
+        with patch(
+            "pilot_space.application.services.role_skill.generate_role_skill_service.resolve_workspace_llm_config",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     async def test_generate_with_template(
         self,
         db_session: AsyncSession,
@@ -615,6 +625,15 @@ class TestGenerateRoleSkillService:
 class TestGenerateRoleSkillAI:
     """Tests for AI generation, fallback, rate limiting, and response parsing."""
 
+    @pytest.fixture(autouse=True)
+    def mock_no_llm_config(self) -> None:
+        """Ensure no LLM provider is resolved so tests use template fallback."""
+        with patch(
+            "pilot_space.application.services.role_skill.generate_role_skill_service.resolve_workspace_llm_config",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     async def test_fallback_to_template_without_api_key(
         self,
         db_session: AsyncSession,
@@ -639,8 +658,9 @@ class TestGenerateRoleSkillAI:
         self,
         db_session: AsyncSession,
     ) -> None:
-        """FR-003: Rate limit of 5 generations/hour/user is enforced."""
+        """FR-003: Rate limit of _RATE_LIMIT_MAX generations/hour/user is enforced."""
         from pilot_space.application.services.role_skill.generate_role_skill_service import (
+            _RATE_LIMIT_MAX,
             SkillGenerationRateLimitError,
             _rate_limit_store,
         )
@@ -651,8 +671,8 @@ class TestGenerateRoleSkillAI:
 
         service = GenerateRoleSkillService(db_session)
 
-        # First 5 should succeed
-        for _ in range(5):
+        # First _RATE_LIMIT_MAX should succeed
+        for _ in range(_RATE_LIMIT_MAX):
             result = await service.execute(
                 GenerateRoleSkillPayload(
                     role_type="custom",
@@ -662,7 +682,7 @@ class TestGenerateRoleSkillAI:
             )
             assert result.generation_model == "template-v1"
 
-        # 6th should raise rate limit error
+        # Next one should raise rate limit error
         with pytest.raises(SkillGenerationRateLimitError):
             await service.execute(
                 GenerateRoleSkillPayload(
