@@ -221,6 +221,42 @@ class TestResolveWorkspaceLLMConfig:
 
         assert result is None
 
+    async def test_empty_encryption_key_falls_back_to_app_level_key(
+        self, mock_session: AsyncMock
+    ) -> None:
+        """resolve_workspace_llm_config falls back to app-level key when encryption_key is empty."""
+        with (
+            patch("pilot_space.config.get_settings") as mock_settings,
+        ):
+            mock_settings.return_value.encryption_key.get_secret_value.return_value = ""
+            mock_app_key = MagicMock()
+            mock_app_key.get_secret_value.return_value = (
+                "sk-ant-app-fallback"  # pragma: allowlist secret
+            )
+            mock_settings.return_value.anthropic_api_key = mock_app_key
+
+            result = await resolve_workspace_llm_config(mock_session, WORKSPACE_ID)
+
+        assert result is not None
+        assert result.provider == "anthropic"
+        assert result.api_key == "sk-ant-app-fallback"  # pragma: allowlist secret
+        assert result.base_url is None
+        assert result.model_name is None
+
+    async def test_empty_encryption_key_returns_none_when_no_app_key(
+        self, mock_session: AsyncMock
+    ) -> None:
+        """resolve_workspace_llm_config returns None when encryption_key is empty and no app key."""
+        with (
+            patch("pilot_space.config.get_settings") as mock_settings,
+        ):
+            mock_settings.return_value.encryption_key.get_secret_value.return_value = ""
+            mock_settings.return_value.anthropic_api_key = None
+
+            result = await resolve_workspace_llm_config(mock_session, WORKSPACE_ID)
+
+        assert result is None
+
     async def test_returns_none_when_workspace_id_is_none(self, mock_session: AsyncMock) -> None:
         """resolve_workspace_llm_config with None workspace_id falls back to app-level key."""
         with (
@@ -310,6 +346,32 @@ class TestProviderSelectorWorkspaceOverride:
         provider, model = selector.select(TaskType.ISSUE_EXTRACTION)
         assert provider == "anthropic"
         assert model == ProviderSelector.ANTHROPIC_SONNET
+
+    def test_workspace_override_falls_back_when_provider_unhealthy(self) -> None:
+        """select_with_config with unhealthy workspace provider falls back to static routing table."""
+        selector = ProviderSelector()
+        ws_config = WorkspaceLLMConfig(
+            provider="ollama",
+            api_key="ollama-key",  # pragma: allowlist secret
+            base_url="http://localhost:11434",
+            model_name="llama3.2",
+        )
+        # Force the circuit breaker for ollama to OPEN state
+        from pilot_space.ai.circuit_breaker import CircuitBreaker, CircuitState
+
+        breaker = CircuitBreaker.get_or_create("ollama")
+        breaker._state.state = CircuitState.OPEN
+
+        try:
+            config = selector.select_with_config(
+                TaskType.TEMPLATE_FILLING, workspace_override=ws_config
+            )
+            # Should fall back to static routing table (anthropic)
+            assert config.provider == "anthropic"
+            assert config.model == ProviderSelector.ANTHROPIC_SONNET
+            assert config.base_url is None
+        finally:
+            breaker.reset()
 
     def test_provider_config_base_url_defaults_to_none(self) -> None:
         """ProviderConfig has base_url field that defaults to None."""

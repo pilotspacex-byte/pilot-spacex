@@ -409,10 +409,16 @@ class IntentDetectionService:
                     max_tokens=2048,
                     messages=[{"role": "user", "content": prompt}],
                 )
+                # Prefer text blocks, fall back to thinking blocks
+                # (some models like kimi via Ollama return only thinking blocks)
+                text_parts: list[str] = []
+                thinking_parts: list[str] = []
                 for block in response.content:
-                    if block.type == "text":
-                        return block.text
-                return "[]"
+                    if block.type == "text" and block.text:
+                        text_parts.append(block.text)
+                    elif block.type == "thinking" and getattr(block, "thinking", None):
+                        thinking_parts.append(block.thinking)
+                return "\n".join(text_parts) or "\n".join(thinking_parts) or "[]"
 
             raw = await executor.execute(
                 provider=ws_config.provider,

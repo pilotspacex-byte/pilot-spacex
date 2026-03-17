@@ -348,21 +348,40 @@ class ProviderSelector:
             ws_provider = workspace_override.provider
             ws_model = workspace_override.model_name or self._ROUTING_TABLE[task_type].model
             ws_base_url = workspace_override.base_url
-            logger.info(
-                "provider_selected",
+            static_config = self._ROUTING_TABLE[task_type]
+
+            if self.is_provider_healthy(ws_provider):
+                logger.info(
+                    "provider_selected",
+                    task_type=task_type.value,
+                    provider=ws_provider,
+                    model=ws_model,
+                    reason="workspace_override",
+                )
+                return ProviderConfig(
+                    provider=ws_provider,
+                    model=ws_model,
+                    reason="Workspace LLM provider override",
+                    fallback_provider=static_config.provider,
+                    fallback_model=static_config.model,
+                    base_url=ws_base_url,
+                )
+
+            # Workspace provider unhealthy — fall back to static routing table
+            logger.warning(
+                "workspace_provider_unhealthy",
                 task_type=task_type.value,
-                provider=ws_provider,
-                model=ws_model,
-                reason="workspace_override",
+                workspace_provider=ws_provider,
+                fallback_provider=static_config.provider,
             )
-            return ProviderConfig(
-                provider=ws_provider,
-                model=ws_model,
-                reason="Workspace LLM provider override",
-                fallback_provider=self._ROUTING_TABLE[task_type].provider,
-                fallback_model=self._ROUTING_TABLE[task_type].model,
-                base_url=ws_base_url,
-            )
+            if self.is_provider_healthy(static_config.provider):
+                return ProviderConfig(
+                    provider=static_config.provider,
+                    model=static_config.model,
+                    reason=f"Fallback from workspace provider {ws_provider} (circuit breaker open)",
+                    fallback_provider=static_config.fallback_provider,
+                    fallback_model=static_config.fallback_model,
+                )
 
         config = self._ROUTING_TABLE[task_type]
 
@@ -535,37 +554,40 @@ async def resolve_workspace_llm_config(
             settings = get_settings()
             encryption_key = settings.encryption_key.get_secret_value()
             if not encryption_key:
-                return None
-
-            # Determine which LLM provider the workspace has selected
-            stmt = sa_select(Workspace.settings).where(Workspace.id == workspace_id)
-            result = await session.execute(stmt)
-            ws_settings = result.scalar_one_or_none() or {}
-            default_llm = ws_settings.get("default_llm_provider", "anthropic")
-
-            storage = SecureKeyStorage(session, encryption_key)
-            key_info = await storage.get_key_info(workspace_id, default_llm, "llm")
-
-            if key_info is not None:
-                api_key = await storage.get_api_key(workspace_id, default_llm, "llm")
-                return WorkspaceLLMConfig(
-                    provider=default_llm,
-                    api_key=api_key or "",
-                    base_url=key_info.base_url,
-                    model_name=key_info.model_name,
+                logger.debug(
+                    "encryption_key empty — skipping workspace lookup, trying app-level fallback"
                 )
+                # Fall through to app-level Anthropic key below
+            else:
+                # Determine which LLM provider the workspace has selected
+                stmt = sa_select(Workspace.settings).where(Workspace.id == workspace_id)
+                result = await session.execute(stmt)
+                ws_settings = result.scalar_one_or_none() or {}
+                default_llm = ws_settings.get("default_llm_provider", "anthropic")
 
-            # If default provider has no key, try any configured LLM provider
-            all_keys = await storage.get_all_key_infos(workspace_id)
-            for ki in all_keys:
-                if ki.service_type == "llm":
-                    api_key = await storage.get_api_key(workspace_id, ki.provider, "llm")
+                storage = SecureKeyStorage(session, encryption_key)
+                key_info = await storage.get_key_info(workspace_id, default_llm, "llm")
+
+                if key_info is not None:
+                    api_key = await storage.get_api_key(workspace_id, default_llm, "llm")
                     return WorkspaceLLMConfig(
-                        provider=ki.provider,
+                        provider=default_llm,
                         api_key=api_key or "",
-                        base_url=ki.base_url,
-                        model_name=ki.model_name,
+                        base_url=key_info.base_url,
+                        model_name=key_info.model_name,
                     )
+
+                # If default provider has no key, try any configured LLM provider
+                all_keys = await storage.get_all_key_infos(workspace_id)
+                for ki in all_keys:
+                    if ki.service_type == "llm":
+                        api_key = await storage.get_api_key(workspace_id, ki.provider, "llm")
+                        return WorkspaceLLMConfig(
+                            provider=ki.provider,
+                            api_key=api_key or "",
+                            base_url=ki.base_url,
+                            model_name=ki.model_name,
+                        )
 
         except Exception:
             logger.debug("Could not retrieve workspace LLM provider", exc_info=True)

@@ -212,13 +212,17 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         from pilot_space.infrastructure.database.models.workspace import Workspace
 
-        # Determine default LLM provider from workspace settings
-        try:
-            from pilot_space.dependencies.auth import get_current_session
+        # Determine default LLM provider from workspace settings.
+        # Try request-scoped session first; fall back to key_storage's own session
+        # so provider resolution works outside request contexts (e.g. background tasks).
+        db = getattr(ks, "db", None)
+        if db is None:
+            try:
+                from pilot_space.dependencies.auth import get_current_session
 
-            db = get_current_session()
-        except RuntimeError:
-            return None
+                db = get_current_session()
+            except RuntimeError:
+                return None
 
         stmt = sa_select(Workspace.settings).where(Workspace.id == workspace_id)
         result = await db.execute(stmt)

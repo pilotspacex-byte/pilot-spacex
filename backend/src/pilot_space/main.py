@@ -142,7 +142,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     redis_client = container.redis_client()
     if redis_client is not None:
         await redis_client.connect()
-        logger.info("redis_connected", url=settings.redis_url)
+        if redis_client.is_connected:
+            logger.info("redis_connected")
+        else:
+            logger.warning("redis_connect_failed — running in degraded mode")
+            redis_client = None
 
     # Start digest worker for homepage digest generation
     digest_worker_task: asyncio.Task[None] | None = None

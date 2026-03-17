@@ -2,9 +2,11 @@
 
 Covers:
 - Prompt assembler skill text sanitization
+- Prompt assembler empty skill name fallback
 - UserSkillCreate model validator
 - ConversationExtractionPayload model_name field
 - extract_and_persist_to_graph Ollama keyless path
+- GenerateRoleSkillService JSON parse guard for non-dict payloads
 """
 
 from __future__ import annotations
@@ -44,6 +46,77 @@ class TestSanitizeSkillText:
 
         result = _sanitize_skill_text("", 80)
         assert result == ""
+
+
+class TestSkillNameFallback:
+    """Tests for empty skill name fallback in _build_skills_section."""
+
+    def test_whitespace_only_name_uses_fallback(self) -> None:
+        """Whitespace-only skill name should render as 'Unnamed Skill'."""
+        from pilot_space.ai.prompt.models import PromptLayerConfig
+        from pilot_space.ai.prompt.prompt_assembler import _build_skills_section
+
+        config = PromptLayerConfig(
+            user_skills=[{"name": "   \n\t  ", "description": "test description"}],
+        )
+        result = _build_skills_section(config)
+        assert result is not None
+        assert "**Unnamed Skill**" in result
+
+    def test_empty_name_uses_fallback(self) -> None:
+        """Empty string skill name should render as 'Unnamed Skill'."""
+        from pilot_space.ai.prompt.models import PromptLayerConfig
+        from pilot_space.ai.prompt.prompt_assembler import _build_skills_section
+
+        config = PromptLayerConfig(
+            user_skills=[{"name": "", "description": "test"}],
+        )
+        result = _build_skills_section(config)
+        assert result is not None
+        assert "**Unnamed Skill**" in result
+
+    def test_normal_name_preserved(self) -> None:
+        """Normal skill name should be preserved."""
+        from pilot_space.ai.prompt.models import PromptLayerConfig
+        from pilot_space.ai.prompt.prompt_assembler import _build_skills_section
+
+        config = PromptLayerConfig(
+            user_skills=[{"name": "My Skill", "description": "does things"}],
+        )
+        result = _build_skills_section(config)
+        assert result is not None
+        assert "**My Skill**" in result
+
+
+class TestGenerateRoleSkillJsonGuard:
+    """Tests for JSON parse guard against non-dict payloads."""
+
+    def test_json_list_does_not_crash(self) -> None:
+        """Valid JSON that's a list should not raise AttributeError."""
+        from unittest.mock import AsyncMock
+
+        from pilot_space.application.services.role_skill.generate_role_skill_service import (
+            GenerateRoleSkillService,
+        )
+
+        svc = GenerateRoleSkillService(session=AsyncMock())
+        # A valid JSON list (not dict) should be handled gracefully
+        result = svc._parse_ai_response('["item1", "item2"]', "Developer", None, "test-model")
+        # Should return None (no valid skill_content extracted)
+        assert result is None
+
+    def test_json_string_does_not_crash(self) -> None:
+        """Valid JSON string should not raise AttributeError."""
+        from unittest.mock import AsyncMock
+
+        from pilot_space.application.services.role_skill.generate_role_skill_service import (
+            GenerateRoleSkillService,
+        )
+
+        svc = GenerateRoleSkillService(session=AsyncMock())
+        result = svc._parse_ai_response('"just a string"', "Developer", None, "test-model")
+        # Raw text too short (< 50 chars), so returns None
+        assert result is None
 
 
 class TestUserSkillCreateValidator:
@@ -155,7 +228,8 @@ class TestExtractAndPersistOllamaPath:
         mock_extraction_result.nodes = []  # No nodes -> returns False
         mock_extraction_result.edges = []
 
-        # Patch at the source module since it's lazily imported inside the function
+        # Patch at the source module — the lazy import inside the function
+        # resolves from the source module at import time
         with patch(
             "pilot_space.application.services.memory.graph_extraction_service.GraphExtractionService"
         ) as MockSvc:

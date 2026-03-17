@@ -185,7 +185,7 @@ def _build_skills_section(config: PromptLayerConfig) -> str | None:
         return None
     lines = ["## Your Skills", "", "You have access to the following personalized skills:"]
     for skill in config.user_skills:
-        name = _sanitize_skill_text(skill.get("name", "Unknown"), 80)
+        name = _sanitize_skill_text(skill.get("name", "Unknown"), 80) or "Unnamed Skill"
         desc = _sanitize_skill_text(skill.get("description", ""), 240)
         if desc:
             lines.append(f"- **{name}**: {desc}")

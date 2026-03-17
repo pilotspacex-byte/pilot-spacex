@@ -91,7 +91,7 @@ export function useSkills(workspaceId?: string) {
 
   return {
     skills,
-    isLoading: systemQuery.isLoading,
-    error: systemQuery.error,
+    isLoading: systemQuery.isLoading || userQuery.isLoading,
+    error: systemQuery.error || userQuery.error,
   };
 }

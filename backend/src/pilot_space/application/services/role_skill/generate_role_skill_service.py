@@ -376,11 +376,12 @@ class GenerateRoleSkillService:
         # JSON string values — common with Ollama/kimi models that don't escape them.
         try:
             data = json.loads(text, strict=False)
-            skill_content = data.get("skill_content", "")
-            suggested_name = data.get("suggested_role_name", role_name or display_name)
+            if isinstance(data, dict):
+                skill_content = data.get("skill_content", "")
+                suggested_name = data.get("suggested_role_name", role_name or display_name)
 
-            if skill_content and len(skill_content.strip()) >= 50:
-                return (skill_content, suggested_name, model)
+                if skill_content and len(skill_content.strip()) >= 50:
+                    return (skill_content, suggested_name, model)
         except (json.JSONDecodeError, KeyError, TypeError):
             pass
 
@@ -390,6 +391,8 @@ class GenerateRoleSkillService:
         if match:
             try:
                 data = json.loads(match.group(), strict=False)
+                if not isinstance(data, dict):
+                    data = {}
                 skill_content = data.get("skill_content", "")
                 suggested_name = data.get("suggested_role_name", role_name or display_name)
 
@@ -440,7 +443,7 @@ class GenerateRoleSkillService:
 
         logger.warning(
             "AI returned invalid or insufficient content",
-            extra={"model": model, "response_length": len(text), "preview": stripped[:200]},
+            extra={"model": model, "response_length": len(text)},
         )
         return None
 
