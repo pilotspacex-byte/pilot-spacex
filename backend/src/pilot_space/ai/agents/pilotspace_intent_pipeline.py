@@ -535,6 +535,7 @@ async def extract_and_persist_to_graph(
     issue_id: UUID | None = None,
     anthropic_api_key: str | None = None,
     base_url: str | None = None,
+    model_name: str | None = None,
 ) -> bool:
     """Extract structured knowledge from a conversation and persist to the graph.
 
@@ -548,13 +549,18 @@ async def extract_and_persist_to_graph(
         user_id: Optional user scope for personal nodes.
         messages: Conversation messages [{role, content}].
         issue_id: Optional originating issue UUID.
-        anthropic_api_key: LLM API key. None → returns False immediately.
+        anthropic_api_key: LLM API key. None → returns False immediately
+            unless base_url is set (Ollama doesn't need a key).
         base_url: Optional base URL for Anthropic-compatible providers.
+        model_name: Optional model name override.
 
     Returns:
         True if meaningful nodes were extracted and persisted, False otherwise.
     """
-    if not messages or not anthropic_api_key:
+    if not messages:
+        return False
+    # Ollama workspaces have base_url but no API key; skip only when neither
+    if not anthropic_api_key and not base_url:
         return False
 
     try:
@@ -571,8 +577,9 @@ async def extract_and_persist_to_graph(
                 workspace_id=workspace_id,
                 user_id=user_id,
                 issue_id=issue_id,
-                api_key=anthropic_api_key,
+                api_key=anthropic_api_key or "ollama",
                 base_url=base_url,
+                model_name=model_name,
             )
         )
 

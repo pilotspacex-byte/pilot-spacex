@@ -326,7 +326,10 @@ class SecureKeyStorage:
                     return False, "API key is required"
                 from anthropic import AsyncAnthropic
 
-                client = AsyncAnthropic(api_key=api_key)
+                client = AsyncAnthropic(
+                    api_key=api_key,
+                    base_url=base_url or None,
+                )
                 await client.messages.create(
                     model="claude-3-5-haiku-20241022",
                     max_tokens=1,

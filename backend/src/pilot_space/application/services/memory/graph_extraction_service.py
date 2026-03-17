@@ -68,6 +68,7 @@ class ConversationExtractionPayload:
     issue_id: UUID | None = None
     api_key: str | None = None
     base_url: str | None = None
+    model_name: str | None = None
 
 
 @dataclass
@@ -328,7 +329,9 @@ class GraphExtractionService:
             logger.debug("GraphExtractionService: empty messages list — returning empty result")
             return _empty_result()
 
-        raw_response = await self._call_llm(payload.api_key, payload.messages, payload.base_url)
+        raw_response = await self._call_llm(
+            payload.api_key, payload.messages, payload.base_url, payload.model_name
+        )
         if raw_response is None:
             return _empty_result()
 
@@ -343,7 +346,11 @@ class GraphExtractionService:
     # ------------------------------------------------------------------
 
     async def _call_llm(
-        self, api_key: str, messages: list[dict[str, str]], base_url: str | None = None
+        self,
+        api_key: str,
+        messages: list[dict[str, str]],
+        base_url: str | None = None,
+        model_name: str | None = None,
     ) -> str | None:
         """Call LLM for extraction via Anthropic-compatible API.
 
@@ -351,6 +358,7 @@ class GraphExtractionService:
             api_key: LLM API key.
             messages: Conversation messages.
             base_url: Optional base URL for Anthropic-compatible providers.
+            model_name: Model to use. Falls back to _EXTRACTION_MODEL.
 
         Returns:
             Raw LLM response text, or None on failure.
@@ -364,7 +372,7 @@ class GraphExtractionService:
                 base_url=base_url or None,
             )
             message = await client.messages.create(
-                model=_EXTRACTION_MODEL,
+                model=model_name or _EXTRACTION_MODEL,
                 max_tokens=_MAX_TOKENS,
                 messages=[{"role": "user", "content": prompt}],
             )

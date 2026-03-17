@@ -154,6 +154,24 @@ def _build_workspace_section(config: PromptLayerConfig) -> str | None:
     return "\n".join(parts)
 
 
+def _sanitize_skill_text(text: str, max_length: int) -> str:
+    """Sanitize user-controlled skill text for safe prompt injection.
+
+    Strips newlines, collapses whitespace, and truncates to max_length.
+
+    Args:
+        text: Raw user-provided text.
+        max_length: Maximum allowed character count.
+
+    Returns:
+        Sanitized text safe for system prompt inclusion.
+    """
+    import re
+
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    return cleaned[:max_length]
+
+
 def _build_skills_section(config: PromptLayerConfig) -> str | None:
     """Build the user skills section for the prompt (layer 4.5).
 
@@ -167,8 +185,8 @@ def _build_skills_section(config: PromptLayerConfig) -> str | None:
         return None
     lines = ["## Your Skills", "", "You have access to the following personalized skills:"]
     for skill in config.user_skills:
-        name = skill.get("name", "Unknown")
-        desc = skill.get("description", "")
+        name = _sanitize_skill_text(skill.get("name", "Unknown"), 80)
+        desc = _sanitize_skill_text(skill.get("description", ""), 240)
         if desc:
             lines.append(f"- **{name}**: {desc}")
         else:
