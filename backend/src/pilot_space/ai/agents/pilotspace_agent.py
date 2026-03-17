@@ -189,12 +189,23 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     master_secret=get_settings().encryption_key.get_secret_value(),
                 )
             except RuntimeError:
+                logger.debug("[SDK/ProviderConfig] No request session, using singleton key_storage")
                 ks = self._key_storage
 
             if ks:
                 config = await self._resolve_workspace_provider(ks, workspace_id)
                 if config is not None:
+                    logger.info(
+                        "[SDK/ProviderConfig] Resolved: provider=%s, model=%s, base_url=%s",
+                        config.provider,
+                        config.model_name or "default",
+                        config.base_url or "default",
+                    )
                     return config
+                logger.warning(
+                    "[SDK/ProviderConfig] _resolve_workspace_provider returned None for workspace=%s",
+                    workspace_id,
+                )
 
             raise AINotConfiguredError(workspace_id=workspace_id)
 
@@ -222,17 +233,30 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
                 db = get_current_session()
             except RuntimeError:
+                logger.debug("[SDK/ResolveProvider] No DB session available")
                 return None
 
         stmt = sa_select(Workspace.settings).where(Workspace.id == workspace_id)
         result = await db.execute(stmt)
         ws_settings = result.scalar_one_or_none() or {}
         default_provider = ws_settings.get("default_llm_provider", "anthropic")
+        logger.debug(
+            "[SDK/ResolveProvider] workspace=%s default_llm_provider=%s",
+            workspace_id,
+            default_provider,
+        )
 
         # Try the default provider first
         key_info = await ks.get_key_info(workspace_id, default_provider, "llm")
         if key_info is not None:
             api_key = await ks.get_api_key(workspace_id, default_provider, "llm")
+            logger.debug(
+                "[SDK/ResolveProvider] Found key for %s: base_url=%s, model_name=%s, has_key=%s",
+                default_provider,
+                key_info.base_url,
+                key_info.model_name,
+                bool(api_key),
+            )
             return _ProviderConfig(
                 api_key=api_key or "no-key-required",  # Ollama doesn't need a real key
                 base_url=key_info.base_url,
@@ -242,6 +266,11 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         # Fall back to any configured LLM provider
         all_keys = await ks.get_all_key_infos(workspace_id)
+        logger.debug(
+            "[SDK/ResolveProvider] Default provider %s has no key, checking %d total keys",
+            default_provider,
+            len(all_keys),
+        )
         for ki in all_keys:
             if ki.service_type == "llm":
                 api_key = await ks.get_api_key(workspace_id, ki.provider, "llm")
@@ -253,6 +282,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         provider=ki.provider,
                     )
 
+        logger.warning("[SDK/ResolveProvider] No LLM key found for workspace=%s", workspace_id)
         return None
 
     async def interrupt_session(self, session_id: str) -> bool:
@@ -497,6 +527,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 or sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id)
             )
         )
+        logger.info(
+            "[SDK/Space] Model resolution: resolved=%s, provider_model=%s, sdk_default=%s, has_base_url=%s",
+            _model,
+            provider_config.model_name,
+            sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
+            bool(provider_config.base_url),
+        )
         sdk_options = ClaudeAgentOptions(
             model=_model,
             cwd=sdk_params.get("cwd"),
@@ -562,6 +599,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 yield chunk
 
         except Exception as e:
+            logger.error("[SDK/Stream] Top-level error: %s: %s", type(e).__name__, e, exc_info=True)
             err = {"errorCode": "sdk_error", "message": str(e), "retryable": False}
             yield f"event: error\ndata: {json.dumps(err)}\n\n"
 

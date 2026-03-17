@@ -259,7 +259,7 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
-        className={needsWideModal ? 'sm:max-w-4xl' : 'sm:max-w-xl'}
+        className={needsWideModal ? 'sm:max-w-4xl' : 'sm:max-w-2xl'}
         showCloseButton={!onboardingStore.showingCelebration && !showSubFlow}
       >
         {onboardingStore.showingCelebration ? (
