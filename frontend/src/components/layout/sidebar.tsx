@@ -63,6 +63,7 @@ import { addRecentWorkspace } from '@/components/workspace-selector';
 import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
 import { usePendingApprovalCount } from '@/features/approvals/hooks/use-approvals';
 import { usePinnedNotes } from '@/hooks/usePinnedNotes';
+import { useSettingsModal } from '@/features/settings/settings-modal-context';
 
 interface NavItem {
   name: string;
@@ -124,20 +125,18 @@ const THEME_OPTIONS = [
 
 export const SidebarUserControls = observer(function SidebarUserControls({
   collapsed,
-  workspaceSlug,
   workspaceId,
   authStore,
   notificationStore,
   uiStore,
 }: {
   collapsed: boolean;
-  workspaceSlug: string;
   workspaceId: string;
   authStore: AuthStore;
   notificationStore: NotificationStore;
   uiStore: UIStore;
 }) {
-  const router = useRouter();
+  const settingsModal = useSettingsModal();
 
   const displayName = authStore.userDisplayName || 'User';
   const email = authStore.user?.email ?? '';
@@ -184,7 +183,7 @@ export const SidebarUserControls = observer(function SidebarUserControls({
       </DropdownMenuSub>
       <DropdownMenuItem
         className="text-xs gap-2"
-        onSelect={() => router.push(`/${workspaceSlug}/settings/profile`)}
+        onSelect={() => settingsModal.openSettings('profile')}
       >
         <User className="h-3.5 w-3.5" />
         Profile
@@ -192,7 +191,7 @@ export const SidebarUserControls = observer(function SidebarUserControls({
       <DropdownMenuItem
         className="text-xs gap-2"
         data-testid="nav-settings"
-        onSelect={() => router.push(`/${workspaceSlug}/settings`)}
+        onSelect={() => settingsModal.openSettings('general')}
       >
         <Settings className="h-3.5 w-3.5" />
         Settings
@@ -613,7 +612,6 @@ export const Sidebar = observer(function Sidebar() {
         {/* Notification + User Controls */}
         <SidebarUserControls
           collapsed={collapsed}
-          workspaceSlug={workspaceSlug}
           workspaceId={workspaceId}
           authStore={authStore}
           notificationStore={notificationStore}

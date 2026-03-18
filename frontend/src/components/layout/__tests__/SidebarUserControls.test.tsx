@@ -20,12 +20,22 @@ vi.mock('mobx-react-lite', () => ({
   observer: <T,>(component: T) => component,
 }));
 
-const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush, replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
   usePathname: () => '/pilot-space-demo',
   useSearchParams: () => new URLSearchParams(),
   useParams: () => ({}),
+}));
+
+const mockOpenSettings = vi.fn();
+vi.mock('@/features/settings/settings-modal-context', () => ({
+  useSettingsModal: () => ({
+    open: false,
+    activeSection: 'general',
+    openSettings: mockOpenSettings,
+    closeSettings: vi.fn(),
+    setActiveSection: vi.fn(),
+  }),
 }));
 
 // Mock stores to prevent supabase import chain
@@ -116,14 +126,12 @@ function createMockUIStore(overrides: Partial<UIStore> = {}): UIStore {
 
 function renderControls({
   collapsed = false,
-  workspaceSlug = 'test-ws',
   workspaceId = 'test-ws',
   authStore,
   notificationStore,
   uiStore,
 }: {
   collapsed?: boolean;
-  workspaceSlug?: string;
   workspaceId?: string;
   authStore?: AuthStore;
   notificationStore?: NotificationStore;
@@ -137,7 +145,6 @@ function renderControls({
     <TooltipProvider>
       <SidebarUserControls
         collapsed={collapsed}
-        workspaceSlug={workspaceSlug}
         workspaceId={workspaceId}
         authStore={auth}
         notificationStore={notifications}
@@ -192,24 +199,24 @@ describe('SidebarUserControls', () => {
       expect(screen.getByText('john@example.com')).toBeInTheDocument();
     });
 
-    it('navigates to profile settings on Profile click', async () => {
+    it('opens settings modal to profile on Profile click', async () => {
       const user = userEvent.setup();
-      renderControls({ workspaceSlug: 'my-ws' });
+      renderControls();
 
       await user.click(screen.getByRole('button', { name: 'Account' }));
       await user.click(screen.getByText('Profile'));
 
-      expect(mockPush).toHaveBeenCalledWith('/my-ws/settings/profile');
+      expect(mockOpenSettings).toHaveBeenCalledWith('profile');
     });
 
-    it('navigates to settings on Settings click', async () => {
+    it('opens settings modal on Settings click', async () => {
       const user = userEvent.setup();
-      renderControls({ workspaceSlug: 'my-ws' });
+      renderControls();
 
       await user.click(screen.getByRole('button', { name: 'Account' }));
       await user.click(screen.getByText('Settings'));
 
-      expect(mockPush).toHaveBeenCalledWith('/my-ws/settings');
+      expect(mockOpenSettings).toHaveBeenCalledWith('general');
     });
 
     it('calls authStore.logout on Sign out click', async () => {
@@ -270,7 +277,7 @@ describe('SidebarUserControls', () => {
 
     it('shows settings item with test id in dropdown', async () => {
       const user = userEvent.setup();
-      renderControls({ collapsed: true, workspaceSlug: 'my-ws' });
+      renderControls({ collapsed: true });
 
       await user.click(screen.getByRole('button', { name: 'Account' }));
 
