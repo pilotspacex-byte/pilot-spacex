@@ -9,7 +9,7 @@
  *
  * @see AutoTOC for heading extraction utilities
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Editor } from '@tiptap/react';
 import { cn } from '@/lib/utils';
 import type { HeadingItem } from './AutoTOC';
@@ -29,6 +29,10 @@ export interface OnThisPageTOCProps {
  */
 export function OnThisPageTOC({ editor, headings, className }: OnThisPageTOCProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Stable key derived from heading IDs — prevents IntersectionObserver teardown/rebuild
+  // on every keystroke when the headings array reference changes but content is identical.
+  const headingKey = useMemo(() => headings.map((h) => h.id).join(','), [headings]);
 
   // IntersectionObserver for scroll-based active heading tracking
   useEffect(() => {
@@ -58,7 +62,8 @@ export function OnThisPageTOC({ editor, headings, className }: OnThisPageTOCProp
 
     headingElements.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [editor, headings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- headingKey is a stable derivative of headings
+  }, [editor, headingKey]);
 
   const scrollToHeading = useCallback(
     (heading: HeadingItem) => {

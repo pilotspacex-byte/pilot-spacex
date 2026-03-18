@@ -169,11 +169,24 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
   // T-216: Version history — VersionStore instance (stable, per-editor-mount)
   const [versionStore] = useState(() => new VersionStore());
 
-  // Extract headings for OnThisPageTOC + ChatInput section menu
+  // Extract headings for OnThisPageTOC + ChatInput section menu.
+  // Uses functional setState to skip re-render when headings haven't structurally changed,
+  // preventing cascade re-renders to OnThisPageTOC + ChatView on every keystroke.
   const [noteHeadings, setNoteHeadings] = useState<HeadingItem[]>([]);
   useEffect(() => {
     if (!editor) return;
-    const update = () => setNoteHeadings(extractHeadings(editor));
+    const update = () => {
+      const extracted = extractHeadings(editor);
+      setNoteHeadings((prev) => {
+        if (
+          prev.length === extracted.length &&
+          prev.every((h, i) => h.id === extracted[i]?.id && h.text === extracted[i]?.text)
+        ) {
+          return prev;
+        }
+        return extracted;
+      });
+    };
     update();
     editor.on('update', update);
     return () => {
