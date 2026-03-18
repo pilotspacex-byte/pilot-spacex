@@ -17,9 +17,8 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
-  CalendarCheck,
-  Copy,
   Check,
+  Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type {
@@ -27,14 +26,25 @@ import type {
   DecomposedSubtask,
   DuplicateCandidate,
 } from '@/stores/ai/types/events';
+import Link from 'next/link';
 import { ContextNotesResultCard, ContextIssuesResultCard } from './ContextCards';
+import { StandupResultCard } from './StandupResultCard';
+import type { CreatedIssueData } from './AssistantMessage';
+
+// Re-export so existing barrel imports continue to work
+export { formatStandupForClipboard } from './StandupResultCard';
 
 interface StructuredResultCardProps {
   schemaType: string;
   data: Record<string, unknown>;
   className?: string;
-  onCreateIssues?: (selectedIndices: number[]) => void;
+  onCreateIssues?: (
+    selectedIndices: number[],
+    editOverrides?: Map<number, { title?: string; priority?: string }>
+  ) => Promise<CreatedIssueData[] | void> | void;
   isCreatingIssues?: boolean;
+  createdIssues?: CreatedIssueData[] | null;
+  workspaceSlug?: string;
 }
 
 /** Priority color mapping */
@@ -55,22 +65,54 @@ const PRIORITY_DOTS: Record<string, string> = {
   none: 'bg-muted-foreground',
 };
 
+const PRIORITY_OPTIONS = ['urgent', 'high', 'medium', 'low', 'none'] as const;
+
+/** Confidence label and color based on score */
+function getConfidenceDisplay(score: number): { label: string; className: string } {
+  if (score >= 0.7)
+    return {
+      label: 'High',
+      className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    };
+  if (score >= 0.5)
+    return {
+      label: 'Medium',
+      className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    };
+  return {
+    label: 'Low',
+    className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  };
+}
+
 // ─── Extraction Result ───────────────────────────────────────────────────
 
 interface ExtractionResultCardProps {
   data: Record<string, unknown>;
-  onCreateIssues?: (selectedIndices: number[]) => void;
+  onCreateIssues?: (
+    selectedIndices: number[],
+    editOverrides?: Map<number, { title?: string; priority?: string }>
+  ) => Promise<CreatedIssueData[] | void> | void;
   isCreatingIssues?: boolean;
+  createdIssues?: CreatedIssueData[] | null;
+  workspaceSlug?: string;
 }
 
 function ExtractionResultCard({
   data,
   onCreateIssues,
   isCreatingIssues,
+  createdIssues,
+  workspaceSlug,
 }: ExtractionResultCardProps) {
   const issues = useMemo(() => (data.issues ?? []) as ExtractedIssue[], [data.issues]);
   const summary = (data.summary ?? '') as string;
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editOverrides, setEditOverrides] = useState<
+    Map<number, { title?: string; priority?: string }>
+  >(new Map());
+  const [isPostCreationExpanded, setIsPostCreationExpanded] = useState(false);
 
   const toggleIssue = useCallback((idx: number) => {
     setSelectedIds((prev) => {
@@ -96,8 +138,75 @@ function ExtractionResultCard({
     setSelectedIds(recommended.size > 0 ? recommended : new Set(issues.map((_, i) => i)));
   }, [issues]);
 
+  const updateOverride = useCallback((idx: number, field: 'title' | 'priority', value: string) => {
+    setEditOverrides((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(idx) ?? {};
+      next.set(idx, { ...existing, [field]: value });
+      return next;
+    });
+  }, []);
+
+  const handleCreate = useCallback(() => {
+    if (onCreateIssues) {
+      onCreateIssues(Array.from(selectedIds), editOverrides);
+    }
+  }, [onCreateIssues, selectedIds, editOverrides]);
+
   if (issues.length === 0) {
     return <p className="text-sm text-muted-foreground">No issues found.</p>;
+  }
+
+  // R2: Post-creation collapsed success state
+  if (createdIssues && createdIssues.length > 0) {
+    return (
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setIsPostCreationExpanded(!isPostCreationExpanded)}
+          className="flex w-full items-center gap-2 text-left"
+          aria-expanded={isPostCreationExpanded}
+        >
+          <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+          <span className="text-sm font-medium text-green-700 dark:text-green-400">
+            Created {createdIssues.length} issue{createdIssues.length !== 1 ? 's' : ''}
+          </span>
+          <ChevronDown
+            className={cn(
+              'ml-auto h-3 w-3 text-muted-foreground transition-transform',
+              isPostCreationExpanded && 'rotate-180'
+            )}
+          />
+        </button>
+        {isPostCreationExpanded && (
+          <div className="flex flex-wrap gap-2 pl-6">
+            {createdIssues.map((issue) =>
+              workspaceSlug ? (
+                <Link
+                  key={issue.id}
+                  href={`/${workspaceSlug}/issues/${issue.id}`}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-md px-2 py-1',
+                    'text-xs font-medium text-primary',
+                    'bg-primary/10 hover:bg-primary/20 transition-colors'
+                  )}
+                  title={issue.title}
+                >
+                  {issue.identifier}
+                </Link>
+              ) : (
+                <span
+                  key={issue.id}
+                  className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
+                >
+                  {issue.identifier}
+                </span>
+              )
+            )}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -112,68 +221,169 @@ function ExtractionResultCard({
       {summary && <p className="text-xs text-muted-foreground">{summary}</p>}
 
       <div className="space-y-2">
-        {issues.map((issue, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onClick={() => toggleIssue(idx)}
-            className={cn(
-              'flex w-full items-start gap-3 rounded-[10px] border p-3 text-left transition-all duration-150',
-              'hover:-translate-y-px hover:shadow-sm',
-              selectedIds.has(idx)
-                ? 'border-primary/40 bg-primary-muted'
-                : 'border-border bg-background'
-            )}
-          >
+        {issues.map((issue, idx) => {
+          const isEditing = editingIdx === idx;
+          const override = editOverrides.get(idx);
+          const displayTitle = override?.title ?? issue.title;
+          const displayPriority = override?.priority ?? issue.priority;
+          const confidenceDisplay =
+            issue.confidence != null ? getConfidenceDisplay(issue.confidence) : null;
+
+          return (
             <div
+              key={idx}
               className={cn(
-                'mt-0.5 h-4 w-4 shrink-0 rounded border transition-colors',
-                selectedIds.has(idx) ? 'border-primary bg-primary' : 'border-muted-foreground/30'
+                'rounded-[10px] border p-3 transition-all duration-150',
+                selectedIds.has(idx)
+                  ? 'border-primary/40 bg-primary-muted'
+                  : 'border-border bg-background'
               )}
             >
-              {selectedIds.has(idx) && (
-                <svg viewBox="0 0 16 16" className="h-4 w-4 text-white">
-                  <path
-                    d="M5 8l2 2 4-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-            </div>
+              <div className="flex items-start gap-3">
+                {/* Checkbox */}
+                <button
+                  type="button"
+                  onClick={() => toggleIssue(idx)}
+                  className="mt-0.5 shrink-0"
+                  aria-label={`${selectedIds.has(idx) ? 'Deselect' : 'Select'} issue: ${displayTitle}`}
+                >
+                  <div
+                    className={cn(
+                      'h-4 w-4 rounded border transition-colors',
+                      selectedIds.has(idx)
+                        ? 'border-primary bg-primary'
+                        : 'border-muted-foreground/30'
+                    )}
+                  >
+                    {selectedIds.has(idx) && (
+                      <svg viewBox="0 0 16 16" className="h-4 w-4 text-white">
+                        <path
+                          d="M5 8l2 2 4-4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                </button>
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium truncate">{issue.title}</span>
-                <span
-                  className={cn(
-                    'inline-flex h-2 w-2 shrink-0 rounded-full',
-                    PRIORITY_DOTS[issue.priority] ?? PRIORITY_DOTS.none
+                <div className="flex-1 min-w-0">
+                  {/* R3: Inline editing mode */}
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={displayTitle}
+                        onChange={(e) => updateOverride(idx, 'title', e.target.value)}
+                        className={cn(
+                          'w-full rounded-md border border-border bg-background px-2 py-1',
+                          'text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary'
+                        )}
+                        aria-label="Edit issue title"
+                      />
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={displayPriority}
+                          onChange={(e) => updateOverride(idx, 'priority', e.target.value)}
+                          className={cn(
+                            'rounded-md border border-border bg-background px-2 py-1',
+                            'text-xs focus:outline-none focus:ring-1 focus:ring-primary'
+                          )}
+                          aria-label="Edit issue priority"
+                        >
+                          {PRIORITY_OPTIONS.map((p) => (
+                            <option key={p} value={p}>
+                              {p.charAt(0).toUpperCase() + p.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setEditingIdx(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label="Done editing"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate">{displayTitle}</span>
+                        <span
+                          className={cn(
+                            'inline-flex h-2 w-2 shrink-0 rounded-full',
+                            PRIORITY_DOTS[displayPriority] ?? PRIORITY_DOTS.none
+                          )}
+                          title={displayPriority}
+                        />
+                        <span
+                          className={cn('text-xs capitalize', PRIORITY_COLORS[displayPriority])}
+                        >
+                          {displayPriority}
+                        </span>
+                        {/* R4: Confidence badge */}
+                        {confidenceDisplay && (
+                          <span
+                            className={cn(
+                              'text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0',
+                              confidenceDisplay.className
+                            )}
+                          >
+                            {confidenceDisplay.label}
+                          </span>
+                        )}
+                        {/* R3: Edit toggle */}
+                        {onCreateIssues && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingIdx(idx);
+                            }}
+                            className="ml-auto shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label="Edit issue"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                      {issue.description && (
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                          {issue.description}
+                        </p>
+                      )}
+                      {/* R5: Labels display */}
+                      {issue.labels && issue.labels.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {issue.labels.map((label, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
+                            >
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="rounded bg-muted px-1.5 py-0.5 capitalize">
+                          {issue.issue_type}
+                        </span>
+                        <span className="capitalize">{issue.category}</span>
+                        {issue.source_block_id && <span>Block #{issue.source_block_id}</span>}
+                      </div>
+                    </>
                   )}
-                  title={issue.priority}
-                />
-                <span className={cn('text-xs capitalize', PRIORITY_COLORS[issue.priority])}>
-                  {issue.priority}
-                </span>
-              </div>
-              {issue.description && (
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                  {issue.description}
-                </p>
-              )}
-              <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded bg-muted px-1.5 py-0.5 capitalize">
-                  {issue.issue_type}
-                </span>
-                <span className="capitalize">{issue.category}</span>
-                {issue.source_block_id && <span>Block #{issue.source_block_id}</span>}
+                </div>
               </div>
             </div>
-          </button>
-        ))}
+          );
+        })}
       </div>
 
       <div className="flex items-center justify-between gap-2 pt-1">
@@ -199,7 +409,7 @@ function ExtractionResultCard({
         {onCreateIssues && selectedIds.size > 0 && (
           <button
             type="button"
-            onClick={() => onCreateIssues(Array.from(selectedIds))}
+            onClick={handleCreate}
             disabled={isCreatingIssues}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium transition-all',
@@ -368,172 +578,18 @@ function DuplicateSearchResultCard({ data }: { data: Record<string, unknown> }) 
   );
 }
 
-// ─── Standup Result ─────────────────────────────────────────────────────
-
-interface StandupItem {
-  identifier: string;
-  title: string;
-  reason?: string;
-}
-
-interface StandupResultData {
-  yesterday: StandupItem[];
-  today: StandupItem[];
-  blockers: StandupItem[];
-  period: string;
-}
-
-/** Format standup data as clean markdown text for Slack/clipboard. */
-export function formatStandupForClipboard(data: StandupResultData): string {
-  const lines: string[] = [];
-
-  lines.push(`**Daily Standup** — ${data.period}`);
-  lines.push('');
-
-  lines.push('**Yesterday (Completed)**');
-  if (data.yesterday.length === 0) {
-    lines.push('(No items)');
-  } else {
-    for (const item of data.yesterday) {
-      lines.push(`- ${item.identifier}: ${item.title}`);
-    }
-  }
-  lines.push('');
-
-  lines.push('**Today (In Progress)**');
-  if (data.today.length === 0) {
-    lines.push('(No items)');
-  } else {
-    for (const item of data.today) {
-      lines.push(`- ${item.identifier}: ${item.title}`);
-    }
-  }
-  lines.push('');
-
-  lines.push('**Blockers**');
-  if (data.blockers.length === 0) {
-    lines.push('(No items)');
-  } else {
-    for (const item of data.blockers) {
-      const suffix = item.reason ? ` — ${item.reason}` : '';
-      lines.push(`- ${item.identifier}: ${item.title}${suffix}`);
-    }
-  }
-
-  return lines.join('\n');
-}
-
-function StandupSection({
-  heading,
-  items,
-  accentClass,
-  showReason,
-}: {
-  heading: string;
-  items: StandupItem[];
-  accentClass: string;
-  showReason?: boolean;
-}) {
-  return (
-    <div>
-      <h4 className={cn('text-xs font-semibold uppercase tracking-wider mb-2', accentClass)}>
-        {heading}
-      </h4>
-      {items.length === 0 ? (
-        <p className="text-xs italic text-muted-foreground">(No items)</p>
-      ) : (
-        <ul className="space-y-1.5" role="list">
-          {items.map((item, idx) => (
-            <li key={idx} className="flex items-start gap-2 text-sm">
-              <span
-                className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-current opacity-40"
-                aria-hidden="true"
-              />
-              <span>
-                <code className="font-mono text-xs text-primary">{item.identifier}</code>{' '}
-                <span className="text-foreground">{item.title}</span>
-                {showReason && item.reason && (
-                  <span className="text-xs text-muted-foreground"> — {item.reason}</span>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function StandupResultCard({ data }: { data: Record<string, unknown> }) {
-  const standup = data as unknown as StandupResultData;
-  const yesterday = standup.yesterday ?? [];
-  const today = standup.today ?? [];
-  const blockers = standup.blockers ?? [];
-  const period = standup.period ?? '';
-
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    const text = formatStandupForClipboard({ yesterday, today, blockers, period });
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(() => {
-        // Clipboard API may fail (permission denied, non-HTTPS, no user gesture)
-      });
-  }, [yesterday, today, blockers, period]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <CalendarCheck className="h-4 w-4 text-primary" aria-hidden="true" />
-          <span className="text-sm font-medium">Daily Standup</span>
-          {period && <span className="text-xs text-muted-foreground">{period}</span>}
-        </div>
-        <button
-          type="button"
-          onClick={handleCopy}
-          aria-label={copied ? 'Copied to clipboard' : 'Copy standup to clipboard'}
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium',
-            'transition-colors duration-150',
-            'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            copied ? 'text-primary' : 'text-muted-foreground'
-          )}
-        >
-          {copied ? (
-            <>
-              <Check className="h-3 w-3" aria-hidden="true" />
-              Copied!
-            </>
-          ) : (
-            <>
-              <Copy className="h-3 w-3" aria-hidden="true" />
-              Copy
-            </>
-          )}
-        </button>
-      </div>
-
-      <StandupSection
-        heading="Yesterday (Completed)"
-        items={yesterday}
-        accentClass="text-muted-foreground"
-      />
-      <StandupSection heading="Today (In Progress)" items={today} accentClass="text-primary" />
-      <StandupSection heading="Blockers" items={blockers} accentClass="text-amber-500" showReason />
-    </div>
-  );
-}
-
 // ─── Main Component ──────────────────────────────────────────────────────
 
 export const StructuredResultCard = memo<StructuredResultCardProps>(
-  ({ schemaType, data, className, onCreateIssues, isCreatingIssues }) => {
+  ({
+    schemaType,
+    data,
+    className,
+    onCreateIssues,
+    isCreatingIssues,
+    createdIssues,
+    workspaceSlug,
+  }) => {
     const renderContent = () => {
       switch (schemaType) {
         case 'extraction_result':
@@ -542,6 +598,8 @@ export const StructuredResultCard = memo<StructuredResultCardProps>(
               data={data}
               onCreateIssues={onCreateIssues}
               isCreatingIssues={isCreatingIssues}
+              createdIssues={createdIssues}
+              workspaceSlug={workspaceSlug}
             />
           );
         case 'decomposition_result':

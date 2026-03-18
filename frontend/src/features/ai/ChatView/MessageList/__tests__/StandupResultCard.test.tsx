@@ -178,6 +178,24 @@ describe('StandupResultCard', () => {
     });
     expect(screen.getByRole('button', { name: 'Copy standup to clipboard' })).toBeInTheDocument();
   });
+
+  it('handles malformed data gracefully without crashing', () => {
+    // yesterday is a string instead of array, today is missing, blockers is number
+    const malformedData = {
+      yesterday: 'not an array',
+      blockers: 42,
+      period: 123, // number instead of string
+    };
+
+    renderStandupCard(malformedData);
+
+    // Should render all three sections with "(No items)" since arrays are invalid
+    const noItems = screen.getAllByText('(No items)');
+    expect(noItems).toHaveLength(3);
+
+    // Period should not render since it's not a string
+    expect(screen.queryByText('123')).not.toBeInTheDocument();
+  });
 });
 
 // ── formatStandupForClipboard ────────────────────────────────────────────────

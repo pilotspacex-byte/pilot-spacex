@@ -67,18 +67,32 @@ interface AssistantMessageProps {
   className?: string;
 }
 
+export interface CreatedIssueData {
+  id: string;
+  identifier: string;
+  title: string;
+}
+
 export const AssistantMessage = memo<AssistantMessageProps>(({ message, className }) => {
   const store = useStore();
+  const { workspaceStore, aiStore } = store;
   const [isCreatingIssues, setIsCreatingIssues] = useState(false);
+  const [createdIssues, setCreatedIssues] = useState<CreatedIssueData[] | null>(null);
+
+  const workspaceSlug = workspaceStore.currentWorkspace?.slug;
 
   const handleCreateIssues = useCallback(
-    async (selectedIndices: number[]) => {
-      const noteId = store.aiStore.pilotSpace.noteContext?.noteId;
-      const workspaceId = store.workspaceStore.currentWorkspace?.id;
+    async (
+      selectedIndices: number[],
+      editOverrides?: Map<number, { title?: string; priority?: string }>
+    ): Promise<CreatedIssueData[] | void> => {
+      const noteId = aiStore.pilotSpace.noteContext?.noteId ?? null;
+      const workspaceId = workspaceStore.currentWorkspace?.id;
+      const projectId = aiStore.pilotSpace.projectContext?.projectId ?? null;
 
-      if (!noteId || !workspaceId) {
+      if (!workspaceId) {
         toast.error('Missing context', {
-          description: 'Could not determine note or workspace. Please try again.',
+          description: 'Could not determine workspace. Please try again.',
         });
         return;
       }
@@ -102,19 +116,29 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
         const result = await aiApi.createExtractedIssues(
           workspaceId,
           noteId,
-          selected.map((issue) => ({
-            title: issue.title,
-            description: issue.description || null,
-            priority: PRIORITY_INT[issue.priority.toLowerCase()] ?? 4,
-            source_block_id: issue.source_block_id,
-          }))
+          selected.map((issue, i) => {
+            const overrideIdx = selectedIndices[i]!;
+            const override = editOverrides?.get(overrideIdx);
+            return {
+              title: override?.title ?? issue.title,
+              description: issue.description || null,
+              priority: PRIORITY_INT[(override?.priority ?? issue.priority).toLowerCase()] ?? 4,
+              source_block_id: issue.source_block_id,
+            };
+          }),
+          projectId
         );
+        const created = result.created_issues;
+        setCreatedIssues(created);
         toast.success(
           `Created ${result.created_count} issue${result.created_count !== 1 ? 's' : ''}`,
           {
-            description: 'Issues have been created and linked to the note.',
+            description: noteId
+              ? 'Issues have been created and linked to the note.'
+              : 'Issues have been created.',
           }
         );
+        return created;
       } catch (error) {
         toast.error('Failed to create issues', {
           description: error instanceof Error ? error.message : 'An unexpected error occurred.',
@@ -123,7 +147,7 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
         setIsCreatingIssues(false);
       }
     },
-    [store, message.structuredResult]
+    [workspaceStore, aiStore, message.structuredResult]
   );
 
   return (
@@ -159,6 +183,8 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
                 : undefined
             }
             isCreatingIssues={isCreatingIssues}
+            createdIssues={createdIssues}
+            workspaceSlug={workspaceSlug}
           />
         )}
 
@@ -221,15 +247,6 @@ const GroupedContentBlocks = memo<{
           return sum;
         }, 0);
 
-        const hasActiveTool = reasoningBlocks.some((block) => {
-          if (block.type === 'tool_call') {
-            const tc = message.toolCalls?.find((t) => t.id === block.toolCallId);
-            return tc?.status === 'pending';
-          }
-          if (block.type === 'thinking') return block.durationMs == null;
-          return false;
-        });
-
         const renderedBlocks = reasoningBlocks.map((block) => {
           if (block.type === 'thinking') {
             return (
@@ -258,7 +275,7 @@ const GroupedContentBlocks = memo<{
             key={`reasoning-${gIdx}`}
             stepCount={stepCount}
             totalDurationMs={totalDurationMs}
-            defaultOpen={hasActiveTool}
+            defaultOpen={false}
           >
             {renderedBlocks}
           </ReasoningGroup>
@@ -276,8 +293,6 @@ const FallbackContentBlocks = memo<{ message: ChatMessage }>(function FallbackCo
 }) {
   const hasAnyReasoningBlocks =
     (message.thinkingBlocks?.length ?? 0) + (message.toolCalls?.length ?? 0) >= 1;
-
-  const isAnyStreaming = message.toolCalls?.some((t) => t.status === 'pending') ?? false;
 
   const thinkingElements =
     message.thinkingBlocks && message.thinkingBlocks.length > 0
@@ -327,7 +342,7 @@ const FallbackContentBlocks = memo<{ message: ChatMessage }>(function FallbackCo
         <ReasoningGroup
           stepCount={thinkingElements.length + (message.toolCalls?.length ?? 0)}
           totalDurationMs={totalDurationMs}
-          defaultOpen={isAnyStreaming}
+          defaultOpen={false}
         >
           {reasoningContent}
         </ReasoningGroup>
