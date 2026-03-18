@@ -8,7 +8,7 @@ import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Sparkles, AtSign, History } from 'lucide-react';
+import { Sparkles, AtSign, History, Hash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type {
   NoteContext,
@@ -22,7 +22,9 @@ import { ContextIndicator } from './ContextIndicator';
 import { SkillMenu } from './SkillMenu';
 import { useSkills } from '../hooks/useSkills';
 import { AgentMenu } from './AgentMenu';
+import { SectionMenu } from './SectionMenu';
 import { SessionResumeMenu, type SessionSummary } from './SessionResumeMenu';
+import type { HeadingItem } from '@/components/editor/AutoTOC';
 import { WorkingIndicator } from './WorkingIndicator';
 import { useAttachments } from '../hooks/useAttachments';
 import { useDriveStatus } from '../hooks/useDriveStatus';
@@ -59,6 +61,10 @@ interface ChatInputProps {
   onSearchSessions?: (query: string) => void;
   /** Callback when user requests a new session */
   onNewSession?: () => void;
+  /** Headings from current note for # section menu */
+  noteHeadings?: HeadingItem[];
+  /** Callback when user selects a section from # menu */
+  onSelectSection?: (heading: HeadingItem) => void;
   /** Workspace ID for attachment uploads */
   workspaceId?: string;
   /** Session ID for attachment uploads */
@@ -88,6 +94,8 @@ export const ChatInput = observer<ChatInputProps>(
     onSearchSessions,
     onNewSession,
     onClearProjectContext,
+    noteHeadings,
+    onSelectSection,
     workspaceId,
     sessionId,
     className,
@@ -106,6 +114,7 @@ export const ChatInput = observer<ChatInputProps>(
     const inputContainerRef = useRef<HTMLDivElement>(null);
     const [skillMenuOpen, setSkillMenuOpen] = useState(false);
     const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+    const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
     const [resumeMenuOpen, setResumeMenuOpen] = useState(false);
     const [inputWidth, setInputWidth] = useState<number | null>(null);
 
@@ -156,6 +165,17 @@ export const ChatInput = observer<ChatInputProps>(
         setAgentMenuOpen(true);
       }
     }, [value]);
+
+    // Detect #section trigger (only when note headings are available)
+    useEffect(() => {
+      if (!noteHeadings || noteHeadings.length === 0) return;
+      const lastChar = value.slice(-1);
+      const beforeLastChar = value.slice(-2, -1);
+
+      if (lastChar === '#' && (beforeLastChar === '' || beforeLastChar === ' ')) {
+        setSectionMenuOpen(true);
+      }
+    }, [value, noteHeadings]);
 
     // Detect \resume trigger
     useEffect(() => {
@@ -233,6 +253,17 @@ export const ChatInput = observer<ChatInputProps>(
       [value, onChange]
     );
 
+    const handleSectionSelect = useCallback(
+      (heading: HeadingItem) => {
+        // Remove the # trigger char from input
+        const newValue = value.replace(/#$/, '').trim();
+        onChange(newValue);
+        onSelectSection?.(heading);
+        textareaRef.current?.focus();
+      },
+      [value, onChange, onSelectSection]
+    );
+
     const handleSessionSelect = useCallback(
       (sessionId: string) => {
         // Remove \resume from input
@@ -249,6 +280,12 @@ export const ChatInput = observer<ChatInputProps>(
       textareaRef.current?.focus();
     }, []);
 
+    const handleSectionCancel = useCallback(() => {
+      // Remove stray # trigger character on Escape/Backspace cancel
+      onChange(value.replace(/#$/, ''));
+      textareaRef.current?.focus();
+    }, [value, onChange]);
+
     const handleKeyDown = useCallback(
       (e: KeyboardEvent<HTMLTextAreaElement>) => {
         if (
@@ -256,6 +293,7 @@ export const ChatInput = observer<ChatInputProps>(
           !e.shiftKey &&
           !skillMenuOpen &&
           !agentMenuOpen &&
+          !sectionMenuOpen &&
           !resumeMenuOpen
         ) {
           e.preventDefault();
@@ -271,6 +309,7 @@ export const ChatInput = observer<ChatInputProps>(
         isDisabled,
         skillMenuOpen,
         agentMenuOpen,
+        sectionMenuOpen,
         resumeMenuOpen,
         onSubmit,
         attachmentIds,
@@ -381,6 +420,28 @@ export const ChatInput = observer<ChatInputProps>(
                     <span className="sr-only">Open agent menu</span>
                   </Button>
                 </AgentMenu>
+
+                {noteHeadings && noteHeadings.length > 0 && (
+                  <SectionMenu
+                    open={sectionMenuOpen}
+                    onOpenChange={setSectionMenuOpen}
+                    onSelect={handleSectionSelect}
+                    onCancel={handleSectionCancel}
+                    headings={noteHeadings}
+                    popoverWidth={inputWidth ?? undefined}
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
+                      onClick={() => setSectionMenuOpen(true)}
+                    >
+                      <Hash className="h-3.5 w-3.5" />
+                      <span className="sr-only">Reference note section</span>
+                    </Button>
+                  </SectionMenu>
+                )}
 
                 <SessionResumeMenu
                   open={resumeMenuOpen}

@@ -402,7 +402,7 @@ Choose models based on task characteristics:
 | **Code Review** | Claude Sonnet 4 | Best reasoning, security analysis |
 | **Architecture** | Claude Opus 4.5 | Highest reasoning for complex design |
 | **Ghost Text** | Gemini 2.0 Flash | Lowest latency for real-time suggestions |
-| **Embeddings** | text-embedding-3-large | Best semantic search quality |
+| **Embeddings** | gemini-embedding-001 | Best semantic search quality (DD-070) |
 | **Issue Enhancement** | Claude Sonnet 4 | Good balance of quality and cost |
 | **Documentation** | Claude Sonnet 4 | Strong technical writing |
 

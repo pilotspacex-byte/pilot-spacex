@@ -17,7 +17,7 @@
  * - Tablet (md-lg): Collapsible ChatView, full-width editor
  * - Mobile (<md): Overlay ChatView panel, compact header
  */
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { notesKeys } from '@/features/notes/hooks';
 import { EditorContent } from '@tiptap/react';
@@ -49,6 +49,9 @@ import { useIssueExtraction } from '@/features/notes/hooks/useIssueExtraction';
 import { ExtractionPreviewModal } from '@/features/notes/components/ExtractionPreviewModal';
 import { ExtractionReviewPanel } from '@/features/notes/components/ExtractionReviewPanel';
 
+import { extractHeadings, extractSectionBlocks } from './AutoTOC';
+import type { HeadingItem } from './AutoTOC';
+import { OnThisPageTOC } from './OnThisPageTOC';
 import { NoteHealthBadges } from './NoteHealthBadges';
 import { ProjectContextHeader } from './ProjectContextHeader';
 import type { NoteCanvasProps } from './NoteCanvasEditor';
@@ -165,6 +168,46 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
 
   // T-216: Version history — VersionStore instance (stable, per-editor-mount)
   const [versionStore] = useState(() => new VersionStore());
+
+  // Extract headings for OnThisPageTOC + ChatInput section menu.
+  // Uses functional setState to skip re-render when headings haven't structurally changed,
+  // preventing cascade re-renders to OnThisPageTOC + ChatView on every keystroke.
+  const [noteHeadings, setNoteHeadings] = useState<HeadingItem[]>([]);
+  useEffect(() => {
+    if (!editor) return;
+    const update = () => {
+      const extracted = extractHeadings(editor);
+      setNoteHeadings((prev) => {
+        if (
+          prev.length === extracted.length &&
+          prev.every((h, i) => h.id === extracted[i]?.id && h.text === extracted[i]?.text)
+        ) {
+          return prev;
+        }
+        return extracted;
+      });
+    };
+    update();
+    editor.on('update', update);
+    return () => {
+      editor.off('update', update);
+    };
+  }, [editor]);
+
+  // Section selection handler — sets note context to focused section blocks
+  const handleSelectSection = useCallback(
+    (heading: HeadingItem) => {
+      if (!editor || !noteId) return;
+      const { text, blockIds } = extractSectionBlocks(editor, heading.id);
+      aiStore.pilotSpace.setNoteContext({
+        noteId,
+        noteTitle: title,
+        selectedText: text,
+        selectedBlockIds: blockIds,
+      });
+    },
+    [editor, noteId, title, aiStore.pilotSpace]
+  );
 
   // Emoji picker state (Notion-style page icon)
   const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
@@ -333,12 +376,19 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
         >
           <div
             className={cn(
-              'mx-auto document-canvas',
+              'mx-auto document-canvas relative',
               'max-w-full sm:max-w-[640px] md:max-w-[680px] lg:max-w-[720px] xl:max-w-[760px] 2xl:max-w-[800px]'
             )}
           >
             {/* TipTap Editor */}
             <EditorContent editor={editor} />
+
+            {/* Medium-style "On This Page" TOC — right of content, 2xl+ only, hidden when chat open */}
+            {!isChatViewOpen && (
+              <div className="hidden 2xl:block absolute top-0 bottom-0 left-full ml-8">
+                <OnThisPageTOC editor={editor} headings={noteHeadings} />
+              </div>
+            )}
           </div>
 
           {/* Off-screen AI edit indicator */}
@@ -371,6 +421,8 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
         suggestedPrompts={
           noteHealth.suggestedPrompts.length > 0 ? noteHealth.suggestedPrompts : undefined
         }
+        noteHeadings={noteHeadings}
+        onSelectSection={handleSelectSection}
       />
     </Suspense>
   );

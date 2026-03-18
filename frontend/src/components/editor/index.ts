@@ -11,6 +11,9 @@ export type { MarginAnnotationsProps } from './MarginAnnotations';
 export { AutoTOC } from './AutoTOC';
 export type { AutoTOCProps } from './AutoTOC';
 
+export { OnThisPageTOC } from './OnThisPageTOC';
+export type { OnThisPageTOCProps } from './OnThisPageTOC';
+
 export { SelectionToolbar } from './SelectionToolbar';
 export type { SelectionToolbarProps } from './SelectionToolbar';
 

@@ -376,4 +376,69 @@ export const AutoTOC = observer(function AutoTOC({
   );
 });
 
+/**
+ * Extract all block IDs and text content for a section
+ * (from the target heading to the next same-level-or-higher heading).
+ *
+ * Uses position-based range with doc.nodesBetween to capture nested blocks
+ * (list items, table cells) that top-level iteration would miss.
+ * Falls back to blockId matching when position lookup fails.
+ */
+export function extractSectionBlocks(
+  editor: Editor,
+  headingBlockId: string
+): { text: string; blockIds: string[] } {
+  const doc = editor.state.doc;
+
+  // Phase 1: Find the heading's position and level using the blockId
+  let startPos = -1;
+  let headingLevel = 0;
+  for (let i = 0; i < doc.childCount; i++) {
+    const node = doc.child(i);
+    const blockId = node.attrs.blockId as string | undefined;
+    if (blockId === headingBlockId && node.type.name === 'heading') {
+      let offset = 0;
+      for (let j = 0; j < i; j++) {
+        offset += doc.child(j).nodeSize;
+      }
+      startPos = offset;
+      headingLevel = (node.attrs.level as number) || 1;
+      break;
+    }
+  }
+  if (startPos === -1) return { text: '', blockIds: [] };
+
+  // Phase 2: Find end position — next heading at same level or higher
+  let endPos = doc.content.size;
+  for (let i = 0; i < doc.childCount; i++) {
+    const node = doc.child(i);
+    let offset = 0;
+    for (let j = 0; j < i; j++) {
+      offset += doc.child(j).nodeSize;
+    }
+    if (offset > startPos && node.type.name === 'heading') {
+      if ((node.attrs.level as number) <= headingLevel) {
+        endPos = offset;
+        break;
+      }
+    }
+  }
+
+  // Phase 3: Collect all block IDs and text within the range
+  const blockIds: string[] = [];
+  const textParts: string[] = [];
+  doc.nodesBetween(startPos, endPos, (node) => {
+    const blockId = node.attrs.blockId as string | undefined;
+    if (node.isBlock && blockId) {
+      blockIds.push(blockId);
+    }
+    if (node.isTextblock && node.textContent) {
+      textParts.push(node.textContent);
+    }
+    return true;
+  });
+
+  return { text: textParts.join('\n'), blockIds };
+}
+
 export default AutoTOC;
