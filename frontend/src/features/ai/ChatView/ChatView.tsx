@@ -47,6 +47,7 @@ import { ConfirmAllButton } from './ConfirmAllButton';
 import { QueueDepthIndicator } from './QueueDepthIndicator';
 import { useIntentRehydration } from './hooks/useIntentRehydration';
 import { useApprovals } from './hooks/useApprovals';
+import type { HeadingItem } from '@/components/editor/AutoTOC';
 export { isDestructiveAction } from './utils';
 
 interface ChatViewProps {
@@ -65,6 +66,10 @@ interface ChatViewProps {
   emptyStateSlot?: React.ReactNode;
   /** Prompt to auto-send when ChatView mounts with an empty conversation */
   initialPrompt?: string;
+  /** Headings from the current note for # section mentions in ChatInput */
+  noteHeadings?: HeadingItem[];
+  /** Callback when user selects a section via # menu — sets note context to section blocks */
+  onSelectSection?: (heading: HeadingItem) => void;
   className?: string;
 }
 
@@ -79,6 +84,8 @@ const ChatViewInternal = observer<ChatViewProps>(
     suggestedPrompts,
     emptyStateSlot,
     initialPrompt,
+    noteHeadings,
+    onSelectSection,
     className,
   }) => {
     const [inputValue, setInputValue] = useState('');
@@ -541,6 +548,8 @@ const ChatViewInternal = observer<ChatViewProps>(
           onClearNoteContext={handleClearNoteContext}
           onClearIssueContext={handleClearIssueContext}
           onClearProjectContext={handleClearProjectContext}
+          noteHeadings={noteHeadings}
+          onSelectSection={onSelectSection}
         />
 
         {/* Modal for destructive actions — non-dismissable (DD-003) */}

@@ -35,6 +35,14 @@ class ExtractedIssue(BaseModel):
         default="explicit",
         description="Extraction category: explicit, implicit, related",
     )
+    confidence: float | None = Field(
+        default=None,
+        description="Confidence score (0.0-1.0) for this extraction",
+    )
+    labels: list[str] = Field(
+        default_factory=list,
+        description="Suggested labels for the issue",
+    )
 
 
 class ExtractionResult(BaseModel):

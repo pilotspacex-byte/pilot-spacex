@@ -430,7 +430,7 @@ export function ExtractionReviewPanel({
       );
 
       const count = result.created_issues.length;
-      onCreated?.(result.created_issues);
+      onCreated?.(result.created_issues.map((i) => i.id));
       onOpenChange(false);
       toast.success(`${count} issue${count !== 1 ? 's' : ''} created`, {
         description: 'View them in the Issues board.',

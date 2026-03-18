@@ -2,7 +2,18 @@
 
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'motion/react';
-import { ArrowRight, Github, Sparkles, FileText, Layers, Brain, Wand2, Search, Hash } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpen,
+  Github,
+  Sparkles,
+  FileText,
+  Layers,
+  Brain,
+  Wand2,
+  Search,
+  Hash,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GITHUB_URL } from './constants';
 
@@ -33,7 +44,10 @@ export function LandingHero() {
         className="mx-auto flex max-w-4xl flex-col items-center px-4 text-center"
       >
         {/* Badge */}
-        <motion.div variants={shouldReduce ? undefined : fadeUp} transition={shouldReduce ? undefined : { duration: 0.5, ease: [0, 0, 0.2, 1] }}>
+        <motion.div
+          variants={shouldReduce ? undefined : fadeUp}
+          transition={shouldReduce ? undefined : { duration: 0.5, ease: [0, 0, 0.2, 1] }}
+        >
           <span className="inline-flex items-center gap-1.5 rounded-full bg-ai/10 px-3 py-1 text-xs font-medium text-ai">
             <Sparkles className="size-3" />
             AI-Augmented SDLC Platform
@@ -74,6 +88,12 @@ export function LandingHero() {
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="gap-2">
+            <Link href="/docs">
+              <BookOpen className="size-4" />
+              Documentation
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="gap-2">
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
               <Github className="size-4" />
               View on GitHub
@@ -84,7 +104,9 @@ export function LandingHero() {
         {/* Decorative Canvas Mockup */}
         <motion.div
           variants={shouldReduce ? undefined : fadeUp}
-          transition={shouldReduce ? undefined : { duration: 0.6, ease: [0, 0, 0.2, 1], delay: 0.1 }}
+          transition={
+            shouldReduce ? undefined : { duration: 0.6, ease: [0, 0, 0.2, 1], delay: 0.1 }
+          }
           className="mt-16 w-full max-w-3xl"
         >
           <div className="shadow-warm-xl rounded-xl border border-border bg-card">
@@ -97,7 +119,9 @@ export function LandingHero() {
               </div>
               <span className="ml-2 text-xs text-muted-foreground">Sprint Planning Notes</span>
               <div className="ml-auto flex items-center gap-2">
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Auto-saved</span>
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  Auto-saved
+                </span>
               </div>
             </div>
 
@@ -106,7 +130,10 @@ export function LandingHero() {
               {/* Line gutter */}
               <div className="hidden w-8 shrink-0 border-r border-border-subtle bg-muted/30 pt-6 sm:block">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                  <div key={n} className="px-2 text-right text-[10px] leading-[22px] text-muted-foreground/40">
+                  <div
+                    key={n}
+                    className="px-2 text-right text-[10px] leading-[22px] text-muted-foreground/40"
+                  >
                     {n}
                   </div>
                 ))}
@@ -118,7 +145,9 @@ export function LandingHero() {
                   Authentication Redesign
                 </div>
                 <div className="space-y-2 text-sm leading-relaxed text-foreground/80">
-                  <p>We need to migrate from session-based auth to JWT tokens for the mobile app.</p>
+                  <p>
+                    We need to migrate from session-based auth to JWT tokens for the mobile app.
+                  </p>
                   <p>Key considerations:</p>
                   <ul className="ml-4 list-disc space-y-1 text-foreground/70">
                     <li>Token refresh strategy (sliding window vs fixed expiry)</li>
@@ -131,7 +160,9 @@ export function LandingHero() {
                 <div className="text-sm text-foreground/30 italic">
                   Consider implementing a token blacklist for immediate revocation on logout and
                   password change events...
-                  <span className="ml-1 inline-flex items-center rounded bg-muted px-1 py-0.5 text-[10px] font-medium not-italic text-muted-foreground">Tab ↵</span>
+                  <span className="ml-1 inline-flex items-center rounded bg-muted px-1 py-0.5 text-[10px] font-medium not-italic text-muted-foreground">
+                    Tab ↵
+                  </span>
                 </div>
 
                 {/* Slash command menu (inline mockup) */}
@@ -149,28 +180,36 @@ export function LandingHero() {
                         <Layers className="size-4 text-primary" />
                         <div>
                           <div className="text-xs font-medium text-foreground">Extract Issues</div>
-                          <div className="text-[10px] text-muted-foreground">AI detects actionable items</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            AI detects actionable items
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2.5 px-2.5 py-2">
                         <Wand2 className="size-4 text-ai" />
                         <div>
                           <div className="text-xs font-medium text-foreground">Improve Writing</div>
-                          <div className="text-[10px] text-muted-foreground">Enhance clarity &amp; structure</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Enhance clarity &amp; structure
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2.5 px-2.5 py-2">
                         <Brain className="size-4 text-ai" />
                         <div>
                           <div className="text-xs font-medium text-foreground">AI Context</div>
-                          <div className="text-[10px] text-muted-foreground">Get code &amp; docs context</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Get code &amp; docs context
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2.5 px-2.5 py-2">
                         <FileText className="size-4 text-primary" />
                         <div>
                           <div className="text-xs font-medium text-foreground">Summarize</div>
-                          <div className="text-[10px] text-muted-foreground">Create concise summary</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Create concise summary
+                          </div>
                         </div>
                       </div>
                     </div>
