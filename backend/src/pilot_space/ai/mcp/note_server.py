@@ -646,12 +646,27 @@ def create_note_tools_server(
             converter = ContentConverter()
             tiptap_content = converter.markdown_to_tiptap(args["content_markdown"])
 
+        def _safe_uuid(value: str | None) -> UUID | None:
+            if not value:
+                return None
+            try:
+                return UUID(value)
+            except (ValueError, AttributeError):
+                return None
+
+        owner_id = _safe_uuid(tool_context.user_id)
+        workspace_id = _safe_uuid(tool_context.workspace_id)
+        if not owner_id or not workspace_id:
+            return _text_result("Error: valid user and workspace context required")
+
+        project_id = _safe_uuid(args.get("project_id"))
+
         svc_payload = CreateNotePayload(
-            workspace_id=UUID(tool_context.workspace_id),
-            owner_id=UUID(tool_context.user_id) if tool_context.user_id else UUID(int=0),
+            workspace_id=workspace_id,
+            owner_id=owner_id,
             title=title,
             content=tiptap_content,
-            project_id=UUID(args["project_id"]) if args.get("project_id") else None,
+            project_id=project_id,
         )
 
         svc = CreateNoteService(

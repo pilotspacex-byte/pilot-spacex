@@ -82,7 +82,7 @@ For **manual mode**, the required fields are `skill_name` and `skill_content`. F
 
 ### User Flows
 
-```
+```text
 Manual Flow:
   Open Modal --> Manual tab --> type name + content --> Save
                                                     --> (optional) switch to AI tab
@@ -115,7 +115,7 @@ AI Generate Flow:
 
 ### Layout Structure
 
-```
+```text
 +----------------------------------------------------------+
 | Header: "Add Skill" title + mode toggle (personal/ws)    |
 |   [Close X]                                               |
@@ -160,7 +160,7 @@ This is the **new** capability. Direct form entry without AI generation.
 
 ### Wireframe
 
-```
+```text
 +------------------------------------------------------+
 | Skill Name *                                          |
 | [________________________ text input _____________]   |
@@ -288,7 +288,7 @@ Modified from current `PreviewStep`:
 
 ### Preview Layout
 
-```
+```text
 +------------------------------------------------------+
 | <- Back to description                                |
 |                                                       |
@@ -320,7 +320,7 @@ Modified from current `PreviewStep`:
 
 ### File: `skill-add-modal.tsx` (new file, replaces `skill-generator-modal.tsx`)
 
-```
+```text
 SkillAddModal (props: SkillAddModalProps)
   |
   +-- Dialog > DialogContent
@@ -611,7 +611,7 @@ In `skills-settings-page.tsx`, replace:
 
 ### Current Modal (768px, two-panel)
 
-```
+```text
 +-----------------------------------+----------------+
 | Generate Skill            [mode]  | Writing Guide  |
 | Describe your expertise...        |                |
@@ -629,7 +629,7 @@ In `skills-settings-page.tsx`, replace:
 
 ### New Modal (896px, tabbed, single column)
 
-```
+```text
 +------------------------------------------------------+
 | Add Skill                                    [mode]  |
 +------------------------------------------------------+

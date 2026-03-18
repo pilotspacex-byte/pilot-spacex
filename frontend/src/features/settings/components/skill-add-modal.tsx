@@ -118,8 +118,9 @@ export function SkillAddModal({
   const [mode, setMode] = React.useState<SkillMode>(defaultMode);
 
   const manualTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const closeResetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const createUserSkill = useCreateUserSkill(workspaceSlug || workspaceId);
+  const createUserSkill = useCreateUserSkill(workspaceSlug ?? '');
   const generatePersonal = useGenerateSkill({ workspaceId });
   const generateWorkspace = useGenerateWorkspaceSkill({ workspaceId });
 
@@ -128,6 +129,10 @@ export function SkillAddModal({
 
   React.useEffect(() => {
     if (open) {
+      if (closeResetTimerRef.current) {
+        clearTimeout(closeResetTimerRef.current);
+        closeResetTimerRef.current = null;
+      }
       setMode(defaultMode);
       if (template) {
         setActiveTab('ai-generate');
@@ -155,7 +160,8 @@ export function SkillAddModal({
 
   const handleClose = React.useCallback(() => {
     onOpenChange(false);
-    setTimeout(reset, 200);
+    if (closeResetTimerRef.current) clearTimeout(closeResetTimerRef.current);
+    closeResetTimerRef.current = setTimeout(reset, 200);
   }, [onOpenChange, reset]);
 
   // Manual tab
@@ -545,7 +551,7 @@ function AiFormStep({
           className="resize-none min-h-[260px]"
         />
         <div className="flex items-center justify-between">
-          {description.length > 0 && description.length < AI_MIN_CHARS ? (
+          {description.trim().length > 0 && description.trim().length < AI_MIN_CHARS ? (
             <p className="text-xs text-muted-foreground">Min {AI_MIN_CHARS} characters required</p>
           ) : (
             <span />
