@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from 'react';
 import { CalendarCheck, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface StandupItem {
@@ -122,7 +123,7 @@ export function StandupResultCard({ data }: { data: Record<string, unknown> }) {
         setTimeout(() => setCopied(false), 2000);
       })
       .catch(() => {
-        // Clipboard API may fail (permission denied, non-HTTPS, no user gesture)
+        toast.error('Could not copy to clipboard');
       });
   }, [yesterday, today, blockers, period]);
 

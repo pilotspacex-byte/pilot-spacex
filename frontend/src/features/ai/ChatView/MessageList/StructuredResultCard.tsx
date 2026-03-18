@@ -26,17 +26,13 @@ import type {
   DecomposedSubtask,
   DuplicateCandidate,
 } from '@/stores/ai/types/events';
+import Link from 'next/link';
 import { ContextNotesResultCard, ContextIssuesResultCard } from './ContextCards';
 import { StandupResultCard } from './StandupResultCard';
+import type { CreatedIssueData } from './AssistantMessage';
 
-// Re-export for backward compatibility with existing test imports
+// Re-export so existing barrel imports continue to work
 export { formatStandupForClipboard } from './StandupResultCard';
-
-interface CreatedIssueInfo {
-  id: string;
-  identifier: string;
-  title: string;
-}
 
 interface StructuredResultCardProps {
   schemaType: string;
@@ -45,9 +41,9 @@ interface StructuredResultCardProps {
   onCreateIssues?: (
     selectedIndices: number[],
     editOverrides?: Map<number, { title?: string; priority?: string }>
-  ) => Promise<CreatedIssueInfo[] | void> | void;
+  ) => Promise<CreatedIssueData[] | void> | void;
   isCreatingIssues?: boolean;
-  createdIssues?: CreatedIssueInfo[] | null;
+  createdIssues?: CreatedIssueData[] | null;
   workspaceSlug?: string;
 }
 
@@ -96,9 +92,9 @@ interface ExtractionResultCardProps {
   onCreateIssues?: (
     selectedIndices: number[],
     editOverrides?: Map<number, { title?: string; priority?: string }>
-  ) => Promise<CreatedIssueInfo[] | void> | void;
+  ) => Promise<CreatedIssueData[] | void> | void;
   isCreatingIssues?: boolean;
-  createdIssues?: CreatedIssueInfo[] | null;
+  createdIssues?: CreatedIssueData[] | null;
   workspaceSlug?: string;
 }
 
@@ -186,7 +182,7 @@ function ExtractionResultCard({
           <div className="flex flex-wrap gap-2 pl-6">
             {createdIssues.map((issue) =>
               workspaceSlug ? (
-                <a
+                <Link
                   key={issue.id}
                   href={`/${workspaceSlug}/issues/${issue.id}`}
                   className={cn(
@@ -197,7 +193,7 @@ function ExtractionResultCard({
                   title={issue.title}
                 >
                   {issue.identifier}
-                </a>
+                </Link>
               ) : (
                 <span
                   key={issue.id}
@@ -230,6 +226,8 @@ function ExtractionResultCard({
           const override = editOverrides.get(idx);
           const displayTitle = override?.title ?? issue.title;
           const displayPriority = override?.priority ?? issue.priority;
+          const confidenceDisplay =
+            issue.confidence != null ? getConfidenceDisplay(issue.confidence) : null;
 
           return (
             <div
@@ -278,7 +276,7 @@ function ExtractionResultCard({
                     <div className="space-y-2">
                       <input
                         type="text"
-                        defaultValue={displayTitle}
+                        value={displayTitle}
                         onChange={(e) => updateOverride(idx, 'title', e.target.value)}
                         className={cn(
                           'w-full rounded-md border border-border bg-background px-2 py-1',
@@ -288,7 +286,7 @@ function ExtractionResultCard({
                       />
                       <div className="flex items-center gap-2">
                         <select
-                          defaultValue={displayPriority}
+                          value={displayPriority}
                           onChange={(e) => updateOverride(idx, 'priority', e.target.value)}
                           className={cn(
                             'rounded-md border border-border bg-background px-2 py-1',
@@ -329,14 +327,14 @@ function ExtractionResultCard({
                           {displayPriority}
                         </span>
                         {/* R4: Confidence badge */}
-                        {issue.confidence != null && (
+                        {confidenceDisplay && (
                           <span
                             className={cn(
                               'text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0',
-                              getConfidenceDisplay(issue.confidence).className
+                              confidenceDisplay.className
                             )}
                           >
-                            {getConfidenceDisplay(issue.confidence).label}
+                            {confidenceDisplay.label}
                           </span>
                         )}
                         {/* R3: Edit toggle */}

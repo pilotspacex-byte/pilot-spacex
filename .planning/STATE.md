@@ -80,6 +80,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-17
-Stopped at: Completed quick task 260317-hms (migrate provider settings to workspace level)
+Stopped at: Completed quick task 260317-v27 (Enhance Chat AI Issue Extraction Card)
 Resume file: None
 Next action: `/gsd:new-milestone`

@@ -75,18 +75,20 @@ export interface CreatedIssueData {
 
 export const AssistantMessage = memo<AssistantMessageProps>(({ message, className }) => {
   const store = useStore();
+  const { workspaceStore, aiStore } = store;
   const [isCreatingIssues, setIsCreatingIssues] = useState(false);
   const [createdIssues, setCreatedIssues] = useState<CreatedIssueData[] | null>(null);
 
-  const workspaceSlug = store.workspaceStore.currentWorkspace?.slug;
+  const workspaceSlug = workspaceStore.currentWorkspace?.slug;
 
   const handleCreateIssues = useCallback(
     async (
       selectedIndices: number[],
       editOverrides?: Map<number, { title?: string; priority?: string }>
     ): Promise<CreatedIssueData[] | void> => {
-      const noteId = store.aiStore.pilotSpace.noteContext?.noteId ?? null;
-      const workspaceId = store.workspaceStore.currentWorkspace?.id;
+      const noteId = aiStore.pilotSpace.noteContext?.noteId ?? null;
+      const workspaceId = workspaceStore.currentWorkspace?.id;
+      const projectId = aiStore.pilotSpace.projectContext?.projectId ?? null;
 
       if (!workspaceId) {
         toast.error('Missing context', {
@@ -123,7 +125,8 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
               priority: PRIORITY_INT[(override?.priority ?? issue.priority).toLowerCase()] ?? 4,
               source_block_id: issue.source_block_id,
             };
-          })
+          }),
+          projectId
         );
         const created = result.created_issues;
         setCreatedIssues(created);
@@ -144,7 +147,7 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
         setIsCreatingIssues(false);
       }
     },
-    [store, message.structuredResult]
+    [workspaceStore, aiStore, message.structuredResult]
   );
 
   return (

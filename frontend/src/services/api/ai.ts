@@ -380,7 +380,6 @@ export const aiApi = {
     }>(url, {
       issues: issuePayload,
       project_id: projectId ?? null,
-      ...(noteId ? {} : { note_id: null }),
     });
   },
 
