@@ -5,14 +5,20 @@ import type { Editor } from '@tiptap/react';
 /**
  * Create a mock editor with a flat document structure.
  * Each block has a type, blockId, optional level (for headings), and textContent.
+ * Simulates ProseMirror doc with nodeSize, content.size, and nodesBetween.
  */
 function createMockEditor(
   blocks: Array<{ type: string; blockId: string; level?: number; textContent: string }>
 ): Editor {
+  const NODE_SIZE = 10; // fixed per node for simplicity
+
   const children = blocks.map((block) => ({
     type: { name: block.type },
     attrs: { blockId: block.blockId, level: block.level ?? undefined },
     textContent: block.textContent,
+    nodeSize: NODE_SIZE,
+    isBlock: true,
+    isTextblock: block.type === 'paragraph' || block.type === 'heading',
   }));
 
   return {
@@ -20,6 +26,22 @@ function createMockEditor(
       doc: {
         childCount: children.length,
         child: (i: number) => children[i],
+        content: { size: children.length * NODE_SIZE },
+        nodesBetween: (
+          from: number,
+          to: number,
+          callback: (node: (typeof children)[0]) => boolean
+        ) => {
+          for (const child of children) {
+            // compute this child's offset
+            const idx = children.indexOf(child);
+            const offset = idx * NODE_SIZE;
+            if (offset >= from && offset < to) {
+              const cont = callback(child);
+              if (cont === false) break;
+            }
+          }
+        },
       },
     },
   } as unknown as Editor;

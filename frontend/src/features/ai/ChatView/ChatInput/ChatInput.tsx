@@ -280,6 +280,12 @@ export const ChatInput = observer<ChatInputProps>(
       textareaRef.current?.focus();
     }, []);
 
+    const handleSectionCancel = useCallback(() => {
+      // Remove stray # trigger character on Escape/Backspace cancel
+      onChange(value.replace(/#$/, ''));
+      textareaRef.current?.focus();
+    }, [value, onChange]);
+
     const handleKeyDown = useCallback(
       (e: KeyboardEvent<HTMLTextAreaElement>) => {
         if (
@@ -420,7 +426,7 @@ export const ChatInput = observer<ChatInputProps>(
                     open={sectionMenuOpen}
                     onOpenChange={setSectionMenuOpen}
                     onSelect={handleSectionSelect}
-                    onCancel={handleSkillCancel}
+                    onCancel={handleSectionCancel}
                     headings={noteHeadings}
                     popoverWidth={inputWidth ?? undefined}
                   >

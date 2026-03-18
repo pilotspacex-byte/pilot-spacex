@@ -1,19 +1,9 @@
 /**
- * Skills settings page.
- *
- * Placeholder page referenced by Next.js route validator.
+ * Skills settings route — delegates to the feature page component.
  */
 
+import { SkillsSettingsPage as SkillsSettingsPageView } from '@/features/settings/pages';
+
 export default function SkillsSettingsPage() {
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-lg font-semibold">Skills</h2>
-        <p className="text-sm text-muted-foreground">
-          Manage AI skills and slash commands for this workspace.
-        </p>
-      </div>
-      <p className="text-sm text-muted-foreground">Coming soon.</p>
-    </div>
-  );
+  return <SkillsSettingsPageView />;
 }

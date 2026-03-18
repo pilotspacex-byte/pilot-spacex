@@ -94,7 +94,11 @@ describe('SectionMenu', () => {
     const user = userEvent.setup();
     renderMenu(true);
 
-    await user.click(screen.getByText('Main Content'));
+    // Focus the search input and navigate with arrow keys + Enter
+    const searchInput = screen.getByPlaceholderText('Search sections...');
+    await user.click(searchInput);
+    // cmdk auto-highlights first item; 2 ArrowDowns reach "Main Content" (3rd item)
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
 
     expect(mockOnSelect).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'h1-main', text: 'Main Content' })

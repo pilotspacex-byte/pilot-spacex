@@ -40,7 +40,7 @@ export function OnThisPageTOC({ editor, headings, className }: OnThisPageTOCProp
 
     const editorDom = editor.view.dom;
     const headingElements = headings
-      .map((h) => editorDom.querySelector(`[data-block-id="${h.id}"]`))
+      .map((h) => editorDom.querySelector(`[data-block-id="${CSS.escape(h.id)}"]`))
       .filter(Boolean) as Element[];
 
     if (headingElements.length === 0) return;
@@ -70,7 +70,9 @@ export function OnThisPageTOC({ editor, headings, className }: OnThisPageTOCProp
       if (!editor) return;
       setActiveId(heading.id);
       editor.commands.setTextSelection(heading.position);
-      const headingDom = editor.view.dom.querySelector(`[data-block-id="${heading.id}"]`);
+      const headingDom = editor.view.dom.querySelector(
+        `[data-block-id="${CSS.escape(heading.id)}"]`
+      );
       if (headingDom) {
         headingDom.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
