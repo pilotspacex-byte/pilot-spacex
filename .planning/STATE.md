@@ -4,8 +4,8 @@ milestone: v1.0.0-alpha2
 milestone_name: Notion-Style Restructure
 status: completed
 stopped_at: Milestone archived
-last_updated: "2026-03-17"
-last_activity: "2026-03-17 — Completed quick task 260317-hms: migrate provider settings to workspace level"
+last_updated: "2026-03-18"
+last_activity: "2026-03-18 — Completed quick task 260318-hij: skill modal redesign (dual-mode Manual + AI Generate)"
 progress:
   total_phases: 18
   completed_phases: 17
@@ -75,10 +75,11 @@ None.
 | 260317-0ce | Fix skill editing: AI parser, skill_name, expandable cards, editable preview | 2026-03-17 | c234324c | Verified | [260317-0ce-fix-skill-editing-allow-edit-skill-conte](./quick/260317-0ce-fix-skill-editing-allow-edit-skill-conte/) |
 | 260317-bch | User skills in agent system prompt (layer 4.5, TDD) | 2026-03-17 | a743eb3f | Verified | [260317-bch-check-change-of-feat-provider-setup-enha](./quick/260317-bch-check-change-of-feat-provider-setup-enha/) |
 | 260317-hms | Migrate provider settings to workspace level (shared resolver, workspace_override) | 2026-03-17 | da3c5101 | Done | [260317-hms-migrate-provider-settings-to-workspace-l](./quick/260317-hms-migrate-provider-settings-to-workspace-l/) |
+| 260318-hij | Skill modal redesign: dual-mode Manual + AI Generate, 896px wide | 2026-03-18 | 58a97625 | Done | [260318-hij-implement-skill-modal-redesign-widen-mod](./quick/260318-hij-implement-skill-modal-redesign-widen-mod/) |
 
 ## Session Continuity
 
-Last session: 2026-03-17
-Stopped at: Completed quick task 260317-hms (migrate provider settings to workspace level)
+Last session: 2026-03-18
+Stopped at: Completed quick task 260318-hij (skill modal redesign)
 Resume file: None
 Next action: `/gsd:new-milestone`
