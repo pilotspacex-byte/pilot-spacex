@@ -312,9 +312,7 @@ export const WorkspaceSwitcher = observer(function WorkspaceSwitcher({
   }, [popoverOpen, workspaceStore]);
 
   const currentWorkspace: Workspace | undefined =
-    workspaceStore.workspaceList.find((ws) => ws.slug === currentSlug) ??
-    workspaceStore.currentWorkspace ??
-    undefined;
+    workspaceStore.getWorkspaceBySlug(currentSlug) ?? workspaceStore.currentWorkspace ?? undefined;
 
   const displayName = currentWorkspace?.name ?? currentSlug;
 

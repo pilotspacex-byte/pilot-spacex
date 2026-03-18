@@ -172,9 +172,9 @@ export class WorkspaceStore {
 
       runInAction(() => {
         this.workspaces.clear();
-        response.items.forEach((workspace) => {
-          this.workspaces.set(workspace.id, workspace);
-        });
+        for (const ws of response.items) {
+          this.workspaces.set(ws.id, ws);
+        }
 
         if (ensureSelection) {
           const firstWorkspace = response.items[0];
