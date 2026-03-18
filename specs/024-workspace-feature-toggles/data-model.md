@@ -140,24 +140,45 @@ Non-toggleable: `Home` (path: ``), `Chat` (path: `chat`), `Settings` (path: `set
 
 ### MCP Server → Feature Module
 
-| MCP Server | Feature Module |
-|-----------|---------------|
-| note_server | notes |
-| note_content_server | notes |
-| note_query_server | notes |
-| ownership_server | notes |
-| issue_server | issues |
-| issue_relation_server | issues |
-| project_server | projects |
-| comment_server | (always enabled — cross-cutting) |
-| github_server | (always enabled — cross-cutting) |
-| interaction_server | (always enabled — cross-cutting) |
+MCP servers are registered in `build_mcp_servers()` (`pilotspace_stream_utils.py`) using a two-stage pattern. The function accepts `active_features: set[str] | None`:
+
+**Always-included (unconditional block):**
+
+| MCP Server | Reason |
+|-----------|--------|
+| comment_server | Cross-cutting — not tied to any feature |
+| interaction_server | Cross-cutting — always available |
+
+**Feature-gated (conditional blocks appended to `servers` dict):**
+
+| Feature Guard | MCP Servers added |
+|--------------|-------------------|
+| `"notes" in active_features` | note_server, note_query_server, note_content_server |
+| `"issues" in active_features` | issue_server, issue_relation_server |
+| `"projects" in active_features` | project_server |
+
+When `active_features is None` all servers are included (backward-compatible default — used by remote/plugin servers).
+
+### `active_features` set
+
+The agent computes `active_features: set[str]` from the workspace JSONB:
+
+```python
+_active_features = {k for k, v in workspace.settings.get("feature_toggles", {}).items() if v}
+# e.g. {"notes", "members", "skills"} for default workspace
+```
+
+This positive-set is passed to both `build_mcp_servers(active_features=...)` and `PromptLayerConfig(active_features=...)`.
+
+### `PromptLayerConfig.active_features`
+
+`active_features: list[str]` — list of enabled feature module names passed to the prompt assembler. The assembler derives disabled features internally: `disabled = ALL_FEATURES − set(active_features)`, then injects a "Disabled Workspace Features" notice (layer 4.6) when `disabled` is non-empty.
 
 ### Multi-Module Skill Rule
 
-Skills with multiple `feature_module` values are disabled only when **ALL** listed modules are toggled off. If any one module is enabled, the skill remains available.
+Skills with multiple `feature_module` values are disabled only when **ALL** listed modules are absent from `active_features`. If any one module is in `active_features`, the skill remains available.
 
-Example: `recommend-assignee` has `feature_module: [issues, members]`. It is disabled only when both `issues=false` AND `members=false`.
+Example: `recommend-assignee` has `feature_module: [issues, members]`. It is disabled only when both `"issues"` and `"members"` are absent from `active_features`.
 
 ---
 

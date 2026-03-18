@@ -1,6 +1,7 @@
 ---
 name: generate-code
 description: Generate production-ready code for a feature or task, writing output directly to a note as a structured block
+feature_module: docs
 approval: suggest
 model: sonnet
 tools: [write_to_note, insert_block, replace_content]

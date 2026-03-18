@@ -84,11 +84,16 @@ def build_mcp_servers(
     tool_event_queue: asyncio.Queue[str],
     tool_context: ToolContext,
     input_data: ChatInput,
+    *,
+    feature_toggles: dict[str, bool] = {},
 ) -> tuple[dict[str, McpServerConfig], BlockRefMap | None]:
     """Build the MCP server dict and block-reference map for an SDK session.
 
     Constructs a ¶N block reference map from the note context (if present)
     and instantiates all 8 MCP tool servers (7 domain + 1 interaction).
+
+    When *feature_toggles* is provided, servers whose feature module is
+    disabled are excluded from the returned dict.
 
     Returns:
         Tuple of (mcp_servers dict keyed by server name, block_ref_map or None).
@@ -106,32 +111,6 @@ def build_mcp_servers(
     publisher = EventPublisher(tool_event_queue)
 
     servers: dict[str, McpServerConfig] = {
-        NOTE_SERVER_NAME: create_note_tools_server(
-            publisher,
-            context_note_id=str(context_note_id) if context_note_id else None,
-            tool_context=tool_context,
-            block_ref_map=ref_map,
-        ),
-        NOTE_QUERY_SERVER_NAME: create_note_query_server(
-            tool_context=tool_context,
-        ),
-        NOTE_CONTENT_SERVER_NAME: create_note_content_server(
-            publisher,
-            tool_context=tool_context,
-            block_ref_map=ref_map,
-        ),
-        ISSUE_SERVER_NAME: create_issue_tools_server(
-            publisher,
-            tool_context=tool_context,
-        ),
-        ISSUE_REL_SERVER_NAME: create_issue_relation_tools_server(
-            publisher,
-            tool_context=tool_context,
-        ),
-        PROJECT_SERVER_NAME: create_project_tools_server(
-            publisher=publisher,
-            tool_context=tool_context,
-        ),
         COMMENT_SERVER_NAME: create_comment_tools_server(
             publisher,
             tool_context=tool_context,
@@ -141,6 +120,38 @@ def build_mcp_servers(
             user_id=input_data.user_id,
         ),
     }
+
+    if feature_toggles.get("notes") is True:
+        servers[NOTE_SERVER_NAME] = create_note_tools_server(
+            publisher,
+            context_note_id=str(context_note_id) if context_note_id else None,
+            tool_context=tool_context,
+            block_ref_map=ref_map,
+        )
+        servers[NOTE_QUERY_SERVER_NAME] = create_note_query_server(
+            tool_context=tool_context,
+        )
+        servers[NOTE_CONTENT_SERVER_NAME] = create_note_content_server(
+            publisher,
+            tool_context=tool_context,
+            block_ref_map=ref_map,
+        )
+
+    if feature_toggles.get("issues") is True:
+        servers[ISSUE_SERVER_NAME] = create_issue_tools_server(
+            publisher,
+            tool_context=tool_context,
+        )
+        servers[ISSUE_REL_SERVER_NAME] = create_issue_relation_tools_server(
+            publisher,
+            tool_context=tool_context,
+        )
+    
+    if feature_toggles.get("projects") is True:
+        servers[PROJECT_SERVER_NAME] = create_project_tools_server(
+            publisher=publisher,
+            tool_context=tool_context,
+        )
 
     return servers, ref_map
 

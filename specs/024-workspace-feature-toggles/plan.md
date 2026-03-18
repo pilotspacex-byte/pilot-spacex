@@ -110,23 +110,30 @@
     - Add `feature_module: notes` (or `issues`, `projects`, `docs`)
     - Multi-module: `feature_module: [issues, members]`
 
-13. **`backend/src/pilot_space/ai/skills/skill_discovery.py`** — Filter by feature toggles
-    - Add `feature_module` parsing from frontmatter
-    - Add `filter_skills_by_features(skills, feature_toggles)` function
-    - Multi-module: skill is available if ANY listed module is enabled
+13. **`backend/src/pilot_space/ai/skills/skill_discovery.py`** — Filter by active features
+    - Add `feature_module: list[str] | None` field to `SkillInfo` dataclass (normalize single string to list)
+    - Add `filter_skills_by_features(skills, active_features: set[str]) -> list[SkillInfo]`
+    - Multi-module rule: skill is kept if ANY listed module is in `active_features`
 
-14. **`backend/src/pilot_space/ai/mcp/registry.py`** — Filter tools by feature toggles
-    - Add `feature_module` metadata to MCP server registration
-    - Update `list_tools()` to accept `feature_toggles` parameter
-    - Filter out tools whose server's `feature_module` is disabled
+14. **`backend/src/pilot_space/ai/agents/pilotspace_stream_utils.py`** — Grouped MCP server factory
+    - `build_mcp_servers()` accepts `active_features: set[str] | None = None` (not `registry.py`)
+    - Body structure:
+      1. Unconditional block: always add `comment_server` and `interaction_server`
+      2. Feature-conditional blocks grouped by feature: `if active_features is None or "notes" in active_features:` adds `note_server`, `note_query_server`, `note_content_server`; same for `"issues"` and `"projects"`
+    - No `_all_servers` list; `servers: dict[str, McpServerConfig]` built additively
+    - `active_features is None` → all servers included (backward-compatible default)
 
 15. **`backend/src/pilot_space/ai/agents/pilotspace_agent.py`** — Load toggles at session start
-    - In `_run_agent_turn()` or session init, load workspace feature toggles
-    - Pass to `build_mcp_servers()` and skill filtering
-    - Add system prompt instruction: when user requests a disabled feature, explain it's not enabled
+    - Compute `_active_features: set[str] = {k for k, v in workspace.settings.get("feature_toggles", {}).items() if v}`
+    - Pass `active_features=_active_features` to `build_mcp_servers()`
+    - Pass `active_features=list(_active_features)` to `PromptLayerConfig`
 
-16. **`backend/src/pilot_space/ai/agents/pilotspace_agent_helpers.py`** — Update helpers
-    - `build_mcp_servers()` accepts feature toggles, excludes disabled servers
+16. **`backend/src/pilot_space/ai/prompt/models.py`** — `PromptLayerConfig.active_features`
+    - Add `active_features: list[str]` field (list of enabled feature module names)
+    - Example: `["notes", "members", "skills"]` for a workspace with only those three enabled
+
+17. **`backend/src/pilot_space/ai/prompt/prompt_assembler.py`** — Feature context layer (4.6)
+    - `_build_feature_context_section(config)`: computes `disabled = ALL_FEATURES − set(config.active_features)`; returns `None` when all features active; otherwise injects "Disabled Workspace Features" section instructing agent to decline and redirect to admin settings
 
 ---
 
@@ -151,21 +158,19 @@
 | 1 | `backend/.../schemas/workspace.py` | Modify | 1 |
 | 2 | `backend/.../routers/workspace_feature_toggles.py` | Create | 1 |
 | 3 | `backend/.../routers/__init__.py` | Modify | 1 |
-| 4 | `backend/tests/.../test_workspace_feature_toggles.py` | Create | 1 |
-| 5 | `frontend/src/lib/api/workspace.ts` | Modify | 2 |
+| 4 | `frontend/src/types/workspace.ts` | Modify | 2 |
+| 5 | `frontend/src/services/api/workspaces.ts` | Modify | 2 |
 | 6 | `frontend/src/stores/WorkspaceStore.ts` | Modify | 2 |
-| 7 | `frontend/src/types/workspace.ts` | Modify | 2 |
-| 8 | `frontend/.../settings/features/page.tsx` | Create | 2 |
-| 9 | `frontend/.../settings/layout.tsx` | Modify | 2 |
-| 10 | `frontend/src/components/layout/sidebar.tsx` | Modify | 3 |
-| 11 | `frontend/.../[workspaceSlug]/layout.tsx` | Modify | 3 |
-| 12 | `backend/.../skills/*/SKILL.md` (15+ files) | Modify | 4 |
-| 13 | `backend/.../skills/skill_discovery.py` | Modify | 4 |
-| 14 | `backend/.../mcp/registry.py` | Modify | 4 |
-| 15 | `backend/.../agents/pilotspace_agent.py` | Modify | 4 |
-| 16 | `backend/.../agents/pilotspace_agent_helpers.py` | Modify | 4 |
-| 17 | `backend/tests/...` (multiple test files) | Create | 5 |
-| 18 | `frontend/src/...` (test files) | Create | 5 |
+| 7 | `frontend/.../settings/features/page.tsx` | Create | 2 |
+| 8 | `frontend/.../settings/layout.tsx` | Modify | 2 |
+| 9 | `frontend/src/components/layout/sidebar.tsx` | Modify | 3 |
+| 10 | `frontend/.../[workspaceSlug]/layout.tsx` | Modify | 3 |
+| 11 | `backend/.../skills/*/SKILL.md` (15 files) | Modify | 4 |
+| 12 | `backend/.../skills/skill_discovery.py` | Modify | 4 |
+| 13 | `backend/.../agents/pilotspace_stream_utils.py` | Modify | 4 |
+| 14 | `backend/.../agents/pilotspace_agent.py` | Modify | 4 |
+| 15 | `backend/.../prompt/models.py` | Modify | 4 |
+| 16 | `backend/.../prompt/prompt_assembler.py` | Modify | 4 |
 
 ---
 

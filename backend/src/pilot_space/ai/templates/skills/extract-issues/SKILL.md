@@ -1,6 +1,7 @@
 ---
 name: extract-issues
 description: Extract potential issues from note content with AI confidence tagging
+feature_module: issues
 ---
 
 # Extract Issues Skill

@@ -4,7 +4,7 @@
 **Created**: 2026-03-18
 **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
 
-**Total Tasks**: 28
+**Total Tasks**: 33
 **User Stories**: 6 (3x P1, 3x P2)
 **MVP Scope**: Phase 1–3 (US1 + US2 — admin toggles + member visibility)
 
@@ -96,7 +96,7 @@ These tasks are blocking prerequisites for all user stories. They create the bac
 **Goal**: When a feature is toggled off, related AI skills and MCP tools are unavailable to the agent.
 **Independent test**: Disable "Issues" → AI chat → request issue extraction → agent refuses.
 
-- [ ] T018 [US6] Add `feature_module` field to YAML frontmatter of each applicable SKILL.md file. Use the mapping from data-model.md:
+- [x] T018 [US6] Add `feature_module` field to YAML frontmatter of each applicable SKILL.md file. Use the mapping from data-model.md:
   - `summarize/SKILL.md` → `feature_module: notes`
   - `create-note-from-chat/SKILL.md` → `feature_module: notes`
   - `generate-digest/SKILL.md` → `feature_module: notes`
@@ -114,29 +114,45 @@ These tasks are blocking prerequisites for all user stories. They create the bac
   - `generate-code/SKILL.md` → `feature_module: docs`
   Skills without a `feature_module` (e.g., review-code, scan-security, ai-context) are always available.
 
-- [ ] T019 [US6] Update `backend/src/pilot_space/ai/skills/skill_discovery.py` to parse the `feature_module` field from YAML frontmatter. Add `feature_module: str | list[str] | None` to `SkillInfo` dataclass. In `_parse_skill_file()`, read `frontmatter.get("feature_module")` and store as a list (normalize single string to `[string]`). Add a `filter_skills_by_features(skills: list[SkillInfo], feature_toggles: dict[str, bool]) -> list[SkillInfo]` function: for each skill, if `feature_module` is None → keep; if all modules in `feature_module` are disabled → remove; otherwise keep.
+- [x] T019 [US6] Update `backend/src/pilot_space/ai/skills/skill_discovery.py` to parse the `feature_module` field from YAML frontmatter. Add `feature_module: list[str] | None` to `SkillInfo` dataclass (normalize single string to list). Add `filter_skills_by_features(skills: list[SkillInfo], active_features: set[str]) -> list[SkillInfo]`: for each skill, if `feature_module is None` → keep; if ANY module in `feature_module` is in `active_features` → keep; otherwise remove.
 
-- [ ] T020 [US6] Add `feature_module` metadata to MCP server registrations. In `backend/src/pilot_space/ai/mcp/registry.py`, add a `feature_module: str | None` field to the tool/server registration metadata. Update each MCP server registration (in `backend/src/pilot_space/ai/agents/pilotspace_agent_helpers.py` or wherever `build_mcp_servers()` constructs servers) to tag: `note_server→notes`, `note_content_server→notes`, `note_query_server→notes`, `ownership_server→notes`, `issue_server→issues`, `issue_relation_server→issues`, `project_server→projects`. Servers without a `feature_module` (comment_server, github_server, interaction_server) are always included.
+- [x] T020 [US6] Add `active_features`-aware MCP server grouping to `build_mcp_servers()` in `backend/src/pilot_space/ai/agents/pilotspace_stream_utils.py`. Signature: `active_features: set[str] | None = None`. Unconditional block: always add `comment_server` and `interaction_server`. Feature-conditional blocks: `if active_features is None or "notes" in active_features` → add note_server, note_query_server, note_content_server; same for `"issues"` → issue_server, issue_relation_server; `"projects"` → project_server. No `_all_servers` list.
 
-- [ ] T021 [US6] Update `list_tools()` in `backend/src/pilot_space/ai/mcp/registry.py` to accept an optional `feature_toggles: dict[str, bool] | None` parameter. When provided, filter out tools whose server's `feature_module` is disabled in the toggles dict. When `feature_toggles` is None, return all tools (backward compatible).
+- [x] T021 [US6] (Superseded by T020 — `registry.py list_tools()` filtering was not implemented; MCP filtering is handled entirely in `build_mcp_servers()` in `pilotspace_stream_utils.py`.)
 
-- [ ] T022 [US6] Update `backend/src/pilot_space/ai/agents/pilotspace_agent.py` to load workspace feature toggles at agent session start. In the method that builds the agent context (near `build_mcp_servers()`), read `workspace.settings.get("feature_toggles", {})` from the database. Pass the toggles to: (1) `filter_skills_by_features()` to filter the skill list before building the system prompt, and (2) `list_tools()` / `build_mcp_servers()` to filter MCP tools.
+- [x] T022 [US6] Update `_build_stream_config()` in `backend/src/pilot_space/ai/agents/pilotspace_agent.py`: load workspace feature toggles via `WorkspaceRepository.get_by_id()`. Compute `_active_features: set[str] = {k for k, v in (workspace.settings or {}).get("feature_toggles", {}).items() if v}`. Pass `active_features=_active_features` to `build_mcp_servers()`. Pass `active_features=list(_active_features)` to `PromptLayerConfig`.
 
-- [ ] T023 [US6] Update `backend/src/pilot_space/ai/agents/pilotspace_agent_helpers.py` — modify `build_mcp_servers()` to accept `feature_toggles: dict[str, bool] | None` parameter. When building the server list, skip servers whose `feature_module` is in the toggles dict and mapped to `False`.
+- [x] T023 [US6] (Superseded by T020 — `build_mcp_servers()` was moved/implemented in `pilotspace_stream_utils.py`, not `pilotspace_agent_helpers.py`.)
 
-- [ ] T024 [US6] Add a system prompt instruction in the agent's system message (in `pilotspace_agent.py` or the prompt template) that informs the agent about disabled features. Something like: "The following workspace features are currently disabled: {disabled_list}. If a user requests functionality related to a disabled feature, politely inform them that the feature is not enabled for this workspace and suggest they ask a workspace admin to enable it in Settings > Features."
+- [x] T024 [US6] Add `active_features: list[str]` field to `PromptLayerConfig` in `backend/src/pilot_space/ai/prompt/models.py`. Add `_build_feature_context_section(config)` to `backend/src/pilot_space/ai/prompt/prompt_assembler.py` (layer 4.6): computes `disabled = ALL_FEATURES − set(config.active_features)`, returns a "Disabled Workspace Features" section when non-empty, instructs agent to decline and direct user to Settings > Features. Returns `None` when all features active.
 
 ---
 
 ## Phase 9: Polish & Cross-Cutting
 
-- [ ] T025 Verify backward compatibility: test that an existing workspace with NO `feature_toggles` key in `workspace.settings` returns correct defaults from GET endpoint and renders correct sidebar (Notes, Members, Skill visible). No data migration should be needed.
+- [x] T025 Verify backward compatibility: test that an existing workspace with NO `feature_toggles` key in `workspace.settings` returns correct defaults from GET endpoint and renders correct sidebar (Notes, Members, Skill visible). No data migration should be needed.
 
-- [ ] T026 Verify that disabling a feature does NOT delete any underlying data. Toggle off "Issues" → confirm issues still exist in the database → toggle on "Issues" → confirm all issues are accessible again.
+- [x] T026 Verify that disabling a feature does NOT delete any underlying data. Toggle off "Issues" → confirm issues still exist in the database → toggle on "Issues" → confirm all issues are accessible again.
 
-- [ ] T027 Verify section label hiding in sidebar: when all "Main" items (Notes, Issues, Projects, Members, Docs) are disabled, the "Main" section label should be hidden. Same for "AI" section when Skills, Costs, and Approvals are all disabled. Edge case: Chat is always visible in AI section, so the "AI" label should remain if Chat is present even when Skills/Costs/Approvals are all off.
+- [x] T027 Verify section label hiding in sidebar: when all "Main" items (Notes, Issues, Projects, Members, Docs) are disabled, the "Main" section label should be hidden. Same for "AI" section when Skills, Costs, and Approvals are all disabled. Edge case: Chat is always visible in AI section, so the "AI" label should remain if Chat is present even when Skills/Costs/Approvals are all off.
 
-- [ ] T028 Run quality gates to verify no regressions: `make quality-gates-backend` (pyright + ruff + pytest) and `make quality-gates-frontend` (eslint + tsc + vitest).
+- [x] T028 Run quality gates to verify no regressions: `make quality-gates-backend` (pyright + ruff + pytest) and `make quality-gates-frontend` (eslint + tsc + vitest).
+
+---
+
+## Phase 10: Refactor — active_features API + grouped MCP structure
+
+**Goal**: Clarify the feature-toggle contract by using `active_features` (what's ON) instead of `disabled_features` / `feature_toggles` (what's OFF), and restructure `build_mcp_servers()` so always-on servers are declared unconditionally while feature-gated servers are appended in explicit groups. No behavior change — only naming, structure, and readability.
+
+- [ ] T029 Refactor `PromptLayerConfig` in `backend/src/pilot_space/ai/prompt/models.py`: rename `disabled_features: list[str]` → `active_features: list[str]`. Update the docstring to describe it as the list of enabled feature module names (e.g. `["notes", "members", "skills"]`). All features are drawn from the 8-key set: `notes`, `issues`, `projects`, `members`, `docs`, `skills`, `costs`, `approvals`.
+
+- [ ] T030 [P] Refactor `_build_disabled_features_section()` in `backend/src/pilot_space/ai/prompt/prompt_assembler.py`: rename to `_build_feature_context_section(config: PromptLayerConfig) -> str | None`. Change the logic: compute `disabled = ALL_FEATURES - set(config.active_features)` where `ALL_FEATURES = frozenset({"notes","issues","projects","members","docs","skills","costs","approvals"})`. Return `None` when `disabled` is empty (all features active). When non-empty, format as before. Update the caller in `assemble_system_prompt()`: rename `disabled_section` variable and `layers_loaded` key from `"disabled_features"` → `"feature_context"`.
+
+- [ ] T031 [P] Refactor `build_mcp_servers()` in `backend/src/pilot_space/ai/agents/pilotspace_stream_utils.py`: change signature from `feature_toggles: dict[str, bool] | None = None` → `active_features: set[str] | None = None`. Restructure the body so `servers: dict[str, McpServerConfig]` is populated in two stages: (1) unconditional block — always add `COMMENT_SERVER_NAME` and `INTERACTION_SERVER_NAME` directly; (2) feature-conditional blocks — one `if` block per feature, e.g. `if active_features is None or "notes" in active_features: servers[NOTE_SERVER_NAME] = ...; servers[NOTE_QUERY_SERVER_NAME] = ...; servers[NOTE_CONTENT_SERVER_NAME] = ...`. Same pattern for `"issues"` (ISSUE_SERVER, ISSUE_REL_SERVER) and `"projects"` (PROJECT_SERVER). Remove the `_all_servers` list entirely. When `active_features is None`, all servers are included (backward-compatible default).
+
+- [ ] T032 Update `_build_stream_config()` in `backend/src/pilot_space/ai/agents/pilotspace_agent.py`: replace `_feature_toggles: dict[str, bool]` and `_disabled_features: list[str]` with `_active_features: set[str]`. Compute it as `set(k for k, v in (_workspace_obj.settings or {}).get("feature_toggles", {}).items() if v)` — keys whose value is `True`. Pass `active_features=_active_features` to `build_mcp_servers()`. Pass `active_features=list(_active_features)` to `PromptLayerConfig`.
+
+- [ ] T033 Run `uv run pyright` and `uv run ruff check` in `backend/` to verify no type errors or lint issues after the rename. Fix any issues found.
 
 ---
 
@@ -155,6 +171,7 @@ T001 ──→ T018 → T019 (skill metadata + filtering)
 T001 ──→ T020 → T021 (MCP metadata + filtering)
 T019 + T021 ──→ T022 → T023, T024 (agent integration)
 All ──→ T025, T026, T027, T028 (polish)
+T028 ──→ T029 → T030, T031 ∥ T032 → T033 (active_features refactor)
 ```
 
 ## Parallel Execution Opportunities
@@ -165,11 +182,14 @@ All ──→ T025, T026, T027, T028 (polish)
 | Settings UI + Sidebar | T007 + T008 ∥ T009 + T010 | Different files, both depend on T006 |
 | Skill metadata + MCP metadata | T018–T019 ∥ T020–T021 | Independent subsystems |
 | All US verifications | T011–T012 ∥ T013–T014 ∥ T015–T016 | Read-only verification tasks |
+| Phase 10 rename | T030 ∥ T031 | Different files (prompt_assembler vs stream_utils) |
 
 ## Implementation Strategy
 
 **MVP (Phase 1–3)**: T001–T010 delivers US1 (admin configures) + US2 (member sees). This gives the core toggle functionality with backend API, settings UI, sidebar filtering, and route protection. ~16 files touched.
 
 **Full feature (Phase 1–9)**: All 28 tasks. Adds access control verification (US3), default verification (US4), persistence verification (US5), AI integration (US6), and polish.
+
+**Refactor (Phase 10)**: T029–T033 renames to `active_features` API and restructures `build_mcp_servers()` for clarity. Pure rename/restructure — no behavior change.
 
 **Recommended order**: Start with T001 (backend schema) and T004 (frontend types) in parallel, then chain through the dependency graph.

@@ -33,6 +33,7 @@ class SkillInfo:
     category: str
     icon: str
     examples: list[str] = field(default_factory=list)
+    feature_module: list[str] | None = field(default=None)
 
 
 def discover_skills(skills_dir: Path) -> list[SkillInfo]:
@@ -90,6 +91,14 @@ def _parse_skill_file(skill_file: Path) -> SkillInfo | None:
     name = str(frontmatter.get("name", "")) or skill_file.parent.name
     description = str(frontmatter.get("description", ""))
 
+    # Parse feature_module — normalize single string to list
+    raw_module = frontmatter.get("feature_module")
+    feature_module: list[str] | None = None
+    if isinstance(raw_module, str):
+        feature_module = [raw_module]
+    elif isinstance(raw_module, list):
+        feature_module = [str(m) for m in raw_module]
+
     ui = get_skill_ui_metadata(name)
 
     return SkillInfo(
@@ -98,4 +107,32 @@ def _parse_skill_file(skill_file: Path) -> SkillInfo | None:
         category=ui.category,
         icon=ui.icon,
         examples=list(ui.examples),
+        feature_module=feature_module,
     )
+
+
+def filter_skills_by_features(
+    skills: list[SkillInfo],
+    feature_toggles: dict[str, bool],
+) -> list[SkillInfo]:
+    """Filter skills based on workspace feature toggles.
+
+    A skill is removed only when ALL of its feature_module values are
+    disabled.  Skills with no feature_module are always kept.
+
+    Args:
+        skills: List of discovered skills.
+        feature_toggles: Mapping of feature key to enabled/disabled state.
+
+    Returns:
+        Filtered list of skills that are available in this workspace.
+    """
+    result: list[SkillInfo] = []
+    for skill in skills:
+        if skill.feature_module is None:
+            result.append(skill)
+            continue
+        # Keep if ANY listed module is enabled (or not present in toggles → default enabled)
+        if any(feature_toggles.get(m, True) for m in skill.feature_module):
+            result.append(skill)
+    return result
