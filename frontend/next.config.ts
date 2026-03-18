@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
   // This creates a self-contained build with minimal node_modules
   output: 'standalone',
 
+  // Include docs markdown content in standalone output so fs.readFileSync works in production
+  outputFileTracingIncludes: {
+    '/[workspaceSlug]/docs/[slug]': ['./src/features/docs/content/*.md'],
+  },
+
   // Performance optimizations
   poweredByHeader: false,
 

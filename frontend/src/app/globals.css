@@ -2114,6 +2114,67 @@
 }
 
 /* =============================================================================
+   DOCS MARKDOWN CONTENT STYLES
+   Extends .chat-markdown with larger text, scroll-margin for TOC, and
+   heading borders. All shared styles (lists, tables, code, hljs) are
+   inherited from .chat-markdown — only overrides are defined here.
+   ============================================================================= */
+.docs-markdown {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+
+.docs-markdown h1,
+.docs-markdown h2,
+.docs-markdown h3,
+.docs-markdown h4 {
+  scroll-margin-top: 5rem;
+}
+
+.docs-markdown h1 {
+  font-size: 1.5rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-markdown h2 {
+  font-size: 1.25rem;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.docs-markdown h3 {
+  font-size: 1.125rem;
+  margin-top: 1.5rem;
+}
+
+.docs-markdown h4 {
+  font-size: 1rem;
+  margin-top: 1.25rem;
+}
+
+.docs-markdown p {
+  line-height: 1.8;
+}
+
+.docs-markdown ul,
+.docs-markdown ol {
+  padding-left: 1.75rem;
+}
+
+.docs-markdown blockquote {
+  border-left-color: var(--primary);
+}
+
+.docs-markdown hr {
+  margin: 2rem 0;
+}
+
+/* =============================================================================
    ONBOARDING CELEBRATION CONFETTI
    ============================================================================= */
 @keyframes confetti-fall {
