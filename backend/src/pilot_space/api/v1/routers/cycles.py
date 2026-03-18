@@ -233,14 +233,7 @@ async def get_velocity_chart(
     return VelocityChartResponse(
         project_id=result.project_id,
         data_points=[
-            VelocityDataPoint(
-                cycle_id=dp.cycle_id,
-                cycle_name=dp.cycle_name,
-                completed_points=dp.completed_points,
-                committed_points=dp.committed_points,
-                velocity=dp.velocity,
-            )
-            for dp in result.data_points
+            VelocityDataPoint.model_validate(dp, from_attributes=True) for dp in result.data_points
         ],
         average_velocity=result.average_velocity,
     )
