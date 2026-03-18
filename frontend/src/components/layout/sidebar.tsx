@@ -11,7 +11,6 @@ import {
   LayoutGrid,
   FolderKanban,
   Users,
-  MessageSquare,
   DollarSign,
   Settings,
   ChevronLeft,
@@ -99,7 +98,6 @@ const navigationSections: NavSection[] = [
     label: 'AI',
     icon: Sparkles,
     items: [
-      { name: 'Chat', path: 'chat', icon: MessageSquare, testId: 'nav-chat' },
       { name: 'Skill', path: 'skills', icon: UserCog, testId: 'nav-roles', featureKey: 'skills' },
       { name: 'Costs', path: 'costs', icon: DollarSign, testId: 'nav-costs', featureKey: 'costs' },
       {
