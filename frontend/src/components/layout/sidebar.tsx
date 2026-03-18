@@ -29,14 +29,10 @@ import {
   Moon,
   Monitor,
   CheckCircle2,
+  BookOpen,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import {
-  useUIStore,
-  useNotificationStore,
-  useAuthStore,
-  useWorkspaceStore,
-} from '@/stores';
+import { useUIStore, useNotificationStore, useAuthStore, useWorkspaceStore } from '@/stores';
 import { useCreateNote } from '@/features/notes/hooks';
 import { TemplatePicker } from '@/features/notes/components/TemplatePicker';
 import { useNewNoteFlow } from './useNewNoteFlow';
@@ -94,6 +90,7 @@ const navigationSections: NavSection[] = [
       { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues' },
       { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects' },
       { name: 'Members', path: 'members', icon: Users, testId: 'nav-members' },
+      { name: 'Docs', path: 'docs', icon: BookOpen, testId: 'nav-docs' },
     ],
   },
   {
@@ -543,33 +540,33 @@ export const Sidebar = observer(function Sidebar() {
                   {pinnedNotes.map((note, index) => {
                     const isActive = pathname === note.href;
                     return (
-                    <motion.div
-                      key={note.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                    >
-                      <Link
-                        href={note.href}
-                        data-testid="note-item"
-                        aria-current={isActive ? 'page' : undefined}
-                        className={cn(
-                          'group flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors',
-                          isActive
-                            ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                        )}
+                      <motion.div
+                        key={note.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
                       >
-                        <FileText className="h-3 w-3 text-muted-foreground" />
-                        <span className="truncate">{note.title}</span>
-                        {note.projectId && projectMap[note.projectId] && (
-                          <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60 truncate max-w-[60px]">
-                            {projectMap[note.projectId]}
-                          </span>
-                        )}
-                      </Link>
-                    </motion.div>
-                  );
+                        <Link
+                          href={note.href}
+                          data-testid="note-item"
+                          aria-current={isActive ? 'page' : undefined}
+                          className={cn(
+                            'group flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors',
+                            isActive
+                              ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
+                              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                          )}
+                        >
+                          <FileText className="h-3 w-3 text-muted-foreground" />
+                          <span className="truncate">{note.title}</span>
+                          {note.projectId && projectMap[note.projectId] && (
+                            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60 truncate max-w-[60px]">
+                              {projectMap[note.projectId]}
+                            </span>
+                          )}
+                        </Link>
+                      </motion.div>
+                    );
                   })}
                 </div>
               </div>
