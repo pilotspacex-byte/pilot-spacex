@@ -23,15 +23,21 @@ export function slugifyHeading(text: string): string {
 export function extractHeadings(markdown: string): TocHeading[] {
   const headings: TocHeading[] = [];
   const lines = markdown.split('\n');
-  let inCodeBlock = false;
+  let activeFence: string | null = null;
   const slugCounts = new Map<string, number>();
 
   for (const line of lines) {
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
+    const fenceMatch = line.trim().match(/^(`{3,}|~{3,})/);
+    if (fenceMatch?.[1]) {
+      const marker = fenceMatch[1][0] as string;
+      if (activeFence === null) {
+        activeFence = marker;
+      } else if (marker === activeFence) {
+        activeFence = null;
+      }
       continue;
     }
-    if (inCodeBlock) continue;
+    if (activeFence !== null) continue;
 
     const match = line.match(/^(#{1,4})\s+(.+)$/);
     if (match?.[1] && match[2]) {

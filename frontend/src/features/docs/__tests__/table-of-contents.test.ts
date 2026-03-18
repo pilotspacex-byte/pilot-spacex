@@ -31,6 +31,29 @@ describe('extractHeadings', () => {
     expect(headings[0]?.text).toBe('Real heading');
   });
 
+  it('should skip headings inside tilde code fences', () => {
+    const md = '~~~\n## Not a heading\nsome code\n~~~\n## Real heading';
+    const headings = extractHeadings(md);
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.text).toBe('Real heading');
+  });
+
+  it('should handle mixed fence markers correctly (backtick open, tilde inside)', () => {
+    const md = '```\n~~~\n## Not a heading\n~~~\n```\n## Real heading';
+    const headings = extractHeadings(md);
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.text).toBe('Real heading');
+  });
+
+  it('should deduplicate heading IDs with suffix', () => {
+    const md = '## Setup\n## Setup\n## Setup';
+    const headings = extractHeadings(md);
+    expect(headings).toHaveLength(3);
+    expect(headings[0]?.id).toBe('setup');
+    expect(headings[1]?.id).toBe('setup-1');
+    expect(headings[2]?.id).toBe('setup-2');
+  });
+
   it('should return empty array for no headings', () => {
     const md = 'Just some text without headings.';
     const headings = extractHeadings(md);

@@ -12,6 +12,7 @@ const navLinks = [
   { label: 'AI in SDLC', href: '#ai-flow' },
   { label: 'How It Works', href: '#how-it-works' },
   { label: 'Claude Code', href: '#claude-code' },
+  { label: 'Docs', href: '/docs' },
   { label: 'Open Source', href: '#open-source' },
 ];
 
@@ -49,15 +50,25 @@ export function LandingNav() {
 
         {/* Desktop Links */}
         <div className="hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-            >
-              {link.label}
-            </a>
-          ))}
+          {navLinks.map((link) =>
+            link.href.startsWith('#') ? (
+              <a
+                key={link.href}
+                href={link.href}
+                className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              >
+                {link.label}
+              </a>
+            ) : (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              >
+                {link.label}
+              </Link>
+            )
+          )}
         </div>
 
         {/* Desktop CTAs */}
@@ -102,23 +113,34 @@ export function LandingNav() {
             className="overflow-hidden border-b border-border bg-background/95 backdrop-blur-xl md:hidden"
           >
             <div className="flex flex-col gap-1 px-4 py-3">
-              {navLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  className="rounded-md px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setIsMobileMenuOpen(false);
-                    setTimeout(() => {
-                      const id = link.href.startsWith('#') ? link.href.slice(1) : null;
-                      if (id) document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-                    }, 300);
-                  }}
-                >
-                  {link.label}
-                </a>
-              ))}
+              {navLinks.map((link) =>
+                link.href.startsWith('#') ? (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    className="rounded-md px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setIsMobileMenuOpen(false);
+                      setTimeout(() => {
+                        const id = link.href.slice(1);
+                        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+                      }, 300);
+                    }}
+                  >
+                    {link.label}
+                  </a>
+                ) : (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="rounded-md px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                )
+              )}
               <div className="mt-2 flex items-center gap-3 border-t border-border pt-3">
                 <a
                   href={GITHUB_URL}

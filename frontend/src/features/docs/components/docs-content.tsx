@@ -1,6 +1,6 @@
 'use client';
 
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { cn } from '@/lib/utils';
@@ -26,39 +26,49 @@ function extractText(children: React.ReactNode): string {
   return '';
 }
 
-/** Factory for heading components that inject IDs for TOC anchor linking. */
-function createHeading(Tag: 'h1' | 'h2' | 'h3' | 'h4') {
-  const HeadingComponent = ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
-    const text = extractText(children);
-    return (
-      <Tag id={slugifyHeading(text)} {...props}>
-        {children}
-      </Tag>
-    );
+/** Build heading components with deduplicated IDs matching extractHeadings(). */
+function buildMarkdownComponents(slugCounts: Map<string, number>): Components {
+  function createHeading(Tag: 'h1' | 'h2' | 'h3' | 'h4') {
+    const HeadingComponent: Components['h1'] = ({ node: _node, children, ...props }) => {
+      const text = extractText(children);
+      const base = slugifyHeading(text);
+      const count = slugCounts.get(base) ?? 0;
+      slugCounts.set(base, count + 1);
+      const id = count === 0 ? base : `${base}-${count}`;
+      return (
+        <Tag id={id} {...props}>
+          {children}
+        </Tag>
+      );
+    };
+    HeadingComponent.displayName = `DocsHeading(${Tag})`;
+    return HeadingComponent;
+  }
+
+  return {
+    h1: createHeading('h1'),
+    h2: createHeading('h2'),
+    h3: createHeading('h3'),
+    h4: createHeading('h4'),
+    table: ({ node: _node, children, ...props }) => (
+      <div className="table-wrapper">
+        <table {...props}>{children}</table>
+      </div>
+    ),
   };
-  HeadingComponent.displayName = `DocsHeading(${Tag})`;
-  return HeadingComponent;
 }
 
-const markdownComponents = {
-  h1: createHeading('h1'),
-  h2: createHeading('h2'),
-  h3: createHeading('h3'),
-  h4: createHeading('h4'),
-  table: ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
-    <div className="table-wrapper">
-      <table {...props}>{children}</table>
-    </div>
-  ),
-};
-
 export function DocsContent({ content, className }: DocsContentProps) {
+  // Fresh slug counter + components each render so deduplicated IDs
+  // (e.g. "setup", "setup-1", "setup-2") match extractHeadings() output.
+  const components = buildMarkdownComponents(new Map());
+
   return (
     <article className={cn('chat-markdown docs-markdown max-w-none', className)}>
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
-        components={markdownComponents}
+        components={components}
       >
         {content}
       </ReactMarkdown>

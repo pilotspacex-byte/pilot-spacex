@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { docsNavigation, type DocGroup } from '../lib/docs-registry';
+import { docsNavigation, defaultDocSlug, type DocGroup } from '../lib/docs-registry';
 
 interface DocsSidebarProps {
   className?: string;
@@ -57,7 +57,7 @@ export function DocsSidebar({ className }: DocsSidebarProps) {
   // Extract active slug from pathname
   const segments = pathname.split('/');
   const docsIndex = segments.indexOf('docs');
-  const activeSlug = docsIndex >= 0 ? (segments[docsIndex + 1] ?? 'overview') : 'overview';
+  const activeSlug = docsIndex >= 0 ? (segments[docsIndex + 1] ?? defaultDocSlug) : defaultDocSlug;
 
   return (
     <nav className={cn('w-60 shrink-0 border-r border-border', className)}>

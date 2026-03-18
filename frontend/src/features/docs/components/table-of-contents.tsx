@@ -13,7 +13,7 @@ export function TableOfContents({ headings, className }: TableOfContentsProps) {
   const [activeId, setActiveId] = useState<string>('');
 
   useEffect(() => {
-    if (headings.length === 0) return;
+    if (headings.length < 3) return;
 
     const visibleIds = new Set<string>();
 
