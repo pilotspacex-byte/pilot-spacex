@@ -35,6 +35,14 @@ function createMockApi(items: Workspace[] = [wsA, wsB]) {
     inviteMember: vi.fn(),
     removeMember: vi.fn(),
     updateMemberRole: vi.fn(),
+    getFeatureToggles: vi.fn().mockResolvedValue({
+      notes: true, issues: false, projects: false, members: true,
+      docs: false, skills: true, costs: false, approvals: false,
+    }),
+    updateFeatureToggles: vi.fn().mockResolvedValue({
+      notes: true, issues: false, projects: false, members: true,
+      docs: false, skills: true, costs: false, approvals: false,
+    }),
   };
 }
 

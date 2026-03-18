@@ -25,7 +25,10 @@ export type {
   ProjectBrief,
   Project,
   IssuePriority,
+  WorkspaceFeatureToggles,
 } from './workspace';
+
+export { DEFAULT_FEATURE_TOGGLES } from './workspace';
 
 export type {
   // Issue domain

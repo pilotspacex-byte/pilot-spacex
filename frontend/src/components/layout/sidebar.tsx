@@ -73,6 +73,8 @@ interface NavItem {
   badgeKey?: string;
   /** When true, hidden from non-Owner/Admin members. */
   adminOnly?: boolean;
+  /** Maps to a WorkspaceFeatureToggles key. When set, item is hidden if the feature is disabled. */
+  featureKey?: string;
 }
 
 interface NavSection {
@@ -86,11 +88,11 @@ const navigationSections: NavSection[] = [
     label: 'Main',
     items: [
       { name: 'Home', path: '', icon: Home, testId: 'nav-home' },
-      { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes' },
-      { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues' },
-      { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects' },
-      { name: 'Members', path: 'members', icon: Users, testId: 'nav-members' },
-      { name: 'Docs', path: 'docs', icon: BookOpen, testId: 'nav-docs' },
+      { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes', featureKey: 'notes' },
+      { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues', featureKey: 'issues' },
+      { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects', featureKey: 'projects' },
+      { name: 'Members', path: 'members', icon: Users, testId: 'nav-members', featureKey: 'members' },
+      { name: 'Docs', path: 'docs', icon: BookOpen, testId: 'nav-docs', featureKey: 'docs' },
     ],
   },
   {
@@ -98,8 +100,8 @@ const navigationSections: NavSection[] = [
     icon: Sparkles,
     items: [
       { name: 'Chat', path: 'chat', icon: MessageSquare, testId: 'nav-chat' },
-      { name: 'Skill', path: 'skills', icon: UserCog, testId: 'nav-roles' },
-      { name: 'Costs', path: 'costs', icon: DollarSign, testId: 'nav-costs' },
+      { name: 'Skill', path: 'skills', icon: UserCog, testId: 'nav-roles', featureKey: 'skills' },
+      { name: 'Costs', path: 'costs', icon: DollarSign, testId: 'nav-costs', featureKey: 'costs' },
       {
         name: 'Approvals',
         path: 'approvals',
@@ -107,6 +109,7 @@ const navigationSections: NavSection[] = [
         testId: 'nav-approvals',
         badgeKey: 'pendingApprovals',
         adminOnly: true,
+        featureKey: 'approvals',
       },
     ],
   },
@@ -355,15 +358,23 @@ export const Sidebar = observer(function Sidebar() {
   });
 
   const navigation = useMemo(() => {
-    return navigationSections.map((section) => ({
-      label: section.label,
-      icon: section.icon,
-      items: section.items.map((item) => ({
-        ...item,
-        href: item.path ? `/${workspaceSlug}/${item.path}` : `/${workspaceSlug}`,
-      })),
-    }));
-  }, [workspaceSlug]);
+    return navigationSections.map((section) => {
+      const items = section.items
+        .filter((item) => {
+          // Hide items whose feature is disabled
+          if (item.featureKey && !workspaceStore.isFeatureEnabled(item.featureKey as keyof import('@/types').WorkspaceFeatureToggles)) {
+            return false;
+          }
+          return true;
+        })
+        .map((item) => ({
+          ...item,
+          href: item.path ? `/${workspaceSlug}/${item.path}` : `/${workspaceSlug}`,
+        }));
+      return { label: section.label, icon: section.icon, items };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceSlug, workspaceStore.featureToggles]);
 
   const projectMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -424,7 +435,15 @@ export const Sidebar = observer(function Sidebar() {
 
         {/* Main Navigation */}
         <div className="flex flex-col gap-0.5 p-2">
-          {navigation.map((section, sectionIndex) => (
+          {navigation.map((section, sectionIndex) => {
+            // Compute visible items after adminOnly filtering
+            const visibleItems = section.items.filter(
+              (item) => !(item.adminOnly && !isAdminOrOwner)
+            );
+            // Hide section when no items are visible
+            if (visibleItems.length === 0) return null;
+
+            return (
             <nav
               key={section.label}
               aria-label={`${section.label} navigation`}
@@ -519,7 +538,8 @@ export const Sidebar = observer(function Sidebar() {
                 );
               })}
             </nav>
-          ))}
+            );
+          })}
         </div>
 
         <Separator className="mx-2" />

@@ -25,6 +25,7 @@ import {
   Settings,
   Shield,
   ShieldCheck,
+  Sliders,
   Sparkles,
   User,
   Users,
@@ -40,6 +41,8 @@ interface NavItem {
   href: (slug: string) => string;
   /** Exact match only (for the default /settings route) */
   exact?: boolean;
+  /** When true, hidden from non-Owner/Admin members. */
+  adminOnly?: boolean;
 }
 
 interface NavSection {
@@ -57,6 +60,13 @@ const settingsNavSections: NavSection[] = [
         icon: Building2,
         href: (slug: string) => `/${slug}/settings`,
         exact: true,
+      },
+      {
+        id: 'features',
+        label: 'Features',
+        icon: Sliders,
+        href: (slug: string) => `/${slug}/settings/features`,
+        adminOnly: true,
       },
       {
         id: 'ai-providers',
@@ -141,10 +151,12 @@ function isNavItemActive(pathname: string, href: string, exact?: boolean): boole
 function SettingsNavContent({
   workspaceSlug,
   pathname,
+  isAdmin,
   onNavClick,
 }: {
   workspaceSlug: string;
   pathname: string;
+  isAdmin: boolean;
   onNavClick?: () => void;
 }) {
   return (
@@ -156,6 +168,8 @@ function SettingsNavContent({
           </p>
           <ul className="space-y-0.5" role="list">
             {section.items.map((item) => {
+              if (item.adminOnly && !isAdmin) return null;
+
               const href = item.href(workspaceSlug);
               const isActive = isNavItemActive(pathname, href, item.exact);
 
@@ -236,6 +250,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
             <SettingsNavContent
               workspaceSlug={workspaceSlug}
               pathname={pathname}
+              isAdmin={workspaceStore.isAdmin}
               onNavClick={() => setMobileNavOpen(false)}
             />
           </SheetContent>
@@ -250,7 +265,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           className="hidden w-56 shrink-0 border-r border-border overflow-y-auto p-3 lg:block"
           aria-label="Settings navigation"
         >
-          <SettingsNavContent workspaceSlug={workspaceSlug} pathname={pathname} />
+          <SettingsNavContent workspaceSlug={workspaceSlug} pathname={pathname} isAdmin={workspaceStore.isAdmin} />
         </nav>
 
         {/* Content Area */}
