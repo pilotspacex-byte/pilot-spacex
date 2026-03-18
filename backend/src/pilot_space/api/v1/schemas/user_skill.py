@@ -26,6 +26,8 @@ class UserSkillSchema(BaseModel):
     template_id: UUID | None
     skill_content: str
     experience_description: str | None
+    tags: list[str] = []
+    usage: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -54,6 +56,8 @@ class UserSkillCreate(BaseModel):
         description="User-visible skill name (AI-suggested or user-edited)",
         max_length=200,
     )
+    tags: list[str] = Field(default_factory=list, max_length=20)
+    usage: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
     def require_template_or_content(self) -> Self:
@@ -82,6 +86,8 @@ class UserSkillUpdate(BaseModel):
         description="Updated user-visible skill name",
         max_length=200,
     )
+    tags: list[str] | None = Field(default=None, max_length=20)
+    usage: str | None = Field(default=None, max_length=500)
 
 
 __all__ = [

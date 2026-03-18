@@ -62,6 +62,8 @@ class RoleSkillResponse(BaseSchema):
     experience_description: str | None = Field(
         default=None, description="User's input for AI generation"
     )
+    tags: list[str] = Field(default_factory=list, description="Ability tags for discoverability")
+    usage: str | None = Field(default=None, description="When/how this skill should be activated")
     is_primary: bool = Field(description="Primary role flag")
     template_version: int | None = Field(default=None, description="Version of template used")
     template_update_available: bool = Field(
@@ -98,6 +100,10 @@ class CreateRoleSkillRequest(BaseSchema):
     experience_description: str | None = Field(
         default=None, max_length=5000, description="Experience for AI generation"
     )
+    tags: list[str] = Field(default_factory=list, description="Ability tags for discoverability")
+    usage: str | None = Field(
+        default=None, max_length=500, description="When/how this skill should be activated"
+    )
     is_primary: bool = Field(
         default=False,
         description="If true and another primary exists, demotes the other",
@@ -119,6 +125,10 @@ class UpdateRoleSkillRequest(BaseSchema):
         min_length=1,
         max_length=15000,
         description="SKILL.md content",
+    )
+    tags: list[str] | None = Field(default=None, description="Ability tags for discoverability")
+    usage: str | None = Field(
+        default=None, max_length=500, description="When/how this skill should be activated"
     )
     is_primary: bool | None = Field(default=None, description="If true, demotes other primary")
 
@@ -169,6 +179,8 @@ class GenerateRoleSkillResponse(BaseSchema):
     word_count: int = Field(description="Word count of generated content")
     generation_model: str = Field(description="Model used for generation")
     generation_time_ms: int = Field(description="Generation latency in ms")
+    suggested_tags: list[str] = Field(default_factory=list, description="AI-suggested ability tags")
+    suggested_usage: str | None = Field(default=None, description="AI-suggested usage description")
 
 
 class RegenerateRoleSkillRequest(BaseSchema):

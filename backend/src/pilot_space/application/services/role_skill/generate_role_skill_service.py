@@ -9,6 +9,7 @@ Source: 011-role-based-skills, T010, FR-003, FR-004
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 import time
@@ -19,6 +20,7 @@ from uuid import UUID
 
 from pilot_space.ai.exceptions import ProviderUnavailableError
 from pilot_space.ai.infrastructure.resilience import ResilientExecutor, RetryConfig
+from pilot_space.ai.prompts.skill_generation import build_skill_generation_prompt
 from pilot_space.ai.providers.provider_selector import (
     ProviderSelector,
     TaskType,
@@ -75,6 +77,8 @@ class GenerateRoleSkillResult:
     word_count: int
     generation_model: str
     generation_time_ms: int
+    suggested_tags: list[str] = dataclasses.field(default_factory=list)
+    suggested_usage: str | None = None
 
 
 def _check_rate_limit(user_id: UUID) -> None:
@@ -94,50 +98,6 @@ def _check_rate_limit(user_id: UUID) -> None:
         raise SkillGenerationRateLimitError
 
     _rate_limit_store[key].append(now)
-
-
-def _build_generation_prompt(
-    role_type: str,
-    display_name: str,
-    template_content: str,
-    experience_description: str,
-    role_name: str | None,
-) -> str:
-    """Build the Claude Sonnet prompt for skill content generation."""
-    name = role_name or display_name
-    return f"""You are an expert technical writer creating a personalized AI skill profile \
-for an SDLC platform. Generate a SKILL.md document that configures how an AI assistant \
-should interact with and support this team member.
-
-## Input
-
-**Role type**: {role_type}
-**Role display name**: {display_name}
-**User's name for this role**: {name}
-**Experience description**: {experience_description}
-
-## Reference Template
-
-Use this template as structural guidance (do not copy verbatim):
-
-{template_content}
-
-## Output Requirements
-
-Return a JSON object with exactly two keys:
-1. "skill_content": The full SKILL.md content in markdown format. Include:
-   - A heading with the role name
-   - Context section describing the role
-   - Experience & Background section with the user's experience
-   - Sections covering expertise areas, communication preferences, and focus areas
-   - Personalized based on the experience description
-   - 200-500 words total
-2. "suggested_role_name": A concise, professional role title (2-4 words) \
-derived from the experience description. Include seniority level if evident \
-(e.g., "Senior Developer", "Lead Architect"). If the user provided a role name, \
-use it as-is.
-
-Return ONLY valid JSON, no markdown code fences, no extra text."""
 
 
 class GenerateRoleSkillService:
@@ -192,7 +152,7 @@ class GenerateRoleSkillService:
         )
 
         if ai_result is not None:
-            skill_content, suggested_name, model = ai_result
+            skill_content, suggested_name, model, suggested_tags, suggested_usage = ai_result
             elapsed_ms = int((time.monotonic() - start_time) * 1000)
             return GenerateRoleSkillResult(
                 skill_content=skill_content,
@@ -200,6 +160,8 @@ class GenerateRoleSkillService:
                 word_count=len(skill_content.split()),
                 generation_model=model,
                 generation_time_ms=elapsed_ms,
+                suggested_tags=suggested_tags,
+                suggested_usage=suggested_usage,
             )
 
         # Only reach here if no LLM provider configured — use template
@@ -222,6 +184,8 @@ class GenerateRoleSkillService:
             word_count=len(skill_content.split()),
             generation_model="template-v1",
             generation_time_ms=elapsed_ms,
+            suggested_tags=[],
+            suggested_usage=None,
         )
 
     async def _try_generate_via_ai(
@@ -232,21 +196,22 @@ class GenerateRoleSkillService:
         experience_description: str,
         role_name: str | None,
         workspace_id: UUID | None,
-    ) -> tuple[str, str, str] | None:
+    ) -> tuple[str, str, str, list[str], str | None] | None:
         """Attempt AI-powered generation using the workspace's configured LLM provider.
 
         All providers use the Anthropic API format. Provider-specific
         base_url and api_key are passed per-request from workspace config.
 
         Returns:
-            Tuple of (skill_content, suggested_role_name, model_name) or None.
+            Tuple of (skill_content, suggested_role_name, model_name, suggested_tags,
+            suggested_usage) or None.
         """
         ws_config = await resolve_workspace_llm_config(self._session, workspace_id)
         if ws_config is None:
             logger.info("No LLM provider configured, using template fallback")
             return None
 
-        prompt = _build_generation_prompt(
+        prompt = build_skill_generation_prompt(
             role_type=role_type,
             display_name=display_name,
             template_content=template_content,
@@ -348,11 +313,12 @@ class GenerateRoleSkillService:
         display_name: str,
         role_name: str | None,
         model: str,
-    ) -> tuple[str, str, str] | None:
-        """Parse AI response into (skill_content, suggested_name, model).
+    ) -> tuple[str, str, str, list[str], str | None] | None:
+        """Parse AI response into (skill_content, suggested_name, model, tags, usage).
 
         Tries JSON first, then treats raw text as markdown skill content.
         Returns None only if content is empty or too short.
+        Tags and usage default to [] / None when missing from response.
         """
         text = raw_response.strip()
         if not text:
@@ -375,9 +341,11 @@ class GenerateRoleSkillService:
             if isinstance(data, dict):
                 skill_content = data.get("skill_content", "")
                 suggested_name = data.get("suggested_role_name", role_name or display_name)
+                suggested_tags = self._extract_tags(data.get("suggested_tags"))
+                suggested_usage = data.get("suggested_usage") or None
 
                 if skill_content and len(skill_content.strip()) >= 50:
-                    return (skill_content, suggested_name, model)
+                    return (skill_content, suggested_name, model, suggested_tags, suggested_usage)
         except (json.JSONDecodeError, KeyError, TypeError):
             pass
 
@@ -391,13 +359,15 @@ class GenerateRoleSkillService:
                     data = {}
                 skill_content = data.get("skill_content", "")
                 suggested_name = data.get("suggested_role_name", role_name or display_name)
+                suggested_tags = self._extract_tags(data.get("suggested_tags"))
+                suggested_usage = data.get("suggested_usage") or None
 
                 if skill_content and len(skill_content.strip()) >= 50:
                     logger.info(
                         "AI response parsed via regex JSON extraction",
                         extra={"model": model, "content_length": len(skill_content)},
                     )
-                    return (skill_content, suggested_name, model)
+                    return (skill_content, suggested_name, model, suggested_tags, suggested_usage)
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
 
@@ -419,7 +389,7 @@ class GenerateRoleSkillService:
                     "AI response parsed via regex field extraction (malformed JSON)",
                     extra={"model": model, "content_length": len(skill_content)},
                 )
-                return (skill_content, suggested_name, model)
+                return (skill_content, suggested_name, model, [], None)
 
         # Fallback: treat raw response as markdown skill content directly,
         # but guard against leaking raw JSON as user-visible content.
@@ -435,13 +405,28 @@ class GenerateRoleSkillService:
                 "AI response parsed as raw markdown (non-JSON)",
                 extra={"model": model, "content_length": len(text)},
             )
-            return (text, suggested_name, model)
+            return (text, suggested_name, model, [], None)
 
         logger.warning(
             "AI returned invalid or insufficient content",
             extra={"model": model, "response_length": len(text)},
         )
         return None
+
+    @staticmethod
+    def _extract_tags(raw: object) -> list[str]:
+        """Safely extract a list of string tags from AI JSON response.
+
+        Args:
+            raw: The value from JSON at "suggested_tags" key (any type).
+
+        Returns:
+            List of string tags, truncated to max 30 chars each, max 20 tags.
+            Empty list if input is invalid.
+        """
+        if not isinstance(raw, list):
+            return []
+        return [str(tag)[:30] for tag in raw if tag][:20]
 
     async def _get_template_content(self, role_type: str) -> str:
         """Load template default_skill_content for a role type."""

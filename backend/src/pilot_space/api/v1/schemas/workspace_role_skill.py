@@ -45,6 +45,8 @@ class WorkspaceRoleSkillResponse(BaseModel):
     role_name: str
     skill_content: str
     experience_description: str | None
+    tags: list[str] = []
+    usage: str | None = None
     is_active: bool
     created_by: UUID | None
     created_at: datetime

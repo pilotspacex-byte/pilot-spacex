@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, String, Text, text
+from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -52,6 +52,16 @@ class WorkspaceRoleSkill(WorkspaceScopedModel):
         nullable=False,
     )
     experience_description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+    tags: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    usage: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )

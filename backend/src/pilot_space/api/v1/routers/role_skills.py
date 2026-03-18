@@ -352,6 +352,8 @@ async def generate_role_skill(
         word_count=result.word_count,
         generation_model=result.generation_model,
         generation_time_ms=result.generation_time_ms,
+        suggested_tags=result.suggested_tags,
+        suggested_usage=result.suggested_usage,
     )
 
 
@@ -433,6 +435,8 @@ async def regenerate_role_skill(
         word_count=result.word_count,
         generation_model=result.generation_model,
         generation_time_ms=result.generation_time_ms,
+        suggested_tags=result.suggested_tags,
+        suggested_usage=result.suggested_usage,
         previous_skill_content=previous_content,
         previous_role_name=previous_name,
     )

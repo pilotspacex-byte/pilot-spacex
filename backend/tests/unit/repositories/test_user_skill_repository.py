@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS user_skills (
     skill_content TEXT NOT NULL,
     experience_description TEXT,
     skill_name TEXT,
+    tags TEXT DEFAULT '[]',
+    usage TEXT,
     is_active BOOLEAN NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
