@@ -306,6 +306,10 @@
     animation-duration: 0s !important;
   }
 
+  .animate-fade-up {
+    animation: none !important;
+  }
+
   /* Disable smooth scrolling */
   html {
     scroll-behavior: auto;
@@ -475,7 +479,7 @@
 }
 
 .animate-fade-up {
-  animation: fadeUp 0.3s cubic-bezier(0, 0, 0.2, 1) forwards;
+  animation: fadeUp 0.3s cubic-bezier(0, 0, 0.2, 1) both;
 }
 
 @keyframes fadeUp {

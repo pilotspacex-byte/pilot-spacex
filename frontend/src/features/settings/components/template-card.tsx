@@ -70,6 +70,20 @@ const SOURCE_LABELS: Record<string, string> = {
   custom: 'Custom',
 };
 
+/** Color themes for hero backgrounds based on icon type. */
+const HERO_THEMES: Record<string, [bg: string, icon: string]> = {
+  Code: ['bg-sky-50 dark:bg-sky-900/20', 'text-sky-500 dark:text-sky-400'],
+  Container: ['bg-orange-50 dark:bg-orange-900/20', 'text-orange-500 dark:text-orange-400'],
+  FileSearch: ['bg-violet-50 dark:bg-violet-900/20', 'text-violet-500 dark:text-violet-400'],
+  GanttChart: ['bg-amber-50 dark:bg-amber-900/20', 'text-amber-500 dark:text-amber-400'],
+  GitBranch: ['bg-emerald-50 dark:bg-emerald-900/20', 'text-emerald-500 dark:text-emerald-400'],
+  Layers: ['bg-indigo-50 dark:bg-indigo-900/20', 'text-indigo-500 dark:text-indigo-400'],
+  Target: ['bg-rose-50 dark:bg-rose-900/20', 'text-rose-500 dark:text-rose-400'],
+  TestTube: ['bg-teal-50 dark:bg-teal-900/20', 'text-teal-500 dark:text-teal-400'],
+  Wand2: ['bg-purple-50 dark:bg-purple-900/20', 'text-purple-500 dark:text-purple-400'],
+};
+const DEFAULT_HERO: [string, string] = ['bg-muted/30', 'text-muted-foreground/60'];
+
 export function TemplateCard({
   template,
   onUseThis,
@@ -81,24 +95,24 @@ export function TemplateCard({
   const isBuiltIn = template.source === 'built_in';
   const badgeStyle = SOURCE_BADGE_STYLES[template.source] ?? SOURCE_BADGE_STYLES.custom;
   const sourceLabel = SOURCE_LABELS[template.source] ?? template.source;
+  const [heroBg, heroIconColor] = HERO_THEMES[template.icon ?? ''] ?? DEFAULT_HERO;
 
   return (
     <article
-      className={`group relative flex flex-col rounded-xl border bg-card transition-all duration-200 hover:shadow-md hover:border-border/80 ${
+      className={`group relative flex h-full flex-col rounded-xl border bg-card transition-all duration-200 hover:shadow-lg hover:border-border/80 hover:-translate-y-1 ${
         !template.is_active ? 'opacity-50' : ''
       }`}
       data-testid="template-card"
     >
       {/* Icon hero area */}
-      <div className="flex items-center justify-center py-6 px-4 bg-muted/30 rounded-t-xl border-b border-border/40">
+      <div
+        className={`flex items-center justify-center py-6 px-4 ${heroBg} rounded-t-xl border-b border-border/40`}
+      >
         {(() => {
           const IconComponent = template.icon ? ICON_MAP[template.icon] : undefined;
           if (IconComponent) {
             return (
-              <IconComponent
-                className="h-10 w-10 text-muted-foreground/60"
-                aria-label={template.name}
-              />
+              <IconComponent className={`h-10 w-10 ${heroIconColor}`} aria-label={template.name} />
             );
           }
           // Fallback: render icon value as emoji, or default emoji
