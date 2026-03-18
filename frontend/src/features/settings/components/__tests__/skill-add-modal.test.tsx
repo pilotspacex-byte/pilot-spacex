@@ -120,6 +120,13 @@ describe('SkillAddModal', () => {
       // Inline tip
       expect(screen.getByText(/include your role, tech stack/i)).toBeInTheDocument();
     });
+
+    it('should render usage textarea and tags input on manual tab', () => {
+      renderModal();
+
+      expect(screen.getByLabelText('Usage (optional)')).toBeInTheDocument();
+      expect(screen.getByText(/press enter or comma to add a tag/i)).toBeInTheDocument();
+    });
   });
 
   describe('2. Manual save', () => {
@@ -148,6 +155,36 @@ describe('SkillAddModal', () => {
         skill_content: 'Some skill content here',
         experience_description: 'A brief description',
       });
+    });
+
+    it('should include tags and usage when provided', async () => {
+      const user = userEvent.setup();
+      renderModal();
+
+      // Fill required fields
+      const nameInput = screen.getByPlaceholderText('e.g. Senior Backend Developer');
+      await user.type(nameInput, 'Skill With Tags');
+      const textarea = screen.getByLabelText('Skill content editor');
+      await user.type(textarea, 'Some skill content');
+
+      // Add a tag
+      const tagInput = screen.getByLabelText('Add tag');
+      await user.type(tagInput, 'python{Enter}');
+
+      // Fill usage
+      const usageTextarea = screen.getByLabelText('Usage (optional)');
+      await user.type(usageTextarea, 'Used during code reviews');
+
+      // Click save
+      const saveBtn = screen.getByRole('button', { name: /save skill/i });
+      await user.click(saveBtn);
+
+      expect(mockCreateUserSkill.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tags: ['python'],
+          usage: 'Used during code reviews',
+        })
+      );
     });
   });
 

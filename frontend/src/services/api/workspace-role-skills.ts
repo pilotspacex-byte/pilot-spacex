@@ -22,6 +22,8 @@ export interface WorkspaceRoleSkill {
   role_name: string;
   skill_content: string;
   experience_description: string | null;
+  tags: string[];
+  usage: string | null;
   /** One-way approval gate: false = Pending Review, true = Active. No deactivate endpoint. */
   is_active: boolean;
   created_by: string | null;

@@ -224,6 +224,8 @@ describe('useCreateRoleSkill — ONBD-04: success toast', () => {
       roleName: 'Developer',
       skillContent: '# Developer',
       experienceDescription: null,
+      tags: [],
+      usage: null,
       isPrimary: true,
       templateVersion: 1,
       templateUpdateAvailable: false,

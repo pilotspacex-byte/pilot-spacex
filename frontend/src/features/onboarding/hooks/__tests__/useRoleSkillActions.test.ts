@@ -56,6 +56,8 @@ const mockSkills = [
     roleName: 'Developer',
     skillContent: '# Developer',
     experienceDescription: null,
+    tags: [] as string[],
+    usage: null as string | null,
     isPrimary: true,
     templateVersion: 1,
     templateUpdateAvailable: false,
@@ -136,6 +138,8 @@ describe('useGenerateSkill', () => {
     const mockResponse = {
       skillContent: '# Generated',
       suggestedRoleName: 'Senior Dev',
+      suggestedTags: [] as string[],
+      suggestedUsage: null as string | null,
       wordCount: 50,
       generationModel: 'claude-sonnet',
       generationTimeMs: 2000,

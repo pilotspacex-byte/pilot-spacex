@@ -14,6 +14,8 @@ const baseSkill: WorkspaceRoleSkill = {
   role_name: 'Senior Developer',
   skill_content: 'You are a senior developer with 10 years of React experience.',
   experience_description: '10 years React',
+  tags: [],
+  usage: null,
   is_active: false,
   created_by: 'user-1',
   created_at: '2024-01-01T00:00:00Z',
