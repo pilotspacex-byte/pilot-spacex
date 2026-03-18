@@ -2,14 +2,15 @@
  * Docs Detail Route — renders a single documentation page from markdown.
  *
  * Route: /[workspaceSlug]/docs/[slug]
- * Content is loaded server-side from features/docs/content/{slug}.md
+ * Content is loaded server-side from features/docs/content/{slug}.md.
+ * Headings are extracted server-side to avoid double-parsing on the client.
  */
 
 import { notFound } from 'next/navigation';
 import path from 'node:path';
 import fs from 'node:fs';
-import { DocsPage } from '@/features/docs';
-import { docsBySlug } from '@/features/docs';
+import { DocsPage, docsBySlug } from '@/features/docs';
+import { extractHeadings } from '@/features/docs/lib/markdown-headings';
 
 interface PageProps {
   params: Promise<{ workspaceSlug: string; slug: string }>;
@@ -27,6 +28,8 @@ export async function generateMetadata({ params }: PageProps) {
 }
 
 function loadMarkdownContent(slug: string): string | null {
+  if (slug.includes('/') || slug.includes('..')) return null;
+
   const contentDir = path.join(process.cwd(), 'src', 'features', 'docs', 'content');
   const filePath = path.join(contentDir, `${slug}.md`);
 
@@ -49,5 +52,7 @@ export default async function DocsDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  return <DocsPage slug={slug} content={content} />;
+  const headings = extractHeadings(content);
+
+  return <DocsPage slug={slug} content={content} headings={headings} />;
 }

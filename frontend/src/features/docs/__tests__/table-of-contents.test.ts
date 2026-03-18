@@ -1,26 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-// Test the heading extraction logic directly (extracted for testability)
-function extractHeadings(markdown: string) {
-  const headings: { id: string; text: string; level: number }[] = [];
-  const lines = markdown.split('\n');
-
-  for (const line of lines) {
-    if (line.trim().startsWith('```')) continue;
-    const match = line.match(/^(#{1,4})\s+(.+)$/);
-    if (match?.[1] && match[2]) {
-      const level = match[1].length;
-      const text = match[2].replace(/[`*_~]/g, '').trim();
-      const id = text
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/\s+/g, '-');
-      headings.push({ id, text, level });
-    }
-  }
-
-  return headings;
-}
+import { extractHeadings } from '../lib/markdown-headings';
 
 describe('extractHeadings', () => {
   it('should extract h1-h4 headings', () => {
@@ -45,12 +24,11 @@ describe('extractHeadings', () => {
     expect(headings[0]?.text).toBe('Bold and italic heading');
   });
 
-  it('should ignore headings inside code blocks', () => {
-    const md = '```\n## Not a heading\n```\n## Real heading';
+  it('should skip headings inside multi-line code blocks', () => {
+    const md = '```\n## Not a heading\nsome code\n```\n## Real heading';
     const headings = extractHeadings(md);
-    // The simple line-by-line parser treats ``` as a skip marker per-line
-    // The real heading is extracted
-    expect(headings.some((h) => h.text === 'Real heading')).toBe(true);
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.text).toBe('Real heading');
   });
 
   it('should return empty array for no headings', () => {

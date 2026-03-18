@@ -1,45 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-
-interface TocHeading {
-  id: string;
-  text: string;
-  level: number;
-}
+import type { TocHeading } from '../lib/markdown-headings';
 
 interface TableOfContentsProps {
-  content: string;
+  headings: TocHeading[];
   className?: string;
 }
 
-/** Extract headings from markdown text via regex. */
-function extractHeadings(markdown: string): TocHeading[] {
-  const headings: TocHeading[] = [];
-  const lines = markdown.split('\n');
-
-  for (const line of lines) {
-    // Skip code blocks
-    if (line.trim().startsWith('```')) continue;
-
-    const match = line.match(/^(#{1,4})\s+(.+)$/);
-    if (match?.[1] && match[2]) {
-      const level = match[1].length;
-      const text = match[2].replace(/[`*_~]/g, '').trim();
-      const id = text
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/\s+/g, '-');
-      headings.push({ id, text, level });
-    }
-  }
-
-  return headings;
-}
-
-export function TableOfContents({ content, className }: TableOfContentsProps) {
-  const headings = useMemo(() => extractHeadings(content), [content]);
+export function TableOfContents({ headings, className }: TableOfContentsProps) {
   const [activeId, setActiveId] = useState<string>('');
 
   useEffect(() => {
@@ -49,7 +19,7 @@ export function TableOfContents({ content, className }: TableOfContentsProps) {
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            setActiveId(entry.target.id);
+            setActiveId((prev) => (prev === entry.target.id ? prev : entry.target.id));
           }
         }
       },

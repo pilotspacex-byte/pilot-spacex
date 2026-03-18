@@ -4,13 +4,15 @@ import { DocsSidebar } from './docs-sidebar';
 import { DocsContent } from './docs-content';
 import { TableOfContents } from './table-of-contents';
 import { docsBySlug } from '../lib/docs-registry';
+import type { TocHeading } from '../lib/markdown-headings';
 
 interface DocsPageProps {
   slug: string;
   content: string;
+  headings: TocHeading[];
 }
 
-export function DocsPage({ slug, content }: DocsPageProps) {
+export function DocsPage({ slug, content, headings }: DocsPageProps) {
   const doc = docsBySlug.get(slug);
 
   return (
@@ -28,7 +30,10 @@ export function DocsPage({ slug, content }: DocsPageProps) {
           <DocsContent content={content} />
         </main>
 
-        <TableOfContents content={content} className="hidden xl:block border-l border-border p-4" />
+        <TableOfContents
+          headings={headings}
+          className="hidden xl:block border-l border-border p-4"
+        />
       </div>
     </div>
   );

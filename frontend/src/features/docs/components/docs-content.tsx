@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { cn } from '@/lib/utils';
+import { slugifyHeading } from '../lib/markdown-headings';
 
 interface DocsContentProps {
   content: string;
@@ -13,58 +13,6 @@ interface DocsContentProps {
 
 const remarkPlugins = [remarkGfm];
 const rehypePlugins = [rehypeHighlight];
-
-/** Generate a slug from heading text (matches TableOfContents extraction). */
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-');
-}
-
-/**
- * Custom react-markdown components with heading IDs for TOC linking
- * and table wrapping for horizontal scroll.
- */
-const markdownComponents = {
-  h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
-    const text = extractText(children);
-    return (
-      <h1 id={slugify(text)} {...props}>
-        {children}
-      </h1>
-    );
-  },
-  h2: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
-    const text = extractText(children);
-    return (
-      <h2 id={slugify(text)} {...props}>
-        {children}
-      </h2>
-    );
-  },
-  h3: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
-    const text = extractText(children);
-    return (
-      <h3 id={slugify(text)} {...props}>
-        {children}
-      </h3>
-    );
-  },
-  h4: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
-    const text = extractText(children);
-    return (
-      <h4 id={slugify(text)} {...props}>
-        {children}
-      </h4>
-    );
-  },
-  table: ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
-    <div className="table-wrapper">
-      <table {...props}>{children}</table>
-    </div>
-  ),
-};
 
 /** Recursively extract plain text from React children. */
 function extractText(children: React.ReactNode): string {
@@ -78,15 +26,39 @@ function extractText(children: React.ReactNode): string {
   return '';
 }
 
-export function DocsContent({ content, className }: DocsContentProps) {
-  const memoizedComponents = useMemo(() => markdownComponents, []);
+/** Factory for heading components that inject IDs for TOC anchor linking. */
+function createHeading(Tag: 'h1' | 'h2' | 'h3' | 'h4') {
+  const HeadingComponent = ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
+    const text = extractText(children);
+    return (
+      <Tag id={slugifyHeading(text)} {...props}>
+        {children}
+      </Tag>
+    );
+  };
+  HeadingComponent.displayName = `DocsHeading(${Tag})`;
+  return HeadingComponent;
+}
 
+const markdownComponents = {
+  h1: createHeading('h1'),
+  h2: createHeading('h2'),
+  h3: createHeading('h3'),
+  h4: createHeading('h4'),
+  table: ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
+    <div className="table-wrapper">
+      <table {...props}>{children}</table>
+    </div>
+  ),
+};
+
+export function DocsContent({ content, className }: DocsContentProps) {
   return (
-    <article className={cn('docs-markdown max-w-none', className)}>
+    <article className={cn('chat-markdown docs-markdown max-w-none', className)}>
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
-        components={memoizedComponents}
+        components={markdownComponents}
       >
         {content}
       </ReactMarkdown>
