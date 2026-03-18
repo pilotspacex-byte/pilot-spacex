@@ -29,7 +29,7 @@ import { CreateTemplateModal } from '../components/create-template-modal';
 import { EditTemplateModal } from '../components/edit-template-modal';
 import { PluginsTabContent } from '../components/plugins-tab-content';
 import { ActionButtonsTabContent } from '../components/action-buttons-tab-content';
-import { SkillGeneratorModal } from '../components/skill-generator-modal';
+import { SkillAddModal } from '../components/skill-add-modal';
 import { ConfirmActionDialog } from '../components/confirm-action-dialog';
 
 // ---------------------------------------------------------------------------
@@ -346,13 +346,14 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
             </section>
           </div>
 
-          {/* Skill Generator Modal */}
-          <SkillGeneratorModal
+          {/* Add Skill Modal (dual-mode: Manual + AI Generate) */}
+          <SkillAddModal
             open={generatorOpen}
             onOpenChange={(v) => {
               setGeneratorOpen(v);
               if (!v) setTimeout(() => setSelectedTemplate(null), 200);
             }}
+            defaultTab={selectedTemplate ? 'ai-generate' : 'manual'}
             defaultMode="personal"
             showModeToggle={isAdmin}
             workspaceId={workspaceId}
