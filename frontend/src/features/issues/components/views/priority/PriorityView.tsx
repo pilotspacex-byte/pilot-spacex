@@ -2,17 +2,17 @@
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { AlertTriangle, ArrowUp, Minus, ArrowDown, CircleDashed } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Minus, ArrowDown, CircleDashed, Inbox } from 'lucide-react';
 import { useIssueViewStore } from '@/stores/RootStore';
 import { ListGroup } from '../list/ListGroup';
 import { BulkActionsBar } from '../list/BulkActionsBar';
 import type { Issue, IssueState, IssuePriority } from '@/types';
 
 const PRIORITY_GROUPS = [
-  { key: 'urgent', label: 'Urgent', icon: AlertTriangle, iconClass: 'text-red-500' },
-  { key: 'high', label: 'High', icon: ArrowUp, iconClass: 'text-orange-500' },
-  { key: 'medium', label: 'Medium', icon: Minus, iconClass: 'text-yellow-500' },
-  { key: 'low', label: 'Low', icon: ArrowDown, iconClass: 'text-blue-400' },
+  { key: 'urgent', label: 'Urgent', icon: AlertTriangle, iconClass: 'text-priority-urgent' },
+  { key: 'high', label: 'High', icon: ArrowUp, iconClass: 'text-priority-high' },
+  { key: 'medium', label: 'Medium', icon: Minus, iconClass: 'text-priority-medium' },
+  { key: 'low', label: 'Low', icon: ArrowDown, iconClass: 'text-priority-low' },
   { key: 'none', label: 'No Priority', icon: CircleDashed, iconClass: 'text-muted-foreground' },
 ] as const;
 
@@ -71,6 +71,21 @@ export const PriorityView = observer(function PriorityView({
             ))}
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (issues.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-muted">
+          <Inbox className="size-6 text-primary" />
+        </div>
+        <h3 className="mt-4 text-sm font-medium text-foreground">No issues yet</h3>
+        <p className="mt-1 max-w-xs text-center text-xs text-muted-foreground">
+          Issues track work across your team. Create one manually or let AI extract them from your
+          notes.
+        </p>
       </div>
     );
   }

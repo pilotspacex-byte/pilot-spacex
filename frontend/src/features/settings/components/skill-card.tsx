@@ -91,7 +91,7 @@ export const SkillCard = observer(function SkillCard({
             </span>
           )}
           {skill.templateUpdateAvailable && (
-            <span className="rounded-sm bg-[#6B8FAD]/15 px-2 py-0.5 text-xs font-medium text-[#6B8FAD]">
+            <span className="rounded-sm bg-ai-muted px-2 py-0.5 text-xs font-medium text-ai">
               Update available
             </span>
           )}
@@ -174,7 +174,7 @@ export const SkillCard = observer(function SkillCard({
                 variant="outline"
                 size="sm"
                 onClick={() => onRegenerate(skill.id)}
-                className="border-[#6B8FAD]/30 text-[#6B8FAD] hover:bg-[#6B8FAD]/10"
+                className="border-ai-border text-ai hover:bg-ai-muted"
               >
                 <Sparkles className="mr-1.5 h-3.5 w-3.5" />
                 Regenerate AI

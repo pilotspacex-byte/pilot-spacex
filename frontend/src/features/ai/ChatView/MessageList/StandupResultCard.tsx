@@ -178,7 +178,12 @@ export function StandupResultCard({ data }: { data: Record<string, unknown> }) {
         accentClass="text-muted-foreground"
       />
       <StandupSection heading="Today (In Progress)" items={today} accentClass="text-primary" />
-      <StandupSection heading="Blockers" items={blockers} accentClass="text-amber-500" showReason />
+      <StandupSection
+        heading="Blockers"
+        items={blockers}
+        accentClass="text-[var(--warning)]"
+        showReason
+      />
     </div>
   );
 }

@@ -47,7 +47,7 @@ export function DocsPage({ slug, content, headings }: DocsPageProps) {
           <main className="flex-1 px-8 py-6 lg:px-12">
             {doc && (
               <div className="mb-6 border-b border-border pb-4">
-                <h1 className="text-2xl font-bold text-foreground">{doc.title}</h1>
+                <h1 className="text-2xl font-bold text-foreground font-display">{doc.title}</h1>
                 <p className="mt-1 text-sm text-muted-foreground">{doc.description}</p>
               </div>
             )}

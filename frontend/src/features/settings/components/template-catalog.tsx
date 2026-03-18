@@ -118,7 +118,7 @@ export function TemplateCatalog({
             onClick={() => setActiveFilter(null)}
             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               activeFilter === null
-                ? 'bg-foreground text-background'
+                ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
@@ -131,7 +131,7 @@ export function TemplateCatalog({
               onClick={() => setActiveFilter(activeFilter === role ? null : role)}
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${
                 activeFilter === role
-                  ? 'bg-foreground text-background'
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
@@ -144,16 +144,21 @@ export function TemplateCatalog({
       {/* Template grid */}
       {filtered.length > 0 ? (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((template) => (
-            <TemplateCard
+          {filtered.map((template, index) => (
+            <div
               key={template.id}
-              template={template}
-              onUseThis={onUseThis}
-              onEdit={onEditTemplate}
-              onToggleActive={onToggleTemplateActive}
-              onDelete={onDeleteTemplate}
-              isAdmin={isAdmin}
-            />
+              className="animate-fade-up h-full"
+              style={{ animationDelay: `${index * 60}ms` }}
+            >
+              <TemplateCard
+                template={template}
+                onUseThis={onUseThis}
+                onEdit={onEditTemplate}
+                onToggleActive={onToggleTemplateActive}
+                onDelete={onDeleteTemplate}
+                isAdmin={isAdmin}
+              />
+            </div>
           ))}
         </div>
       ) : (

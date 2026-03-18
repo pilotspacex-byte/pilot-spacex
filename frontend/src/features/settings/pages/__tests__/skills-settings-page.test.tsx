@@ -201,9 +201,7 @@ describe('SkillsSettingsPage', () => {
       });
 
       renderPage();
-      expect(
-        screen.getByText('No skills yet. Browse templates below to get started.')
-      ).toBeInTheDocument();
+      expect(screen.getByText('Personalize your AI co-pilot')).toBeInTheDocument();
     });
   });
 

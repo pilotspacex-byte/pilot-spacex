@@ -33,6 +33,7 @@ function SidebarGroup({
                 href={`/${workspaceSlug}/docs/${doc.slug}`}
                 className={cn(
                   'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                   isActive
                     ? 'bg-primary/10 font-medium text-primary'
                     : 'text-foreground/70 hover:bg-muted hover:text-foreground'

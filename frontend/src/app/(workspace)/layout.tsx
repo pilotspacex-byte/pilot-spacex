@@ -3,6 +3,8 @@
 import type { ReactNode } from 'react';
 import { AppShell } from '@/components/layout';
 import { WorkspaceGuard } from '@/components/workspace-guard';
+import { SettingsModalProvider } from '@/features/settings/settings-modal-context';
+import { SettingsModal } from '@/features/settings/settings-modal';
 
 interface WorkspaceLayoutProps {
   children: ReactNode;
@@ -11,7 +13,10 @@ interface WorkspaceLayoutProps {
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   return (
     <WorkspaceGuard>
-      <AppShell>{children}</AppShell>
+      <SettingsModalProvider>
+        <AppShell>{children}</AppShell>
+        <SettingsModal />
+      </SettingsModalProvider>
     </WorkspaceGuard>
   );
 }

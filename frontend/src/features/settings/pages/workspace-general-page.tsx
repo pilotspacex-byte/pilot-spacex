@@ -14,7 +14,7 @@ import { AlertCircle, Building2, Calendar, Loader2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+// Card imports removed — using flat sections for cleaner settings layout
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -91,8 +91,11 @@ export const WorkspaceGeneralPage = observer(function WorkspaceGeneralPage() {
   }, [hasChanges]);
 
   const handleSlugChange = (value: string) => {
-    setSlug(value);
-    if (value && !SLUG_PATTERN.test(value)) {
+    const next = value.trim();
+    setSlug(next);
+    if (!next) {
+      setSlugError('Slug is required.');
+    } else if (!SLUG_PATTERN.test(next)) {
       setSlugError('Slug must contain only lowercase letters, numbers, and hyphens.');
     } else {
       setSlugError(null);
@@ -179,167 +182,160 @@ export const WorkspaceGeneralPage = observer(function WorkspaceGeneralPage() {
         </div>
 
         {/* Workspace Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Workspace Details</CardTitle>
-            <CardDescription>
-              {isAdmin
-                ? 'Update your workspace name, URL slug, and description.'
-                : 'View workspace information.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSave} className="space-y-6">
-              {/* Name */}
-              <div className="space-y-2">
-                <Label htmlFor="workspace-name">Workspace Name</Label>
-                <Input
-                  id="workspace-name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  readOnly={!isAdmin}
-                  disabled={updateSettings.isPending}
-                  className={`w-full sm:max-w-md ${!isAdmin ? 'cursor-default opacity-70' : ''}`}
-                  aria-describedby="workspace-name-hint"
-                />
-                <p id="workspace-name-hint" className="text-sm text-muted-foreground">
-                  The display name for your workspace.
+        <section>
+          <h2 className="text-sm font-semibold text-foreground">Workspace Details</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {isAdmin
+              ? 'Update your workspace name, URL slug, and description.'
+              : 'View workspace information.'}
+          </p>
+
+          <form onSubmit={handleSave} className="mt-4 space-y-5">
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="workspace-name">Workspace Name</Label>
+              <Input
+                id="workspace-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                readOnly={!isAdmin}
+                disabled={updateSettings.isPending}
+                className={`w-full sm:max-w-md ${!isAdmin ? 'cursor-default opacity-70' : ''}`}
+                aria-describedby="workspace-name-hint"
+              />
+              <p id="workspace-name-hint" className="text-xs text-muted-foreground">
+                The display name for your workspace.
+              </p>
+            </div>
+
+            {/* Slug */}
+            <div className="space-y-1.5">
+              <Label htmlFor="workspace-slug">URL Slug</Label>
+              <Input
+                id="workspace-slug"
+                type="text"
+                required
+                minLength={1}
+                value={slug}
+                onChange={(e) => handleSlugChange(e.target.value)}
+                readOnly={!isAdmin}
+                disabled={updateSettings.isPending}
+                className={`w-full sm:max-w-md ${slugError ? 'border-destructive' : ''}`}
+                aria-describedby={slugError ? 'workspace-slug-error' : 'workspace-slug-hint'}
+                aria-invalid={!!slugError}
+              />
+              {slugError ? (
+                <p id="workspace-slug-error" className="text-xs text-destructive" role="alert">
+                  {slugError}
                 </p>
-              </div>
-
-              {/* Slug */}
-              <div className="space-y-2">
-                <Label htmlFor="workspace-slug">URL Slug</Label>
-                <Input
-                  id="workspace-slug"
-                  type="text"
-                  value={slug}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  readOnly={!isAdmin}
-                  disabled={updateSettings.isPending}
-                  className={`w-full sm:max-w-md ${slugError ? 'border-destructive' : ''}`}
-                  aria-describedby={slugError ? 'workspace-slug-error' : 'workspace-slug-hint'}
-                  aria-invalid={!!slugError}
-                />
-                {slugError ? (
-                  <p id="workspace-slug-error" className="text-sm text-destructive" role="alert">
-                    {slugError}
-                  </p>
-                ) : (
-                  <p id="workspace-slug-hint" className="text-sm text-muted-foreground">
-                    Used in the URL: /{slug}
-                  </p>
-                )}
-                {!slugError && isAdmin && slug !== workspaceData.slug && (
-                  <p className="text-sm text-amber-600 dark:text-amber-400" role="alert">
-                    Changing the slug will update all URLs. Share the new URL with your team.
-                  </p>
-                )}
-              </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="workspace-description">Description</Label>
-                <Textarea
-                  id="workspace-description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  readOnly={!isAdmin}
-                  disabled={updateSettings.isPending}
-                  placeholder="A brief description of this workspace"
-                  className={`w-full sm:max-w-md ${!isAdmin ? 'cursor-default opacity-70' : ''}`}
-                  rows={3}
-                />
-              </div>
-
-              {/* Save Button */}
-              {isAdmin && (
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="submit"
-                    disabled={!hasChanges || updateSettings.isPending || isCheckingSlug}
-                    aria-busy={updateSettings.isPending || isCheckingSlug}
-                    className="min-w-[120px]"
-                  >
-                    {(updateSettings.isPending || isCheckingSlug) && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                    )}
-                    {isCheckingSlug
-                      ? 'Checking...'
-                      : updateSettings.isPending
-                        ? 'Saving...'
-                        : 'Save Changes'}
-                  </Button>
-                  {hasChanges && (
-                    <p className="text-sm text-muted-foreground" role="status">
-                      You have unsaved changes.
-                    </p>
-                  )}
-                </div>
+              ) : (
+                <p id="workspace-slug-hint" className="text-xs text-muted-foreground">
+                  Used in the URL: /{slug}
+                </p>
               )}
-            </form>
-          </CardContent>
-        </Card>
+              {!slugError && isAdmin && slug !== workspaceData.slug && (
+                <p className="text-xs text-[var(--warning)]" role="alert">
+                  Changing the slug will update all URLs. Share the new URL with your team.
+                </p>
+              )}
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label htmlFor="workspace-description">Description</Label>
+              <Textarea
+                id="workspace-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                readOnly={!isAdmin}
+                disabled={updateSettings.isPending}
+                placeholder="A brief description of this workspace"
+                className={`w-full sm:max-w-md ${!isAdmin ? 'cursor-default opacity-70' : ''}`}
+                rows={3}
+              />
+            </div>
+
+            {/* Save Button */}
+            {isAdmin && (
+              <div className="flex items-center gap-3 pt-1">
+                <Button
+                  type="submit"
+                  disabled={!hasChanges || updateSettings.isPending || isCheckingSlug}
+                  aria-busy={updateSettings.isPending || isCheckingSlug}
+                  className="min-w-[120px]"
+                >
+                  {(updateSettings.isPending || isCheckingSlug) && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  )}
+                  {isCheckingSlug
+                    ? 'Checking...'
+                    : updateSettings.isPending
+                      ? 'Saving...'
+                      : 'Save Changes'}
+                </Button>
+                {hasChanges && (
+                  <p className="text-xs text-muted-foreground" role="status">
+                    You have unsaved changes.
+                  </p>
+                )}
+              </div>
+            )}
+          </form>
+        </section>
+
+        <Separator />
 
         {/* Metadata */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Workspace Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-                <Calendar className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Created</p>
-                  <p className="font-medium">{createdAt}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-                <Users className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Members</p>
-                  <p className="font-medium">{memberCount}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-                <Building2 className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Workspace ID</p>
-                  <p className="font-mono text-xs">{workspaceId.slice(0, 8)}...</p>
-                </div>
+        <section>
+          <h2 className="text-sm font-semibold text-foreground">Workspace Information</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="flex items-center gap-3 rounded-lg bg-background-subtle p-3">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Created</p>
+                <p className="text-sm font-medium">{createdAt}</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex items-center gap-3 rounded-lg bg-background-subtle p-3">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Members</p>
+                <p className="text-sm font-medium">{memberCount}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg bg-background-subtle p-3">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Workspace ID</p>
+                <p className="font-mono text-xs">{workspaceId.slice(0, 8)}...</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Danger Zone */}
         {isAdmin && (
           <>
             <Separator />
-            <Card className="border-destructive/30">
-              <CardHeader>
-                <CardTitle className="text-destructive">Danger Zone</CardTitle>
-                <CardDescription>
-                  Irreversible actions. Proceed with extreme caution.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-3 rounded-lg border border-destructive/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-medium">Delete this workspace</p>
-                    <p className="text-sm text-muted-foreground">
-                      Permanently delete this workspace and all of its data.
-                    </p>
-                  </div>
-                  <DeleteWorkspaceDialog
-                    workspaceId={workspaceId}
-                    workspaceName={workspaceData.name}
-                  />
+            <section>
+              <h2 className="text-sm font-semibold text-destructive">Danger Zone</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Irreversible actions. Proceed with extreme caution.
+              </p>
+              <div className="mt-3 flex flex-col gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium">Delete this workspace</p>
+                  <p className="text-xs text-muted-foreground">
+                    Permanently delete this workspace and all of its data.
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+                <DeleteWorkspaceDialog
+                  workspaceId={workspaceId}
+                  workspaceName={workspaceData.name}
+                />
+              </div>
+            </section>
           </>
         )}
       </div>

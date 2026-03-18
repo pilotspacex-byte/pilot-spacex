@@ -31,7 +31,7 @@ describe('WordCountBar', () => {
 
   it('should show orange bar for warning count (1800+)', () => {
     const { container } = render(<WordCountBar wordCount={1850} />);
-    const bar = container.querySelector('.bg-\\[\\#D9853F\\]');
+    const bar = container.querySelector('.bg-\\[var\\(--warning\\)\\]');
     expect(bar).toBeInTheDocument();
   });
 

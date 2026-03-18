@@ -58,9 +58,12 @@ export function TableOfContents({ headings, className }: TableOfContentsProps) {
                 href={`#${heading.id}`}
                 className={cn(
                   'block rounded py-1 pr-2 text-foreground/60 transition-colors hover:text-foreground',
-                  heading.id === activeId && 'font-medium text-primary'
+                  heading.id === activeId && 'font-medium text-primary',
+                  heading.level - minLevel === 0 && 'pl-2',
+                  heading.level - minLevel === 1 && 'pl-5',
+                  heading.level - minLevel === 2 && 'pl-8',
+                  heading.level - minLevel >= 3 && 'pl-11'
                 )}
-                style={{ paddingLeft: `${(heading.level - minLevel) * 12 + 8}px` }}
               >
                 {heading.text}
               </a>

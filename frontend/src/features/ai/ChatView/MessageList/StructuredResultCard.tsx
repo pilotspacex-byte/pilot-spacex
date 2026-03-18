@@ -21,6 +21,8 @@ import {
   Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getPriorityNameStyle, getConfidenceFromScore } from '@/lib/issue-styles';
+import { Checkbox } from '@/components/ui/checkbox';
 import type {
   ExtractedIssue,
   DecomposedSubtask,
@@ -47,43 +49,7 @@ interface StructuredResultCardProps {
   workspaceSlug?: string;
 }
 
-/** Priority color mapping */
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: 'text-red-500',
-  high: 'text-orange-500',
-  medium: 'text-amber-500',
-  low: 'text-blue-400',
-  none: 'text-muted-foreground',
-};
-
-/** Priority dot color mapping */
-const PRIORITY_DOTS: Record<string, string> = {
-  urgent: 'bg-red-500',
-  high: 'bg-orange-500',
-  medium: 'bg-amber-500',
-  low: 'bg-blue-400',
-  none: 'bg-muted-foreground',
-};
-
 const PRIORITY_OPTIONS = ['urgent', 'high', 'medium', 'low', 'none'] as const;
-
-/** Confidence label and color based on score */
-function getConfidenceDisplay(score: number): { label: string; className: string } {
-  if (score >= 0.7)
-    return {
-      label: 'High',
-      className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    };
-  if (score >= 0.5)
-    return {
-      label: 'Medium',
-      className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    };
-  return {
-    label: 'Low',
-    className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  };
-}
 
 // ─── Extraction Result ───────────────────────────────────────────────────
 
@@ -227,7 +193,7 @@ function ExtractionResultCard({
           const displayTitle = override?.title ?? issue.title;
           const displayPriority = override?.priority ?? issue.priority;
           const confidenceDisplay =
-            issue.confidence != null ? getConfidenceDisplay(issue.confidence) : null;
+            issue.confidence != null ? getConfidenceFromScore(issue.confidence) : null;
 
           return (
             <div
@@ -241,34 +207,12 @@ function ExtractionResultCard({
             >
               <div className="flex items-start gap-3">
                 {/* Checkbox */}
-                <button
-                  type="button"
-                  onClick={() => toggleIssue(idx)}
-                  className="mt-0.5 shrink-0"
+                <Checkbox
+                  checked={selectedIds.has(idx)}
+                  onCheckedChange={() => toggleIssue(idx)}
+                  className="mt-0.5"
                   aria-label={`${selectedIds.has(idx) ? 'Deselect' : 'Select'} issue: ${displayTitle}`}
-                >
-                  <div
-                    className={cn(
-                      'h-4 w-4 rounded border transition-colors',
-                      selectedIds.has(idx)
-                        ? 'border-primary bg-primary'
-                        : 'border-muted-foreground/30'
-                    )}
-                  >
-                    {selectedIds.has(idx) && (
-                      <svg viewBox="0 0 16 16" className="h-4 w-4 text-white">
-                        <path
-                          d="M5 8l2 2 4-4"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                </button>
+                />
 
                 <div className="flex-1 min-w-0">
                   {/* R3: Inline editing mode */}
@@ -317,12 +261,15 @@ function ExtractionResultCard({
                         <span
                           className={cn(
                             'inline-flex h-2 w-2 shrink-0 rounded-full',
-                            PRIORITY_DOTS[displayPriority] ?? PRIORITY_DOTS.none
+                            getPriorityNameStyle(displayPriority).dotClass
                           )}
                           title={displayPriority}
                         />
                         <span
-                          className={cn('text-xs capitalize', PRIORITY_COLORS[displayPriority])}
+                          className={cn(
+                            'text-xs capitalize',
+                            getPriorityNameStyle(displayPriority).textClass
+                          )}
                         >
                           {displayPriority}
                         </span>
@@ -623,7 +570,7 @@ export const StructuredResultCard = memo<StructuredResultCardProps>(
       <div
         className={cn(
           'rounded-[12px] border border-border bg-background-subtle p-4',
-          'shadow-sm',
+          'shadow-warm-sm',
           className
         )}
         role="region"

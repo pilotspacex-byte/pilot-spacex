@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   Bar,
@@ -196,6 +196,33 @@ export const CostDashboardPage = observer(function CostDashboardPage({
     );
   }
 
+  // Empty state — no AI usage yet
+  if (!cost.isLoading && !cost.error && cost.totalRequests === 0) {
+    return (
+      <div className="space-y-6 p-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">AI Cost Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Monitor AI usage and costs across your workspace
+          </p>
+        </div>
+        <div className="flex flex-col items-center justify-center rounded-xl bg-background-subtle py-16 shadow-warm-sm">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-ai-muted">
+            <Sparkles className="h-6 w-6 text-ai" />
+          </div>
+          <h3 className="mt-4 text-sm font-semibold text-foreground">No AI usage yet</h3>
+          <p className="mt-1.5 max-w-sm text-center text-sm text-muted-foreground leading-relaxed">
+            Costs will appear here once your team starts using AI features — ghost text, issue
+            extraction, PR reviews, and chat.
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground/60">
+            Configure AI providers in Settings to get started.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -266,8 +293,12 @@ export const CostDashboardPage = observer(function CostDashboardPage({
                   <Skeleton className="h-full w-full" />
                 </div>
               ) : featureChartData.length === 0 ? (
-                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                  <p className="text-sm">No feature cost data available for this period</p>
+                <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
+                  <Sparkles className="h-8 w-8 text-muted-foreground/30 mb-3" />
+                  <p className="text-sm">No feature cost data for this period</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">
+                    Try selecting a wider date range
+                  </p>
                 </div>
               ) : (
                 <ResponsiveContainer

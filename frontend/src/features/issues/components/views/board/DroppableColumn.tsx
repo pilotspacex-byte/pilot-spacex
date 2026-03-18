@@ -95,8 +95,11 @@ export function DroppableColumn({
                 />
               ))
             ) : (
-              <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
-                No issues
+              <div className="flex flex-col items-center justify-center py-8 text-xs text-muted-foreground">
+                <p>No issues in this column</p>
+                <p className="mt-0.5 text-muted-foreground/50">
+                  Drag issues here or create new ones
+                </p>
               </div>
             )}
           </div>

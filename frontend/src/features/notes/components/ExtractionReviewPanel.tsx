@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { getPriorityBadge, getConfidenceBadge } from '@/lib/issue-styles';
 import { toast } from 'sonner';
 import { aiApi } from '@/services/api/ai';
 import { apiClient } from '@/services/api/client';
@@ -56,49 +57,6 @@ export interface ExtractionReviewPanelProps {
   /** Fired after issues are created with their IDs */
   onCreated?: (createdIds: string[]) => void;
 }
-
-const PRIORITY_LABELS: Record<number, { label: string; className: string }> = {
-  0: {
-    label: 'Urgent',
-    className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-transparent',
-  },
-  1: {
-    label: 'High',
-    className:
-      'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 border-transparent',
-  },
-  2: {
-    label: 'Medium',
-    className:
-      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border-transparent',
-  },
-  3: {
-    label: 'Low',
-    className:
-      'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-transparent',
-  },
-  4: {
-    label: 'None',
-    className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-transparent',
-  },
-};
-
-const CONFIDENCE_STYLES: Record<string, { label: string; className: string }> = {
-  explicit: {
-    label: 'HIGH',
-    className:
-      'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-transparent',
-  },
-  implicit: {
-    label: 'MEDIUM',
-    className:
-      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border-transparent',
-  },
-  related: {
-    label: 'LOW',
-    className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-transparent',
-  },
-};
 
 // ============================================================================
 // AI Rationale — audit log fetch (AIGOV-07)
@@ -148,7 +106,10 @@ function RationaleContent({
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 py-1">
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-hidden="true" />
+        <Loader2
+          className="h-3.5 w-3.5 motion-safe:animate-spin text-muted-foreground"
+          aria-hidden="true"
+        />
         <span className="text-xs text-muted-foreground">Loading rationale...</span>
       </div>
     );
@@ -200,16 +161,8 @@ function ReviewCard({
 }) {
   const [rationalePopoverOpen, setRationalePopoverOpen] = useState(false);
   const { issue, approved, editedTitle, rationaleExpanded } = item;
-  const defaultPriority = {
-    label: 'Medium',
-    className: 'bg-yellow-100 text-yellow-800 border-transparent',
-  };
-  const defaultConfidence = {
-    label: 'LOW',
-    className: 'bg-gray-100 text-gray-600 border-transparent',
-  };
-  const priorityInfo = PRIORITY_LABELS[issue.priority] ?? defaultPriority;
-  const confidenceInfo = CONFIDENCE_STYLES[issue.confidenceTag] ?? defaultConfidence;
+  const priorityInfo = getPriorityBadge(issue.priority);
+  const confidenceInfo = getConfidenceBadge(issue.confidenceTag);
 
   return (
     <div
@@ -490,7 +443,7 @@ export function ExtractionReviewPanel({
               role="status"
               className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-2 border-b border-border"
             >
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+              <Loader2 className="h-3 w-3 motion-safe:animate-spin" aria-hidden="true" />
               <span>Extracting more issues...</span>
             </div>
           )}
@@ -563,7 +516,7 @@ export function ExtractionReviewPanel({
             >
               {isCreating ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" aria-hidden="true" />
+                  <Loader2 className="h-4 w-4 motion-safe:animate-spin mr-2" aria-hidden="true" />
                   Creating...
                 </>
               ) : (

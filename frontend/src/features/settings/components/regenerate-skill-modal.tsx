@@ -73,7 +73,7 @@ export function RegenerateSkillModal({
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-[#6B8FAD]" />
+            <Sparkles className="h-5 w-5 text-ai" />
             Regenerate {skill.roleName} Skill
           </DialogTitle>
           <DialogDescription>
@@ -109,7 +109,7 @@ export function RegenerateSkillModal({
               <Button
                 onClick={handleGenerate}
                 disabled={isRegenerating || description.trim().length < 10}
-                className="bg-[#6B8FAD] hover:bg-[#5A7E9C] text-white"
+                className="bg-ai hover:bg-ai-hover text-white"
               >
                 <Sparkles className="mr-1.5 h-4 w-4" />
                 {isRegenerating ? 'Generating...' : 'Generate New Skill'}
@@ -139,10 +139,10 @@ export function RegenerateSkillModal({
 
               {/* New */}
               <div
-                className="rounded-lg border border-[#6B8FAD]/30 bg-[#6B8FAD]/5 p-3"
+                className="rounded-lg border border-ai-border bg-ai-muted p-3"
                 aria-label="New skill version"
               >
-                <p className="mb-2 text-xs font-semibold uppercase text-[#6B8FAD]">
+                <p className="mb-2 text-xs font-semibold uppercase text-ai">
                   <Sparkles className="inline h-3 w-3 mr-1" />
                   New (AI Generated)
                 </p>

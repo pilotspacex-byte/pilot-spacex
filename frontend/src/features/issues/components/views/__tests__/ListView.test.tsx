@@ -73,8 +73,7 @@ describe('ListView', () => {
 
   it('shows empty state when no issues', () => {
     render(<ListView issues={[]} isLoading={false} />);
-    expect(screen.getByText('No issues found')).toBeInTheDocument();
-    expect(screen.getByText('Try adjusting your filters')).toBeInTheDocument();
+    expect(screen.getByText('No issues yet')).toBeInTheDocument();
   });
 
   it('groups issues by state name', () => {

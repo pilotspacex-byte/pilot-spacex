@@ -60,14 +60,10 @@ describe('PriorityView', () => {
     vi.clearAllMocks();
   });
 
-  it('renders all 5 priority groups', () => {
+  it('shows empty state when no issues', () => {
     render(<PriorityView issues={[]} isLoading={false} onIssueClick={onIssueClick} />);
 
-    expect(screen.getByTestId('group-urgent')).toBeTruthy();
-    expect(screen.getByTestId('group-high')).toBeTruthy();
-    expect(screen.getByTestId('group-medium')).toBeTruthy();
-    expect(screen.getByTestId('group-low')).toBeTruthy();
-    expect(screen.getByTestId('group-no-priority')).toBeTruthy();
+    expect(screen.getByText('No issues yet')).toBeInTheDocument();
   });
 
   it('distributes issues into correct priority groups', () => {

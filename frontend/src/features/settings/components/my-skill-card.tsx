@@ -9,7 +9,7 @@
 
 'use client';
 
-import { Power, Trash2 } from 'lucide-react';
+import { Power, Trash2, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { UserSkill } from '@/services/api/user-skills';
 
@@ -25,29 +25,32 @@ export function MySkillCard({ skill, onToggleActive, onDelete, onClick }: MySkil
 
   return (
     <article
-      className={`group relative flex items-center gap-3 rounded-xl border bg-card p-3 transition-all duration-200 hover:shadow-md hover:border-border/80 cursor-pointer ${
-        !skill.is_active ? 'opacity-50' : ''
-      }`}
+      className={`group relative flex items-center gap-3 rounded-xl border border-l-[3px] bg-card p-3 transition-all duration-200 hover:shadow-md hover:border-border/80 hover:-translate-y-0.5 cursor-pointer ${
+        skill.is_active ? 'border-l-primary' : 'border-l-border'
+      } ${!skill.is_active ? 'opacity-50' : ''}`}
       data-testid="my-skill-card"
       onClick={() => onClick(skill)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
-          // Ignore events bubbling from inner buttons (toggle, delete)
           if (e.target !== e.currentTarget) return;
           e.preventDefault();
           onClick(skill);
         }
       }}
     >
-      {/* Status dot */}
+      {/* Skill icon */}
       <div
-        className={`shrink-0 h-2 w-2 rounded-full ${
-          skill.is_active ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+        className={`shrink-0 flex items-center justify-center h-8 w-8 rounded-lg ${
+          skill.is_active ? 'bg-primary/10' : 'bg-muted'
         }`}
         aria-label={skill.is_active ? 'Active' : 'Inactive'}
-      />
+      >
+        <Wand2
+          className={`h-4 w-4 ${skill.is_active ? 'text-primary' : 'text-muted-foreground/60'}`}
+        />
+      </div>
 
       {/* Content */}
       <div className="min-w-0 flex-1">

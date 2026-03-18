@@ -294,6 +294,29 @@
 }
 
 /* =============================================================================
+   REDUCED MOTION — C-1/C-2: Respect prefers-reduced-motion globally
+   ============================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation-duration: 0s;
+  }
+
+  .animate-in,
+  .animate-out {
+    animation-duration: 0s !important;
+  }
+
+  .animate-fade-up {
+    animation: none !important;
+  }
+
+  /* Disable smooth scrolling */
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* =============================================================================
    BASE STYLES
    ============================================================================= */
 @layer base {
@@ -456,7 +479,7 @@
 }
 
 .animate-fade-up {
-  animation: fadeUp 0.3s cubic-bezier(0, 0, 0.2, 1) forwards;
+  animation: fadeUp 0.3s cubic-bezier(0, 0, 0.2, 1) both;
 }
 
 @keyframes fadeUp {

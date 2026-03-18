@@ -28,6 +28,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
+import { getPriorityBadge, getConfidenceTextColor } from '@/lib/issue-styles';
 import { aiApi } from '@/services/api/ai';
 
 /** Extracted issue from SSE stream. */
@@ -61,29 +62,6 @@ export interface ExtractionPreviewModalProps {
   /** Callback after issues are created */
   onCreated?: (createdIds: string[]) => void;
 }
-
-const PRIORITY_LABELS: Record<number, { label: string; className: string }> = {
-  0: { label: 'Urgent', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
-  1: {
-    label: 'High',
-    className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  },
-  2: {
-    label: 'Medium',
-    className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  },
-  3: {
-    label: 'Low',
-    className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  },
-  4: { label: 'None', className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' },
-};
-
-const CONFIDENCE_COLORS: Record<string, string> = {
-  explicit: 'text-green-600 dark:text-green-400',
-  implicit: 'text-yellow-600 dark:text-yellow-400',
-  related: 'text-muted-foreground',
-};
 
 /**
  * ExtractionPreviewModal shows AI-extracted issues for user review and creation.
@@ -236,12 +214,8 @@ export function ExtractionPreviewModal({
           {/* Issue list */}
           {issues.map((issue) => {
             const isSelected = selectedIndices.has(issue.index);
-            const priorityInfo = PRIORITY_LABELS[issue.priority] ?? {
-              label: 'Medium',
-              className: 'bg-yellow-100 text-yellow-800',
-            };
-            const confidenceColor =
-              CONFIDENCE_COLORS[issue.confidenceTag] ?? CONFIDENCE_COLORS.related;
+            const priorityInfo = getPriorityBadge(issue.priority);
+            const confidenceColor = getConfidenceTextColor(issue.confidenceTag);
 
             return (
               <label

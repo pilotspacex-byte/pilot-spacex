@@ -88,7 +88,7 @@ describe('ExtractionResultCard', () => {
     renderExtractionCard({ onCreateIssues: mockOnCreateIssues });
 
     // Click the checkbox for the first issue
-    const selectButtons = screen.getAllByRole('button', { name: /Select issue/i });
+    const selectButtons = screen.getAllByRole('checkbox', { name: /Select issue/i });
     await user.click(selectButtons[0]!);
 
     // Should show "1 selected"
@@ -120,7 +120,7 @@ describe('ExtractionResultCard', () => {
     expect(screen.queryByText(/Create \d+ Issue/)).not.toBeInTheDocument();
 
     // Select an issue
-    const selectButtons = screen.getAllByRole('button', { name: /Select issue/i });
+    const selectButtons = screen.getAllByRole('checkbox', { name: /Select issue/i });
     await user.click(selectButtons[0]!);
 
     // Now the button should appear
@@ -142,7 +142,7 @@ describe('ExtractionResultCard', () => {
     renderExtractionCard({ onCreateIssues: mockOnCreateIssues });
 
     // Select first and third issues
-    const selectButtons = screen.getAllByRole('button', { name: /Select issue/i });
+    const selectButtons = screen.getAllByRole('checkbox', { name: /Select issue/i });
     await user.click(selectButtons[0]!);
     await user.click(selectButtons[2]!);
 
@@ -165,7 +165,7 @@ describe('ExtractionResultCard', () => {
     });
 
     // Select an issue first
-    const selectButtons = screen.getAllByRole('button', { name: /Select issue/i });
+    const selectButtons = screen.getAllByRole('checkbox', { name: /Select issue/i });
     await user.click(selectButtons[0]!);
 
     // Should show "Creating..." instead of "Create 1 Issue"
@@ -359,7 +359,7 @@ describe('ExtractionResultCard', () => {
       await user.click(screen.getByRole('button', { name: 'Done editing' }));
 
       // Select the edited issue and create
-      const selectButtons = screen.getAllByRole('button', { name: /Select issue/i });
+      const selectButtons = screen.getAllByRole('checkbox', { name: /Select issue/i });
       await user.click(selectButtons[0]!);
       await user.click(screen.getByText('Create 1 Issue'));
 

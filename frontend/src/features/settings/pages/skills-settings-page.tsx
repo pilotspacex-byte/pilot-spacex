@@ -224,7 +224,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   if (isGuest) {
     return (
       <div className="px-4 py-4 sm:px-6 lg:px-8">
-        <h1 className="text-2xl font-semibold tracking-tight mb-4">Skills</h1>
+        <h1 className="text-2xl font-semibold tracking-tight mb-6 font-display">Skills</h1>
         <GuestView />
       </div>
     );
@@ -255,7 +255,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
 
   return (
     <div className="px-4 py-4 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-semibold tracking-tight mb-4">Skills</h1>
+      <h1 className="text-2xl font-semibold tracking-tight mb-6 font-display">Skills</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex items-center justify-between gap-3">
@@ -313,20 +313,32 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
               </div>
               {skillCount > 0 ? (
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {userSkills?.map((skill) => (
-                    <MySkillCard
+                  {userSkills?.map((skill, index) => (
+                    <div
                       key={skill.id}
-                      skill={skill}
-                      onToggleActive={handleToggleSkillActive}
-                      onDelete={handleDeleteSkill}
-                      onClick={setSkillToView}
-                    />
+                      className="animate-fade-up"
+                      style={{ animationDelay: `${index * 60}ms` }}
+                    >
+                      <MySkillCard
+                        skill={skill}
+                        onToggleActive={handleToggleSkillActive}
+                        onDelete={handleDeleteSkill}
+                        onClick={setSkillToView}
+                      />
+                    </div>
                   ))}
                 </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-border/50 bg-muted/20 p-8 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    No skills yet. Browse templates below to get started.
+                <div className="flex flex-col items-center rounded-2xl bg-gradient-to-b from-primary/[0.04] to-ai/[0.04] border border-border/40 p-10 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20 shadow-sm">
+                    <Wand2 className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold text-foreground font-display">
+                    Personalize your AI co-pilot
+                  </h3>
+                  <p className="mt-2 max-w-sm text-sm text-muted-foreground leading-relaxed">
+                    Skills shape how AI assists you — from code reviews to writing style. Browse
+                    templates below to add your first skill.
                   </p>
                 </div>
               )}
@@ -334,7 +346,12 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
 
             {/* Skill Templates Section */}
             <section>
-              <h2 className="text-sm font-semibold text-foreground mb-4">Skill Templates</h2>
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-foreground">Skill Templates</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Ready-made patterns to customize your AI assistant
+                </p>
+              </div>
               <TemplateCatalog
                 workspaceSlug={workspaceSlug}
                 isAdmin={isAdmin}

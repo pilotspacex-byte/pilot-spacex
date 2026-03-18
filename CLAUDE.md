@@ -142,3 +142,25 @@ Read index at `docs/claude-sdk.txt` for full documentation.
 7. **Coverage gate**: `fail_under = 80` with `branch = true` in `backend/pyproject.toml`. New modules without tests can block CI.
 
 8. **Error responses**: All backend errors use `Content-Type: application/problem+json` (RFC 7807), not `application/json`. Frontend `ApiError.fromAxiosError` handles both formats, but new error-parsing code must not assume `application/json`.
+
+---
+
+## Design Context
+
+### Users
+Software development teams (5-100 members/workspace). Roles: engineers, PMs, designers. "Note-First" workflow — brainstorm in rich text canvas, AI assists with ghost text, issue extraction, PR reviews. BYOK model (no AI cost pass-through).
+
+### Brand Personality
+**Warm, Capable, Collaborative.** AI is a co-pilot teammate, not a system. Voice is approachable and knowledgeable. Calm confidence as primary emotion, with layers of professional trust, creative energy, and playful delight.
+
+### Aesthetic Direction
+Notion-like neutral base with editorial quality. Inspirations: Craft (layered surfaces, typography), Apple (squircle corners, material depth), Things 3 (spacious calm, natural accents). Anti-references: generic SaaS defaults, dense enterprise tools (Jira), flashy startup trends, CLI-only aesthetics.
+
+### Design Principles
+1. **Think first, structure later** — Notes are the entry point, not forms
+2. **AI is a teammate, not a toolbar** — Natural suggestions with "You + AI" attribution
+3. **Spacious calm over dense efficiency** — Generous whitespace, progressive disclosure
+4. **Warmth through craft** — Every surface/shadow/transition feels intentional and human
+5. **Accessible by default** — WCAG 2.2 AA baseline, color never sole meaning carrier, keyboard-first
+
+Full design context: `.impeccable.md` | Full UI spec: `specs/001-pilot-space-mvp/ui-design-spec.md`

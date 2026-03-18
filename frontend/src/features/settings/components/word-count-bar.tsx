@@ -30,13 +30,13 @@ function getCountState(count: number, max: number): 'normal' | 'warning' | 'over
 
 const BAR_COLORS = {
   normal: 'bg-primary',
-  warning: 'bg-[#D9853F]',
+  warning: 'bg-[var(--warning)]',
   over: 'bg-destructive',
 } as const;
 
 const TEXT_COLORS = {
   normal: 'text-muted-foreground',
-  warning: 'text-[#D9853F]',
+  warning: 'text-[var(--warning)]',
   over: 'text-destructive',
 } as const;
 
