@@ -609,15 +609,63 @@ def create_note_tools_server(
 
         logger.info("mcp_tool_invoked", tool="create_note", title=title[:80])
         lvl = await _chk("create_note", AT.CREATE_NOTE, tool_context)
-        status = "approval_required" if lvl.value != "auto_execute" else "pending_apply"
-        return _text_result(
-            json.dumps(
-                {
-                    "status": status,
-                    "operation": "create_note",
-                    "payload": payload,
-                }
+
+        if lvl.value != "auto_execute":
+            return _text_result(
+                json.dumps(
+                    {
+                        "status": "approval_required",
+                        "operation": "create_note",
+                        "payload": payload,
+                    }
+                )
             )
+
+        # Auto-approved: execute creation via service
+        if not tool_context:
+            return _text_result("Error: Tool context not available")
+
+        from uuid import UUID
+
+        from pilot_space.application.services.note.create_note_service import (
+            CreateNotePayload,
+            CreateNoteService,
+        )
+        from pilot_space.infrastructure.database.repositories.note_repository import (
+            NoteRepository,
+        )
+        from pilot_space.infrastructure.database.repositories.template_repository import (
+            TemplateRepository,
+        )
+
+        svc_payload = CreateNotePayload(
+            workspace_id=UUID(tool_context.workspace_id),
+            owner_id=UUID(tool_context.user_id) if tool_context.user_id else UUID(int=0),
+            title=title,
+            project_id=UUID(args["project_id"]) if args.get("project_id") else None,
+        )
+
+        svc = CreateNoteService(
+            session=tool_context.db_session,
+            note_repository=NoteRepository(tool_context.db_session),
+            template_repository=TemplateRepository(tool_context.db_session),
+        )
+
+        try:
+            result = await svc.execute(svc_payload)
+            await tool_context.db_session.commit()
+        except Exception as exc:
+            logger.error("create_note execution failed: %s", exc, exc_info=True)
+            return _text_result(f"Error creating note: {exc}")
+
+        note_data = {
+            "id": str(result.note.id),
+            "title": result.note.title,
+        }
+
+        logger.info("[NoteTools] create_note executed: '%s' -> %s", title, note_data["id"])
+        return _text_result(
+            json.dumps({"status": "executed", "operation": "create_note", "note": note_data})
         )
 
     @tool(

@@ -320,7 +320,6 @@ class GenerateRoleSkillService:
                 messages=[{"role": "user", "content": prompt}],
             )
             # Prefer text blocks, fall back to thinking blocks
-            # (some models like kimi via Ollama return only thinking blocks)
             text_parts: list[str] = []
             thinking_parts: list[str] = []
             for block in response.content:
@@ -328,7 +327,9 @@ class GenerateRoleSkillService:
                     text_parts.append(block.text)
                 elif block.type == "thinking" and getattr(block, "thinking", None):
                     thinking_parts.append(block.thinking)
-            return "\n".join(text_parts) or "\n".join(thinking_parts)
+
+            # TODO: streaming all to client as progress annotation
+            return "\n".join(text_parts)
 
         logger.info(
             "Calling LLM for skill generation",

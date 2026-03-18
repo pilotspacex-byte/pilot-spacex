@@ -623,48 +623,43 @@ def transform_tool_result(
         operation = result_data.get("operation")
         note_id = result_data.get("note_id")
 
-        if not note_id or not isinstance(note_id, str):
-            logger.warning(
-                f"Tool result missing valid note_id: operation={operation}, note_id={note_id}"
-            )
-            return None
+        # Content modification ops require note_id + operation handler
+        if note_id and isinstance(note_id, str) and operation and isinstance(operation, str):
+            operation_handlers = {
+                "replace_block": emit_replace_block_event,
+                "append_blocks": emit_append_blocks_event,
+                "create_issues": emit_issue_creation_events,
+                "create_single_issue": emit_issue_creation_events,
+                "insert_blocks": emit_insert_blocks_event,
+                "remove_block": emit_remove_block_event,
+                "remove_content": emit_remove_content_event,
+                "replace_content": emit_replace_content_event,
+            }
 
-        if not operation or not isinstance(operation, str):
-            return None
-
-        operation_handlers = {
-            "replace_block": emit_replace_block_event,
-            "append_blocks": emit_append_blocks_event,
-            "create_issues": emit_issue_creation_events,
-            "create_single_issue": emit_issue_creation_events,
-            "insert_blocks": emit_insert_blocks_event,
-            "remove_block": emit_remove_block_event,
-            "remove_content": emit_remove_content_event,
-            "replace_content": emit_replace_content_event,
-        }
-
-        handler = operation_handlers.get(operation)
-        content_update_event = handler(result_data, note_id) if handler else None
-        if not content_update_event:
-            return None
-        # Also emit tool_result so frontend ToolCallCard shows completion
-        output_summary: dict[str, Any] = {
-            "operation": operation,
-            "noteId": note_id,
-        }
-        block_id = result_data.get("block_id")
-        if block_id:
-            output_summary["blockId"] = block_id
-        tool_result_event = f"event: tool_result\ndata: {
-            json.dumps(
-                {
-                    'toolCallId': str(tool_use_id) if tool_use_id else str(uuid4()),
-                    'status': 'completed',
-                    'output': output_summary,
+            handler = operation_handlers.get(operation)
+            content_update_event = handler(result_data, note_id) if handler else None
+            if content_update_event:
+                # Also emit tool_result so frontend ToolCallCard shows completion
+                output_summary: dict[str, Any] = {
+                    "operation": operation,
+                    "noteId": note_id,
                 }
-            )
-        }\n\n"
-        return f"{content_update_event}{tool_result_event}"
+                block_id = result_data.get("block_id")
+                if block_id:
+                    output_summary["blockId"] = block_id
+                tool_result_event = f"event: tool_result\ndata: {
+                    json.dumps(
+                        {
+                            'toolCallId': str(tool_use_id) if tool_use_id else str(uuid4()),
+                            'status': 'completed',
+                            'output': output_summary,
+                        }
+                    )
+                }\n\n"
+                return f"{content_update_event}{tool_result_event}"
+
+        # Entity creation ops (create_note, create_issue) have pending_apply
+        # but no note_id — fall through to generic tool_result emitter
 
     # Map TodoWrite results to task_progress SSE events (T6/G-07)
     tool_name = getattr(message, "name", "") or getattr(message, "tool_name", "")

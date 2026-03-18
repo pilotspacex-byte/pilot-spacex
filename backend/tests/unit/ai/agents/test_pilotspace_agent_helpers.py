@@ -402,3 +402,96 @@ class TestNoFocusBlockInPipeline:
         events = _parse_sse_events(raw)
         event_types = [e["event"] for e in events]
         assert event_types == ["content_update", "tool_result"]
+
+
+# ---------------------------------------------------------------------------
+# 4: Entity creation ops (no note_id) emit generic tool_result, not dropped
+# ---------------------------------------------------------------------------
+
+
+class TestEntityCreationOpsNotDropped:
+    """Verify pending_apply results without note_id fall through to generic tool_result.
+
+    Operations like create_note and create_issue return pending_apply payloads
+    without a note_id (the entity doesn't exist yet). These must NOT be silently
+    dropped — they should emit a generic tool_result event.
+    """
+
+    def test_create_note_pending_apply_emits_tool_result(self) -> None:
+        """create_note with pending_apply and no note_id emits generic tool_result."""
+        msg = _make_tool_result_msg(
+            result={
+                "status": "pending_apply",
+                "operation": "create_note",
+                "payload": {"title": "My Note", "content_markdown": "Hello"},
+            },
+            tool_use_id="tu-create-note",
+            name="create_note",
+        )
+        raw = transform_tool_result(msg)
+        assert raw is not None
+
+        events = _parse_sse_events(raw)
+        assert len(events) == 1
+        assert events[0]["event"] == "tool_result"
+        assert events[0]["data"]["toolCallId"] == "tu-create-note"
+        assert events[0]["data"]["status"] == "completed"
+        # Output includes the full result data (status, operation, payload)
+        assert events[0]["data"]["output"]["operation"] == "create_note"
+
+    def test_create_issue_pending_apply_emits_tool_result(self) -> None:
+        """create_issue with pending_apply and no note_id emits generic tool_result."""
+        msg = _make_tool_result_msg(
+            result={
+                "status": "pending_apply",
+                "operation": "create_issue",
+                "payload": {"title": "Bug fix", "project_id": "proj-1"},
+            },
+            tool_use_id="tu-create-issue",
+            name="create_issue",
+        )
+        raw = transform_tool_result(msg)
+        assert raw is not None
+
+        events = _parse_sse_events(raw)
+        assert len(events) == 1
+        assert events[0]["event"] == "tool_result"
+        assert events[0]["data"]["status"] == "completed"
+
+    def test_content_ops_with_note_id_still_emit_content_update(self) -> None:
+        """Existing behavior unchanged: replace_block with note_id emits content_update."""
+        msg = _make_tool_result_msg(
+            result={
+                "status": "pending_apply",
+                "operation": "replace_block",
+                "note_id": "note-existing",
+                "block_id": "blk-existing",
+                "markdown": "Updated text",
+            },
+            tool_use_id="tu-existing",
+        )
+        raw = transform_tool_result(msg)
+        assert raw is not None
+
+        events = _parse_sse_events(raw)
+        event_types = [e["event"] for e in events]
+        assert "content_update" in event_types
+        assert "tool_result" in event_types
+
+    def test_user_message_create_note_falls_through_to_generic(self) -> None:
+        """UserMessage path: create_note without note_id emits generic tool_result."""
+        payload = json.dumps(
+            {
+                "status": "pending_apply",
+                "operation": "create_note",
+                "payload": {"title": "New Note"},
+            }
+        )
+        msg = FakeUserMessage([ToolResultBlock(tool_use_id="tu-um-create", content=payload)])
+        raw = transform_user_message_tool_results(msg)
+        assert raw is not None
+
+        events = _parse_sse_events(raw)
+        assert len(events) == 1
+        assert events[0]["event"] == "tool_result"
+        assert events[0]["data"]["status"] == "completed"
