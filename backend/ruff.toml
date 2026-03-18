@@ -86,7 +86,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [lint.per-file-ignores]
 # Tests can have assertions, unused fixtures, and access private members for unit testing
-"tests/**/*.py" = ["S101", "ARG001", "PLR2004", "SLF001", "F841", "RUF059", "PLR0911"]
+"tests/**/*.py" = ["S101", "ARG001", "PLR2004", "SLF001", "F841", "RUF059", "PLR0911", "PLW0108"]
 # Init files can have unused imports
 "__init__.py" = ["F401"]
 # Alembic migrations have specific patterns

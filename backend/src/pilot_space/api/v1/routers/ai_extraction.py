@@ -7,10 +7,10 @@ T058-T059: Issue extraction and approval.
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
@@ -21,6 +21,9 @@ from pilot_space.dependencies import (
 )
 from pilot_space.dependencies.auth import require_workspace_member
 from pilot_space.infrastructure.logging import get_logger
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -98,6 +101,26 @@ class CreateExtractedIssuesRequest(BaseModel):
 
     issues: list[ExtractedIssueInput] = Field(default_factory=list)
     project_id: str | None = Field(default=None, description="Project UUID to assign issues to")
+    note_id: str | None = Field(
+        default=None, description="Source note ID (for no-note extraction route)"
+    )
+
+
+class CreatedIssueData(BaseModel):
+    """Single created issue in the response."""
+
+    id: str
+    identifier: str
+    title: str
+
+
+class CreateExtractedIssuesResponse(BaseModel):
+    """Response for creating extracted issues."""
+
+    created_issues: list[CreatedIssueData]
+    created_count: int
+    source_note_id: str | None
+    message: str
 
 
 @router.post(
@@ -212,40 +235,29 @@ async def extract_issues_stream(
     return SSEResponse(generate_events())
 
 
-@router.post(
-    "/notes/{note_id}/extract-issues/approve",
-    summary="Create extracted issues",
-    description="Auto-approve and create extracted issues directly (DD-003 non-destructive).",
-)
-async def approve_extracted_issues(
-    workspace_id: WorkspaceId,
-    note_id: str,
+async def _create_extracted_issues(
+    workspace_id: UUID,
+    note_id: str | None,
     body: CreateExtractedIssuesRequest,
-    current_user_id: CurrentUserId,
-    session: DbSession,
-    _member: Annotated[UUID, Depends(require_workspace_member)],
-) -> dict[str, Any]:
-    """Create extracted issues directly (auto-approve).
+    current_user_id: UUID,
+    session: AsyncSession,
+) -> CreateExtractedIssuesResponse:
+    """Shared logic for creating extracted issues.
 
-    Issues are content creation (non-destructive per DD-003), so no approval
-    gate is required. Issues are created from the provided list.
+    Returns enriched response with identifier and title per created issue.
 
-    Args:
-        workspace_id: Workspace UUID from request context.
-        note_id: Source note ID.
-        body: Issues to create with optional project_id.
-        current_user_id: Current user ID.
-        session: Database session.
-
-    Returns:
-        Created issue IDs and count.
+    Raises:
+        HTTPException: 400 for validation errors (RFC 7807 via error handler).
     """
+    from sqlalchemy import select as sa_select
+
     from pilot_space.application.services.issue import CreateIssuePayload, CreateIssueService
     from pilot_space.infrastructure.database.models.issue import IssuePriority
     from pilot_space.infrastructure.database.models.note_issue_link import (
         NoteIssueLink,
         NoteLinkType,
     )
+    from pilot_space.infrastructure.database.models.project import Project
     from pilot_space.infrastructure.database.repositories import (
         ActivityRepository,
         IssueRepository,
@@ -254,40 +266,45 @@ async def approve_extracted_issues(
     )
 
     if not body.issues:
-        return {
-            "created_issues": [],
-            "created_count": 0,
-            "source_note_id": note_id,
-            "message": "No issues to create",
-        }
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No issues to create",
+        )
 
     if not body.project_id:
-        return {
-            "created_issues": [],
-            "created_count": 0,
-            "source_note_id": note_id,
-            "message": "project_id is required to create issues",
-        }
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="project_id is required to create issues",
+        )
 
     try:
         project_id = UUID(body.project_id)
     except (ValueError, AttributeError):
-        return {
-            "created_issues": [],
-            "created_count": 0,
-            "source_note_id": note_id,
-            "message": "Invalid project_id format",
-        }
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid project_id format",
+        ) from None
 
-    try:
-        note_uuid = UUID(note_id)
-    except (ValueError, AttributeError):
-        return {
-            "created_issues": [],
-            "created_count": 0,
-            "source_note_id": note_id,
-            "message": "Invalid note_id format",
-        }
+    # Pre-fetch project identifier for constructing issue identifiers
+    project_row = await session.execute(
+        sa_select(Project.identifier).where(Project.id == project_id)
+    )
+    project_identifier = project_row.scalar_one_or_none()
+    if not project_identifier:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Project not found for id {project_id}",
+        )
+
+    note_uuid: UUID | None = None
+    if note_id:
+        try:
+            note_uuid = UUID(note_id)
+        except (ValueError, AttributeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid note_id format",
+            ) from None
 
     issue_service = CreateIssueService(
         session=session,
@@ -295,7 +312,7 @@ async def approve_extracted_issues(
         activity_repository=ActivityRepository(session),
         label_repository=LabelRepository(session),
     )
-    link_repo = NoteIssueLinkRepository(session)
+    link_repo = NoteIssueLinkRepository(session) if note_uuid else None
 
     priority_map = {
         0: IssuePriority.URGENT,
@@ -305,12 +322,12 @@ async def approve_extracted_issues(
         4: IssuePriority.NONE,
     }
 
-    created_ids = []
+    created_issues_data: list[CreatedIssueData] = []
     for issue_data in body.issues:
         payload = CreateIssuePayload(
             workspace_id=workspace_id,
             project_id=project_id,
-            reporter_id=UUID(str(current_user_id)),
+            reporter_id=current_user_id,
             name=issue_data.title,
             description=issue_data.description,
             priority=priority_map.get(issue_data.priority, IssuePriority.NONE),
@@ -319,38 +336,104 @@ async def approve_extracted_issues(
             result = await issue_service.execute(payload)
             if result.issue:
                 issue_id = result.issue.id
-                created_ids.append(str(issue_id))
-                # Create NoteIssueLink so the note shows this extracted issue
-                existing = await link_repo.find_existing(
-                    note_id=note_uuid,
-                    issue_id=issue_id,
-                    link_type=NoteLinkType.EXTRACTED,
-                    workspace_id=UUID(str(workspace_id)),
-                )
-                if not existing:
-                    link = NoteIssueLink(
-                        note_id=note_uuid,
-                        issue_id=issue_id,
-                        link_type=NoteLinkType.EXTRACTED,
-                        block_id=issue_data.source_block_id,
-                        workspace_id=UUID(str(workspace_id)),
+                identifier = f"{project_identifier}-{result.issue.sequence_id}"
+                created_issues_data.append(
+                    CreatedIssueData(
+                        id=str(issue_id),
+                        identifier=identifier,
+                        title=result.issue.name,
                     )
-                    await link_repo.create(link)
-        except ValueError as e:
+                )
+
+                # Create NoteIssueLink when note_id is provided
+                if note_uuid and link_repo:
+                    try:
+                        existing = await link_repo.find_existing(
+                            note_id=note_uuid,
+                            issue_id=issue_id,
+                            link_type=NoteLinkType.EXTRACTED,
+                            workspace_id=workspace_id,
+                        )
+                        if not existing:
+                            link = NoteIssueLink(
+                                note_id=note_uuid,
+                                issue_id=issue_id,
+                                link_type=NoteLinkType.EXTRACTED,
+                                block_id=issue_data.source_block_id,
+                                workspace_id=workspace_id,
+                            )
+                            await link_repo.create(link)
+                    except Exception:
+                        logger.warning(
+                            "Failed to create NoteIssueLink, issue was still created",
+                            extra={
+                                "note_id": str(note_uuid),
+                                "issue_id": str(issue_id),
+                            },
+                        )
+        except Exception:
             logger.warning(
                 "Failed to create issue",
-                extra={"title": issue_data.title, "error": str(e)},
+                extra={"title": issue_data.title},
+                exc_info=True,
             )
             continue
 
     await session.commit()
 
-    return {
-        "created_issues": created_ids,
-        "created_count": len(created_ids),
-        "source_note_id": note_id,
-        "message": f"Successfully created {len(created_ids)} issues",
-    }
+    return CreateExtractedIssuesResponse(
+        created_issues=created_issues_data,
+        created_count=len(created_issues_data),
+        source_note_id=note_id,
+        message=f"Successfully created {len(created_issues_data)} issues",
+    )
+
+
+@router.post(
+    "/notes/{note_id}/extract-issues/approve",
+    summary="Create extracted issues from note",
+    description="Auto-approve and create extracted issues directly (DD-003 non-destructive).",
+    response_model=CreateExtractedIssuesResponse,
+)
+async def approve_extracted_issues(
+    workspace_id: WorkspaceId,
+    note_id: str,
+    body: CreateExtractedIssuesRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+    _member: Annotated[UUID, Depends(require_workspace_member)],
+) -> CreateExtractedIssuesResponse:
+    """Create extracted issues from a note (auto-approve)."""
+    return await _create_extracted_issues(
+        workspace_id=workspace_id,
+        note_id=note_id,
+        body=body,
+        current_user_id=current_user_id,
+        session=session,
+    )
+
+
+@router.post(
+    "/extract-issues/approve",
+    summary="Create extracted issues without note context",
+    description="Create issues from chat extraction when no note is in context (DD-003 non-destructive).",
+    response_model=CreateExtractedIssuesResponse,
+)
+async def approve_extracted_issues_no_note(
+    workspace_id: WorkspaceId,
+    body: CreateExtractedIssuesRequest,
+    current_user_id: CurrentUserId,
+    session: DbSession,
+    _member: Annotated[UUID, Depends(require_workspace_member)],
+) -> CreateExtractedIssuesResponse:
+    """Create extracted issues without note context (auto-approve)."""
+    return await _create_extracted_issues(
+        workspace_id=workspace_id,
+        note_id=body.note_id,
+        body=body,
+        current_user_id=current_user_id,
+        session=session,
+    )
 
 
 __all__ = ["router"]

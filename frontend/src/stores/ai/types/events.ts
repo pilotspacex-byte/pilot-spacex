@@ -398,6 +398,8 @@ export interface ExtractedIssue {
   priority: string;
   source_block_id?: string | null;
   category: string;
+  confidence?: number;
+  labels?: string[];
 }
 
 /**

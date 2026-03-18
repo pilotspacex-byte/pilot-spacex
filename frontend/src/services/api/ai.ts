@@ -351,14 +351,14 @@ export const aiApi = {
   /**
    * Create issues from AI extraction results (auto-approve, DD-003 non-destructive).
    * @param workspaceId - Workspace UUID (unused, kept for interface compatibility)
-   * @param noteId - Note UUID the issues were extracted from
+   * @param noteId - Note UUID the issues were extracted from (null for no-note extraction)
    * @param issues - Issues to create with priority as int (0=urgent…4=none)
    * @param projectId - Project to assign the issues to
-   * @returns Created issue IDs
+   * @returns Created issue data with identifiers
    */
   createExtractedIssues: (
     _workspaceId: string,
-    noteId: string,
+    noteId: string | null,
     issues: Array<{
       title: string;
       description?: string | null;
@@ -366,19 +366,22 @@ export const aiApi = {
       source_block_id?: string | null;
     }>,
     projectId?: string | null
-  ) =>
-    apiClient.post<{ created_issues: string[]; created_count: number }>(
-      `/notes/${noteId}/extract-issues/approve`,
-      {
-        issues: issues.map((i) => ({
-          title: i.title,
-          description: i.description ?? null,
-          priority: i.priority ?? 4,
-          source_block_id: i.source_block_id ?? null,
-        })),
-        project_id: projectId ?? null,
-      }
-    ),
+  ) => {
+    const issuePayload = issues.map((i) => ({
+      title: i.title,
+      description: i.description ?? null,
+      priority: i.priority ?? 4,
+      source_block_id: i.source_block_id ?? null,
+    }));
+    const url = noteId ? `/notes/${noteId}/extract-issues/approve` : `/extract-issues/approve`;
+    return apiClient.post<{
+      created_issues: Array<{ id: string; identifier: string; title: string }>;
+      created_count: number;
+    }>(url, {
+      issues: issuePayload,
+      project_id: projectId ?? null,
+    });
+  },
 
   // ============================================================
   // Feature 015: Intent API (T-014, M2)
