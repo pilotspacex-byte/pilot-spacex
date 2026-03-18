@@ -75,7 +75,7 @@ None.
 | 260317-0ce | Fix skill editing: AI parser, skill_name, expandable cards, editable preview | 2026-03-17 | c234324c | Verified | [260317-0ce-fix-skill-editing-allow-edit-skill-conte](./quick/260317-0ce-fix-skill-editing-allow-edit-skill-conte/) |
 | 260317-bch | User skills in agent system prompt (layer 4.5, TDD) | 2026-03-17 | a743eb3f | Verified | [260317-bch-check-change-of-feat-provider-setup-enha](./quick/260317-bch-check-change-of-feat-provider-setup-enha/) |
 | 260317-hms | Migrate provider settings to workspace level (shared resolver, workspace_override) | 2026-03-17 | da3c5101 | Done | [260317-hms-migrate-provider-settings-to-workspace-l](./quick/260317-hms-migrate-provider-settings-to-workspace-l/) |
-| 260318-naw | Settings modal migration investigation: 14 pages catalogued, 4-phase 9-plan migration plan, feat/settings-modal branch | 2026-03-18 | 74dac5cc | Done | [260318-naw-checkout-new-branch-then-investigate-to-](./quick/260318-naw-checkout-new-branch-then-investigate-to-/) |
+| 260318-naw | Settings modal migration investigation: 14 pages catalogued, 4-phase 9-plan migration plan, feat/settings-modal branch | 2026-03-18 | 74dac5cc | Verified | [260318-naw-checkout-new-branch-then-investigate-to-](./quick/260318-naw-checkout-new-branch-then-investigate-to-/) |
 
 ## Session Continuity
 
