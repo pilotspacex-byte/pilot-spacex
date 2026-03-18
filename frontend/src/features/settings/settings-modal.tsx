@@ -11,11 +11,13 @@ import {
   KeyRound,
   Plug,
   ServerCog,
+  Settings,
   Shield,
   ShieldCheck,
   Sparkles,
   User,
   Users,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -169,19 +171,20 @@ export const SettingsModal = observer(function SettingsModal() {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && closeSettings()}>
       <DialogContent
-        className="flex h-[80vh] max-h-[800px] w-full max-w-4xl flex-col gap-0 overflow-hidden rounded-xl p-0"
+        className="flex h-[85vh] max-h-[900px] w-full max-w-5xl flex-col gap-0 overflow-hidden rounded-xl p-0"
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
 
         <div className="flex h-full min-h-0 flex-col md:flex-row">
-          {/* Sidebar — hidden below md */}
+          {/* Sidebar — hidden below md, uses sidebar tokens for visual consistency */}
           <nav
-            className="hidden w-48 shrink-0 border-r border-border md:flex md:flex-col"
+            className="hidden w-48 shrink-0 border-r border-border bg-background-subtle md:flex md:flex-col"
             aria-label="Settings navigation"
           >
-            {/* Sidebar header */}
+            {/* Sidebar header with icon */}
             <div className="flex h-12 items-center gap-2 border-b border-border px-4">
+              <Settings className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-semibold text-foreground">Settings</span>
             </div>
 
@@ -201,16 +204,23 @@ export const SettingsModal = observer(function SettingsModal() {
                             <button
                               onClick={() => setActiveSection(item.id)}
                               className={cn(
-                                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors text-left',
+                                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium transition-all duration-150 text-left',
                                 'hover:bg-accent hover:text-accent-foreground',
                                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                                 effectiveSection === item.id
-                                  ? 'bg-accent text-accent-foreground'
+                                  ? 'bg-accent text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)]'
                                   : 'text-muted-foreground'
                               )}
                               aria-current={effectiveSection === item.id ? 'page' : undefined}
                             >
-                              <item.icon className="h-3.5 w-3.5 shrink-0" />
+                              <item.icon
+                                className={cn(
+                                  'h-3.5 w-3.5 shrink-0 transition-colors',
+                                  effectiveSection === item.id
+                                    ? 'text-foreground'
+                                    : 'text-muted-foreground/70'
+                                )}
+                              />
                               {item.label}
                             </button>
                           </li>
@@ -225,6 +235,7 @@ export const SettingsModal = observer(function SettingsModal() {
 
           {/* Mobile header + section selector (shown below md) */}
           <div className="flex items-center gap-2 border-b border-border px-4 py-3 md:hidden">
+            <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
             <select
               value={effectiveSection}
               onChange={(e) => setActiveSection(e.target.value as SettingsSection)}
@@ -233,11 +244,14 @@ export const SettingsModal = observer(function SettingsModal() {
             >
               {settingsNavSections
                 .filter((s) => !isGuest || s.label === 'Account')
-                .flatMap((s) => s.items)
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
+                .map((section) => (
+                  <optgroup key={section.label} label={section.label}>
+                    {section.items.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
             </select>
             <button
@@ -245,14 +259,7 @@ export const SettingsModal = observer(function SettingsModal() {
               className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
               aria-label="Close settings"
             >
-              <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
-                <path
-                  d="M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z"
-                  fill="currentColor"
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                />
-              </svg>
+              <X className="h-4 w-4" />
             </button>
           </div>
 
@@ -261,24 +268,19 @@ export const SettingsModal = observer(function SettingsModal() {
             {/* Desktop close button — positioned inside content area */}
             <button
               onClick={closeSettings}
-              className="absolute right-3 top-3 z-10 hidden rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors md:flex items-center justify-center"
+              className="absolute right-3 top-3 z-10 hidden rounded-md p-1.5 text-muted-foreground/60 hover:bg-accent hover:text-foreground transition-colors md:flex items-center justify-center"
               aria-label="Close settings"
             >
-              <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
-                <path
-                  d="M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z"
-                  fill="currentColor"
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                />
-              </svg>
+              <X className="h-4 w-4" />
             </button>
 
-            {/* Scrollable content */}
+            {/* Scrollable content with keyed transition */}
             <div className="flex-1 overflow-y-auto">
-              <Suspense fallback={<PanelSkeleton />}>
-                <ActiveComponent />
-              </Suspense>
+              <div key={effectiveSection} className="animate-in fade-in duration-150">
+                <Suspense fallback={<PanelSkeleton />}>
+                  <ActiveComponent />
+                </Suspense>
+              </div>
             </div>
           </div>
         </div>
