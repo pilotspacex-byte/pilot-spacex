@@ -487,6 +487,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         from pilot_space.infrastructure.database.repositories.user_skill_repository import (
             UserSkillRepository,
         )
+        from pilot_space.infrastructure.database.repositories.workspace_repository import (
+            WorkspaceRepository,
+        )
         from pilot_space.infrastructure.database.rls import set_rls_context
 
         await set_rls_context(db_session, context.user_id, context.workspace_id)
@@ -530,10 +533,17 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         if input_data.user_id is None:
             raise ValueError("user_id is required for AI interactions")
 
+        # Fetch workspace membership role for approval policy checks
+        _workspace_repo = WorkspaceRepository(db_session)
+        _ws_member_role = await _workspace_repo.get_member_role(
+            context.workspace_id, context.user_id
+        )
+
         tool_context = ToolContext(
             db_session=db_session,
             workspace_id=str(context.workspace_id),
             user_id=str(context.user_id) if context.user_id else None,
+            user_role=_ws_member_role,
         )
 
         # MCP-04: pre-fetch async before sync build_mcp_servers, then merge

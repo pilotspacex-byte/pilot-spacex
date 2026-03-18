@@ -1,4 +1,7 @@
 /**
+ * @deprecated Use SkillAddModal instead. This file is kept for reference during migration.
+ * Will be removed in a future cleanup pass.
+ *
  * SkillGeneratorModal — Unified two-panel modal for generating skills.
  *
  * Single modal with a personal/workspace toggle. Users describe their
@@ -75,6 +78,7 @@ Prefer concise code reviews with security-first mindset.`;
 // Main Component
 // ---------------------------------------------------------------------------
 
+/** @deprecated Use SkillAddModal instead. */
 export function SkillGeneratorModal({
   open,
   onOpenChange,

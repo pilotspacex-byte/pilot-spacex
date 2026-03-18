@@ -21,3 +21,5 @@ export { SkillEditor } from './skill-editor';
 export { WordCountBar } from './word-count-bar';
 export { RegenerateSkillModal } from './regenerate-skill-modal';
 export { SkillDetailModal } from './skill-detail-modal';
+export { SkillAddModal } from './skill-add-modal';
+export type { SkillAddModalProps } from './skill-add-modal';

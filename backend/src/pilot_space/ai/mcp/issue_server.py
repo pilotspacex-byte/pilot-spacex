@@ -463,14 +463,108 @@ def create_issue_tools_server(
         approval_level = await check_approval_from_db(
             "create_issue", ActionType.CREATE_ISSUE, tool_context
         )
-        status = "approval_required" if approval_level.value != "auto_execute" else "pending_apply"
 
-        logger.info("[IssueTools] create_issue: '%s'", args["title"])
-        return _operation_payload(
-            "create_issue",
-            payload,
-            status=status,
-            preview={"title": args["title"], "priority": args.get("priority", "medium")},
+        if approval_level.value != "auto_execute":
+            logger.info(
+                "[IssueTools] create_issue deferred (approval_required): '%s'", args["title"]
+            )
+            return _operation_payload(
+                "create_issue",
+                payload,
+                status="approval_required",
+                preview={"title": args["title"], "priority": args.get("priority", "medium")},
+            )
+
+        # Auto-approved: execute creation via service
+        from datetime import date as date_type
+
+        from pilot_space.application.services.issue.create_issue_service import (
+            CreateIssuePayload,
+            CreateIssueService,
+        )
+        from pilot_space.infrastructure.database.models.issue import IssuePriority
+        from pilot_space.infrastructure.database.repositories.activity_repository import (
+            ActivityRepository,
+        )
+        from pilot_space.infrastructure.database.repositories.label_repository import (
+            LabelRepository,
+        )
+
+        priority_map = {
+            "urgent": IssuePriority.URGENT,
+            "high": IssuePriority.HIGH,
+            "medium": IssuePriority.MEDIUM,
+            "low": IssuePriority.LOW,
+            "none": IssuePriority.NONE,
+        }
+
+        target_date = None
+        if args.get("target_date"):
+            import contextlib
+
+            with contextlib.suppress(ValueError):
+                target_date = date_type.fromisoformat(args["target_date"])
+
+        def _safe_uuid(value: str | None) -> UUID | None:
+            """Parse a UUID string, returning None on invalid input."""
+            if not value:
+                return None
+            try:
+                return UUID(value)
+            except (ValueError, AttributeError):
+                return None
+
+        try:
+            label_ids = [UUID(lid) for lid in args.get("label_ids", [])]
+        except (ValueError, AttributeError):
+            label_ids = []
+
+        reporter_id = UUID(tool_context.user_id) if tool_context.user_id else UUID(int=0)
+
+        svc_payload = CreateIssuePayload(
+            workspace_id=UUID(tool_context.workspace_id),
+            project_id=project_uuid,
+            reporter_id=reporter_id,
+            name=args["title"],
+            description=args.get("description"),
+            priority=priority_map.get(args.get("priority", "medium"), IssuePriority.MEDIUM),
+            state_id=_safe_uuid(args.get("state_id")),
+            assignee_id=_safe_uuid(args.get("assignee_id")),
+            parent_id=_safe_uuid(args.get("parent_id")),
+            estimate_points=args.get("estimate_points"),
+            target_date=target_date,
+            label_ids=label_ids,
+            ai_enhanced=True,
+            ai_metadata={"source": "mcp_tool", "tool": "create_issue"},
+        )
+
+        svc = CreateIssueService(
+            session=tool_context.db_session,
+            issue_repository=IssueRepository(tool_context.db_session),
+            activity_repository=ActivityRepository(tool_context.db_session),
+            label_repository=LabelRepository(tool_context.db_session),
+        )
+
+        try:
+            result = await svc.execute(svc_payload)
+            await tool_context.db_session.commit()
+        except Exception as exc:
+            logger.error("create_issue execution failed: %s", exc, exc_info=True)
+            return _text_result(f"Error creating issue: {exc}")
+
+        issue = result.issue
+        issue_data = {
+            "id": str(issue.id),
+            "identifier": issue.identifier if hasattr(issue, "identifier") else None,
+            "name": issue.name,
+            "priority": issue.priority.value if issue.priority else "medium",
+        }
+
+        logger.info(
+            "[IssueTools] create_issue executed: '%s' -> %s", args["title"], issue_data["id"]
+        )
+        return _text_result(
+            json.dumps({"status": "executed", "operation": "create_issue", "issue": issue_data})
         )
 
     @tool(

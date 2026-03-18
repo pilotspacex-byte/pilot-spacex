@@ -3,7 +3,7 @@
 This unified script:
 1. Creates Supabase Auth user via Admin API
 2. Seeds database with demo data using the Auth user ID
-3. Creates workspace, projects, notes, issues, and labels
+3. Creates workspace, projects, notes, issues, labels, and skill templates
 
 Run this script to set up a complete demo environment:
     python backend/scripts/seed_demo.py
@@ -1032,6 +1032,46 @@ async def seed_database(demo_user_id: uuid.UUID) -> None:
         print("   - FE: 18 issues (10 done, 2 in progress, 1 in review, 3 todo, 2 backlog)")
 
         # ===================================================================
+        # Seed skill templates from role_templates
+        # ===================================================================
+        result = await session.execute(
+            text("""
+                INSERT INTO skill_templates (
+                    id, workspace_id, name, description, skill_content,
+                    icon, sort_order, source, role_type, is_active, created_by,
+                    created_at, updated_at, is_deleted
+                )
+                SELECT
+                    gen_random_uuid(),
+                    :workspace_id,
+                    rt.display_name,
+                    rt.description,
+                    rt.default_skill_content,
+                    rt.icon,
+                    rt.sort_order,
+                    'built_in',
+                    rt.role_type,
+                    true,
+                    NULL,
+                    NOW(),
+                    NOW(),
+                    false
+                FROM role_templates rt
+                WHERE rt.is_deleted = false
+                AND NOT EXISTS (
+                    SELECT 1 FROM skill_templates st
+                    WHERE st.workspace_id = :workspace_id
+                    AND st.name = rt.display_name
+                    AND st.is_deleted = false
+                )
+                ORDER BY rt.sort_order
+            """),
+            {"workspace_id": DEMO_WORKSPACE_ID},
+        )
+        seeded_count = getattr(result, "rowcount", 0)
+        print(f"✅ Seeded {seeded_count} skill templates from role_templates")
+
+        # ===================================================================
         # Migrate any old demo user data
         # ===================================================================
         old_demo_user_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
@@ -1078,6 +1118,7 @@ async def main() -> None:
         print("   - Issues: 51 across all states")
         print("   - Labels: 14")
         print("   - States: 18 (6 per project)")
+        print("   - Skill Templates: seeded from role_templates")
         print("\n📝 Login credentials:")
         print(f"   - Email: {DEMO_EMAIL}")
         print("   - Password: [redacted — see DEMO_PASSWORD env var]")
