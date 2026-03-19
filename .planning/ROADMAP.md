@@ -167,7 +167,7 @@ Plans:
 | 31. MCP Infrastructure Hardening | v1.1.0 | 2/4 | In Progress | - |
 | 32. OAuth Refresh Flow | v1.1.0 | 3/3 | Complete | 2026-03-19 |
 | 33. Remote MCP Approval Framework | 3/3 | Complete | 2026-03-19 | - |
-| 34. MCP Observability | v1.1.0 | 0/2 | Planned | - |
+| 34. MCP Observability | 1/2 | In Progress|  | - |
 | 35. MCP Server Catalog | v1.1.0 | 0/? | Not started | - |
 
 **Total to date: 35 phases, 108+ plans across 4 milestones**

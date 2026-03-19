@@ -31,8 +31,8 @@ Requirements for MCP platform hardening. Each maps to roadmap phases.
 
 ### MCP Observability
 
-- [ ] **MCPOB-01**: Remote MCP tool invocations logged to immutable audit trail (tool name, server, input hash, duration)
-- [ ] **MCPOB-02**: MCP tool usage visible in workspace AI cost/usage dashboard
+- [x] **MCPOB-01**: Remote MCP tool invocations logged to immutable audit trail (tool name, server, input hash, duration)
+- [x] **MCPOB-02**: MCP tool usage visible in workspace AI cost/usage dashboard
 
 ### MCP Catalog
 
@@ -80,8 +80,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCPA-02 | Phase 33 | Complete |
 | MCPA-03 | Phase 33 | Complete |
 | MCPA-04 | Phase 33 | Complete |
-| MCPOB-01 | Phase 34 | Pending |
-| MCPOB-02 | Phase 34 | Pending |
+| MCPOB-01 | Phase 34 | Complete |
+| MCPOB-02 | Phase 34 | Complete |
 | MCPC-01 | Phase 35 | Pending |
 | MCPC-02 | Phase 35 | Pending |
 | MCPC-03 | Phase 35 | Pending |
