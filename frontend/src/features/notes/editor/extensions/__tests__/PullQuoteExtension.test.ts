@@ -9,22 +9,19 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';
-import { createEditorExtensions } from '../createEditorExtensions';
+import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from 'tiptap-markdown';
 import { PullQuoteExtension } from '../PullQuoteExtension';
+import { BlockIdExtension } from '../BlockIdExtension';
 
-/** Build a minimal editor that includes PullQuoteExtension */
+/** Build a minimal editor with PullQuoteExtension — isolated from full extension stack */
 function buildEditor(content?: object) {
   return new Editor({
     extensions: [
-      ...createEditorExtensions({
-        enableSlashCommands: false,
-        enableMentions: false,
-        enableInlineIssues: false,
-        enableNoteLinks: false,
-      }),
-      // Override the StarterKit blockquote with our extended version
-      // (PullQuoteExtension uses Blockquote.extend() with name: 'blockquote')
+      StarterKit.configure({ blockquote: false }),
+      Markdown.configure({ html: true, tightLists: true }),
       PullQuoteExtension,
+      BlockIdExtension,
     ],
     content: content ?? { type: 'doc', content: [] },
   });

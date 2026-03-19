@@ -186,11 +186,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _anthropic_api_key: str | None = (
             _anthropic_secret.get_secret_value() if _anthropic_secret else None
         )
+        from pilot_space.infrastructure.storage.client import SupabaseStorageClient
+
         memory_worker = MemoryWorker(
             queue=queue_client,
             session_factory=session_factory,
             google_api_key=_google_api_key,
             anthropic_api_key=_anthropic_api_key,
+            storage_client=SupabaseStorageClient(),
         )
         memory_worker_task = asyncio.create_task(memory_worker.start())
 
