@@ -128,6 +128,8 @@ async def list_role_skills(
                 role_name=s.role_name,
                 skill_content=s.skill_content,
                 experience_description=s.experience_description,
+                tags=s.tags if s.tags else [],
+                usage=s.usage,
                 is_primary=s.is_primary,
                 template_version=s.template_version,
                 template_update_available=s.template_update_available,

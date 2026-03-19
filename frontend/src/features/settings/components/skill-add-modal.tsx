@@ -44,7 +44,7 @@ import {
 type SkillMode = 'personal' | 'workspace';
 type AiStep = 'form' | 'generating' | 'preview';
 
-interface SkillPreview {
+interface AiSkillPreview {
   content: string;
   suggestedName: string;
   suggestedTags: string[];
@@ -112,7 +112,7 @@ export function SkillAddModal({
   // AI Generate tab state
   const [aiStep, setAiStep] = React.useState<AiStep>('form');
   const [aiDescription, setAiDescription] = React.useState('');
-  const [aiPreview, setAiPreview] = React.useState<SkillPreview | null>(null);
+  const [aiPreview, setAiPreview] = React.useState<AiSkillPreview | null>(null);
   const [aiEditableName, setAiEditableName] = React.useState('');
   const [aiEditableContent, setAiEditableContent] = React.useState('');
   const [aiEditableTags, setAiEditableTags] = React.useState<string[]>([]);
@@ -432,8 +432,8 @@ export function SkillAddModal({
                 <p className="text-xs text-muted-foreground text-right">{manualUsage.length}/500</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Tags (optional)</Label>
-                <TagChipInput tags={manualTags} onChange={setManualTags} />
+                <Label htmlFor="manual-skill-tags">Tags (optional)</Label>
+                <TagChipInput id="manual-skill-tags" tags={manualTags} onChange={setManualTags} />
                 <p className="text-xs text-muted-foreground">
                   Press Enter or comma to add a tag. Up to 20 tags.
                 </p>

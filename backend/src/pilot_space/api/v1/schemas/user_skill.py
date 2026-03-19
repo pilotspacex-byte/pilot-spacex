@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class UserSkillSchema(BaseModel):
@@ -59,6 +59,12 @@ class UserSkillCreate(BaseModel):
     tags: list[str] = Field(default_factory=list, max_length=20)
     usage: str | None = Field(default=None, max_length=500)
 
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str]) -> list[str]:
+        """Strip whitespace and enforce max 30 chars per tag."""
+        return [tag.strip()[:30] for tag in v if tag.strip()]
+
     @model_validator(mode="after")
     def require_template_or_content(self) -> Self:
         """Ensure either template_id or skill_content is provided."""
@@ -88,6 +94,14 @@ class UserSkillUpdate(BaseModel):
     )
     tags: list[str] | None = Field(default=None, max_length=20)
     usage: str | None = Field(default=None, max_length=500)
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str] | None) -> list[str] | None:
+        """Strip whitespace and enforce max 30 chars per tag."""
+        if v is None:
+            return v
+        return [tag.strip()[:30] for tag in v if tag.strip()]
 
 
 __all__ = [

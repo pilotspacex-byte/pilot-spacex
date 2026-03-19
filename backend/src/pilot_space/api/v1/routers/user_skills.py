@@ -211,6 +211,9 @@ async def update_user_skill(
         )
 
     update_data = body.model_dump(exclude_unset=True)
+    # Coerce tags=None to empty list to avoid NOT NULL constraint violation
+    if "tags" in update_data and update_data["tags"] is None:
+        update_data["tags"] = []
     for field, value in update_data.items():
         setattr(skill, field, value)
 

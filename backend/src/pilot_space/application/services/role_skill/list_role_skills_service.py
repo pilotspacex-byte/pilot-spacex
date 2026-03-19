@@ -38,6 +38,8 @@ class RoleSkillItem:
     role_name: str
     skill_content: str
     experience_description: str | None
+    tags: list[str]
+    usage: str | None
     is_primary: bool
     template_version: int | None
     template_update_available: bool
@@ -101,6 +103,8 @@ class ListRoleSkillsService:
                     role_name=skill.role_name,
                     skill_content=skill.skill_content,
                     experience_description=skill.experience_description,
+                    tags=skill.tags if skill.tags else [],
+                    usage=skill.usage,
                     is_primary=skill.is_primary,
                     template_version=skill.template_version,
                     template_update_available=update_available,

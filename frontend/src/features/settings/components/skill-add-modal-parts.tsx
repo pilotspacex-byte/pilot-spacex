@@ -26,18 +26,19 @@ export { MAX_TAGS, MAX_TAG_LENGTH };
 export function TagChipInput({
   tags,
   onChange,
+  id,
 }: {
   tags: string[];
   onChange: (tags: string[]) => void;
+  id?: string;
 }) {
   const [inputValue, setInputValue] = React.useState('');
 
   const addTag = React.useCallback(
     (raw: string) => {
-      const tag = raw.trim().toLowerCase().replace(/,+$/, '');
-      if (!tag || tags.includes(tag) || tags.length >= MAX_TAGS) return;
-      const truncated = tag.slice(0, MAX_TAG_LENGTH);
-      onChange([...tags, truncated]);
+      const normalized = raw.trim().toLowerCase().replace(/,+$/, '').slice(0, MAX_TAG_LENGTH);
+      if (!normalized || tags.includes(normalized) || tags.length >= MAX_TAGS) return;
+      onChange([...tags, normalized]);
     },
     [tags, onChange]
   );
@@ -85,6 +86,7 @@ export function TagChipInput({
       ))}
       {tags.length < MAX_TAGS && (
         <input
+          id={id}
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
@@ -187,9 +189,12 @@ export function AiFormStep({
 export function GeneratingStep() {
   const [progress, setProgress] = React.useState(0);
   React.useEffect(() => {
-    const id = setInterval(() => setProgress((p) => (p >= 90 ? 90 : p + (90 - p) * 0.08)), 500);
-    return () => clearInterval(id);
-  }, []);
+    if (progress >= 90) return;
+    const id = setTimeout(() => {
+      setProgress((p) => Math.min(90, p + Math.max(1, (90 - p) * 0.08)));
+    }, 500);
+    return () => clearTimeout(id);
+  }, [progress]);
   return (
     <div className="flex flex-col items-center justify-center flex-1 gap-4 py-8">
       <div className="flex gap-1.5" aria-hidden="true">
@@ -297,8 +302,9 @@ export function AiPreviewStep({
         </div>
       </div>
       <div className="space-y-1.5">
-        <Label>Generated Content</Label>
+        <Label htmlFor="ai-skill-content">Generated Content</Label>
         <Textarea
+          id="ai-skill-content"
           value={editableContent}
           onChange={(e) => onContentChange(e.target.value)}
           readOnly={isReadOnly}
@@ -306,9 +312,6 @@ export function AiPreviewStep({
             'min-h-[280px] max-h-[400px] font-mono text-xs leading-relaxed resize-y',
             isReadOnly && 'opacity-60 cursor-default'
           )}
-          aria-label={
-            isReadOnly ? 'Generated skill content (read-only)' : 'Edit generated skill content'
-          }
         />
         <WordCountBar wordCount={wordCount} maxWords={MAX_WORDS} />
       </div>
