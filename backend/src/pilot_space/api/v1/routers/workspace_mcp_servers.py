@@ -20,6 +20,9 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 
+from pilot_space.api.v1.routers._mcp_server_oauth_helpers import (
+    _refresh_oauth_token,  # pyright: ignore[reportPrivateUsage]
+)
 from pilot_space.api.v1.routers._mcp_server_schemas import (
     WORKSPACE_SLUG_RE,
     McpOAuthUrlResponse,
@@ -664,4 +667,4 @@ async def _exchange_oauth_code(
         return None
 
 
-__all__ = ["mcp_oauth_callback_router", "router"]
+__all__ = ["_refresh_oauth_token", "mcp_oauth_callback_router", "router"]

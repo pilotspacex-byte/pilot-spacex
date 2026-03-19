@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: MCP Platform Hardening
 status: executing
-stopped_at: Completed 32-01-PLAN.md (DB migration 092 + ORM columns + OAuth callback refresh token storage)
-last_updated: "2026-03-19T17:39:45Z"
-last_activity: 2026-03-19 — Phase 32 plan 01 executed (MCPO-01)
+stopped_at: Completed 32-03-PLAN.md (token_expires_at schema field + ExpiryBadge frontend component)
+last_updated: "2026-03-20T02:23:02Z"
+last_activity: 2026-03-20 — Phase 32 plan 03 executed (MCPO-03)
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 8
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 32 of 35 (OAuth Refresh Flow)
-Plan: 01 complete (32-01)
-Status: Executing — Wave 2 ready (32-02, 32-03)
-Last activity: 2026-03-19 — Phase 32 plan 01 executed (migration 092, ORM model, OAuth callback refresh token storage)
+Plan: 03 complete (32-03)
+Status: Executing — Wave 2 plans complete (32-02, 32-03)
+Last activity: 2026-03-20 — Phase 32 plan 03 executed (token_expires_at schema field + ExpiryBadge frontend UI)
 
-Progress: [░░░░░░░░░░] 0% (0/6 phases complete, 3/8 plans complete across v1.1.0)
+Progress: [░░░░░░░░░░] 0% (0/6 phases complete, 4/8 plans complete across v1.1.0)
 
 ## Wave Structure for Phase 32
 
@@ -72,6 +72,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 32]: refresh_token_encrypted is never echoed in WorkspaceMcpServerResponse — only token_expires_at is exposed to the frontend
 - [32-01]: encrypt_api_key moved to module-level import in workspace_mcp_servers.py so tests can patch workspace_mcp_servers.encrypt_api_key directly
 - [32-01]: _exchange_oauth_code returns None (not partial tuple) when access_token absent — preserves None sentinel for the error redirect path
+- [32-03]: ExpiryBadge co-located in mcp-server-card.tsx (not a separate file) — follows existing AuthTypeBadge/StatusBadge pattern in same file
+- [32-03]: Backend token_expires_at was already present from 32-01; Task 1 became verification-only
 
 ### Pending Todos
 
@@ -83,7 +85,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T17:39:45Z
-Stopped at: Completed 32-01-PLAN.md (DB migration 092 + ORM columns + OAuth callback refresh token storage)
+Last session: 2026-03-20T02:23:02Z
+Stopped at: Completed 32-03-PLAN.md (token_expires_at schema field + ExpiryBadge frontend component)
 Resume file: None
-Next action: /gsd:execute-phase 32 (plans 32-02 and 32-03 in wave 2)
+Next action: /gsd:execute-phase 32 (remaining plans in phase 32, if any)
