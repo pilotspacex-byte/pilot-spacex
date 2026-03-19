@@ -22,6 +22,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,6 +41,7 @@ interface MCPServerCardProps {
   onDelete: (serverId: string) => void;
   onRefreshStatus: (serverId: string) => void;
   onAuthorize?: (serverId: string) => void;
+  onUpdateApprovalMode?: (serverId: string, mode: 'auto_approve' | 'require_approval') => void;
   isDeleting: boolean;
 }
 
@@ -115,8 +117,17 @@ export function MCPServerCard({
   onDelete,
   onRefreshStatus,
   onAuthorize,
+  onUpdateApprovalMode,
   isDeleting,
 }: MCPServerCardProps) {
+  const isRequireApproval = server.approval_mode === 'require_approval';
+
+  const handleApprovalModeChange = (checked: boolean) => {
+    if (onUpdateApprovalMode) {
+      onUpdateApprovalMode(server.id, checked ? 'require_approval' : 'auto_approve');
+    }
+  };
+
   return (
     <Card>
       <CardContent className="p-4">
@@ -135,6 +146,22 @@ export function MCPServerCard({
                 {server.auth_type === 'oauth2' && (
                   <ExpiryBadge expiresAt={server.token_expires_at} />
                 )}
+              </div>
+              {/* Approval mode toggle */}
+              <div className="mt-2 flex items-center gap-2">
+                <Switch
+                  id={`approval-mode-${server.id}`}
+                  size="sm"
+                  checked={isRequireApproval}
+                  onCheckedChange={handleApprovalModeChange}
+                  aria-label="Require approval for tool calls"
+                />
+                <label
+                  htmlFor={`approval-mode-${server.id}`}
+                  className="cursor-pointer select-none text-xs text-muted-foreground"
+                >
+                  Require approval for tool calls
+                </label>
               </div>
             </div>
           </div>

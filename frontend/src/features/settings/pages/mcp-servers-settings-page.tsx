@@ -91,6 +91,17 @@ export const MCPServersSettingsPage = observer(function MCPServersSettingsPage()
     }
   };
 
+  const handleUpdateApprovalMode = async (
+    serverId: string,
+    mode: 'auto_approve' | 'require_approval'
+  ) => {
+    try {
+      await mcpStore.updateApprovalMode(workspaceId, serverId, mode);
+    } catch {
+      toast.error('Failed to update approval mode');
+    }
+  };
+
   if (mcpStore.isLoading) {
     return (
       <div className="max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
@@ -147,6 +158,7 @@ export const MCPServersSettingsPage = observer(function MCPServersSettingsPage()
                     onDelete={handleDelete}
                     onRefreshStatus={handleRefreshStatus}
                     onAuthorize={handleAuthorize}
+                    onUpdateApprovalMode={handleUpdateApprovalMode}
                     isDeleting={deletingServerId === server.id}
                   />
                 ))}

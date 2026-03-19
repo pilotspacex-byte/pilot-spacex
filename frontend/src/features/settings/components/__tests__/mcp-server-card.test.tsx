@@ -13,6 +13,7 @@ const makeServer = (overrides?: Partial<MCPServer>): MCPServer => ({
   last_status: 'connected',
   last_status_checked_at: '2026-01-01T00:00:00Z',
   token_expires_at: null,
+  approval_mode: 'auto_approve',
   created_at: '2026-01-01T00:00:00Z',
   ...overrides,
 });
@@ -90,5 +91,56 @@ describe('MCPServerCard', () => {
     );
 
     expect(screen.queryByText('Authorize')).not.toBeInTheDocument();
+  });
+
+  describe('approval mode toggle', () => {
+    it('renders Switch unchecked when approval_mode is auto_approve', () => {
+      render(
+        <MCPServerCard
+          server={makeServer({ approval_mode: 'auto_approve' })}
+          onDelete={vi.fn()}
+          onRefreshStatus={vi.fn()}
+          isDeleting={false}
+        />
+      );
+
+      const switchEl = screen.getByRole('switch', { name: /require approval/i });
+      expect(switchEl).toBeInTheDocument();
+      expect(switchEl).toHaveAttribute('data-state', 'unchecked');
+    });
+
+    it('renders Switch checked when approval_mode is require_approval', () => {
+      render(
+        <MCPServerCard
+          server={makeServer({ approval_mode: 'require_approval' })}
+          onDelete={vi.fn()}
+          onRefreshStatus={vi.fn()}
+          isDeleting={false}
+        />
+      );
+
+      const switchEl = screen.getByRole('switch', { name: /require approval/i });
+      expect(switchEl).toHaveAttribute('data-state', 'checked');
+    });
+
+    it('calls onUpdateApprovalMode with correct args when Switch is toggled', async () => {
+      const user = userEvent.setup();
+      const onUpdateApprovalMode = vi.fn();
+
+      render(
+        <MCPServerCard
+          server={makeServer({ id: 'srv-10', approval_mode: 'auto_approve' })}
+          onDelete={vi.fn()}
+          onRefreshStatus={vi.fn()}
+          onUpdateApprovalMode={onUpdateApprovalMode}
+          isDeleting={false}
+        />
+      );
+
+      const switchEl = screen.getByRole('switch', { name: /require approval/i });
+      await user.click(switchEl);
+
+      expect(onUpdateApprovalMode).toHaveBeenCalledWith('srv-10', 'require_approval');
+    });
   });
 });

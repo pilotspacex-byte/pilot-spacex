@@ -25,6 +25,7 @@ const { mockToast, mockMcpStore, mockWorkspaceStore, mockSearchParamsHolder } = 
     removeServer: vi.fn(),
     refreshStatus: vi.fn(),
     getOAuthUrl: vi.fn(),
+    updateApprovalMode: vi.fn(),
   };
 
   const _mockWorkspaceStore = {
@@ -76,11 +77,13 @@ vi.mock('@/features/settings/components/mcp-server-card', () => ({
   MCPServerCard: ({
     server,
     onAuthorize,
+    onUpdateApprovalMode,
   }: {
     server: { id: string; display_name: string };
     onDelete: (id: string) => void;
     onRefreshStatus: (id: string) => void;
     onAuthorize?: (id: string) => void;
+    onUpdateApprovalMode?: (id: string, mode: 'auto_approve' | 'require_approval') => void;
     isDeleting: boolean;
   }) => (
     <div data-testid={`server-card-${server.id}`}>
@@ -88,6 +91,14 @@ vi.mock('@/features/settings/components/mcp-server-card', () => ({
       {onAuthorize && (
         <button data-testid={`authorize-${server.id}`} onClick={() => onAuthorize(server.id)}>
           Authorize
+        </button>
+      )}
+      {onUpdateApprovalMode && (
+        <button
+          data-testid={`approval-mode-${server.id}`}
+          onClick={() => onUpdateApprovalMode(server.id, 'require_approval')}
+        >
+          Toggle Approval
         </button>
       )}
     </div>
@@ -207,5 +218,58 @@ describe('MCPServersSettingsPage', () => {
 
     // The mock MCPServerCard renders an authorize button only when onAuthorize is passed
     expect(screen.getByTestId('authorize-srv-3')).toBeInTheDocument();
+  });
+
+  describe('onUpdateApprovalMode wiring', () => {
+    it('passes onUpdateApprovalMode to MCPServerCard', () => {
+      mockMcpStore.servers = [
+        {
+          id: 'srv-5',
+          workspace_id: 'ws-1',
+          display_name: 'Approval Server',
+          url: 'https://approval.example.com',
+          auth_type: 'bearer',
+          last_status: 'connected',
+          last_status_checked_at: null,
+          approval_mode: 'auto_approve',
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ];
+
+      render(<MCPServersSettingsPage />);
+
+      // The mock MCPServerCard renders the toggle button only when onUpdateApprovalMode is passed
+      expect(screen.getByTestId('approval-mode-srv-5')).toBeInTheDocument();
+    });
+
+    it('handleUpdateApprovalMode calls mcpStore.updateApprovalMode with correct args', async () => {
+      const user = userEvent.setup();
+      mockMcpStore.updateApprovalMode.mockResolvedValue(undefined);
+      mockMcpStore.servers = [
+        {
+          id: 'srv-6',
+          workspace_id: 'ws-1',
+          display_name: 'Mode Server',
+          url: 'https://mode.example.com',
+          auth_type: 'bearer',
+          last_status: null,
+          last_status_checked_at: null,
+          approval_mode: 'auto_approve',
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ];
+
+      render(<MCPServersSettingsPage />);
+
+      await user.click(screen.getByTestId('approval-mode-srv-6'));
+
+      await waitFor(() => {
+        expect(mockMcpStore.updateApprovalMode).toHaveBeenCalledWith(
+          'ws-1',
+          'srv-6',
+          'require_approval'
+        );
+      });
+    });
   });
 });
