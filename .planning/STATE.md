@@ -1,16 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1.0
-milestone_name: MCP Platform Hardening
-status: planning
-stopped_at: Completed 31-04-PLAN.md (encryption enforcement)
-last_updated: "2026-03-20"
-last_activity: "2026-03-20 — 31-04 complete: ENCRYPTION_KEY production enforcement added to main.py"
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: Completed 31-03-PLAN.md
+last_updated: "2026-03-19T17:22:29.764Z"
+last_activity: 2026-03-20 — 31-04 complete (encryption enforcement, MCPI-06)
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 2
+  percent: 0
 ---
 
 # Project State
@@ -61,6 +62,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 31]: _validate_mcp_url extracted to infrastructure/ssrf.py to avoid AI-layer → API-layer circular import
 - [31-04]: Enforcement check in lifespan mirrors jwt_provider_validated pattern; non-production bypassed to preserve dev key fallback behavior
 - [31-04]: Tests use extracted helper function matching lifespan logic, patching pilot_space.config.get_settings for get_encryption_service() override
+- [Phase 31]: MCP_SERVER_CAP = 10 at module level makes constant importable by tests; cap check placed before WorkspaceMcpServer construction
 
 ### Pending Todos
 
@@ -72,7 +74,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20
-Stopped at: Completed 31-04-PLAN.md
+Last session: 2026-03-19T17:22:29.762Z
+Stopped at: Completed 31-03-PLAN.md
 Resume file: None
 Next action: /gsd:execute-phase 31 (remaining: 31-01, 31-02, 31-03)

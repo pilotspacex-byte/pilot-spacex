@@ -153,7 +153,7 @@ Plans:
 | 12–23 | v1.0-alpha | 37/37 | Complete | 2026-03-12 |
 | 24–29 | v1.0.0-alpha2 | 14/14 | Complete | 2026-03-12 |
 | 30. MCP Critical Bug Fix | v1.1.0 | 0/1 | Planned | - |
-| 31. MCP Infrastructure Hardening | v1.1.0 | 0/4 | Planned | - |
+| 31. MCP Infrastructure Hardening | 2/4 | In Progress|  | - |
 | 32. OAuth Refresh Flow | v1.1.0 | 0/? | Not started | - |
 | 33. Remote MCP Approval Framework | v1.1.0 | 0/? | Not started | - |
 | 34. MCP Observability | v1.1.0 | 0/? | Not started | - |
