@@ -147,7 +147,7 @@ export const workspacesApi = {
   async inviteMember(workspaceId: string, data: InviteMemberData): Promise<WorkspaceMember> {
     const response = await apiClient.post<WorkspaceMemberResponse>(
       `/workspaces/${workspaceId}/members`,
-      data
+      { ...data, role: data.role.toUpperCase() }
     );
     return transformWorkspaceMember(response);
   },
@@ -169,7 +169,7 @@ export const workspacesApi = {
   ): Promise<WorkspaceMember> {
     const response = await apiClient.patch<WorkspaceMemberResponse>(
       `/workspaces/${workspaceId}/members/${memberId}`,
-      { role }
+      { role: role.toUpperCase() }
     );
     return transformWorkspaceMember(response);
   },

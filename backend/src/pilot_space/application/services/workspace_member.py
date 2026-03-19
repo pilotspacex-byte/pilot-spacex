@@ -199,6 +199,12 @@ class WorkspaceMemberService:
         if not actor_member or not actor_member.is_admin:
             raise UnauthorizedError("Admin role required")
 
+        # Guard: prevent owner from changing their own role (must use ownership transfer)
+        if payload.actor_id == payload.target_user_id and actor_member.is_owner:
+            raise UnauthorizedError(
+                "Cannot change own role. Use ownership transfer to reassign ownership."
+            )
+
         target_member = next(
             (m for m in (workspace.members or []) if m.user_id == payload.target_user_id),
             None,
