@@ -127,7 +127,11 @@ Plans:
   2. A workspace admin can set a remote MCP server to "require approval" or "auto-approve" mode from the server management UI
   3. When a tool invocation requires approval, ChatView renders an inline card showing the tool name, server name, and input preview before execution proceeds
   4. When the workspace/role policy allows auto-confirm, remote MCP tools execute without interrupting the chat flow
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 33-01-PLAN.md — Migration 093 + ORM McpApprovalMode + PATCH endpoint + ActionType.REMOTE_MCP_TOOL (MCPA-02 schema)
+- [ ] 33-02-PLAN.md — Extend create_can_use_tool_callback + _build_stream_config wiring (MCPA-01, MCPA-04)
+- [ ] 33-03-PLAN.md — MCPServersStore + API client + MCPServerCard Switch toggle (MCPA-02, MCPA-03)
 
 ### Phase 34: MCP Observability
 **Goal**: Every remote MCP tool invocation leaves an auditable trail and appears in the workspace AI usage dashboard
@@ -158,12 +162,12 @@ Plans:
 | 24–29 | v1.0.0-alpha2 | 14/14 | Complete | 2026-03-12 |
 | 30. MCP Critical Bug Fix | v1.1.0 | 0/1 | Planned | - |
 | 31. MCP Infrastructure Hardening | v1.1.0 | 2/4 | In Progress | - |
-| 32. OAuth Refresh Flow | 3/3 | Complete   | 2026-03-19 | - |
-| 33. Remote MCP Approval Framework | v1.1.0 | 0/? | Not started | - |
+| 32. OAuth Refresh Flow | v1.1.0 | 3/3 | Complete | 2026-03-19 |
+| 33. Remote MCP Approval Framework | v1.1.0 | 0/3 | Planned | - |
 | 34. MCP Observability | v1.1.0 | 0/? | Not started | - |
 | 35. MCP Server Catalog | v1.1.0 | 0/? | Not started | - |
 
-**Total to date: 35 phases, 105+ plans across 4 milestones**
+**Total to date: 35 phases, 108+ plans across 4 milestones**
 
 ---
 *v1.0 shipped: 2026-03-09 — 11 phases, 46 plans, 30/30 requirements*

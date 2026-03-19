@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Completed 32-02-PLAN.md (MCPO-02 auto-refresh expired OAuth tokens)
-last_updated: "2026-03-19T20:40:40.416Z"
-last_activity: 2026-03-20 — Phase 32 plan 03 executed (token_expires_at schema field + ExpiryBadge frontend UI)
+milestone: v1.1.0
+milestone_name: MCP Platform Hardening
+status: planned
+stopped_at: Phase 33 plans written — ready to execute
+last_updated: "2026-03-20T00:00:00.000Z"
+last_activity: 2026-03-20 — Phase 33 plans created (3 plans: DB schema, backend approval wiring, frontend toggle)
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 8
+  total_plans: 11
   completed_plans: 6
   percent: 0
 ---
@@ -21,27 +21,27 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data sovereignty, compliance, or human control.
-**Current focus:** Phase 32 — OAuth Refresh Flow (planned, ready to execute)
+**Current focus:** Phase 33 — Remote MCP Approval Framework (planned, ready to execute)
 
 ## Current Position
 
-Phase: 32 of 35 (OAuth Refresh Flow)
-Plan: 03 complete (32-03)
-Status: Executing — Wave 2 plans complete (32-02, 32-03)
-Last activity: 2026-03-20 — Phase 32 plan 03 executed (token_expires_at schema field + ExpiryBadge frontend UI)
+Phase: 33 of 35 (Remote MCP Approval Framework)
+Plan: 00 (planning complete, no plans executed yet)
+Status: Planned — 3 plans created, wave structure defined
+Last activity: 2026-03-20 — Phase 33 plans created (33-01, 33-02, 33-03)
 
-Progress: [░░░░░░░░░░] 0% (0/6 phases complete, 4/8 plans complete across v1.1.0)
+Progress: [░░░░░░░░░░] 0% (1/6 phases complete in v1.1.0, 6/11 plans complete)
 
-## Wave Structure for Phase 32
+## Wave Structure for Phase 33
 
 | Wave | Plans | Parallelizable | Dependencies |
 |------|-------|----------------|--------------|
-| 1 | 32-01 (DB migration + model + OAuth callback storage) | Solo | None |
-| 2 | 32-02 (auto-refresh logic), 32-03 (frontend expiry badge + schema) | Yes | Both depend on 32-01 model columns |
+| 1 | 33-01 (DB migration + ORM + PATCH endpoint + ActionType) | Solo | None |
+| 2 | 33-02 (backend approval wiring), 33-03 (frontend toggle) | Yes | Both depend on 33-01 ORM model |
 
-Execute order: Run 32-01 first (wave 1), then 32-02 and 32-03 in parallel (wave 2).
+Execute order: Run 33-01 first (wave 1), then 33-02 and 33-03 in parallel (wave 2).
 
-Note: 32-02 and 32-03 are independent at the file level — 32-02 touches only backend router + stream utils, 32-03 touches only backend schema + frontend. They can run in parallel after 32-01 lands.
+Note: 33-02 and 33-03 are independent at the file level — 33-02 touches only backend AI SDK + agent, 33-03 touches only frontend stores/components. They can run in parallel after 33-01 lands.
 
 ## Milestone History
 
@@ -76,6 +76,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [32-03]: Backend token_expires_at was already present from 32-01; Task 1 became verification-only
 - [Phase 32]: _refresh_oauth_token extracted to _mcp_server_oauth_helpers.py — workspace_mcp_servers.py hit 690-line threshold
 - [Phase 32]: Lazy import of _refresh_oauth_token inside _load_remote_mcp_servers avoids circular imports
+- [Phase 33]: workspace_mcp_servers.py is at ~670 lines — PATCH /approval-mode endpoint must stay lean or extract to helper; check line count before writing
+- [Phase 33]: can_use_tool callback uses lazy imports inside _handle_remote_mcp_approval to avoid circular imports (same pattern as existing lazy imports in question_adapter.py)
+- [Phase 33]: MCPServerCard is NOT an observer — approval mode toggle uses onUpdateApprovalMode prop pattern, parent mcp-servers-settings-page.tsx (observer) owns the store call
 
 ### Pending Todos
 
@@ -83,11 +86,11 @@ None.
 
 ### Blockers/Concerns
 
-None.
+- MEDIUM confidence: `can_use_tool` SDK callback may not fire for native MCP tool calls. RESEARCH.md flags this as the key integration risk (Pitfall 2). Plan 33-02 Task 1 includes unit tests that mock the callback path, but a live integration test post-execution is recommended before shipping.
 
 ## Session Continuity
 
-Last session: 2026-03-19T20:40:40.414Z
-Stopped at: Completed 32-02-PLAN.md (MCPO-02 auto-refresh expired OAuth tokens)
+Last session: 2026-03-20
+Stopped at: Phase 33 planning complete
 Resume file: None
-Next action: /gsd:execute-phase 32 (remaining plans in phase 32, if any)
+Next action: /gsd:execute-phase 33
