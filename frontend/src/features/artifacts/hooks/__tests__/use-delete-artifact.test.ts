@@ -9,9 +9,7 @@ import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-// @ts-expect-error — hook not yet implemented (TDD RED)
 import { useDeleteArtifact } from '../use-delete-artifact';
-// @ts-expect-error — module not yet implemented (TDD RED)
 import { artifactsKeys } from '../use-project-artifacts';
 import type { Artifact } from '@/types/artifact';
 
@@ -106,9 +104,9 @@ describe('useDeleteArtifact', () => {
 
     // Cache should be optimistically filtered before API resolves
     await waitFor(() => {
-      const cached = queryClient.getQueryData<Artifact[]>(listKey);
+      const cached = queryClient.getQueryData<Artifact[]>(listKey) ?? [];
       expect(cached).toHaveLength(1);
-      expect(cached?.[0].id).toBe('artifact-2');
+      expect(cached.at(0)?.id).toBe('artifact-2');
     });
 
     // Resolve the API
@@ -134,9 +132,9 @@ describe('useDeleteArtifact', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     // Cache should be restored to original 2 items
-    const cached = queryClient.getQueryData<Artifact[]>(listKey);
+    const cached = queryClient.getQueryData<Artifact[]>(listKey) ?? [];
     expect(cached).toHaveLength(2);
-    expect(cached?.[0].id).toBe('artifact-1');
+    expect(cached.at(0)?.id).toBe('artifact-1');
 
     // Toast must use exact message from the plan
     expect(toast.error).toHaveBeenCalledWith('Delete failed. Please try again.');

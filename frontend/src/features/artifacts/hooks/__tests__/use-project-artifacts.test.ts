@@ -9,7 +9,6 @@ import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-// @ts-expect-error — hook not yet implemented (TDD RED)
 import { useProjectArtifacts, artifactsKeys } from '../use-project-artifacts';
 import type { Artifact } from '@/types/artifact';
 
@@ -108,7 +107,10 @@ describe('useProjectArtifacts', () => {
 
     // The staleTime test: after a successful fetch, query should NOT be stale
     if (queryState?.dataUpdatedAt) {
-      expect(queryClient.isStale({ queryKey: artifactsKeys.list('ws-1', 'proj-1') })).toBe(false);
+      const query = queryClient
+        .getQueryCache()
+        .find({ queryKey: artifactsKeys.list('ws-1', 'proj-1') });
+      expect(query?.isStale()).toBe(false);
     }
   });
 

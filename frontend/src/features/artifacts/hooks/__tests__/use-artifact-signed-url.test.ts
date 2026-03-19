@@ -9,7 +9,6 @@ import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-// @ts-expect-error — hook not yet implemented (TDD RED)
 import { useArtifactSignedUrl } from '../use-artifact-signed-url';
 import type { ArtifactSignedUrlResponse } from '@/types/artifact';
 
@@ -87,7 +86,8 @@ describe('useArtifactSignedUrl', () => {
     // (the query would only be stale after 55 minutes, not immediately)
     const ARTIFACTS_QUERY_KEY = 'artifacts';
     const signedUrlKey = [ARTIFACTS_QUERY_KEY, 'signed-url', 'artifact-1'];
-    expect(queryClient.isStale({ queryKey: signedUrlKey })).toBe(false);
+    const query = queryClient.getQueryCache().find({ queryKey: signedUrlKey });
+    expect(query?.isStale()).toBe(false);
   });
 
   it('has gcTime of 1 hour (60 * 60 * 1000)', async () => {
