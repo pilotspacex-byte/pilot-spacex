@@ -57,6 +57,7 @@ from pilot_space.api.v1.routers.knowledge_graph import (
     router as knowledge_graph_router,
 )
 from pilot_space.api.v1.routers.mcp_tools import router as mcp_tools_router
+from pilot_space.api.v1.routers.mcp_usage import router as mcp_usage_router
 from pilot_space.api.v1.routers.memory import router as memory_router
 from pilot_space.api.v1.routers.note_templates import router as note_templates_router
 from pilot_space.api.v1.routers.note_versions import router as note_versions_router
@@ -188,6 +189,7 @@ __all__ = [
     "knowledge_graph_router",
     "mcp_oauth_callback_router",
     "mcp_tools_router",
+    "mcp_usage_router",
     "memory_router",
     "note_templates_router",
     "note_versions_router",

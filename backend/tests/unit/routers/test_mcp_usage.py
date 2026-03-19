@@ -190,11 +190,14 @@ async def test_get_mcp_usage_requires_auth() -> None:
     """
     from pilot_space.api.v1.routers.mcp_usage import router
 
-    # Verify router has the GET /mcp-usage route
-    routes = {(r.path, list(r.methods)) for r in router.routes}  # type: ignore[attr-defined]
-    assert ("", ["GET"]) in routes or any(
-        "mcp-usage" in str(r) or r.path == "" for r in router.routes
-    )  # type: ignore[attr-defined]
+    # Verify router has at least one GET route registered
+    assert len(router.routes) > 0  # type: ignore[attr-defined]
+    route_methods = [
+        m
+        for r in router.routes  # type: ignore[attr-defined]
+        for m in (r.methods or [])
+    ]
+    assert "GET" in route_methods, "Expected GET method in router routes"
 
 
 async def test_get_mcp_usage_response_sorted() -> None:
