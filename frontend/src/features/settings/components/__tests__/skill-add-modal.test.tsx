@@ -272,7 +272,7 @@ describe('SkillAddModal', () => {
       await user.click(generateBtn);
 
       // Should show generating state (bouncing dots / progress)
-      expect(screen.getByText('Generating your skill...')).toBeInTheDocument();
+      expect(screen.getByText('Crafting your skill...')).toBeInTheDocument();
 
       // Resolve the deferred promise to transition to preview
       await React.act(async () => {

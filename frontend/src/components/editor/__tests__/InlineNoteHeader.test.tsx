@@ -8,7 +8,13 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getTagColor, InlineNoteHeader } from '../InlineNoteHeader';
+
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 describe('getTagColor', () => {
   it('test_known_primary_tag — "AI Features" returns primary colors', () => {
@@ -95,7 +101,7 @@ const baseProps = {
 
 describe('InlineNoteHeader — "Last Edited" indicator', () => {
   it('test_shows_edited_ago_when_updatedAt_differs_from_createdAt', () => {
-    render(
+    renderWithProviders(
       <InlineNoteHeader
         {...baseProps}
         updatedAt="2025-01-15T12:00:00Z"
@@ -108,7 +114,7 @@ describe('InlineNoteHeader — "Last Edited" indicator', () => {
   });
 
   it('test_hides_edited_ago_when_updatedAt_equals_createdAt', () => {
-    render(
+    renderWithProviders(
       <InlineNoteHeader
         {...baseProps}
         updatedAt="2025-01-01T00:00:00Z"
@@ -119,13 +125,13 @@ describe('InlineNoteHeader — "Last Edited" indicator', () => {
   });
 
   it('test_hides_edited_ago_when_updatedAt_undefined', () => {
-    render(<InlineNoteHeader {...baseProps} onVersionHistory={() => {}} />);
+    renderWithProviders(<InlineNoteHeader {...baseProps} onVersionHistory={() => {}} />);
     expect(screen.queryByText(/^Edited/)).not.toBeInTheDocument();
   });
 
   it('test_clicking_edited_ago_calls_onVersionHistory', () => {
     const onVersionHistory = vi.fn();
-    render(
+    renderWithProviders(
       <InlineNoteHeader
         {...baseProps}
         updatedAt="2025-01-15T12:00:00Z"

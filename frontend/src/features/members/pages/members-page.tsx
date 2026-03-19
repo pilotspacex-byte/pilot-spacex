@@ -1,8 +1,8 @@
 /**
- * MembersPage — Workspace members management with card grid layout.
+ * MembersPage — Workspace members management with list layout.
  *
  * Route: /[workspaceSlug]/members
- * Features: search, role filter, card grid, invite dialog, pending invitations tab.
+ * Features: search, role filter, vertical list, invite dialog, pending invitations tab.
  * Admin-only editing, read-only for non-admins.
  */
 
@@ -41,9 +41,9 @@ import { ROLE_HIERARCHY } from '@/features/members/utils/member-utils';
 
 function MembersLoadingSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <Skeleton key={i} className="h-[200px] w-full rounded-lg" />
+    <div className="space-y-2">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Skeleton key={i} className="h-16 w-full rounded-lg" />
       ))}
     </div>
   );
@@ -337,11 +337,7 @@ export const MembersPage = observer(function MembersPage() {
           )}
         </div>
       ) : (
-        <div
-          className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
-          role="list"
-          aria-label="Workspace members"
-        >
+        <div className="space-y-2" role="list" aria-label="Workspace members">
           {filteredMembers.map((member) => (
             <div key={member.userId} role="listitem">
               <MemberCard

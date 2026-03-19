@@ -361,3 +361,10 @@ app.include_router(skill_approvals_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(notifications_router, prefix=f"{API_V1_PREFIX}/workspaces")
 if debug_router:
     app.include_router(debug_router, prefix=API_V1_PREFIX)
+
+
+def cli() -> None:
+    """CLI entry point to run the FastAPI server."""
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)

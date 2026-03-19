@@ -43,15 +43,13 @@ const tagConfig = {
   current: {
     label: 'Current',
     icon: Minus,
-    className:
-      'bg-gray-500/10 text-gray-600 border-gray-200 dark:bg-gray-500/20 dark:text-gray-400 dark:border-gray-800',
+    className: 'bg-muted text-muted-foreground border-border',
     description: 'Moderate confidence - matches existing pattern',
   },
   alternative: {
     label: 'Alternative',
     icon: HelpCircle,
-    className:
-      'bg-yellow-500/10 text-yellow-600 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800',
+    className: 'bg-muted/60 text-muted-foreground border-border/60',
     description: 'Lower confidence - consider carefully',
   },
 };

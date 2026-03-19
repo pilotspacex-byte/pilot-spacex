@@ -89,8 +89,7 @@ const statusConfig: Record<ReviewStatus, StatusConfig> = {
   pending: {
     icon: Clock,
     label: 'Pending',
-    badgeClass:
-      'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700',
+    badgeClass: 'bg-muted text-muted-foreground border-border',
   },
   processing: {
     icon: Loader2,

@@ -67,7 +67,8 @@ describe('MemberCard', () => {
     for (const role of roles) {
       const { unmount } = setup({ member: { ...baseMember, role } });
       const badge = screen.getByTestId(`role-badge-${role}`);
-      expect(badge).toHaveTextContent(role);
+      // Badge renders capitalized role name (e.g., "Owner", "Admin")
+      expect(badge).toHaveTextContent(new RegExp(role, 'i'));
       unmount();
     }
   });
@@ -75,22 +76,22 @@ describe('MemberCard', () => {
   it('shows Crown icon for owner role', () => {
     setup({ member: { ...baseMember, role: 'owner' } });
 
-    const badge = screen.getByTestId('role-badge-owner');
-    // Crown icon renders as SVG inside the badge
-    const svg = badge.querySelector('svg');
-    expect(svg).toBeInTheDocument();
+    // Crown icon renders as SVG with lucide crown class
+    const card = screen.getByTestId('member-card-user-1');
+    const crownSvg = card.querySelector('svg.lucide-crown');
+    expect(crownSvg).toBeInTheDocument();
   });
 
-  it('shows "(you)" suffix for current user', () => {
+  it('shows "you" badge for current user', () => {
     setup({ isCurrentUser: true });
 
-    expect(screen.getByText('(you)')).toBeInTheDocument();
+    expect(screen.getByText('you')).toBeInTheDocument();
   });
 
-  it('does not show "(you)" for other users', () => {
+  it('does not show "you" badge for other users', () => {
     setup({ isCurrentUser: false });
 
-    expect(screen.queryByText('(you)')).not.toBeInTheDocument();
+    expect(screen.queryByText('you')).not.toBeInTheDocument();
   });
 
   it('shows admin actions dropdown when currentUserRole is admin', async () => {
@@ -234,7 +235,7 @@ describe('MemberCard', () => {
     setup();
 
     const card = screen.getByTestId('member-card-user-1');
-    expect(card).toHaveAttribute('aria-label', 'Member card for Jane Smith');
+    expect(card).toHaveAttribute('aria-label', 'Member: Jane Smith');
   });
 
   it('has role="article" on the card', () => {

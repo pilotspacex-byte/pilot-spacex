@@ -526,8 +526,9 @@ function AiFormStep({
           <span className="text-sm font-medium">Generate from &quot;{templateName}&quot;</span>
         </div>
       )}
-      <p className="text-sm text-muted-foreground">
-        Describe your expertise. AI generates a personalized skill for you.
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Describe your expertise, preferred patterns, and focus areas. Together, you and AI craft a
+        personalized skill that shapes how you collaborate.
       </p>
       {showError && (
         <div
@@ -579,13 +580,13 @@ function GeneratingStep() {
   return (
     <div className="flex flex-col items-center justify-center flex-1 gap-4 py-8">
       <div className="flex gap-1.5" aria-hidden="true">
-        <div className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
-        <div className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
-        <div className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:300ms]" />
+        <div className="h-2 w-2 animate-pulse rounded-full bg-primary [animation-delay:0ms]" />
+        <div className="h-2 w-2 animate-pulse rounded-full bg-primary [animation-delay:200ms]" />
+        <div className="h-2 w-2 animate-pulse rounded-full bg-primary [animation-delay:400ms]" />
       </div>
-      <p className="text-base font-medium">Generating your skill...</p>
-      <p className="text-sm text-muted-foreground text-center max-w-sm">
-        AI is crafting a personalized skill based on your description. This takes about 15-30
+      <p className="font-display text-lg font-medium">Crafting your skill...</p>
+      <p className="text-sm text-muted-foreground text-center max-w-sm leading-relaxed">
+        AI is analyzing your description and generating a personalized skill. This takes about 15–30
         seconds.
       </p>
       <div className="w-52">
@@ -605,7 +606,7 @@ function GeneratingStep() {
         <p className="mt-1 text-center text-xs text-muted-foreground">{Math.round(progress)}%</p>
       </div>
       <div className="sr-only" aria-live="assertive" role="status">
-        Generating your skill. Please wait.
+        Crafting your skill. Please wait.
       </div>
     </div>
   );

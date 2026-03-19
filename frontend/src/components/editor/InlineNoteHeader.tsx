@@ -231,7 +231,7 @@ export function InlineNoteHeader({
       {/* Fixed metadata bar - responsive padding matching editor content */}
       <div
         className={cn(
-          'flex-shrink-0 bg-background/95 backdrop-blur-sm border-b border-border/50',
+          'flex-shrink-0 bg-background-subtle/40 backdrop-blur-sm border-b border-border/40',
           // Responsive horizontal padding - matches editor content area
           'px-4',
           className

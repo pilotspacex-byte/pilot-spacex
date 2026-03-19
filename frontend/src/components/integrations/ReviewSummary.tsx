@@ -75,8 +75,8 @@ const severityConfig: Record<ReviewSeverity, SeverityConfig> = {
   info: {
     icon: Info,
     label: 'Info',
-    color: 'text-gray-600 dark:text-gray-400',
-    bgColor: 'bg-gray-100 dark:bg-gray-800',
+    color: 'text-muted-foreground',
+    bgColor: 'bg-muted',
   },
 };
 
@@ -106,8 +106,7 @@ const approvalConfig: Record<ApprovalRecommendation, ApprovalConfig> = {
   comment: {
     icon: MessageSquare,
     label: 'Comment',
-    badgeClass:
-      'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700',
+    badgeClass: 'bg-muted text-muted-foreground border-border',
   },
 };
 
