@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 33-02-PLAN.md
-last_updated: "2026-03-19T21:10:47.908Z"
+stopped_at: Completed 33-03-PLAN.md
+last_updated: "2026-03-19T21:13:34.802Z"
 last_activity: 2026-03-19 — 33-01 executed (migration 093 + ORM + PATCH endpoint + ActionType.REMOTE_MCP_TOOL)
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
   percent: 9
 ---
 
@@ -83,6 +83,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 33]: can_use_tool callback uses lazy imports inside _handle_remote_mcp_approval to avoid circular imports (same pattern as existing lazy imports in question_adapter.py)
 - [Phase 33]: MCPServerCard is NOT an observer — approval mode toggle uses onUpdateApprovalMode prop pattern, parent mcp-servers-settings-page.tsx (observer) owns the store call
 - [Phase 33]: Server key format for approval map uses UUID from _load_remote_mcp_servers (remote_{id}), not display_name normalization
+- [Phase 33]: approval_mode optional on MCPServer for backwards compat; Switch in server info column not actions column; MCPA-03 uses InlineApprovalCard GenericJSON fallback (no new component)
 
 ### Pending Todos
 
@@ -94,7 +95,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T21:10:47.907Z
-Stopped at: Completed 33-02-PLAN.md
+Last session: 2026-03-19T21:13:30.657Z
+Stopped at: Completed 33-03-PLAN.md
 Resume file: None
 Next action: /gsd:execute-phase 33 (plans 33-02 + 33-03 in parallel)

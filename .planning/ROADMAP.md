@@ -69,7 +69,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 - [ ] **Phase 30: MCP Critical Bug Fix** — Patch allowed_tools so Claude can invoke remote MCP tools
 - [ ] **Phase 31: MCP Infrastructure Hardening** — SSE/HTTP transport, health-check gating, server cap, SSRF hardening, encryption enforcement
 - [x] **Phase 32: OAuth Refresh Flow** — Refresh token storage, auto-refresh before session load, expiry tracking in UI (completed 2026-03-19)
-- [ ] **Phase 33: Remote MCP Approval Framework** — DD-003 wiring, per-server approval config, ChatView inline cards, auto-confirm policy
+- [x] **Phase 33: Remote MCP Approval Framework** — DD-003 wiring, per-server approval config, ChatView inline cards, auto-confirm policy (completed 2026-03-19)
 - [ ] **Phase 34: MCP Observability** — Audit trail for tool invocations, MCP usage visible in AI dashboard
 - [ ] **Phase 35: MCP Server Catalog** — Browsable catalog with one-click install, versioned entries, official seeds
 
@@ -163,7 +163,7 @@ Plans:
 | 30. MCP Critical Bug Fix | v1.1.0 | 0/1 | Planned | - |
 | 31. MCP Infrastructure Hardening | v1.1.0 | 2/4 | In Progress | - |
 | 32. OAuth Refresh Flow | v1.1.0 | 3/3 | Complete | 2026-03-19 |
-| 33. Remote MCP Approval Framework | 2/3 | In Progress|  | - |
+| 33. Remote MCP Approval Framework | 3/3 | Complete   | 2026-03-19 | - |
 | 34. MCP Observability | v1.1.0 | 0/? | Not started | - |
 | 35. MCP Server Catalog | v1.1.0 | 0/? | Not started | - |
 
