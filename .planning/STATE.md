@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Medium Editor & Artifacts
 status: planning
-stopped_at: Completed 35-artifacts-management-page/35-01-PLAN.md
-last_updated: "2026-03-19T15:48:15.097Z"
+stopped_at: Completed 35-artifacts-management-page/35-02-PLAN.md
+last_updated: "2026-03-19T15:59:23.644Z"
 last_activity: 2026-03-18 — v1.1 roadmap created, 22/22 requirements mapped across 7 phases
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 20
-  completed_plans: 16
+  completed_plans: 17
   percent: 0
 ---
 
@@ -89,6 +89,8 @@ Recent decisions affecting current work:
 - [Phase 34-file-preview-modal]: ImageRenderer uses native <img> not next/image: signed Supabase URLs are external, zoom requires raw dimensions
 - [Phase 35-artifacts-management-page]: getSignedUrl uses apiClient (not raw fetch) — backend proxy route /api/v1/workspaces/.../artifacts/{id}/url; raw fetch only for external Supabase storage content URLs
 - [Phase 35-artifacts-management-page]: artifactsKeys.list(ws,proj) is the precise invalidation key for useDeleteArtifact — avoids over-invalidation of other project artifact lists
+- [Phase 35-artifacts-management-page]: FilePreviewModal gated by selectedArtifact + signedUrlData — avoids empty modal flash while signed URL fetches
+- [Phase 35-artifacts-management-page]: handleDownload uses artifactsApi.getSignedUrl directly — one-shot action, no TanStack cache needed
 
 ### Pending Todos
 
@@ -103,7 +105,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:48:15.095Z
-Stopped at: Completed 35-artifacts-management-page/35-01-PLAN.md
+Last session: 2026-03-19T15:59:23.642Z
+Stopped at: Completed 35-artifacts-management-page/35-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 30`
