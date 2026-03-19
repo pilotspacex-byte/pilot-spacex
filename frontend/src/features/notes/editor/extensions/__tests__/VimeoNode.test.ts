@@ -7,7 +7,6 @@
  *
  * RED phase: VimeoNode.ts does not exist yet — these tests will fail until Task 2.
  */
-// @ts-expect-error - VimeoNode does not exist yet (RED phase)
 import { VimeoNode, extractVimeoId, isVideoUrl } from '../VimeoNode';
 import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';

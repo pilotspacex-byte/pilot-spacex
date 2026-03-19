@@ -6,7 +6,6 @@
  *
  * RED phase: YoutubeExtension.ts does not exist yet — these tests will fail until Task 2.
  */
-// @ts-expect-error - YoutubeExtension does not exist yet (RED phase)
 import { YoutubeExtension } from '../YoutubeExtension';
 import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';
