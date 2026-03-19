@@ -58,9 +58,12 @@ _MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 def _make_current_user(user_id: UUID = TEST_USER_ID) -> MagicMock:
-    """Build a minimal mock User matching CurrentUser type."""
+    """Build a minimal mock TokenPayload matching CurrentUser type.
+
+    CurrentUser resolves to TokenPayload which exposes .user_id (not .id).
+    """
     user = MagicMock()
-    user.id = user_id
+    user.user_id = user_id
     return user
 
 
@@ -311,8 +314,8 @@ class TestListArtifacts:
 
     async def test_list_artifacts_returns_200(self) -> None:
         """Repo returns 2 artifacts → 200 with ArtifactListResponse (total=2)."""
-        art1 = _make_artifact_orm()
-        art2 = _make_artifact_orm(artifact_id=uuid4())
+        art1 = _make_artifact_response()
+        art2 = _make_artifact_response(artifact_id=uuid4())
         repo = _make_artifact_repo(list_return=[art1, art2])
         session = _make_session()
         current_user = _make_current_user()
