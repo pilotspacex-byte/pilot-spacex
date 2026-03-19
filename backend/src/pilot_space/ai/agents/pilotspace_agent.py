@@ -550,6 +550,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         remote_servers = await _load_remote_mcp_servers(context.workspace_id, db_session)
         mcp_servers, ref_map = build_mcp_servers(tool_event_queue, tool_context, input_data)
         mcp_servers.update(remote_servers)
+        # MCPI-01: Generate allowed_tools wildcard patterns for remote MCP servers
+        # so the SDK permits Claude to invoke their tools (mcp__<key>__* format).
+        remote_tool_patterns: list[str] = [f"mcp__{key}__*" for key in remote_servers]
 
         skill_name = detect_skill_from_message(input_data.message)
         output_format = get_skill_output_format(skill_name) if skill_name else None
@@ -595,7 +598,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             space_context,
             permission_mode="default",
             model=self.DEFAULT_MODEL_TIER,
-            additional_tools=ALL_TOOL_NAMES,
+            additional_tools=ALL_TOOL_NAMES + remote_tool_patterns,
             additional_env=provider_env,
             hook_executor=hook_executor,
             include_partial_messages=True,
