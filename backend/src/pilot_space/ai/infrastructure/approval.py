@@ -68,6 +68,7 @@ class ActionType(StrEnum):
     BULK_DELETE = "bulk_delete"
 
     # DEFAULT_REQUIRE: Significant changes (configurable)
+    REMOTE_MCP_TOOL = "remote_mcp_tool"
     CREATE_SUB_ISSUES = "create_sub_issues"
     EXTRACT_ISSUES = "extract_issues"
     PUBLISH_DOCS = "publish_docs"
@@ -185,6 +186,7 @@ class ApprovalService:
     }
 
     DEFAULT_REQUIRE_ACTIONS: Final[set[ActionType]] = {
+        ActionType.REMOTE_MCP_TOOL,
         ActionType.CREATE_SUB_ISSUES,
         ActionType.EXTRACT_ISSUES,
         ActionType.PUBLISH_DOCS,

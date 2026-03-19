@@ -29,6 +29,18 @@ class McpTransportType(StrEnum):
     HTTP = "http"
 
 
+class McpApprovalMode(StrEnum):
+    """Tool-call approval mode for a remote MCP server.
+
+    Attributes:
+        AUTO_APPROVE: All tool calls from this server are executed automatically.
+        REQUIRE_APPROVAL: Every tool call must be approved by a workspace admin.
+    """
+
+    AUTO_APPROVE = "auto_approve"
+    REQUIRE_APPROVAL = "require_approval"
+
+
 class WorkspaceMcpServer(WorkspaceScopedModel):
     """Workspace-registered remote MCP server.
 
@@ -140,6 +152,14 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         doc="Timestamp of last connectivity probe",
     )
 
+    # Approval mode — controls whether tool calls auto-execute or need admin approval
+    approval_mode: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=McpApprovalMode.AUTO_APPROVE,
+        doc="Tool-call approval mode: 'auto_approve' or 'require_approval'",
+    )
+
     # Relationships
     workspace: Mapped[Workspace] = relationship(
         "Workspace",
@@ -155,4 +175,4 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         )
 
 
-__all__ = ["McpAuthType", "McpTransportType", "WorkspaceMcpServer"]
+__all__ = ["McpApprovalMode", "McpAuthType", "McpTransportType", "WorkspaceMcpServer"]
