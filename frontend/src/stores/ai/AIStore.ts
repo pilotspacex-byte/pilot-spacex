@@ -17,6 +17,7 @@ import { CostStore } from './CostStore';
 import { MarginAnnotationStore } from './MarginAnnotationStore';
 import { PilotSpaceStore } from './PilotSpaceStore';
 import { MCPServersStore } from './MCPServersStore';
+import { MCPCatalogStore } from './MCPCatalogStore';
 import { PluginsStore } from './PluginsStore';
 
 export class AIStore {
@@ -30,6 +31,7 @@ export class AIStore {
   marginAnnotation: MarginAnnotationStore;
   pilotSpace: PilotSpaceStore;
   mcpServers: MCPServersStore;
+  mcpCatalog: MCPCatalogStore;
   plugins: PluginsStore;
 
   isGloballyEnabled = true;
@@ -48,6 +50,7 @@ export class AIStore {
     this.marginAnnotation = new MarginAnnotationStore(this);
     this.pilotSpace = new PilotSpaceStore(this);
     this.mcpServers = new MCPServersStore();
+    this.mcpCatalog = new MCPCatalogStore();
     this.plugins = new PluginsStore();
   }
 
@@ -90,6 +93,7 @@ export class AIStore {
     this.settings.reset();
     this.cost.reset();
     this.mcpServers.reset();
+    this.mcpCatalog.reset();
     this.plugins.reset();
     this.globalError = null;
   }

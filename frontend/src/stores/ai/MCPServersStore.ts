@@ -24,6 +24,9 @@ export interface MCPServer {
   token_expires_at: string | null; // ISO8601 UTC string or null (MCPO-03)
   approval_mode?: 'auto_approve' | 'require_approval'; // MCPA-02: optional for backwards compat
   created_at: string;
+  // MCPC-01: catalog fields (optional — only present for servers installed from catalog)
+  catalog_entry_id?: string | null;
+  installed_catalog_version?: string | null;
 }
 
 export interface MCPServerStatus {
@@ -46,6 +49,10 @@ export interface MCPServerRegisterRequest {
   oauth_auth_url?: string;
   oauth_token_url?: string;
   oauth_scopes?: string;
+  transport_type?: 'sse' | 'http';
+  // MCPC-01: catalog install fields (optional — only set when installing from catalog)
+  catalog_entry_id?: string;
+  installed_catalog_version?: string;
 }
 
 // ============================================================

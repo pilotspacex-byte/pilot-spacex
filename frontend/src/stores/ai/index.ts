@@ -17,6 +17,8 @@ export type {
   MCPServerListResponse,
   MCPServerRegisterRequest,
 } from './MCPServersStore';
+export { MCPCatalogStore, hasUpdate, isInstalled } from './MCPCatalogStore';
+export type { McpCatalogEntry, McpCatalogListResponse } from '@/services/api/mcp-catalog';
 export { PluginsStore } from './PluginsStore';
 export type { InstalledPlugin, PluginGroup } from './PluginsStore';
 export { PRReviewStore } from './PRReviewStore';
