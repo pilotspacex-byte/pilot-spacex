@@ -14,6 +14,7 @@ import contextlib
 import json
 import re
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
 from claude_agent_sdk import McpServerConfig
@@ -625,6 +626,9 @@ async def get_workspace_embedding_key(db_session: Any, workspace_id: Any) -> str
 # Backward-compatible alias
 get_workspace_openai_key = get_workspace_embedding_key
 
+# MCPO-02: buffer before actual expiry to trigger refresh early
+_OAUTH_EXPIRY_BUFFER = timedelta(seconds=60)
+
 
 async def _load_remote_mcp_servers(  # pyright: ignore[reportUnusedFunction]
     workspace_id: UUID | None,
@@ -657,7 +661,10 @@ async def _load_remote_mcp_servers(  # pyright: ignore[reportUnusedFunction]
     if workspace_id is None or db_session is None:
         return {}
 
-    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpTransportType
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        McpAuthType,
+        McpTransportType,
+    )
     from pilot_space.infrastructure.database.repositories.workspace_mcp_server_repository import (
         WorkspaceMcpServerRepository,
     )
@@ -684,6 +691,33 @@ async def _load_remote_mcp_servers(  # pyright: ignore[reportUnusedFunction]
                 workspace_id=str(workspace_id),
             )
             continue
+
+        # MCPO-02: auto-refresh expired OAuth tokens before session load
+        if server.auth_type == McpAuthType.OAUTH2 and server.token_expires_at is not None:
+            expires_at_aware = (
+                server.token_expires_at.replace(tzinfo=UTC)
+                if server.token_expires_at.tzinfo is None
+                else server.token_expires_at
+            )
+            if expires_at_aware - _OAUTH_EXPIRY_BUFFER <= datetime.now(UTC):
+                if server.refresh_token_encrypted is None:
+                    logger.info(
+                        "mcp_oauth_token_expired_no_refresh",
+                        server_id=str(server.id),
+                    )
+                    continue
+                from pilot_space.api.v1.routers.workspace_mcp_servers import (
+                    _refresh_oauth_token,  # pyright: ignore[reportPrivateUsage]
+                )
+
+                refreshed = await _refresh_oauth_token(server, repo)
+                if not refreshed:
+                    logger.warning(
+                        "mcp_oauth_refresh_failed_skip",
+                        server_id=str(server.id),
+                        workspace_id=str(workspace_id),
+                    )
+                    continue
 
         # Decrypt auth token (existing logic — unchanged)
         token: str | None = None

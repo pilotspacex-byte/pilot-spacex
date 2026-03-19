@@ -159,7 +159,6 @@ async def test_load_remote_mcp_servers_empty_no_workspace() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=False, reason="implementation pending - phase 32 plan 02")
 async def test_expired_token_no_refresh_skips_server(
     db_session,
     workspace_factory,
@@ -203,7 +202,6 @@ async def test_expired_token_no_refresh_skips_server(
     assert result == {}
 
 
-@pytest.mark.xfail(strict=False, reason="implementation pending - phase 32 plan 02")
 async def test_expired_token_refresh_succeeds(
     db_session,
     workspace_factory,
@@ -253,7 +251,6 @@ async def test_expired_token_refresh_succeeds(
     assert f"remote_{server.id}" in result
 
 
-@pytest.mark.xfail(strict=False, reason="implementation pending - phase 32 plan 02")
 async def test_expired_token_refresh_fails_skips(
     db_session,
     workspace_factory,
