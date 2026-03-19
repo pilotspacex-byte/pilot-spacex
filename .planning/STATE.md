@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: MCP Platform Hardening
 status: planned
-stopped_at: Phase 33 plans written — ready to execute
-last_updated: "2026-03-20T00:00:00.000Z"
-last_activity: 2026-03-20 — Phase 33 plans created (3 plans: DB schema, backend approval wiring, frontend toggle)
+stopped_at: "33-01 complete — wave 1 done, ready for 33-02 + 33-03 parallel execution"
+last_updated: "2026-03-19T21:00:59Z"
+last_activity: "2026-03-19 — 33-01 executed: migration 093, McpApprovalMode ORM, PATCH endpoint, ActionType.REMOTE_MCP_TOOL"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 11
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 33 of 35 (Remote MCP Approval Framework)
-Plan: 00 (planning complete, no plans executed yet)
-Status: Planned — 3 plans created, wave structure defined
-Last activity: 2026-03-20 — Phase 33 plans created (33-01, 33-02, 33-03)
+Plan: 01 (33-01 complete — migration 093, ORM McpApprovalMode, PATCH endpoint, ActionType.REMOTE_MCP_TOOL)
+Status: In Progress — wave 1 complete, waves 2 (33-02 + 33-03) ready to run in parallel
+Last activity: 2026-03-19 — 33-01 executed (migration 093 + ORM + PATCH endpoint + ActionType.REMOTE_MCP_TOOL)
 
-Progress: [░░░░░░░░░░] 0% (1/6 phases complete in v1.1.0, 6/11 plans complete)
+Progress: [░░░░░░░░░░] 9% (1/6 phases complete in v1.1.0, 7/11 plans complete)
 
 ## Wave Structure for Phase 33
 
@@ -76,6 +76,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [32-03]: Backend token_expires_at was already present from 32-01; Task 1 became verification-only
 - [Phase 32]: _refresh_oauth_token extracted to _mcp_server_oauth_helpers.py — workspace_mcp_servers.py hit 690-line threshold
 - [Phase 32]: Lazy import of _refresh_oauth_token inside _load_remote_mcp_servers avoids circular imports
+- [33-01]: VARCHAR(16) + CHECK constraint used for approval_mode instead of DB enum — avoids Alembic enum migration complexity
+- [33-01]: logger.info removed from PATCH /approval-mode handler to stay within 700-line pre-commit limit
+- [33-01]: McpApprovalMode StrEnum placed in ORM model file (not approval.py) to keep column-level enums co-located with their model
 - [Phase 33]: workspace_mcp_servers.py is at ~670 lines — PATCH /approval-mode endpoint must stay lean or extract to helper; check line count before writing
 - [Phase 33]: can_use_tool callback uses lazy imports inside _handle_remote_mcp_approval to avoid circular imports (same pattern as existing lazy imports in question_adapter.py)
 - [Phase 33]: MCPServerCard is NOT an observer — approval mode toggle uses onUpdateApprovalMode prop pattern, parent mcp-servers-settings-page.tsx (observer) owns the store call
@@ -90,7 +93,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20
-Stopped at: Phase 33 planning complete
+Last session: 2026-03-19
+Stopped at: 33-01 complete — execute 33-02 and 33-03 next (can run in parallel)
 Resume file: None
-Next action: /gsd:execute-phase 33
+Next action: /gsd:execute-phase 33 (plans 33-02 + 33-03 in parallel)

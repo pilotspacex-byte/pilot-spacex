@@ -25,7 +25,7 @@ Requirements for MCP platform hardening. Each maps to roadmap phases.
 ### MCP Approval
 
 - [ ] **MCPA-01**: Remote MCP tool invocations route through DD-003 `can_use_tool` approval framework
-- [ ] **MCPA-02**: Workspace admins can configure auto-approve/require-approval per remote MCP server
+- [x] **MCPA-02**: Workspace admins can configure auto-approve/require-approval per remote MCP server
 - [ ] **MCPA-03**: ChatView displays inline approval cards for remote MCP tool calls (tool name, server name, input preview)
 - [ ] **MCPA-04**: Auto-confirm setting per workspace/role respected — tools auto-execute when policy allows
 
@@ -77,7 +77,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCPO-02 | Phase 32 | Complete |
 | MCPO-03 | Phase 32 | Pending |
 | MCPA-01 | Phase 33 | Pending |
-| MCPA-02 | Phase 33 | Pending |
+| MCPA-02 | Phase 33 | Complete |
 | MCPA-03 | Phase 33 | Pending |
 | MCPA-04 | Phase 33 | Pending |
 | MCPOB-01 | Phase 34 | Pending |
