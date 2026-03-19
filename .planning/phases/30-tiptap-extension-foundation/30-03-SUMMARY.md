@@ -115,6 +115,15 @@ Each task was committed atomically:
 - SelectionToolbar heading dropdown and pull quote toggle fully functional and tested
 - Phase 30 Plan 04 (or remaining plans) can proceed — all EDIT-02 requirements satisfied
 
+## Self-Check: PASSED
+
+- FOUND: frontend/src/features/notes/editor/extensions/node-view-bridge.ts
+- FOUND: frontend/src/components/editor/SelectionToolbar.tsx (with heading dropdown + pull quote)
+- FOUND: .planning/phases/30-tiptap-extension-foundation/30-03-SUMMARY.md
+- FOUND commit: ed99130e (Task 1: node-view-bridge.ts)
+- FOUND commit: 483ff25f (Task 2: SelectionToolbar heading dropdown)
+- FOUND commit: 2a95d5cd (docs: plan metadata)
+
 ---
 *Phase: 30-tiptap-extension-foundation*
 *Completed: 2026-03-19*

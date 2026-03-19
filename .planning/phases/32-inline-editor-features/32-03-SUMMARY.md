@@ -143,3 +143,12 @@ None — no external service configuration required.
 ---
 *Phase: 32-inline-editor-features*
 *Completed: 2026-03-19*
+
+## Self-Check: PASSED
+
+All created files verified present. All commits verified in git log.
+- FigureExtension.ts: FOUND
+- FigureNodeView.tsx: FOUND
+- FigureView.tsx: FOUND
+- 32-03-SUMMARY.md: FOUND
+- Commits 18c9dac1 (Task 1), a3e5b883 (Task 2), 7de4cc47 (docs): ALL FOUND
