@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Medium Editor & Artifacts
-status: active
-stopped_at: null
-last_updated: "2026-03-18"
-last_activity: "2026-03-18 — Roadmap created for v1.1 (7 phases, 22 requirements)"
+status: planning
+stopped_at: Completed 30-tiptap-extension-foundation/30-01-PLAN.md
+last_updated: "2026-03-19T12:18:50.397Z"
+last_activity: 2026-03-18 — v1.1 roadmap created, 22/22 requirements mapped across 7 phases
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 20
+  completed_plans: 1
+  percent: 0
 ---
 
 # Project State
@@ -52,6 +53,8 @@ Recent decisions affecting current work:
 - [v1.1 research]: Never wrap TipTap NodeView in MobX `observer()` — React 19 flushSync crash (same as IssueEditorContent constraint)
 - [v1.1 research]: `FilePreviewModal` built once in Phase 34, reused in both FileCardView (Phase 32) and ArtifactsPage (Phase 35)
 - [v1.1 research]: CSV preview capped at 500 rows — decision on truncation vs. virtual scrolling deferred to Phase 34 planning
+- [Phase 30-tiptap-extension-foundation]: SelectionToolbar tests: capture selectionUpdate listener in mock editor to make toolbar visible without ProseMirror
+- [Phase 30-tiptap-extension-foundation]: TDD RED tests committed before production code: 5 PullQuote, 6 SelectionToolbar, 4 node-view-bridge tests
 
 ### Pending Todos
 
@@ -66,7 +69,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-18
-Stopped at: Context gathered for all 7 phases (30–36) in auto mode
-Resume file: .planning/phases/30-tiptap-extension-foundation/30-CONTEXT.md
+Last session: 2026-03-19T12:18:50.394Z
+Stopped at: Completed 30-tiptap-extension-foundation/30-01-PLAN.md
+Resume file: None
 Next action: `/gsd:plan-phase 30`
