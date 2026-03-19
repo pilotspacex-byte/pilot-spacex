@@ -98,7 +98,7 @@ dev = [
 ]
 
 [project.scripts]
-app = "main:app"
+app = "pilot_space.main:cli"
 
 [build-system]
 requires = ["hatchling"]

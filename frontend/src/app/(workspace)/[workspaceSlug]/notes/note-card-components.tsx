@@ -35,6 +35,7 @@ export function NoteGridCard({ note, workspaceSlug, projectMap, onPrefetch }: No
     <Link
       href={`/${workspaceSlug}/notes/${note.id}`}
       onMouseEnter={onPrefetch}
+      onFocus={onPrefetch}
       className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       <article
@@ -55,7 +56,7 @@ export function NoteGridCard({ note, workspaceSlug, projectMap, onPrefetch }: No
                 <div
                   className="h-full rounded-full bg-primary"
                   style={{
-                    width: `${((project.issueCount - project.openIssueCount) / Math.max(project.issueCount, 1)) * 100}%`,
+                    width: `${Math.max(0, Math.min(100, ((project.issueCount - project.openIssueCount) / Math.max(project.issueCount, 1)) * 100))}%`,
                   }}
                 />
               </div>
@@ -79,14 +80,15 @@ export function NoteGridCard({ note, workspaceSlug, projectMap, onPrefetch }: No
                 <span
                   key={issue.id}
                   className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted/50"
+                  title={`${issue.identifier}: ${issue.state.name}`}
                 >
                   <span
                     className="h-1.5 w-1.5 rounded-full shrink-0"
                     style={{ backgroundColor: issue.state.color }}
                     aria-hidden="true"
                   />
-                  <span className="sr-only">{issue.state.name}:</span>
-                  {issue.identifier}
+                  <span>{issue.identifier}</span>
+                  <span className="text-muted-foreground/70">{issue.state.name}</span>
                 </span>
               ))}
               {linkedIssues.length > 3 && (
@@ -129,6 +131,7 @@ export function NoteListRow({ note, workspaceSlug, projectMap, onPrefetch }: Not
     <Link
       href={`/${workspaceSlug}/notes/${note.id}`}
       onMouseEnter={onPrefetch}
+      onFocus={onPrefetch}
       className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       <div
@@ -174,14 +177,15 @@ export function NoteListRow({ note, workspaceSlug, projectMap, onPrefetch }: Not
                 <span
                   key={issue.id}
                   className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted/50"
+                  title={`${issue.identifier}: ${issue.state.name}`}
                 >
                   <span
                     className="h-1.5 w-1.5 rounded-full shrink-0"
                     style={{ backgroundColor: issue.state.color }}
                     aria-hidden="true"
                   />
-                  <span className="sr-only">{issue.state.name}:</span>
-                  {issue.identifier}
+                  <span>{issue.identifier}</span>
+                  <span className="text-muted-foreground/70">{issue.state.name}</span>
                 </span>
               ))}
               {linkedIssues.length > 3 && (

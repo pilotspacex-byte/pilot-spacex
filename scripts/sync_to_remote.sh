@@ -44,7 +44,8 @@ echo "================================================"
 echo "  Pilot Space — Sync to Remote Supabase"
 echo "================================================"
 echo "Mode: $MODE"
-echo "Remote: ${REMOTE_DB_URL%%@*}@***"
+REMOTE_HOST="${REMOTE_DB_URL#*@}"
+echo "Remote: ***@${REMOTE_HOST}"
 echo ""
 
 # --- SCHEMA SYNC ---
@@ -66,10 +67,11 @@ if [ "$MODE" = "--schema-only" ] || [ "$MODE" = "--full" ]; then
     done
 
     # Patch env.py for transaction_per_migration
-    sed -i.bak 's/version_num_col_type=String(128),$/version_num_col_type=String(128),\n        transaction_per_migration=True,/' \
+    cp alembic/env.py alembic/env.py.bak
+    sed -i '' 's/version_num_col_type=String(128),$/version_num_col_type=String(128),\n        transaction_per_migration=True,/' \
         alembic/env.py
-    sed -i.bak '/with context.begin_transaction():/d' alembic/env.py
-    sed -i.bak 's/^        context.run_migrations()/    context.run_migrations()/' alembic/env.py
+    sed -i '' '/with context.begin_transaction():/d' alembic/env.py
+    sed -i '' 's/^        context.run_migrations()/    context.run_migrations()/' alembic/env.py
 
     echo "[2/3] Running Alembic migrations against remote..."
     DATABASE_URL="$REMOTE_DB_URL" uv run alembic upgrade head
@@ -88,11 +90,17 @@ fi
 # --- DATA SEED ---
 if [ "$MODE" = "--seed-only" ] || [ "$MODE" = "--full" ]; then
     echo "[3/3] Seeding demo data..."
+    SEED_FAILED=false
     DATABASE_URL="$REMOTE_DB_URL" uv run python scripts/seed_demo.py 2>&1 || {
+        SEED_FAILED=true
         echo "Note: seed_demo.py requires SUPABASE_URL and SUPABASE_SERVICE_KEY"
         echo "For remote Supabase, you may need to create the auth user via the dashboard first."
     }
 fi
 
 echo ""
-echo "Done! Remote Supabase is synced."
+if [ "${SEED_FAILED:-false}" = "true" ]; then
+    echo "⚠️  Schema sync succeeded, but seeding failed. See above for details."
+else
+    echo "Done! Remote Supabase is synced."
+fi
