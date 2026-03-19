@@ -198,7 +198,7 @@ Plans:
 | 31. Storage Backend | 3/3 | Complete   | 2026-03-19 | - |
 | 32. Inline Editor Features | 4/5 | In Progress|  | - |
 | 33. Video Embeds | 3/3 | Complete   | 2026-03-19 | - |
-| 34. File Preview Modal | v1.1 | 0/2 | Planned | - |
+| 34. File Preview Modal | 1/2 | In Progress|  | - |
 | 35. Artifacts Management Page | v1.1 | 0/2 | Not started | - |
 | 36. Editor UX Polish | v1.1 | 0/2 | Planned | - |
 

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Medium Editor & Artifacts
 status: planning
-stopped_at: Completed 33-video-embeds/33-02-PLAN.md
-last_updated: "2026-03-19T14:49:22.416Z"
+stopped_at: Completed 34-file-preview-modal/34-01-PLAN.md
+last_updated: "2026-03-19T15:05:22.391Z"
 last_activity: 2026-03-18 — v1.1 roadmap created, 22/22 requirements mapped across 7 phases
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 20
-  completed_plans: 13
+  completed_plans: 14
   percent: 0
 ---
 
@@ -82,6 +82,9 @@ Recent decisions affecting current work:
 - [Phase 33-video-embeds]: VideoPasteDetector registered in Group 5 after SlashCommandExtension — decoration/interaction layer, not a block-type node
 - [Phase 33-video-embeds]: showVideoUrlPrompt appends to document.body not editor DOM — avoids ProseMirror focus conflicts
 - [Phase 33-video-embeds]: PasteRule only fires on standalone URLs (anchored regex); empty paragraph guard prevents offer on non-empty lines
+- [Phase 34-file-preview-modal]: fetch() directly for signed URL content (not apiClient) — avoids Authorization header that Supabase Storage rejects
+- [Phase 34-file-preview-modal]: HTML always routes to 'code' renderer (text/html, .html, .htm) — never live render HTML from storage, XSS prevention
+- [Phase 34-file-preview-modal]: useFileContent staleTime 55 min (URLs expire at 60 min), retry:false (403 = expired not transient), isExpired flag for UI
 
 ### Pending Todos
 
@@ -96,7 +99,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T14:49:22.414Z
-Stopped at: Completed 33-video-embeds/33-02-PLAN.md
+Last session: 2026-03-19T15:05:22.388Z
+Stopped at: Completed 34-file-preview-modal/34-01-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 30`

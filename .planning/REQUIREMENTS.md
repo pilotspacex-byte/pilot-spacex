@@ -42,11 +42,11 @@ Requirements for milestone v1.1. Each maps to roadmap phases.
 
 ### File Preview
 
-- [ ] **PREV-01**: User can preview images in a popup modal from file cards
-- [ ] **PREV-02**: User can preview text, Markdown, and JSON files with proper formatting
-- [ ] **PREV-03**: User can preview code files with syntax highlighting (Python, JS, HTML, CSS, etc.)
-- [ ] **PREV-04**: User can preview CSV files as formatted tables
-- [ ] **PREV-05**: System provides download fallback for unsupported file types
+- [x] **PREV-01**: User can preview images in a popup modal from file cards
+- [x] **PREV-02**: User can preview text, Markdown, and JSON files with proper formatting
+- [x] **PREV-03**: User can preview code files with syntax highlighting (Python, JS, HTML, CSS, etc.)
+- [x] **PREV-04**: User can preview CSV files as formatted tables
+- [x] **PREV-05**: System provides download fallback for unsupported file types
 
 ## v1.2 Requirements
 
@@ -107,11 +107,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VID-02 | Phase 33 | Complete |
 | VID-03 | Phase 33 | Complete |
 | VID-04 | Phase 33 | Complete |
-| PREV-01 | Phase 34 | Pending |
-| PREV-02 | Phase 34 | Pending |
-| PREV-03 | Phase 34 | Pending |
-| PREV-04 | Phase 34 | Pending |
-| PREV-05 | Phase 34 | Pending |
+| PREV-01 | Phase 34 | Complete |
+| PREV-02 | Phase 34 | Complete |
+| PREV-03 | Phase 34 | Complete |
+| PREV-04 | Phase 34 | Complete |
+| PREV-05 | Phase 34 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 22 total
