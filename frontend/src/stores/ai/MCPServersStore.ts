@@ -22,6 +22,7 @@ export interface MCPServer {
   last_status: 'connected' | 'failed' | 'unknown' | null;
   last_status_checked_at: string | null;
   token_expires_at: string | null; // ISO8601 UTC string or null (MCPO-03)
+  approval_mode?: 'auto_approve' | 'require_approval'; // MCPA-02: optional for backwards compat
   created_at: string;
 }
 
@@ -142,6 +143,26 @@ export class MCPServersStore {
   async getOAuthUrl(workspaceId: string, serverId: string): Promise<string> {
     const result = await mcpServersApi.getOAuthUrl(workspaceId, serverId);
     return result.auth_url;
+  }
+
+  async updateApprovalMode(
+    workspaceId: string,
+    serverId: string,
+    mode: 'auto_approve' | 'require_approval'
+  ): Promise<void> {
+    try {
+      const updated = await mcpServersApi.updateApprovalMode(workspaceId, serverId, mode);
+      runInAction(() => {
+        this.servers = this.servers.map((s) =>
+          s.id === serverId ? { ...s, approval_mode: updated.approval_mode } : s
+        );
+      });
+    } catch (err) {
+      runInAction(() => {
+        this.error = err instanceof Error ? err.message : 'Failed to update approval mode';
+      });
+      throw err;
+    }
   }
 
   reset(): void {

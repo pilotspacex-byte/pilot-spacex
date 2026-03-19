@@ -49,4 +49,17 @@ export const mcpServersApi = {
    */
   getOAuthUrl: (workspaceId: string, serverId: string): Promise<{ auth_url: string }> =>
     apiClient.get<{ auth_url: string }>(`${base(workspaceId)}/${serverId}/oauth-url`),
+
+  /**
+   * Update approval mode for a registered MCP server.
+   * PATCH /workspaces/{workspaceId}/mcp-servers/{serverId}/approval-mode
+   */
+  updateApprovalMode: (
+    workspaceId: string,
+    serverId: string,
+    mode: 'auto_approve' | 'require_approval'
+  ): Promise<MCPServer> =>
+    apiClient.patch<MCPServer>(`${base(workspaceId)}/${serverId}/approval-mode`, {
+      approval_mode: mode,
+    }),
 };

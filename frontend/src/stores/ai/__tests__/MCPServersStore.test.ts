@@ -22,6 +22,7 @@ vi.mock('@/services/api/mcp-servers', () => ({
     checkStatus: vi.fn(),
     remove: vi.fn(),
     getOAuthUrl: vi.fn(),
+    updateApprovalMode: vi.fn(),
   },
 }));
 
@@ -126,6 +127,27 @@ describe('MCPServersStore', () => {
     expect(mcpServersApi.remove).toHaveBeenCalledWith(WORKSPACE_ID, 'server-1');
     expect(store.servers).toHaveLength(1);
     expect(store.servers[0]?.id).toBe('server-2');
+  });
+
+  it('updateApprovalMode() calls PATCH .../approval-mode with correct args and updates servers observable', async () => {
+    // Pre-populate store with a server
+    vi.mocked(mcpServersApi.list).mockResolvedValueOnce({
+      items: [makeMockServer({ id: 'server-1', approval_mode: 'auto_approve' })],
+      total: 1,
+    });
+    await store.loadServers(WORKSPACE_ID);
+
+    const updatedServer = makeMockServer({ id: 'server-1', approval_mode: 'require_approval' });
+    vi.mocked(mcpServersApi.updateApprovalMode).mockResolvedValueOnce(updatedServer);
+
+    await store.updateApprovalMode(WORKSPACE_ID, 'server-1', 'require_approval');
+
+    expect(mcpServersApi.updateApprovalMode).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      'server-1',
+      'require_approval'
+    );
+    expect(store.servers[0]?.approval_mode).toBe('require_approval');
   });
 
   it('refreshStatus() calls GET .../status and updates matching server status field in servers observable', async () => {
