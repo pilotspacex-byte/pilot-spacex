@@ -1,191 +1,234 @@
 # Project Research Summary
 
-**Project:** Pilot Space v1.0.0-alpha2 — Notion-Style Restructure
-**Domain:** SDLC platform UI restructure — nested page tree, project-centric navigation, embedded issue views, visual design refresh, responsive layout
-**Researched:** 2026-03-12
+**Project:** Pilot Space v1.1 — Medium Editor & File Artifacts
+**Domain:** Rich text editor enhancement + file artifact management on an existing TipTap + FastAPI + Supabase stack
+**Researched:** 2026-03-18
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This milestone restructures Pilot Space's navigation from a flat note list to a Notion-style 3-level page tree organized around projects, with embedded issue database views, a visual design refresh, and desktop/tablet responsive layout. The critical finding across all research is that **the existing stack already contains every library needed** — no new npm packages or Python packages are required. The work is schema evolution (adding `parent_id`, `depth`, `position` to the existing `notes` table), component extraction and extension (sidebar tree, editor decoupling, issue view embedding), and CSS token refinement.
+This milestone extends an existing, mature platform (not a greenfield build) with a Medium-style writing experience and file artifact management. The core finding is that the stack already covers ~90% of what is needed: TipTap 3.x is installed with `BubbleMenu`/`FloatingMenu` bundled in `@tiptap/react`, the backend has `storage3`, `python-multipart`, and `supabase` SDKs in place, and TanStack Query's `useMutation` already handles optimistic UI for other features. Only 5 new npm packages are required and zero new Python packages. The recommended approach is additive: extend existing extensions and patterns rather than replacing them.
 
-The recommended approach is an adjacency list (`parent_id` self-referential FK) on the existing `notes` table with a hard depth cap of 3 levels enforced via DB CHECK constraint. The frontend extends the existing `@dnd-kit/sortable` for tree drag-and-drop, adds a new `ProjectTreeStore` (MobX) for tree UI state, and reuses existing `BoardView`/`ListView`/`TableView` components for embedded issue database views in the project hub. The two ownership models (project pages vs personal pages) require no new table — the distinction is `project_id IS NOT NULL` vs `project_id IS NULL` with `owner_id` filtering, but RLS policies must be updated atomically with the schema migration.
+The key architectural risk is the suite of integration constraints that exist in the current TipTap setup. Four hard rules govern every new editor extension: (1) new block nodes must be registered in Group 3 before `BlockIdExtension`, (2) new node views must NOT be wrapped in MobX `observer()` due to a React 19 + `ReactNodeViewRenderer` + `flushSync` incompatibility, (3) new nodes must register `renderMarkdown` or content silently drops on save, and (4) the existing `SelectionToolbar` must be extended rather than replaced with TipTap's `BubbleMenu` API to avoid conflicts with `GhostTextExtension` and `SlashCommandExtension`. These are non-negotiable constraints, not options — violating any one causes silent data loss, runtime crashes, or plugin conflicts.
 
-The top risks are: (1) the flat-to-tree migration silently breaking existing note references, RLS policies, and knowledge graph nodes if ownership semantics change without coordinated policy updates; (2) TipTap's property block extension crashing on non-issue pages because the guard plugins assume issue context; and (3) the visual design refresh cascading unintended style changes across the 880K-line codebase via global CSS variable mutations. All three are avoidable with the phased approach detailed below.
+Security and storage design require deliberate upfront choices. The upload flow must be DB-first (write a `pending_upload` record, then upload to Supabase Storage, then mark `ready`) to prevent orphaned storage objects on failure. File access must go through backend-generated signed URLs — never public bucket URLs — to enforce workspace isolation. Video iframes require explicit `sandbox` and `allow` attributes, and `frame-src` in `next.config.ts` must be updated to include only `youtube-nocookie.com` and `player.vimeo.com`. All three size enforcement layers (frontend validation, FastAPI body check, Nginx `client_max_body_size 12m`) must be in place before the upload endpoint goes live.
 
 ## Key Findings
 
 ### Recommended Stack
 
-No new libraries. The entire feature set builds on the existing stack: Next.js 16.1, React 19.2, MobX 6, TanStack Query 5, shadcn/ui, TipTap 3, Tailwind CSS 4, @dnd-kit (core + sortable), react-resizable-panels, Motion, PostgreSQL 16, SQLAlchemy async, FastAPI. See `.planning/research/STACK.md` for full analysis.
+The project needs exactly 5 new frontend packages and 0 new backend packages. TipTap's `BubbleMenu` and `FloatingMenu` components are already bundled inside the installed `@tiptap/react` package — no separate installs. The backend `storage3`, `python-multipart`, and `supabase` SDKs already cover all storage operations needed.
 
-**Core technology decisions:**
-- **Adjacency list (parent_id + position + depth)** on `notes` table — simplest tree model for max 3 levels; re-parenting is a single UPDATE; no ltree extension needed
-- **@dnd-kit/sortable (existing)** for tree drag-and-drop — already powers OutlineTree.tsx; extending with indentation logic is ~100 lines, not a new dependency
-- **MobX ProjectTreeStore (new store)** for tree UI state — expand/collapse, drag state, optimistic updates; persisted to localStorage; separate from existing NoteStore
-- **Flat query + client-side tree build** — single `SELECT ... ORDER BY depth, position` returns all nodes; client builds hierarchy; no recursive CTE needed for reads at this depth
-- **CSS custom property refinement** in `globals.css` — Notion-like typography, spacing, colors via token changes, not library additions
+**Core new technologies:**
+- `@tiptap/extension-image` ^3.20.4 — official image node, required foundation for `FigureNode` (image with caption); not in StarterKit
+- `@tiptap/extension-youtube` ^3.20.4 — official YouTube embed node; Vimeo requires a custom ~60-line extension (no TipTap 3-compatible Vimeo package exists)
+- `react-dropzone` ^15.0.0 — drag-and-drop file upload; React 19 compatible as of Feb 2026
+- `papaparse` ^5.5.3 — CSV parsing for preview modal; use directly, not via `react-papaparse` wrapper
+- `@e965/xlsx` ^0.20.3 — Excel preview; use this maintained fork, NOT `xlsx` on npm (unmaintained, active CVEs in 2026)
+
+**Critical version notes:**
+- Use `@e965/xlsx` not `xlsx` — the npm `xlsx` name is an unmaintained fork with CVEs
+- `@fourwaves/tiptap-extension-vimeo` is TipTap 2.x only; build a custom ~60-line Vimeo node instead
+- `BubbleMenu`/`FloatingMenu` import from `@tiptap/react/menus` (already installed) — do NOT install separate `@tiptap/extension-bubble-menu`
+
+See `.planning/research/STACK.md` for full installation commands and version compatibility table.
 
 ### Expected Features
 
-See `.planning/research/FEATURES.md` for full prioritization matrix and competitor analysis.
+All features across 4 categories (editor UX, file upload/preview, artifacts management page, video embeds) are well-understood. The feature set is concrete and bounded — this is enhancement work with clear scope, not exploratory product development.
 
-**Must have (P1 — launch is incomplete without these):**
-- Page model with `parent_id` + `position` + ownership classification
-- Tree CRUD API (create, read nested, move/reorder, delete with cascade)
-- Sidebar page tree per project (3 levels, expand/collapse, inline "+" creation)
-- Personal pages section (replacing workspace-level notes concept)
-- Page breadcrumb navigation (parent > child > current)
-- Embedded issue views in project hub (Board/List/Table with view switcher)
-- Ownership migration (classify existing notes as project or personal)
-- Visual design refresh (typography, spacing, colors)
-- Desktop + tablet responsive layout
+**Must have (table stakes — P1):**
+- Pull quote toggle (styled blockquote variant) — low effort, high craft signal
+- Focus mode (hide chrome, Cmd+Shift+F) — MobX flag + CSS, no new infrastructure
+- Floating toolbar heading toggle H1/H2/H3 — currently missing from `SelectionToolbar`
+- Inline image insertion via `/image` slash command + drag-and-drop
+- Inline image captions (custom `FigureNode` extending `@tiptap/extension-image`)
+- `FileCardNode` with upload, progress indicator, and preview modal (text, JSON, code, Markdown, CSV, images)
+- `/file`, `/image`, `/video` slash commands (additive entries to existing `SlashCommandExtension`)
+- Per-project artifacts management page: list, preview, download, delete + optimistic UI
+- YouTube embed via `@tiptap/extension-youtube`
+- Vimeo embed via custom `VimeoNode`
 
-**Should have (P2 — add after core is stable):**
-- Drag-and-drop reordering in sidebar tree
-- Page emoji icons
-- Priority view for embedded database
-- Keyboard tree navigation (accessibility)
-- Cmd+K tree-aware search
+**Should have (competitive differentiators — P2):**
+- URL paste detection → offer to embed (YouTube/Vimeo `PasteRule`)
+- Video thumbnail placeholder before iframe activation
+- Upload progress indicator on `FileCardNode`
+- "Used in" note deep-link on artifacts management page
+
+**Defer (v1.x — after validation):**
+- XLSX preview (`@e965/xlsx` dep cost justified only with demand signal)
+- Grid/list view toggle on artifacts page
+- Artifact reuse across notes
 
 **Defer (v2+):**
-- Timeline/Gantt view (high complexity, separate feature)
-- AI ghost text tree context awareness (prompt engineering iteration)
-- Page templates for tree nodes
-- Cross-project page references
+- PDF in-app preview (pdf.js too heavy; browser handles natively)
+- Bulk download as ZIP (requires server-side assembly)
+- Artifact version history
+
+**Anti-features to explicitly avoid:**
+- Replacing `SelectionToolbar` with TipTap's `BubbleMenu` extension — breaks ghost text/slash command coordination
+- Generic iframe embed for arbitrary URLs — CSP violations cause silent failures; YouTube + Vimeo only
+- PDF preview — `react-pdf` adds ~2MB; browser opens PDFs natively
+
+See `.planning/research/FEATURES.md` for full prioritization matrix and competitor analysis.
 
 ### Architecture Approach
 
-The architecture extends the existing 5-layer clean architecture without new layers. The `notes` table gains three columns (`parent_id`, `depth`, `position`). The frontend adds a `ProjectTreeStore` and `SidebarProjectTree` component, extracts a base `PageEditor` from the issue-coupled `IssueEditorContent`, and embeds existing issue view components in a new project hub layout. See `.planning/research/ARCHITECTURE.md` for component boundaries and data flows.
+The architecture is additive to existing Clean Architecture layers. The critical path is storage layer first (DB migration + `ArtifactUploadService` + `project_artifacts` router), then editor extensions and management UI in parallel, then preview modal, then polish. Video embeds, focus mode, and pull quote are fully backend-independent and can be built concurrently with the storage work.
 
-**Major components:**
-1. **Note model extension** — `parent_id` (self-referential FK), `depth` (0-2, CHECK constrained), `position` (fractional indexing for insert-between)
-2. **ProjectTreeStore (MobX)** — manages per-project tree state, expanded nodes (Set), drag state; persists to localStorage; loads lazily per-project
-3. **SidebarProjectTree** — extracted from sidebar.tsx; renders collapsible per-project trees replacing flat Pinned/Recent sections
-4. **PageEditor (base)** — extracted from issue editor; shared TipTap extensions without property block; issue editor layers property block on top
-5. **IssueViewTabs** — tab container embedding existing Board/List/Table views inside project hub, fetching via TanStack Query with `projectId` prop
-6. **Responsive layout refinement** — new `isTabletLayout` check added to `useResponsive()` without changing existing `isSmallScreen` semantics
+**Major new components:**
+
+Backend:
+1. `Artifact` ORM model — extends `WorkspaceScopedModel`; stores file metadata + `storage_key`; uses `note-artifacts` Supabase Storage bucket (separate from `chat-attachments` which has TTL expiry)
+2. `ArtifactUploadService` — mirrors `AttachmentUploadService` pattern; DB-first upload flow (write `pending_upload` record → upload to Storage → mark `ready`)
+3. `project_artifacts.py` router — CRUD + signed URL endpoints under existing `v1` API surface
+
+Frontend:
+4. `FileCardExtension` + `FileCardView` — TipTap block node (Group 3); plain (non-observer) wrapper component with context bridge for reactive state
+5. `VideoEmbedExtension` + `VideoEmbedView` — YouTube/Vimeo iframe node; validates URLs against allowlist before inserting
+6. `PullQuoteExtension` — ~30-line blockquote variant; no NodeView needed
+7. `FloatingToolbarExtension` — extend existing `SelectionToolbar`, not a new BubbleMenu instance
+8. `FilePreviewModal` — shadcn `Dialog` with per-MIME-type renderer; shared between `FileCardView` and `ArtifactsPage`
+9. `ArtifactStore` (MobX) — ephemeral upload progress state; TanStack Query owns the persistent artifacts list
+10. `ArtifactsPage` — `/{ws}/projects/{pid}/artifacts` route; TanStack Query CRUD with optimistic delete
+
+**Key patterns:**
+- Extension registration order: new block nodes in Group 3, before `BlockIdExtension` (PRE-002 constraint)
+- NodeView components: plain wrapper → context bridge → observer child (never `observer()` on the NodeView directly)
+- Markdown serialization: define `renderMarkdown` in the same PR as the node, never deferred
+- Storage access: backend service-role upload only; signed URLs for all reads (never public URLs)
+- State ownership split: TanStack Query owns server-fetched lists; MobX owns ephemeral client state (upload progress, optimistic placeholders)
+
+See `.planning/research/ARCHITECTURE.md` for full component map, data flows, project structure, and suggested build order.
 
 ### Critical Pitfalls
 
-See `.planning/research/PITFALLS.md` for all 8 pitfalls with recovery strategies.
+1. **New block extensions registered after `BlockIdExtension`** — `blockId` is null on new nodes; breaks annotation linking, AI block references, KG chunker. Prevention: always insert in Group 3 of `createEditorExtensions.ts` before the Group 4 marker. Verify with `editor.getJSON()` immediately after adding any new block node.
 
-1. **Flat-to-tree migration breaks note references** — Add columns and RLS policies atomically in one migration; classify existing notes without removing any columns; run against staging data clone first. Phase 1 blocker.
-2. **TipTap property block crashes on non-issue pages** — Extract base PageEditor without property block extension; issue editor layers it on top. Do NOT make property block "optional" within the same instance. Phase 3.
-3. **RLS policy gaps expose personal pages** — SELECT policy must be `(project_page AND workspace_member) OR (personal_page AND owner_id match)`. Write policy in same migration as schema. Test with real PostgreSQL. Phase 1 blocker.
-4. **Sidebar state explosion** — Dedicated ProjectTreeStore with `observable.shallow`; persist expanded state in localStorage; lazy-load trees per-project. Never put tree state in UIStore or NoteStore. Phase 4.
-5. **Visual design refresh cascading breakage** — Change CSS tokens first, audit every page visually, do NOT change component-level classes simultaneously. Use new custom properties for tree-specific values. Phase 5.
+2. **MobX `observer()` on TipTap NodeView components** — causes nested `flushSync` crash in React 19 (`ReactNodeViewRenderer` + MobX `useSyncExternalStore` both call `flushSync`). Prevention: use context bridge pattern (plain NodeView wrapper → observer child via React context), same as `IssueEditorContent`.
+
+3. **Missing `renderMarkdown` on custom nodes** — `tiptap-markdown` silently drops unregistered nodes at save time; `FileCardNode` and video embeds disappear after page reload. Prevention: define `renderMarkdown` in the same commit as the node extension. Test with round-trip: insert → `getMarkdown()` → re-parse → verify node survives.
+
+4. **Single-phase upload (storage first, DB second)** — upload failure leaves orphaned Supabase Storage objects with no DB record and no cleanup path. Prevention: DB-first flow in `ArtifactUploadService`: write `status: pending_upload` → upload file → update to `status: ready`. Add 24h cleanup job for stale `pending_upload` records.
+
+5. **Video iframe XSS and missing CSP** — missing `sandbox`/`allow` attributes on iframes allow embedded page to navigate parent; missing `frame-src` in Next.js CSP causes production embed failures. Prevention: always include `sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen"` on video iframes; add `frame-src https://www.youtube-nocookie.com https://player.vimeo.com` to `next.config.ts` before shipping video embeds.
+
+**Additional pitfalls (moderate severity):**
+- Signed URL expiry with long TanStack Query `staleTime` — set `staleTime` to max 55 minutes on any query embedding signed URLs; handle 403 in preview modal with query invalidation
+- Three-layer file size enforcement (client, FastAPI, Nginx) — all three must be in place; missing Nginx `client_max_body_size 12m` returns raw HTML 413 that breaks `ApiError.fromAxiosError`
+- MIME type spoofing — backend must validate content via magic bytes / header sniffing, not trust `file.type` from browser
+
+See `.planning/research/PITFALLS.md` for full pitfall-to-phase mapping and recovery strategies.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure (6 phases):
+Based on combined research findings, the build order is dependency-driven. The storage layer is the critical path; editor extension foundation must be established before any node UI is built to prevent cascading pitfalls.
 
-### Phase 1: Data Model and Migration
-**Rationale:** Every feature depends on `parent_id`, `depth`, `position` on the notes table. RLS policies must update atomically. This is the foundation.
-**Delivers:** Updated notes schema with tree columns, ownership classification of existing notes, updated RLS policies for personal vs project pages, CHECK constraint on depth.
-**Addresses:** Page model, ownership migration, data integrity.
-**Avoids:** Pitfall 1 (migration breaks references), Pitfall 8 (RLS gaps).
-**Estimated scope:** 1 migration file, model update, repository tree queries, integration tests with real PostgreSQL.
+### Phase 1: TipTap Extension Foundation
+**Rationale:** Three of the five critical pitfalls manifest at the extension layer and must be resolved before any node UI is built. Establishing the correct extension registration order, the NodeView wrapper pattern, and the `renderMarkdown` contract upfront prevents cascading failures in all subsequent phases.
+**Delivers:** Extension scaffolding with correct group ordering verified, reusable NodeView context bridge pattern established, `renderMarkdown` contract verified on a simple node, slash command group `'media'` added, pull quote extension (simplest new node — proof-of-concept for all patterns), floating toolbar heading toggle (extend `SelectionToolbar`, not replace it)
+**Addresses:** Pull quote, heading toggle in floating toolbar
+**Avoids:** Pitfall 1 (BlockIdExtension ordering), Pitfall 2 (observer NodeView flushSync), Pitfall 3 (markdown serialization loss)
+**Research flag:** Standard patterns — well-documented in codebase (`createEditorExtensions.ts` PRE-002 comments, existing `PMBlockExtension` pattern)
 
-### Phase 2: Backend Tree API
-**Rationale:** Frontend tree components need API endpoints before any UI work. Batch tree fetch, move endpoint with depth validation, create-with-parent.
-**Delivers:** `GET /pages/tree` (batch), `PATCH /notes/{id}/move`, updated `POST /notes` and `GET /notes` with tree fields, `PageTreeService` with depth enforcement.
-**Addresses:** Tree CRUD API, personal pages filtering (`owner_only` param).
-**Avoids:** Pitfall 2 (N+1 queries — use flat query + client tree build, not recursive CTE).
-**Estimated scope:** 2 new endpoints, 3 modified endpoints, 1 new service, repository methods, unit + integration tests.
+### Phase 2: Storage Backend
+**Rationale:** The upload API must exist before any frontend artifact feature can be completed. The DB-first upload flow must be designed here, not retrofitted later. All three file size enforcement layers belong in this phase.
+**Delivers:** Alembic migration for `artifacts` table, `ArtifactUploadService` (DB-first: `pending_upload` → upload → `ready`), `project_artifacts.py` router (upload, list, delete, signed URL), Nginx `client_max_body_size 12m` config, 24h cleanup job for stale `pending_upload` records
+**Uses:** Existing `SupabaseStorageClient`, `WorkspaceScopedModel`, `AttachmentUploadService` as template; `note-artifacts` bucket (separate from `chat-attachments`)
+**Implements:** `Artifact` ORM model, `ArtifactRepository`, `ArtifactContentService` (signed URL generation)
+**Avoids:** Pitfall 4 (orphaned storage objects), Pitfall 7 (three-layer size enforcement), Pitfall 5 (workspace isolation via application-layer checks)
+**Research flag:** Standard patterns — mirrors existing `AttachmentUploadService` and `ChatAttachment` model; no new patterns needed
 
-### Phase 3: Editor Decoupling
-**Rationale:** The TipTap editor is coupled to issue-specific property blocks. Project pages and personal pages need an editor without property block guards. Must decouple before building page tree UI that opens different page types.
-**Delivers:** Base `PageEditor` component (shared extensions, no property block), issue editor as `PageEditor + PropertyBlockExtension`, simpler `PageContext` for non-issue pages.
-**Addresses:** TipTap reuse across page types.
-**Avoids:** Pitfall 3 (property block crashes on non-issue pages).
-**Estimated scope:** Extract/refactor ~4-5 editor components, update page routes, verify ghost text + slash commands work on both page types.
+### Phase 3: Inline Editor Features (File Cards + Image)
+**Rationale:** Now that the upload API exists, editor extensions that depend on it can be built. Image insertion is a prerequisite for image captions. FileCardNode upload integration connects editor to backend.
+**Delivers:** `@tiptap/extension-image` install, custom `FigureNode` (image + caption), `FileCardExtension` + `FileCardView` (with placeholder node pattern during upload), drag-and-drop file/image onto canvas, `/image` and `/file` slash commands, `ArtifactStore` (MobX) for upload progress state
+**Uses:** Context bridge pattern from Phase 1; upload API from Phase 2
+**Implements:** Placeholder node optimistic pattern (insert with `artifactId: null`, update on upload completion)
+**Avoids:** Pitfall 2 (observer NodeView), Pitfall 3 (`renderMarkdown` for FileCardNode serialized as `[filename](artifact://uuid)`)
+**Research flag:** Needs care on context bridge — established pattern exists (`issue-note-context.ts`) but each node view requires implementing it correctly
 
-### Phase 4: Sidebar Tree and Project Hub
-**Rationale:** Highest user-visible impact. Depends on API (Phase 2) and editor (Phase 3). Combines sidebar restructure with project hub because they share `ProjectTreeStore` and tree components.
-**Delivers:** `ProjectTreeStore` (MobX), `SidebarProjectTree` component, page tree component (recursive with expand/collapse), project hub page with tree panel + embedded issue views (Board/List/Table), personal pages section in Notes nav, breadcrumb navigation.
-**Addresses:** Sidebar page tree, embedded issue views, personal pages, breadcrumbs, inline page creation, view switcher.
-**Avoids:** Pitfall 4 (sidebar state explosion — dedicated store), Pitfall 7 (circular deps — issue views fetch via TanStack Query, not MobX store imports).
-**Estimated scope:** Largest phase. ~15 new/modified frontend components, 1 new MobX store, sidebar extraction (keep under 700 lines).
+### Phase 4: Video Embeds
+**Rationale:** Fully backend-independent — no storage, no DB migration needed. Isolated scope with its own security requirements (CSP, sandbox attributes). Can be built in parallel with Phase 3 but sequenced after to allow Phase 3 patterns to be established first.
+**Delivers:** `@tiptap/extension-youtube` install, custom `VimeoNode` (~60 lines), `VideoEmbedView` (with iframe sandbox attributes), URL paste detection `PasteRule`, CSP `frame-src` update in `next.config.ts`, URL validation allowlist rejecting malformed URLs with user-visible toast
+**Avoids:** Pitfall 8 (malformed URL validation), Pitfall 9 (iframe XSS and missing CSP)
+**Research flag:** Standard patterns — YouTube extension is official TipTap documentation; Vimeo custom node follows identical pattern; URL validation is an allowlist, not regex
 
-### Phase 5: Visual Design Refresh
-**Rationale:** Must happen AFTER structural UI changes are complete. Applying design tokens before the tree/hub UI exists means double work. Applying after means one consistent pass.
-**Delivers:** Updated CSS custom properties (typography, spacing, colors, borders), Notion-like visual feel, dark mode parity, TipTap editor styling alignment.
-**Addresses:** Visual design refresh (typography, spacing, colors).
-**Avoids:** Pitfall 5 (cascading breakage — token changes first, then audit, then component-level tweaks).
-**Estimated scope:** globals.css token updates, per-page visual audit, editor CSS alignment. Mostly CSS, minimal JS.
+### Phase 5: File Preview Modal
+**Rationale:** Depends on Phase 2 (signed URL endpoint) and Phase 3 (FileCardNode exists to trigger the modal). Build once, shared between editor and management page. Common MIME types first, Excel deferred to v1.x.
+**Delivers:** `FilePreviewModal` shadcn Dialog with renderers for: image, text/Markdown (`react-markdown` + `remark-gfm`), JSON + code (reuse existing `lowlight`/shiki), CSV (`papaparse`); "Download" fallback for unsupported types; 403 error handling triggers TanStack Query invalidation; HTML files previewed as source code (never as live HTML)
+**Uses:** `papaparse` (new dep); existing `react-markdown`, `lowlight`, `dompurify`; `@e965/xlsx` deferred (lazy import, P3 only)
+**Avoids:** Pitfall 6 (signed URL expiry — handle 403 in modal), security: HTML preview must render escaped source, not `innerHTML`
+**Research flag:** Standard patterns for all renderers; CSV table rendering for large files (capped at 500 rows) — decide truncation vs. virtual scrolling upfront
 
-### Phase 6: Responsive Layout and Polish
-**Rationale:** Responsive behavior depends on the final component dimensions from Phase 5. This is the polish pass. Also includes drag-and-drop tree reordering (P2 feature) since layout must be stable first.
-**Delivers:** Tablet-specific sidebar behavior (icon rail at 768px, not mobile overlay), content area responsive adjustments, drag-and-drop tree reordering, breakpoint-specific testing.
-**Addresses:** Desktop + tablet responsive layout, drag-and-drop reordering (P2).
-**Avoids:** Pitfall 6 (responsive conflicts — add `isTabletLayout` without changing `isSmallScreen`).
-**Estimated scope:** useResponsive hook extension, AppShell tablet behavior, content area responsive tweaks, drag-and-drop tree integration.
+### Phase 6: Artifacts Management Page
+**Rationale:** Depends on Phase 2 (all artifact API endpoints) and Phase 5 (`FilePreviewModal` to reuse). The management page reuses both the API layer and the preview component — no new infrastructure needed.
+**Delivers:** `ArtifactsPage` route at `/{ws}/projects/{pid}/artifacts`, TanStack Query hooks (`useArtifacts`, `useDeleteArtifact` with optimistic delete, `useArtifactSignedUrl`), `staleTime` set to 55 minutes on artifact list query, `artifact-card` component (filename, type icon, size, uploader avatar, date), client-side filename search filter, sort by type/date/size
+**Uses:** `useQuery`/`useMutation` optimistic update pattern (same as issues/cycles in codebase); `FilePreviewModal` from Phase 5
+**Avoids:** Pitfall 6 (staleTime constraint — never `Infinity` on queries with signed URLs), optimistic rollback shows "Upload failed, retry?" state not silent disappearance
+**Research flag:** Standard patterns — reuses established optimistic update pattern already used in issues and cycles features
+
+### Phase 7: Editor UX Polish
+**Rationale:** Focus mode is independent of the storage system and can be deferred until core functionality is complete. Low-risk, high-craft item.
+**Delivers:** Focus mode (MobX `isFocusMode` flag + CSS hide-chrome, Cmd+Shift+F shortcut), `z-index` hierarchy ensuring focus mode overlay does not cover slash command menu
+**Addresses:** Focus mode — explicitly a "Medium-style editor" requirement from PROJECT.md
+**Research flag:** Standard patterns — pure CSS/MobX, no new dependencies, no backend
 
 ### Phase Ordering Rationale
 
-- **Phases 1-2 are strictly sequential:** Schema must exist before API, API must exist before frontend.
-- **Phase 3 before Phase 4:** Editor decoupling is a prerequisite for the project hub page which opens non-issue pages. Building the hub first and then trying to fix the editor creates rework.
-- **Phase 4 is the critical delivery:** It produces the user-facing restructure. Everything before it is foundational; everything after is refinement.
-- **Phase 5 after Phase 4:** Design tokens applied to finalized component structure, not a moving target.
-- **Phase 6 last:** Responsive behavior calibrated against final layouts and design tokens.
+- **Phase 1 before all other phases:** The three extension pitfalls (ordering, observer, renderMarkdown) are load-bearing constraints. Building Phases 3 or 4 without Phase 1 foundations guarantees rework.
+- **Phase 2 (storage) before Phase 3 (file upload):** FileCardNode cannot complete its upload flow without the API endpoint. The FileCardNode static rendering can start in parallel, but upload integration requires Phase 2.
+- **Phases 3 and 4 can be built in parallel:** Video embeds have zero backend dependencies and zero shared state with the file upload work.
+- **Phase 5 before Phase 6:** The artifacts management page reuses `FilePreviewModal`. Avoid building the modal twice in two different places.
+- **Phase 7 last:** Pure polish with no blocking dependencies; safe to defer if time-constrained without impacting any other phase.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 3 (Editor Decoupling):** TipTap extension extraction is codebase-specific; needs careful analysis of which extensions are shared vs issue-only. The `flushSync` constraint adds risk.
-- **Phase 4 (Sidebar Tree + Project Hub):** Largest phase with the most new components. Drag-and-drop nesting with @dnd-kit needs prototyping — the indentation-based drop detection is not trivially documented.
+Phases needing deeper research or careful attention during planning:
+- **Phase 3 (File Cards + Image):** The context bridge pattern is established but each new NodeView requires careful implementation. Review `issue-note-context.ts` and `property-block-view.tsx` before writing `FileCardView`. The placeholder node cleanup (stale `artifactId: null` nodes from failed uploads) needs a concrete removal strategy on editor mount.
+- **Phase 5 (Preview Modal):** CSV table rendering for large files (capped at 500 rows) needs an explicit decision on truncation vs. `@tanstack/react-virtual` virtual scrolling. Decide before implementation to avoid refactoring later.
 
 Phases with standard patterns (skip research-phase):
-- **Phase 1 (Data Model):** Standard adjacency list migration. Well-documented SQLAlchemy self-referential pattern.
-- **Phase 2 (Backend API):** Standard CRUD + tree query endpoints. No novel patterns.
-- **Phase 5 (Visual Design):** CSS token changes. Standard Tailwind/shadcn approach.
-- **Phase 6 (Responsive):** Standard responsive layout work. Existing hooks cover most needs.
+- **Phase 1:** Fully documented in `createEditorExtensions.ts` PRE-002 comments and existing `PMBlockExtension` pattern
+- **Phase 2:** Direct template in `AttachmentUploadService` and `ChatAttachment` model; no novel patterns
+- **Phase 4:** YouTube extension is official TipTap documentation; Vimeo is a 60-line mirror of the same pattern
+- **Phase 6:** Optimistic update pattern already used in issues and cycles — same `onMutate`/`onError`/`onSettled` shape
+- **Phase 7:** Pure MobX flag + CSS, zero infrastructure
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | No new libraries needed; all existing packages verified compatible. Decision is straightforward. |
-| Features | HIGH | Clear P1/P2/P3 prioritization; anti-features well-identified; competitor analysis validates scope. |
-| Architecture | HIGH | Based on direct codebase inspection of existing models, stores, components. Build order is dependency-driven. |
-| Pitfalls | HIGH | All 8 pitfalls grounded in actual codebase constraints (TipTap rules, RLS rules, sidebar line count, responsive hooks). |
+| Stack | HIGH | All 5 packages verified live via `npm view`; existing stack audited from `package.json` and `pyproject.toml`; zero new Python deps confirmed |
+| Features | HIGH | Cross-referenced with existing codebase components, competitor analysis (Notion/Linear), and PROJECT.md milestone requirements; anti-features explicitly identified |
+| Architecture | HIGH | Based on direct codebase inspection of all referenced files; build order derived from actual dependency graph, not speculation; integration constraints confirmed from live code |
+| Pitfalls | HIGH | Critical pitfalls 1-4 confirmed from codebase analysis and project memory (MEMORY.md flushSync constraint); pitfalls 5-10 confirmed from TipTap GitHub issues and Supabase docs |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Fractional indexing for position:** Architecture recommends `Numeric(10,4)` for insert-between ordering. Need to validate this works cleanly with @dnd-kit sort events or if integer reindexing is simpler. Resolve during Phase 1 planning.
-- **Timeline/Gantt view feasibility:** Mentioned as P3 but the project hub tab structure assumes it exists. If deferred, the tab UI needs graceful degradation. Clarify during Phase 4 planning.
-- **Knowledge graph impact:** `kg_populate_handler.py` processes notes; tree restructure may create empty "container" pages that should not generate NOTE_CHUNK nodes. Need a `page_type` check in the handler. Address during Phase 2.
-- **Meilisearch index update:** Search results should show breadcrumb context after tree restructure. Not blocking but improves UX. Plan during Phase 4.
-- **Existing notes migration UX:** Users seeing their flat notes reorganized into a tree. Need a "Migrated Notes" bucket or one-time notice. Design during Phase 4 planning.
+- **XLSX preview in v1 vs. v1.x:** Research recommends deferring `@e965/xlsx` until after launch validation, but PROJECT.md may require it in v1. Verify against PROJECT.md milestone spec before Phase 5 planning.
+- **Cleanup job for `pending_upload` artifacts:** The DB-first upload flow requires a background cleanup job (24h sweep of stale `pending_upload` records). This is not in the current `memory_worker.py` task list. Add it explicitly during Phase 2 planning.
+- **`python-magic` for server-side MIME validation:** PITFALLS.md recommends magic bytes validation in the backend to prevent MIME spoofing. This library is not currently in `pyproject.toml` and would be a new Python dependency. Validate whether it's worth the dependency vs. a simpler extension-allowlist approach during Phase 2.
+- **Nginx `client_max_body_size` current value:** Pitfalls research describes the default as 1MB which would break files >1MB before FastAPI. Verify the actual current value in `infra/` before assuming it needs changing.
+- **CSV virtual scrolling threshold:** Phase 5 needs a decision on truncating large CSV previews at 500 rows vs. implementing virtual scrolling. Research `@tanstack/react-virtual` during Phase 5 planning if CSVs in the target workflow regularly exceed 500 rows.
 
 ## Sources
 
-### Primary (HIGH confidence — direct codebase analysis)
-- `backend/src/pilot_space/infrastructure/database/models/note.py` — current Note model schema
-- `backend/src/pilot_space/infrastructure/database/models/project.py` — Project model with icon field
-- `backend/src/pilot_space/infrastructure/database/models/issue.py` — Issue model with start_date, target_date
-- `frontend/src/components/layout/sidebar.tsx` — current sidebar implementation (671 lines)
-- `frontend/src/components/layout/app-shell.tsx` — responsive layout handling
-- `frontend/src/hooks/useMediaQuery.ts` — existing breakpoint definitions
-- `frontend/src/stores/UIStore.ts` — sidebar persistence pattern
-- `.claude/rules/tiptap.md` — PropertyBlockNode constraints, flushSync issue
-- `.claude/rules/rls-check.md` — RLS policy requirements
-- `.claude/rules/migration.md` — migration immutability rules
-- `.planning/PROJECT.md` — v1.0.0-alpha2 milestone requirements
+### Primary (HIGH confidence)
+- TipTap official docs: BubbleMenu, FloatingMenu, Image extension, YouTube extension, Figure experiment, Markdown custom serializing — confirmed API contracts and version compatibility
+- Supabase docs: Storage access control, signed URLs, Python SDK upload API — confirmed backend operation signatures
+- Direct codebase inspection: `createEditorExtensions.ts`, `GhostTextExtension.ts`, `SlashCommandExtension.ts`, `SelectionToolbar.tsx`, `attachment_upload_service.py`, `storage/client.py`, `WorkspaceScopedModel`, `container.py`, `NoteStore.ts`, `RootStore.ts`, `issue-note-context.ts` — all integration constraints verified from live code
+- `npm view` on all 5 new packages — version numbers and React 19 compatibility confirmed live
 
-### Secondary (MEDIUM confidence — library documentation and community patterns)
-- [@dnd-kit sortable docs](https://docs.dndkit.com/presets/sortable) — nested sortable context support
-- [PostgreSQL hierarchical data patterns](https://www.ackee.agency/blog/hierarchical-models-in-postgresql) — adjacency list vs ltree comparison
-- [Notion Help Center](https://www.notion.com/help/navigate-with-the-sidebar) — sidebar navigation UX patterns
-- [react-arborist](https://www.npmjs.com/package/react-arborist), [@headless-tree/react](https://www.npmjs.com/package/@headless-tree/react) — evaluated and rejected
+### Secondary (MEDIUM confidence)
+- TipTap GitHub issues: #3764 (flushSync NodeView crash), #6148 (BubbleMenu + DragHandle conflict), #4560 (YouTube URL edge case — valid-looking URL with no video ID accepted) — confirm pitfalls are real and community-documented
+- SheetJS/xlsx security reports 2026 — confirm `xlsx` npm CVEs; `@e965/xlsx` as the maintained fork with identical API
 
-### Tertiary (LOW confidence — needs validation)
-- Fractional indexing with Numeric(10,4) — theoretical fit, needs practical validation with @dnd-kit
-- Timeline/Gantt view with CSS grid — conceptual, deferred to v2+
+### Tertiary (needs validation during implementation)
+- Nginx `client_max_body_size` default behavior — described in FastAPI community; verify against actual `infra/` Nginx config before assuming 1MB default applies
+- `python-magic` as MIME validation approach — mentioned in pitfalls research; validate whether it fits the project's dependency philosophy vs. a simpler extension-based allowlist
 
 ---
-*Research completed: 2026-03-12*
+*Research completed: 2026-03-18*
 *Ready for roadmap: yes*
