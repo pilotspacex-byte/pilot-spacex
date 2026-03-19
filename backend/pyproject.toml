@@ -95,6 +95,9 @@ dev = [
     "ipython>=8.29.0",
 ]
 
+[project.scripts]
+app = "pilot_space.main:app"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
