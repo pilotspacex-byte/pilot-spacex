@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: MCP Platform Hardening
 status: planning
-stopped_at: Phase 31 planned — 4 plans ready for execution
+stopped_at: Completed 31-04-PLAN.md (encryption enforcement)
 last_updated: "2026-03-20"
-last_activity: "2026-03-20 — Phase 31 plans created (31-01 through 31-04-PLAN.md)"
+last_activity: "2026-03-20 — 31-04 complete: ENCRYPTION_KEY production enforcement added to main.py"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 31 of 35 (MCP Infrastructure Hardening)
-Plan: 31-01 (ready to execute, wave 1)
-Status: Planning complete
-Last activity: 2026-03-20 — Phase 31 plans created (4 plans, 2 waves)
+Plan: 31-04 complete; remaining: 31-01, 31-02, 31-03
+Status: In progress
+Last activity: 2026-03-20 — 31-04 complete (encryption enforcement, MCPI-06)
 
-Progress: [░░░░░░░░░░] 0% (0/6 phases complete)
+Progress: [░░░░░░░░░░] 0% (0/6 phases complete, 1/5 plans complete)
 
 ## Wave Structure for Phase 31
 
@@ -59,6 +59,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [quick-260317-bch]: pilotspace_agent.py excluded from pre-commit 700-line check (orchestrator file)
 - [quick-260317-hms]: WorkspaceLLMConfig is frozen dataclass in provider_selector.py (colocation avoids circular imports)
 - [Phase 31]: _validate_mcp_url extracted to infrastructure/ssrf.py to avoid AI-layer → API-layer circular import
+- [31-04]: Enforcement check in lifespan mirrors jwt_provider_validated pattern; non-production bypassed to preserve dev key fallback behavior
+- [31-04]: Tests use extracted helper function matching lifespan logic, patching pilot_space.config.get_settings for get_encryption_service() override
 
 ### Pending Todos
 
@@ -71,6 +73,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-20
-Stopped at: Phase 31 planned — 4 plans written, ROADMAP and STATE updated
+Stopped at: Completed 31-04-PLAN.md
 Resume file: None
-Next action: /gsd:execute-phase 31
+Next action: /gsd:execute-phase 31 (remaining: 31-01, 31-02, 31-03)

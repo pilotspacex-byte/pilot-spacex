@@ -14,7 +14,7 @@ Requirements for MCP platform hardening. Each maps to roadmap phases.
 - [ ] **MCPI-03**: Failed MCP servers (last_status="failed") are skipped at session load to prevent timeout blocking
 - [ ] **MCPI-04**: Per-workspace MCP server cap (max 10) enforced with clear error when limit reached
 - [ ] **MCPI-05**: DNS re-validation at connect time prevents TOCTOU/rebinding SSRF bypass
-- [ ] **MCPI-06**: Application refuses to start without valid ENCRYPTION_KEY in production environments
+- [x] **MCPI-06**: Application refuses to start without valid ENCRYPTION_KEY in production environments
 
 ### MCP OAuth
 
@@ -72,7 +72,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCPI-03 | Phase 31 | Pending |
 | MCPI-04 | Phase 31 | Pending |
 | MCPI-05 | Phase 31 | Pending |
-| MCPI-06 | Phase 31 | Pending |
+| MCPI-06 | Phase 31 | Complete — 31-04 |
 | MCPO-01 | Phase 32 | Pending |
 | MCPO-02 | Phase 32 | Pending |
 | MCPO-03 | Phase 32 | Pending |
