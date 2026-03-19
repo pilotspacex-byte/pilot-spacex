@@ -70,7 +70,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 - [x] **Phase 31: Storage Backend** - Artifact model, upload service, project_artifacts router, size enforcement (completed 2026-03-19)
 - [ ] **Phase 32: Inline Editor Features** - FileCardNode, FigureNode, slash commands, drag-and-drop
 - [x] **Phase 33: Video Embeds** - YouTube/Vimeo iframe players, paste detection, CSP (completed 2026-03-19)
-- [ ] **Phase 34: File Preview Modal** - Shared preview dialog with per-MIME renderers
+- [x] **Phase 34: File Preview Modal** - Shared preview dialog with per-MIME renderers (completed 2026-03-19)
 - [ ] **Phase 35: Artifacts Management Page** - Per-project artifacts page with optimistic CRUD, search, sort
 - [ ] **Phase 36: Editor UX Polish** - Focus mode (Cmd+Shift+F), distraction-free writing
 
@@ -198,7 +198,7 @@ Plans:
 | 31. Storage Backend | 3/3 | Complete   | 2026-03-19 | - |
 | 32. Inline Editor Features | 4/5 | In Progress|  | - |
 | 33. Video Embeds | 3/3 | Complete   | 2026-03-19 | - |
-| 34. File Preview Modal | 1/2 | In Progress|  | - |
+| 34. File Preview Modal | 2/2 | Complete   | 2026-03-19 | - |
 | 35. Artifacts Management Page | v1.1 | 0/2 | Not started | - |
 | 36. Editor UX Polish | v1.1 | 0/2 | Planned | - |
 

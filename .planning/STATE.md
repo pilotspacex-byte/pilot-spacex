@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Medium Editor & Artifacts
 status: planning
-stopped_at: Completed 34-file-preview-modal/34-01-PLAN.md
-last_updated: "2026-03-19T15:05:22.391Z"
+stopped_at: Completed 34-file-preview-modal/34-02-PLAN.md
+last_updated: "2026-03-19T15:31:14.686Z"
 last_activity: 2026-03-18 — v1.1 roadmap created, 22/22 requirements mapped across 7 phases
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 20
-  completed_plans: 14
+  completed_plans: 15
   percent: 0
 ---
 
@@ -85,6 +85,8 @@ Recent decisions affecting current work:
 - [Phase 34-file-preview-modal]: fetch() directly for signed URL content (not apiClient) — avoids Authorization header that Supabase Storage rejects
 - [Phase 34-file-preview-modal]: HTML always routes to 'code' renderer (text/html, .html, .htm) — never live render HTML from storage, XSS prevention
 - [Phase 34-file-preview-modal]: useFileContent staleTime 55 min (URLs expire at 60 min), retry:false (403 = expired not transient), isExpired flag for UI
+- [Phase 34-file-preview-modal]: LinkOff → Link2Off: lucide-react in project exports Link2Off not LinkOff
+- [Phase 34-file-preview-modal]: ImageRenderer uses native <img> not next/image: signed Supabase URLs are external, zoom requires raw dimensions
 
 ### Pending Todos
 
@@ -99,7 +101,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:05:22.388Z
-Stopped at: Completed 34-file-preview-modal/34-01-PLAN.md
+Last session: 2026-03-19T15:31:14.683Z
+Stopped at: Completed 34-file-preview-modal/34-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 30`
