@@ -27,6 +27,7 @@ import { Separator } from '@/components/ui/separator';
 import { useWorkspaceStore } from '@/stores/RootStore';
 import { toast } from 'sonner';
 import type { WorkspaceFeatureToggles } from '@/types';
+import { DEFAULT_FEATURE_TOGGLES } from '@/types';
 
 interface FeatureToggleItem {
   key: keyof WorkspaceFeatureToggles;
@@ -207,11 +208,7 @@ const FeaturesSettingsPage = observer(function FeaturesSettingsPage() {
         title="Main Modules"
         description="Core workspace modules visible to all members"
         features={mainFeatures}
-        toggles={toggles ?? {
-          notes: true, issues: false, projects: false,
-          members: true, docs: false, skills: true,
-          costs: false, approvals: false,
-        }}
+        toggles={toggles ?? DEFAULT_FEATURE_TOGGLES}
         disabled={isDisabled}
         onToggle={handleToggle}
       />
@@ -220,11 +217,7 @@ const FeaturesSettingsPage = observer(function FeaturesSettingsPage() {
         title="AI Modules"
         description="AI-powered workspace features"
         features={aiFeatures}
-        toggles={toggles ?? {
-          notes: true, issues: false, projects: false,
-          members: true, docs: false, skills: true,
-          costs: false, approvals: false,
-        }}
+        toggles={toggles ?? DEFAULT_FEATURE_TOGGLES}
         disabled={isDisabled}
         onToggle={handleToggle}
       />

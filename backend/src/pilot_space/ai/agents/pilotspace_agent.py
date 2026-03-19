@@ -539,13 +539,26 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             context.workspace_id, context.user_id
         )
 
-        # Load workspace feature toggles for skill/MCP filtering
+        # Load workspace feature toggles for skill/MCP filtering.
+        # Normalize to a full dict by merging schema defaults with any stored
+        # overrides so that missing keys never silently disable features.
+        _TOGGLE_DEFAULTS: dict[str, bool] = {
+            "notes": True,
+            "issues": False,
+            "projects": False,
+            "members": False,
+            "docs": False,
+            "skills": False,
+            "costs": False,
+            "approvals": False,
+        }
         _workspace_obj = await _workspace_repo.get_by_id(context.workspace_id)
-        _feature_toggles: dict[str, bool] = (
-            (_workspace_obj.settings or {}).get("feature_toggles", {})
+        _stored_toggles: dict[str, bool] = (
+            (_workspace_obj.settings or {}).get("feature_toggles") or {}
             if _workspace_obj
             else {}
         )
+        _feature_toggles: dict[str, bool] = {**_TOGGLE_DEFAULTS, **_stored_toggles}
 
         tool_context = ToolContext(
             db_session=db_session,

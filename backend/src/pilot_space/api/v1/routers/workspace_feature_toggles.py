@@ -135,11 +135,18 @@ async def update_feature_toggles(
     workspace = await _get_admin_workspace(workspace_id, current_user, session)
     workspace_repo = WorkspaceRepository(session=session)
 
-    workspace_settings = workspace.settings or {}
-    existing_toggles = workspace_settings.get(SETTINGS_KEY, {})
-
     # Merge only provided (non-None) fields
     updates = body.model_dump(exclude_none=True)
+
+    # Reject empty body — at least one field must be provided (contract: minProperties: 1)
+    if not updates:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least one field must be provided.",
+        )
+
+    workspace_settings = workspace.settings or {}
+    existing_toggles = workspace_settings.get(SETTINGS_KEY, {})
     existing_toggles.update(updates)
     workspace_settings[SETTINGS_KEY] = existing_toggles
 

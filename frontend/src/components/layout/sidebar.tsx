@@ -63,6 +63,7 @@ import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
 import { usePendingApprovalCount } from '@/features/approvals/hooks/use-approvals';
 import { usePinnedNotes } from '@/hooks/usePinnedNotes';
 import { useSettingsModal } from '@/features/settings/settings-modal-context';
+import type { WorkspaceFeatureToggles } from '@/types';
 
 interface NavItem {
   name: string;
@@ -74,7 +75,7 @@ interface NavItem {
   /** When true, hidden from non-Owner/Admin members. */
   adminOnly?: boolean;
   /** Maps to a WorkspaceFeatureToggles key. When set, item is hidden if the feature is disabled. */
-  featureKey?: string;
+  featureKey?: keyof WorkspaceFeatureToggles;
 }
 
 interface NavSection {
@@ -360,7 +361,7 @@ export const Sidebar = observer(function Sidebar() {
       const items = section.items
         .filter((item) => {
           // Hide items whose feature is disabled
-          if (item.featureKey && !workspaceStore.isFeatureEnabled(item.featureKey as keyof import('@/types').WorkspaceFeatureToggles)) {
+          if (item.featureKey && !workspaceStore.isFeatureEnabled(item.featureKey)) {
             return false;
           }
           return true;

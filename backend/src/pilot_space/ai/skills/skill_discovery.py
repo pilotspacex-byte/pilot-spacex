@@ -120,9 +120,16 @@ def filter_skills_by_features(
     A skill is removed only when ALL of its feature_module values are
     disabled.  Skills with no feature_module are always kept.
 
+    Callers are expected to pass a fully-populated toggle dict (schema
+    defaults merged with stored overrides) so that missing keys are not
+    silently treated as enabled or disabled.  The fallback default here
+    is ``False`` (disabled) to be conservative — the normalisation in
+    pilotspace_agent._build_stream_config is the canonical source of truth.
+
     Args:
         skills: List of discovered skills.
-        feature_toggles: Mapping of feature key to enabled/disabled state.
+        feature_toggles: Fully-populated mapping of feature key to
+            enabled/disabled state (defaults already merged by caller).
 
     Returns:
         Filtered list of skills that are available in this workspace.
@@ -132,7 +139,9 @@ def filter_skills_by_features(
         if skill.feature_module is None:
             result.append(skill)
             continue
-        # Keep if ANY listed module is enabled (or not present in toggles → default enabled)
-        if any(feature_toggles.get(m, True) for m in skill.feature_module):
+        # Keep if ANY listed module is enabled.
+        # Default to False: a missing key means the caller didn't normalise
+        # properly; being conservative avoids exposing disabled-feature tools.
+        if any(feature_toggles.get(m, False) for m in skill.feature_module):
             result.append(skill)
     return result

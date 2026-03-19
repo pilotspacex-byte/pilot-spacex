@@ -85,7 +85,7 @@ def build_mcp_servers(
     tool_context: ToolContext,
     input_data: ChatInput,
     *,
-    feature_toggles: dict[str, bool] = {},
+    feature_toggles: dict[str, bool] | None = None,
 ) -> tuple[dict[str, McpServerConfig], BlockRefMap | None]:
     """Build the MCP server dict and block-reference map for an SDK session.
 
@@ -93,12 +93,17 @@ def build_mcp_servers(
     and instantiates all 8 MCP tool servers (7 domain + 1 interaction).
 
     When *feature_toggles* is provided, servers whose feature module is
-    disabled are excluded from the returned dict.
+    disabled are excluded from the returned dict.  ``None`` (no stored config)
+    is treated as "all defaults" for backward compatibility with existing
+    workspaces that have never saved a feature_toggles object.
 
     Returns:
         Tuple of (mcp_servers dict keyed by server name, block_ref_map or None).
     """
     from pilot_space.ai.mcp.block_ref_map import BlockRefMap
+
+    if feature_toggles is None:
+        feature_toggles = {}
 
     _note_obj = input_data.context.get("note")
     _note_raw = getattr(_note_obj, "content", {}) if _note_obj else {}
@@ -146,7 +151,7 @@ def build_mcp_servers(
             publisher,
             tool_context=tool_context,
         )
-    
+
     if feature_toggles.get("projects") is True:
         servers[PROJECT_SERVER_NAME] = create_project_tools_server(
             publisher=publisher,
