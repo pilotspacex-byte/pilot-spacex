@@ -67,31 +67,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MCPI-01 | — | Pending |
-| MCPI-02 | — | Pending |
-| MCPI-03 | — | Pending |
-| MCPI-04 | — | Pending |
-| MCPI-05 | — | Pending |
-| MCPI-06 | — | Pending |
-| MCPO-01 | — | Pending |
-| MCPO-02 | — | Pending |
-| MCPO-03 | — | Pending |
-| MCPA-01 | — | Pending |
-| MCPA-02 | — | Pending |
-| MCPA-03 | — | Pending |
-| MCPA-04 | — | Pending |
-| MCPOB-01 | — | Pending |
-| MCPOB-02 | — | Pending |
-| MCPC-01 | — | Pending |
-| MCPC-02 | — | Pending |
-| MCPC-03 | — | Pending |
-| MCPC-04 | — | Pending |
+| MCPI-01 | Phase 30 | Pending |
+| MCPI-02 | Phase 31 | Pending |
+| MCPI-03 | Phase 31 | Pending |
+| MCPI-04 | Phase 31 | Pending |
+| MCPI-05 | Phase 31 | Pending |
+| MCPI-06 | Phase 31 | Pending |
+| MCPO-01 | Phase 32 | Pending |
+| MCPO-02 | Phase 32 | Pending |
+| MCPO-03 | Phase 32 | Pending |
+| MCPA-01 | Phase 33 | Pending |
+| MCPA-02 | Phase 33 | Pending |
+| MCPA-03 | Phase 33 | Pending |
+| MCPA-04 | Phase 33 | Pending |
+| MCPOB-01 | Phase 34 | Pending |
+| MCPOB-02 | Phase 34 | Pending |
+| MCPC-01 | Phase 35 | Pending |
+| MCPC-02 | Phase 35 | Pending |
+| MCPC-03 | Phase 35 | Pending |
+| MCPC-04 | Phase 35 | Pending |
 
 **Coverage:**
 - v1.1.0 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19 ⚠️
+- Mapped to phases: 19
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-19*
-*Last updated: 2026-03-19 after initial definition*
+*Last updated: 2026-03-19 after roadmap creation (all 19 requirements mapped)*
