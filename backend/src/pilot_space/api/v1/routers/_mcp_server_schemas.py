@@ -14,7 +14,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from pilot_space.infrastructure.database.models.workspace_mcp_server import McpAuthType
+from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+    McpAuthType,
+    McpTransportType,
+)
 
 # ---------------------------------------------------------------------------
 # Private IP / SSRF blocklist for URL validation (SEC-H3)
@@ -98,6 +101,7 @@ class WorkspaceMcpServerCreate(BaseModel):
         ..., max_length=512, description="Remote MCP server endpoint (SSE, HTTPS only)"
     )
     auth_type: McpAuthType = Field(default=McpAuthType.BEARER)
+    transport_type: McpTransportType = Field(default=McpTransportType.SSE)
     auth_token: str | None = Field(
         default=None, description="Bearer token (will be encrypted at rest)"
     )
@@ -129,6 +133,7 @@ class WorkspaceMcpServerResponse(BaseModel):
     display_name: str
     url: str
     auth_type: McpAuthType
+    transport_type: McpTransportType = McpTransportType.SSE
     last_status: str | None
     last_status_checked_at: datetime | None
     created_at: datetime

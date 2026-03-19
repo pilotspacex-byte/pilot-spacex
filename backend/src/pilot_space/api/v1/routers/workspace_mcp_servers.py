@@ -148,6 +148,7 @@ async def register_mcp_server(
         display_name=body.display_name,
         url=body.url,
         auth_type=body.auth_type,
+        transport_type=body.transport_type,
         auth_token_encrypted=token_encrypted,
         oauth_client_id=body.oauth_client_id,
         oauth_auth_url=body.oauth_auth_url,

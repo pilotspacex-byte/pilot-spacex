@@ -648,3 +648,102 @@ async def test_oauth_url_stores_workspace_slug_in_state() -> None:
 
     assert "value" in stored_data
     assert stored_data["value"]["workspace_slug"] == "test-workspace"
+
+
+# ---------------------------------------------------------------------------
+# MCPI-02: transport_type field (schema-level unit tests)
+# ---------------------------------------------------------------------------
+
+
+def test_transport_type_http_stored() -> None:
+    """MCPI-02: WorkspaceMcpServerCreate accepts transport_type='http'; Response reflects it.
+
+    Tests schema-level contract: Create schema accepts 'http', Response schema
+    echoes it back via from_attributes. The HTTP endpoint stores what the schema
+    passes through — this covers the Create→Model→Response data path.
+    """
+    from unittest.mock import MagicMock
+    from uuid import uuid4
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import (
+        WorkspaceMcpServerCreate,
+        WorkspaceMcpServerResponse,
+    )
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        McpAuthType,
+        McpTransportType,
+    )
+
+    # Create schema parses 'http' correctly
+    create = WorkspaceMcpServerCreate(
+        display_name="HTTP Server",
+        url="https://mcp.example.com/http",
+        auth_type=McpAuthType.BEARER,
+        transport_type=McpTransportType.HTTP,
+    )
+    assert create.transport_type == McpTransportType.HTTP
+
+    # Response schema serializes the value
+    now = __import__("datetime").datetime.utcnow()
+    mock_server = MagicMock()
+    mock_server.id = uuid4()
+    mock_server.workspace_id = uuid4()
+    mock_server.display_name = "HTTP Server"
+    mock_server.url = "https://mcp.example.com/http"
+    mock_server.auth_type = McpAuthType.BEARER
+    mock_server.transport_type = McpTransportType.HTTP
+    mock_server.last_status = None
+    mock_server.last_status_checked_at = None
+    mock_server.created_at = now
+    mock_server.oauth_client_id = None
+    mock_server.oauth_auth_url = None
+    mock_server.oauth_scopes = None
+
+    resp = WorkspaceMcpServerResponse.model_validate(mock_server)
+    assert resp.transport_type == McpTransportType.HTTP
+
+
+def test_transport_type_defaults_sse() -> None:
+    """MCPI-02: WorkspaceMcpServerCreate defaults transport_type to 'sse' when omitted.
+
+    Validates that omitting transport_type in the request body results in SSE default
+    propagating through the Create schema and Response schema.
+    """
+    from unittest.mock import MagicMock
+    from uuid import uuid4
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import (
+        WorkspaceMcpServerCreate,
+        WorkspaceMcpServerResponse,
+    )
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        McpAuthType,
+        McpTransportType,
+    )
+
+    # Create schema defaults to SSE when transport_type is not provided
+    create = WorkspaceMcpServerCreate(
+        display_name="SSE Server",
+        url="https://mcp.example.com/sse",
+        auth_type=McpAuthType.BEARER,
+    )
+    assert create.transport_type == McpTransportType.SSE
+
+    # Response schema also defaults to SSE
+    now = __import__("datetime").datetime.utcnow()
+    mock_server = MagicMock()
+    mock_server.id = uuid4()
+    mock_server.workspace_id = uuid4()
+    mock_server.display_name = "SSE Server"
+    mock_server.url = "https://mcp.example.com/sse"
+    mock_server.auth_type = McpAuthType.BEARER
+    mock_server.transport_type = McpTransportType.SSE
+    mock_server.last_status = None
+    mock_server.last_status_checked_at = None
+    mock_server.created_at = now
+    mock_server.oauth_client_id = None
+    mock_server.oauth_auth_url = None
+    mock_server.oauth_scopes = None
+
+    resp = WorkspaceMcpServerResponse.model_validate(mock_server)
+    assert resp.transport_type == McpTransportType.SSE

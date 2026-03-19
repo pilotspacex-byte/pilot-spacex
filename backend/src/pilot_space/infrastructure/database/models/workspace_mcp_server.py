@@ -22,6 +22,13 @@ class McpAuthType(StrEnum):
     OAUTH2 = "oauth2"
 
 
+class McpTransportType(StrEnum):
+    """Transport protocol for remote MCP server connections."""
+
+    SSE = "sse"
+    HTTP = "http"
+
+
 class WorkspaceMcpServer(WorkspaceScopedModel):
     """Workspace-registered remote MCP server.
 
@@ -66,6 +73,18 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         nullable=False,
         default=McpAuthType.BEARER,
         doc="Authentication type: bearer token or OAuth 2.0",
+    )
+    transport_type: Mapped[McpTransportType] = mapped_column(
+        Enum(
+            McpTransportType,
+            name="mcp_transport_type",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
+        default=McpTransportType.SSE,
+        server_default="sse",
+        doc="MCP transport protocol: 'sse' or 'http'",
     )
 
     # Encrypted credential storage — Fernet symmetric encryption
@@ -124,4 +143,4 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         )
 
 
-__all__ = ["McpAuthType", "WorkspaceMcpServer"]
+__all__ = ["McpAuthType", "McpTransportType", "WorkspaceMcpServer"]
