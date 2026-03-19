@@ -86,7 +86,16 @@ Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data 
 
 ### Active
 
-(No active requirements — next milestone not yet defined)
+<!-- v1.1 Tauri Desktop Client -->
+- [ ] Tauri app shell with embedded Next.js WebView (reuse existing frontend)
+- [ ] Auth bridge: Supabase token sharing between WebView and Tauri backend
+- [ ] Git operations: clone, pull, push via Tauri Rust backend (git2-rs)
+- [ ] pilot implement integration as Tauri sidecar (compiled binary)
+- [ ] Embedded terminal panel (xterm.js) for streaming CLI output
+- [ ] Diff viewer and commit UI inside the app
+- [ ] Shell command execution (tests, builds) with terminal output
+- [ ] App-managed project workspace directory (~/ PilotSpace/projects/)
+- [ ] Cross-platform builds and packaging (macOS, Linux, Windows)
 
 ### Out of Scope
 
@@ -101,6 +110,27 @@ Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data 
 - Real-time collaborative tree editing — requires CRDT; enormous complexity vs. value
 - Page-level permissions (per-page ACL) — breaks simple workspace RBAC model
 - Synced blocks / transclusion — TipTap doesn't natively support
+
+## Current Milestone: v1.1 Tauri Desktop Client
+
+**Goal:** Wrap the existing Pilot Space web app in a Tauri desktop shell with native local capabilities — git operations, pilot CLI execution, embedded terminal, diff viewer — so developers can manage projects AND execute code from one app.
+
+**Target features:**
+- Tauri shell embedding existing Next.js frontend in WebView
+- Supabase auth token bridge between WebView and Rust backend
+- Git clone/pull/push via git2-rs in Tauri Rust backend
+- pilot CLI as compiled sidecar binary (PyInstaller/Nuitka)
+- xterm.js embedded terminal for streaming command output
+- Diff viewer + commit/stage UI (lightweight Git client)
+- Shell command execution (tests, builds)
+- App-managed workspace directory with configurable base path
+- Cross-platform packaging: macOS (ARM + Intel), Linux, Windows
+
+**Key decisions:**
+- Embed Next.js (not rebuild) — reuse ~95% of existing frontend code
+- Remote FastAPI backend (not bundled) — Tauri connects over HTTPS
+- Tauri sidecar for pilot CLI — compiled Python binary, no Python required on user machine
+- All three platforms from day one (macOS, Linux, Windows)
 
 ## Context
 
@@ -147,5 +177,11 @@ Shipped v1.0.0-alpha2 Notion-Style Restructure on 2026-03-12. Restructured data 
 | System font stack over DM Sans | Zero web font overhead for body text; Fraunces preserved for display headings | ✓ Good |
 | Three-mode responsive (mobile/tablet/desktop) | Tablet gets icon-rail sidebar (not overlay drawer); desktop unchanged | ✓ Good |
 
+| Embed Next.js in Tauri WebView | Reuse 95% existing frontend; IPC bridge for native features | — Pending |
+| Remote backend (not bundled) | Avoid massive complexity of bundling FastAPI+Supabase+Postgres locally | — Pending |
+| Tauri sidecar for pilot CLI | No Python required on user machine; clean binary lifecycle | — Pending |
+| All three platforms day one | macOS + Linux + Windows; Tauri supports all natively | — Pending |
+| App-managed workspace directory | Consistent structure for cloned repos; user-configurable base path | — Pending |
+
 ---
-*Last updated: 2026-03-12 after v1.0.0-alpha2 milestone shipped*
+*Last updated: 2026-03-20 after v1.1 Tauri Desktop Client milestone started*
