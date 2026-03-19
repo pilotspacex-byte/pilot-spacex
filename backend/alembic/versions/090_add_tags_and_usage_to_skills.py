@@ -31,7 +31,7 @@ def upgrade() -> None:
                 "tags",
                 sa.JSON(),
                 nullable=False,
-                server_default="'[]'",
+                server_default=sa.text("'[]'"),
             ),
         )
         op.add_column(
