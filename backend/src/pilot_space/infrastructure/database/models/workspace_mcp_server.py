@@ -46,6 +46,8 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         oauth_auth_url: OAuth 2.0 authorization endpoint URL.
         oauth_token_url: OAuth 2.0 token exchange endpoint URL.
         oauth_scopes: Space-separated OAuth 2.0 scope list.
+        refresh_token_encrypted: Fernet-encrypted OAuth refresh token (None = not stored).
+        token_expires_at: UTC timestamp when the access token expires (None = unknown).
         last_status: Cached connectivity status ('connected', 'failed', 'unknown').
         last_status_checked_at: Timestamp of last connectivity probe.
     """
@@ -114,6 +116,16 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         String(512),
         nullable=True,
         doc="Space-separated OAuth 2.0 scope list",
+    )
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(
+        String(1024),
+        nullable=True,
+        doc="Fernet-encrypted OAuth refresh token (None = no refresh token stored)",
+    )
+    token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="UTC timestamp when the access token expires (None = unknown or no expiry)",
     )
 
     # Cached connectivity status
