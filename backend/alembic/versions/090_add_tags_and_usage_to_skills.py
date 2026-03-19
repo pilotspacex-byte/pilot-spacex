@@ -1,7 +1,7 @@
 """Add tags and usage columns to skill tables.
 
 Revision ID: 090_add_tags_and_usage_to_skills
-Revises: 089_add_role_type_nonunique_index
+Revises: 089_add_role_type_idx
 Create Date: 2026-03-18
 
 Adds tags (JSON array) and usage (Text) to user_skills, user_role_skills,
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "090_add_tags_and_usage_to_skills"
-down_revision: str = "089_add_role_type_nonunique_index"
+down_revision: str = "089_add_role_type_idx"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
