@@ -554,6 +554,24 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         # so the SDK permits Claude to invoke their tools (mcp__<key>__* format).
         remote_tool_patterns: list[str] = [f"mcp__{key}__*" for key in remote_servers]
 
+        # MCPA-01/04: Build approval map from ORM metadata so the can_use_tool callback
+        # can enforce per-server approval_mode without a second DB round-trip per tool call.
+        # Keys match _load_remote_mcp_servers format: "remote_{server.id}".
+        remote_server_approval_map: dict[str, tuple[str, str, Any]] = {}
+        if remote_servers:
+            from pilot_space.infrastructure.database.repositories.workspace_mcp_server_repository import (
+                WorkspaceMcpServerRepository,
+            )
+
+            _orm_servers = await WorkspaceMcpServerRepository(db_session).get_active_by_workspace(
+                context.workspace_id
+            )
+            remote_server_approval_map = {
+                f"remote_{s.id}": (s.approval_mode, s.display_name, s.id)
+                for s in _orm_servers
+                if f"remote_{s.id}" in remote_servers
+            }
+
         skill_name = detect_skill_from_message(input_data.message)
         output_format = get_skill_output_format(skill_name) if skill_name else None
         effort = classify_effort(input_data.message)
@@ -617,7 +635,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         if "PATH" not in sdk_env:
             sdk_env["PATH"] = os.environ.get("PATH", "")
 
-        can_use_tool_cb = create_can_use_tool_callback(tool_event_queue, context.user_id)
+        can_use_tool_cb = create_can_use_tool_callback(
+            tool_event_queue,
+            context.user_id,
+            workspace_id=context.workspace_id,
+            remote_server_approval_map=remote_server_approval_map,
+        )
 
         _r = getattr(self, "_resolved_model", None)  # AIPR-04 model override
         # Model priority: AIPR-04 override > workspace provider config > SDK default

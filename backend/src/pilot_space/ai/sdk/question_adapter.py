@@ -557,24 +557,85 @@ def get_question_adapter() -> QuestionAdapter:
 # ---------------------------------------------------------------------------
 
 
+async def _handle_remote_mcp_approval(
+    tool_event_queue: asyncio.Queue[str],
+    user_id: UUID,
+    workspace_id: UUID,
+    bare_tool: str,
+    display_name: str,
+    server_id: UUID,
+    tool_input: dict[str, Any],
+) -> Any:
+    """DD-003 approval flow for a remote MCP tool call.
+
+    Creates a DB approval request, emits SSE approval_request, blocks on wait_for_approval.
+    Returns PermissionResultAllow on approval, PermissionResultDeny otherwise.
+    """
+    # Lazy imports to avoid circular dependencies — matches existing pattern
+    from claude_agent_sdk.types import PermissionResultAllow, PermissionResultDeny
+
+    from pilot_space.ai.infrastructure.approval import ActionType, ApprovalService
+    from pilot_space.ai.sdk.approval_waiter import build_approval_sse_event, wait_for_approval
+    from pilot_space.infrastructure.database.engine import get_db_session
+
+    reason = f"Remote MCP tool '{bare_tool}' from server '{display_name}'"
+    action_data: dict[str, Any] = {
+        "tool_name": bare_tool,
+        "server": display_name,
+        "server_id": str(server_id),
+        **tool_input,
+    }
+
+    try:
+        async with get_db_session() as session:
+            svc = ApprovalService(session=session)
+            approval_id = await svc.create_approval_request(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                action_type=ActionType.REMOTE_MCP_TOOL,
+                action_data=action_data,
+                requested_by_agent=f"RemoteMCP/{display_name}",
+            )
+    except Exception:
+        logger.exception(
+            "Failed to create approval request for remote MCP tool '%s' (server=%s)",
+            bare_tool,
+            display_name,
+        )
+        return PermissionResultDeny(message="Approval creation failed")
+
+    await tool_event_queue.put(build_approval_sse_event(approval_id, bare_tool, tool_input, reason))
+    decision = await wait_for_approval(approval_id)
+    logger.info(
+        "Remote MCP tool decision: tool=%s server=%s decision=%s approval_id=%s",
+        bare_tool,
+        display_name,
+        decision,
+        approval_id,
+    )
+    if decision == "approved":
+        return PermissionResultAllow()
+    return PermissionResultDeny(message=f"User {decision} MCP tool execution.")
+
+
 def create_can_use_tool_callback(
     tool_event_queue: asyncio.Queue[str],
     user_id: UUID,
+    workspace_id: UUID | None = None,
+    remote_server_approval_map: dict[str, tuple[str, str, UUID]] | None = None,
 ) -> Any:
-    """Create a can_use_tool callback (safety net for AskUserQuestion).
+    """Create a can_use_tool callback for AskUserQuestion safety net + remote MCP approval.
 
-    The primary question flow now uses the ask_user MCP tool in interaction_server.py.
-    This callback remains as a safety net: if Claude somehow still tries the built-in
-    AskUserQuestion tool, it returns PermissionResultDeny with a redirect message.
-
-    For all other tools, returns PermissionResultAllow (pass-through).
+    For mcp__<key>__<tool> names, looks up approval_mode in remote_server_approval_map:
+    "require_approval" triggers DD-003 flow (DB + SSE + wait); "auto_approve" / unknown
+    returns Allow immediately.  AskUserQuestion is denied (use ask_user MCP instead).
+    All other tools pass through as Allow.
 
     Args:
         tool_event_queue: Queue to push SSE events for the frontend.
-        user_id: User who owns this session (for question access control).
-
-    Returns:
-        Async callable matching CanUseTool signature.
+        user_id: User who owns this session.
+        workspace_id: Workspace UUID for approval requests (None = pass-through).
+        remote_server_approval_map: server_key -> (approval_mode, display_name, server_id).
     """
     from claude_agent_sdk.types import (
         PermissionResultAllow,
@@ -587,6 +648,27 @@ def create_can_use_tool_callback(
         tool_input: dict[str, Any],
         context: ToolPermissionContext,
     ) -> PermissionResultAllow | PermissionResultDeny:
+        # Remote MCP tool detection: mcp__<server_key>__<bare_tool>
+        if tool_name.startswith("mcp__") and remote_server_approval_map is not None:
+            parts = tool_name.split("__", 2)
+            if len(parts) == 3:
+                _prefix, server_key, bare_tool = parts
+                entry = remote_server_approval_map.get(server_key)
+                if entry is not None:
+                    approval_mode, display_name, server_id = entry
+                    if approval_mode == "require_approval" and workspace_id is not None:
+                        return await _handle_remote_mcp_approval(
+                            tool_event_queue=tool_event_queue,
+                            user_id=user_id,
+                            workspace_id=workspace_id,
+                            bare_tool=bare_tool,
+                            display_name=display_name,
+                            server_id=server_id,
+                            tool_input=tool_input,
+                        )
+                # Server key not in map, or auto_approve — fall through to Allow
+                return PermissionResultAllow()
+
         if tool_name != "AskUserQuestion":
             return PermissionResultAllow()
 

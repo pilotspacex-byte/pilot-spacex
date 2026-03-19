@@ -666,6 +666,244 @@ def test_get_question_unknown_id_returns_none(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Remote MCP approval tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_remote_mcp_auto_approve(test_user_id: UUID) -> None:
+    """auto_approve server returns PermissionResultAllow; no DB call is made."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from claude_agent_sdk.types import PermissionResultAllow, ToolPermissionContext
+
+    from pilot_space.ai.sdk.question_adapter import create_can_use_tool_callback
+
+    workspace_id = uuid4()
+    server_id = uuid4()
+    approval_map = {
+        f"remote_{server_id}": ("auto_approve", "MyServer", server_id),
+    }
+
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    callback = create_can_use_tool_callback(
+        queue,
+        test_user_id,
+        workspace_id=workspace_id,
+        remote_server_approval_map=approval_map,
+    )
+
+    mock_create = AsyncMock()
+    with patch(
+        "pilot_space.ai.infrastructure.approval.ApprovalService.create_approval_request",
+        mock_create,
+    ):
+        result = await callback(
+            f"mcp__remote_{server_id}__list_files",
+            {"path": "/tmp"},
+            ToolPermissionContext(),
+        )
+
+    assert isinstance(result, PermissionResultAllow)
+    mock_create.assert_not_called()
+    assert queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_remote_mcp_require_approval_approved(test_user_id: UUID) -> None:
+    """require_approval server triggers full approval flow; returns Allow when approved."""
+    import asyncio
+    from contextlib import asynccontextmanager
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from claude_agent_sdk.types import PermissionResultAllow, ToolPermissionContext
+
+    from pilot_space.ai.sdk.question_adapter import create_can_use_tool_callback
+
+    workspace_id = uuid4()
+    server_id = uuid4()
+    approval_id = uuid4()
+    approval_map = {
+        f"remote_{server_id}": ("require_approval", "MyServer", server_id),
+    }
+
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    callback = create_can_use_tool_callback(
+        queue,
+        test_user_id,
+        workspace_id=workspace_id,
+        remote_server_approval_map=approval_map,
+    )
+
+    mock_create = AsyncMock(return_value=approval_id)
+    mock_wait = AsyncMock(return_value="approved")
+    mock_sse = MagicMock(return_value="event: approval_request\ndata: {}\n\n")
+
+    fake_session = AsyncMock()
+
+    @asynccontextmanager
+    async def fake_get_db_session():
+        yield fake_session
+
+    with (
+        patch(
+            "pilot_space.infrastructure.database.engine.get_db_session",
+            fake_get_db_session,
+        ),
+        patch(
+            "pilot_space.ai.infrastructure.approval.ApprovalService.create_approval_request",
+            mock_create,
+        ),
+        patch(
+            "pilot_space.ai.sdk.approval_waiter.wait_for_approval",
+            mock_wait,
+        ),
+        patch(
+            "pilot_space.ai.sdk.approval_waiter.build_approval_sse_event",
+            mock_sse,
+        ),
+    ):
+        result = await callback(
+            f"mcp__remote_{server_id}__create_file",
+            {"name": "test.txt"},
+            ToolPermissionContext(),
+        )
+
+    assert isinstance(result, PermissionResultAllow)
+    mock_create.assert_awaited_once()
+    mock_wait.assert_awaited_once_with(approval_id)
+    assert not queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_remote_mcp_require_approval_rejected(test_user_id: UUID) -> None:
+    """require_approval server returns PermissionResultDeny when user rejects."""
+    import asyncio
+    from contextlib import asynccontextmanager
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from claude_agent_sdk.types import PermissionResultDeny, ToolPermissionContext
+
+    from pilot_space.ai.sdk.question_adapter import create_can_use_tool_callback
+
+    workspace_id = uuid4()
+    server_id = uuid4()
+    approval_id = uuid4()
+    approval_map = {
+        f"remote_{server_id}": ("require_approval", "MyServer", server_id),
+    }
+
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    callback = create_can_use_tool_callback(
+        queue,
+        test_user_id,
+        workspace_id=workspace_id,
+        remote_server_approval_map=approval_map,
+    )
+
+    mock_create = AsyncMock(return_value=approval_id)
+    mock_wait = AsyncMock(return_value="rejected")
+    mock_sse = MagicMock(return_value="event: approval_request\ndata: {}\n\n")
+
+    fake_session = AsyncMock()
+
+    @asynccontextmanager
+    async def fake_get_db_session():
+        yield fake_session
+
+    with (
+        patch(
+            "pilot_space.infrastructure.database.engine.get_db_session",
+            fake_get_db_session,
+        ),
+        patch(
+            "pilot_space.ai.infrastructure.approval.ApprovalService.create_approval_request",
+            mock_create,
+        ),
+        patch(
+            "pilot_space.ai.sdk.approval_waiter.wait_for_approval",
+            mock_wait,
+        ),
+        patch(
+            "pilot_space.ai.sdk.approval_waiter.build_approval_sse_event",
+            mock_sse,
+        ),
+    ):
+        result = await callback(
+            f"mcp__remote_{server_id}__delete_file",
+            {"path": "/tmp/test.txt"},
+            ToolPermissionContext(),
+        )
+
+    assert isinstance(result, PermissionResultDeny)
+    assert "rejected" in result.message
+
+
+@pytest.mark.asyncio
+async def test_non_mcp_tool_passthrough(test_user_id: UUID) -> None:
+    """Non-MCP tool name returns PermissionResultAllow regardless of approval map."""
+    import asyncio
+
+    from claude_agent_sdk.types import PermissionResultAllow, ToolPermissionContext
+
+    from pilot_space.ai.sdk.question_adapter import create_can_use_tool_callback
+
+    workspace_id = uuid4()
+    server_id = uuid4()
+    approval_map = {
+        f"remote_{server_id}": ("require_approval", "MyServer", server_id),
+    }
+
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    callback = create_can_use_tool_callback(
+        queue,
+        test_user_id,
+        workspace_id=workspace_id,
+        remote_server_approval_map=approval_map,
+    )
+
+    result = await callback(
+        "some_local_tool",
+        {"key": "value"},
+        ToolPermissionContext(),
+    )
+
+    assert isinstance(result, PermissionResultAllow)
+    assert queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_remote_mcp_no_approval_map(test_user_id: UUID) -> None:
+    """mcp__ tool with no approval map (None) returns PermissionResultAllow (safe default)."""
+    import asyncio
+
+    from claude_agent_sdk.types import PermissionResultAllow, ToolPermissionContext
+
+    from pilot_space.ai.sdk.question_adapter import create_can_use_tool_callback
+
+    workspace_id = uuid4()
+
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    # remote_server_approval_map is None (default)
+    callback = create_can_use_tool_callback(
+        queue,
+        test_user_id,
+        workspace_id=workspace_id,
+        remote_server_approval_map=None,
+    )
+
+    result = await callback(
+        "mcp__remote_some-server__list_files",
+        {},
+        ToolPermissionContext(),
+    )
+
+    assert isinstance(result, PermissionResultAllow)
+    assert queue.empty()
+
+
 @pytest.mark.asyncio
 async def test_can_use_tool_callback_non_ask_user_passes_through(
     test_user_id: UUID,
