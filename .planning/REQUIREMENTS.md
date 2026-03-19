@@ -38,7 +38,7 @@ Requirements for milestone v1.1. Each maps to roadmap phases.
 - [ ] **VID-01**: User can embed YouTube videos in notes via /video slash command
 - [ ] **VID-02**: User can embed Vimeo videos in notes via /video slash command
 - [ ] **VID-03**: System auto-detects YouTube/Vimeo URLs on paste and offers to embed
-- [ ] **VID-04**: Video embeds render as inline players with proper iframe sandboxing
+- [x] **VID-04**: Video embeds render as inline players with proper iframe sandboxing
 
 ### File Preview
 
@@ -106,7 +106,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VID-01 | Phase 33 | Pending |
 | VID-02 | Phase 33 | Pending |
 | VID-03 | Phase 33 | Pending |
-| VID-04 | Phase 33 | Pending |
+| VID-04 | Phase 33 | Complete |
 | PREV-01 | Phase 34 | Pending |
 | PREV-02 | Phase 34 | Pending |
 | PREV-03 | Phase 34 | Pending |

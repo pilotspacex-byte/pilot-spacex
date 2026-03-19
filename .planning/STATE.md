@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Medium Editor & Artifacts
 status: planning
-stopped_at: Completed 32-inline-editor-features/32-04-PLAN.md
-last_updated: "2026-03-19T14:21:12.876Z"
+stopped_at: Completed 33-video-embeds/33-03-PLAN.md
+last_updated: "2026-03-19T14:26:09.830Z"
 last_activity: 2026-03-18 — v1.1 roadmap created, 22/22 requirements mapped across 7 phases
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 20
-  completed_plans: 10
+  completed_plans: 11
   percent: 0
 ---
 
@@ -75,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 32-inline-editor-features]: editorRef closure captures Editor in onCreate so drop handler avoids EditorView.editor type cast
 - [Phase 32-inline-editor-features]: pilot:upload-artifact CustomEvent decouples slash command execute from API — slash-command-items.ts fires event, config.ts listens
 - [Phase 32-inline-editor-features]: SlashCommand.group 'media' added in both slash-command-items.ts AND types.ts — types.ts has parallel interface
+- [Phase 33-video-embeds]: CSP directive is frame-src only (not full CSP policy) — minimal surface, additive pattern
+- [Phase 33-video-embeds]: frame-src 'self' preserves any same-origin iframes; only 1 iframe found in codebase (test file)
 
 ### Pending Todos
 
@@ -89,7 +91,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T14:21:12.874Z
-Stopped at: Completed 32-inline-editor-features/32-04-PLAN.md
+Last session: 2026-03-19T14:26:09.828Z
+Stopped at: Completed 33-video-embeds/33-03-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 30`
