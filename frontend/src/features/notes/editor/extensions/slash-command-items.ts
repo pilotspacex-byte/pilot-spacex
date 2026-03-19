@@ -18,13 +18,44 @@ export interface SlashCommand {
   /** Icon name (Lucide icon) */
   icon: string;
   /** Command group */
-  group: 'formatting' | 'blocks' | 'ai';
+  group: 'formatting' | 'blocks' | 'ai' | 'media';
   /** Keyboard shortcut hint */
   shortcut?: string;
   /** Execute the command */
   execute: (editor: Editor) => void;
   /** Search keywords */
   keywords?: string[];
+}
+
+/**
+ * Open a file picker dialog and call callback with selected File objects.
+ * Uses a hidden input element — the only cross-browser way to open file picker
+ * without a drag-and-drop zone.
+ */
+function openFilePicker(accept: string, onFiles: (files: File[]) => void, multiple = false): void {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = accept;
+  input.multiple = multiple;
+  input.style.display = 'none';
+  document.body.appendChild(input);
+
+  input.onchange = () => {
+    const files = input.files ? Array.from(input.files) : [];
+    if (files.length) onFiles(files);
+    if (input.parentNode) document.body.removeChild(input);
+  };
+
+  // Remove input if dialog is cancelled (focus returns to window)
+  const onFocus = () => {
+    setTimeout(() => {
+      if (input.parentNode) document.body.removeChild(input);
+      window.removeEventListener('focus', onFocus);
+    }, 300);
+  };
+  window.addEventListener('focus', onFocus);
+
+  input.click();
 }
 
 /**
@@ -397,6 +428,70 @@ export function getDefaultCommands(
         if (onAICommand) {
           onAICommand('extract-issues', editor);
         }
+      },
+    },
+
+    // Media commands
+    {
+      name: 'image',
+      label: 'Image',
+      description: 'Insert an image with caption',
+      icon: 'Image',
+      group: 'media',
+      keywords: ['photo', 'picture', 'figure', 'upload'],
+      execute: (editor) => {
+        openFilePicker('image/*', (files) => {
+          for (const file of files) {
+            editor.commands.insertContent({
+              type: 'figure',
+              attrs: {
+                src: null,
+                alt: file.name,
+                artifactId: null,
+                status: 'uploading',
+              },
+              content: [],
+            });
+            // Fire upload event for config.ts event listener to pick up
+            const event = new CustomEvent('pilot:upload-artifact', {
+              detail: { file, nodeType: 'figure', editor },
+              bubbles: true,
+            });
+            editor.view.dom.dispatchEvent(event);
+          }
+        });
+      },
+    },
+    {
+      name: 'file',
+      label: 'File',
+      description: 'Attach a file as an inline card',
+      icon: 'Paperclip',
+      group: 'media',
+      keywords: ['attach', 'upload', 'document', 'card'],
+      execute: (editor) => {
+        openFilePicker(
+          'image/*,application/pdf,text/*,application/json,application/vnd.ms-excel,text/csv',
+          (files) => {
+            for (const file of files) {
+              editor.commands.insertContent({
+                type: 'fileCard',
+                attrs: {
+                  artifactId: null,
+                  filename: file.name,
+                  mimeType: file.type,
+                  sizeBytes: file.size,
+                  status: 'uploading',
+                },
+              });
+              const event = new CustomEvent('pilot:upload-artifact', {
+                detail: { file, nodeType: 'fileCard', editor },
+                bubbles: true,
+              });
+              editor.view.dom.dispatchEvent(event);
+            }
+          }
+        );
       },
     },
   ];
