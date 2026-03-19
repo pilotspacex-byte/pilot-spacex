@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Medium Editor & Artifacts
 status: planning
-stopped_at: Completed 30-tiptap-extension-foundation/30-03-PLAN.md
-last_updated: "2026-03-19T12:43:44.718Z"
+stopped_at: Completed 30-tiptap-extension-foundation/30-02-PLAN.md
+last_updated: "2026-03-19T12:47:06.658Z"
 last_activity: 2026-03-18 — v1.1 roadmap created, 22/22 requirements mapped across 7 phases
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 20
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -57,6 +57,8 @@ Recent decisions affecting current work:
 - [Phase 30-tiptap-extension-foundation]: TDD RED tests committed before production code: 5 PullQuote, 6 SelectionToolbar, 4 node-view-bridge tests
 - [Phase 30-tiptap-extension-foundation]: createNodeViewBridgeContext<T>() factory pattern: each NodeView gets its own typed context via null-initialized createContext + useBridgeContext guard
 - [Phase 30-tiptap-extension-foundation]: headingLabel computed in SelectionToolbar render body from synchronous editor.isActive() — no useState required since component re-renders on every selectionUpdate
+- [Phase 30-tiptap-extension-foundation]: Used parse.updateDOM hook for pull quote round-trip — detects [!quote] marker in rendered HTML, stamps data-pull-quote attr before TipTap parseHTML runs
+- [Phase 30-tiptap-extension-foundation]: PullQuoteExtension placed in Group 1 (not Group 3) — same schema name 'blockquote', BlockIdExtension already covers it; StarterKit blockquote: false disables original
 
 ### Pending Todos
 
@@ -71,7 +73,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T12:43:44.716Z
-Stopped at: Completed 30-tiptap-extension-foundation/30-03-PLAN.md
+Last session: 2026-03-19T12:47:06.656Z
+Stopped at: Completed 30-tiptap-extension-foundation/30-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 30`
