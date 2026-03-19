@@ -66,6 +66,7 @@ export {
 } from './templates';
 export { noteYjsStateApi } from './note-yjs-state';
 export { attachmentsApi } from './attachments';
+export { artifactsApi, type ArtifactUploadResponse, type ArtifactUrlResponse } from './artifacts';
 export {
   notificationsApi,
   type NotificationResponse,
