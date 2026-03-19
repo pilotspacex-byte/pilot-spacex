@@ -70,7 +70,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 - [ ] **Phase 31: MCP Infrastructure Hardening** — SSE/HTTP transport, health-check gating, server cap, SSRF hardening, encryption enforcement
 - [x] **Phase 32: OAuth Refresh Flow** — Refresh token storage, auto-refresh before session load, expiry tracking in UI (completed 2026-03-19)
 - [x] **Phase 33: Remote MCP Approval Framework** — DD-003 wiring, per-server approval config, ChatView inline cards, auto-confirm policy (completed 2026-03-19)
-- [ ] **Phase 34: MCP Observability** — Audit trail for tool invocations, MCP usage visible in AI dashboard
+- [x] **Phase 34: MCP Observability** — Audit trail for tool invocations, MCP usage visible in AI dashboard (completed 2026-03-19)
 - [ ] **Phase 35: MCP Server Catalog** — Browsable catalog with one-click install, versioned entries, official seeds
 
 ## Phase Details
@@ -167,7 +167,7 @@ Plans:
 | 31. MCP Infrastructure Hardening | v1.1.0 | 2/4 | In Progress | - |
 | 32. OAuth Refresh Flow | v1.1.0 | 3/3 | Complete | 2026-03-19 |
 | 33. Remote MCP Approval Framework | 3/3 | Complete | 2026-03-19 | - |
-| 34. MCP Observability | 1/2 | In Progress|  | - |
+| 34. MCP Observability | 2/2 | Complete   | 2026-03-19 | - |
 | 35. MCP Server Catalog | v1.1.0 | 0/? | Not started | - |
 
 **Total to date: 35 phases, 108+ plans across 4 milestones**
