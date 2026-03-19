@@ -527,8 +527,8 @@ function AiFormStep({
         </div>
       )}
       <p className="text-sm text-muted-foreground leading-relaxed">
-        Describe your expertise, preferred patterns, and focus areas. AI generates a personalized
-        skill that shapes how it collaborates with you.
+        Describe your expertise, preferred patterns, and focus areas. Together, you and AI craft a
+        personalized skill that shapes how you collaborate.
       </p>
       {showError && (
         <div
@@ -606,7 +606,7 @@ function GeneratingStep() {
         <p className="mt-1 text-center text-xs text-muted-foreground">{Math.round(progress)}%</p>
       </div>
       <div className="sr-only" aria-live="assertive" role="status">
-        Generating your skill. Please wait.
+        Crafting your skill. Please wait.
       </div>
     </div>
   );

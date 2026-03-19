@@ -23,7 +23,7 @@ const confidenceTagVariants = cva(
         default:
           'bg-blue-500/10 text-blue-600 border border-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400',
         current: 'bg-muted text-muted-foreground border border-border',
-        alternative: 'bg-muted text-muted-foreground border border-border',
+        alternative: 'bg-muted/60 text-muted-foreground border border-border/60',
       },
     },
     defaultVariants: {

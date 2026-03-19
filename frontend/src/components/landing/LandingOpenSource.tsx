@@ -45,6 +45,7 @@ export function LandingOpenSource() {
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
               <Github className="size-4" />
               Star on GitHub
+              <span className="sr-only">(opens in new tab)</span>
             </a>
           </Button>
         </FadeIn>

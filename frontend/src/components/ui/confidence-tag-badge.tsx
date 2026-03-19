@@ -49,8 +49,7 @@ const tagConfig = {
   alternative: {
     label: 'Alternative',
     icon: HelpCircle,
-    className:
-      'bg-yellow-500/10 text-yellow-600 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800',
+    className: 'bg-muted/60 text-muted-foreground border-border/60',
     description: 'Lower confidence - consider carefully',
   },
 };

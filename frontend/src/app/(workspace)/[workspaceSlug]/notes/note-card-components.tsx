@@ -159,7 +159,7 @@ export function NoteListRow({ note, workspaceSlug, projectMap, onPrefetch }: Not
 
         {/* Meta */}
         <div className="flex items-center gap-4 text-sm text-muted-foreground shrink-0">
-          {(note.wordCount ?? 0) > 0 && <span>{note.wordCount!.toLocaleString()} words</span>}
+          {(note.wordCount ?? 0) > 0 && <span>{(note.wordCount ?? 0).toLocaleString()} words</span>}
           {linkedIssues.length > 0 && (
             <div className="flex items-center gap-1">
               {linkedIssues.slice(0, 3).map((issue) => (

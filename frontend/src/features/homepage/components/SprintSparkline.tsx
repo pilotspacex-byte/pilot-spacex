@@ -82,7 +82,7 @@ export function SprintSparkline({
         <div
           className={cn(
             'inline-flex items-center gap-2 rounded-md border border-border-subtle px-2.5 py-1.5',
-            'motion-safe:transition-colors hover:bg-gray-50/50',
+            'motion-safe:transition-colors hover:bg-accent/50',
             className
           )}
           role="img"

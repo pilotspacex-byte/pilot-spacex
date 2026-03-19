@@ -12,7 +12,7 @@ const footerLinks: Record<string, FooterLink[]> = {
     { label: 'Features', href: '#features' },
     { label: 'How It Works', href: '#how-it-works' },
     { label: 'Open Source', href: '#open-source' },
-    { label: 'Documentation', href: '/docs' },
+    { label: 'Documentation', href: '#features' },
   ],
   Developers: [
     { label: 'GitHub', href: GITHUB_URL, external: true },
@@ -75,7 +75,7 @@ export function LandingFooter() {
               href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
               aria-label="GitHub"
             >
               <Github className="size-4" />

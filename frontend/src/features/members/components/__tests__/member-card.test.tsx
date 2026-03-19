@@ -76,10 +76,10 @@ describe('MemberCard', () => {
   it('shows Crown icon for owner role', () => {
     setup({ member: { ...baseMember, role: 'owner' } });
 
-    // Crown icon renders as SVG outside the badge in the row layout
+    // Crown icon renders as SVG with lucide crown class
     const card = screen.getByTestId('member-card-user-1');
-    const svgs = card.querySelectorAll('svg');
-    expect(svgs.length).toBeGreaterThan(0);
+    const crownSvg = card.querySelector('svg.lucide-crown');
+    expect(crownSvg).toBeInTheDocument();
   });
 
   it('shows "you" badge for current user', () => {

@@ -1,8 +1,8 @@
 /**
- * MembersPage — Workspace members management with card grid layout.
+ * MembersPage — Workspace members management with list layout.
  *
  * Route: /[workspaceSlug]/members
- * Features: search, role filter, card grid, invite dialog, pending invitations tab.
+ * Features: search, role filter, vertical list, invite dialog, pending invitations tab.
  * Admin-only editing, read-only for non-admins.
  */
 

@@ -266,7 +266,7 @@ export function DigestInsights({
         <p className="mt-1 text-xs text-muted-foreground/70">
           AI insights will appear as your workspace grows.
         </p>
-        <p className="mt-2 text-[11px] text-muted-foreground/50">
+        <p className="mt-2 text-xs text-muted-foreground">
           Create notes, extract issues, and link PRs to unlock stale detection, cycle risk alerts,
           and more.
         </p>
