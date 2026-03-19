@@ -877,6 +877,200 @@ async def test_count_active_by_workspace_empty(
     assert count == 0
 
 
+# ---------------------------------------------------------------------------
+# MCPO-01: OAuth refresh token storage (Phase 32 Plan 01)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(strict=False, reason="implementation pending - phase 32 plan 01")
+async def test_exchange_oauth_code_returns_tuple() -> None:
+    """MCPO-01: _exchange_oauth_code returns (access_token, refresh_token, expires_in) tuple.
+
+    When the OAuth provider returns all three fields, the function must return a
+    3-tuple of (str, str, int).
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from pilot_space.api.v1.routers.workspace_mcp_servers import _exchange_oauth_code
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "access_token": "tok",
+        "refresh_token": "ref",
+        "expires_in": 3600,
+    }
+    mock_response.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await _exchange_oauth_code(
+            token_url="https://auth.example.com/token",
+            client_id="client-abc",
+            code="test-code",
+            redirect_uri="https://app.example.com/callback",
+        )
+
+    assert result == ("tok", "ref", 3600)
+
+
+@pytest.mark.xfail(strict=False, reason="implementation pending - phase 32 plan 01")
+async def test_exchange_oauth_code_no_refresh_token() -> None:
+    """MCPO-01: _exchange_oauth_code returns (access_token, None, None) when provider omits refresh_token.
+
+    Regression: missing refresh_token / expires_in must not crash; the function
+    must return a 3-tuple with None in the missing positions.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from pilot_space.api.v1.routers.workspace_mcp_servers import _exchange_oauth_code
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"access_token": "tok"}
+    mock_response.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await _exchange_oauth_code(
+            token_url="https://auth.example.com/token",
+            client_id="client-abc",
+            code="test-code",
+            redirect_uri="https://app.example.com/callback",
+        )
+
+    assert result == ("tok", None, None)
+
+
+@pytest.mark.xfail(strict=False, reason="implementation pending - phase 32 plan 01")
+async def test_mcp_oauth_callback_stores_refresh_token() -> None:
+    """MCPO-01: mcp_oauth_callback stores refresh_token_encrypted and token_expires_at when provided.
+
+    When _exchange_oauth_code returns a refresh_token and expires_in, the callback must:
+    - Set server.refresh_token_encrypted to the Fernet-encrypted refresh token.
+    - Set server.token_expires_at to a datetime in the future.
+    """
+    import json
+    from datetime import UTC, datetime
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from pilot_space.api.v1.routers.workspace_mcp_servers import mcp_oauth_callback
+
+    server_id = uuid4()
+    workspace_id = uuid4()
+    user_id = uuid4()
+    state = f"mcp_oauth_{server_id}_test-nonce"
+    state_data = json.dumps(
+        {
+            "server_id": str(server_id),
+            "workspace_id": str(workspace_id),
+            "workspace_slug": "test-ws",
+            "user_id": str(user_id),
+            "nonce": "test-nonce",
+        }
+    )
+
+    mock_redis = MagicMock()
+    mock_redis.client = AsyncMock()
+    mock_redis.client.get = AsyncMock(return_value=state_data)
+    mock_redis.client.delete = AsyncMock()
+
+    mock_request = MagicMock()
+    mock_request.base_url = "http://localhost:8000/"
+    mock_request.app.state.container.redis_client.return_value = mock_redis
+
+    mock_server = MagicMock()
+    mock_server.oauth_token_url = "https://auth.example.com/token"
+    mock_server.oauth_client_id = "client-abc"
+    mock_server.auth_token_encrypted = None
+    mock_server.refresh_token_encrypted = None
+    mock_server.token_expires_at = None
+
+    mock_repo = AsyncMock()
+    mock_repo.get_by_workspace_and_id = AsyncMock(return_value=mock_server)
+    mock_repo.update = AsyncMock()
+
+    mock_session_ctx = AsyncMock()
+    mock_session_ctx.__aenter__ = AsyncMock(return_value=AsyncMock())
+    mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
+
+    before = datetime.now(UTC)
+
+    with (
+        patch(
+            "pilot_space.infrastructure.database.get_db_session",
+            return_value=mock_session_ctx,
+        ),
+        patch(
+            "pilot_space.infrastructure.database.repositories"
+            ".workspace_mcp_server_repository.WorkspaceMcpServerRepository",
+            return_value=mock_repo,
+        ),
+        patch(
+            "pilot_space.api.v1.routers.workspace_mcp_servers._exchange_oauth_code",
+            return_value=("access_tok", "refresh_tok", 1800),
+        ),
+        patch(
+            "pilot_space.api.v1.routers.workspace_mcp_servers.encrypt_api_key",
+            side_effect=lambda v: f"encrypted({v})",
+        ),
+    ):
+        response = await mcp_oauth_callback(
+            request=mock_request,
+            code="test-code",
+            state=state,
+        )
+
+    assert response.status_code == 307
+    assert mock_server.auth_token_encrypted is not None
+    assert mock_server.refresh_token_encrypted is not None
+    assert mock_server.token_expires_at is not None
+    assert mock_server.token_expires_at > before
+
+
+@pytest.mark.xfail(strict=False, reason="implementation pending - phase 32 plan 01")
+def test_list_response_includes_token_expires_at() -> None:
+    """MCPO-01: WorkspaceMcpServerResponse includes token_expires_at field (may be None).
+
+    The response schema must expose token_expires_at so the frontend knows when
+    to trigger token refresh. Value is None when not yet set.
+    """
+    from unittest.mock import MagicMock
+    from uuid import uuid4
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerResponse
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        McpAuthType,
+        McpTransportType,
+    )
+
+    now = __import__("datetime").datetime.utcnow()
+    mock_server = MagicMock()
+    mock_server.id = uuid4()
+    mock_server.workspace_id = uuid4()
+    mock_server.display_name = "Token Expiry Server"
+    mock_server.url = "https://mcp.example.com/sse"
+    mock_server.auth_type = McpAuthType.BEARER
+    mock_server.transport_type = McpTransportType.SSE
+    mock_server.last_status = None
+    mock_server.last_status_checked_at = None
+    mock_server.created_at = now
+    mock_server.oauth_client_id = None
+    mock_server.oauth_auth_url = None
+    mock_server.oauth_scopes = None
+    mock_server.token_expires_at = None
+
+    resp = WorkspaceMcpServerResponse.model_validate(mock_server)
+    assert hasattr(resp, "token_expires_at")
+    assert resp.token_expires_at is None
+
+
 def test_transport_type_defaults_sse() -> None:
     """MCPI-02: WorkspaceMcpServerCreate defaults transport_type to 'sse' when omitted.
 
