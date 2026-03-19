@@ -25,6 +25,7 @@ from pilot_space.api.v1.routers._mcp_server_oauth_helpers import (
 )
 from pilot_space.api.v1.routers._mcp_server_schemas import (
     WORKSPACE_SLUG_RE,
+    McpApprovalModeUpdate,
     McpOAuthUrlResponse,
     McpServerStatusResponse,
     WorkspaceMcpServerCreate,
@@ -607,6 +608,35 @@ async def mcp_oauth_callback(
         return RedirectResponse(url=f"{redirect_base}?status=error&reason=internal_error")
 
     return RedirectResponse(url=f"{redirect_base}?status=connected")
+
+
+# PATCH /{workspace_id}/mcp-servers/{server_id}/approval-mode (MCPA-02)
+@router.patch(
+    "/{workspace_id}/mcp-servers/{server_id}/approval-mode",
+    response_model=WorkspaceMcpServerResponse,
+    tags=["workspaces", "mcp"],
+)
+async def update_mcp_server_approval_mode(
+    workspace_id: UUID,
+    server_id: UUID,
+    body: McpApprovalModeUpdate,
+    current_user: CurrentUser,
+    session: DbSession,
+) -> WorkspaceMcpServerResponse:
+    """Update approval mode for a registered MCP server (MCPA-02). Requires admin role."""
+    await _get_admin_workspace(workspace_id, current_user, session)
+    await set_rls_context(session, current_user.user_id, workspace_id)
+    from pilot_space.infrastructure.database.repositories.workspace_mcp_server_repository import (
+        WorkspaceMcpServerRepository,
+    )
+
+    repo = WorkspaceMcpServerRepository(session=session)
+    server = await repo.get_by_workspace_and_id(server_id=server_id, workspace_id=workspace_id)
+    if not server:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MCP server not found")
+    server.approval_mode = body.approval_mode
+    await repo.update(server)
+    return WorkspaceMcpServerResponse.model_validate(server)
 
 
 # ---------------------------------------------------------------------------

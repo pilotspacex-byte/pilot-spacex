@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -73,6 +74,7 @@ class WorkspaceMcpServerResponse(BaseModel):
     last_status: str | None
     last_status_checked_at: datetime | None
     created_at: datetime
+    approval_mode: str = "auto_approve"
     # OAuth fields (returned only for oauth2 servers)
     oauth_client_id: str | None = None
     oauth_auth_url: str | None = None
@@ -80,6 +82,12 @@ class WorkspaceMcpServerResponse(BaseModel):
     token_expires_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class McpApprovalModeUpdate(BaseModel):
+    """Request body for updating the approval mode of a registered MCP server."""
+
+    approval_mode: Literal["auto_approve", "require_approval"]
 
 
 class WorkspaceMcpServerListResponse(BaseModel):

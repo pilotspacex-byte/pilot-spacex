@@ -698,6 +698,7 @@ def test_transport_type_http_stored() -> None:
     mock_server.oauth_client_id = None
     mock_server.oauth_auth_url = None
     mock_server.oauth_scopes = None
+    mock_server.approval_mode = "auto_approve"
 
     resp = WorkspaceMcpServerResponse.model_validate(mock_server)
     assert resp.transport_type == McpTransportType.HTTP
@@ -1065,6 +1066,7 @@ def test_list_response_includes_token_expires_at() -> None:
     mock_server.oauth_auth_url = None
     mock_server.oauth_scopes = None
     mock_server.token_expires_at = None
+    mock_server.approval_mode = "auto_approve"
 
     resp = WorkspaceMcpServerResponse.model_validate(mock_server)
     assert hasattr(resp, "token_expires_at")
@@ -1112,6 +1114,145 @@ def test_transport_type_defaults_sse() -> None:
     mock_server.oauth_client_id = None
     mock_server.oauth_auth_url = None
     mock_server.oauth_scopes = None
+    mock_server.approval_mode = "auto_approve"
 
     resp = WorkspaceMcpServerResponse.model_validate(mock_server)
     assert resp.transport_type == McpTransportType.SSE
+
+
+# ---------------------------------------------------------------------------
+# MCPA-02: approval_mode PATCH endpoint
+# ---------------------------------------------------------------------------
+
+
+async def test_update_approval_mode_success() -> None:
+    """MCPA-02: PATCH .../approval-mode with 'require_approval' returns 200 + updated value.
+
+    Mocks _get_admin_workspace, set_rls_context, and WorkspaceMcpServerRepository
+    following the OAuth slug test pattern. Verifies response contains the new mode.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from uuid import uuid4
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import McpApprovalModeUpdate
+    from pilot_space.api.v1.routers.workspace_mcp_servers import update_mcp_server_approval_mode
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        McpAuthType,
+        McpTransportType,
+    )
+
+    workspace_id = uuid4()
+    server_id = uuid4()
+    now = __import__("datetime").datetime.utcnow()
+
+    mock_server = MagicMock()
+    mock_server.id = server_id
+    mock_server.workspace_id = workspace_id
+    mock_server.display_name = "Test Server"
+    mock_server.url = "https://mcp.example.com/sse"
+    mock_server.auth_type = McpAuthType.BEARER
+    mock_server.transport_type = McpTransportType.SSE
+    mock_server.last_status = None
+    mock_server.last_status_checked_at = None
+    mock_server.created_at = now
+    mock_server.oauth_client_id = None
+    mock_server.oauth_auth_url = None
+    mock_server.oauth_scopes = None
+    mock_server.token_expires_at = None
+    mock_server.approval_mode = "auto_approve"
+
+    mock_repo = AsyncMock()
+    mock_repo.get_by_workspace_and_id = AsyncMock(return_value=mock_server)
+    mock_repo.update = AsyncMock()
+
+    def set_approval(v: str) -> None:
+        mock_server.approval_mode = v
+
+    mock_current_user = MagicMock()
+    mock_current_user.user_id = uuid4()
+    mock_session = AsyncMock()
+
+    body = McpApprovalModeUpdate(approval_mode="require_approval")
+
+    with (
+        patch(
+            "pilot_space.api.v1.routers.workspace_mcp_servers._get_admin_workspace",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "pilot_space.api.v1.routers.workspace_mcp_servers.set_rls_context",
+            return_value=None,
+        ),
+        patch(
+            "pilot_space.infrastructure.database.repositories"
+            ".workspace_mcp_server_repository.WorkspaceMcpServerRepository",
+            return_value=mock_repo,
+        ),
+    ):
+        response = await update_mcp_server_approval_mode(
+            workspace_id=workspace_id,
+            server_id=server_id,
+            body=body,
+            current_user=mock_current_user,
+            session=mock_session,
+        )
+
+    assert response.approval_mode == "require_approval"
+    mock_repo.update.assert_called_once()
+
+
+def test_update_approval_mode_invalid() -> None:
+    """MCPA-02: McpApprovalModeUpdate with invalid value raises ValidationError (422 equivalent).
+
+    Validates that the Pydantic schema rejects any value outside the
+    Literal["auto_approve", "require_approval"] constraint.
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import McpApprovalModeUpdate
+
+    with pytest.raises(ValidationError, match="approval_mode"):
+        McpApprovalModeUpdate(approval_mode="bad_value")  # type: ignore[arg-type]
+
+
+async def test_update_approval_mode_unauthorized() -> None:
+    """MCPA-02: Non-admin member calling PATCH approval-mode is rejected with 404/403.
+
+    The endpoint delegates auth to _get_admin_workspace which raises HTTPException
+    404 for non-admin members (SEC-M1 workspace enumeration protection).
+    This test verifies the exception propagates from the PATCH handler.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from fastapi import HTTPException
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import McpApprovalModeUpdate
+    from pilot_space.api.v1.routers.workspace_mcp_servers import update_mcp_server_approval_mode
+
+    workspace_id = __import__("uuid").uuid4()
+    server_id = __import__("uuid").uuid4()
+
+    mock_current_user = MagicMock()
+    mock_current_user.user_id = __import__("uuid").uuid4()
+    mock_session = AsyncMock()
+
+    body = McpApprovalModeUpdate(approval_mode="require_approval")
+
+    import pytest
+
+    with (
+        patch(
+            "pilot_space.api.v1.routers.workspace_mcp_servers._get_admin_workspace",
+            side_effect=HTTPException(status_code=404, detail="Workspace not found"),
+        ),
+        pytest.raises(HTTPException) as exc_info,
+    ):
+        await update_mcp_server_approval_mode(
+            workspace_id=workspace_id,
+            server_id=server_id,
+            body=body,
+            current_user=mock_current_user,
+            session=mock_session,
+        )
+    assert exc_info.value.status_code in (403, 404)
