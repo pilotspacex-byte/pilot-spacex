@@ -52,6 +52,10 @@ help:
 	@echo "Utilities"
 	@echo "  make install-deps         Install all dependencies (backend + frontend)"
 	@echo "  make test-results-dir     Create test results directory"
+	@echo ""
+	@echo "Documentation (pilotspace/pilot-space-docs)"
+	@echo "  make sync-docs            Clone or pull docs repo into .planning/"
+	@echo "  make push-docs            Commit and push docs changes"
 
 # ============================================================================
 # Dependencies
@@ -236,13 +240,25 @@ sync-docs:
 	else \
 		echo "Cloning docs repo..."; \
 		git clone $(DOCS_REPO) $(DOCS_DIR) 2>/dev/null \
-		|| echo "⚠ No access to planning docs. Request access from a project admin."; \
+		|| { echo "⚠ No access to planning docs. Request access from a project admin."; exit 0; }; \
+	fi
+	@if [ -d "$(DOCS_DIR)/docs" ] && [ ! -L docs ]; then \
+		ln -s $(DOCS_DIR)/docs docs; \
+		echo "Created docs -> $(DOCS_DIR)/docs symlink"; \
+	fi
+	@if [ -d "$(DOCS_DIR)/specs" ] && [ ! -L specs ]; then \
+		ln -s $(DOCS_DIR)/specs specs; \
+		echo "Created specs -> $(DOCS_DIR)/specs symlink"; \
 	fi
 
 push-docs:
-	@if [ -d "$(DOCS_DIR)/.git" ]; then \
-		cd $(DOCS_DIR) && git add -A && git diff --cached --quiet \
-		|| (cd $(DOCS_DIR) && git commit -m "docs: update" && git push); \
-	else \
+	@if [ ! -d "$(DOCS_DIR)/.git" ]; then \
 		echo "⚠ Docs repo not initialized. Run 'make sync-docs' first."; \
+		exit 1; \
+	fi
+	@cd $(DOCS_DIR) && git add -A && \
+	if ! git diff --cached --quiet; then \
+		git commit -m "docs: update $$(date +%Y-%m-%d)" && git push; \
+	else \
+		echo "No docs changes to push."; \
 	fi

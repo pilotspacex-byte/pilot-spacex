@@ -15,7 +15,7 @@ cli/           pilot-cli — `pilot login`, `pilot implement` (pyproject.toml)
 authcore/      Supabase Auth self-hosted (docker-compose.yml)
 infra/         Docker, Supabase local stack
 docs/          Design decisions, dev patterns, specs (synced from pilotspace/pilot-space-docs)
-specs/         Feature specifications
+specs/         Feature specifications (synced from pilotspace/pilot-space-docs)
 scripts/       Utility scripts
 design-system/ Design tokens and references
 ```
