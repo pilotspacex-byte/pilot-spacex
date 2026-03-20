@@ -14,8 +14,8 @@ export type VoiceRecordingStatus = 'idle' | 'recording' | 'transcribing' | 'erro
 export interface UseVoiceRecordingOptions {
   /** Workspace ID for transcription API call */
   workspaceId: string;
-  /** Called with transcript text when transcription succeeds */
-  onTranscript: (text: string) => void;
+  /** Called with transcript text and audio URL when transcription succeeds */
+  onTranscript: (text: string, audioUrl: string | null) => void;
   /** Optional ISO 639-1 language hint */
   language?: string;
 }
@@ -32,6 +32,8 @@ export interface UseVoiceRecordingResult {
   durationMs: number;
   /** Signed URL for audio playback (1h expiry). Available after successful transcription with storage. */
   audioUrl: string | null;
+  /** Real-time amplitude level during recording (0.0 to 1.0). Zero when not recording. */
+  amplitudeLevel: number;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   cancelRecording: () => void;
@@ -75,6 +77,7 @@ export function useVoiceRecording({
   const [error, setError] = useState<string | null>(null);
   const [durationMs, setDurationMs] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [amplitudeLevel, setAmplitudeLevel] = useState(0);
 
   const isSupported = useMemo(() => checkBrowserSupport(), []);
 
@@ -84,6 +87,12 @@ export function useVoiceRecording({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
   const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const errorResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Amplitude analysis refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Check microphone permission state on mount (non-blocking)
   useEffect(() => {
@@ -110,6 +119,20 @@ export function useVoiceRecording({
     };
   }, [isSupported]);
 
+  /** Stop amplitude analysis loop. */
+  const stopAmplitudeAnalysis = useCallback(() => {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (audioContextRef.current) {
+      void audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setAmplitudeLevel(0);
+  }, []);
+
   /** Stop all media tracks and clear timers. */
   const cleanupMedia = useCallback(() => {
     if (timerRef.current) {
@@ -120,26 +143,74 @@ export function useVoiceRecording({
       clearTimeout(maxDurationTimerRef.current);
       maxDurationTimerRef.current = null;
     }
+    if (errorResetTimerRef.current) {
+      clearTimeout(errorResetTimerRef.current);
+      errorResetTimerRef.current = null;
+    }
+    stopAmplitudeAnalysis();
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
     mediaRecorderRef.current = null;
     chunksRef.current = [];
-  }, []);
+  }, [stopAmplitudeAnalysis]);
 
   /** Auto-reset error state to idle after a delay. */
   const setErrorWithAutoReset = useCallback((msg: string) => {
     setError(msg);
     setStatus('error');
-    setTimeout(() => {
+    if (errorResetTimerRef.current) {
+      clearTimeout(errorResetTimerRef.current);
+    }
+    errorResetTimerRef.current = setTimeout(() => {
       setStatus('idle');
       setError(null);
+      errorResetTimerRef.current = null;
     }, 3000);
   }, []);
 
   /** Cleanup on unmount. */
   useEffect(() => cleanupMedia, [cleanupMedia]);
+
+  /** Start real-time amplitude measurement using AnalyserNode + requestAnimationFrame. */
+  const startAmplitudeAnalysis = useCallback((stream: MediaStream) => {
+    try {
+      const audioCtx = new AudioContext();
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      audioContextRef.current = audioCtx;
+      analyserRef.current = analyser;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      const measureAmplitude = () => {
+        if (!analyserRef.current) return;
+
+        analyserRef.current.getByteTimeDomainData(dataArray);
+
+        // Compute RMS amplitude normalized to 0-1 range
+        let sumOfSquares = 0;
+        for (const sample of dataArray) {
+          const normalized = (sample - 128) / 128; // -1 to 1
+          sumOfSquares += normalized * normalized;
+        }
+        const rms = Math.sqrt(sumOfSquares / dataArray.length);
+        // Scale up slightly so typical speech reaches 0.5-0.8 range
+        const scaled = Math.min(1, rms * 3);
+        setAmplitudeLevel(scaled);
+
+        animationFrameRef.current = requestAnimationFrame(measureAmplitude);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(measureAmplitude);
+    } catch {
+      // AudioContext not available — amplitude visualization silently disabled
+    }
+  }, []);
 
   const startRecording = useCallback(async () => {
     if (status !== 'idle') return;
@@ -184,7 +255,7 @@ export function useVoiceRecording({
           setTranscript(result.text);
           setAudioUrl(result.audioUrl);
           setStatus('idle');
-          onTranscript(result.text);
+          onTranscript(result.text, result.audioUrl);
         } catch (err) {
           const msg =
             err instanceof Error ? err.message : 'Transcription failed — please try again';
@@ -193,10 +264,14 @@ export function useVoiceRecording({
         }
       };
 
+      // Start amplitude analysis
+      startAmplitudeAnalysis(stream);
+
       // Start recording and duration timer
       recorder.start(250); // collect chunks every 250ms
       startTimeRef.current = Date.now();
       setDurationMs(0);
+      setAudioUrl(null); // Reset stale audio URL from previous recording
       timerRef.current = setInterval(() => {
         setDurationMs(Date.now() - startTimeRef.current);
       }, 1000);
@@ -236,6 +311,7 @@ export function useVoiceRecording({
     onTranscript,
     cleanupMedia,
     setErrorWithAutoReset,
+    startAmplitudeAnalysis,
   ]);
 
   const stopRecording = useCallback(() => {
@@ -271,6 +347,7 @@ export function useVoiceRecording({
     error,
     durationMs,
     audioUrl,
+    amplitudeLevel,
     startRecording,
     stopRecording,
     cancelRecording,

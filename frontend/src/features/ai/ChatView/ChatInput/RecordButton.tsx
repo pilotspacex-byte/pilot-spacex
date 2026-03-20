@@ -1,13 +1,13 @@
 /**
- * RecordButton - Mic button with pulsing animation for voice-to-text input.
+ * RecordButton - Mic button with amplitude visualization for voice-to-text input.
  *
  * Integrates with useVoiceRecording hook to manage recording lifecycle.
- * Shows mic icon (idle), red pulsing stop icon (recording), and spinner (transcribing).
- * Requires ElevenLabs API key to be configured — prompts user to open settings if missing.
+ * Shows mic icon (idle), recording pill with timer + amplitude bars + cancel (recording),
+ * and spinner (transcribing). Requires ElevenLabs API key — prompts user to open settings if missing.
  */
 
 import { observer } from 'mobx-react-lite';
-import { Mic, MicOff, Square, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Square, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -18,8 +18,8 @@ import { useVoiceRecording } from '../hooks/useVoiceRecording';
 interface RecordButtonProps {
   /** Workspace ID for transcription API calls */
   workspaceId: string;
-  /** Called with transcript text when recording+transcription completes */
-  onTranscript: (text: string) => void;
+  /** Called with transcript text and audio URL when recording+transcription completes */
+  onTranscript: (text: string, audioUrl: string | null) => void;
   /** Whether the button is disabled (e.g. during AI streaming) */
   disabled?: boolean;
 }
@@ -31,6 +31,10 @@ function formatDuration(ms: number): string {
   const secs = seconds % 60;
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
+
+/** Amplitude bar heights for staggered visual effect. Each multiplied by amplitudeLevel. */
+const BAR_BASE_HEIGHTS = [0.4, 0.7, 0.55, 0.85];
+const BAR_DELAYS = ['0ms', '60ms', '30ms', '90ms'];
 
 export const RecordButton = observer(function RecordButton({
   workspaceId,
@@ -46,6 +50,7 @@ export const RecordButton = observer(function RecordButton({
     isSupported,
     isPermissionDenied,
     durationMs,
+    amplitudeLevel,
     startRecording,
     stopRecording,
     cancelRecording,
@@ -108,19 +113,98 @@ export const RecordButton = observer(function RecordButton({
     liveAnnouncement = 'Transcribing audio...';
   }
 
+  // During recording: show an expanded pill with cancel + amplitude + timer + stop
+  if (isRecording) {
+    return (
+      <TooltipProvider>
+        <div
+          className="flex items-center gap-1 bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-800/40 rounded-full px-1.5 py-0.5"
+          onKeyDown={handleKeyDown}
+          tabIndex={-1}
+        >
+          {/* Screen reader live announcements */}
+          <span aria-live="assertive" className="sr-only">
+            {liveAnnouncement}
+          </span>
+
+          {/* Cancel button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-red-400 hover:text-red-600 hover:bg-red-100/60 dark:hover:bg-red-900/40 rounded-full flex-shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  cancelRecording();
+                }}
+                aria-label="Cancel recording"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              Cancel recording
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Amplitude visualization bars */}
+          <div className="flex items-center gap-[2px] h-4" aria-hidden="true">
+            {BAR_BASE_HEIGHTS.map((baseHeight, i) => {
+              const height = Math.max(20, baseHeight * amplitudeLevel * 100 + 20);
+              return (
+                <div
+                  key={i}
+                  className="w-[3px] bg-red-500 rounded-full transition-all"
+                  style={{
+                    height: `${Math.min(100, height)}%`,
+                    transitionDuration: '100ms',
+                    transitionDelay: BAR_DELAYS[i],
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          {/* Elapsed time */}
+          <span
+            className="text-xs text-red-500 font-mono tabular-nums leading-none px-0.5"
+            aria-label={`Recording time: ${formatDuration(durationMs)}`}
+          >
+            {formatDuration(durationMs)}
+          </span>
+
+          {/* Stop button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                data-testid="record-button"
+                className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-100/60 dark:hover:bg-red-900/40 rounded-full flex-shrink-0"
+                onClick={handleClick}
+                aria-label={tooltipLabel}
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              Stop recording
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
+    );
+  }
+
+  // Default (idle / transcribing / unavailable) state
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="relative flex items-center justify-center">
-            {/* Pulsing ring shown during recording */}
-            {isRecording && (
-              <span
-                className="absolute inset-0 rounded-full animate-ping bg-red-500/25"
-                aria-hidden="true"
-              />
-            )}
-
             {/* Screen reader live announcements */}
             <span aria-live="assertive" className="sr-only">
               {liveAnnouncement}
@@ -133,9 +217,7 @@ export const RecordButton = observer(function RecordButton({
               data-testid="record-button"
               className={[
                 'h-6 w-6 relative',
-                isRecording
-                  ? 'text-red-500 hover:text-red-600'
-                  : 'text-muted-foreground/60 hover:text-foreground',
+                'text-muted-foreground/60 hover:text-foreground',
               ].join(' ')}
               onClick={handleClick}
               onKeyDown={handleKeyDown}
@@ -143,11 +225,8 @@ export const RecordButton = observer(function RecordButton({
               aria-label={tooltipLabel}
             >
               {isTranscribing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {isRecording && <Square className="h-3.5 w-3.5 fill-current" />}
-              {!isTranscribing && !isRecording && isUnavailable && (
-                <MicOff className="h-3.5 w-3.5" />
-              )}
-              {!isTranscribing && !isRecording && !isUnavailable && <Mic className="h-3.5 w-3.5" />}
+              {!isTranscribing && isUnavailable && <MicOff className="h-3.5 w-3.5" />}
+              {!isTranscribing && !isUnavailable && <Mic className="h-3.5 w-3.5" />}
             </Button>
           </div>
         </TooltipTrigger>
