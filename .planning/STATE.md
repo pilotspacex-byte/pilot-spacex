@@ -83,7 +83,7 @@ None.
 | 260318-naw | Settings modal migration investigation: 14 pages catalogued, 4-phase 9-plan migration plan, feat/settings-modal branch | 2026-03-18 | 74dac5cc | Verified | [260318-naw-checkout-new-branch-then-investigate-to-](./quick/260318-naw-checkout-new-branch-then-investigate-to-/) |
 | 260318-wqj | Add tags+usage to skill system, extract prompt module, redesign modal with chip tags+usage textarea | 2026-03-18 | d854919c | Needs Review | [260318-wqj-improve-generate-skill-modal-redesign-fo](./quick/260318-wqj-improve-generate-skill-modal-redesign-fo/) |
 | 260320-bmd | Voice input with ElevenLabs API — STT transcription, record button, transcript caching | 2026-03-20 | b4e1d42d | Verified | [260320-bmd-voice-input-with-elevenlabs-api-voice-to](./quick/260320-bmd-voice-input-with-elevenlabs-api-voice-to/) |
-| 260320-hx7 | Merge feat/note-design-review (artifact system) + audio storage for voice recordings | 2026-03-20 | 5858043e | Done | [260320-hx7-merge-feat-note-design-review-into-this-](./quick/260320-hx7-merge-feat-note-design-review-into-this-/) |
+| 260320-hx7 | Merge feat/note-design-review (artifact system) + audio storage for voice recordings | 2026-03-20 | 5858043e | Verified | [260320-hx7-merge-feat-note-design-review-into-this-](./quick/260320-hx7-merge-feat-note-design-review-into-this-/) |
 
 ## Session Continuity
 
