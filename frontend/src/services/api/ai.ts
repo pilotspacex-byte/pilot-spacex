@@ -39,7 +39,7 @@ export interface WorkspaceAISettingsFeatures {
 
 export interface WorkspaceAISettingsProvider {
   provider: string;
-  serviceType: 'embedding' | 'llm';
+  serviceType: 'embedding' | 'llm' | 'stt';
   isConfigured: boolean;
   isValid: boolean | null;
   lastValidatedAt: string | null;
@@ -53,6 +53,7 @@ export interface WorkspaceAISettings {
   features: WorkspaceAISettingsFeatures;
   defaultLlmProvider: string;
   defaultEmbeddingProvider: string;
+  defaultSttProvider?: string;
   costLimitUsd: number | null;
 }
 
@@ -218,7 +219,7 @@ export const aiApi = {
     data: {
       api_keys?: Array<{
         provider: string;
-        service_type: 'embedding' | 'llm';
+        service_type: 'embedding' | 'llm' | 'stt';
         api_key?: string;
         base_url?: string;
         model_name?: string;

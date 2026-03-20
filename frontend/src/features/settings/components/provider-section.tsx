@@ -27,6 +27,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   google: 'Google Gemini',
   anthropic: 'Anthropic',
   ollama: 'Ollama',
+  elevenlabs: 'ElevenLabs',
 };
 
 export function StatusBadge({ status }: { status: WorkspaceAISettingsProvider | undefined }) {
@@ -72,7 +73,7 @@ export function StatusBadge({ status }: { status: WorkspaceAISettingsProvider | 
 }
 
 export interface ProviderSectionProps {
-  serviceType: 'embedding' | 'llm';
+  serviceType: 'embedding' | 'llm' | 'stt';
   icon: React.ElementType;
   title: string;
   description: string;
@@ -88,10 +89,10 @@ export const ProviderSection = observer(function ProviderSection({
 }: ProviderSectionProps) {
   const { ai } = useStore();
   const { settings } = ai;
-  const providers = settings.getProvidersByService(serviceType);
+  const providers = settings.getProvidersByService(serviceType as 'embedding' | 'llm' | 'stt');
 
   // Use persisted default provider for this service type
-  const storedDefault = settings.getDefaultProvider(serviceType);
+  const storedDefault = settings.getDefaultProvider(serviceType as 'embedding' | 'llm' | 'stt');
   const fallback = providers[0]?.provider ?? '';
   const resolvedDefault = providers.some((p) => p.provider === storedDefault)
     ? storedDefault

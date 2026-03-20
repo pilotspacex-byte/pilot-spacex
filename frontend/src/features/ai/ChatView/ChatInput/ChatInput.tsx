@@ -30,6 +30,7 @@ import { useAttachments } from '../hooks/useAttachments';
 import { useDriveStatus } from '../hooks/useDriveStatus';
 import { AttachmentButton } from './AttachmentButton';
 import { DriveFilePicker } from './DriveFilePicker';
+import { RecordButton } from './RecordButton';
 import { attachmentsApi } from '@/services/api/attachments';
 
 interface ChatInputProps {
@@ -369,6 +370,14 @@ export const ChatInput = observer<ChatInputProps>(
 
               {/* Inline toolbar buttons */}
               <div className="absolute bottom-1.5 right-2 flex items-center gap-0.5">
+                <RecordButton
+                  workspaceId={workspaceId ?? ''}
+                  onTranscript={(text) => {
+                    onChange(value + (value ? ' ' : '') + text);
+                    setTimeout(() => textareaRef.current?.focus(), 0);
+                  }}
+                  disabled={isDisabled || isStreaming}
+                />
                 <AttachmentButton
                   onAddFile={addFile}
                   disabled={isDisabled || isStreaming}

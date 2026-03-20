@@ -45,12 +45,17 @@ const PROVIDER_CONFIG: Record<string, ProviderFieldConfig> = {
     baseUrlPlaceholder: 'http://localhost:11434',
     modelPlaceholder: 'e.g. nomic-embed-text, qwen2.5',
   },
+  elevenlabs: {
+    name: 'ElevenLabs',
+    fields: ['api_key'],
+    // No base_url or model_name — ElevenLabs uses fixed endpoint
+  },
 };
 
 /** Resolve model placeholder based on provider + service type. */
 function getModelPlaceholder(
   provider: string,
-  serviceType: 'embedding' | 'llm',
+  serviceType: 'embedding' | 'llm' | 'stt',
   config: ProviderFieldConfig
 ): string {
   if (provider === 'ollama' && serviceType === 'embedding') {
@@ -64,7 +69,7 @@ function getModelPlaceholder(
 
 export interface ProviderConfigFormProps {
   provider: string;
-  serviceType: 'embedding' | 'llm';
+  serviceType: 'embedding' | 'llm' | 'stt';
   status: WorkspaceAISettingsProvider | undefined;
   /** When true, saving also sets this provider as the active default for its service type. */
   setAsDefault?: boolean;
@@ -101,7 +106,7 @@ export function ProviderConfigForm({
   const handleSave = async () => {
     const entry: {
       provider: string;
-      service_type: 'embedding' | 'llm';
+      service_type: 'embedding' | 'llm' | 'stt';
       api_key?: string;
       base_url?: string;
       model_name?: string;
@@ -132,9 +137,10 @@ export function ProviderConfigForm({
       if (setAsDefault) {
         if (serviceType === 'llm') {
           saveData.default_llm_provider = provider;
-        } else {
+        } else if (serviceType === 'embedding') {
           saveData.default_embedding_provider = provider;
         }
+        // 'stt' providers do not have a default_* field (only one stt provider: elevenlabs)
       }
       await settings.saveSettings(saveData);
       // Check for validation warnings (saved but validation failed, e.g. Ollama not running)

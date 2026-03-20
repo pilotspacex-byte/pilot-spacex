@@ -10,7 +10,7 @@
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { useParams } from 'next/navigation';
-import { AlertCircle, Database, BrainCircuit } from 'lucide-react';
+import { AlertCircle, Database, BrainCircuit, Mic } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
@@ -98,6 +98,17 @@ export const AISettingsPage = observer(function AISettingsPage() {
           icon={BrainCircuit}
           title="AI LLM Service"
           description="Used for AI agents, ghost text, PR review, and issue extraction."
+          onSaved={handleProviderSaved}
+        />
+
+        <Separator />
+
+        {/* Voice Services Section */}
+        <ProviderSection
+          serviceType="stt"
+          icon={Mic}
+          title="Voice Services"
+          description="Used for voice-to-text transcription in AI Chat. Configure your ElevenLabs API key."
           onSaved={handleProviderSaved}
         />
 
