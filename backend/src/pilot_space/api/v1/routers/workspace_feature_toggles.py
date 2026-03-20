@@ -49,8 +49,6 @@ async def _get_member_workspace(
     session: DbSession,
 ) -> Workspace:
     """Resolve workspace and verify the user is a member (any role)."""
-    from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
-
     workspace_repo = WorkspaceRepository(session=session)
     workspace = await workspace_repo.get_by_id(workspace_id)
     if not workspace:
