@@ -3,11 +3,16 @@
  *
  * Integrates with useVoiceRecording hook to manage recording lifecycle.
  * Shows mic icon (idle), red pulsing stop icon (recording), and spinner (transcribing).
+ * Requires ElevenLabs API key to be configured — prompts user to open settings if missing.
  */
 
+import { observer } from 'mobx-react-lite';
 import { Mic, MicOff, Square, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useStore } from '@/stores';
+import { useSettingsModal } from '@/features/settings/settings-modal-context';
 import { useVoiceRecording } from '../hooks/useVoiceRecording';
 
 interface RecordButtonProps {
@@ -27,7 +32,15 @@ function formatDuration(ms: number): string {
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
-export function RecordButton({ workspaceId, onTranscript, disabled = false }: RecordButtonProps) {
+export const RecordButton = observer(function RecordButton({
+  workspaceId,
+  onTranscript,
+  disabled = false,
+}: RecordButtonProps) {
+  const { aiStore } = useStore();
+  const { openSettings } = useSettingsModal();
+  const isSttConfigured = aiStore.settings.sttConfigured;
+
   const {
     status,
     isSupported,
@@ -47,6 +60,19 @@ export function RecordButton({ workspaceId, onTranscript, disabled = false }: Re
 
   const handleClick = () => {
     if (disabled || isUnavailable) return;
+
+    // Gate: require ElevenLabs API key before recording
+    if (!isSttConfigured && !isRecording) {
+      toast.error('ElevenLabs API key required', {
+        description: 'Set up your voice provider in Settings → AI Providers.',
+        action: {
+          label: 'Open Settings',
+          onClick: () => openSettings('ai-providers'),
+        },
+      });
+      return;
+    }
+
     if (isRecording) {
       stopRecording();
     } else if (status === 'idle') {
@@ -66,6 +92,8 @@ export function RecordButton({ workspaceId, onTranscript, disabled = false }: Re
     tooltipLabel = 'Voice recording not supported in this browser';
   } else if (isPermissionDenied) {
     tooltipLabel = 'Microphone access denied — check browser settings';
+  } else if (!isSttConfigured) {
+    tooltipLabel = 'Voice input — set up ElevenLabs API key in Settings';
   } else if (isTranscribing) {
     tooltipLabel = 'Transcribing...';
   } else if (isRecording) {
@@ -129,4 +157,4 @@ export function RecordButton({ workspaceId, onTranscript, disabled = false }: Re
       </Tooltip>
     </TooltipProvider>
   );
-}
+});
