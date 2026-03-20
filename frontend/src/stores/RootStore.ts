@@ -15,6 +15,7 @@ import { TaskStore } from '@/stores/TaskStore';
 import { IssueViewStore } from './features/issues/IssueViewStore';
 import { ProjectStore } from './features/projects/ProjectStore';
 import { GitStore } from './features/git/GitStore';
+import { TerminalStore } from './features/terminal/TerminalStore';
 import { workspacesApi } from '@/services/api/workspaces';
 
 export class RootStore {
@@ -32,6 +33,7 @@ export class RootStore {
   issueView: IssueViewStore;
   projects: ProjectStore;
   git: GitStore;
+  terminal: TerminalStore;
 
   constructor() {
     this.auth = new AuthStore();
@@ -48,6 +50,7 @@ export class RootStore {
     this.issueView = new IssueViewStore();
     this.projects = new ProjectStore();
     this.git = new GitStore();
+    this.terminal = new TerminalStore();
 
     // Wire cross-store references
     this.workspace.setAuthStore(this.auth);
@@ -68,6 +71,7 @@ export class RootStore {
     this.issueView.reset();
     this.projects.reset();
     this.git.reset();
+    this.terminal.reset();
   }
 
   dispose(): void {
@@ -150,6 +154,11 @@ export function useProjectStore(): ProjectStore {
 /** Hook to access the GitStore from context. */
 export function useGitStore(): GitStore {
   return useStores().git;
+}
+
+/** Hook to access the TerminalStore from context. */
+export function useTerminalStore(): TerminalStore {
+  return useStores().terminal;
 }
 
 /**
