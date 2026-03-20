@@ -62,6 +62,14 @@
       "desktop": {
         "schemes": ["pilotspace"]
       }
+    },
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/OWNER/pilot-space/releases/latest/download/latest.json"
+      ]
     }
   }
 }
