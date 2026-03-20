@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: completed
-stopped_at: Completed 36-03-PLAN.md
-last_updated: "2026-03-20T09:01:10.509Z"
+stopped_at: Completed 37-01-PLAN.md
+last_updated: "2026-03-20T09:18:09.603Z"
 last_activity: "2026-03-20 — Phase 31 Plan 03 complete — pilotspace:// deep link OAuth PKCE flow for Google/GitHub social login"
 progress:
   total_phases: 9
-  completed_phases: 7
-  total_plans: 20
-  completed_plans: 20
+  completed_phases: 8
+  total_plans: 22
+  completed_plans: 22
   percent: 100
 ---
 
@@ -99,6 +99,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 36-diff-viewer-commit-ui]: No external diff rendering library — custom parseDiffLines() avoids react-diff-view bundle weight; git2-rs provides standard unified diff format
 - [Phase 36-diff-viewer-commit-ui]: react-virtuoso Virtuoso component used for diff virtualization — renders only visible rows, preventing UI freeze on 1000+ line diffs (DIFF-05)
 - [Phase 36]: CommitPanel uses local useState for commitMessage (ephemeral UI) + stores commit success via lastCommitOid; FileGroup upgraded to FileStatus[] for checkbox stage/unstage; two-column ProjectDashboard layout with w-[280px] left sidebar
+- [Phase 37]: implement-complete CustomEvent dispatched from ImplementStore — decouples store from tray notification component; TrayNotificationListener subscribes independently
+- [Phase 37]: [Phase 37-02]: show_menu_on_left_click(false) used — left click shows window, right click shows context menu
+- [Phase 37]: [Phase 37-02]: TrayNotificationListener is plain component (not observer) — no MobX state consumed; mounted in workspace-slug-layout via dynamic import ssr:false
+- [Phase 37]: sidecarId captured from first SidecarOutput event (id field) — enables mid-flight cancel before process exits
 
 ### Pending Todos
 
@@ -111,7 +115,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T09:00:21.369Z
-Stopped at: Completed 36-03-PLAN.md
+Last session: 2026-03-20T09:18:09.601Z
+Stopped at: Completed 37-01-PLAN.md
 Resume file: None
 Next action: /gsd:execute-phase 31

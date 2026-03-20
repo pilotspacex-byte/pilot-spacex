@@ -11,7 +11,7 @@ Requirements for Tauri Desktop Client milestone. Each maps to roadmap phases.
 
 - [x] **SHELL-01**: User can launch native desktop app with embedded Pilot Space web UI
 - [x] **SHELL-02**: Existing Next.js frontend builds in both web (standalone) and desktop (static export) modes via NEXT_TAURI flag
-- [ ] **SHELL-03**: User can minimize app to system tray and receive background notifications
+- [x] **SHELL-03**: User can minimize app to system tray and receive background notifications
 
 ### Authentication
 
@@ -33,8 +33,8 @@ Requirements for Tauri Desktop Client milestone. Each maps to roadmap phases.
 ### Pilot CLI
 
 - [x] **CLI-01**: pilot CLI compiled as standalone sidecar binary (PyInstaller) shipped with app
-- [ ] **CLI-02**: User can run `pilot implement` on an issue with streaming output in terminal
-- [ ] **CLI-03**: One-click "Implement Issue" flow: select issue → auto-branch → implement → stage/commit → push
+- [x] **CLI-02**: User can run `pilot implement` on an issue with streaming output in terminal
+- [x] **CLI-03**: One-click "Implement Issue" flow: select issue → auto-branch → implement → stage/commit → push
 - [x] **CLI-04**: Sidecar binary built for all 4 platform targets in CI
 
 ### Terminal
@@ -95,7 +95,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | SHELL-01 | Phase 30 | Complete |
 | SHELL-02 | Phase 30 | Complete |
-| SHELL-03 | Phase 37 | Pending |
+| SHELL-03 | Phase 37 | Complete |
 | AUTH-01 | Phase 31 | Complete |
 | AUTH-02 | Phase 31 | Complete |
 | AUTH-03 | Phase 31 | Complete |
@@ -108,8 +108,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GIT-06 | Phase 33 | Complete |
 | GIT-07 | Phase 32 | Complete |
 | CLI-01 | Phase 35 | Complete |
-| CLI-02 | Phase 37 | Pending |
-| CLI-03 | Phase 37 | Pending |
+| CLI-02 | Phase 37 | Complete |
+| CLI-03 | Phase 37 | Complete |
 | CLI-04 | Phase 35 | Complete |
 | TERM-01 | Phase 34 | Complete |
 | TERM-02 | Phase 34 | Complete |

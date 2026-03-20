@@ -73,7 +73,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 - [x] **Phase 34: Embedded Terminal** — xterm.js panel with full PTY, batched IPC output, arbitrary shell commands (completed 2026-03-20)
 - [x] **Phase 35: Pilot CLI Sidecar** — Compile pilot binary per platform, wire into app, CI matrix artifacts (completed 2026-03-20)
 - [x] **Phase 36: Diff Viewer + Commit UI** — File diff view, stage/unstage, commit message, push (completed 2026-03-20)
-- [ ] **Phase 37: One-Click Implement Flow + Tray** — End-to-end issue→implement→commit loop; system tray with notifications
+- [x] **Phase 37: One-Click Implement Flow + Tray** — End-to-end issue→implement→commit loop; system tray with notifications (completed 2026-03-20)
 - [ ] **Phase 38: Packaging + Signing + Auto-Update** — Signed .dmg/.deb/.AppImage/.msi per platform, notarization, auto-update
 
 ## Phase Details
@@ -199,7 +199,7 @@ Plans:
   1. User can run pilot implement on an issue and watch streaming output appear in the embedded terminal
   2. User can trigger One-Click Implement: select an issue, and the app automatically creates a branch, runs pilot implement, and stages/commits/pushes the result
   3. User can minimize the app to the system tray and receive background notifications (e.g., implement complete, CI status)
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 37-01-PLAN.md — ImplementStore MobX orchestrator + ImplementIssueButton UI on issue detail page (CLI-02, CLI-03)
@@ -239,7 +239,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 34. Embedded Terminal | 2/2 | Complete    | 2026-03-20 | - |
 | 35. Pilot CLI Sidecar | 2/2 | Complete    | 2026-03-20 | - |
 | 36. Diff Viewer + Commit UI | 3/3 | Complete    | 2026-03-20 | - |
-| 37. One-Click Implement + Tray | v1.1 | 0/2 | Not started | - |
+| 37. One-Click Implement + Tray | 2/2 | Complete   | 2026-03-20 | - |
 | 38. Packaging + Signing + Auto-Update | v1.1 | 0/3 | Not started | - |
 
 **v1.1 total: 9 phases, ~25 plans, 30 requirements**
