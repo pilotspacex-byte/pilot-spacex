@@ -1,14 +1,13 @@
 /**
- * MemberCard - Card component for displaying a workspace member in a grid.
+ * MemberCard - Row component for displaying a workspace member in a list.
  *
- * Vertical layout: role badge, avatar, name, email, meta row.
+ * Horizontal layout: avatar, name/email, role badge, meta, actions.
  * Admin-only actions dropdown with role change sub-menu.
  */
 
 'use client';
 
 import { Crown, Loader2, MoreHorizontal, Shield, ShieldAlert, Trash2 } from 'lucide-react';
-import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -72,15 +71,16 @@ export function MemberCard({
   const joinedStr = formatJoinDate(member.joinedAt);
 
   return (
-    <Card
+    <div
       className={cn(
-        'relative cursor-pointer px-4 py-4 transition-all duration-200',
-        'hover:shadow-md',
+        'group flex items-center gap-4 rounded-lg border border-border bg-card px-4 py-3 transition-all duration-200',
+        'hover:bg-accent/50 hover:shadow-warm-sm',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        isCurrentUser && 'ring-1 ring-primary/20'
+        'cursor-pointer',
+        isCurrentUser && 'ring-1 ring-primary/20 bg-primary/[0.02]'
       )}
       role="article"
-      aria-label={`Member card for ${displayName}`}
+      aria-label={`Member: ${displayName}`}
       tabIndex={0}
       data-testid={`member-card-${member.userId}`}
       onClick={() => onNavigate(member.userId)}
@@ -91,105 +91,107 @@ export function MemberCard({
         }
       }}
     >
-      {/* Top row: role badge + actions */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="inline-flex items-center gap-1">
-          {!member.custom_role && ROLE_ICON[member.role]}
-          <MemberRoleBadge role={member.role} customRole={member.custom_role ?? null} />
-        </div>
+      {/* Avatar */}
+      <Avatar className="h-10 w-10 shrink-0">
+        {member.avatarUrl && <AvatarImage src={member.avatarUrl} alt={`${displayName}'s avatar`} />}
+        <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+      </Avatar>
 
-        {showActions && (
-          <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  aria-label={`Actions for ${displayName}`}
-                  disabled={isUpdating}
-                >
-                  {isUpdating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <MoreHorizontal className="h-4 w-4" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {canEditRole && (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <Shield className="mr-2 h-4 w-4" />
-                      Change Role
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem onClick={() => onRoleChange(member.userId, 'admin')}>
-                        <ShieldAlert className="mr-2 h-3.5 w-3.5" />
-                        Admin
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onRoleChange(member.userId, 'member')}>
-                        <Shield className="mr-2 h-3.5 w-3.5" />
-                        Member
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onRoleChange(member.userId, 'guest')}>
-                        Guest
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                )}
-                {canTransferOwnership && onTransferOwnership && (
-                  <DropdownMenuItem onClick={() => onTransferOwnership(member.userId)}>
-                    <Crown className="mr-2 h-4 w-4" />
-                    Transfer Ownership
-                  </DropdownMenuItem>
-                )}
-                {(canEditRole || canTransferOwnership) && canRemove && <DropdownMenuSeparator />}
-                {canRemove && (
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    disabled={removeDisabled}
-                    onClick={() => {
-                      if (!removeDisabled) onRemove(member.userId);
-                    }}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Remove Member
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
-      </div>
-
-      {/* Avatar centered */}
-      <div className="flex flex-col items-center gap-2">
-        <Avatar className="h-12 w-12">
-          {member.avatarUrl && (
-            <AvatarImage src={member.avatarUrl} alt={`${displayName}'s avatar`} />
+      {/* Name & email */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+          {isCurrentUser && (
+            <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+              you
+            </span>
           )}
-          <AvatarFallback className="text-sm">{initials}</AvatarFallback>
-        </Avatar>
-
-        {/* Name */}
-        <p className="text-center text-sm font-medium text-foreground truncate max-w-full">
-          {displayName}
-          {isCurrentUser && <span className="ml-1 text-muted-foreground font-normal">(you)</span>}
-        </p>
-
-        {/* Email — only show when we have a real display name, otherwise name already shows email-derived text */}
+        </div>
         {member.fullName && (
-          <p className="text-center text-xs text-muted-foreground truncate max-w-full">
-            {member.email}
-          </p>
+          <p className="truncate text-xs text-muted-foreground">{member.email}</p>
         )}
-
-        {/* Meta row */}
-        <p className="text-center text-xs text-muted-foreground mt-1" data-testid="member-meta">
-          {hours}h/wk&nbsp;&middot;&nbsp;Joined {joinedStr}
-        </p>
       </div>
-    </Card>
+
+      {/* Role badge */}
+      <div className="hidden shrink-0 items-center gap-1 sm:flex">
+        {!member.custom_role && ROLE_ICON[member.role]}
+        <MemberRoleBadge role={member.role} customRole={member.custom_role ?? null} />
+      </div>
+
+      {/* Meta: availability & joined */}
+      <div className="hidden shrink-0 text-right md:block" data-testid="member-meta">
+        <p className="text-xs text-muted-foreground">{hours}h/wk</p>
+        <p className="text-[11px] text-muted-foreground/70">Joined {joinedStr}</p>
+      </div>
+
+      {/* Actions */}
+      {showActions && (
+        <div
+          className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                aria-label={`Actions for ${displayName}`}
+                disabled={isUpdating}
+              >
+                {isUpdating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <MoreHorizontal className="h-4 w-4" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {canEditRole && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Shield className="mr-2 h-4 w-4" />
+                    Change Role
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem onClick={() => onRoleChange(member.userId, 'admin')}>
+                      <ShieldAlert className="mr-2 h-3.5 w-3.5" />
+                      Admin
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onRoleChange(member.userId, 'member')}>
+                      <Shield className="mr-2 h-3.5 w-3.5" />
+                      Member
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onRoleChange(member.userId, 'guest')}>
+                      Guest
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              {canTransferOwnership && onTransferOwnership && (
+                <DropdownMenuItem onClick={() => onTransferOwnership(member.userId)}>
+                  <Crown className="mr-2 h-4 w-4" />
+                  Transfer Ownership
+                </DropdownMenuItem>
+              )}
+              {(canEditRole || canTransferOwnership) && canRemove && <DropdownMenuSeparator />}
+              {canRemove && (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  disabled={removeDisabled}
+                  onClick={() => {
+                    if (!removeDisabled) onRemove(member.userId);
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Remove Member
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+    </div>
   );
 }

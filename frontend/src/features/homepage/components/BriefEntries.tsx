@@ -71,7 +71,7 @@ export function NoteEntry({ note, onClick, isLast, badge }: NoteEntryProps) {
         'motion-safe:transition-colors motion-safe:duration-100',
         'hover:bg-gray-50/50 active:bg-gray-100/50',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-        !isLast && 'border-b border-gray-100'
+        !isLast && 'border-b border-border-subtle'
       )}
     >
       <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
@@ -176,13 +176,13 @@ export function ProjectEntry({ project, onClick }: { project: Project; onClick: 
 
 export function NoteSkeleton() {
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-100">
+    <div className="overflow-hidden rounded-lg border border-border-subtle">
       {[1, 2, 3].map((i) => (
         <div
           key={i}
           className={cn(
             'h-9 motion-safe:animate-pulse bg-muted/30',
-            i < 3 && 'border-b border-gray-100'
+            i < 3 && 'border-b border-border-subtle'
           )}
         />
       ))}

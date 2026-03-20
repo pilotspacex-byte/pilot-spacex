@@ -45,7 +45,6 @@ dependencies = [
     # AI Providers
     "anthropic>=0.40.0",
     "openai>=1.55.0",
-    "google-generativeai>=0.8.0",
     # Claude Agent SDK
     # Pinned to <0.1.49: v0.1.49 shipped macOS ARM64 only (no Linux wheel)
     "claude-agent-sdk>=0.1.0,<0.1.49",
@@ -60,16 +59,19 @@ dependencies = [
     "orjson>=3.10.0",
     # Security
     "cryptography>=43.0.0",
-    "psycopg2-binary>=2.9.11",
     # Markdown parsing
     "markdown-it-py>=3.0.0",
     # User-agent parsing (session service)
     "ua-parser>=0.18.0",
-    "python3-saml>=1.16.0",
-    "scim2-models>=0.6.4",
 ]
 
 [project.optional-dependencies]
+# Heavy deps excluded from Vercel deployment (>500MB Lambda limit).
+# Install locally with: uv sync --all-extras
+# These features require lazy imports with ImportError guards.
+google-ai = ["google-generativeai>=0.8.0"]
+saml = ["python3-saml>=1.16.0", "scim2-models>=0.6.4"]
+migrations = ["psycopg2-binary>=2.9.11"]
 dev = [
     # Testing
     "pytest>=8.3.0",
@@ -94,6 +96,9 @@ dev = [
     "rich>=13.9.0",
     "ipython>=8.29.0",
 ]
+
+[project.scripts]
+app = "pilot_space.main:cli"
 
 [build-system]
 requires = ["hatchling"]

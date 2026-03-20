@@ -97,8 +97,8 @@ const defaultColumns: ColumnConfig[] = [
     state: 'backlog',
     label: 'Backlog',
     icon: CircleDashed,
-    iconClass: 'text-gray-500',
-    bgClass: 'bg-gray-50 dark:bg-gray-900/50',
+    iconClass: 'text-muted-foreground',
+    bgClass: 'bg-background-subtle',
   },
   {
     state: 'todo',

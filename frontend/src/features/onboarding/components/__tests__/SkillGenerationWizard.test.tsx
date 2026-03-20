@@ -170,6 +170,8 @@ describe('SkillGenerationWizard', () => {
         roleName: 'Developer',
         skillContent: mockTemplate.defaultSkillContent,
         experienceDescription: null,
+        tags: [],
+        usage: null,
         isPrimary: true,
         templateVersion: 1,
         templateUpdateAvailable: false,
@@ -243,6 +245,8 @@ describe('SkillGenerationWizard', () => {
       vi.mocked(roleSkillsApi.generateSkill).mockResolvedValue({
         skillContent: '# Senior Developer\n\n## Focus\n- TypeScript',
         suggestedRoleName: 'Senior TypeScript Developer',
+        suggestedTags: [],
+        suggestedUsage: null,
         wordCount: 50,
         generationModel: 'claude-sonnet',
         generationTimeMs: 2500,

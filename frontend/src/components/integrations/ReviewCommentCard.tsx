@@ -96,9 +96,8 @@ const severityConfig: Record<ReviewSeverity, SeverityConfig> = {
   info: {
     icon: Info,
     label: 'Info',
-    badgeClass:
-      'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700',
-    borderClass: 'border-l-gray-400',
+    badgeClass: 'bg-muted text-muted-foreground border-border',
+    borderClass: 'border-l-muted-foreground',
   },
 };
 

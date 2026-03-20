@@ -143,9 +143,9 @@ const ANNOTATION_TYPE_CONFIG: Record<
   reference: {
     icon: Link2,
     label: 'Reference',
-    color: 'text-gray-600',
-    bgColor: 'bg-gray-50',
-    borderColor: 'border-gray-200',
+    color: 'text-muted-foreground',
+    bgColor: 'bg-background-subtle',
+    borderColor: 'border-border',
   },
 };
 

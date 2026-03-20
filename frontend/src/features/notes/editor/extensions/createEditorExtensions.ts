@@ -50,11 +50,14 @@
  */
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import { PullQuoteExtension } from './PullQuoteExtension';
 import CharacterCount from '@tiptap/extension-character-count';
 import TaskList from '@tiptap/extension-task-list';
 import { TaskItemEnhanced } from './pm-blocks/TaskItemEnhanced';
 import { ProgressBarDecoration } from './pm-blocks/ProgressBarDecoration';
 import { PMBlockExtension } from './pm-blocks/PMBlockExtension';
+import { FileCardExtension } from './file-card/FileCardExtension';
+import { FigureExtension } from './figure/FigureExtension';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -108,6 +111,9 @@ import { AIBlockProcessingExtension } from './AIBlockProcessingExtension';
 import { OwnershipExtension, type OwnershipOptions, type BlockOwner } from './OwnershipExtension';
 import { DensityExtension, type DensityOptions } from './DensityExtension';
 import Highlight from '@tiptap/extension-highlight';
+import { YoutubeExtension } from './YoutubeExtension';
+import { VimeoNode } from './VimeoNode';
+import { VideoPasteDetector } from './VideoPasteDetector';
 
 export interface EditorExtensionsOptions {
   /** Placeholder text for empty editor */
@@ -270,6 +276,7 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
   extensions.push(
     StarterKit.configure({
       codeBlock: false,
+      blockquote: false, // Disabled — replaced by PullQuoteExtension below (EDIT-01)
       heading: {
         levels: [1, 2, 3],
       },
@@ -283,6 +290,11 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
       },
     })
   );
+
+  // PullQuoteExtension replaces StarterKit's blockquote (blockquote: false above).
+  // Stays in Group 1 (same schema role as blockquote). Name 'blockquote' kept so
+  // BlockIdExtension covers it automatically. See PRE-002 comment for Group 3 rules.
+  extensions.push(PullQuoteExtension);
 
   // Markdown extension for bidirectional markdown support
   extensions.push(
@@ -382,6 +394,14 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
 
   // PMBlockExtension — generic PM block node (decision, form, raci, risk, timeline, dashboard)
   extensions.push(PMBlockExtension);
+  extensions.push(FileCardExtension); // Group 3 — ARTF-01, ARTF-02, ARTF-03
+  extensions.push(FigureExtension); // Group 3 — EDIT-04, EDIT-05
+  // YoutubeExtension — inline YouTube iframe player (VID-01, VID-04)
+  // MUST be in Group 3 before BlockIdExtension (PRE-002)
+  extensions.push(YoutubeExtension);
+  // VimeoNode — inline Vimeo iframe player (VID-02, VID-04)
+  // MUST be in Group 3 before BlockIdExtension (PRE-002)
+  extensions.push(VimeoNode);
 
   // ── Group 4: Block IDs (MUST be after all block-type extensions) ────
   // BlockIdExtension assigns stable UUIDs to every block-level node.
@@ -471,6 +491,9 @@ export function createEditorExtensions(options: EditorExtensionsOptions = {}): A
       })
     );
   }
+
+  // Video paste detection (VID-03) — offers embed prompt on standalone YouTube/Vimeo URL paste
+  extensions.push(VideoPasteDetector);
 
   // Inline issue references (per UI Spec v3.3 / DD-013)
   if (enableInlineIssues) {

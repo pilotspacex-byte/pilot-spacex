@@ -766,7 +766,7 @@ class TestAIResponseParsing:
         result = service._parse_ai_response(raw, "Developer", None, "claude-sonnet-4")
 
         assert result is not None
-        skill_content, name, model = result
+        skill_content, name, model, _tags, _usage = result
         assert "Senior Dev" in skill_content
         assert name == "Senior Developer"
         assert model == "claude-sonnet-4"
@@ -784,7 +784,7 @@ class TestAIResponseParsing:
         result = service._parse_ai_response(raw, "Developer", None, "claude-sonnet-4")
 
         assert result is not None
-        skill_content, name, _ = result
+        skill_content, name, *_ = result
         assert "Dev Role" in skill_content
         assert name == "Dev"
 
@@ -810,7 +810,7 @@ class TestAIResponseParsing:
         result = service._parse_ai_response(raw, "Developer", None, "test-model")
 
         assert result is not None
-        skill_content, name, model = result
+        skill_content, name, model, _tags, _usage = result
         assert "Senior Developer" in skill_content
         assert name == "Senior Full-Stack Developer"
         assert model == "test-model"
@@ -833,7 +833,7 @@ class TestAIResponseParsing:
 
         # Should either parse successfully or return None — never the raw JSON
         if result is not None:
-            skill_content, _, _ = result
+            skill_content, *_ = result
             assert not skill_content.startswith("{")
             assert '"skill_content"' not in skill_content
 
@@ -856,12 +856,10 @@ class TestAIResponseParsing:
         assert result is None
 
     def test_build_generation_prompt(self) -> None:
-        """Prompt includes all required context."""
-        from pilot_space.application.services.role_skill.generate_role_skill_service import (
-            _build_generation_prompt,
-        )
+        """Prompt includes all required context, including tags and usage output requirements."""
+        from pilot_space.ai.prompts.skill_generation import build_skill_generation_prompt
 
-        prompt = _build_generation_prompt(
+        prompt = build_skill_generation_prompt(
             role_type="developer",
             display_name="Developer",
             template_content="# Developer\n\n## Expertise\n\nCode quality.",
@@ -875,3 +873,39 @@ class TestAIResponseParsing:
         assert "10 years Python backend" in prompt
         assert "Code quality" in prompt
         assert "JSON" in prompt
+        assert "suggested_tags" in prompt
+        assert "suggested_usage" in prompt
+
+    def test_parse_ai_response_returns_tags_and_usage(self) -> None:
+        """Parses suggested_tags and suggested_usage from JSON AI response."""
+        service = GenerateRoleSkillService.__new__(GenerateRoleSkillService)
+
+        raw = (
+            '{"skill_content": "# Senior Dev\\n\\nExpertise in Python and distributed'
+            " systems. Focus on clean code and maintainable architecture. More than 50"
+            ' characters of content here.", "suggested_role_name": "Senior Developer",'
+            ' "suggested_tags": ["Python", "FastAPI", "Clean Architecture"],'
+            ' "suggested_usage": "Use when reviewing Python backend code."}'
+        )
+        result = service._parse_ai_response(raw, "Developer", None, "claude-sonnet-4")
+
+        assert result is not None
+        skill_content, name, model, tags, usage = result
+        assert tags == ["Python", "FastAPI", "Clean Architecture"]
+        assert usage == "Use when reviewing Python backend code."
+
+    def test_parse_ai_response_defaults_when_tags_missing(self) -> None:
+        """Defaults to empty tags and None usage when fields are absent."""
+        service = GenerateRoleSkillService.__new__(GenerateRoleSkillService)
+
+        raw = (
+            '{"skill_content": "# Senior Dev\\n\\nExpertise in Python and distributed'
+            " systems. Focus on clean code and maintainable architecture. More than 50"
+            ' characters of content here.", "suggested_role_name": "Senior Developer"}'
+        )
+        result = service._parse_ai_response(raw, "Developer", None, "claude-sonnet-4")
+
+        assert result is not None
+        _skill_content, _name, _model, tags, usage = result
+        assert tags == []
+        assert usage is None

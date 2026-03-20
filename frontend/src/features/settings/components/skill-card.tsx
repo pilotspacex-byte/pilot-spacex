@@ -9,7 +9,7 @@
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { ChevronDown, ChevronUp, Pencil, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil, RotateCcw, Sparkles, Tag, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getRoleIcon } from '@/components/role-skill/role-icons';
@@ -157,6 +157,26 @@ export const SkillCard = observer(function SkillCard({
                   </>
                 )}
               </button>
+            )}
+
+            {/* Usage description */}
+            {skill.usage && (
+              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{skill.usage}</p>
+            )}
+
+            {/* Tags */}
+            {skill.tags && skill.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="Skill tags">
+                <Tag className="h-3 w-3 text-muted-foreground shrink-0" aria-hidden="true" />
+                {skill.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center rounded-full border bg-muted px-2 py-0.5 text-xs font-medium"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             )}
 
             {/* Word count */}

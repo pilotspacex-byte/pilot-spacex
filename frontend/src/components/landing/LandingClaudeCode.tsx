@@ -36,9 +36,7 @@ function IssueCardMockup({ shouldReduce }: { shouldReduce: boolean | null }) {
       <div className="mb-3 flex items-center gap-2">
         <Hash className="size-4 text-primary" />
         <span className="text-sm font-bold text-primary">PS-42</span>
-        <span className="text-sm font-semibold text-foreground">
-          Implement JWT token service
-        </span>
+        <span className="text-sm font-semibold text-foreground">Implement JWT token service</span>
       </div>
       <div className="mb-3 flex flex-wrap gap-1.5">
         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
@@ -52,8 +50,8 @@ function IssueCardMockup({ shouldReduce }: { shouldReduce: boolean | null }) {
         </span>
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Create JWT token service with sliding window refresh, token blacklist
-        for revocation, and backward compatibility with existing sessions.
+        Create JWT token service with sliding window refresh, token blacklist for revocation, and
+        backward compatibility with existing sessions.
       </p>
     </motion.div>
   );
@@ -70,9 +68,7 @@ function AIContextMockup({ shouldReduce }: { shouldReduce: boolean | null }) {
     >
       <div className="mb-3 flex items-center gap-2">
         <Brain className="size-4 text-ai" />
-        <span className="text-sm font-semibold text-foreground">
-          AI Context Generated
-        </span>
+        <span className="text-sm font-semibold text-foreground">AI Context Generated</span>
         <motion.span
           initial={shouldReduce ? undefined : { opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -220,9 +216,7 @@ function OutputMockup({ shouldReduce }: { shouldReduce: boolean | null }) {
     >
       <div className="mb-3 flex items-center gap-2">
         <CheckCircle2 className="size-4 text-primary" />
-        <span className="text-sm font-semibold text-foreground">
-          Implementation Complete
-        </span>
+        <span className="text-sm font-semibold text-foreground">Implementation Complete</span>
       </div>
       <div className="space-y-1.5">
         {OUTPUT_FILES.map((f, i) => (
@@ -242,9 +236,7 @@ function OutputMockup({ shouldReduce }: { shouldReduce: boolean | null }) {
             className="flex items-center gap-2 rounded-lg bg-background/80 px-3 py-2"
           >
             <FileCode2 className="size-3.5 text-primary" />
-            <code className="flex-1 text-[11px] text-foreground/80">
-              {f.file}
-            </code>
+            <code className="flex-1 text-[11px] text-foreground/80">{f.file}</code>
             <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
               {f.action}
             </span>
@@ -255,16 +247,10 @@ function OutputMockup({ shouldReduce }: { shouldReduce: boolean | null }) {
       <motion.div
         initial={shouldReduce ? undefined : { opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={
-          shouldReduce
-            ? undefined
-            : { delay: T.outputAppear + 1.5 }
-        }
+        transition={shouldReduce ? undefined : { delay: T.outputAppear + 1.5 }}
         className="mt-3 flex items-center justify-between rounded-lg bg-background/80 px-3 py-2"
       >
-        <span className="text-xs font-medium text-foreground">
-          5 files changed, 360 insertions
-        </span>
+        <span className="text-xs font-medium text-foreground">5 files changed, 360 insertions</span>
         <span className="flex items-center gap-1 text-[10px] font-medium text-primary">
           <CheckCircle2 className="size-3" />
           All tests passing
@@ -293,7 +279,10 @@ function StepTimeline({ shouldReduce }: { shouldReduce: boolean | null }) {
             transition={
               shouldReduce
                 ? undefined
-                : { opacity: { duration: 0.3, delay: step.delay }, scale: { duration: 0.4, delay: step.delay } }
+                : {
+                    opacity: { duration: 0.3, delay: step.delay },
+                    scale: { duration: 0.4, delay: step.delay },
+                  }
             }
             className="flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
           >
@@ -305,9 +294,7 @@ function StepTimeline({ shouldReduce }: { shouldReduce: boolean | null }) {
               initial={shouldReduce ? undefined : { scaleX: 0 }}
               animate={{ scaleX: 1 }}
               transition={
-                shouldReduce
-                  ? undefined
-                  : { duration: 0.5, delay: DEMO_STEPS[i + 1]!.delay }
+                shouldReduce ? undefined : { duration: 0.5, delay: DEMO_STEPS[i + 1]!.delay }
               }
               className="h-px w-3 origin-left bg-primary/40 sm:w-6"
             />
@@ -328,7 +315,7 @@ export function LandingClaudeCode() {
     <section ref={sectionRef} id="claude-code" className="py-20 lg:py-24">
       <div className="mx-auto max-w-4xl px-4">
         <FadeIn className="mb-8 text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground">
             <Terminal className="size-3" />
             Claude Code Integration
           </span>
@@ -336,8 +323,8 @@ export function LandingClaudeCode() {
             From issue to implementation in one prompt
           </h2>
           <p className="mt-3 text-lg text-muted-foreground">
-            Every issue gets a ready-to-use Claude Code prompt with full
-            project context — paste and implement
+            Every issue gets a ready-to-use Claude Code prompt with full project context — paste and
+            implement
           </p>
         </FadeIn>
 
@@ -382,12 +369,10 @@ export function LandingClaudeCode() {
             {/* Bottom callout */}
             <FadeIn className="mt-8 text-center" delay={0.5}>
               <p className="text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground">Zero context-switching</span>{' '}
-                — AI analyzes your issue, gathers related code and docs, builds a
-                prompt with implementation tasks, and Claude Code executes it.{' '}
-                <span className="font-medium text-primary">
-                  BYOK — use your own API key
-                </span>
+                <span className="font-semibold text-foreground">Zero context-switching</span> — AI
+                analyzes your issue, gathers related code and docs, builds a prompt with
+                implementation tasks, and Claude Code executes it.{' '}
+                <span className="font-medium text-primary">BYOK — use your own API key</span>
               </p>
             </FadeIn>
           </>

@@ -26,17 +26,24 @@ import hashlib
 import uuid
 from typing import TYPE_CHECKING, Annotated, Any
 
+# scim2_models is an optional dep (excluded on Vercel to stay under 500MB Lambda limit).
+# Import here so type annotations work (from __future__ import annotations makes them strings).
+# Runtime calls will raise ImportError only if SCIM endpoints are actually invoked.
+try:
+    from scim2_models import ListResponse, Meta, PatchOp, ServiceProviderConfig, User
+    from scim2_models.resources.service_provider_config import (
+        Bulk,
+        ChangePassword,
+        ETag,
+        Filter,
+        Patch,
+        Sort,
+    )
+except ImportError:
+    pass
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from scim2_models import ListResponse, Meta, PatchOp, ServiceProviderConfig, User
-from scim2_models.resources.service_provider_config import (
-    Bulk,
-    ChangePassword,
-    ETag,
-    Filter,
-    Patch,
-    Sort,
-)
 from sqlalchemy import select
 from sqlalchemy.orm import lazyload
 
@@ -85,12 +92,12 @@ def _member_to_scim_user(member: WorkspaceMember, base_url: str) -> User:  # typ
     """Convert WorkspaceMember ORM to scim2-models User resource."""
     email = member.user.email if member.user else ""
     display_name = member.user.full_name if member.user else None
-    return User(  # pyright: ignore[reportCallIssue]
+    return User(  # pyright: ignore[reportCallIssue,reportPossiblyUnboundVariable]
         id=str(member.user_id),  # pyright: ignore[reportCallIssue]
         user_name=email,  # pyright: ignore[reportCallIssue]
         display_name=display_name,  # pyright: ignore[reportCallIssue]
         active=member.is_active and not member.is_deleted,  # pyright: ignore[reportCallIssue]
-        meta=Meta(  # pyright: ignore[reportCallIssue]
+        meta=Meta(  # pyright: ignore[reportCallIssue,reportPossiblyUnboundVariable]
             resource_type="User",
             location=f"{base_url}/Users/{member.user_id}",
         ),
@@ -228,13 +235,13 @@ async def get_service_provider_config(
 
     Per RFC 7644 §4, discovery endpoints are public.
     """
-    config = ServiceProviderConfig(  # pyright: ignore[reportCallIssue]
-        patch=Patch(supported=True),  # pyright: ignore[reportCallIssue]
-        bulk=Bulk(supported=False, max_operations=0, max_payload_size=0),  # pyright: ignore[reportCallIssue]
-        filter=Filter(supported=True, max_results=100),  # pyright: ignore[reportCallIssue]
-        change_password=ChangePassword(supported=False),  # pyright: ignore[reportCallIssue]
-        sort=Sort(supported=False),  # pyright: ignore[reportCallIssue]
-        etag=ETag(supported=False),  # pyright: ignore[reportCallIssue]
+    config = ServiceProviderConfig(  # pyright: ignore[reportCallIssue,reportPossiblyUnboundVariable]
+        patch=Patch(supported=True),  # pyright: ignore[reportCallIssue,reportPossiblyUnboundVariable]
+        bulk=Bulk(supported=False, max_operations=0, max_payload_size=0),  # pyright: ignore[reportCallIssue,reportPossiblyUnboundVariable]
+        filter=Filter(supported=True, max_results=100),  # pyright: ignore[reportCallIssue,reportPossiblyUnboundVariable]
+        change_password=ChangePassword(supported=False),  # pyright: ignore[reportCallIssue,reportPossiblyUnboundVariable]
+        sort=Sort(supported=False),  # pyright: ignore[reportCallIssue,reportPossiblyUnboundVariable]
+        etag=ETag(supported=False),  # pyright: ignore[reportCallIssue,reportPossiblyUnboundVariable]
     )
     return JSONResponse(
         content=config.model_dump(exclude_none=True, by_alias=True),
@@ -314,7 +321,7 @@ async def provision_user(
 
     # Validate body as SCIM User
     try:
-        scim_user = User.model_validate(body)
+        scim_user = User.model_validate(body)  # pyright: ignore[reportPossiblyUnboundVariable]
     except Exception:
         logger.exception("scim_create_user_invalid_body")
         return _scim_error(
@@ -400,7 +407,7 @@ async def replace_user(
     """Full replace (PUT) of a SCIM User resource."""
     body = await request.json()
     try:
-        scim_user = User.model_validate(body)
+        scim_user = User.model_validate(body)  # pyright: ignore[reportPossiblyUnboundVariable]
     except Exception:
         logger.exception("scim_replace_user_invalid_body")
         return _scim_error(status.HTTP_400_BAD_REQUEST, "Invalid SCIM User body")

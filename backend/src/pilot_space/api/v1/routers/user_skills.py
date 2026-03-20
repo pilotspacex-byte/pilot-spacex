@@ -137,6 +137,8 @@ async def create_user_skill(
             experience_description=body.experience_description or "",
             skill_content=body.skill_content,
             skill_name=body.skill_name,
+            tags=body.tags if body.tags else None,
+            usage=body.usage,
         )
     except ValueError as exc:
         msg = str(exc)
@@ -209,6 +211,9 @@ async def update_user_skill(
         )
 
     update_data = body.model_dump(exclude_unset=True)
+    # Coerce tags=None to empty list to avoid NOT NULL constraint violation
+    if "tags" in update_data and update_data["tags"] is None:
+        update_data["tags"] = []
     for field, value in update_data.items():
         setattr(skill, field, value)
 

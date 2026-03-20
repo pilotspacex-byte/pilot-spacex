@@ -26,6 +26,7 @@ import {
   CloudOff,
   Loader2,
   FolderInput,
+  Maximize2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -133,6 +134,10 @@ export interface InlineNoteHeaderProps {
   disabled?: boolean;
   /** Additional className for styling */
   className?: string;
+  /** Whether focus mode is active */
+  isFocusMode?: boolean;
+  /** Callback to toggle focus mode */
+  onToggleFocusMode?: () => void;
 }
 
 /**
@@ -211,6 +216,8 @@ export function InlineNoteHeader({
   onMove,
   disabled = false,
   className,
+  isFocusMode = false,
+  onToggleFocusMode,
 }: InlineNoteHeaderProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
@@ -231,7 +238,7 @@ export function InlineNoteHeader({
       {/* Fixed metadata bar - responsive padding matching editor content */}
       <div
         className={cn(
-          'flex-shrink-0 bg-background/95 backdrop-blur-sm border-b border-border/50',
+          'flex-shrink-0 bg-background-subtle/40 backdrop-blur-sm border-b border-border/40',
           // Responsive horizontal padding - matches editor content area
           'px-4',
           className
@@ -336,6 +343,31 @@ export function InlineNoteHeader({
 
           {/* Action buttons - responsive sizing */}
           <div className="flex items-center gap-0 sm:gap-0.5">
+            {/* Focus mode toggle — hidden on mobile */}
+            {onToggleFocusMode && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onToggleFocusMode}
+                    className={cn(
+                      'hidden sm:flex h-6 w-6 sm:h-7 sm:w-7',
+                      isFocusMode
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    aria-label={isFocusMode ? 'Exit focus mode' : 'Focus mode'}
+                    aria-pressed={isFocusMode}
+                  >
+                    <Maximize2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isFocusMode ? 'Exit focus mode (Cmd+Shift+F)' : 'Focus mode (Cmd+Shift+F)'}
+                </TooltipContent>
+              </Tooltip>
+            )}
             {/* History - hidden on mobile */}
             {onVersionHistory && (
               <Tooltip>

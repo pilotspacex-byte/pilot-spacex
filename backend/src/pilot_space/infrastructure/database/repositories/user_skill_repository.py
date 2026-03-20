@@ -74,6 +74,8 @@ class UserSkillRepository(BaseRepository[UserSkill]):
         template_id: UUID | None = None,
         experience_description: str | None = None,
         skill_name: str | None = None,
+        tags: list[str] | None = None,
+        usage: str | None = None,
         is_active: bool = True,
     ) -> UserSkill:
         """Create a new user skill.
@@ -85,6 +87,8 @@ class UserSkillRepository(BaseRepository[UserSkill]):
             template_id: Source template UUID (optional).
             experience_description: Natural language input for AI generation.
             skill_name: User-visible skill name (AI-suggested or user-edited).
+            tags: Ability tags for discoverability.
+            usage: When/how this skill should be activated.
             is_active: Whether skill is materialized into agent context.
 
         Returns:
@@ -97,6 +101,8 @@ class UserSkillRepository(BaseRepository[UserSkill]):
             skill_content=skill_content,
             experience_description=experience_description,
             skill_name=skill_name,
+            tags=tags if tags is not None else [],
+            usage=usage,
             is_active=is_active,
         )
         self.session.add(skill)

@@ -23,6 +23,9 @@ from pilot_space.application.services.ai_context import (
     RefineAIContextService,
 )
 from pilot_space.application.services.annotation import CreateAnnotationService
+from pilot_space.application.services.artifact.artifact_upload_service import (
+    ArtifactUploadService,
+)
 from pilot_space.application.services.auth import AuthService, ValidateAPIKeyService
 from pilot_space.application.services.cycle import (
     AddIssueToCycleService,
@@ -153,6 +156,7 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.api.v1.repository_deps",
             "pilot_space.api.v1.intent_deps",
             "pilot_space.api.v1.dependencies_workspace_skills",
+            "pilot_space.api.v1.routers.project_artifacts",
         ],
     )
 
@@ -573,6 +577,14 @@ class Container(SkillContainer, PluginContainer):
     attachment_content_service = providers.Factory(
         AttachmentContentService,
         storage_client=InfraContainer.storage_client,
+    )
+
+    # Artifact Services (v1.1 — note file uploads; ARTF-04, ARTF-05, ARTF-06)
+    artifact_upload_service = providers.Factory(
+        ArtifactUploadService,
+        session=providers.Callable(get_current_session),
+        storage_client=InfraContainer.storage_client,
+        artifact_repo=InfraContainer.artifact_repository,
     )
 
     # Task Services

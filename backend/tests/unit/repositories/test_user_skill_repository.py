@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS user_skills (
     skill_content TEXT NOT NULL,
     experience_description TEXT,
     skill_name TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
+    usage TEXT,
     is_active BOOLEAN NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -333,6 +335,31 @@ class TestCreateUserSkill:
         assert skill.id is not None
         assert skill.template_id is None
         assert skill.experience_description is None
+
+    async def test_create_skill_with_tags_and_usage(
+        self,
+        db_session: AsyncSession,
+        user: User,
+        workspace: Workspace,
+    ) -> None:
+        """Create a user skill with tags/usage and verify round-trip."""
+        repo = UserSkillRepository(db_session)
+        skill = await repo.create(
+            user_id=user.id,
+            workspace_id=workspace.id,
+            skill_content="# Custom\n\nWith tags.",
+            tags=["FastAPI", "React"],
+            usage="Use during backend code reviews.",
+        )
+
+        assert skill.id is not None
+        assert skill.tags == ["FastAPI", "React"]
+        assert skill.usage == "Use during backend code reviews."
+
+        reloaded = await repo.get_by_id(skill.id)
+        assert reloaded is not None
+        assert reloaded.tags == ["FastAPI", "React"]
+        assert reloaded.usage == "Use during backend code reviews."
 
 
 class TestGetByUserWorkspace:

@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Text, text
+from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -65,6 +65,16 @@ class UserSkill(WorkspaceScopedModel):
         nullable=True,
     )
     skill_name: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+    tags: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    usage: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )

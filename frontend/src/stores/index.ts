@@ -14,6 +14,7 @@ export {
   useIssueViewStore,
   useAIStore,
   useTaskStore,
+  useArtifactStore,
 } from './RootStore';
 
 // Auth Store
@@ -47,6 +48,7 @@ export { NoteStore, noteStore } from './features/notes/NoteStore';
 export { IssueStore, issueStore } from './features/issues/IssueStore';
 export { IssueViewStore, issueViewStore } from './features/issues/IssueViewStore';
 export { TaskStore } from './TaskStore';
+export { ArtifactStore } from './features/artifacts/ArtifactStore';
 
 // AI Stores
 export {

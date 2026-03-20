@@ -22,11 +22,18 @@ import {
   Strikethrough,
   Code,
   Highlighter,
+  Quote,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useSelectionAIActions } from '@/features/notes/editor/hooks/useSelectionAIActions';
 import { getAIStore } from '@/stores/ai/AIStore';
@@ -167,6 +174,36 @@ export function SelectionToolbar({
     editor?.chain().focus().toggleHighlight().run();
   }, [editor]);
 
+  const setHeadingLevel = useCallback(
+    (level: 1 | 2 | 3 | null) => {
+      if (!editor) return;
+      if (level === null) {
+        editor.chain().focus().setParagraph().run();
+      } else {
+        editor.chain().focus().toggleHeading({ level }).run();
+      }
+    },
+    [editor]
+  );
+
+  const togglePullQuote = useCallback(() => {
+    if (!editor) return;
+    const isBlockquote = editor.isActive('blockquote');
+    if (!isBlockquote) {
+      // Not in a blockquote — wrap selection and set pullQuote: true
+      editor
+        .chain()
+        .focus()
+        .toggleBlockquote()
+        .updateAttributes('blockquote', { pullQuote: true })
+        .run();
+    } else {
+      // Already in a blockquote — toggle pullQuote attr
+      const currentPullQuote = editor.getAttributes('blockquote').pullQuote;
+      editor.chain().focus().updateAttributes('blockquote', { pullQuote: !currentPullQuote }).run();
+    }
+  }, [editor]);
+
   // AI actions - Wire to new hooks
   const handleAskPilot = useCallback(async () => {
     await askPilot();
@@ -211,6 +248,16 @@ export function SelectionToolbar({
   );
 
   if (!editor) return null;
+
+  // Heading state — read synchronously from ProseMirror state.
+  // Re-evaluates on every selectionUpdate (component re-renders when toolbar becomes visible).
+  // No useState needed — editor.isActive() is synchronous.
+  const headingLevel =
+    ([1, 2, 3] as const).find((l) => editor.isActive('heading', { level: l })) ?? null;
+  const headingLabel = headingLevel ? `H${headingLevel}` : 'P';
+
+  // Pull quote state
+  const isPullQuote = editor.isActive('blockquote', { pullQuote: true });
 
   return (
     <AnimatePresence>
@@ -319,6 +366,54 @@ export function SelectionToolbar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>Highlight</TooltipContent>
+          </Tooltip>
+
+          {/* Heading level dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Heading level"
+                data-testid="heading-dropdown-trigger"
+              >
+                <span className="text-xs font-medium w-5 text-center">{headingLabel}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {([1, 2, 3] as const).map((level) => (
+                <DropdownMenuItem
+                  key={level}
+                  onClick={() => setHeadingLevel(level)}
+                  data-testid={`heading-option-${level}`}
+                >
+                  H{level}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem
+                onClick={() => setHeadingLevel(null)}
+                data-testid="heading-option-normal"
+              >
+                Normal
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Pull quote toggle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={isPullQuote ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={togglePullQuote}
+                aria-label="Pull quote"
+                data-testid="pull-quote-toggle"
+                data-active={isPullQuote ? 'true' : 'false'}
+              >
+                <Quote className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Pull quote</TooltipContent>
           </Tooltip>
 
           <Tooltip>

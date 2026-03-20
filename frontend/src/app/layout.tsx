@@ -1,7 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import { JetBrains_Mono } from 'next/font/google';
+import { JetBrains_Mono, Fraunces } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import './globals.css';
+
+// Fraunces - Display/headline font (editorial warmth)
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-fraunces',
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+});
 
 // JetBrains Mono - Line gutter numbers
 const jetbrainsMono = JetBrains_Mono({
@@ -38,7 +46,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${jetbrainsMono.variable} font-sans antialiased`}>
+      <body className={`${fraunces.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

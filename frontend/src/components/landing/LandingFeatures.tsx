@@ -18,9 +18,10 @@ interface Feature {
   iconBg: string;
   title: string;
   description: string;
+  accent?: string;
 }
 
-const features: Feature[] = [
+const heroFeatures: Feature[] = [
   {
     icon: Sparkles,
     iconColor: 'text-primary',
@@ -28,6 +29,7 @@ const features: Feature[] = [
     title: 'Ghost Text',
     description:
       'Get intelligent AI suggestions as you type. Accept with Tab, dismiss with Escape. Real-time co-writing with under 2.5 seconds latency.',
+    accent: 'border-l-primary',
   },
   {
     icon: GitPullRequest,
@@ -36,7 +38,11 @@ const features: Feature[] = [
     title: 'AI PR Review',
     description:
       'Every pull request gets architecture, security, and performance analysis. Comments posted directly to GitHub with severity tags.',
+    accent: 'border-l-ai',
   },
+];
+
+const gridFeatures: Feature[] = [
   {
     icon: Layers,
     iconColor: 'text-primary',
@@ -86,27 +92,68 @@ export function LandingFeatures() {
           </p>
         </FadeIn>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature, i) => (
+        {/* Hero row — two larger feature cards with accent border */}
+        <div className="grid gap-5 md:grid-cols-2">
+          {heroFeatures.map((feature, i) => (
             <motion.div
               key={feature.title}
               initial={shouldReduce ? undefined : { opacity: 0, y: 24 }}
               whileInView={shouldReduce ? undefined : { opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-60px' }}
-              transition={shouldReduce ? undefined : {
-                duration: 0.5,
-                ease: [0, 0, 0.2, 1],
-                delay: i * 0.08,
-              }}
-              className="group rounded-xl border border-border bg-card p-6 transition-shadow duration-200 hover:shadow-warm-md"
+              transition={
+                shouldReduce
+                  ? undefined
+                  : {
+                      duration: 0.5,
+                      ease: [0, 0, 0.2, 1],
+                      delay: i * 0.1,
+                    }
+              }
+              className={`group rounded-xl border border-border border-l-4 ${feature.accent} bg-card p-8 transition-shadow duration-200 hover:shadow-warm-md`}
+            >
+              <div className="flex items-start gap-4">
+                <div
+                  className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${feature.iconBg}`}
+                >
+                  <feature.icon className={`size-6 ${feature.iconColor}`} />
+                </div>
+                <div>
+                  <h3 className="mb-2 text-lg font-semibold text-foreground">{feature.title}</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {feature.description}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Secondary row — four compact feature cards */}
+        <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {gridFeatures.map((feature, i) => (
+            <motion.div
+              key={feature.title}
+              initial={shouldReduce ? undefined : { opacity: 0, y: 24 }}
+              whileInView={shouldReduce ? undefined : { opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={
+                shouldReduce
+                  ? undefined
+                  : {
+                      duration: 0.5,
+                      ease: [0, 0, 0.2, 1],
+                      delay: 0.2 + i * 0.08,
+                    }
+              }
+              className="group rounded-xl border border-border bg-card p-5 transition-shadow duration-200 hover:shadow-warm-md"
             >
               <div
-                className={`mb-4 flex size-10 items-center justify-center rounded-lg ${feature.iconBg}`}
+                className={`mb-3 flex size-9 items-center justify-center rounded-lg ${feature.iconBg}`}
               >
-                <feature.icon className={`size-5 ${feature.iconColor}`} />
+                <feature.icon className={`size-4.5 ${feature.iconColor}`} />
               </div>
-              <h3 className="mb-2 text-base font-semibold text-foreground">{feature.title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
+              <h3 className="mb-1.5 text-sm font-semibold text-foreground">{feature.title}</h3>
+              <p className="text-xs leading-relaxed text-muted-foreground">{feature.description}</p>
             </motion.div>
           ))}
         </div>

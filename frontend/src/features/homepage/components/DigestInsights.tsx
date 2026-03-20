@@ -261,10 +261,14 @@ export function DigestInsights({
 
   if (groups.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-1 py-6">
+      <div className="rounded-lg border border-border-subtle bg-background-subtle/50 px-4 py-5 text-center">
         <p className="text-sm text-muted-foreground">No suggestions right now.</p>
-        <p className="text-xs text-muted-foreground/70">
+        <p className="mt-1 text-xs text-muted-foreground/70">
           AI insights will appear as your workspace grows.
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Create notes, extract issues, and link PRs to unlock stale detection, cycle risk alerts,
+          and more.
         </p>
       </div>
     );

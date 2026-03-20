@@ -20,14 +20,19 @@ export function CollapsedChatStrip({ onClick, className }: CollapsedChatStripPro
   return (
     <>
       {/* Desktop: Vertical strip on right edge */}
-      <div className={cn('hidden lg:flex flex-shrink-0 border-l border-border', className)}>
+      <div
+        className={cn(
+          'hidden lg:flex flex-shrink-0 border-l border-ai-border/30 bg-ai-bg/30',
+          className
+        )}
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
               onClick={onClick}
-              className="h-full w-10 rounded-none hover:bg-ai-muted/30 flex-col gap-2 py-4"
+              className="h-full w-10 rounded-none hover:bg-ai-muted/40 flex-col gap-2 py-4"
               data-testid="collapsed-chat-strip"
             >
               <ChevronLeft className="h-4 w-4 text-ai" />

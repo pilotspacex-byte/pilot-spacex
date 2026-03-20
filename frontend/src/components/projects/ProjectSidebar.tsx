@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Settings,
   FolderKanban,
+  Paperclip,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -31,6 +32,7 @@ const NAV_ITEMS: readonly {
   { label: 'Issues', icon: ListTodo, segment: 'issues' },
   { label: 'Cycles', icon: RefreshCw, segment: 'cycles' },
   { label: 'Knowledge', icon: Brain, segment: 'knowledge' },
+  { label: 'Artifacts', icon: Paperclip, segment: 'artifacts' },
   { label: 'Chat', icon: MessageSquare, segment: 'chat', badge: 'Soon' },
   { label: 'Settings', icon: Settings, segment: 'settings' },
 ];

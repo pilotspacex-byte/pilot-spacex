@@ -1,8 +1,9 @@
 /**
- * Unit tests for UIStore — expandedNodes tree state management.
+ * Unit tests for UIStore — expandedNodes tree state management and isFocusMode.
  *
  * Tests cover toggle, isExpanded, MobX reactivity, localStorage persistence,
- * and hydration of expandedNodes Set.
+ * and hydration of expandedNodes Set. Also covers isFocusMode observable
+ * and its non-persistence contract.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -128,6 +129,91 @@ describe('UIStore — expandedNodes', () => {
 
     // Trigger mutation — should fire reaction again
     uiStore.toggleNodeExpanded('observable-test-node');
+
+    expect(reactionCount).toBeGreaterThan(initialCount);
+
+    dispose();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isFocusMode tests
+// ---------------------------------------------------------------------------
+
+describe('UIStore — isFocusMode focus mode', () => {
+  let uiStore: UIStore;
+
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.clearAllMocks();
+    uiStore = new UIStore();
+  });
+
+  afterEach(() => {
+    uiStore.dispose();
+  });
+
+  it('isFocusMode defaults to false on construction', () => {
+    expect(uiStore.isFocusMode).toBe(false);
+  });
+
+  it('toggleFocusMode() flips isFocusMode between true and false', () => {
+    uiStore.toggleFocusMode();
+    expect(uiStore.isFocusMode).toBe(true);
+
+    uiStore.toggleFocusMode();
+    expect(uiStore.isFocusMode).toBe(false);
+  });
+
+  it('enterFocusMode() sets isFocusMode to true regardless of current value', () => {
+    // starts false
+    uiStore.enterFocusMode();
+    expect(uiStore.isFocusMode).toBe(true);
+
+    // already true — should stay true
+    uiStore.enterFocusMode();
+    expect(uiStore.isFocusMode).toBe(true);
+  });
+
+  it('exitFocusMode() sets isFocusMode to false regardless of current value', () => {
+    uiStore.enterFocusMode();
+    expect(uiStore.isFocusMode).toBe(true);
+
+    uiStore.exitFocusMode();
+    expect(uiStore.isFocusMode).toBe(false);
+
+    // already false — should stay false
+    uiStore.exitFocusMode();
+    expect(uiStore.isFocusMode).toBe(false);
+  });
+
+  it('isFocusMode is NOT serialized into localStorage (pilot-space:ui-state)', () => {
+    // Trigger a persistence write by changing a tracked field
+    uiStore.enterFocusMode();
+    // Also mutate a tracked field to ensure setItem fires
+    uiStore.setSidebarCollapsed(true);
+
+    const calls = localStorageMock.setItem.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+
+    for (const call of calls) {
+      const parsed = JSON.parse(call[1] as string) as Record<string, unknown>;
+      expect(parsed).not.toHaveProperty('isFocusMode');
+    }
+  });
+
+  it('MobX autorun tracking isFocusMode fires when toggleFocusMode() is called', () => {
+    let reactionCount = 0;
+
+    const dispose = autorun(() => {
+      const _val = uiStore.isFocusMode;
+      void _val;
+      reactionCount++;
+    });
+
+    const initialCount = reactionCount;
+
+    uiStore.toggleFocusMode();
 
     expect(reactionCount).toBeGreaterThan(initialCount);
 

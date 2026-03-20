@@ -1,7 +1,6 @@
 'use client';
 
-import * as React from 'react';
-import { Bug, Lightbulb, Wrench, CheckSquare, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { IssueType } from '@/types';
+import { ISSUE_TYPE_CONFIG } from './issue-type-config';
 
 export interface IssueTypeSelectProps {
   value: IssueType;
@@ -21,13 +21,7 @@ export interface IssueTypeSelectProps {
 
 const issueTypes: IssueType[] = ['bug', 'feature', 'improvement', 'task'];
 
-const typeConfig: Record<IssueType, { icon: React.ElementType; className: string; label: string }> =
-  {
-    bug: { icon: Bug, className: 'text-red-500', label: 'Bug' },
-    feature: { icon: Lightbulb, className: 'text-purple-500', label: 'Feature' },
-    improvement: { icon: Wrench, className: 'text-blue-500', label: 'Improvement' },
-    task: { icon: CheckSquare, className: 'text-gray-500', label: 'Task' },
-  };
+const typeConfig = ISSUE_TYPE_CONFIG;
 
 /**
  * IssueTypeSelect provides a dropdown for selecting issue type.

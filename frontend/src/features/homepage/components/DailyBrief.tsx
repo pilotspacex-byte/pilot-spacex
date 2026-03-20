@@ -252,14 +252,14 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
       {/* ---------------------------------------------------------------- */}
       {/* Heading */}
       {/* ---------------------------------------------------------------- */}
-      <header className="mb-8">
+      <header className="mb-10">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
               {getGreeting()}
               {firstName ? `, ${firstName}` : ''}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">{todayFormatted}</p>
+            <p className="mt-1.5 text-sm text-muted-foreground">{todayFormatted}</p>
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -308,7 +308,7 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
           </p>
         ) : (
           <div
-            className="overflow-hidden rounded-lg border border-gray-100"
+            className="overflow-hidden rounded-lg border border-border-subtle"
             role="list"
             aria-label="Recent notes"
           >

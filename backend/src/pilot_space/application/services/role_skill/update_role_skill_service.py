@@ -33,6 +33,8 @@ class UpdateRoleSkillPayload:
     workspace_id: UUID
     role_name: str | None = None
     skill_content: str | None = None
+    tags: list[str] | None = None
+    usage: str | None = None
     is_primary: bool | None = None
 
 
@@ -91,6 +93,10 @@ class UpdateRoleSkillService:
             skill.role_name = payload.role_name
         if payload.skill_content is not None:
             skill.skill_content = payload.skill_content
+        if payload.tags is not None:
+            skill.tags = payload.tags
+        if payload.usage is not None:
+            skill.usage = payload.usage
         if payload.is_primary is not None:
             skill.is_primary = payload.is_primary
 

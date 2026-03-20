@@ -17,6 +17,10 @@ export interface EditorOptions {
   placeholder?: string;
   editable?: boolean;
   autofocus?: boolean | 'start' | 'end' | 'all' | number;
+  /** Workspace ID — required for artifact upload in drop handler and slash commands */
+  workspaceId?: string;
+  /** Project ID — required for artifact upload in drop handler and slash commands */
+  projectId?: string;
   onUpdate?: (props: { editor: Editor; transaction: Transaction }) => void;
   onSelectionUpdate?: (props: { editor: Editor; transaction: Transaction }) => void;
   onBlur?: (props: { editor: Editor; event: FocusEvent }) => void;
@@ -170,8 +174,8 @@ export interface SlashCommand {
   description: string;
   /** Icon name from lucide */
   icon: string;
-  /** Command group (formatting, blocks, ai) */
-  group: 'formatting' | 'blocks' | 'ai';
+  /** Command group (formatting, blocks, ai, media) */
+  group: 'formatting' | 'blocks' | 'ai' | 'media';
   /** Keyboard shortcut hint */
   shortcut?: string;
   /** Execute the command */
