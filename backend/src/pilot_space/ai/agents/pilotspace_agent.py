@@ -544,13 +544,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         # overrides so that missing keys never silently disable features.
         _TOGGLE_DEFAULTS: dict[str, bool] = {
             "notes": True,
-            "issues": False,
-            "projects": False,
-            "members": False,
-            "docs": False,
-            "skills": False,
-            "costs": False,
-            "approvals": False,
+            "issues": True,
+            "projects": True,
+            "members": True,
+            "docs": True,
+            "skills": True,
+            "costs": True,
+            "approvals": True,
         }
         _workspace_obj = await _workspace_repo.get_by_id(context.workspace_id)
         _raw_toggles = (
