@@ -10,6 +10,8 @@
     "store:allow-get",
     "store:allow-delete",
     "store:allow-save",
-    "deep-link:default"
+    "deep-link:default",
+    "dialog:allow-open",
+    "fs:default"
   ]
 }

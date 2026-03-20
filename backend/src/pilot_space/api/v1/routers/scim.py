@@ -30,8 +30,14 @@ from typing import TYPE_CHECKING, Annotated, Any
 # Import here so type annotations work (from __future__ import annotations makes them strings).
 # Runtime calls will raise ImportError only if SCIM endpoints are actually invoked.
 try:
-    from scim2_models import ListResponse, Meta, PatchOp, ServiceProviderConfig, User
-    from scim2_models.resources.service_provider_config import (
+    from scim2_models import (  # pyright: ignore[reportMissingImports]
+        ListResponse,
+        Meta,
+        PatchOp,
+        ServiceProviderConfig,
+        User,
+    )
+    from scim2_models.resources.service_provider_config import (  # pyright: ignore[reportMissingImports]
         Bulk,
         ChangePassword,
         ETag,
