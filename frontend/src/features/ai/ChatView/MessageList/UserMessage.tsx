@@ -7,6 +7,7 @@ import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/stores/ai/types/conversation';
 import { AttachmentChip } from './AttachmentChip';
+import { AudioPlaybackPill } from '../ChatInput/AudioPlaybackPill';
 
 interface UserMessageProps {
   message: ChatMessage;
@@ -39,6 +40,12 @@ export const UserMessage = memo<UserMessageProps>(({ message, userName = 'You', 
       <div className="prose prose-sm max-w-none text-foreground dark:prose-invert leading-relaxed">
         {message.content}
       </div>
+
+      {message.metadata?.voiceAudioUrl && (
+        <div className="mt-1.5">
+          <AudioPlaybackPill audioUrl={message.metadata.voiceAudioUrl} />
+        </div>
+      )}
 
       {(message.metadata?.attachments ?? []).length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-2" data-testid="attachment-chips">

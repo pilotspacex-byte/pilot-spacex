@@ -152,6 +152,8 @@ export interface MessageMetadata {
   isAnswerMessage?: boolean;
   /** Files attached to this message (persisted in message metadata for history) */
   attachments?: AttachmentMetadata[];
+  /** Signed URL for voice recording playback (from voice-to-text input). 1-hour expiry. */
+  voiceAudioUrl?: string | null;
 }
 
 /**

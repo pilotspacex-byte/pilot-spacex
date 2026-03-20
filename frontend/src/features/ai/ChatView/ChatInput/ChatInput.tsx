@@ -31,12 +31,13 @@ import { useDriveStatus } from '../hooks/useDriveStatus';
 import { AttachmentButton } from './AttachmentButton';
 import { DriveFilePicker } from './DriveFilePicker';
 import { RecordButton } from './RecordButton';
+import { AudioPlaybackPill } from './AudioPlaybackPill';
 import { attachmentsApi } from '@/services/api/attachments';
 
 interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (attachmentIds: string[]) => void;
+  onSubmit: (attachmentIds: string[], voiceAudioUrl?: string | null) => void;
   isStreaming?: boolean;
   isDisabled?: boolean;
   autoFocus?: boolean;
@@ -111,6 +112,7 @@ export const ChatInput = observer<ChatInputProps>(
     const { data: driveStatus } = useDriveStatus(workspaceId);
     const [drivePickerOpen, setDrivePickerOpen] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const inputContainerRef = useRef<HTMLDivElement>(null);
     const [skillMenuOpen, setSkillMenuOpen] = useState(false);
@@ -299,7 +301,8 @@ export const ChatInput = observer<ChatInputProps>(
         ) {
           e.preventDefault();
           if (value.trim() && !isStreaming && !isDisabled) {
-            onSubmit(attachmentIds);
+            onSubmit(attachmentIds, pendingAudioUrl);
+            setPendingAudioUrl(null);
             reset();
           }
         }
@@ -314,6 +317,7 @@ export const ChatInput = observer<ChatInputProps>(
         resumeMenuOpen,
         onSubmit,
         attachmentIds,
+        pendingAudioUrl,
         reset,
       ]
     );
@@ -347,6 +351,14 @@ export const ChatInput = observer<ChatInputProps>(
               onRemoveAttachment={removeFile}
             />
 
+            {/* Audio playback pill — shown after voice transcription, before sending */}
+            {pendingAudioUrl && (
+              <AudioPlaybackPill
+                audioUrl={pendingAudioUrl}
+                onRemove={() => setPendingAudioUrl(null)}
+              />
+            )}
+
             {/* Input area - single container with inline toolbar */}
             <div className="relative" ref={inputContainerRef}>
               <Textarea
@@ -372,8 +384,9 @@ export const ChatInput = observer<ChatInputProps>(
               <div className="absolute bottom-1.5 right-2 flex items-center gap-0.5">
                 <RecordButton
                   workspaceId={workspaceId ?? ''}
-                  onTranscript={(text) => {
+                  onTranscript={(text, audioUrl) => {
                     onChange(value + (value ? ' ' : '') + text);
+                    setPendingAudioUrl(audioUrl);
                     setTimeout(() => textareaRef.current?.focus(), 0);
                   }}
                   disabled={isDisabled || isStreaming}
