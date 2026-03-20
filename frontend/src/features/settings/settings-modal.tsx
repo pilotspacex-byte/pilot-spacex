@@ -9,6 +9,7 @@ import {
   ClipboardList,
   CreditCard,
   KeyRound,
+  Monitor,
   Plug,
   ServerCog,
   Settings,
@@ -23,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { isTauri } from '@/lib/tauri';
 import { useWorkspaceStore } from '@/stores/RootStore';
 import { useSettingsModal } from './settings-modal-context';
 import type { SettingsSection } from './settings-modal-context';
@@ -69,6 +71,9 @@ const SkillsSettingsPage = lazy(() =>
 const IntegrationsSettingsPage = lazy(
   () => import('@/app/(workspace)/[workspaceSlug]/settings/integrations/page')
 );
+const DesktopSettingsPage = lazy(() =>
+  import('./pages/desktop-settings-page').then((m) => ({ default: m.DesktopSettingsPage }))
+);
 
 // Billing placeholder (inline — trivial component)
 function BillingPlaceholder() {
@@ -103,7 +108,7 @@ interface NavSection {
   items: NavItem[];
 }
 
-const settingsNavSections: NavSection[] = [
+const baseSettingsNavSections: NavSection[] = [
   {
     label: 'Workspace',
     items: [
@@ -126,6 +131,18 @@ const settingsNavSections: NavSection[] = [
   },
 ];
 
+// Desktop section is only shown when running inside the Tauri desktop shell.
+// isTauri() reads window.__TAURI_INTERNALS__ — safe to call at module level.
+const settingsNavSections: NavSection[] = isTauri()
+  ? [
+      ...baseSettingsNavSections,
+      {
+        label: 'Desktop',
+        items: [{ id: 'desktop', label: 'Desktop', icon: Monitor }],
+      },
+    ]
+  : baseSettingsNavSections;
+
 const SECTION_COMPONENTS: Record<
   SettingsSection,
   React.LazyExoticComponent<React.ComponentType>
@@ -144,6 +161,7 @@ const SECTION_COMPONENTS: Record<
   skills: SkillsSettingsPage,
   integrations: IntegrationsSettingsPage,
   billing: BillingPlaceholder as unknown as React.LazyExoticComponent<React.ComponentType>,
+  desktop: DesktopSettingsPage,
 };
 
 function PanelSkeleton() {

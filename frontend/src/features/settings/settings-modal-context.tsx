@@ -17,7 +17,8 @@ export type SettingsSection =
   | 'billing'
   | 'profile'
   | 'skills'
-  | 'security';
+  | 'security'
+  | 'desktop';
 
 interface SettingsModalContextValue {
   open: boolean;
