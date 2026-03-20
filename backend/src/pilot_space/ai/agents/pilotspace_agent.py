@@ -453,10 +453,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
     async def _track_stream_cost(
         self,
         usage: dict[str, Any] | None,
+        content_blocks: dict[str, dict[str, Any]],
         context: AgentContext,
         provider_config: _ProviderConfig,
     ) -> None:
         """Record SDK stream usage to cost DB. Non-fatal."""
+        usage = getattr(self, "_last_stream_usage", None)
         if usage is None:
             return
 
@@ -484,6 +486,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 "pilotspace_agent_cost_tracking_failed",
                 workspace_id=str(context.workspace_id),
             )
+        finally:
+            self._last_stream_usage = None
 
     def transform_sdk_message(
         self,
@@ -506,6 +510,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         "costUsd": getattr(usage, "total_cost_usd", None),
                     }
                 )
+            if usage:
+                self._last_stream_usage = {
+                    "inputTokens": getattr(usage, "input_tokens", 0) or 0,
+                    "outputTokens": getattr(usage, "output_tokens", 0) or 0,
+                    "costUsd": getattr(usage, "total_cost_usd", None),
+                }
 
         return transform_sdk_message_helper(
             message,
@@ -937,6 +947,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     # Track cost from SDK usage (extracted in message_stop SSE)
                     await self._track_stream_cost(
                         stream_usage or None,
+                        content_blocks,
                         context,
                         provider_config,
                     )
