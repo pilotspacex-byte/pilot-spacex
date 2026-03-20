@@ -152,7 +152,17 @@ export const RecordButton = observer(function RecordButton({
           </div>
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">
-          {tooltipLabel}
+          {!isSttConfigured && isSupported && !isPermissionDenied ? (
+            <button
+              type="button"
+              className="underline decoration-dotted cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => openSettings('ai-providers')}
+            >
+              Set up ElevenLabs API key
+            </button>
+          ) : (
+            tooltipLabel
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
