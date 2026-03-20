@@ -152,22 +152,30 @@ class CostTracker:
             output_tokens: Number of output tokens.
 
         Returns:
-            Cost in USD as float.
-
-        Raises:
-            ValueError: If provider or model is not found in pricing table.
+            Cost in USD as float. Returns 0.0 for unknown providers/models
+            (logged as warning) so cost tracking never crashes callers.
         """
         if provider not in PRICING_TABLE:
-            raise ValueError(
-                f"Unknown provider '{provider}'. Supported: {', '.join(PRICING_TABLE.keys())}"
+            logger.warning(
+                "cost_tracker_unknown_provider",
+                provider=provider,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
+            return 0.0
 
         provider_pricing = PRICING_TABLE[provider]
         if model not in provider_pricing:
-            raise ValueError(
-                f"Unknown model '{model}' for provider '{provider}'. "
-                f"Supported: {', '.join(provider_pricing.keys())}"
+            logger.warning(
+                "cost_tracker_unknown_model",
+                provider=provider,
+                model=model,
+                supported=list(provider_pricing.keys()),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
+            return 0.0
 
         input_price, output_price = provider_pricing[model]
 
@@ -189,26 +197,7 @@ class CostTracker:
         output_tokens: int,
         operation_type: str | None = None,
     ) -> CostRecord:
-        """Track AI usage cost to database.
-
-        Args:
-            workspace_id: Workspace UUID.
-            user_id: User UUID.
-            agent_name: Name of the agent that processed the request.
-            provider: LLM provider.
-            model: Model identifier.
-            input_tokens: Number of input tokens.
-            output_tokens: Number of output tokens.
-            operation_type: Optional feature/operation category for cost breakdown
-                            (AIGOV-06). Examples: 'ghost_text', 'issue_extraction',
-                            'pr_review', 'chat'. None for legacy callers.
-
-        Returns:
-            Created CostRecord with calculated cost.
-
-        Raises:
-            ValueError: If provider or model is unknown.
-        """
+        """Track AI usage cost to database. Returns created CostRecord."""
         cost_usd = self.calculate_cost(provider, model, input_tokens, output_tokens)
 
         record = AICostRecord(
@@ -651,9 +640,45 @@ class CostTracker:
         return trends
 
 
+async def track_cost(
+    session: AsyncSession,
+    *,
+    workspace_id: UUID,
+    user_id: UUID | None,
+    agent_name: str,
+    provider: str,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    operation_type: str | None = None,
+) -> None:
+    """Fire-and-forget cost tracking for services without DI-injected CostTracker."""
+    _ZERO_UUID = UUID("00000000-0000-0000-0000-000000000000")
+    try:
+        tracker = CostTracker(session)
+        await tracker.track(
+            workspace_id=workspace_id,
+            user_id=user_id or _ZERO_UUID,
+            agent_name=agent_name,
+            provider=provider,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            operation_type=operation_type,
+        )
+    except Exception:
+        logger.warning(
+            "track_cost_failed",
+            agent_name=agent_name,
+            provider=provider,
+            model=model,
+        )
+
+
 __all__ = [
     "PRICING_TABLE",
     "CostRecord",
     "CostSummary",
     "CostTracker",
+    "track_cost",
 ]

@@ -190,6 +190,7 @@ class DigestJobHandler:
             last_exc: Exception | None = None
             for attempt in range(max_retries):
                 try:
+                    _usage: dict[str, int] = {}
                     response = await asyncio.wait_for(
                         client.messages.create(
                             model=MODEL_SONNET,
@@ -199,6 +200,8 @@ class DigestJobHandler:
                         ),
                         timeout=LLM_TIMEOUT_SECONDS,
                     )
+                    _usage["input"] = response.usage.input_tokens
+                    _usage["output"] = response.usage.output_tokens
 
                     # Extract text content from response
                     content = ""
@@ -206,6 +209,20 @@ class DigestJobHandler:
                         if block.type == "text":
                             content = block.text
                             break
+
+                    from pilot_space.ai.infrastructure.cost_tracker import track_cost
+
+                    await track_cost(
+                        self._session,
+                        workspace_id=workspace_id,
+                        user_id=None,
+                        agent_name="digest_job",
+                        provider="anthropic",
+                        model=MODEL_SONNET,
+                        input_tokens=_usage.get("input", 0),
+                        output_tokens=_usage.get("output", 0),
+                        operation_type="digest",
+                    )
 
                     return self._parse_suggestions(content)
 

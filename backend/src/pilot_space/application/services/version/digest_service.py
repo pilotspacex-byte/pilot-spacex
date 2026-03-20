@@ -85,7 +85,7 @@ class VersionDigestService:
         )
         previous = _find_previous_version(version_id, list(all_versions))
 
-        digest = await self._generate_digest(version.content, previous)
+        digest = await self._generate_digest(version.content, previous, workspace_id)
 
         # Persist digest cache in DB
         from pilot_space.infrastructure.database.models.note_version import NoteVersion as NVModel
@@ -107,6 +107,7 @@ class VersionDigestService:
         self,
         new_content: dict[str, Any],
         previous_content: dict[str, Any] | None,
+        workspace_id: UUID | None = None,
     ) -> str:
         """Call Claude Sonnet to generate a change summary.
 
@@ -115,6 +116,7 @@ class VersionDigestService:
         Args:
             new_content: TipTap JSON for the new version.
             previous_content: TipTap JSON for the previous version (or None if first).
+            workspace_id: Workspace UUID for cost tracking.
 
         Returns:
             Human-readable change summary (1-3 sentences).
@@ -124,6 +126,8 @@ class VersionDigestService:
 
         try:
             import anthropic  # type: ignore[import-untyped]
+
+            from pilot_space.ai.infrastructure.cost_tracker import track_cost
 
             client = anthropic.AsyncAnthropic(api_key=self._anthropic_api_key)
 
@@ -140,11 +144,29 @@ class VersionDigestService:
                 "Be concise and specific. Focus on what was added, removed, or modified."
             )
 
+            _model = "claude-sonnet-4-6"
+            _usage: dict[str, int] = {}
             message = await client.messages.create(
-                model="claude-sonnet-4-6",
+                model=_model,
                 max_tokens=200,
                 messages=[{"role": "user", "content": prompt}],
             )
+            _usage["input"] = message.usage.input_tokens
+            _usage["output"] = message.usage.output_tokens
+
+            if workspace_id is not None:
+                await track_cost(
+                    self._session,
+                    workspace_id=workspace_id,
+                    user_id=None,
+                    agent_name="version_digest",
+                    provider="anthropic",
+                    model=_model,
+                    input_tokens=_usage.get("input", 0),
+                    output_tokens=_usage.get("output", 0),
+                    operation_type="version_digest",
+                )
+
             content = message.content[0]
             if hasattr(content, "text"):
                 return content.text.strip()  # type: ignore[union-attr]
