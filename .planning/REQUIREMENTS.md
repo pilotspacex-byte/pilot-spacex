@@ -39,7 +39,7 @@ Requirements for Tauri Desktop Client milestone. Each maps to roadmap phases.
 
 ### Terminal
 
-- [ ] **TERM-01**: User can open an embedded terminal panel (xterm.js) inside the app
+- [x] **TERM-01**: User can open an embedded terminal panel (xterm.js) inside the app
 - [x] **TERM-02**: Terminal supports full PTY (interactive programs, arrow keys, tab completion, ANSI colors)
 - [x] **TERM-03**: User can run arbitrary shell commands with streaming output
 - [x] **TERM-04**: Terminal output uses batched IPC Channel to prevent memory leaks
@@ -111,7 +111,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-02 | Phase 37 | Pending |
 | CLI-03 | Phase 37 | Pending |
 | CLI-04 | Phase 35 | Pending |
-| TERM-01 | Phase 34 | Pending |
+| TERM-01 | Phase 34 | Complete |
 | TERM-02 | Phase 34 | Complete |
 | TERM-03 | Phase 34 | Complete |
 | TERM-04 | Phase 34 | Complete |
