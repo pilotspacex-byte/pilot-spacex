@@ -28,9 +28,9 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 /**
- * Write auth tokens to Tauri Store from the JS side via Rust IPC command.
- * Primarily used internally; the JS-side syncTokenToTauriStore() handles
- * writes via @tauri-apps/plugin-store directly.
+ * Write auth tokens to both OS keychain and Tauri Store via Rust IPC command.
+ * Keychain is the secure source of truth for Rust-side access.
+ * Tauri Store is kept in sync as a fallback for WebView reads.
  */
 export async function setAuthToken(
   accessToken: string | null,
@@ -42,4 +42,20 @@ export async function setAuthToken(
     accessToken,
     refreshToken,
   });
+}
+
+/**
+ * Migrate tokens from Tauri Store to OS keychain (one-time, on app startup).
+ *
+ * Handles the upgrade path from Plan 31-01 (Store-only) to Plan 31-02
+ * (keychain as primary secure storage). Safe to call on every startup —
+ * it is a no-op if tokens are already in the keychain.
+ *
+ * Returns true if migration was performed, false if already migrated or
+ * no tokens exist.
+ */
+export async function migrateTokensToKeychain(): Promise<boolean> {
+  if (!isTauri()) return false;
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<boolean>('migrate_tokens_to_keychain');
 }
