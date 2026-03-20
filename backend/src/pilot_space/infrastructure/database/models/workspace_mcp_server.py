@@ -18,8 +18,9 @@ if TYPE_CHECKING:
 
 
 class McpAuthType(StrEnum):
-    """Authentication type for remote MCP server connections."""
+    """Authentication type for MCP server connections."""
 
+    NONE = "none"
     BEARER = "bearer"
     OAUTH2 = "oauth2"
 

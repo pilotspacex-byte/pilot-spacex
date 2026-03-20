@@ -35,6 +35,8 @@ def upgrade() -> None:
     """Add stdio transport support columns and seed sequential-thinking catalog entry."""
     # Add 'stdio' to the existing mcp_transport_type enum
     op.execute(text("ALTER TYPE mcp_transport_type ADD VALUE IF NOT EXISTS 'stdio'"))
+    # Add 'none' to the existing mcp_auth_type enum (stdio servers need no auth)
+    op.execute(text("ALTER TYPE mcp_auth_type ADD VALUE IF NOT EXISTS 'none'"))
 
     # Add stdio_command column
     op.add_column(
@@ -76,7 +78,7 @@ def upgrade() -> None:
                 'Creates, revises, and branches thought processes for complex reasoning.',
                 'npx|-y|@anthropic-ai/sequential-thinking',
                 'stdio',
-                'bearer',
+                'none',
                 '1.0.0',
                 true,
                 2,

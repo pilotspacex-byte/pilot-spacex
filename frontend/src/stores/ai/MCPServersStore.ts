@@ -18,7 +18,7 @@ export interface MCPServer {
   workspace_id: string;
   display_name: string;
   url: string | null;
-  auth_type: 'bearer' | 'oauth2';
+  auth_type: 'none' | 'bearer' | 'oauth2';
   last_status: 'connected' | 'failed' | 'unknown' | null;
   last_status_checked_at: string | null;
   token_expires_at: string | null; // ISO8601 UTC string or null (MCPO-03)
@@ -46,7 +46,7 @@ export interface MCPServerListResponse {
 export interface MCPServerRegisterRequest {
   display_name: string;
   url?: string;
-  auth_type: 'bearer' | 'oauth2';
+  auth_type: 'none' | 'bearer' | 'oauth2';
   auth_token?: string;
   oauth_client_id?: string;
   oauth_auth_url?: string;

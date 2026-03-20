@@ -78,7 +78,7 @@ export function MCPServerForm({ onRegister, onSuccess }: MCPServerFormProps) {
         data = {
           display_name: form.displayName.trim(),
           url: '',
-          auth_type: 'bearer',
+          auth_type: 'none',
           transport_type: 'stdio',
           stdio_command: form.stdioCommand.trim(),
           stdio_args: form.stdioArgs.trim().split(/\s+/).filter(Boolean),
