@@ -162,6 +162,15 @@ export function resolveRenderer(mimeType: string, filename: string): RendererTyp
   // 6. text/* types — resolve to code or plain text by extension
   if (lowerMime.startsWith('text/')) return resolveCodeOrText(filename);
 
-  // 7. Everything else — download fallback (PDF, binary, video, audio, etc.)
+  // 7. application/octet-stream with code/text extension — servers often send
+  //    octet-stream for .py, .go, .rs, .toml, .yaml, etc. Route by extension.
+  if (lowerMime === 'application/octet-stream') {
+    const resolved = resolveCodeOrText(filename);
+    if (resolved === 'code') return 'code';
+    // .txt files sent as octet-stream should render as text
+    if (ext === 'txt') return 'text';
+  }
+
+  // 8. Everything else — download fallback (PDF, binary, video, audio, etc.)
   return 'download';
 }
