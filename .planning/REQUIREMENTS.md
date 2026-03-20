@@ -23,11 +23,11 @@ Requirements for Tauri Desktop Client milestone. Each maps to roadmap phases.
 ### Git Operations
 
 - [x] **GIT-01**: User can clone a repository with progress indicator and cancellation
-- [ ] **GIT-02**: User can pull latest changes from remote with progress UI
-- [ ] **GIT-03**: User can push commits to remote with progress UI
-- [ ] **GIT-04**: User can view repository status (changed/staged/untracked files)
-- [ ] **GIT-05**: User can list, create, switch, and delete branches
-- [ ] **GIT-06**: App detects merge conflicts during pull and notifies user
+- [x] **GIT-02**: User can pull latest changes from remote with progress UI
+- [x] **GIT-03**: User can push commits to remote with progress UI
+- [x] **GIT-04**: User can view repository status (changed/staged/untracked files)
+- [x] **GIT-05**: User can list, create, switch, and delete branches
+- [x] **GIT-06**: App detects merge conflicts during pull and notifies user
 - [x] **GIT-07**: User can configure HTTPS + Personal Access Token credentials for git operations
 
 ### Pilot CLI
@@ -101,11 +101,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-03 | Phase 31 | Complete |
 | AUTH-04 | Phase 31 | Complete |
 | GIT-01 | Phase 32 | Complete |
-| GIT-02 | Phase 33 | Pending |
-| GIT-03 | Phase 33 | Pending |
-| GIT-04 | Phase 33 | Pending |
-| GIT-05 | Phase 33 | Pending |
-| GIT-06 | Phase 33 | Pending |
+| GIT-02 | Phase 33 | Complete |
+| GIT-03 | Phase 33 | Complete |
+| GIT-04 | Phase 33 | Complete |
+| GIT-05 | Phase 33 | Complete |
+| GIT-06 | Phase 33 | Complete |
 | GIT-07 | Phase 32 | Complete |
 | CLI-01 | Phase 35 | Pending |
 | CLI-02 | Phase 37 | Pending |

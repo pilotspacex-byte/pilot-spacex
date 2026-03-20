@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: completed
-stopped_at: Completed 32-04-PLAN.md
-last_updated: "2026-03-20T06:43:26.353Z"
+stopped_at: Completed 33-01-PLAN.md
+last_updated: "2026-03-20T06:58:58.722Z"
 last_activity: "2026-03-20 — Phase 31 Plan 03 complete — pilotspace:// deep link OAuth PKCE flow for Google/GitHub social login"
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 13
+  completed_plans: 11
   percent: 100
 ---
 
@@ -79,6 +79,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 32]: CloneRepoDialog prevents dialog close during active clone via onOpenChange guard — UX safety for long-running operations
 - [Phase 32]: Dedicated reset_projects_dir Rust command deletes projects_dir Store key instead of overloading set_projects_dir with empty-string sentinel
 - [Phase 32]: desktopNavSection defined at module level using isTauri() — stable const, no React state/effect needed
+- [Phase 33]: git_pull returns conflict file list without auto-committing — user must resolve manually
+- [Phase 33]: build_callbacks helper extracted for fetch-phase; git_push uses inline callbacks for push_transfer_progress (different signature)
+- [Phase 33]: git_branch_switch uses CheckoutBuilder::default().safe() to protect uncommitted changes
 
 ### Pending Todos
 
@@ -91,7 +94,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T06:42:31.607Z
-Stopped at: Completed 32-04-PLAN.md
+Last session: 2026-03-20T06:58:58.720Z
+Stopped at: Completed 33-01-PLAN.md
 Resume file: None
 Next action: /gsd:execute-phase 31
