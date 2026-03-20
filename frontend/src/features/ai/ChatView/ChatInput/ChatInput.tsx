@@ -389,7 +389,7 @@ export const ChatInput = observer<ChatInputProps>(
                     setPendingAudioUrl(audioUrl);
                     setTimeout(() => textareaRef.current?.focus(), 0);
                   }}
-                  disabled={isDisabled || isStreaming}
+                  disabled={isDisabled || isStreaming || !workspaceId}
                 />
                 <AttachmentButton
                   onAddFile={addFile}

@@ -294,12 +294,12 @@ export function useVoiceRecording({
         toast.error('Microphone access denied', {
           description: 'Please allow microphone access in your browser settings.',
         });
+        setErrorWithAutoReset('Microphone access denied');
       } else {
         const msg = err instanceof Error ? err.message : 'Could not start recording';
         toast.error('Could not start recording', { description: msg });
+        setErrorWithAutoReset(msg);
       }
-      const msg = err instanceof Error ? err.message : 'Microphone access denied';
-      setErrorWithAutoReset(msg);
     }
   }, [
     status,

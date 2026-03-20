@@ -36,11 +36,14 @@ export const transcriptionApi = {
     if (language) {
       formData.append('language', language);
     }
+    const headers: Record<string, string> = {};
+    // Only set workspace header when workspaceId is a non-empty valid value;
+    // otherwise let the apiClient interceptor inject the stored workspace ID.
+    if (workspaceId) {
+      headers['X-Workspace-Id'] = workspaceId;
+    }
     return apiClient.post<TranscribeResponse>('/ai/transcribe', formData, {
-      headers: {
-        'X-Workspace-Id': workspaceId,
-        // Omit Content-Type so axios auto-sets multipart boundary from FormData
-      },
+      headers,
     });
   },
 };

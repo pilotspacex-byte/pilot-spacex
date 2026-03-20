@@ -18,12 +18,13 @@ from typing import Annotated
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import exists, select
 from sqlalchemy.dialects.postgresql import insert
 
 from pilot_space.api.v1.schemas.transcription import TranscribeResponse
 from pilot_space.dependencies.auth import CurrentUserId, DbSession
+from pilot_space.dependencies.workspace import get_current_workspace_id
 from pilot_space.infrastructure.database.models.transcript_cache import (
     TRANSCRIPT_CACHE_TTL_DAYS,
     TranscriptCache,
@@ -69,7 +70,7 @@ async def transcribe_audio(
     user_id: CurrentUserId,
     session: DbSession,
     file: Annotated[UploadFile, File(description="Audio file to transcribe")],
-    x_workspace_id: Annotated[UUID, Header(description="Workspace UUID")],
+    workspace_id: Annotated[UUID, Depends(get_current_workspace_id)],
     language: Annotated[str | None, Form()] = None,
 ) -> TranscribeResponse:
     """Transcribe audio to text using ElevenLabs STT.
@@ -82,7 +83,7 @@ async def transcribe_audio(
         user_id: Authenticated user ID (injected by FastAPI).
         session: Database session (injected by FastAPI).
         file: Audio file to transcribe (audio/webm, audio/ogg, etc.).
-        x_workspace_id: Workspace UUID from X-Workspace-Id header.
+        workspace_id: Workspace UUID from X-Workspace-Id header.
         language: Optional ISO 639-1 language code hint (e.g. 'en').
 
     Returns:
@@ -90,10 +91,31 @@ async def transcribe_audio(
 
     Raises:
         HTTPException 400: Invalid file type or file too large.
+        HTTPException 403: Not a member of the workspace.
         HTTPException 422: ElevenLabs API key not configured.
         HTTPException 502: ElevenLabs API error.
     """
-    workspace_id = x_workspace_id
+    # Enforce workspace membership and set RLS context
+    from pilot_space.infrastructure.database.models.workspace_member import WorkspaceMember
+    from pilot_space.infrastructure.database.rls import set_rls_context
+
+    await set_rls_context(session, user_id, workspace_id)
+    is_member = (
+        await session.execute(
+            select(
+                exists().where(
+                    WorkspaceMember.workspace_id == workspace_id,
+                    WorkspaceMember.user_id == user_id,
+                    WorkspaceMember.is_deleted == False,  # noqa: E712
+                )
+            )
+        )
+    ).scalar()
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this workspace",
+        )
 
     # Validate MIME type
     content_type = (file.content_type or "application/octet-stream").split(";")[0].strip()

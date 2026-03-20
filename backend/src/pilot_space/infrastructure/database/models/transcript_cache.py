@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Float, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, Float, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from pilot_space.infrastructure.database.base import Base, TimestampMixin, WorkspaceScopedMixin
@@ -50,7 +50,7 @@ class TranscriptCache(Base, TimestampMixin, WorkspaceScopedMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
-        server_default="gen_random_uuid()",
+        server_default=text("gen_random_uuid()"),
     )
 
     audio_hash: Mapped[str] = mapped_column(

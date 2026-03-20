@@ -6,6 +6,7 @@
  * and spinner (transcribing). Requires ElevenLabs API key — prompts user to open settings if missing.
  */
 
+import { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Mic, MicOff, Square, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -43,6 +44,15 @@ export const RecordButton = observer(function RecordButton({
 }: RecordButtonProps) {
   const { aiStore } = useStore();
   const { openSettings } = useSettingsModal();
+
+  // Lazy-load AI settings if not yet loaded so sttConfigured reflects the real state.
+  // Without this, sttConfigured defaults to false until the user visits Settings page.
+  useEffect(() => {
+    if (workspaceId && !aiStore.settings.settings && !aiStore.settings.isLoading) {
+      aiStore.settings.loadSettings(workspaceId);
+    }
+  }, [workspaceId, aiStore.settings]);
+
   const isSttConfigured = aiStore.settings.sttConfigured;
 
   const {
