@@ -77,6 +77,16 @@ jobs:
         working-directory: tauri-app
         run: pnpm install --frozen-lockfile
 
+      - name: Download sidecar artifact (pilot-cli)
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: pilot-cli-build.yml
+          commit: ${{ github.sha }}
+          name: pilot-cli-${{ matrix.target }}
+          path: tauri-app/src-tauri/binaries/
+          search_artifacts: true
+          if_no_artifact_found: warn
+
       - name: Sign sidecar binary (macOS)
         if: runner.os == 'macOS' && env.APPLE_SIGNING_IDENTITY != ''
         env:
