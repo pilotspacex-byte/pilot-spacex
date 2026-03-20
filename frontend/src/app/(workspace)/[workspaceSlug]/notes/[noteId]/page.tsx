@@ -13,11 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NoteCanvas } from '@/components/editor/NoteCanvas';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
+import { FilePreviewModal } from '@/features/artifacts/components/FilePreviewModal';
+import { useEditorArtifactPreview } from '@/features/artifacts/hooks/use-editor-artifact-preview';
 import { useNote, useUpdateNote, useAutoSave } from '@/features/notes/hooks';
 import { useDeleteNote } from '@/features/notes/hooks/useDeleteNote';
 import { useTogglePin } from '@/hooks/useTogglePin';
 import { useNoteVersions, useRestoreNoteVersion } from '@/hooks/useNoteVersions';
-import { useNoteStore } from '@/stores/RootStore';
+import { useNoteStore, useUIStore } from '@/stores/RootStore';
 import { useWorkspace } from '@/components/workspace-guard';
 import { notesApi } from '@/services/api';
 import { notesKeys } from '@/features/notes/hooks';
@@ -126,6 +128,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const noteStore = useNoteStore();
+  const uiStore = useUIStore();
 
   // Get workspace from WorkspaceGuard context (guaranteed to be loaded)
   const { workspace } = useWorkspace();
@@ -280,6 +283,13 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     };
   }, [note, noteStore]);
 
+  // Exit focus mode on unmount — prevents sidebar from staying hidden on other pages
+  useEffect(() => {
+    return () => {
+      uiStore.exitFocusMode();
+    };
+  }, [uiStore]);
+
   // Handle content change - store in ref (no re-render), bump version to trigger debounced auto-save
   const handleContentChange = useCallback((content: JSONContent) => {
     contentRef.current = content;
@@ -350,6 +360,9 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     [restoreVersion]
   );
 
+  // Artifact preview modal for file cards and figures in the editor
+  const artifactPreview = useEditorArtifactPreview(workspaceId, note?.projectId ?? '');
+
   // Loading state - also show skeleton when params are not ready
   if (!hasValidParams || isLoadingNote) {
     return <NoteDetailSkeleton />;
@@ -392,7 +405,12 @@ const NoteDetailPage = observer(function NoteDetailPage() {
           projectId={note.projectId}
           linkedIssues={note.linkedIssues}
           iconEmoji={note.iconEmoji}
+          isFocusMode={uiStore.isFocusMode}
+          onToggleFocusMode={uiStore.toggleFocusMode}
         />
+
+        {/* File preview modal — opens on file card / figure click in editor */}
+        {artifactPreview.signedUrl && <FilePreviewModal {...artifactPreview} />}
 
         {/* Version History Panel - slides in from right */}
         {showVersionHistory && (

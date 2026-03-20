@@ -234,6 +234,7 @@ async def require_workspace_member(
         exists().where(
             WorkspaceMember.workspace_id == workspace_id,
             WorkspaceMember.user_id == user_id,
+            WorkspaceMember.is_deleted == False,  # noqa: E712
         )
     )
     result = await session.execute(stmt)

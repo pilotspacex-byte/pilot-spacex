@@ -5,6 +5,7 @@
 
 // Core extensions
 export { BlockIdExtension, type BlockIdOptions } from './BlockIdExtension';
+export { PullQuoteExtension } from './PullQuoteExtension';
 export {
   GhostTextExtension,
   ghostTextStyles,
@@ -82,6 +83,10 @@ export {
   type DensityStorage,
 } from './DensityExtension';
 export { DENSITY_STYLES } from './density-styles';
+
+// NodeView bridge utility (Phase 30 — v1.1 foundation)
+// CONSTRAINT: Never wrap a ReactNodeViewRenderer target in observer() — see node-view-bridge.ts
+export { createNodeViewBridgeContext } from './node-view-bridge';
 
 // Factory function
 export { createEditorExtensions, type EditorExtensionsOptions } from './createEditorExtensions';

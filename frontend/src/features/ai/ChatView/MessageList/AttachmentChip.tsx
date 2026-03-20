@@ -57,7 +57,7 @@ interface AttachmentChipProps {
 }
 
 export const AttachmentChip = memo<AttachmentChipProps>(({ attachment }) => {
-  const { filename, mimeType } = attachment;
+  const { attachmentId, filename, mimeType } = attachment;
   const fileType = getFileType(mimeType);
 
   const iconMap: Record<FileType, React.ReactNode> = {
@@ -67,7 +67,27 @@ export const AttachmentChip = memo<AttachmentChipProps>(({ attachment }) => {
   };
 
   return (
-    <Badge variant="outline" className="gap-1.5 max-w-[200px]" data-file-type={fileType}>
+    <Badge
+      variant="outline"
+      className="gap-1.5 max-w-[200px] cursor-pointer hover:bg-muted/50 transition-colors"
+      data-file-type={fileType}
+      role="button"
+      tabIndex={0}
+      aria-label={`Preview ${filename}`}
+      onClick={() => {
+        window.dispatchEvent(
+          new CustomEvent('pilot:preview-attachment', {
+            detail: { attachmentId, filename, mimeType },
+          })
+        );
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement).click();
+        }
+      }}
+    >
       {iconMap[fileType]}
       <span className="truncate text-xs">{truncateFilename(filename)}</span>
     </Badge>

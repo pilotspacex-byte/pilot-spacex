@@ -223,9 +223,10 @@ class SupabaseStorageClient:
                 f"Signed URL response missing 'signedURL' field for {bucket}/{key}"
             )
 
-        # Supabase returns a path-only signed URL; prepend base URL when needed.
+        # Supabase returns a path-only signed URL (e.g. /object/sign/bucket/key?token=...).
+        # Prepend base URL + /storage/v1 prefix to make it a fully qualified download URL.
         if signed_url.startswith("/"):
-            signed_url = f"{self._base_url}{signed_url}"
+            signed_url = f"{self._base_url}/storage/v1{signed_url}"
 
         logger.info("storage_sign_url_success", bucket=bucket, key=key)
         return signed_url

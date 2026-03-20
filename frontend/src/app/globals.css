@@ -1027,6 +1027,17 @@
   color: var(--foreground-muted);
 }
 
+/* Pull quote — editorial variant. Activated by data-pull-quote attribute on blockquote. */
+/* EDIT-01 (v1.1): larger font, accent border (--accent not --ai), full-color text */
+.document-canvas .prose blockquote[data-pull-quote] {
+  font-size: 1.2em;
+  font-style: italic;
+  border-left: 4px solid var(--accent);
+  padding-left: 1.25rem;
+  margin: 1.5rem 0;
+  color: var(--foreground);
+}
+
 /* =============================================================================
    AI THREAD INLINE INDICATOR
    ============================================================================= */
@@ -2744,4 +2755,29 @@
   [data-block-id].ai-block-new {
     animation: none !important;
   }
+}
+
+/* ── Video Embeds (Phase 33: Video Embeds) ──────────────────────────────
+ * .video-embed: responsive 16:9 iframe for YouTube (YoutubeExtension) and
+ * Vimeo (VimeoNode) inline players.
+ * Applied via HTMLAttributes in both extension configurations.
+ * ─────────────────────────────────────────────────────────────────────── */
+.video-embed {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+  border-radius: var(--radius, 6px);
+  display: block;
+  margin: 1rem 0;
+}
+
+.video-embed--youtube,
+.video-embed--vimeo {
+  max-width: 100%;
+}
+
+/* URL prompt and embed offer overlays */
+.video-url-prompt:focus {
+  outline: 2px solid var(--ring, #94a3b8);
+  outline-offset: 1px;
 }

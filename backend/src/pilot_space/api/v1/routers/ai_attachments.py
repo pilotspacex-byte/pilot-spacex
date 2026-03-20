@@ -1,10 +1,11 @@
-"""AI attachment upload and delete endpoints.
+"""AI attachment upload, delete, and signed URL endpoints.
 
-Handles multipart file uploads for chat context attachments and
-hard-delete of attachment records by the owning user.
+Handles multipart file uploads for chat context attachments,
+hard-delete of attachment records, and signed URL generation for preview.
 
 Routes:
     POST /ai/attachments/upload  — Upload a local file as a chat attachment (201)
+    GET  /ai/attachments/{id}/url — Get a signed download URL for preview (200)
     DELETE /ai/attachments/{id}  — Delete an attachment owned by the caller (204)
 
 Feature: 020 — Chat Context Attachments
@@ -27,11 +28,13 @@ from pilot_space.api.v1.routers.workspace_quota import (
 from pilot_space.api.v1.schemas.attachments import AttachmentUploadResponse
 from pilot_space.dependencies.auth import CurrentUserId, DbSession
 from pilot_space.dependencies.services import AttachmentUploadServiceDep
+from pilot_space.infrastructure.database.models.chat_attachment import ChatAttachment
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
 )
 from pilot_space.infrastructure.logging import get_logger
+from pilot_space.infrastructure.storage.client import SupabaseStorageClient
 
 logger = get_logger(__name__)
 
@@ -151,6 +154,40 @@ async def upload_attachment(
         response.headers["X-Storage-Warning"] = str(round(_warning_pct, 4))
 
     return _build_upload_response(record)
+
+
+@router.get("/attachments/{attachment_id}/url")
+async def get_attachment_url(
+    attachment_id: UUID,
+    user_id: CurrentUserId,
+    db: DbSession,
+) -> dict[str, str | int]:
+    """Get a 1-hour signed download URL for a chat attachment.
+
+    Only the owning user can generate signed URLs for their attachments.
+
+    Args:
+        attachment_id: UUID of the attachment.
+        user_id: Authenticated user ID.
+        db: Async DB session.
+
+    Returns:
+        dict with url and expiresIn fields.
+    """
+    result = await db.execute(select(ChatAttachment).where(ChatAttachment.id == attachment_id))
+    attachment = result.scalar_one_or_none()
+    if attachment is None:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    if attachment.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not your attachment")
+
+    storage = SupabaseStorageClient()
+    signed_url = await storage.get_signed_url(
+        bucket="chat-attachments",
+        key=attachment.storage_key,
+        expires_in=3600,
+    )
+    return {"url": signed_url, "expiresIn": 3600}
 
 
 @router.delete(

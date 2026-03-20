@@ -118,6 +118,10 @@ export interface NoteCanvasProps {
     noteContent: Record<string, unknown>;
     selectedText?: string;
   }) => void;
+  /** Whether focus mode is active — hides chrome when true */
+  isFocusMode?: boolean;
+  /** Callback to toggle focus mode on/off */
+  onToggleFocusMode?: () => void;
 }
 
 /**
@@ -205,6 +209,8 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
     workspaceSlug = '',
     onTitleChange,
     onExtractIssues,
+    isFocusMode = false,
+    onToggleFocusMode,
   } = props;
 
   const [editorError, setEditorError] = useState<string | null>(null);
@@ -602,11 +608,22 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
           handleChatViewOpen();
         }
       }
+      // Cmd+Shift+F / Ctrl+Shift+F — toggle focus mode
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        onToggleFocusMode?.();
+      }
+      // Escape — exit focus mode (only when active, so we don't eat Escape from slash commands)
+      // Note: slash command handles Escape at ProseMirror level (before window), so this is safe
+      if (e.key === 'Escape' && isFocusMode) {
+        onToggleFocusMode?.();
+        // Do NOT call e.preventDefault() — let other Escape handlers chain normally
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isChatViewOpen, handleChatViewOpen, onSave]);
+  }, [isChatViewOpen, handleChatViewOpen, onSave, isFocusMode, onToggleFocusMode]);
 
   // Toggle ChatView panel size
   const handleChatPanelToggle = useCallback(() => {
