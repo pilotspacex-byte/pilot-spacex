@@ -31,10 +31,11 @@ export const artifactsApi = {
   list(workspaceId: string, projectId: string): Promise<Artifact[]> {
     return apiClient
       .get<
-        Artifact[] | { items: Artifact[] }
+        Artifact[] | { artifacts: Artifact[]; total: number } | { items: Artifact[] }
       >(`/workspaces/${workspaceId}/projects/${projectId}/artifacts`)
       .then((res) => {
         if (Array.isArray(res)) return res;
+        if ('artifacts' in res) return res.artifacts;
         return (res as { items: Artifact[] }).items;
       });
   },
