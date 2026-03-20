@@ -2,13 +2,13 @@
 
 Revision ID: 090_mcp_settings_redevelopment
 Revises: 089_add_role_type_idx
-Create Date: 2026-03-19
+Create Date: 2026-03-20
 
-Phase 25 — MCP Settings Redevelopment:
+Phase 25 — MCP Settings Redevelopment (merged 090–094):
 
 Changes to workspace_mcp_servers table:
 1. Creates three new PostgreSQL enum types:
-   - mcp_server_type: ('remote', 'npx', 'uvx')
+   - mcp_server_type: ('remote', 'npx', 'uvx', 'command')
    - mcp_transport: ('sse', 'stdio', 'streamable_http')
    - mcp_status: ('enabled', 'disabled', 'unhealthy', 'unreachable', 'config_error')
 2. Adds new columns:
@@ -18,6 +18,7 @@ Changes to workspace_mcp_servers table:
    - command_args VARCHAR(512) NULL
    - headers_encrypted TEXT NULL
    - env_vars_encrypted TEXT NULL
+   - headers_json TEXT NULL
    - is_enabled BOOLEAN NOT NULL DEFAULT TRUE
 3. Migrates last_status from VARCHAR(16) to mcp_status enum via USING cast:
    - 'connected' → 'enabled'
@@ -25,9 +26,13 @@ Changes to workspace_mcp_servers table:
    - 'unknown' → NULL
    - NULL → NULL
 4. Backfills url_or_command = url for existing rows.
+5. Adds 'none' value to mcp_auth_type enum.
+6. Creates partial unique index on (workspace_id, display_name) for active rows.
 
 Downgrade reverses all changes: casts mcp_status back to varchar, drops
-new columns, drops new enum types.
+new columns, drops new enum types, drops the unique index.
+Note: 'none' added to mcp_auth_type and 'command' added to mcp_server_type
+cannot be undone (PostgreSQL does not support removing enum values).
 """
 
 from __future__ import annotations
@@ -46,9 +51,12 @@ depends_on: None = None
 def upgrade() -> None:
     """Add new columns, enums, and migrate last_status from VARCHAR to enum."""
 
-    # 1. Create the three new enum types
+    # 1. Create the three new enum types.
+    #    mcp_server_type includes 'command' from the start — no separate ADD VALUE needed.
     op.execute(
-        text("CREATE TYPE mcp_server_type AS ENUM ('remote', 'npx', 'uvx')")
+        text(
+            "CREATE TYPE mcp_server_type AS ENUM ('remote', 'npx', 'uvx', 'command')"
+        )
     )
     op.execute(
         text("CREATE TYPE mcp_transport AS ENUM ('sse', 'stdio', 'streamable_http')")
@@ -66,7 +74,7 @@ def upgrade() -> None:
         sa.Column(
             "server_type",
             sa.Enum(
-                "remote", "npx", "uvx",
+                "remote", "npx", "uvx", "command",
                 name="mcp_server_type",
                 create_type=False,
             ),
@@ -103,6 +111,10 @@ def upgrade() -> None:
     )
     op.add_column(
         "workspace_mcp_servers",
+        sa.Column("headers_json", sa.Text(), nullable=True),
+    )
+    op.add_column(
+        "workspace_mcp_servers",
         sa.Column("is_enabled", sa.Boolean, nullable=True),  # nullable during backfill
     )
 
@@ -121,8 +133,6 @@ def upgrade() -> None:
     )
 
     # 4. Set NOT NULL constraints and DB-level defaults on backfilled columns.
-    #    server_default ensures raw INSERT statements that omit these columns
-    #    use the intended values rather than failing at the DB level.
     op.alter_column(
         "workspace_mcp_servers",
         "server_type",
@@ -143,7 +153,6 @@ def upgrade() -> None:
     )
 
     # 5. Migrate last_status VARCHAR(16) → mcp_status enum
-    #    Cast mapping: 'connected'→'enabled', 'failed'→'unreachable', others→NULL
     op.execute(
         text(
             """
@@ -160,11 +169,35 @@ def upgrade() -> None:
         )
     )
 
+    # 6. Add 'none' to mcp_auth_type enum.
+    #    ALTER TYPE ... ADD VALUE cannot run inside a transaction block.
+    op.execute(text("COMMIT"))
+    op.execute(
+        text("ALTER TYPE mcp_auth_type ADD VALUE IF NOT EXISTS 'none' BEFORE 'bearer'")
+    )
+    op.execute(text("BEGIN"))
+
+    # 7. Partial unique index on (workspace_id, display_name) for active rows.
+    op.execute(
+        text(
+            """
+            CREATE UNIQUE INDEX uq_mcp_servers_workspace_display_name_active
+            ON workspace_mcp_servers (workspace_id, display_name)
+            WHERE is_deleted = false
+            """
+        )
+    )
+
 
 def downgrade() -> None:
-    """Revert last_status to VARCHAR, drop new columns, drop new enums."""
+    """Revert last_status to VARCHAR, drop new columns, drop new enums, drop index."""
 
-    # 1. Cast last_status back from mcp_status enum to VARCHAR(16)
+    # 1. Drop the partial unique index
+    op.execute(
+        text("DROP INDEX IF EXISTS uq_mcp_servers_workspace_display_name_active")
+    )
+
+    # 2. Cast last_status back from mcp_status enum to VARCHAR(16)
     op.execute(
         text(
             """
@@ -182,8 +215,9 @@ def downgrade() -> None:
         )
     )
 
-    # 2. Drop new columns
+    # 3. Drop new columns
     op.drop_column("workspace_mcp_servers", "is_enabled")
+    op.drop_column("workspace_mcp_servers", "headers_json")
     op.drop_column("workspace_mcp_servers", "env_vars_encrypted")
     op.drop_column("workspace_mcp_servers", "headers_encrypted")
     op.drop_column("workspace_mcp_servers", "command_args")
@@ -191,7 +225,11 @@ def downgrade() -> None:
     op.drop_column("workspace_mcp_servers", "transport")
     op.drop_column("workspace_mcp_servers", "server_type")
 
-    # 3. Drop the new enum types (order matters — no dependencies)
+    # 4. Drop the new enum types (order matters — no dependencies)
     op.execute(text("DROP TYPE IF EXISTS mcp_status"))
     op.execute(text("DROP TYPE IF EXISTS mcp_transport"))
     op.execute(text("DROP TYPE IF EXISTS mcp_server_type"))
+
+    # Note: 'none' added to mcp_auth_type and cannot be removed.
+    # Note: 'command' was included in mcp_server_type at creation, so dropping
+    #       the type above handles that entirely.
