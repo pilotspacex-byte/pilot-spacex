@@ -7,7 +7,7 @@
  * Shows all workspace nodes with filter chips, depth is N/A (flat overview).
  */
 
-import { useCallback, useEffect, startTransition, useState, useMemo } from 'react';
+import { useCallback, useEffect, startTransition, useState, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -80,9 +80,11 @@ function WorkspaceGraphCanvas({
   const [extraEdges, setExtraEdges] = useState<GraphEdgeDTO[]>([]);
   const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
+  const filterRef = useRef(activeFilter);
 
   // Reset expanded nodes when filter changes
   useEffect(() => {
+    filterRef.current = activeFilter;
     setExtraNodes([]);
     setExtraEdges([]);
     setSelectedNode(null);
@@ -151,6 +153,7 @@ function WorkspaceGraphCanvas({
 
   const handleNodeDoubleClick = useCallback(
     async (nodeId: string) => {
+      const filterAtRequest = filterRef.current;
       const remaining = 500 - mergedNodes.length;
       if (remaining <= 0) {
         toast.warning('Graph limit reached (500 nodes).');
@@ -158,6 +161,8 @@ function WorkspaceGraphCanvas({
       }
       try {
         const neighbors = await knowledgeGraphApi.getNodeNeighbors(workspaceId, nodeId, 2);
+        // Abort if filter changed during the async call
+        if (filterRef.current !== filterAtRequest) return;
         setExtraNodes((prev) => {
           const ids = new Set(prev.map((n) => n.id));
           const newNodes = neighbors.nodes.filter((n) => !ids.has(n.id));
@@ -256,7 +261,11 @@ function WorkspaceGraphCanvas({
       </div>
 
       {selectedNode && (
-        <GraphDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
+        <GraphDetailPanel
+          node={selectedNode}
+          onClose={() => setSelectedNode(null)}
+          onExpand={handleNodeDoubleClick}
+        />
       )}
     </>
   );
@@ -281,15 +290,14 @@ export function WorkspaceKnowledgeGraph({ workspaceId }: WorkspaceKnowledgeGraph
       >
         <div
           className="flex items-center gap-1"
-          role="tablist"
+          role="toolbar"
           aria-label="Filter graph by node type"
         >
           {FILTER_CHIPS.map((chip) => (
             <button
               key={chip.nodeType}
-              role="tab"
               type="button"
-              aria-selected={activeFilter === chip.nodeType}
+              aria-pressed={activeFilter === chip.nodeType}
               onClick={() => setActiveFilter(chip.nodeType)}
               className={[
                 'rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors shrink-0',

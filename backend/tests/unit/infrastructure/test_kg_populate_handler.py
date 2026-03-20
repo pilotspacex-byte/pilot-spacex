@@ -174,6 +174,7 @@ class TestHandleIssue:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -317,8 +318,8 @@ class TestHandleNote:
 
         mock_note_result = MagicMock()
         mock_note_result.scalar_one_or_none.return_value = note
-        # First: advisory lock, second: note query, rest: stale chunk delete etc.
-        session.execute = AsyncMock(side_effect=[MagicMock(), mock_note_result, MagicMock()])
+        # advisory lock, note query, stale chunk delete, + any extra session calls
+        session.execute = AsyncMock(side_effect=[MagicMock(), mock_note_result] + [MagicMock()] * 5)
 
         parent_result = MagicMock()
         parent_result.node_ids = [uuid4()]
@@ -401,6 +402,7 @@ class TestHandleNote:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, embedding_svc)
@@ -470,6 +472,7 @@ class TestHandleProject:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -541,6 +544,7 @@ class TestHandleCycle:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -582,6 +586,7 @@ class TestHandleCycle:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -792,6 +797,7 @@ class TestTransactionOwnership:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service())
@@ -834,6 +840,7 @@ class TestTransactionOwnership:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -876,6 +883,7 @@ class TestTransactionOwnership:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))

@@ -406,6 +406,9 @@ async def workspace_overview(
     ]
     if node_types:
         conditions.append(GraphNodeModel.node_type.in_([nt.value for nt in node_types]))
+    else:
+        # Exclude chunk nodes from default overview — they crowd out structural nodes
+        conditions.append(GraphNodeModel.node_type != NodeType.NOTE_CHUNK.value)
 
     stmt = (
         select(GraphNodeModel)

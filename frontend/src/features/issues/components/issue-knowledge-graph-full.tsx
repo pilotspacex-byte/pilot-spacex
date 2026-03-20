@@ -290,7 +290,11 @@ function GraphCanvas({
       </div>
 
       {selectedNode && (
-        <GraphDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
+        <GraphDetailPanel
+          node={selectedNode}
+          onClose={() => setSelectedNode(null)}
+          onExpand={handleNodeDoubleClick}
+        />
       )}
     </>
   );
@@ -332,15 +336,14 @@ export function IssueKnowledgeGraphFull(props: IssueKnowledgeGraphFullProps) {
         {/* Filter chips */}
         <div
           className="flex items-center gap-1"
-          role="tablist"
+          role="toolbar"
           aria-label="Filter graph by node type"
         >
           {FILTER_CHIPS.map((chip) => (
             <button
               key={chip.nodeType}
-              role="tab"
               type="button"
-              aria-selected={activeFilter === chip.nodeType}
+              aria-pressed={activeFilter === chip.nodeType}
               onClick={() => setActiveFilter(chip.nodeType)}
               className={[
                 'rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors shrink-0',

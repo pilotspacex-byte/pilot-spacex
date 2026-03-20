@@ -99,6 +99,7 @@ class TestRegenerateIssue:
         issue.is_deleted = False
         issue.id = TEST_ISSUE_ID
         issue.project_id = TEST_PROJECT_ID
+        issue.workspace_id = TEST_WORKSPACE_ID
         issue_repo = AsyncMock()
         issue_repo.get_by_id = AsyncMock(return_value=issue)
         queue = AsyncMock()
@@ -147,7 +148,7 @@ class TestRegenerateProject:
 
         session = _make_session()
         project_repo = AsyncMock()
-        project_repo.exists = AsyncMock(return_value=False)
+        project_repo.get_by_id = AsyncMock(return_value=None)
         queue = AsyncMock()
 
         with patch(_RLS_PATCH), pytest.raises(HTTPException) as exc_info:
@@ -164,8 +165,11 @@ class TestRegenerateProject:
 
     async def test_happy_path_enqueues_all_entities(self) -> None:
         session = _make_session()
+        project = MagicMock()
+        project.is_deleted = False
+        project.workspace_id = TEST_WORKSPACE_ID
         project_repo = AsyncMock()
-        project_repo.exists = AsyncMock(return_value=True)
+        project_repo.get_by_id = AsyncMock(return_value=project)
         queue = AsyncMock()
         queue.enqueue = AsyncMock()
 
@@ -221,8 +225,11 @@ class TestRegenerateProject:
 
     async def test_empty_project_enqueues_only_project(self) -> None:
         session = _make_session()
+        project = MagicMock()
+        project.is_deleted = False
+        project.workspace_id = TEST_WORKSPACE_ID
         project_repo = AsyncMock()
-        project_repo.exists = AsyncMock(return_value=True)
+        project_repo.get_by_id = AsyncMock(return_value=project)
         queue = AsyncMock()
         queue.enqueue = AsyncMock()
 

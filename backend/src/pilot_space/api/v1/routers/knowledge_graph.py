@@ -1,21 +1,7 @@
 """Knowledge Graph REST API router.
 
-Thin router that delegates all business logic to KnowledgeGraphQueryService
-and GraphSearchService. Only handles HTTP concerns: input parsing,
-RLS context, DTO mapping, and error translation.
-
-Endpoints:
-  GET  /api/v1/workspaces/{workspace_id}/knowledge-graph/search
-  GET  /api/v1/workspaces/{workspace_id}/knowledge-graph/nodes/{node_id}/neighbors
-  GET  /api/v1/workspaces/{workspace_id}/knowledge-graph/subgraph
-  GET  /api/v1/workspaces/{workspace_id}/knowledge-graph/user-context
-  GET  /api/v1/workspaces/{workspace_id}/issues/{issue_id}/knowledge-graph
-  GET  /api/v1/workspaces/{workspace_id}/projects/{project_id}/knowledge-graph
-  GET  /api/v1/workspaces/{workspace_id}/knowledge-graph/overview
-  POST /api/v1/workspaces/{workspace_id}/issues/{issue_id}/knowledge-graph/regenerate
-  POST /api/v1/workspaces/{workspace_id}/projects/{project_id}/knowledge-graph/regenerate
-
-Feature 016: Knowledge Graph — Unit 7 REST API
+Delegates to KnowledgeGraphQueryService and GraphSearchService.
+Handles HTTP concerns: input parsing, RLS, DTO mapping, error translation.
 """
 
 from __future__ import annotations
@@ -552,6 +538,8 @@ async def regenerate_issue_knowledge_graph(
     issue = await issue_repo.get_by_id(issue_id)
     if issue is None or issue.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+    if issue.workspace_id != workspace_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
 
     from pilot_space.infrastructure.queue.models import QueueName
 
@@ -561,7 +549,7 @@ async def regenerate_issue_knowledge_graph(
             "task_type": "kg_populate",
             "entity_type": "issue",
             "entity_id": str(issue.id),
-            "workspace_id": str(workspace_id),
+            "workspace_id": str(issue.workspace_id),
             "project_id": str(issue.project_id),
         },
     )
@@ -601,7 +589,10 @@ async def regenerate_project_knowledge_graph(
             detail="Queue service unavailable",
         )
 
-    if not await project_repo.exists(project_id):
+    project = await project_repo.get_by_id(project_id)
+    if project is None or project.is_deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    if project.workspace_id != workspace_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
     from pilot_space.infrastructure.queue.models import QueueName
@@ -615,7 +606,7 @@ async def regenerate_project_knowledge_graph(
             "task_type": "kg_populate",
             "entity_type": "project",
             "entity_id": str(project_id),
-            "workspace_id": str(workspace_id),
+            "workspace_id": str(project.workspace_id),
             "project_id": str(project_id),
         },
     )
@@ -635,7 +626,7 @@ async def regenerate_project_knowledge_graph(
                 "task_type": "kg_populate",
                 "entity_type": "issue",
                 "entity_id": str(issue_id),
-                "workspace_id": str(workspace_id),
+                "workspace_id": str(project.workspace_id),
                 "project_id": str(project_id),
             },
         )
@@ -655,7 +646,7 @@ async def regenerate_project_knowledge_graph(
                 "task_type": "kg_populate",
                 "entity_type": "note",
                 "entity_id": str(note_id),
-                "workspace_id": str(workspace_id),
+                "workspace_id": str(project.workspace_id),
                 "project_id": str(project_id),
             },
         )
@@ -675,7 +666,7 @@ async def regenerate_project_knowledge_graph(
                 "task_type": "kg_populate",
                 "entity_type": "cycle",
                 "entity_id": str(cycle_id),
-                "workspace_id": str(workspace_id),
+                "workspace_id": str(project.workspace_id),
                 "project_id": str(project_id),
             },
         )

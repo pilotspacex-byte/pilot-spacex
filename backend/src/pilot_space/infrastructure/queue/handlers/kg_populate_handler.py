@@ -33,6 +33,7 @@ from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from pilot_space.domain.graph_node import NodeType
 from pilot_space.domain.graph_query import ScoredNode
 from pilot_space.infrastructure.database.models.cycle import Cycle as CycleModel
+from pilot_space.infrastructure.database.models.graph_edge import GraphEdgeModel
 from pilot_space.infrastructure.database.models.graph_node import GraphNodeModel
 from pilot_space.infrastructure.database.models.issue import Issue as IssueModel
 from pilot_space.infrastructure.database.models.note import Note as NoteModel
@@ -527,10 +528,7 @@ class KgPopulateHandler:
         workspace_id: UUID,
         project_id: UUID,
     ) -> bool:
-        """Create a BELONGS_TO edge from an entity node to its project's graph node.
-
-        Returns True if the edge was created, False if the project node doesn't exist yet.
-        """
+        """Create BELONGS_TO edge entity→project. Returns False if project node missing."""
         project_node = await self._repo.find_node_by_external_id(project_id, workspace_id)
         if project_node is None:
             logger.debug(
@@ -540,6 +538,14 @@ class KgPopulateHandler:
             return False
         if entity_node_id == project_node.id:
             return False
+        # Remove stale BELONGS_TO edges (entity may have moved to a different project)
+        await self._session.execute(
+            delete(GraphEdgeModel).where(
+                GraphEdgeModel.source_id == entity_node_id,
+                GraphEdgeModel.edge_type == EdgeType.BELONGS_TO.value,
+                GraphEdgeModel.target_id != project_node.id,
+            )
+        )
         try:
             edge = GraphEdge(
                 source_id=entity_node_id,
@@ -550,7 +556,7 @@ class KgPopulateHandler:
             await self._repo.upsert_edge(edge)
             await self._session.flush()
             return True
-        except Exception as exc:
+        except ValueError as exc:
             logger.warning(
                 "KgPopulateHandler: BELONGS_TO edge failed %s→%s: %s",
                 entity_node_id,
@@ -565,11 +571,7 @@ class KgPopulateHandler:
         workspace_id: UUID,
         project_id: UUID,
     ) -> int:
-        """Create BELONGS_TO edges from existing entity nodes to the project node.
-
-        Called when the project node is created/updated so that entities
-        already in the graph (created before the project node) get linked.
-        """
+        """Create BELONGS_TO edges from existing child nodes to the project node."""
         child_types = [
             NodeType.ISSUE.value,
             NodeType.NOTE.value,
@@ -599,7 +601,7 @@ class KgPopulateHandler:
                 )
                 await self._repo.upsert_edge(edge)
                 edges_created += 1
-            except Exception as exc:
+            except ValueError as exc:
                 logger.warning(
                     "KgPopulateHandler: BELONGS_TO edge failed %s→%s: %s",
                     child.id,

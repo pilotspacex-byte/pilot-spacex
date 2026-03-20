@@ -292,7 +292,13 @@ function ProjectGraphCanvas({
         </ErrorBoundary>
       </div>
 
-      {selectedNode && <GraphDetailPanel node={selectedNode} onClose={handleCloseDetail} />}
+      {selectedNode && (
+        <GraphDetailPanel
+          node={selectedNode}
+          onClose={handleCloseDetail}
+          onExpand={handleNodeDoubleClick}
+        />
+      )}
     </>
   );
 }
@@ -318,15 +324,14 @@ export function ProjectKnowledgeGraph({ workspaceId, projectId }: ProjectKnowled
         {/* Filter chips */}
         <div
           className="flex items-center gap-1"
-          role="tablist"
+          role="toolbar"
           aria-label="Filter graph by node type"
         >
           {FILTER_CHIPS.map((chip) => (
             <button
               key={chip.nodeType}
-              role="tab"
               type="button"
-              aria-selected={activeFilter === chip.nodeType}
+              aria-pressed={activeFilter === chip.nodeType}
               onClick={() => setActiveFilter(chip.nodeType)}
               className={[
                 'rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors shrink-0',
