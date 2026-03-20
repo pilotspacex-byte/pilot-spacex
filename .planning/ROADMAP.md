@@ -189,7 +189,7 @@ Plans:
 Plans:
 - [ ] 36-01: git_diff Rust command — git2-rs unified diff output, per-file and working-tree diff, git_stage/git_unstage commands
 - [ ] 36-02: DiffViewer.tsx — react-diff-view (or @git-diff-view/react), syntax highlighting, virtualized rendering for large diffs, DIFF-05
-- [ ] 36-03: CommitPanel.tsx — file checklist (stage/unstage), commit message input, commit + push button wired to Phase 33 git commands
+- [x] 36-03: CommitPanel.tsx — file checklist (stage/unstage), commit message input, commit + push button wired to Phase 33 git commands (completed 2026-03-20)
 
 ### Phase 37: One-Click Implement Flow + Tray
 **Goal**: Users can trigger the full implement loop from inside the app — select issue, auto-branch, run pilot implement with live terminal output, then commit and push — and receive background notifications via the system tray
@@ -236,7 +236,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 30. Tauri Shell + Static Export | 3/3 | Complete    | 2026-03-20 | - |
 | 31. Auth Bridge | 3/3 | Complete    | 2026-03-20 | - |
 | 32. Workspace + Git Clone | 4/4 | Complete    | 2026-03-20 | - |
-| 33. Full Git Operations | 3/3 | Complete   | 2026-03-20 | - |
+| 33. Full Git Operations | 3/3 | Complete    | 2026-03-20 | - |
 | 34. Embedded Terminal | v1.1 | 0/2 | Not started | - |
 | 35. Pilot CLI Sidecar | v1.1 | 0/2 | Not started | - |
 | 36. Diff Viewer + Commit UI | v1.1 | 0/3 | Not started | - |
