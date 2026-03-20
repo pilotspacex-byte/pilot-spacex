@@ -14,8 +14,8 @@ frontend/      Next.js App Router, MobX + TanStack Query, shadcn/ui (README.md)
 cli/           pilot-cli — `pilot login`, `pilot implement` (pyproject.toml)
 authcore/      Supabase Auth self-hosted (docker-compose.yml)
 infra/         Docker, Supabase local stack
-docs/          Design decisions, dev patterns, specs
-specs/         Feature specifications
+docs/          Design decisions, dev patterns, specs (synced from pilotspace/pilot-space-docs)
+specs/         Feature specifications (synced from pilotspace/pilot-space-docs)
 scripts/       Utility scripts
 design-system/ Design tokens and references
 ```
@@ -26,6 +26,7 @@ design-system/ Design tokens and references
 # Install
 cd backend && uv sync          # Backend deps
 cd frontend && pnpm install    # Frontend deps
+make sync-docs                 # Pull docs from pilotspace/pilot-space-docs
 
 # Dev servers
 cd backend && uv run uvicorn pilot_space.main:app --reload --port 8000

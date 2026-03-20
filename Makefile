@@ -1,7 +1,7 @@
 # PilotSpace Validation Makefile
 # Systematic test execution following the validation plan
 
-.PHONY: help test-infra test-api test-integration test-e2e test-perf test-validate test-feature-* install-deps
+.PHONY: help test-infra test-api test-integration test-e2e test-perf test-validate test-feature-* install-deps sync-docs push-docs
 
 # Default target
 help:
@@ -52,6 +52,10 @@ help:
 	@echo "Utilities"
 	@echo "  make install-deps         Install all dependencies (backend + frontend)"
 	@echo "  make test-results-dir     Create test results directory"
+	@echo ""
+	@echo "Documentation (pilotspace/pilot-space-docs)"
+	@echo "  make sync-docs            Clone or pull docs repo into .planning/"
+	@echo "  make push-docs            Commit and push docs changes"
 
 # ============================================================================
 # Dependencies
@@ -221,3 +225,40 @@ quality-gates-frontend:
 	@echo "Running frontend quality gates..."
 	cd frontend && pnpm lint && pnpm type-check && pnpm test
 	@echo "✅ Frontend quality gates passed!"
+
+# ============================================================================
+# Documentation (separate repo: pilotspace/pilot-space-docs)
+# ============================================================================
+
+DOCS_REPO := git@github.com:pilotspace/pilot-space-docs.git
+DOCS_DIR := .planning
+
+sync-docs:
+	@if [ -d "$(DOCS_DIR)/.git" ]; then \
+		echo "Pulling latest docs..."; \
+		cd $(DOCS_DIR) && git pull --rebase; \
+	else \
+		echo "Cloning docs repo..."; \
+		git clone $(DOCS_REPO) $(DOCS_DIR) 2>/dev/null \
+		|| { echo "⚠ No access to planning docs. Request access from a project admin."; exit 0; }; \
+	fi
+	@if [ -d "$(DOCS_DIR)/docs" ] && [ ! -L docs ]; then \
+		ln -s $(DOCS_DIR)/docs docs; \
+		echo "Created docs -> $(DOCS_DIR)/docs symlink"; \
+	fi
+	@if [ -d "$(DOCS_DIR)/specs" ] && [ ! -L specs ]; then \
+		ln -s $(DOCS_DIR)/specs specs; \
+		echo "Created specs -> $(DOCS_DIR)/specs symlink"; \
+	fi
+
+push-docs:
+	@if [ ! -d "$(DOCS_DIR)/.git" ]; then \
+		echo "⚠ Docs repo not initialized. Run 'make sync-docs' first."; \
+		exit 1; \
+	fi
+	@cd $(DOCS_DIR) && git add -A && \
+	if ! git diff --cached --quiet; then \
+		git commit -m "docs: update $$(date +%Y-%m-%d)" && git push; \
+	else \
+		echo "No docs changes to push."; \
+	fi
