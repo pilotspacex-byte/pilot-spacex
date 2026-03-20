@@ -72,7 +72,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 - [x] **Phase 33: Full Git Operations** — Pull, push, branch management, status, conflict detection (completed 2026-03-20)
 - [x] **Phase 34: Embedded Terminal** — xterm.js panel with full PTY, batched IPC output, arbitrary shell commands (completed 2026-03-20)
 - [x] **Phase 35: Pilot CLI Sidecar** — Compile pilot binary per platform, wire into app, CI matrix artifacts (completed 2026-03-20)
-- [ ] **Phase 36: Diff Viewer + Commit UI** — File diff view, stage/unstage, commit message, push
+- [x] **Phase 36: Diff Viewer + Commit UI** — File diff view, stage/unstage, commit message, push (completed 2026-03-20)
 - [ ] **Phase 37: One-Click Implement Flow + Tray** — End-to-end issue→implement→commit loop; system tray with notifications
 - [ ] **Phase 38: Packaging + Signing + Auto-Update** — Signed .dmg/.deb/.AppImage/.msi per platform, notarization, auto-update
 
@@ -184,7 +184,7 @@ Plans:
   3. User can type a commit message and click Commit to create a commit from staged files
   4. User can push the committed changes to remote directly from the commit UI
   5. Large diffs (hundreds of files, thousands of lines) render without the UI freezing
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 36-01-PLAN.md — Rust git_diff/git_stage/git_unstage/git_commit commands + TypeScript IPC wrappers + GitStore extensions
@@ -239,7 +239,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 33. Full Git Operations | 3/3 | Complete    | 2026-03-20 | - |
 | 34. Embedded Terminal | 2/2 | Complete    | 2026-03-20 | - |
 | 35. Pilot CLI Sidecar | 2/2 | Complete    | 2026-03-20 | - |
-| 36. Diff Viewer + Commit UI | 2/3 | In Progress|  | - |
+| 36. Diff Viewer + Commit UI | 3/3 | Complete   | 2026-03-20 | - |
 | 37. One-Click Implement + Tray | v1.1 | 0/3 | Not started | - |
 | 38. Packaging + Signing + Auto-Update | v1.1 | 0/3 | Not started | - |
 

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: completed
-stopped_at: Completed 36-02-PLAN.md
-last_updated: "2026-03-20T08:55:48.575Z"
+stopped_at: Completed 36-03-PLAN.md
+last_updated: "2026-03-20T09:00:21.371Z"
 last_activity: "2026-03-20 — Phase 31 Plan 03 complete — pilotspace:// deep link OAuth PKCE flow for Google/GitHub social login"
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
   percent: 100
 ---
 
@@ -98,6 +98,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 36]: git_diff accumulates staged+unstaged diffs via HashMap; git_unstage uses reset_default; git_commit detects unborn HEAD; GitStore.selectFile auto-triggers fetchDiff
 - [Phase 36-diff-viewer-commit-ui]: No external diff rendering library — custom parseDiffLines() avoids react-diff-view bundle weight; git2-rs provides standard unified diff format
 - [Phase 36-diff-viewer-commit-ui]: react-virtuoso Virtuoso component used for diff virtualization — renders only visible rows, preventing UI freeze on 1000+ line diffs (DIFF-05)
+- [Phase 36]: CommitPanel uses local useState for commitMessage (ephemeral UI) + stores commit success via lastCommitOid; FileGroup upgraded to FileStatus[] for checkbox stage/unstage; two-column ProjectDashboard layout with w-[280px] left sidebar
 
 ### Pending Todos
 
@@ -110,7 +111,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T08:55:48.573Z
-Stopped at: Completed 36-02-PLAN.md
+Last session: 2026-03-20T09:00:21.369Z
+Stopped at: Completed 36-03-PLAN.md
 Resume file: None
 Next action: /gsd:execute-phase 31
