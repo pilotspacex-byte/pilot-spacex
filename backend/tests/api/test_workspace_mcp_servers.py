@@ -699,6 +699,10 @@ def test_transport_type_http_stored() -> None:
     mock_server.oauth_auth_url = None
     mock_server.oauth_scopes = None
     mock_server.approval_mode = "auto_approve"
+    mock_server.catalog_entry_id = None
+    mock_server.installed_catalog_version = None
+    mock_server.stdio_command = None
+    mock_server.stdio_args = None
 
     resp = WorkspaceMcpServerResponse.model_validate(mock_server)
     assert resp.transport_type == McpTransportType.HTTP
@@ -1115,6 +1119,10 @@ def test_transport_type_defaults_sse() -> None:
     mock_server.oauth_auth_url = None
     mock_server.oauth_scopes = None
     mock_server.approval_mode = "auto_approve"
+    mock_server.catalog_entry_id = None
+    mock_server.installed_catalog_version = None
+    mock_server.stdio_command = None
+    mock_server.stdio_args = None
 
     resp = WorkspaceMcpServerResponse.model_validate(mock_server)
     assert resp.transport_type == McpTransportType.SSE
@@ -1160,6 +1168,10 @@ async def test_update_approval_mode_success() -> None:
     mock_server.oauth_scopes = None
     mock_server.token_expires_at = None
     mock_server.approval_mode = "auto_approve"
+    mock_server.catalog_entry_id = None
+    mock_server.installed_catalog_version = None
+    mock_server.stdio_command = None
+    mock_server.stdio_args = None
 
     mock_repo = AsyncMock()
     mock_repo.get_by_workspace_and_id = AsyncMock(return_value=mock_server)

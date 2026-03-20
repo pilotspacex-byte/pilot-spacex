@@ -629,6 +629,10 @@ get_workspace_openai_key = get_workspace_embedding_key
 # MCPO-02: buffer before actual expiry to trigger refresh early
 _OAUTH_EXPIRY_BUFFER = timedelta(seconds=60)
 
+# Allow-listed stdio commands — only these can be spawned by workspace admins.
+# Prevents arbitrary command execution on the server.
+ALLOWED_STDIO_COMMANDS: frozenset[str] = frozenset({"npx", "node", "python3", "python", "uvx"})
+
 
 async def _load_remote_mcp_servers(  # pyright: ignore[reportUnusedFunction]
     workspace_id: UUID | None,
@@ -681,15 +685,64 @@ async def _load_remote_mcp_servers(  # pyright: ignore[reportUnusedFunction]
             logger.info("mcp_server_skipped_failed", server_id=str(server.id))
             continue
 
-        # MCPI-05: re-validate URL at connect time (DNS rebinding guard)
-        try:
-            validate_mcp_url(server.url)
-        except ValueError:
-            logger.warning(
-                "mcp_server_ssrf_blocked_at_connect",
-                server_id=str(server.id),
-                workspace_id=str(workspace_id),
+        # MCPI-05: re-validate URL at connect time (DNS rebinding guard).
+        # Stdio servers have no URL — skip this check for them.
+        if server.transport_type != McpTransportType.STDIO:
+            if not server.url:
+                logger.warning(
+                    "mcp_server_missing_url",
+                    server_id=str(server.id),
+                    workspace_id=str(workspace_id),
+                )
+                continue
+            try:
+                validate_mcp_url(server.url)
+            except ValueError:
+                logger.warning(
+                    "mcp_server_ssrf_blocked_at_connect",
+                    server_id=str(server.id),
+                    workspace_id=str(workspace_id),
+                )
+                continue
+
+        # MCPI-02: select transport type and build typed config
+        if server.transport_type == McpTransportType.STDIO:
+            # Security: only allow-listed commands may be spawned
+            if server.stdio_command not in ALLOWED_STDIO_COMMANDS:
+                logger.warning(
+                    "mcp_stdio_command_blocked",
+                    command=server.stdio_command,
+                    server_id=str(server.id),
+                )
+                continue
+
+            import json as _json
+
+            _args: list[str] = _json.loads(server.stdio_args) if server.stdio_args else []
+            _env: dict[str, str] = {}
+
+            # Decrypt auth token for stdio (passed as env var if present)
+            if server.auth_token_encrypted:
+                try:
+                    _token = decrypt_api_key(server.auth_token_encrypted)
+                    _env["API_KEY"] = _token
+                except Exception:
+                    logger.warning(
+                        "mcp_token_decrypt_failed",
+                        server_id=str(server.id),
+                        workspace_id=str(workspace_id),
+                    )
+                    continue
+
+            config: McpServerConfig = cast(
+                "McpServerConfig",
+                {
+                    "command": server.stdio_command or "npx",
+                    "args": _args,
+                    **({"env": _env} if _env else {}),
+                },
             )
+            remote[f"remote_{server.id}"] = config
             continue
 
         # MCPO-02: auto-refresh expired OAuth tokens before session load
@@ -719,7 +772,7 @@ async def _load_remote_mcp_servers(  # pyright: ignore[reportUnusedFunction]
                     )
                     continue
 
-        # Decrypt auth token (existing logic — unchanged)
+        # Decrypt auth token for remote servers (SSE/HTTP)
         token: str | None = None
         if server.auth_token_encrypted:
             try:
@@ -736,9 +789,8 @@ async def _load_remote_mcp_servers(  # pyright: ignore[reportUnusedFunction]
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        # MCPI-02: select transport type and build typed config
         if server.transport_type == McpTransportType.HTTP:
-            config: McpServerConfig = (
+            config = (
                 cast("McpServerConfig", {"type": "http", "url": server.url, "headers": headers})
                 if headers
                 else cast("McpServerConfig", {"type": "http", "url": server.url})

@@ -141,6 +141,8 @@ async def register_mcp_server(
     await _get_admin_workspace(workspace_id, current_user, session)
     await set_rls_context(session, current_user.user_id, workspace_id)
 
+    import json as _json
+
     from pilot_space.infrastructure.database.repositories.workspace_mcp_server_repository import (
         WorkspaceMcpServerRepository,
     )
@@ -171,6 +173,8 @@ async def register_mcp_server(
         oauth_auth_url=body.oauth_auth_url,
         oauth_token_url=body.oauth_token_url,
         oauth_scopes=body.oauth_scopes,
+        stdio_command=body.stdio_command,
+        stdio_args=_json.dumps(body.stdio_args) if body.stdio_args else None,
     )
 
     server = await repo.create(server)
@@ -243,14 +247,8 @@ async def get_mcp_server_status(
 ) -> McpServerStatusResponse:
     """Probe connectivity of a registered MCP server (MCP-05).
 
-    Sends an HTTP GET to the server URL with 5s timeout. Updates
-    last_status and last_status_checked_at on the row before returning.
-    Requires admin role.
-
-    Status values:
-      - "connected": HTTP < 500 received
-      - "failed": HTTP >= 500 or connection error
-      - "unknown": unexpected exception
+    Sends an HTTP GET to the server URL with 5s timeout. Stdio servers
+    (no URL) return 'unknown'. Updates last_status on the row. Admin only.
 
     Args:
         workspace_id: Target workspace UUID.
@@ -259,7 +257,7 @@ async def get_mcp_server_status(
         session: Database session.
 
     Returns:
-        Status probe result.
+        Status probe result ('connected', 'failed', or 'unknown').
     """
     await _get_admin_workspace(workspace_id, current_user, session)
     await set_rls_context(session, current_user.user_id, workspace_id)
@@ -290,16 +288,17 @@ async def get_mcp_server_status(
                 workspace_id=str(workspace_id),
             )
 
-    # HTTP probe — follow_redirects=False prevents redirect-based SSRF bypass (SEC-H3)
+    # HTTP probe (SEC-H3: no redirects). Stdio servers have no URL → stays 'unknown'.
     probe_status = "unknown"
-    try:
-        async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
-            response = await client.get(server.url, headers=headers)
-            probe_status = "connected" if response.status_code < 500 else "failed"
-    except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError):
-        probe_status = "failed"
-    except Exception:
-        probe_status = "unknown"
+    if server.url:
+        try:
+            async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
+                resp = await client.get(server.url, headers=headers)
+                probe_status = "connected" if resp.status_code < 500 else "failed"
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError):
+            probe_status = "failed"
+        except Exception:
+            probe_status = "unknown"
 
     # Persist status
     checked_at = datetime.now(UTC)

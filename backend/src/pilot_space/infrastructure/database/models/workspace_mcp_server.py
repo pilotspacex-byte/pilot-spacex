@@ -25,10 +25,11 @@ class McpAuthType(StrEnum):
 
 
 class McpTransportType(StrEnum):
-    """Transport protocol for remote MCP server connections."""
+    """Transport protocol for MCP server connections (remote or local stdio)."""
 
     SSE = "sse"
     HTTP = "http"
+    STDIO = "stdio"
 
 
 class McpApprovalMode(StrEnum):
@@ -44,16 +45,16 @@ class McpApprovalMode(StrEnum):
 
 
 class WorkspaceMcpServer(WorkspaceScopedModel):
-    """Workspace-registered remote MCP server.
+    """Workspace-registered MCP server (remote SSE/HTTP or local stdio).
 
-    Stores connection details and encrypted credentials for a remote
-    Model Context Protocol server. Supports both Bearer token and
-    OAuth 2.0 authentication flows.
+    Stores connection details and encrypted credentials for a Model Context
+    Protocol server. Supports Bearer token and OAuth 2.0 authentication for
+    remote servers, and stdio command execution for local servers.
 
     Attributes:
         workspace_id: Reference to parent workspace.
         display_name: Human-readable label shown in UI.
-        url: Remote MCP server endpoint (SSE or HTTP transport).
+        url: Remote MCP server endpoint (SSE or HTTP transport); None for stdio.
         auth_type: Authentication mechanism (bearer or oauth2).
         auth_token_encrypted: Fernet-encrypted Bearer token or OAuth access token.
         oauth_client_id: OAuth 2.0 client ID (auth_type=oauth2 only).
@@ -64,6 +65,8 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         token_expires_at: UTC timestamp when the access token expires (None = unknown).
         last_status: Cached connectivity status ('connected', 'failed', 'unknown').
         last_status_checked_at: Timestamp of last connectivity probe.
+        stdio_command: Executable command for stdio transport (e.g., 'npx', 'node').
+        stdio_args: JSON-encoded arguments list for stdio command.
     """
 
     __tablename__ = "workspace_mcp_servers"  # type: ignore[assignment]
@@ -74,10 +77,20 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         nullable=False,
         doc="Human-readable server label shown in UI",
     )
-    url: Mapped[str] = mapped_column(
+    url: Mapped[str | None] = mapped_column(
         String(512),
-        nullable=False,
-        doc="Remote MCP server endpoint URL (SSE or HTTP transport)",
+        nullable=True,
+        doc="Remote MCP server endpoint URL (SSE or HTTP transport); None for stdio servers",
+    )
+    stdio_command: Mapped[str | None] = mapped_column(
+        String(256),
+        nullable=True,
+        doc="Executable command for stdio transport (e.g., 'npx', 'node')",
+    )
+    stdio_args: Mapped[str | None] = mapped_column(
+        String(1024),
+        nullable=True,
+        doc="JSON-encoded arguments list for stdio command",
     )
     auth_type: Mapped[McpAuthType] = mapped_column(
         Enum(
@@ -100,7 +113,7 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         nullable=False,
         default=McpTransportType.SSE,
         server_default="sse",
-        doc="MCP transport protocol: 'sse' or 'http'",
+        doc="MCP transport protocol: 'sse', 'http', or 'stdio'",
     )
 
     # Encrypted credential storage — Fernet symmetric encryption
