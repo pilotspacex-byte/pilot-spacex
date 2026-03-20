@@ -121,7 +121,7 @@ Plans:
   4. User can link an existing local repository folder to a Pilot Space project
   5. User can see a dashboard showing all managed repos with their sync status and last activity
   6. User can configure HTTPS + Personal Access Token credentials for git operations
-**Plans:** 3/3 plans complete
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] 32-01-PLAN.md — Rust backend: workspace.rs (dir management, folder picker, project list), git.rs (clone with progress/cancel, PAT credential storage via keyring)
@@ -235,7 +235,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 24–29 | v1.0.0-alpha2 | 14/14 | Complete | 2026-03-12 |
 | 30. Tauri Shell + Static Export | 3/3 | Complete    | 2026-03-20 | - |
 | 31. Auth Bridge | 3/3 | Complete    | 2026-03-20 | - |
-| 32. Workspace + Git Clone | 3/3 | Complete   | 2026-03-20 | - |
+| 32. Workspace + Git Clone | 4/4 | Complete   | 2026-03-20 | - |
 | 33. Full Git Operations | v1.1 | 0/3 | Not started | - |
 | 34. Embedded Terminal | v1.1 | 0/2 | Not started | - |
 | 35. Pilot CLI Sidecar | v1.1 | 0/2 | Not started | - |
