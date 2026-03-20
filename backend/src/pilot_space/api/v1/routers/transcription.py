@@ -13,6 +13,7 @@ BYOK: Workspace admins configure ElevenLabs API key in AI settings.
 from __future__ import annotations
 
 import hashlib
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -23,7 +24,10 @@ from sqlalchemy.dialects.postgresql import insert
 
 from pilot_space.api.v1.schemas.transcription import TranscribeResponse
 from pilot_space.dependencies.auth import CurrentUserId, DbSession
-from pilot_space.infrastructure.database.models.transcript_cache import TranscriptCache
+from pilot_space.infrastructure.database.models.transcript_cache import (
+    TRANSCRIPT_CACHE_TTL_DAYS,
+    TranscriptCache,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -120,10 +124,12 @@ async def transcribe_audio(
     # Compute SHA-256 hash for cache lookup
     audio_hash = hashlib.sha256(audio_bytes).hexdigest()
 
-    # Check transcript cache
+    # Check transcript cache (skip expired entries)
+    now = datetime.now(UTC)
     cache_stmt = select(TranscriptCache).where(
         TranscriptCache.workspace_id == workspace_id,
         TranscriptCache.audio_hash == audio_hash,
+        (TranscriptCache.expires_at.is_(None)) | (TranscriptCache.expires_at > now),
     )
     cache_result = await session.execute(cache_stmt)
     cached = cache_result.scalar_one_or_none()
@@ -236,7 +242,8 @@ async def transcribe_audio(
     detected_language: str | None = el_data.get("language_code") or el_data.get("language")
     audio_duration: float | None = el_data.get("audio_duration") or el_data.get("duration")
 
-    # Persist to transcript cache (upsert — no-op on conflict, RETURNING id)
+    # Persist to transcript cache (upsert with TTL, RETURNING id)
+    expires_at = now + timedelta(days=TRANSCRIPT_CACHE_TTL_DAYS)
     cache_insert = insert(TranscriptCache).values(
         workspace_id=workspace_id,
         audio_hash=audio_hash,
@@ -245,10 +252,11 @@ async def transcribe_audio(
         duration_seconds=audio_duration,
         provider="elevenlabs",
         metadata_json={"model_id": "scribe_v1"},
+        expires_at=expires_at,
     )
     cache_insert = cache_insert.on_conflict_do_update(
         index_elements=["workspace_id", "audio_hash"],
-        set_={"text": transcript_text},  # touch existing row so RETURNING works
+        set_={"text": transcript_text, "expires_at": expires_at},
     ).returning(TranscriptCache.id)
     result = await session.execute(cache_insert)
     record_id = result.scalar_one()

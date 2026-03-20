@@ -2,16 +2,22 @@
 
 Caches ElevenLabs STT transcription results keyed by SHA-256 audio hash
 to avoid reprocessing identical audio (BYOK cost optimization).
+
+Rows expire after 30 days (TTL enforced at query time + periodic cleanup).
 """
 
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import JSON, Float, Index, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, Float, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from pilot_space.infrastructure.database.base import Base, TimestampMixin, WorkspaceScopedMixin
+
+# Cache entries older than this are considered expired
+TRANSCRIPT_CACHE_TTL_DAYS = 30
 
 
 class TranscriptCache(Base, TimestampMixin, WorkspaceScopedMixin):
@@ -19,6 +25,7 @@ class TranscriptCache(Base, TimestampMixin, WorkspaceScopedMixin):
 
     Deduplication is performed using a SHA-256 hash of the audio bytes.
     One record per (workspace_id, audio_hash) pair — unique constraint enforced.
+    Rows have a 30-day TTL via `expires_at` column.
 
     Attributes:
         id: Primary key UUID.
@@ -29,6 +36,7 @@ class TranscriptCache(Base, TimestampMixin, WorkspaceScopedMixin):
         duration_seconds: Audio duration returned by ElevenLabs.
         provider: AI provider used for transcription (default "elevenlabs").
         metadata_json: Optional extra data (model used, confidence, etc.).
+        expires_at: When this cache entry should be evicted.
     """
 
     __tablename__ = "transcript_cache"
@@ -38,7 +46,6 @@ class TranscriptCache(Base, TimestampMixin, WorkspaceScopedMixin):
             "audio_hash",
             name="uq_transcript_cache_workspace_audio_hash",
         ),
-        Index("ix_transcript_cache_audio_hash", "audio_hash"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -81,6 +88,13 @@ class TranscriptCache(Base, TimestampMixin, WorkspaceScopedMixin):
         JSON,
         nullable=True,
         doc="Extra metadata (model, confidence, etc.)",
+    )
+
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        doc="TTL expiry — rows past this are stale and eligible for cleanup",
     )
 
     def __repr__(self) -> str:
