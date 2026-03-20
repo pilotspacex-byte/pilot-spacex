@@ -184,7 +184,7 @@ Plans:
   3. User can type a commit message and click Commit to create a commit from staged files
   4. User can push the committed changes to remote directly from the commit UI
   5. Large diffs (hundreds of files, thousands of lines) render without the UI freezing
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 36-01-PLAN.md — Rust git_diff/git_stage/git_unstage/git_commit commands + TypeScript IPC wrappers + GitStore extensions
@@ -239,7 +239,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 33. Full Git Operations | 3/3 | Complete    | 2026-03-20 | - |
 | 34. Embedded Terminal | 2/2 | Complete    | 2026-03-20 | - |
 | 35. Pilot CLI Sidecar | 2/2 | Complete    | 2026-03-20 | - |
-| 36. Diff Viewer + Commit UI | v1.1 | 0/3 | Not started | - |
+| 36. Diff Viewer + Commit UI | 1/3 | In Progress|  | - |
 | 37. One-Click Implement + Tray | v1.1 | 0/3 | Not started | - |
 | 38. Packaging + Signing + Auto-Update | v1.1 | 0/3 | Not started | - |
 
