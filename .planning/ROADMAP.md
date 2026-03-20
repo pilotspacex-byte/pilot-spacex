@@ -239,7 +239,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 34. Embedded Terminal | 2/2 | Complete    | 2026-03-20 | - |
 | 35. Pilot CLI Sidecar | 2/2 | Complete    | 2026-03-20 | - |
 | 36. Diff Viewer + Commit UI | 3/3 | Complete    | 2026-03-20 | - |
-| 37. One-Click Implement + Tray | 2/2 | Complete   | 2026-03-20 | - |
+| 37. One-Click Implement + Tray | 2/2 | Complete    | 2026-03-20 | - |
 | 38. Packaging + Signing + Auto-Update | v1.1 | 0/3 | Not started | - |
 
 **v1.1 total: 9 phases, ~25 plans, 30 requirements**
