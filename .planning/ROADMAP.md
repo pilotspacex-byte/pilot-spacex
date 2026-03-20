@@ -138,12 +138,12 @@ Plans:
   3. User can view a list of all changed, staged, and untracked files in the repository
   4. User can list branches, create a new branch, switch to a branch, and delete a branch
   5. When a pull results in merge conflicts, the app notifies the user with the list of conflicted files
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [x] 33-01: git_pull, git_push Rust commands — progress streaming via Channel, credential reuse from Phase 32
-- [ ] 33-02: git_status, git_branch_list/create/switch/delete Rust commands — GitState managed struct (completed 2026-03-20)
-- [ ] 33-03: GitStore MobX + status/branch UI components — GitStatusBar.tsx, branch selector dropdown, conflict notification
+- [ ] 33-01-PLAN.md — Rust: git_pull, git_push with progress Channel + conflict detection; git_status, branch CRUD commands
+- [ ] 33-02-PLAN.md — Frontend: typed IPC wrappers in tauri.ts + GitStore MobX store with observables/actions
+- [ ] 33-03-PLAN.md — Frontend: GitStatusPanel, BranchSelector, ConflictBanner components wired into ProjectDashboard
 
 ### Phase 34: Embedded Terminal
 **Goal**: Users can open a terminal panel inside the app and run interactive programs with full PTY support
