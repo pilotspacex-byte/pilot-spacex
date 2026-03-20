@@ -1,10 +1,8 @@
-"""Background job handler: build Knowledge Graph nodes from SDLC entities.
+"""KG populate handler: build graph nodes from SDLC entities.
 
-Triggered on entity creation/update for issues, notes, projects, and cycles.
-Converts content to searchable text, upserts graph nodes, and creates
-RELATES_TO edges to similar same-project content via embedding similarity.
-
-Feature 016: Knowledge Graph — automated KG population.
+Triggered on entity create/update. Upserts nodes, creates BELONGS_TO
+edges to project, PARENT_OF edges to chunks, and RELATES_TO edges
+via embedding similarity.
 """
 
 from __future__ import annotations
@@ -15,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import and_, delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.application.services.embedding_service import EmbeddingService
@@ -75,16 +73,9 @@ class _KgPopulatePayload:
 class KgPopulateHandler:
     """Populate KG nodes for SDLC entities, then link similar project content.
 
-    Supported entity types: issue, note, project, cycle.
-
-    Invariants:
-    - Validation errors (bad payload, entity not found) return {"success": False}
-      so the worker can ACK them (non-retryable).
-    - Infrastructure errors (DB, embedding) propagate as exceptions so the worker
-      can retry or dead-letter them.
-    - Embedding absence degrades gracefully (nodes still created, text-searchable).
-    - NOTE_CHUNK nodes for the same note are replaced on each run (stale cleanup).
-    - Handler does NOT commit — the worker owns the single commit per job.
+    Validation errors return {"success": False} (non-retryable).
+    Infrastructure errors propagate for worker retry/dead-letter.
+    Handler does NOT commit — the worker owns the single commit per job.
     """
 
     def __init__(
@@ -220,6 +211,13 @@ class KgPopulateHandler:
                             )
                     await self._session.flush()
 
+        # BELONGS_TO edge: issue → project
+        belongs_to = False
+        if result.node_ids:
+            belongs_to = await self._link_to_project(
+                result.node_ids[0], p.workspace_id, p.project_id
+            )
+
         edges_created = 0
         if all_node_ids:
             edges_created = await self._find_and_link_similar(
@@ -228,11 +226,12 @@ class KgPopulateHandler:
 
         n_chunks = len(all_node_ids) - len(result.node_ids)
         logger.info(
-            "KgPopulateHandler: issue %s → %d nodes (%d chunks), %d similarity edges",
+            "KgPopulateHandler: issue %s → %d nodes (%d chunks), %d similarity edges, belongs_to=%s",
             p.entity_id,
             len(all_node_ids),
             n_chunks,
             edges_created,
+            belongs_to,
         )
         return {
             "success": True,
@@ -353,16 +352,24 @@ class KgPopulateHandler:
                         logger.warning("KgPopulateHandler: PARENT_OF edge failed: %s", exc)
                 await self._session.flush()
 
+        # BELONGS_TO edge: note → project
+        belongs_to = False
+        if parent_node_ids:
+            belongs_to = await self._link_to_project(
+                parent_node_ids[0], p.workspace_id, p.project_id
+            )
+
         edges_created = await self._find_and_link_similar(
             all_node_ids, p.workspace_id, p.project_id, markdown[:500]
         )
 
         logger.info(
-            "KgPopulateHandler: note %s → %d nodes (%d chunks), %d similarity edges",
+            "KgPopulateHandler: note %s → %d nodes (%d chunks), %d similarity edges, belongs_to=%s",
             p.entity_id,
             len(all_node_ids),
             len(chunks),
             edges_created,
+            belongs_to,
         )
         return {
             "success": True,
@@ -410,6 +417,13 @@ class KgPopulateHandler:
             )
         )
 
+        # Link existing child entities (issues/notes/cycles) to this project node
+        children_linked = 0
+        if result.node_ids:
+            children_linked = await self._link_existing_children(
+                result.node_ids[0], p.workspace_id, p.project_id
+            )
+
         edges_created = 0
         if result.node_ids:
             edges_created = await self._find_and_link_similar(
@@ -417,14 +431,16 @@ class KgPopulateHandler:
             )
 
         logger.info(
-            "KgPopulateHandler: project %s → node %s, %d similarity edges",
+            "KgPopulateHandler: project %s → node %s, %d children linked, %d similarity edges",
             p.entity_id,
             result.node_ids[0] if result.node_ids else None,
+            children_linked,
             edges_created,
         )
         return {
             "success": True,
             "node_ids": [str(n) for n in result.node_ids],
+            "children_linked": children_linked,
             "edges": edges_created,
         }
 
@@ -475,6 +491,13 @@ class KgPopulateHandler:
             )
         )
 
+        # BELONGS_TO edge: cycle → project
+        belongs_to = False
+        if result.node_ids:
+            belongs_to = await self._link_to_project(
+                result.node_ids[0], p.workspace_id, p.project_id
+            )
+
         edges_created = 0
         if result.node_ids:
             edges_created = await self._find_and_link_similar(
@@ -482,16 +505,110 @@ class KgPopulateHandler:
             )
 
         logger.info(
-            "KgPopulateHandler: cycle %s → node %s, %d similarity edges",
+            "KgPopulateHandler: cycle %s → node %s, %d similarity edges, belongs_to=%s",
             p.entity_id,
             result.node_ids[0] if result.node_ids else None,
             edges_created,
+            belongs_to,
         )
         return {
             "success": True,
             "node_ids": [str(n) for n in result.node_ids],
             "edges": edges_created,
         }
+
+    # ------------------------------------------------------------------
+    # Structural BELONGS_TO edges
+    # ------------------------------------------------------------------
+
+    async def _link_to_project(
+        self,
+        entity_node_id: UUID,
+        workspace_id: UUID,
+        project_id: UUID,
+    ) -> bool:
+        """Create a BELONGS_TO edge from an entity node to its project's graph node.
+
+        Returns True if the edge was created, False if the project node doesn't exist yet.
+        """
+        project_node = await self._repo.find_node_by_external_id(project_id, workspace_id)
+        if project_node is None:
+            logger.debug(
+                "KgPopulateHandler: project node not found for %s, skipping BELONGS_TO",
+                project_id,
+            )
+            return False
+        if entity_node_id == project_node.id:
+            return False
+        try:
+            edge = GraphEdge(
+                source_id=entity_node_id,
+                target_id=project_node.id,
+                edge_type=EdgeType.BELONGS_TO,
+                weight=1.0,
+            )
+            await self._repo.upsert_edge(edge)
+            await self._session.flush()
+            return True
+        except Exception as exc:
+            logger.warning(
+                "KgPopulateHandler: BELONGS_TO edge failed %s→%s: %s",
+                entity_node_id,
+                project_node.id,
+                exc,
+            )
+            return False
+
+    async def _link_existing_children(
+        self,
+        project_node_id: UUID,
+        workspace_id: UUID,
+        project_id: UUID,
+    ) -> int:
+        """Create BELONGS_TO edges from existing entity nodes to the project node.
+
+        Called when the project node is created/updated so that entities
+        already in the graph (created before the project node) get linked.
+        """
+        child_types = [
+            NodeType.ISSUE.value,
+            NodeType.NOTE.value,
+            NodeType.CYCLE.value,
+        ]
+        stmt = select(GraphNodeModel).where(
+            and_(
+                GraphNodeModel.workspace_id == workspace_id,
+                GraphNodeModel.node_type.in_(child_types),
+                GraphNodeModel.properties["project_id"].as_string() == str(project_id),
+                GraphNodeModel.is_deleted == False,  # noqa: E712
+            )
+        )
+        result = await self._session.execute(stmt)
+        children = result.scalars().all()
+
+        edges_created = 0
+        for child in children:
+            if child.id == project_node_id:
+                continue
+            try:
+                edge = GraphEdge(
+                    source_id=child.id,
+                    target_id=project_node_id,
+                    edge_type=EdgeType.BELONGS_TO,
+                    weight=1.0,
+                )
+                await self._repo.upsert_edge(edge)
+                edges_created += 1
+            except Exception as exc:
+                logger.warning(
+                    "KgPopulateHandler: BELONGS_TO edge failed %s→%s: %s",
+                    child.id,
+                    project_node_id,
+                    exc,
+                )
+        if edges_created:
+            await self._session.flush()
+        return edges_created
 
     # ------------------------------------------------------------------
     # Similarity edge creation

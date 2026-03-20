@@ -1,11 +1,8 @@
-"""KnowledgeGraphRepository — data access layer for the knowledge graph.
+"""KnowledgeGraphRepository — data access for the knowledge graph.
 
-Provides upsert, traversal, hybrid search, and subgraph extraction for
-graph nodes and edges. PostgreSQL-specific features (recursive CTEs,
-pgvector) are guarded by dialect detection; SQLite falls back to
-equivalent loop-based or keyword-only implementations for testing.
-
-Feature 016: Knowledge Graph — Memory Engine replacement
+Provides upsert, traversal, hybrid search, and subgraph extraction.
+PostgreSQL-specific features guarded by dialect detection; SQLite
+falls back to loop-based or keyword-only implementations for testing.
 """
 
 from __future__ import annotations
@@ -35,6 +32,7 @@ from pilot_space.infrastructure.database.repositories._graph_helpers import (
     keyword_search,
     node_model_to_domain,
     update_node_helper,
+    workspace_overview,
 )
 from pilot_space.infrastructure.logging import get_logger
 
@@ -74,10 +72,7 @@ class KnowledgeGraphRepository:
     async def upsert_node(self, node: GraphNode) -> GraphNode:
         """Idempotently persist a graph node.
 
-        Lookup priority:
-        1. external_id match — for entity-keyed nodes (issues, notes, etc.)
-        2. content_hash match — for unkeyed nodes (decisions, patterns, preferences)
-        3. Insert new — when neither match found.
+        Lookup: 1) external_id, 2) content_hash, 3) insert new.
         """
         if node.external_id is not None:
             existing = await self._find_node_by_external(
@@ -467,6 +462,15 @@ class KnowledgeGraphRepository:
         return [
             node_model_to_domain(m) for m in (await self._session.execute(stmt)).scalars().all()
         ]
+
+    async def get_workspace_overview(
+        self,
+        workspace_id: UUID,
+        max_nodes: int = 200,
+        node_types: list[NodeType] | None = None,
+    ) -> tuple[list[GraphNode], list[GraphEdge]]:
+        """Return all workspace nodes + inter-edges (delegates to _graph_helpers)."""
+        return await workspace_overview(self._session, workspace_id, max_nodes, node_types)
 
     # ------------------------------------------------------------------
     # Bulk operations

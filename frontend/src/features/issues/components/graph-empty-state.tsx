@@ -1,18 +1,26 @@
 'use client';
 
 /**
- * GraphEmptyState — loading, empty, and error placeholder for knowledge graph.
+ * GraphEmptyState — loading, empty, error, and forbidden placeholder for knowledge graph.
  *
- * Three variants:
- *  - loading: pulsing skeleton circles with SVG connector lines
- *  - empty:   SVG placeholder + "No knowledge graph yet" + optional chat CTA
- *  - error:   error message + optional retry button
+ * Four variants:
+ *  - loading:   pulsing skeleton circles with SVG connector lines
+ *  - empty:     SVG placeholder + "No knowledge graph yet" + optional chat CTA
+ *  - error:     error message + optional retry button
+ *  - forbidden: permission denied message with explanation
  */
 
+import { ShieldX } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ApiError } from '@/services/api/client';
+
+/** Check if a TanStack Query error is a 403 Forbidden. */
+export function isForbiddenError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403;
+}
 
 export interface GraphEmptyStateProps {
-  variant: 'loading' | 'empty' | 'error';
+  variant: 'loading' | 'empty' | 'error' | 'forbidden';
   onRetry?: () => void;
   onOpenChat?: () => void;
   /** Container height in px. Defaults to 200. */
@@ -48,6 +56,23 @@ export function GraphEmptyState({
         <Skeleton className="size-10 rounded-full shrink-0" />
         <Skeleton className="size-8 rounded-full shrink-0" />
         <Skeleton className="size-10 rounded-full shrink-0" />
+      </div>
+    );
+  }
+
+  if (variant === 'forbidden') {
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-center justify-center gap-3 text-center"
+        style={{ height }}
+      >
+        <ShieldX className="size-10 text-muted-foreground/60" aria-hidden="true" />
+        <p className="text-sm font-medium text-foreground">Access denied</p>
+        <p className="text-xs text-muted-foreground max-w-xs">
+          You don&apos;t have permission to view this knowledge graph. Contact a workspace admin to
+          request access.
+        </p>
       </div>
     );
   }

@@ -12,7 +12,6 @@
  */
 
 import { useCallback, useEffect, startTransition, useState, useMemo } from 'react';
-import { X } from 'lucide-react';
 import {
   ReactFlow,
   MiniMap,
@@ -25,10 +24,10 @@ import {
   ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
-import { GraphEmptyState } from '@/features/issues/components/graph-empty-state';
+import { GraphDetailPanel } from '@/features/issues/components/graph-detail-panel';
+import { GraphEmptyState, isForbiddenError } from '@/features/issues/components/graph-empty-state';
 import { nodeTypes, type GraphNodeData } from '@/features/issues/components/graph-node-renderer';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { computeForceLayout } from '@/features/issues/utils/graph-styles';
@@ -101,10 +100,14 @@ function ProjectGraphCanvas({
     [activeFilter]
   );
 
-  const { data, isLoading, isError, refetch } = useProjectKnowledgeGraph(workspaceId, projectId, {
-    depth,
-    nodeTypes: nodeTypes_,
-  });
+  const { data, isLoading, isError, error, refetch } = useProjectKnowledgeGraph(
+    workspaceId,
+    projectId,
+    {
+      depth,
+      nodeTypes: nodeTypes_,
+    }
+  );
 
   // Report node count to parent for toolbar display (guard against no-op updates)
   useEffect(() => {
@@ -237,7 +240,11 @@ function ProjectGraphCanvas({
   if (isError) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <GraphEmptyState variant="error" height={400} onRetry={() => void refetch()} />
+        <GraphEmptyState
+          variant={isForbiddenError(error) ? 'forbidden' : 'error'}
+          height={400}
+          onRetry={isForbiddenError(error) ? undefined : () => void refetch()}
+        />
       </div>
     );
   }
@@ -285,40 +292,7 @@ function ProjectGraphCanvas({
         </ErrorBoundary>
       </div>
 
-      {/* Node detail panel */}
-      {selectedNode && (
-        <div
-          className="border-t border-border bg-background p-4 flex flex-col gap-2"
-          style={{ maxHeight: 200, minHeight: 80 }}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex flex-col gap-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground uppercase tracking-wide">
-                  {selectedNode.nodeType.replace('_', ' ')}
-                </span>
-                <span className="font-semibold text-sm truncate">{selectedNode.label}</span>
-              </div>
-              {selectedNode.summary && (
-                <p className="text-xs text-muted-foreground line-clamp-2">{selectedNode.summary}</p>
-              )}
-              {selectedNode.createdAt && (
-                <p className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(selectedNode.createdAt), { addSuffix: true })}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={handleCloseDetail}
-              className="shrink-0 rounded p-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Close node details"
-            >
-              <X className="size-4 text-muted-foreground" />
-            </button>
-          </div>
-        </div>
-      )}
+      {selectedNode && <GraphDetailPanel node={selectedNode} onClose={handleCloseDetail} />}
     </>
   );
 }
