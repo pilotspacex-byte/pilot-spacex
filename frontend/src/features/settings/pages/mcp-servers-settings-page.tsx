@@ -110,17 +110,33 @@ export const MCPServersSettingsPage = observer(function MCPServersSettingsPage()
 
   const handleInstallFromCatalog = async (entry: McpCatalogEntry) => {
     try {
-      await mcpStore.registerServer(workspaceId, {
-        display_name: entry.name,
-        url: entry.url_template,
-        auth_type: entry.auth_type,
-        transport_type: entry.transport_type,
-        oauth_auth_url: entry.oauth_auth_url ?? undefined,
-        oauth_token_url: entry.oauth_token_url ?? undefined,
-        oauth_scopes: entry.oauth_scopes ?? undefined,
-        catalog_entry_id: entry.id,
-        installed_catalog_version: entry.catalog_version,
-      });
+      if (entry.transport_type === 'stdio') {
+        // url_template stores "command|arg1|arg2|..." for stdio entries
+        const parts = entry.url_template.split('|');
+        const [command, ...args] = parts;
+        await mcpStore.registerServer(workspaceId, {
+          display_name: entry.name,
+          url: '',
+          auth_type: entry.auth_type,
+          transport_type: 'stdio',
+          stdio_command: command,
+          stdio_args: args,
+          catalog_entry_id: entry.id,
+          installed_catalog_version: entry.catalog_version,
+        });
+      } else {
+        await mcpStore.registerServer(workspaceId, {
+          display_name: entry.name,
+          url: entry.url_template,
+          auth_type: entry.auth_type,
+          transport_type: entry.transport_type,
+          oauth_auth_url: entry.oauth_auth_url ?? undefined,
+          oauth_token_url: entry.oauth_token_url ?? undefined,
+          oauth_scopes: entry.oauth_scopes ?? undefined,
+          catalog_entry_id: entry.id,
+          installed_catalog_version: entry.catalog_version,
+        });
+      }
       toast.success('Server installed — add your auth token to activate it.');
       setActiveTab('registered');
     } catch {

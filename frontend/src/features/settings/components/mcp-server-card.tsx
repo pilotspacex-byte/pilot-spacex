@@ -86,6 +86,17 @@ function AuthTypeBadge({ authType }: { authType: MCPServer['auth_type'] }) {
   );
 }
 
+function StdioTransportBadge() {
+  return (
+    <Badge
+      variant="outline"
+      className="text-xs border-violet-500/20 bg-violet-500/10 text-violet-600"
+    >
+      Stdio
+    </Badge>
+  );
+}
+
 function ExpiryBadge({ expiresAt }: { expiresAt: string | null }) {
   if (!expiresAt) return null;
   const expiry = new Date(expiresAt);
@@ -139,11 +150,19 @@ export function MCPServerCard({
             </div>
             <div className="min-w-0">
               <p className="font-medium truncate">{server.display_name}</p>
-              <p className="text-xs text-muted-foreground truncate">{server.url}</p>
+              <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                {server.transport_type === 'stdio'
+                  ? `${server.stdio_command ?? ''} ${server.stdio_args ? (JSON.parse(server.stdio_args) as string[]).join(' ') : ''}`.trim()
+                  : (server.url ?? '')}
+              </p>
               <div className="mt-1.5 flex items-center gap-2">
-                <AuthTypeBadge authType={server.auth_type} />
+                {server.transport_type === 'stdio' ? (
+                  <StdioTransportBadge />
+                ) : (
+                  <AuthTypeBadge authType={server.auth_type} />
+                )}
                 <StatusBadge status={server.last_status} />
-                {server.auth_type === 'oauth2' && (
+                {server.auth_type === 'oauth2' && server.transport_type !== 'stdio' && (
                   <ExpiryBadge expiresAt={server.token_expires_at} />
                 )}
               </div>
@@ -168,7 +187,7 @@ export function MCPServerCard({
 
           {/* Actions */}
           <div className="flex shrink-0 items-center gap-1">
-            {server.auth_type === 'oauth2' && onAuthorize && (
+            {server.transport_type !== 'stdio' && server.auth_type === 'oauth2' && onAuthorize && (
               <Button
                 variant="outline"
                 size="sm"
@@ -180,16 +199,18 @@ export function MCPServerCard({
               </Button>
             )}
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => onRefreshStatus(server.id)}
-              title="Refresh status"
-              aria-label={`Refresh status for ${server.display_name}`}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+            {server.transport_type !== 'stdio' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onRefreshStatus(server.id)}
+                title="Refresh status"
+                aria-label={`Refresh status for ${server.display_name}`}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            )}
 
             <AlertDialog>
               <AlertDialogTrigger asChild>

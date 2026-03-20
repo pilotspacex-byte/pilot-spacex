@@ -17,12 +17,15 @@ export interface MCPServer {
   id: string;
   workspace_id: string;
   display_name: string;
-  url: string;
+  url: string | null;
   auth_type: 'bearer' | 'oauth2';
   last_status: 'connected' | 'failed' | 'unknown' | null;
   last_status_checked_at: string | null;
   token_expires_at: string | null; // ISO8601 UTC string or null (MCPO-03)
   approval_mode?: 'auto_approve' | 'require_approval'; // MCPA-02: optional for backwards compat
+  transport_type?: 'sse' | 'http' | 'stdio';
+  stdio_command?: string | null;
+  stdio_args?: string | null; // JSON string
   created_at: string;
   // MCPC-01: catalog fields (optional — only present for servers installed from catalog)
   catalog_entry_id?: string | null;
@@ -42,14 +45,16 @@ export interface MCPServerListResponse {
 
 export interface MCPServerRegisterRequest {
   display_name: string;
-  url: string;
+  url?: string;
   auth_type: 'bearer' | 'oauth2';
   auth_token?: string;
   oauth_client_id?: string;
   oauth_auth_url?: string;
   oauth_token_url?: string;
   oauth_scopes?: string;
-  transport_type?: 'sse' | 'http';
+  transport_type?: 'sse' | 'http' | 'stdio';
+  stdio_command?: string;
+  stdio_args?: string[];
   // MCPC-01: catalog install fields (optional — only set when installing from catalog)
   catalog_entry_id?: string;
   installed_catalog_version?: string;

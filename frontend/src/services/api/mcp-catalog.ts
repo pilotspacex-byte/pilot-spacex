@@ -15,7 +15,7 @@ export interface McpCatalogEntry {
   name: string;
   description: string;
   url_template: string;
-  transport_type: 'sse' | 'http';
+  transport_type: 'sse' | 'http' | 'stdio';
   auth_type: 'bearer' | 'oauth2';
   catalog_version: string;
   is_official: boolean;

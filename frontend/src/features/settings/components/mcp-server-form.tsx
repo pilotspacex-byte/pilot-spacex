@@ -1,8 +1,8 @@
 /**
- * MCPServerForm - Register a new remote MCP server.
+ * MCPServerForm - Register a new remote or local (stdio) MCP server.
  *
- * Phase 14 Plan 04: Form with display name, URL, auth type selector, and
- * conditional auth fields (Bearer token or OAuth2 config).
+ * Phase 14 Plan 04: Form with display name, transport type selector, URL (remote)
+ * or command+args (stdio), auth type selector, and conditional auth fields.
  *
  * Plain component — all store interaction flows through the onRegister callback.
  */
@@ -26,10 +26,14 @@ interface MCPServerFormProps {
 }
 
 type AuthType = 'bearer' | 'oauth2';
+type TransportMode = 'remote' | 'stdio';
 
 const DEFAULT_STATE = {
   displayName: '',
+  transportMode: 'remote' as TransportMode,
   url: '',
+  stdioCommand: '',
+  stdioArgs: '', // space-separated string
   authType: 'bearer' as AuthType,
   bearerToken: '',
   oauthClientId: '',
@@ -51,12 +55,14 @@ export function MCPServerForm({ onRegister, onSuccess }: MCPServerFormProps) {
   const canSubmit =
     form.displayName.trim().length > 0 &&
     form.displayName.trim().length <= 128 &&
-    form.url.trim().length > 0 &&
-    (form.authType === 'bearer'
-      ? form.bearerToken.trim().length > 0
-      : form.oauthClientId.trim().length > 0 &&
-        form.oauthAuthUrl.trim().length > 0 &&
-        form.oauthTokenUrl.trim().length > 0);
+    (form.transportMode === 'remote'
+      ? form.url.trim().length > 0 &&
+        (form.authType === 'bearer'
+          ? form.bearerToken.trim().length > 0
+          : form.oauthClientId.trim().length > 0 &&
+            form.oauthAuthUrl.trim().length > 0 &&
+            form.oauthTokenUrl.trim().length > 0)
+      : form.stdioCommand.trim().length > 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,19 +72,32 @@ export function MCPServerForm({ onRegister, onSuccess }: MCPServerFormProps) {
     setError(null);
 
     try {
-      const data: MCPServerRegisterRequest = {
-        display_name: form.displayName.trim(),
-        url: form.url.trim(),
-        auth_type: form.authType,
-        ...(form.authType === 'bearer'
-          ? { auth_token: form.bearerToken.trim() }
-          : {
-              oauth_client_id: form.oauthClientId.trim(),
-              oauth_auth_url: form.oauthAuthUrl.trim(),
-              oauth_token_url: form.oauthTokenUrl.trim(),
-              oauth_scopes: form.oauthScopes.trim() || undefined,
-            }),
-      };
+      let data: MCPServerRegisterRequest;
+
+      if (form.transportMode === 'stdio') {
+        data = {
+          display_name: form.displayName.trim(),
+          url: '',
+          auth_type: 'bearer',
+          transport_type: 'stdio',
+          stdio_command: form.stdioCommand.trim(),
+          stdio_args: form.stdioArgs.trim().split(/\s+/).filter(Boolean),
+        };
+      } else {
+        data = {
+          display_name: form.displayName.trim(),
+          url: form.url.trim(),
+          auth_type: form.authType,
+          ...(form.authType === 'bearer'
+            ? { auth_token: form.bearerToken.trim() }
+            : {
+                oauth_client_id: form.oauthClientId.trim(),
+                oauth_auth_url: form.oauthAuthUrl.trim(),
+                oauth_token_url: form.oauthTokenUrl.trim(),
+                oauth_scopes: form.oauthScopes.trim() || undefined,
+              }),
+        };
+      }
 
       await onRegister(data);
       toast.success('MCP server registered');
@@ -120,7 +139,8 @@ export function MCPServerForm({ onRegister, onSuccess }: MCPServerFormProps) {
         </div>
         {!isExpanded && (
           <CardDescription>
-            Connect a remote MCP server to extend the AI agent with custom tools.
+            Connect a remote MCP server or register a local stdio command to extend the AI agent
+            with custom tools.
           </CardDescription>
         )}
       </CardHeader>
@@ -143,53 +163,123 @@ export function MCPServerForm({ onRegister, onSuccess }: MCPServerFormProps) {
               />
             </div>
 
-            {/* URL */}
+            {/* Transport Type */}
             <div className="space-y-2">
-              <Label htmlFor="mcp-url">Server URL</Label>
-              <Input
-                id="mcp-url"
-                type="url"
-                value={form.url}
-                onChange={(e) => setField('url', e.target.value)}
-                placeholder="https://mcp.example.com/sse"
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-
-            {/* Auth Type */}
-            <div className="space-y-2">
-              <Label>Authentication Type</Label>
+              <Label>Transport Type</Label>
               <div className="flex gap-4">
                 <label className="flex cursor-pointer items-center gap-2">
                   <input
                     type="radio"
-                    name="mcp-auth-type"
-                    value="bearer"
-                    checked={form.authType === 'bearer'}
-                    onChange={() => setField('authType', 'bearer')}
+                    name="mcp-transport-mode"
+                    value="remote"
+                    checked={form.transportMode === 'remote'}
+                    onChange={() => setField('transportMode', 'remote')}
                     disabled={isSubmitting}
                     className="accent-primary"
                   />
-                  <span className="text-sm">Bearer Token</span>
+                  <span className="text-sm">Remote (SSE/HTTP)</span>
                 </label>
                 <label className="flex cursor-pointer items-center gap-2">
                   <input
                     type="radio"
-                    name="mcp-auth-type"
-                    value="oauth2"
-                    checked={form.authType === 'oauth2'}
-                    onChange={() => setField('authType', 'oauth2')}
+                    name="mcp-transport-mode"
+                    value="stdio"
+                    checked={form.transportMode === 'stdio'}
+                    onChange={() => setField('transportMode', 'stdio')}
                     disabled={isSubmitting}
                     className="accent-primary"
                   />
-                  <span className="text-sm">OAuth 2.0</span>
+                  <span className="text-sm">Local (stdio)</span>
                 </label>
               </div>
             </div>
 
-            {/* Bearer Token (conditional) */}
-            {form.authType === 'bearer' && (
+            {/* Remote: URL */}
+            {form.transportMode === 'remote' && (
+              <div className="space-y-2">
+                <Label htmlFor="mcp-url">Server URL</Label>
+                <Input
+                  id="mcp-url"
+                  type="url"
+                  value={form.url}
+                  onChange={(e) => setField('url', e.target.value)}
+                  placeholder="https://mcp.example.com/sse"
+                  disabled={isSubmitting}
+                  required
+                />
+              </div>
+            )}
+
+            {/* Stdio: Command + Args */}
+            {form.transportMode === 'stdio' && (
+              <div className="space-y-3 rounded-md border border-border p-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Local Command
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="mcp-stdio-command">Command</Label>
+                  <Input
+                    id="mcp-stdio-command"
+                    type="text"
+                    value={form.stdioCommand}
+                    onChange={(e) => setField('stdioCommand', e.target.value)}
+                    placeholder="npx"
+                    disabled={isSubmitting}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mcp-stdio-args">
+                    Arguments{' '}
+                    <span className="text-muted-foreground font-normal">(space-separated)</span>
+                  </Label>
+                  <Input
+                    id="mcp-stdio-args"
+                    type="text"
+                    value={form.stdioArgs}
+                    onChange={(e) => setField('stdioArgs', e.target.value)}
+                    placeholder="-y @anthropic-ai/sequential-thinking"
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Auth Type — only shown for remote */}
+            {form.transportMode === 'remote' && (
+              <div className="space-y-2">
+                <Label>Authentication Type</Label>
+                <div className="flex gap-4">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="radio"
+                      name="mcp-auth-type"
+                      value="bearer"
+                      checked={form.authType === 'bearer'}
+                      onChange={() => setField('authType', 'bearer')}
+                      disabled={isSubmitting}
+                      className="accent-primary"
+                    />
+                    <span className="text-sm">Bearer Token</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="radio"
+                      name="mcp-auth-type"
+                      value="oauth2"
+                      checked={form.authType === 'oauth2'}
+                      onChange={() => setField('authType', 'oauth2')}
+                      disabled={isSubmitting}
+                      className="accent-primary"
+                    />
+                    <span className="text-sm">OAuth 2.0</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Bearer Token (conditional on remote + bearer) */}
+            {form.transportMode === 'remote' && form.authType === 'bearer' && (
               <div className="space-y-2">
                 <Label htmlFor="mcp-bearer-token">Bearer Token</Label>
                 <Input
@@ -204,8 +294,8 @@ export function MCPServerForm({ onRegister, onSuccess }: MCPServerFormProps) {
               </div>
             )}
 
-            {/* OAuth2 fields (conditional) */}
-            {form.authType === 'oauth2' && (
+            {/* OAuth2 fields (conditional on remote + oauth2) */}
+            {form.transportMode === 'remote' && form.authType === 'oauth2' && (
               <div className="space-y-3 rounded-md border border-border p-3">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   OAuth 2.0 Configuration

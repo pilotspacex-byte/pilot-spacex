@@ -20,7 +20,7 @@ import { useStore } from '@/stores';
 import type { McpCatalogEntry } from '@/services/api/mcp-catalog';
 import type { MCPServer } from '@/stores/ai/MCPServersStore';
 
-type TransportFilter = 'all' | 'http' | 'sse';
+type TransportFilter = 'all' | 'http' | 'sse' | 'stdio';
 
 interface MCPCatalogTabContentProps {
   workspaceId: string;
@@ -42,6 +42,7 @@ const FILTER_CHIPS: { label: string; value: TransportFilter }[] = [
   { label: 'All', value: 'all' },
   { label: 'HTTP', value: 'http' },
   { label: 'SSE', value: 'sse' },
+  { label: 'Stdio', value: 'stdio' },
 ];
 
 export const MCPCatalogTabContent = observer(function MCPCatalogTabContent({
