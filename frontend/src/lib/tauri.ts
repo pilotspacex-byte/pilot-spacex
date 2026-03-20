@@ -17,5 +17,29 @@ export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-// Phase 31+ will add typed invoke() wrappers here.
-// NEVER call invoke() directly in components — always go through this module.
+/**
+ * Read the cached Supabase access token from Tauri Store (pilot-auth.json).
+ * Returns null if not in Tauri mode or no token is stored.
+ */
+export async function getAuthToken(): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<string | null>('get_auth_token');
+}
+
+/**
+ * Write auth tokens to Tauri Store from the JS side via Rust IPC command.
+ * Primarily used internally; the JS-side syncTokenToTauriStore() handles
+ * writes via @tauri-apps/plugin-store directly.
+ */
+export async function setAuthToken(
+  accessToken: string | null,
+  refreshToken: string | null
+): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('set_auth_token', {
+    accessToken,
+    refreshToken,
+  });
+}
