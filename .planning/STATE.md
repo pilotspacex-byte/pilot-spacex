@@ -1,16 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0.0-alpha2
-milestone_name: Notion-Style Restructure
-status: completed
-stopped_at: Milestone archived
-last_updated: "2026-03-18"
-last_activity: "2026-03-18 — Completed quick task 260318-wqj: Add tags+usage to skill system, redesign modal"
+milestone: v1.0
+milestone_name: milestone
+status: unknown
+stopped_at: Completed quick task 260320-bmd (Voice input with ElevenLabs STT)
+last_updated: "2026-03-20T01:44:44.380Z"
 progress:
-  total_phases: 18
-  completed_phases: 17
-  total_plans: 60
-  completed_plans: 61
+  total_phases: 25
+  completed_phases: 14
+  total_plans: 73
+  completed_plans: 57
 ---
 
 # Project State
@@ -46,6 +45,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [quick-260317-bch]: Second DB query for skills in _build_stream_config acceptable — same session, SQLAlchemy identity map caches results, lightweight indexed query
 - [quick-260317-hms]: WorkspaceLLMConfig is frozen dataclass in provider_selector.py (colocation with resolver avoids circular imports); test patch uses pilot_space.ai.infrastructure.key_storage.SecureKeyStorage since lazy import inside function
 - [quick-260317-hms]: test_rate_limit_enforced fixed to use _RATE_LIMIT_MAX constant (was hardcoded 5, actual limit is 30 — pre-existing bug revealed by proper mocking)
+- [Phase quick-260320-bmd]: ElevenLabs STT uses model_id=scribe_v1 (fixed endpoint, no base_url needed)
+- [Phase quick-260320-bmd]: stt service type added to VALID_SERVICE_TYPES in SecureKeyStorage (critical gap fixed per plan checker)
 
 ### Pending Todos
 
@@ -81,7 +82,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-18
-Stopped at: Completed quick task 260318-wqj (Add tags+usage to skill system, extract prompt module, redesign modal)
+Last session: 2026-03-20T01:44:28.312Z
+Stopped at: Completed quick task 260320-bmd (Voice input with ElevenLabs STT)
 Resume file: None
 Next action: `/gsd:new-milestone`
