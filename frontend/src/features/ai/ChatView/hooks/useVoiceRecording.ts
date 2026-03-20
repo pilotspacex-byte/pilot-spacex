@@ -26,12 +26,9 @@ export interface UseVoiceRecordingResult {
   isSupported: boolean;
   /** Whether microphone permission has been permanently denied */
   isPermissionDenied: boolean;
-  transcript: string | null;
   error: string | null;
   /** Elapsed recording time in milliseconds */
   durationMs: number;
-  /** Signed URL for audio playback (1h expiry). Available after successful transcription with storage. */
-  audioUrl: string | null;
   /** Real-time amplitude level during recording (0.0 to 1.0). Zero when not recording. */
   amplitudeLevel: number;
   startRecording: () => Promise<void>;
@@ -73,10 +70,8 @@ export function useVoiceRecording({
 }: UseVoiceRecordingOptions): UseVoiceRecordingResult {
   const [status, setStatus] = useState<VoiceRecordingStatus>('idle');
   const [isPermissionDenied, setIsPermissionDenied] = useState(false);
-  const [transcript, setTranscript] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [durationMs, setDurationMs] = useState(0);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [amplitudeLevel, setAmplitudeLevel] = useState(0);
 
   const isSupported = useMemo(() => checkBrowserSupport(), []);
@@ -186,6 +181,7 @@ export function useVoiceRecording({
       analyserRef.current = analyser;
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let lastReported = 0;
 
       const measureAmplitude = () => {
         if (!analyserRef.current) return;
@@ -201,7 +197,12 @@ export function useVoiceRecording({
         const rms = Math.sqrt(sumOfSquares / dataArray.length);
         // Scale up slightly so typical speech reaches 0.5-0.8 range
         const scaled = Math.min(1, rms * 3);
-        setAmplitudeLevel(scaled);
+
+        // Only trigger re-render when amplitude changes meaningfully
+        if (Math.abs(scaled - lastReported) > 0.02) {
+          lastReported = scaled;
+          setAmplitudeLevel(scaled);
+        }
 
         animationFrameRef.current = requestAnimationFrame(measureAmplitude);
       };
@@ -252,8 +253,6 @@ export function useVoiceRecording({
 
         try {
           const result = await transcriptionApi.transcribe(blob, workspaceId, language);
-          setTranscript(result.text);
-          setAudioUrl(result.audioUrl);
           setStatus('idle');
           onTranscript(result.text, result.audioUrl);
         } catch (err) {
@@ -271,7 +270,6 @@ export function useVoiceRecording({
       recorder.start(250); // collect chunks every 250ms
       startTimeRef.current = Date.now();
       setDurationMs(0);
-      setAudioUrl(null); // Reset stale audio URL from previous recording
       timerRef.current = setInterval(() => {
         setDurationMs(Date.now() - startTimeRef.current);
       }, 1000);
@@ -343,10 +341,8 @@ export function useVoiceRecording({
     status,
     isSupported,
     isPermissionDenied,
-    transcript,
     error,
     durationMs,
-    audioUrl,
     amplitudeLevel,
     startRecording,
     stopRecording,

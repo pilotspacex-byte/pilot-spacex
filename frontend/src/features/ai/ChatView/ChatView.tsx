@@ -245,14 +245,16 @@ const ChatViewInternal = observer<ChatViewProps>(
     }, [modalApprovals.length]);
 
     const handleSubmit = useCallback(
-      async (attachmentIds: string[], voiceAudioUrl?: string | null) => {
+      async (payload: { attachmentIds: string[]; voiceAudioUrl?: string | null }) => {
         if (!inputValue.trim() || store.isStreaming) return;
 
         const message = inputValue.trim();
         try {
           setInputValue('');
-          const metadata = voiceAudioUrl ? { voiceAudioUrl } : undefined;
-          await store.sendMessage(message, metadata, attachmentIds);
+          const metadata = payload.voiceAudioUrl
+            ? { voiceAudioUrl: payload.voiceAudioUrl }
+            : undefined;
+          await store.sendMessage(message, metadata, payload.attachmentIds);
         } catch (error) {
           setInputValue(message);
           store.error = error instanceof Error ? error.message : 'Failed to send message';

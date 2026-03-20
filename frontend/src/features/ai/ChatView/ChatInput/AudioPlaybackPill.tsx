@@ -10,8 +10,7 @@
  */
 
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause } from 'lucide-react';
-import { X } from 'lucide-react';
+import { Play, Pause, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -62,9 +61,7 @@ export function AudioPlaybackPill({
     const handleEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
-      if (audio) {
-        audio.currentTime = 0;
-      }
+      audio.currentTime = 0;
     };
 
     const handleError = () => {
@@ -78,12 +75,13 @@ export function AudioPlaybackPill({
     audio.addEventListener('error', handleError);
 
     return () => {
+      audio.pause();
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
     };
-  }, []);
+  }, [audioUrl]);
 
   const handlePlayPause = useCallback(async () => {
     const audio = audioRef.current;

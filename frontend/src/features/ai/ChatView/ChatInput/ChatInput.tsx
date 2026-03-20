@@ -37,7 +37,7 @@ import { attachmentsApi } from '@/services/api/attachments';
 interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (attachmentIds: string[], voiceAudioUrl?: string | null) => void;
+  onSubmit: (payload: { attachmentIds: string[]; voiceAudioUrl?: string | null }) => void;
   isStreaming?: boolean;
   isDisabled?: boolean;
   autoFocus?: boolean;
@@ -301,7 +301,7 @@ export const ChatInput = observer<ChatInputProps>(
         ) {
           e.preventDefault();
           if (value.trim() && !isStreaming && !isDisabled) {
-            onSubmit(attachmentIds, pendingAudioUrl);
+            onSubmit({ attachmentIds, voiceAudioUrl: pendingAudioUrl });
             setPendingAudioUrl(null);
             reset();
           }

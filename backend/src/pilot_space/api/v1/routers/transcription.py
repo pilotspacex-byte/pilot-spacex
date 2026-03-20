@@ -29,10 +29,7 @@ from pilot_space.infrastructure.database.models.transcript_cache import (
     TranscriptCache,
 )
 from pilot_space.infrastructure.logging import get_logger
-from pilot_space.infrastructure.storage.client import (
-    StorageUploadError,
-    SupabaseStorageClient,
-)
+from pilot_space.infrastructure.storage.client import SupabaseStorageClient
 
 logger = get_logger(__name__)
 
@@ -290,7 +287,18 @@ async def transcribe_audio(
     # Failure is non-blocking: transcription result is always returned.
     audio_url: str | None = None
     audio_storage_key: str | None = None
-    storage_key = f"{workspace_id}/{user_id}/{record_id}.webm"
+    # Derive file extension from MIME type
+    _MIME_TO_EXT: dict[str, str] = {
+        "audio/webm": "webm",
+        "audio/ogg": "ogg",
+        "audio/wav": "wav",
+        "audio/mp4": "m4a",
+        "audio/mpeg": "mp3",
+        "audio/x-m4a": "m4a",
+        "audio/aac": "aac",
+    }
+    ext = _MIME_TO_EXT.get(content_type, "webm")
+    storage_key = f"{workspace_id}/{user_id}/{record_id}.{ext}"
 
     try:
         storage_client = SupabaseStorageClient()
@@ -313,21 +321,14 @@ async def transcribe_audio(
             storage_key=storage_key,
             user_id=str(user_id),
         )
-    except StorageUploadError:
-        logger.warning(
-            "audio_storage_upload_failed",
-            workspace_id=str(workspace_id),
-            transcript_id=str(record_id),
-            storage_key=storage_key,
-            user_id=str(user_id),
-        )
     except Exception:
         logger.warning(
-            "audio_storage_unexpected_error",
+            "audio_storage_failed",
             workspace_id=str(workspace_id),
             transcript_id=str(record_id),
             storage_key=storage_key,
             user_id=str(user_id),
+            exc_info=True,
         )
 
     return TranscribeResponse(
