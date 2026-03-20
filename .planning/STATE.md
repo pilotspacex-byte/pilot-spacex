@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
-status: planning
-stopped_at: Completed 31-01-PLAN.md
-last_updated: "2026-03-20T04:57:00Z"
-last_activity: 2026-03-20 — Phase 31 Plan 01 complete — Supabase JWT token sync bridge via Tauri Store
+status: executing
+stopped_at: Completed 31-02-PLAN.md
+last_updated: "2026-03-20T05:07:58.245Z"
+last_activity: 2026-03-20 — Phase 31 Plan 02 complete — OS keychain storage for auth tokens via keyring v3 crate
 progress:
   total_phases: 9
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
   percent: 16
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 31 of 38 (Auth Bridge)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-03-20 — Phase 31 Plan 01 complete — Supabase JWT token sync bridge via Tauri Store
+Last activity: 2026-03-20 — Phase 31 Plan 02 complete — OS keychain storage for auth tokens via keyring v3 crate
 
-Progress: [█░░░░░░░░░] 16% (v1.1: 4/25 plans)
+Progress: [████████░░] 83% (v1.1: 5/6 plans)
 
 ## Milestone History
 
@@ -66,6 +66,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 031-01]: StoreOptions.defaults is required in plugin-store 2.4.2 — pass { defaults: {} } when no defaults needed
 - [Phase 031-01]: syncTokenToTauriStore idempotent via initialized flag — safe in React StrictMode double-mount
 - [Phase 031-01]: Dynamic import of @tauri-apps/plugin-store inside syncTokenToTauriStore prevents SSG build errors
+- [Phase 31]: keyring v3 crate used directly — tauri-plugin-keyring only at v0.1.0 (not Tauri v2 compatible)
+- [Phase 31]: Tauri Store retained post-migration as WebView sync channel — keychain is Rust source of truth only
 
 ### Pending Todos
 
@@ -78,7 +80,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T04:57:00Z
-Stopped at: Completed 31-01-PLAN.md
+Last session: 2026-03-20T05:07:58.243Z
+Stopped at: Completed 31-02-PLAN.md
 Resume file: None
 Next action: /gsd:execute-phase 31

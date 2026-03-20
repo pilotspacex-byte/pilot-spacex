@@ -103,7 +103,7 @@ Plans:
   2. User session survives an app restart — user is still logged in when reopening the app
   3. Auth tokens are stored in the OS keychain (macOS Keychain / Windows Credential Manager / Linux Secret Service), not in localStorage
   4. User can sign in via Google or GitHub OAuth and be redirected back into the app via deep link (pilotspace://auth/callback)
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [ ] 31-01-PLAN.md — Tauri Store token sync: syncTokenToTauriStore() in Providers, auth.rs Rust commands, typed IPC wrappers
@@ -234,7 +234,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 12–23 | v1.0-alpha | 37/37 | Complete | 2026-03-12 |
 | 24–29 | v1.0.0-alpha2 | 14/14 | Complete | 2026-03-12 |
 | 30. Tauri Shell + Static Export | 3/3 | Complete    | 2026-03-20 | - |
-| 31. Auth Bridge | 1/3 | In Progress|  | - |
+| 31. Auth Bridge | 2/3 | In Progress|  | - |
 | 32. Workspace + Git Clone | v1.1 | 0/3 | Not started | - |
 | 33. Full Git Operations | v1.1 | 0/3 | Not started | - |
 | 34. Embedded Terminal | v1.1 | 0/2 | Not started | - |
