@@ -310,6 +310,67 @@ export async function gitBranchDelete(repoPath: string, name: string): Promise<v
   await invoke('git_branch_delete', { repoPath, name });
 }
 
+// --- Git diff/stage/commit types and commands (Phase 36) ---
+
+export interface FileDiff {
+  path: string;
+  /** Unified diff text (--- +++ @@ lines). Empty string if binary. */
+  diff: string;
+  /** true if the file is binary (no text diff available) */
+  is_binary: boolean;
+}
+
+/**
+ * Get unified diff text for changed files in the repository at repoPath.
+ * If filePath is provided, returns diff for that single file only.
+ * If filePath is omitted, returns diffs for all changed files (staged + unstaged).
+ * Returns an empty array if not in Tauri mode.
+ * @param repoPath - Absolute path to the local git repository
+ * @param filePath - Optional: restrict diff to this specific file path
+ */
+export async function gitDiff(repoPath: string, filePath?: string): Promise<FileDiff[]> {
+  if (!isTauri()) return [];
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<FileDiff[]>('git_diff', { repoPath, filePath: filePath ?? null });
+}
+
+/**
+ * Stage the specified files in the git index.
+ * After staging, call gitStatus to get the updated file list.
+ * @param repoPath - Absolute path to the local git repository
+ * @param paths - Repo-relative paths of files to stage
+ */
+export async function gitStage(repoPath: string, paths: string[]): Promise<void> {
+  if (!isTauri()) throw new Error('Not in Tauri mode');
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('git_stage', { repoPath, paths });
+}
+
+/**
+ * Unstage the specified files, resetting their index entries to HEAD.
+ * Does not touch the working tree — local file changes are preserved.
+ * @param repoPath - Absolute path to the local git repository
+ * @param paths - Repo-relative paths of files to unstage
+ */
+export async function gitUnstage(repoPath: string, paths: string[]): Promise<void> {
+  if (!isTauri()) throw new Error('Not in Tauri mode');
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('git_unstage', { repoPath, paths });
+}
+
+/**
+ * Create a commit from the currently staged files with the given message.
+ * Returns the new commit OID as a hex string.
+ * Handles initial commit (unborn HEAD) automatically.
+ * @param repoPath - Absolute path to the local git repository
+ * @param message - Commit message
+ */
+export async function gitCommit(repoPath: string, message: string): Promise<string> {
+  if (!isTauri()) throw new Error('Not in Tauri mode');
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<string>('git_commit', { repoPath, message });
+}
+
 // --- Terminal commands (Phase 34) ---
 
 export interface TerminalOutput {

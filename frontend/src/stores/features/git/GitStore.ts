@@ -2,6 +2,7 @@
 
 import { makeAutoObservable, runInAction } from 'mobx';
 import type {
+  FileDiff,
   GitProgress,
   GitPullResult,
   GitRepoStatus,
@@ -36,6 +37,21 @@ export class GitStore {
 
   // General error (status/branch operations)
   error: string | null = null;
+
+  // Diff state
+  selectedFilePath: string | null = null;
+  fileDiffs: FileDiff[] = [];
+  isLoadingDiff = false;
+  diffError: string | null = null;
+
+  // Commit state
+  isCommitting = false;
+  commitError: string | null = null;
+  lastCommitOid: string | null = null;
+
+  // Stage/unstage state
+  isStaging = false;
+  stageError: string | null = null;
 
   constructor() {
     makeAutoObservable(this);
@@ -81,6 +97,12 @@ export class GitStore {
     this.pullError = null;
     this.pushError = null;
     this.error = null;
+    this.selectedFilePath = null;
+    this.fileDiffs = [];
+    this.diffError = null;
+    this.commitError = null;
+    this.lastCommitOid = null;
+    this.stageError = null;
     if (path) {
       void this.refreshAll();
     }
@@ -274,5 +296,151 @@ export class GitStore {
     this.pushProgress = null;
     this.pushError = null;
     this.error = null;
+    this.selectedFilePath = null;
+    this.fileDiffs = [];
+    this.isLoadingDiff = false;
+    this.diffError = null;
+    this.isCommitting = false;
+    this.commitError = null;
+    this.lastCommitOid = null;
+    this.isStaging = false;
+    this.stageError = null;
+  }
+
+  // --- Diff / Stage / Unstage / Commit actions ---
+
+  /**
+   * Fetch the unified diff for a specific file or all changed files.
+   * Stores results in `fileDiffs`. Sets `isLoadingDiff` while loading.
+   */
+  async fetchDiff(filePath?: string): Promise<void> {
+    if (!this.repoPath) return;
+    runInAction(() => {
+      this.isLoadingDiff = true;
+      this.diffError = null;
+    });
+    try {
+      const { gitDiff } = await import('@/lib/tauri');
+      const result = await gitDiff(this.repoPath, filePath);
+      runInAction(() => {
+        this.fileDiffs = result;
+        this.isLoadingDiff = false;
+      });
+    } catch (e) {
+      runInAction(() => {
+        this.diffError = e instanceof Error ? e.message : String(e);
+        this.isLoadingDiff = false;
+      });
+    }
+  }
+
+  /**
+   * Stage the specified files in the git index, then refresh status.
+   */
+  async stageFiles(paths: string[]): Promise<void> {
+    if (!this.repoPath) return;
+    runInAction(() => {
+      this.isStaging = true;
+      this.stageError = null;
+    });
+    try {
+      const { gitStage } = await import('@/lib/tauri');
+      await gitStage(this.repoPath, paths);
+      await this.refreshStatus();
+      runInAction(() => {
+        this.isStaging = false;
+      });
+    } catch (e) {
+      runInAction(() => {
+        this.stageError = e instanceof Error ? e.message : String(e);
+        this.isStaging = false;
+      });
+    }
+  }
+
+  /**
+   * Unstage the specified files (reset index to HEAD), then refresh status.
+   */
+  async unstageFiles(paths: string[]): Promise<void> {
+    if (!this.repoPath) return;
+    runInAction(() => {
+      this.isStaging = true;
+      this.stageError = null;
+    });
+    try {
+      const { gitUnstage } = await import('@/lib/tauri');
+      await gitUnstage(this.repoPath, paths);
+      await this.refreshStatus();
+      runInAction(() => {
+        this.isStaging = false;
+      });
+    } catch (e) {
+      runInAction(() => {
+        this.stageError = e instanceof Error ? e.message : String(e);
+        this.isStaging = false;
+      });
+    }
+  }
+
+  /**
+   * Stage all unstaged and untracked files in the working tree.
+   */
+  async stageAll(): Promise<void> {
+    const allPaths = this.status?.files.filter((f) => !f.staged).map((f) => f.path) ?? [];
+    if (allPaths.length === 0) return;
+    await this.stageFiles(allPaths);
+  }
+
+  /**
+   * Unstage all currently staged files.
+   */
+  async unstageAll(): Promise<void> {
+    const stagedPaths = this.status?.files.filter((f) => f.staged).map((f) => f.path) ?? [];
+    if (stagedPaths.length === 0) return;
+    await this.unstageFiles(stagedPaths);
+  }
+
+  /**
+   * Create a commit from the currently staged files with the given message.
+   * Stores the resulting commit OID in `lastCommitOid`. Refreshes status after.
+   */
+  async commit(message: string): Promise<void> {
+    if (!this.repoPath) return;
+    runInAction(() => {
+      this.isCommitting = true;
+      this.commitError = null;
+    });
+    try {
+      const { gitCommit } = await import('@/lib/tauri');
+      const oid = await gitCommit(this.repoPath, message);
+      runInAction(() => {
+        this.lastCommitOid = oid;
+        this.isCommitting = false;
+      });
+      await this.refreshStatus();
+    } catch (e) {
+      runInAction(() => {
+        this.commitError = e instanceof Error ? e.message : String(e);
+        this.isCommitting = false;
+      });
+    }
+  }
+
+  /**
+   * Select a file to view its diff. Automatically triggers fetchDiff for non-null paths.
+   */
+  selectFile(path: string | null): void {
+    this.selectedFilePath = path;
+    if (path !== null) {
+      void this.fetchDiff(path);
+    }
+  }
+
+  /**
+   * Clear commit result state (error + OID). Call after user acknowledges.
+   */
+  clearCommitState(): void {
+    this.commitError = null;
+    this.lastCommitOid = null;
   }
 }
