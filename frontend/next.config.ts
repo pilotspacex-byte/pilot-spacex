@@ -2,6 +2,11 @@ import type { NextConfig } from 'next';
 
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:8000';
 
+// Derive Supabase origins from env var for CSP (supports localhost/custom domains)
+const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const sbOrigin = sbUrl ? new URL(sbUrl).origin : null;
+const sbWsOrigin = sbOrigin ? sbOrigin.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:') : null;
+
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
@@ -40,11 +45,12 @@ const nextConfig: NextConfig = {
             // player.vimeo.com: used by VimeoNode embed URLs.
             value: [
               "default-src 'self'",
+              // unsafe-inline/unsafe-eval required by Next.js runtime; nonce-based CSP needs custom server
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://*.supabase.co",
+              `img-src 'self' data: blob: https://*.supabase.co${sbOrigin ? ` ${sbOrigin}` : ''}`,
               "font-src 'self'",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+              `connect-src 'self' https://*.supabase.co wss://*.supabase.co${sbOrigin ? ` ${sbOrigin}` : ''}${sbWsOrigin ? ` ${sbWsOrigin}` : ''}`,
               "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com",
               "object-src 'none'",
               "base-uri 'self'",

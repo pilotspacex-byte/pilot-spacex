@@ -133,8 +133,19 @@ export function FilePreviewModal({
               {mimeType.split('/')[1]?.toUpperCase() ?? 'FILE'}
             </span>
 
-            {/* Download button — always available, validates https scheme */}
-            {signedUrl.startsWith('https://') && (
+            {/* Download button — validates URL scheme (https always, http for localhost) */}
+            {(() => {
+              try {
+                const parsed = new URL(signedUrl, window.location.origin);
+                const isHttps = parsed.protocol === 'https:';
+                const isLocalHttp =
+                  parsed.protocol === 'http:' &&
+                  (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
+                return isHttps || isLocalHttp;
+              } catch {
+                return false;
+              }
+            })() && (
               <Button variant="ghost" size="icon" className="size-8" asChild>
                 <a
                   href={signedUrl}

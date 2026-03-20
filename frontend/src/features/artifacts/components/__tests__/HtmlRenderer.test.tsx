@@ -108,10 +108,16 @@ describe('HtmlRenderer', () => {
     const dompurify = await import('dompurify');
     const sanitizeFn = dompurify.default.sanitize as ReturnType<typeof vi.fn>;
     expect(sanitizeFn).toHaveBeenCalled();
-    const config = sanitizeFn.mock.calls[0]?.[1] as { FORBID_TAGS?: string[] } | undefined;
+    const config = sanitizeFn.mock.calls[0]?.[1] as
+      | {
+          FORBID_TAGS?: string[];
+          FORBID_ATTR?: string[];
+        }
+      | undefined;
     expect(config?.FORBID_TAGS).toContain('style');
     expect(config?.FORBID_TAGS).toContain('link');
     expect(config?.FORBID_TAGS).toContain('base');
     expect(config?.FORBID_TAGS).toContain('meta');
+    expect(config?.FORBID_ATTR).toContain('style');
   });
 });

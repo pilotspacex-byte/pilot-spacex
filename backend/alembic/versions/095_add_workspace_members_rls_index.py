@@ -1,4 +1,4 @@
-"""Add composite index on workspace_members for RLS subquery performance.
+"""Add partial index on workspace_members for RLS subquery performance.
 
 Every RLS policy executes:
     SELECT workspace_id FROM workspace_members
@@ -6,8 +6,8 @@ Every RLS policy executes:
     AND is_deleted = false
 
 This runs per-row on every query against RLS-protected tables. Without
-a composite index on (user_id, is_deleted), each check triggers a full
-table scan on workspace_members.
+a partial index on user_id (filtered to is_deleted = false), each check
+triggers a full table scan on workspace_members.
 
 Revision ID: 095_add_workspace_members_rls_index
 Revises: 094_add_artifacts_rls_with_check
