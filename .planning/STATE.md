@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: executing
-stopped_at: Completed 31-02-PLAN.md
-last_updated: "2026-03-20T05:07:58.245Z"
+stopped_at: Completed 31-03-PLAN.md
+last_updated: "2026-03-20T05:15:48.524Z"
 last_activity: 2026-03-20 — Phase 31 Plan 02 complete — OS keychain storage for auth tokens via keyring v3 crate
 progress:
   total_phases: 9
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 16
+  completed_plans: 6
+  percent: 83
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 31 of 38 (Auth Bridge)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-03-20 — Phase 31 Plan 02 complete — OS keychain storage for auth tokens via keyring v3 crate
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-03-20 — Phase 31 Plan 03 complete — pilotspace:// deep link OAuth PKCE flow for Google/GitHub social login
 
-Progress: [████████░░] 83% (v1.1: 5/6 plans)
+Progress: [██████████] 100% (v1.1: 6/6 plans)
 
 ## Milestone History
 
@@ -68,6 +68,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 031-01]: Dynamic import of @tauri-apps/plugin-store inside syncTokenToTauriStore prevents SSG build errors
 - [Phase 31]: keyring v3 crate used directly — tauri-plugin-keyring only at v0.1.0 (not Tauri v2 compatible)
 - [Phase 31]: Tauri Store retained post-migration as WebView sync channel — keychain is Rust source of truth only
+- [Phase 31]: Dynamic import of @tauri-apps/plugin-deep-link inside initDeepLinkListener prevents SSG build errors — same pattern as other Tauri plugin imports
+- [Phase 31]: isTauri() static import in AuthStore.ts is safe — reads window.__TAURI_INTERNALS__ only, no @tauri-apps/* API imported at module level
 
 ### Pending Todos
 
@@ -80,7 +82,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T05:07:58.243Z
-Stopped at: Completed 31-02-PLAN.md
+Last session: 2026-03-20T05:15:48.523Z
+Stopped at: Completed 31-03-PLAN.md
 Resume file: None
 Next action: /gsd:execute-phase 31

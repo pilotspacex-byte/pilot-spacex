@@ -67,7 +67,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 **Milestone Goal:** Wrap the existing Pilot Space web app in a Tauri desktop shell with native local capabilities — git operations, pilot CLI execution, embedded terminal, diff viewer — so developers can manage projects AND execute code from one app.
 
 - [x] **Phase 30: Tauri Shell + Static Export** — Scaffold tauri-app/, wire Next.js static export mode, verify all dynamic routes and CI matrix (completed 2026-03-20)
-- [ ] **Phase 31: Auth Bridge** — Sync Supabase JWT to OS keychain via Tauri Store; deep link OAuth callback
+- [x] **Phase 31: Auth Bridge** — Sync Supabase JWT to OS keychain via Tauri Store; deep link OAuth callback (completed 2026-03-20)
 - [ ] **Phase 32: Workspace Management + Git Clone** — App-managed project directory, configure base path, link repos, clone with progress
 - [ ] **Phase 33: Full Git Operations** — Pull, push, branch management, status, conflict detection
 - [ ] **Phase 34: Embedded Terminal** — xterm.js panel with full PTY, batched IPC output, arbitrary shell commands
@@ -103,7 +103,7 @@ Plans:
   2. User session survives an app restart — user is still logged in when reopening the app
   3. Auth tokens are stored in the OS keychain (macOS Keychain / Windows Credential Manager / Linux Secret Service), not in localStorage
   4. User can sign in via Google or GitHub OAuth and be redirected back into the app via deep link (pilotspace://auth/callback)
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 31-01-PLAN.md — Tauri Store token sync: syncTokenToTauriStore() in Providers, auth.rs Rust commands, typed IPC wrappers
@@ -234,7 +234,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 12–23 | v1.0-alpha | 37/37 | Complete | 2026-03-12 |
 | 24–29 | v1.0.0-alpha2 | 14/14 | Complete | 2026-03-12 |
 | 30. Tauri Shell + Static Export | 3/3 | Complete    | 2026-03-20 | - |
-| 31. Auth Bridge | 2/3 | In Progress|  | - |
+| 31. Auth Bridge | 3/3 | Complete   | 2026-03-20 | - |
 | 32. Workspace + Git Clone | v1.1 | 0/3 | Not started | - |
 | 33. Full Git Operations | v1.1 | 0/3 | Not started | - |
 | 34. Embedded Terminal | v1.1 | 0/2 | Not started | - |
