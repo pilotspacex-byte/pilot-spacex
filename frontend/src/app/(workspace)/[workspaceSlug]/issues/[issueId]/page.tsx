@@ -13,6 +13,7 @@
  */
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { observer } from 'mobx-react-lite';
 import { useParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -47,6 +48,7 @@ import { useIssueAiActions } from '@/features/issues/hooks/use-issue-ai-actions'
 import { IssueNoteContext } from '@/features/issues/contexts/issue-note-context';
 import { useStore } from '@/stores';
 import { copyToClipboard } from '@/lib/copy-context';
+import { isTauri } from '@/lib/tauri';
 import { issuesApi, tasksApi } from '@/services/api';
 import { useActionButtons } from '@/services/api/skill-action-buttons';
 import type { ExportFormat } from '@/features/issues/components';
@@ -88,6 +90,12 @@ const IssueKnowledgeGraphFull = lazy(() =>
   import('@/features/issues/components/issue-knowledge-graph-full').then((m) => ({
     default: m.IssueKnowledgeGraphFull,
   }))
+);
+
+// Tauri-only: dynamically imported to avoid SSG errors
+const ImplementIssueButton = dynamic(
+  () => import('@/features/implement').then((m) => ({ default: m.ImplementIssueButton })),
+  { ssr: false }
 );
 
 // ---------------------------------------------------------------------------
@@ -455,6 +463,11 @@ const IssueDetailPage = observer(function IssueDetailPage() {
         onGeneratePlan={handleGeneratePlan}
         isGeneratingPlan={isGeneratingPlan}
       />
+      {isTauri() && (
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-background/50">
+          <ImplementIssueButton issueId={issueId} />
+        </div>
+      )}
       <ActionButtonBar buttons={actionButtons ?? []} onButtonClick={handleActionButtonClick} />
     </>
   );

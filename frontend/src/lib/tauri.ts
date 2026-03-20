@@ -507,3 +507,17 @@ export async function runPilotImplement(
 ): Promise<SidecarResult> {
   return runSidecar(['implement', issueId, '--oneshot'], cwd, onOutput);
 }
+
+// --- Notification commands (Phase 37) ---
+
+/**
+ * Send a native OS notification via the system tray.
+ * No-op if not in Tauri mode.
+ * @param title - Notification title
+ * @param body - Notification body text
+ */
+export async function sendNotification(title: string, body: string): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('send_notification', { title, body });
+}

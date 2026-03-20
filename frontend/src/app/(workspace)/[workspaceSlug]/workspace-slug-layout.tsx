@@ -30,6 +30,16 @@ const TerminalPanel = dynamic(
   { ssr: false }
 );
 
+// Dynamic import with ssr: false — listens for implement-complete DOM events and fires
+// native OS notifications. Only mounted in Tauri desktop mode.
+const TrayNotificationListener = dynamic(
+  () =>
+    import('@/components/desktop/tray-notification-listener').then((m) => ({
+      default: m.TrayNotificationListener,
+    })),
+  { ssr: false }
+);
+
 interface WorkspaceSlugLayoutProps {
   children: ReactNode;
 }
@@ -51,6 +61,7 @@ export const WorkspaceSlugLayout = observer(function WorkspaceSlugLayout({
       <AiNotConfiguredBanner workspaceSlug={workspaceSlug} isOwner={isOwner} />
       {children}
       {isTauri() && <TerminalPanel />}
+      {isTauri() && <TrayNotificationListener />}
     </>
   );
 });
