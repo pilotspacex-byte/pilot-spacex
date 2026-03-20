@@ -121,12 +121,12 @@ Plans:
   4. User can link an existing local repository folder to a Pilot Space project
   5. User can see a dashboard showing all managed repos with their sync status and last activity
   6. User can configure HTTPS + Personal Access Token credentials for git operations
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 32-01: Workspace directory management — workspace.rs Rust module, tauri-plugin-fs, tauri-plugin-dialog folder picker, configurable base path persisted in tauri-plugin-store
-- [ ] 32-02: WorkspaceStore MobX + project status dashboard UI — WKSP-01..04 frontend
-- [ ] 32-03: git_clone Rust command — git2-rs vendored-libgit2, auth-git2 credentials, Channel<GitProgress> with 2% throttle, cancellation via AtomicBool
+- [ ] 32-01-PLAN.md — Rust backend: workspace.rs (dir management, folder picker, project list), git.rs (clone with progress/cancel, PAT credential storage via keyring)
+- [ ] 32-02-PLAN.md — Frontend: typed IPC wrappers, ProjectStore MobX, project dashboard UI with clone + link dialogs
+- [ ] 32-03-PLAN.md — Settings: Desktop settings page (project directory config + git credentials), wired into Settings modal (Tauri-only)
 
 ### Phase 33: Full Git Operations
 **Goal**: Users can perform all essential day-to-day git operations (pull, push, branch management, status) from inside the app
