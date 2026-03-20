@@ -1,0 +1,209 @@
+name: Tauri Release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # Never cancel a release build mid-flight
+
+jobs:
+  # Job 1: Build sidecar binaries for all platforms
+  build-sidecar:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target_triple: aarch64-apple-darwin
+            binary_ext: ""
+          - platform: macos-13
+            target_triple: x86_64-apple-darwin
+            binary_ext: ""
+          - platform: ubuntu-22.04
+            target_triple: x86_64-unknown-linux-gnu
+            binary_ext: ""
+          - platform: windows-latest
+            target_triple: x86_64-pc-windows-msvc
+            binary_ext: ".exe"
+    runs-on: ${{ matrix.platform }}
+    name: Sidecar ${{ matrix.target_triple }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Build sidecar
+        working-directory: cli
+        run: |
+          uv sync
+          uv pip install pyinstaller>=6.19.0
+          uv run pyinstaller pilot.spec --noconfirm --clean
+
+      - name: Rename and stage sidecar
+        shell: bash
+        env:
+          TARGET_TRIPLE: ${{ matrix.target_triple }}
+          BINARY_EXT: ${{ matrix.binary_ext }}
+        run: |
+          mkdir -p sidecar-output
+          cp "cli/dist/pilot-cli/pilot-cli${BINARY_EXT}" "sidecar-output/pilot-cli-${TARGET_TRIPLE}${BINARY_EXT}"
+          BUNDLE_DIR="sidecar-output/pilot-cli-${TARGET_TRIPLE}-bundle"
+          mkdir -p "$BUNDLE_DIR"
+          cp -r cli/dist/pilot-cli/. "$BUNDLE_DIR/"
+          rm -f "$BUNDLE_DIR/pilot-cli${BINARY_EXT}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sidecar-${{ matrix.target_triple }}
+          path: sidecar-output/
+          retention-days: 1
+
+  # Job 2: Build and release Tauri app for all platforms
+  build-release:
+    needs: build-sidecar
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            artifact-name: pilot-space-macos-arm64
+          - platform: macos-13
+            target: x86_64-apple-darwin
+            artifact-name: pilot-space-macos-x86_64
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact-name: pilot-space-linux-x64
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact-name: pilot-space-windows-x64
+    runs-on: ${{ matrix.platform }}
+    name: Release ${{ matrix.artifact-name }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './tauri-app/src-tauri -> target'
+
+      - name: Download sidecar artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sidecar-${{ matrix.target }}
+          path: tauri-app/src-tauri/binaries/
+
+      - name: Install Azure SignTool (Windows)
+        if: runner.os == 'Windows'
+        run: dotnet tool install --global AzureSignTool
+
+      - name: Sign sidecar binary (macOS)
+        if: runner.os == 'macOS' && env.APPLE_SIGNING_IDENTITY != ''
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          SIDECAR="tauri-app/src-tauri/binaries/pilot-cli-${TARGET}"
+          if [ -f "$SIDECAR" ]; then
+            codesign --force --options runtime \
+              --sign "$APPLE_SIGNING_IDENTITY" \
+              --entitlements tauri-app/src-tauri/Entitlements.plist \
+              "$SIDECAR"
+            echo "Signed sidecar: $SIDECAR"
+          fi
+
+      - name: Sign sidecar binary (Windows)
+        if: runner.os == 'Windows' && env.AZURE_KEY_VAULT_URI != ''
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CLIENT_ID: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
+          AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
+          AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
+          AZURE_KEY_VAULT_CERT_NAME: ${{ secrets.AZURE_KEY_VAULT_CERT_NAME }}
+        shell: pwsh
+        run: |
+          $sidecar = "tauri-app\src-tauri\binaries\pilot-cli-x86_64-pc-windows-msvc.exe"
+          if (Test-Path $sidecar) {
+            AzureSignTool sign -kvu $env:AZURE_KEY_VAULT_URI `
+              -kvi $env:AZURE_KEY_VAULT_CLIENT_ID `
+              -kvs $env:AZURE_KEY_VAULT_CLIENT_SECRET `
+              -kvt $env:AZURE_KEY_VAULT_TENANT_ID `
+              -kvc $env:AZURE_KEY_VAULT_CERT_NAME `
+              -tr "http://timestamp.digicert.com" -td sha256 `
+              $sidecar
+          }
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Tauri CLI dependencies
+        working-directory: tauri-app
+        run: pnpm install --frozen-lockfile
+
+      # tauri-action creates the GitHub Release and uploads signed installers.
+      # It also generates the latest.json update manifest automatically when
+      # TAURI_SIGNING_PRIVATE_KEY is set.
+      #
+      # One-time setup required before first release:
+      #   1. cd tauri-app && pnpm tauri signer generate -w ~/.tauri/pilot-space.key
+      #   2. Add TAURI_SIGNING_PRIVATE_KEY (key file contents) to GitHub repo secrets
+      #   3. Add TAURI_SIGNING_PRIVATE_KEY_PASSWORD to GitHub repo secrets
+      #   4. Add the public key output to tauri.conf.json plugins.updater.pubkey
+      - name: Build and release Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXT_TAURI: 'true'
+          NEXT_PUBLIC_API_URL: 'https://api.pilotspace.io/api/v1'
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CLIENT_ID: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
+          AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
+          AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
+          AZURE_KEY_VAULT_CERT_NAME: ${{ secrets.AZURE_KEY_VAULT_CERT_NAME }}
+        with:
+          projectPath: './tauri-app'
+          tauriScript: 'pnpm tauri'
+          args: '--target ${{ matrix.target }}'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Pilot Space ${{ github.ref_name }}'
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: true
+          prerelease: false
