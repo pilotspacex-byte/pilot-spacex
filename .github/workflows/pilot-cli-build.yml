@@ -1,0 +1,107 @@
+name: Pilot CLI Sidecar Build
+
+on:
+  push:
+    branches: [main, develop, 'feat/tauri-*']
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: pilot-cli-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target_triple: aarch64-apple-darwin
+            binary_ext: ""
+          - platform: macos-13
+            target_triple: x86_64-apple-darwin
+            binary_ext: ""
+          - platform: ubuntu-22.04
+            target_triple: x86_64-unknown-linux-gnu
+            binary_ext: ""
+          - platform: windows-latest
+            target_triple: x86_64-pc-windows-msvc
+            binary_ext: ".exe"
+
+    runs-on: ${{ matrix.platform }}
+    name: Build pilot-cli (${{ matrix.target_triple }})
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: uv sync
+
+      - name: Install PyInstaller
+        working-directory: cli
+        run: uv pip install pyinstaller>=6.19.0
+
+      - name: Build pilot-cli binary
+        working-directory: cli
+        run: uv run pyinstaller pilot.spec --noconfirm --clean
+
+      - name: Rename binary with platform triple
+        shell: bash
+        env:
+          TARGET_TRIPLE: ${{ matrix.target_triple }}
+          BINARY_EXT: ${{ matrix.binary_ext }}
+        run: |
+          SRC="cli/dist/pilot-cli/pilot-cli${BINARY_EXT}"
+          DEST="tauri-app/src-tauri/binaries/pilot-cli-${TARGET_TRIPLE}${BINARY_EXT}"
+          mkdir -p tauri-app/src-tauri/binaries
+          cp "$SRC" "$DEST"
+          echo "Sidecar binary: $DEST"
+          ls -la "$DEST"
+
+      - name: Copy onedir support files
+        shell: bash
+        env:
+          TARGET_TRIPLE: ${{ matrix.target_triple }}
+          BINARY_EXT: ${{ matrix.binary_ext }}
+        run: |
+          # Copy the entire onedir bundle alongside the renamed binary.
+          # Tauri sidecar needs these support files next to the main binary.
+          BUNDLE_DIR="tauri-app/src-tauri/binaries/pilot-cli-${TARGET_TRIPLE}-bundle"
+          mkdir -p "$BUNDLE_DIR"
+          cp -r cli/dist/pilot-cli/. "$BUNDLE_DIR/"
+          # Remove the original binary from the bundle dir (already copied with triple name)
+          rm -f "$BUNDLE_DIR/pilot-cli${BINARY_EXT}"
+          echo "Support files:"
+          ls "$BUNDLE_DIR/" | head -20
+
+      - name: Upload sidecar binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilot-cli-${{ matrix.target_triple }}
+          path: |
+            tauri-app/src-tauri/binaries/pilot-cli-${{ matrix.target_triple }}${{ matrix.binary_ext }}
+            tauri-app/src-tauri/binaries/pilot-cli-${{ matrix.target_triple }}-bundle/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Verify binary runs
+        shell: bash
+        env:
+          TARGET_TRIPLE: ${{ matrix.target_triple }}
+          BINARY_EXT: ${{ matrix.binary_ext }}
+        run: |
+          BINARY="tauri-app/src-tauri/binaries/pilot-cli-${TARGET_TRIPLE}${BINARY_EXT}"
+          chmod +x "$BINARY" 2>/dev/null || true
+          "$BINARY" --help
