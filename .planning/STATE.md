@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: planning
-stopped_at: Completed 030-01-PLAN.md
-last_updated: "2026-03-20T03:39:39.519Z"
+stopped_at: Completed 030-02-PLAN.md
+last_updated: "2026-03-20T04:08:24.804Z"
 last_activity: 2026-03-20 — Roadmap created, 9 phases, 30/30 requirements mapped
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -55,6 +55,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 030]: useHttpsScheme: true set from Phase 30 — prevents localStorage/IndexedDB reset on Windows restarts
 - [Phase 030]: isTauri() detects Tauri shell via __TAURI_INTERNALS__ in window — all @tauri-apps/api imports must be lazy/dynamic
 - [Phase 030]: tauri-app/frontend/out placeholder dir required for cargo check (generate_context! validates frontendDist at compile time)
+- [Phase 030]: Use generateStaticParams placeholder ('_') for workspace slug — empty array causes Next.js 16 to report missing params on child pages
+- [Phase 030]: Layout-split pattern required for 'use client' layouts — Server Component wrapper exports generateStaticParams, client component handles rendering
+- [Phase 030]: API route handlers changed from force-dynamic to force-static — POST handlers always execute per-request in standalone mode; force-static unblocks static export
 
 ### Pending Todos
 
@@ -67,7 +70,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T03:39:39.517Z
-Stopped at: Completed 030-01-PLAN.md
+Last session: 2026-03-20T04:08:13.105Z
+Stopped at: Completed 030-02-PLAN.md
 Resume file: None
 Next action: /gsd:plan-phase 30
