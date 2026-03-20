@@ -340,3 +340,9 @@ tauri-app/src-tauri/target/
 tauri-app/src-tauri/gen/
 # Placeholder frontend/out directory (relative to src-tauri; populated by next build)
 tauri-app/frontend/
+
+# Tauri sidecar binaries (built by CI, not committed)
+tauri-app/src-tauri/binaries/pilot-cli-*
+
+# PyInstaller spec is committed (negates the *.spec pattern above)
+!cli/pilot.spec
