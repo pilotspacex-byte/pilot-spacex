@@ -138,7 +138,7 @@ Plans:
   3. User can view a list of all changed, staged, and untracked files in the repository
   4. User can list branches, create a new branch, switch to a branch, and delete a branch
   5. When a pull results in merge conflicts, the app notifies the user with the list of conflicted files
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [ ] 33-01-PLAN.md — Rust: git_pull, git_push with progress Channel + conflict detection; git_status, branch CRUD commands
@@ -236,7 +236,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 30. Tauri Shell + Static Export | 3/3 | Complete    | 2026-03-20 | - |
 | 31. Auth Bridge | 3/3 | Complete    | 2026-03-20 | - |
 | 32. Workspace + Git Clone | 4/4 | Complete    | 2026-03-20 | - |
-| 33. Full Git Operations | 1/3 | In Progress|  | - |
+| 33. Full Git Operations | 2/3 | In Progress|  | - |
 | 34. Embedded Terminal | v1.1 | 0/2 | Not started | - |
 | 35. Pilot CLI Sidecar | v1.1 | 0/2 | Not started | - |
 | 36. Diff Viewer + Commit UI | v1.1 | 0/3 | Not started | - |

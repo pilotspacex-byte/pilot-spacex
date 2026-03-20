@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: completed
-stopped_at: Completed 33-01-PLAN.md
-last_updated: "2026-03-20T06:58:58.722Z"
+stopped_at: Completed 33-02-PLAN.md
+last_updated: "2026-03-20T07:05:55.210Z"
 last_activity: "2026-03-20 — Phase 31 Plan 03 complete — pilotspace:// deep link OAuth PKCE flow for Google/GitHub social login"
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 100
 ---
 
@@ -82,6 +82,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 33]: git_pull returns conflict file list without auto-committing — user must resolve manually
 - [Phase 33]: build_callbacks helper extracted for fetch-phase; git_push uses inline callbacks for push_transfer_progress (different signature)
 - [Phase 33]: git_branch_switch uses CheckoutBuilder::default().safe() to protect uncommitted changes
+- [Phase 33]: GitStore.setRepoPath() auto-triggers refreshAll() on non-empty path — UI always has fresh state when switching repos
+- [Phase 33]: modifiedFiles/stagedFiles computed properties filter status.files for git diff UI grouping
 
 ### Pending Todos
 
@@ -94,7 +96,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T06:58:58.720Z
-Stopped at: Completed 33-01-PLAN.md
+Last session: 2026-03-20T07:05:55.208Z
+Stopped at: Completed 33-02-PLAN.md
 Resume file: None
 Next action: /gsd:execute-phase 31
