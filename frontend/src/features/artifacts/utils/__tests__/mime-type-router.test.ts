@@ -62,17 +62,17 @@ describe('resolveRenderer', () => {
     });
   });
 
-  describe('HTML files — CRITICAL: always routes to "code", never live HTML', () => {
-    it('returns "code" for text/html MIME type (CRITICAL: never download or live render)', () => {
-      expect(resolveRenderer('text/html', 'page.html')).toBe('code');
+  describe('HTML files — routes to "html-preview" renderer', () => {
+    it('returns "html-preview" for text/html MIME type', () => {
+      expect(resolveRenderer('text/html', 'page.html')).toBe('html-preview');
     });
 
-    it('returns "code" for text/plain with .html extension', () => {
-      expect(resolveRenderer('text/plain', 'index.html')).toBe('code');
+    it('returns "html-preview" for text/plain with .html extension', () => {
+      expect(resolveRenderer('text/plain', 'index.html')).toBe('html-preview');
     });
 
-    it('returns "code" for .htm extension', () => {
-      expect(resolveRenderer('text/plain', 'index.htm')).toBe('code');
+    it('returns "html-preview" for .htm extension', () => {
+      expect(resolveRenderer('text/plain', 'index.htm')).toBe('html-preview');
     });
   });
 

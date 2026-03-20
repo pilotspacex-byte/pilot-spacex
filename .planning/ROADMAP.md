@@ -185,6 +185,20 @@ Plans:
 - [ ] 36-01-PLAN.md — UIStore isFocusMode observable + AppShell sidebar/hamburger hide
 - [ ] 36-02-PLAN.md — NoteCanvasProps threading + chrome hide + keyboard shortcut + focus button + exit affordance
 
+### Phase 37: Artifact Preview Rendering Engine
+**Goal**: Users can preview HTML files with a sandboxed live render toggle alongside the existing source code view — HTML defaults to source (safe-by-default) with an opt-in "Preview" mode using a DOMPurify-sanitized iframe with no JavaScript execution.
+**Depends on**: Phase 34
+**Requirements**: PREV-03
+**Success Criteria** (what must be TRUE):
+  1. User can open an HTML file in FilePreviewModal and see syntax-highlighted source code by default
+  2. User can click a "Preview" tab to render HTML content in a sandboxed iframe (no script execution)
+  3. User can toggle between source and preview views freely
+  4. The iframe uses DOMPurify sanitization and a sandbox attribute that excludes allow-scripts
+**Plans**: 2 plans
+Plans:
+- [ ] 37-01-PLAN.md — TDD: HtmlRenderer tests + HtmlRenderer component + mime-type-router update
+- [ ] 37-02-PLAN.md — Wire HtmlRenderer into FilePreviewModal + update tests + visual verification
+
 ## Progress
 
 **Execution Order:** 30 → 31 → 32 → 33 → 34 → 35 → 36
@@ -201,6 +215,7 @@ Plans:
 | 34. File Preview Modal | 2/2 | Complete   | 2026-03-19 | - |
 | 35. Artifacts Management Page | 2/2 | Complete   | 2026-03-19 | - |
 | 36. Editor UX Polish | 2/2 | Complete   | 2026-03-19 | - |
+| 37. Artifact Preview Rendering Engine | 0/2 | Planning   |  | - |
 
 **Total: 29 phases complete, 97 plans, 86 requirements across 3 milestones | v1.1: 7 phases, 22 requirements**
 
