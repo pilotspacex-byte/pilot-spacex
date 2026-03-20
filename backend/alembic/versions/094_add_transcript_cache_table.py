@@ -1,7 +1,7 @@
 """Add transcript_cache table for ElevenLabs STT result caching.
 
-Revision ID: 091_add_transcript_cache_table
-Revises: 090_add_tags_and_usage_to_skills
+Revision ID: 094_add_transcript_cache_table
+Revises: 093_fix_artifacts_rls_enum_case
 Create Date: 2026-03-20
 
 Caches ElevenLabs Speech-to-Text results keyed by SHA-256 audio hash
@@ -15,8 +15,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "091_add_transcript_cache_table"
-down_revision: str = "090_add_tags_and_usage_to_skills"
+revision: str = "094_add_transcript_cache_table"
+down_revision: str = "093_fix_artifacts_rls_enum_case"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
