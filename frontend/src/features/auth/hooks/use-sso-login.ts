@@ -10,6 +10,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { apiClient } from '@/services/api';
 import { supabase } from '@/lib/supabase';
+import { isTauri } from '@/lib/tauri';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,11 +62,17 @@ export function useSsoLogin() {
   return useCallback(
     async (workspaceId: string, method: 'saml' | 'oidc', oidcProvider?: string): Promise<void> => {
       if (method === 'oidc' && oidcProvider) {
+        // In Tauri mode, redirect to deep link scheme so the app intercepts the callback.
+        // In web mode, redirect to the existing /auth/callback page.
+        const redirectTo = isTauri()
+          ? `pilotspace://auth/callback?workspace_id=${workspaceId}`
+          : `${window.location.origin}/auth/callback?workspace_id=${workspaceId}`;
+
         await supabase.auth.signInWithOAuth({
           // Supabase accepts any string for custom OIDC providers
           provider: oidcProvider as Parameters<typeof supabase.auth.signInWithOAuth>[0]['provider'],
           options: {
-            redirectTo: `${window.location.origin}/auth/callback?workspace_id=${workspaceId}`,
+            redirectTo,
           },
         });
         return;

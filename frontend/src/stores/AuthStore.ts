@@ -5,6 +5,7 @@ import { supabase, type User, type Session } from '@/lib/supabase';
 import type { AuthChangeEvent } from '@supabase/supabase-js';
 import { getAuthProvider, getAuthProviderSync } from '@/services/auth/providers';
 import type { AuthProvider as IAuthProvider } from '@/services/auth/providers';
+import { isTauri } from '@/lib/tauri';
 
 export interface AiSettings {
   model_sonnet?: string;
@@ -262,10 +263,17 @@ export class AuthStore {
     this.error = null;
 
     try {
+      // In Tauri mode, redirect to deep link scheme so the app intercepts the callback.
+      // In web mode, redirect to the existing /auth/callback page.
+      const redirectTo = isTauri()
+        ? 'pilotspace://auth/callback'
+        : `${window.location.origin}/auth/callback`;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo,
+          // PKCE flow: skipBrowserRedirect is false (default) — opens external browser
         },
       });
 
@@ -275,6 +283,9 @@ export class AuthStore {
           this.isLoading = false;
         });
       }
+      // In Tauri mode, the external browser opens and the app waits for
+      // the deep link callback. isLoading stays true until the deep link
+      // handler calls exchangeCodeForSession and triggers onAuthStateChange.
     } catch (err) {
       runInAction(() => {
         this.error = err instanceof Error ? err.message : 'OAuth login failed';

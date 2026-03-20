@@ -1,5 +1,6 @@
 /**
- * Tauri Auth Bridge — syncs Supabase JWT tokens to Tauri Store and OS keychain.
+ * Tauri Auth Bridge — syncs Supabase JWT tokens to Tauri Store and OS keychain,
+ * and intercepts OAuth deep link callbacks for PKCE flow completion.
  *
  * Called once on app mount (Tauri mode only). Subscribes to
  * supabase.auth.onAuthStateChange and writes access_token + refresh_token
@@ -12,12 +13,20 @@
  * On first launch after upgrading from Plan 31-01 (Store-only), calls
  * migrateTokensToKeychain() to copy any existing Store tokens to keychain.
  *
+ * OAuth PKCE flow (Plan 31-03):
+ *   - loginWithOAuth() opens external browser with redirectTo: pilotspace://auth/callback
+ *   - OS routes pilotspace:// URLs to the Tauri app
+ *   - initDeepLinkListener() intercepts the URL, extracts the auth code, and
+ *     calls supabase.auth.exchangeCodeForSession() to complete the PKCE handshake
+ *   - onAuthStateChange fires, syncTokenToTauriStore() persists the new session
+ *
  * This module MUST only be imported dynamically behind an isTauri() guard.
  */
 
 import { supabase } from '@/lib/supabase';
 
 let initialized = false;
+let deepLinkInitialized = false;
 
 export async function syncTokenToTauriStore(): Promise<void> {
   if (initialized) return;
@@ -61,5 +70,65 @@ export async function syncTokenToTauriStore(): Promise<void> {
       await setAuthToken(null, null).catch(() => {});
     }
     await store.save();
+  });
+
+  // Initialize deep link listener for OAuth callbacks (PKCE flow completion)
+  await initDeepLinkListener().catch(console.error);
+}
+
+/**
+ * Register a listener for pilotspace://auth/callback deep links.
+ *
+ * When the OS routes a pilotspace:// URL to the app (after OAuth redirect),
+ * this handler extracts the PKCE authorization code and exchanges it for a
+ * Supabase session. The resulting session triggers onAuthStateChange, which
+ * causes syncTokenToTauriStore to persist tokens to Store and keychain.
+ *
+ * Idempotent — safe to call multiple times (no-op after first call).
+ */
+export async function initDeepLinkListener(): Promise<void> {
+  if (deepLinkInitialized) return;
+  deepLinkInitialized = true;
+
+  const { onOpenUrl } = await import('@tauri-apps/plugin-deep-link');
+
+  await onOpenUrl(async (urls: string[]) => {
+    for (const rawUrl of urls) {
+      try {
+        const url = new URL(rawUrl);
+
+        // Only handle auth callback deep links: pilotspace://auth/callback
+        if (url.host !== 'auth' || url.pathname !== '/callback') continue;
+
+        const code = url.searchParams.get('code');
+        if (!code) {
+          console.error('[tauri-auth] Deep link missing code parameter:', rawUrl);
+          continue;
+        }
+
+        // Exchange the authorization code for a session (PKCE flow completion)
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+        if (error) {
+          console.error('[tauri-auth] Failed to exchange code for session:', error.message);
+          // Navigate to login with error so the user sees a helpful message
+          if (typeof window !== 'undefined') {
+            window.location.href = `/login?error=${encodeURIComponent(error.message)}`;
+          }
+          continue;
+        }
+
+        if (data.session) {
+          // Session is now active. The onAuthStateChange listener from
+          // syncTokenToTauriStore() will automatically sync tokens to Store + keychain.
+          // Navigate to the app home.
+          if (typeof window !== 'undefined') {
+            window.location.href = '/';
+          }
+        }
+      } catch (err) {
+        console.error('[tauri-auth] Deep link processing error:', err);
+      }
+    }
   });
 }
