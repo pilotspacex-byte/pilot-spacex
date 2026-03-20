@@ -9,7 +9,7 @@ Requirements for Tauri Desktop Client milestone. Each maps to roadmap phases.
 
 ### Tauri Shell
 
-- [ ] **SHELL-01**: User can launch native desktop app with embedded Pilot Space web UI
+- [x] **SHELL-01**: User can launch native desktop app with embedded Pilot Space web UI
 - [ ] **SHELL-02**: Existing Next.js frontend builds in both web (standalone) and desktop (static export) modes via NEXT_TAURI flag
 - [ ] **SHELL-03**: User can minimize app to system tray and receive background notifications
 
@@ -93,7 +93,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SHELL-01 | Phase 30 | Pending |
+| SHELL-01 | Phase 30 | Complete |
 | SHELL-02 | Phase 30 | Pending |
 | SHELL-03 | Phase 37 | Pending |
 | AUTH-01 | Phase 31 | Pending |

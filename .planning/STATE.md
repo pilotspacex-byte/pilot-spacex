@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
-status: active
-stopped_at: Roadmap created — ready to plan Phase 30
-last_updated: "2026-03-20"
-last_activity: "2026-03-20 — v1.1 roadmap created (9 phases, 30 requirements)"
+status: planning
+stopped_at: Completed 030-01-PLAN.md
+last_updated: "2026-03-20T03:39:39.519Z"
+last_activity: 2026-03-20 — Roadmap created, 9 phases, 30/30 requirements mapped
 progress:
   total_phases: 9
   completed_phases: 0
-  total_plans: 25
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 0
 ---
 
 # Project State
@@ -50,6 +51,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Research flag]: tauri-plugin-pty is a community plugin; evaluate tauri-plugin-shell streaming sufficiency at Phase 34 planning time
 - [Research flag]: Windows EV certificate procurement takes 1-2 weeks — initiate at Phase 30 start, not Phase 38
 - [Research flag]: Next.js dynamic route audit scope unknown until Phase 30 begins; budget extra time if >5 unique dynamic route patterns found
+- [Phase 030]: Identifier io.pilotspace.app is permanent — determines app data dir path, cannot change post-release
+- [Phase 030]: useHttpsScheme: true set from Phase 30 — prevents localStorage/IndexedDB reset on Windows restarts
+- [Phase 030]: isTauri() detects Tauri shell via __TAURI_INTERNALS__ in window — all @tauri-apps/api imports must be lazy/dynamic
+- [Phase 030]: tauri-app/frontend/out placeholder dir required for cargo check (generate_context! validates frontendDist at compile time)
 
 ### Pending Todos
 
@@ -62,7 +67,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20
-Stopped at: Roadmap created for v1.1 Tauri Desktop Client
+Last session: 2026-03-20T03:39:39.517Z
+Stopped at: Completed 030-01-PLAN.md
 Resume file: None
 Next action: /gsd:plan-phase 30

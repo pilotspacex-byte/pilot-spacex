@@ -87,7 +87,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
   2. The existing Next.js frontend builds in both web (standalone) and desktop (static export, NEXT_TAURI=true) modes without errors
   3. All dynamic routes (e.g., /[workspaceSlug]/issues/[issueId]) navigate correctly in the static export build inside the WebView
   4. GitHub Actions CI matrix produces unsigned app artifacts for all 4 platform targets (macOS ARM, macOS x86, Linux x64, Windows x64)
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 030-01-PLAN.md — Scaffold tauri-app/ directory, Cargo.toml, tauri.conf.json, capabilities, isTauri() utility
@@ -233,7 +233,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 1–11 | v1.0 | 46/46 | Complete | 2026-03-09 |
 | 12–23 | v1.0-alpha | 37/37 | Complete | 2026-03-12 |
 | 24–29 | v1.0.0-alpha2 | 14/14 | Complete | 2026-03-12 |
-| 30. Tauri Shell + Static Export | v1.1 | 0/3 | Planning complete | - |
+| 30. Tauri Shell + Static Export | 1/3 | In Progress|  | - |
 | 31. Auth Bridge | v1.1 | 0/3 | Not started | - |
 | 32. Workspace + Git Clone | v1.1 | 0/3 | Not started | - |
 | 33. Full Git Operations | v1.1 | 0/3 | Not started | - |
