@@ -199,12 +199,11 @@ Plans:
   1. User can run pilot implement on an issue and watch streaming output appear in the embedded terminal
   2. User can trigger One-Click Implement: select an issue, and the app automatically creates a branch, runs pilot implement, and stages/commits/pushes the result
   3. User can minimize the app to the system tray and receive background notifications (e.g., implement complete, CI status)
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 37-01: run_pilot_command Rust command — spawn sidecar with issue ID args, stream output to terminal Channel, exit code handling
-- [ ] 37-02: One-click Implement Issue UI — ImplementIssueButton, auto-branch via git_branch_create, sidecar spawn, stage+commit+push sequence
-- [ ] 37-03: System tray — tauri-plugin-notification or tray icon, background notification for implement completion and CI events, SHELL-03
+- [ ] 37-01-PLAN.md — ImplementStore MobX orchestrator + ImplementIssueButton UI on issue detail page (CLI-02, CLI-03)
+- [ ] 37-02-PLAN.md — System tray with minimize-to-tray, tray icon menu, native OS notifications on implement completion (SHELL-03)
 
 ### Phase 38: Packaging + Signing + Auto-Update
 **Goal**: Signed, distributable app installers are produced for all platforms from the CI matrix, with in-app auto-update
@@ -240,7 +239,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 34. Embedded Terminal | 2/2 | Complete    | 2026-03-20 | - |
 | 35. Pilot CLI Sidecar | 2/2 | Complete    | 2026-03-20 | - |
 | 36. Diff Viewer + Commit UI | 3/3 | Complete    | 2026-03-20 | - |
-| 37. One-Click Implement + Tray | v1.1 | 0/3 | Not started | - |
+| 37. One-Click Implement + Tray | v1.1 | 0/2 | Not started | - |
 | 38. Packaging + Signing + Auto-Update | v1.1 | 0/3 | Not started | - |
 
 **v1.1 total: 9 phases, ~25 plans, 30 requirements**
