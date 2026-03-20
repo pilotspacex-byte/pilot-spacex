@@ -29,8 +29,20 @@ export function FigureNodeView({ node, editor }: NodeViewProps) {
         className="note-figure my-4 group"
         data-figure-artifact-id={artifactId ?? ''}
         onClick={() => {
-          // Phase 34: open FilePreviewModal for this artifact
-          // artifactId is available via node.attrs.artifactId
+          if (!artifactId || status !== 'ready') return;
+          const imgMime = src?.match(/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)/i)
+            ? `image/${(src.match(/\.(\w+)$/)?.[1] ?? 'png').toLowerCase()}`
+            : 'image/png';
+          window.dispatchEvent(
+            new CustomEvent('pilot:preview-artifact', {
+              detail: {
+                artifactId,
+                filename: alt || 'image',
+                mimeType: imgMime,
+                signedUrl: src,
+              },
+            })
+          );
         }}
       >
         {isUploading ? (

@@ -56,7 +56,7 @@ function formatBytes(bytes: number): string {
 }
 
 export const FileCardView = observer(function FileCardView() {
-  const { filename, mimeType, sizeBytes, status, readOnly, updateAttributes } =
+  const { artifactId, filename, mimeType, sizeBytes, status, readOnly, updateAttributes } =
     useFileCardContext();
   const artifactStore = useArtifactStore();
   const progress = artifactStore.getProgress(filename);
@@ -108,6 +108,20 @@ export const FileCardView = observer(function FileCardView() {
       role="button"
       tabIndex={0}
       aria-label={`Open file: ${filename}`}
+      onClick={() => {
+        if (!artifactId) return;
+        window.dispatchEvent(
+          new CustomEvent('pilot:preview-artifact', {
+            detail: { artifactId, filename, mimeType },
+          })
+        );
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement).click();
+        }
+      }}
     >
       <FileIcon className="h-5 w-5 shrink-0 text-primary/70" />
       <div className="flex-1 min-w-0">
