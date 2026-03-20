@@ -154,11 +154,11 @@ Plans:
   2. Interactive programs (vim, less, htop) work correctly with arrow keys, tab completion, and ANSI colors
   3. User can run any shell command and see streaming output in real time
   4. Terminal runs for extended periods and under high output volume without memory leaks or app slowdown
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 34-01: PTY Rust backend — tauri-plugin-pty (or tauri-plugin-shell fallback), terminal.rs module, TerminalState managed struct, batched output at 16ms intervals via Channel API
-- [ ] 34-02: TerminalPanel.tsx frontend — @xterm/xterm 5.5.0, @xterm/addon-fit, useTerminal hook, session lifecycle with close_terminal() cleanup, 10,000-line scrollback
+- [ ] 34-01-PLAN.md — PTY Rust backend — tauri-plugin-pty (or tauri-plugin-shell fallback), terminal.rs module, TerminalState managed struct, batched output at 16ms intervals via Channel API
+- [ ] 34-02-PLAN.md — TerminalPanel.tsx frontend — @xterm/xterm 5.5.0, @xterm/addon-fit, useTerminal hook, session lifecycle with close_terminal() cleanup, 10,000-line scrollback
 
 ### Phase 35: Pilot CLI Sidecar
 **Goal**: The pilot CLI binary ships with the app pre-compiled for every platform and can be spawned by the Rust backend
