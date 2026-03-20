@@ -231,7 +231,10 @@ Plans:
   1. `tauri.conf.json plugins.updater.pubkey` contains a non-empty public key string
   2. `stores/index.ts` exports `TerminalStore`, `useTerminalStore`, `ImplementStore`, `useImplementStore`
   3. `tauri-build.yml` downloads pilot-cli sidecar artifacts before building (dev CI includes real binary)
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 39-01-PLAN.md — Auto-update pubkey, stores barrel exports, dev CI sidecar download
 
 ## Progress
 
