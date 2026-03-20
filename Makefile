@@ -1,7 +1,7 @@
 # PilotSpace Validation Makefile
 # Systematic test execution following the validation plan
 
-.PHONY: help test-infra test-api test-integration test-e2e test-perf test-validate test-feature-* install-deps
+.PHONY: help test-infra test-api test-integration test-e2e test-perf test-validate test-feature-* install-deps sync-docs push-docs
 
 # Default target
 help:
@@ -221,3 +221,28 @@ quality-gates-frontend:
 	@echo "Running frontend quality gates..."
 	cd frontend && pnpm lint && pnpm type-check && pnpm test
 	@echo "✅ Frontend quality gates passed!"
+
+# ============================================================================
+# Documentation (separate repo: pilotspace/pilot-space-docs)
+# ============================================================================
+
+DOCS_REPO := git@github.com:pilotspace/pilot-space-docs.git
+DOCS_DIR := .planning
+
+sync-docs:
+	@if [ -d "$(DOCS_DIR)/.git" ]; then \
+		echo "Pulling latest docs..."; \
+		cd $(DOCS_DIR) && git pull --rebase; \
+	else \
+		echo "Cloning docs repo..."; \
+		git clone $(DOCS_REPO) $(DOCS_DIR) 2>/dev/null \
+		|| echo "⚠ No access to planning docs. Request access from a project admin."; \
+	fi
+
+push-docs:
+	@if [ -d "$(DOCS_DIR)/.git" ]; then \
+		cd $(DOCS_DIR) && git add -A && git diff --cached --quiet \
+		|| (cd $(DOCS_DIR) && git commit -m "docs: update" && git push); \
+	else \
+		echo "⚠ Docs repo not initialized. Run 'make sync-docs' first."; \
+	fi
