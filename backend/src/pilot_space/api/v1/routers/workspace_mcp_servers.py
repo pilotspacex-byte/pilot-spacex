@@ -131,6 +131,17 @@ async def register_mcp_server(
     from pilot_space.infrastructure.encryption import encrypt_api_key
     from pilot_space.infrastructure.encryption_kv import encrypt_kv
 
+    repo = WorkspaceMcpServerRepository(session=session)
+
+    # Reject duplicate display_name within the workspace — gives a clean 409
+    # instead of letting the DB partial-unique index raise an IntegrityError.
+    existing = await repo.get_by_display_name(workspace_id, body.display_name)
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"An MCP server named {body.display_name!r} already exists in this workspace",
+        )
+
     token_encrypted: str | None = None
     if body.auth_token:
         token_encrypted = encrypt_api_key(body.auth_token)
@@ -170,7 +181,6 @@ async def register_mcp_server(
         last_status=McpStatus.ENABLED,
     )
 
-    repo = WorkspaceMcpServerRepository(session=session)
     server = await repo.create(server)
 
     logger.info(
@@ -268,7 +278,52 @@ async def update_mcp_server(
 
     # Apply non-secret scalar fields
     if body.display_name is not None:
+        # Reject rename to a name already taken by another active server.
+        if body.display_name != server.display_name:
+            name_conflict = await repo.get_by_display_name(workspace_id, body.display_name)
+            if name_conflict is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"An MCP server named {body.display_name!r} already exists in this workspace",
+                )
         server.display_name = body.display_name
+
+    # Determine the effective server_type and url_or_command after this PATCH so
+    # we can run the appropriate security validation before committing any change.
+    effective_server_type = body.server_type if body.server_type is not None else server.server_type
+    effective_url_or_command = (
+        body.url_or_command
+        if body.url_or_command is not None
+        else (server.url_or_command or server.url)
+    )
+
+    # Cross-field validation: the model_validator on WorkspaceMcpServerUpdate
+    # already validated (url_or_command, server_type) when both are present in
+    # the request body.  We still need to cover the case where only server_type
+    # changes — the stored url_or_command must be re-validated against the new type.
+    if body.server_type is not None and body.url_or_command is None:
+        from pilot_space.api.v1.routers._mcp_server_schemas import (
+            _validate_mcp_url,
+            _validate_npx_uvx_command,
+        )
+        from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
+
+        if not effective_url_or_command:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="url_or_command is required when changing server_type",
+            )
+        try:
+            if effective_server_type == McpServerType.REMOTE:
+                _validate_mcp_url(effective_url_or_command)
+            elif effective_server_type in (McpServerType.COMMAND, McpServerType.NPX, McpServerType.UVX):
+                _validate_npx_uvx_command(effective_url_or_command, effective_server_type)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
     if body.server_type is not None:
         server.server_type = body.server_type
     if body.transport is not None:
@@ -286,7 +341,7 @@ async def update_mcp_server(
     if body.oauth_scopes is not None:
         server.oauth_scopes = body.oauth_scopes
 
-    # url_or_command: validate and sync url column
+    # url_or_command: already validated above; write to ORM and keep url in sync
     if body.url_or_command is not None:
         server.url_or_command = body.url_or_command
         server.url = body.url_or_command[:512]

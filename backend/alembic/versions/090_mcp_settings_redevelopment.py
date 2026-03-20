@@ -120,10 +120,27 @@ def upgrade() -> None:
         )
     )
 
-    # 4. Set NOT NULL constraints on backfilled columns
-    op.alter_column("workspace_mcp_servers", "server_type", nullable=False)
-    op.alter_column("workspace_mcp_servers", "transport", nullable=False)
-    op.alter_column("workspace_mcp_servers", "is_enabled", nullable=False)
+    # 4. Set NOT NULL constraints and DB-level defaults on backfilled columns.
+    #    server_default ensures raw INSERT statements that omit these columns
+    #    use the intended values rather than failing at the DB level.
+    op.alter_column(
+        "workspace_mcp_servers",
+        "server_type",
+        nullable=False,
+        server_default=sa.text("'remote'::mcp_server_type"),
+    )
+    op.alter_column(
+        "workspace_mcp_servers",
+        "transport",
+        nullable=False,
+        server_default=sa.text("'sse'::mcp_transport"),
+    )
+    op.alter_column(
+        "workspace_mcp_servers",
+        "is_enabled",
+        nullable=False,
+        server_default=sa.text("TRUE"),
+    )
 
     # 5. Migrate last_status VARCHAR(16) → mcp_status enum
     #    Cast mapping: 'connected'→'enabled', 'failed'→'unreachable', others→NULL

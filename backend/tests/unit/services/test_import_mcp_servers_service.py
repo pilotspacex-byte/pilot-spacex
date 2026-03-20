@@ -54,7 +54,7 @@ class TestParseConfigJson:
         assert remote.transport == McpTransport.SSE
 
         npx = next(r for r in result if r.name == "my-npx")
-        assert npx.server_type == McpServerType.NPX
+        assert npx.server_type == McpServerType.COMMAND
         assert npx.url_or_command.startswith("npx")
         assert "@my-pkg/mcp-server" in npx.url_or_command
         assert npx.transport == McpTransport.STDIO
@@ -74,7 +74,7 @@ class TestParseConfigJson:
         assert len(result) == 1
         entry = result[0]
         assert entry.name == "uvx-server"
-        assert entry.server_type == McpServerType.UVX
+        assert entry.server_type == McpServerType.COMMAND
         assert "my-mcp-tool" in entry.url_or_command
         assert entry.env_vars == {"API_KEY": "secret-value"}
 
@@ -213,7 +213,7 @@ class TestImportServers:
         parsed = [
             ParsedMcpServer(
                 name="bad-server",
-                server_type=McpServerType.NPX,
+                server_type=McpServerType.COMMAND,
                 transport=McpTransport.STDIO,
                 url_or_command="npx my-pkg; rm -rf /",
             )
@@ -269,3 +269,91 @@ class TestImportServers:
         assert result.skipped[0].name == "duplicate"
         assert len(result.errors) == 1
         assert result.errors[0].name == "bad"
+
+
+# ---------------------------------------------------------------------------
+# _validate_entry — SSRF blocklist parity tests
+# ---------------------------------------------------------------------------
+
+
+class TestValidateEntry:
+    """Tests for the _validate_entry helper — SSRF and command-injection checks."""
+
+    def _make_remote(self, url: str) -> ParsedMcpServer:
+        return ParsedMcpServer(
+            name="test",
+            server_type=McpServerType.REMOTE,
+            transport=McpTransport.SSE,
+            url_or_command=url,
+        )
+
+    def test_rejects_http_url(self) -> None:
+        """HTTP (non-HTTPS) URL is still rejected."""
+        from pilot_space.application.services.mcp.import_mcp_servers_service import (
+            _validate_entry,
+        )
+
+        err = _validate_entry(self._make_remote("http://example.com/mcp"))
+        assert err is not None
+        assert "HTTPS" in err
+
+    def test_rejects_private_ip_url(self) -> None:
+        """URL resolving to a private RFC-1918 IP is rejected by the SSRF blocklist."""
+        from unittest.mock import patch
+
+        from pilot_space.application.services.mcp.import_mcp_servers_service import (
+            _validate_entry,
+        )
+
+        # Simulate getaddrinfo returning a private address (10.0.0.1)
+        fake_addr = [(None, None, None, None, ("10.0.0.1", 0))]
+        with patch("socket.getaddrinfo", return_value=fake_addr):
+            err = _validate_entry(self._make_remote("https://internal.corp/mcp"))
+
+        assert err is not None
+        assert "private" in err.lower() or "restricted" in err.lower()
+
+    def test_rejects_metadata_ip_url(self) -> None:
+        """URL resolving to the AWS metadata IP (169.254.169.254) is rejected."""
+        from unittest.mock import patch
+
+        from pilot_space.application.services.mcp.import_mcp_servers_service import (
+            _validate_entry,
+        )
+
+        fake_addr = [(None, None, None, None, ("169.254.169.254", 0))]
+        with patch("socket.getaddrinfo", return_value=fake_addr):
+            err = _validate_entry(self._make_remote("https://metadata.internal/latest"))
+
+        assert err is not None
+        assert "private" in err.lower() or "restricted" in err.lower()
+
+    def test_accepts_unresolvable_hostname(self) -> None:
+        """Hostname that cannot be resolved at validation time is accepted (probe handles it)."""
+        import socket
+        from unittest.mock import patch
+
+        from pilot_space.application.services.mcp.import_mcp_servers_service import (
+            _validate_entry,
+        )
+
+        with patch("socket.getaddrinfo", side_effect=socket.gaierror("no such host")):
+            err = _validate_entry(self._make_remote("https://nonexistent.example.com/mcp"))
+
+        assert err is None
+
+    def test_accepts_valid_https_url(self) -> None:
+        """Valid HTTPS URL with a public IP passes validation."""
+        from unittest.mock import patch
+
+        from pilot_space.application.services.mcp.import_mcp_servers_service import (
+            _validate_entry,
+        )
+
+        # Simulate getaddrinfo returning a public IP
+        fake_addr = [(None, None, None, None, ("93.184.216.34", 0))]
+        with patch("socket.getaddrinfo", return_value=fake_addr):
+            err = _validate_entry(self._make_remote("https://example.com/mcp"))
+
+        assert err is None
+

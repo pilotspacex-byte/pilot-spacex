@@ -660,3 +660,100 @@ class TestGetWorkspaceEmbeddingKey:
     def test_alias_points_to_same_function(self) -> None:
         """get_workspace_openai_key is an alias for get_workspace_embedding_key."""
         assert get_workspace_openai_key is get_workspace_embedding_key
+
+
+# ---------------------------------------------------------------------------
+# _build_server_config — shlex tokenisation for NPX/UVX commands
+# ---------------------------------------------------------------------------
+
+
+class TestBuildServerConfigArgvTokenisation:
+    """Verify that _build_server_config uses shlex.split for NPX/UVX commands.
+
+    str.split() breaks quoted arguments ('--name "foo bar"' → wrong argv).
+    shlex.split(posix=True) produces the correct POSIX token list.
+    """
+
+    def _make_npx_server(
+        self,
+        url_or_command: str,
+        command_args: str | None = None,
+        env_vars_encrypted: str | None = None,
+    ) -> Any:
+        from unittest.mock import MagicMock
+
+        from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+            McpServerType,
+            McpTransport,
+            WorkspaceMcpServer,
+        )
+
+        server = MagicMock(spec=WorkspaceMcpServer)
+        server.server_type = McpServerType.NPX
+        server.transport = McpTransport.STDIO
+        server.url_or_command = url_or_command
+        server.command_args = command_args
+        server.env_vars_encrypted = env_vars_encrypted
+        server.id = "test-server-id"
+        return server
+
+    def _build(self, server: Any) -> Any:
+        from pilot_space.ai.agents.pilotspace_stream_utils import _build_server_config
+
+        return _build_server_config(server, decrypt_fn=lambda _: "token")
+
+    def test_simple_command_no_args(self) -> None:
+        """npx my-pkg → command='npx', args=['my-pkg']"""
+        server = self._make_npx_server("npx my-pkg")
+        config = self._build(server)
+        assert config is not None
+        assert config["command"] == "npx"
+        assert config.get("args") == ["my-pkg"]
+
+    def test_quoted_argument_preserved_as_single_token(self) -> None:
+        """Quoted arg must not be split: npx --name "foo bar" → args=['--name', 'foo bar']"""
+        server = self._make_npx_server('npx --name "foo bar" --flag')
+        config = self._build(server)
+        assert config is not None
+        assert config["command"] == "npx"
+        assert config.get("args") == ["--name", "foo bar", "--flag"]
+
+    def test_single_quoted_argument_preserved(self) -> None:
+        """Single-quoted arg: npx --key 'hello world' → args=['--key', 'hello world']"""
+        server = self._make_npx_server("npx --key 'hello world'")
+        config = self._build(server)
+        assert config is not None
+        assert config.get("args") == ["--key", "hello world"]
+
+    def test_command_args_quoted_token_preserved(self) -> None:
+        """Quoted token in command_args must also be a single argv element."""
+        server = self._make_npx_server("npx my-pkg", command_args='--title "my title"')
+        config = self._build(server)
+        assert config is not None
+        # args come from both url_or_command tail and command_args
+        args = config.get("args", [])
+        assert "my-pkg" in args
+        assert "--title" in args
+        assert "my title" in args          # must be a single token
+        assert '"my title"' not in args    # must NOT contain the quotes themselves
+
+    def test_command_only_no_args(self) -> None:
+        """Single-word command has no args key set."""
+        server = self._make_npx_server("npx")
+        config = self._build(server)
+        assert config is not None
+        assert config["command"] == "npx"
+        assert not config.get("args")
+
+    def test_malformed_quotes_returns_none(self) -> None:
+        """Unterminated quote is a parse error — config returns None instead of crashing."""
+        server = self._make_npx_server('npx --name "unterminated')
+        config = self._build(server)
+        assert config is None
+
+    def test_malformed_command_args_returns_none(self) -> None:
+        """Unterminated quote in command_args returns None."""
+        server = self._make_npx_server("npx my-pkg", command_args="--flag 'unterminated")
+        config = self._build(server)
+        assert config is None
+

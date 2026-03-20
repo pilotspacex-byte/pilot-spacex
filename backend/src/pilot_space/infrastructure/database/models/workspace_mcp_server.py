@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
@@ -31,6 +31,8 @@ class McpServerType(StrEnum):
     """Server type — remote HTTP endpoint or locally-launched process."""
 
     REMOTE = "remote"
+    COMMAND = "command"
+    # Legacy values — kept for backward compat with existing DB rows.
     NPX = "npx"
     UVX = "uvx"
 
@@ -90,7 +92,19 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
     """
 
     __tablename__ = "workspace_mcp_servers"  # type: ignore[assignment]
-    __table_args__ = ({"schema": None},)
+    __table_args__ = (
+        # Partial unique index: active rows within a workspace must have distinct
+        # display names.  Soft-deleted rows (is_deleted=True) are excluded so a
+        # name can be re-used after deletion.
+        Index(
+            "uq_mcp_servers_workspace_display_name_active",
+            "workspace_id",
+            "display_name",
+            unique=True,
+            postgresql_where="is_deleted = false",
+        ),
+        {"schema": None},
+    )
 
     display_name: Mapped[str] = mapped_column(
         String(128),

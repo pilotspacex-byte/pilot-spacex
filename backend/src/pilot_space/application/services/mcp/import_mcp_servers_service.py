@@ -10,7 +10,6 @@ Duplicate display_names within the workspace are skipped (not overwritten).
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -23,6 +22,10 @@ from pilot_space.infrastructure.database.models.workspace_mcp_server import (
     WorkspaceMcpServer,
 )
 from pilot_space.infrastructure.logging import get_logger
+from pilot_space.security.mcp_validation import (
+    SHELL_METACHAR_RE as _SHELL_METACHAR_RE,
+    validate_mcp_url as _validate_mcp_url,
+)
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.repositories.workspace_mcp_server_repository import (
@@ -30,9 +33,6 @@ if TYPE_CHECKING:
     )
 
 logger = get_logger(__name__)
-
-# Shell metacharacter denylist (same as _mcp_server_schemas.py)
-_SHELL_METACHAR_RE = re.compile(r"[;&|$`(){}<>]")
 
 
 # ---------------------------------------------------------------------------
@@ -178,15 +178,14 @@ class ImportMcpServersService:
             )
 
         if command and isinstance(command, str):
-            # Infer NPX vs UVX vs other
+            # Infer COMMAND vs legacy NPX vs UVX
             if command == "npx" or command.startswith("npx "):
-                server_type = McpServerType.NPX
+                server_type = McpServerType.COMMAND
             elif command == "uvx" or command.startswith("uvx "):
-                server_type = McpServerType.UVX
+                server_type = McpServerType.COMMAND
             else:
-                # Generic command — wrap with the command itself as NPX-style
-                # Treat as NPX with the full command path
-                server_type = McpServerType.NPX
+                # Generic command — treat as COMMAND type
+                server_type = McpServerType.COMMAND
 
             # Build url_or_command: if command is bare ("npx"), append args
             args_list = config.get("args")
@@ -201,7 +200,6 @@ class ImportMcpServersService:
                     full_command = f"npx {str_args}".strip()
                 elif command == "uvx":
                     full_command = f"uvx {str_args}".strip()
-                    server_type = McpServerType.UVX
                 else:
                     full_command = f"npx {command} {str_args}".strip()
             else:
@@ -336,16 +334,19 @@ def _extract_headers(config: dict[str, object]) -> dict[str, str] | None:
 def _validate_entry(entry: ParsedMcpServer) -> str | None:
     """Validate a parsed server entry for SSRF and command injection.
 
+    For REMOTE servers, applies the full SSRF blocklist (HTTPS scheme +
+    private/metadata IP range check) via ``validate_mcp_url`` — identical to
+    the rules enforced by the POST and PATCH endpoints.
+
     Returns:
         An error message string if invalid, or None if valid.
     """
-    import urllib.parse
-
     if entry.server_type == McpServerType.REMOTE:
-        parsed_url = urllib.parse.urlparse(entry.url_or_command)
-        if parsed_url.scheme != "https":
-            return "invalid_url: MCP server URL must use HTTPS"
-    elif entry.server_type in (McpServerType.NPX, McpServerType.UVX):
+        try:
+            _validate_mcp_url(entry.url_or_command)
+        except ValueError as exc:
+            return f"invalid_url: {exc}"
+    elif entry.server_type in (McpServerType.COMMAND, McpServerType.NPX, McpServerType.UVX):
         if not entry.url_or_command.strip():
             return "invalid_command: command must not be empty"
         if _SHELL_METACHAR_RE.search(entry.url_or_command):

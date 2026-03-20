@@ -146,6 +146,34 @@ class WorkspaceMcpServerRepository(BaseRepository[WorkspaceMcpServer]):
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_by_display_name(
+        self,
+        workspace_id: UUID,
+        display_name: str,
+    ) -> WorkspaceMcpServer | None:
+        """Get an active MCP server by workspace and display_name.
+
+        Used to detect name collisions before insert/rename so the API can
+        return a 409 rather than letting the DB unique index raise an
+        IntegrityError.
+
+        Args:
+            workspace_id: The workspace UUID.
+            display_name: Exact display_name to look up (case-sensitive).
+
+        Returns:
+            The active server with that name, or None if no match.
+        """
+        query = select(WorkspaceMcpServer).where(
+            and_(
+                WorkspaceMcpServer.workspace_id == workspace_id,
+                WorkspaceMcpServer.display_name == display_name,
+                WorkspaceMcpServer.is_deleted == False,  # noqa: E712
+            )
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
     async def create(self, entity: WorkspaceMcpServer) -> WorkspaceMcpServer:  # type: ignore[override]
         """Persist a new MCP server row.
 

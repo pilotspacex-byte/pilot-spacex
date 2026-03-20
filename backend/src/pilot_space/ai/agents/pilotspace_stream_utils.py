@@ -648,9 +648,17 @@ async def load_workspace_mcp_servers(
         db_session: Active async DB session, or None if not available.
 
     Returns:
-        Dict keyed by "WORKSPACE_{NORMALIZED_NAME}" where NORMALIZED_NAME =
-        re.sub(r"[^A-Z0-9]", "_", display_name.upper()) — non-alphanumeric chars
-        replaced with underscores (e.g. "my-server" → "WORKSPACE_MY_SERVER").
+        Dict keyed by "WORKSPACE_{NORMALIZED_NAME}_{SHORT_ID}" where:
+          - NORMALIZED_NAME = re.sub(r"[^A-Z0-9]", "_", display_name.upper())
+          - SHORT_ID = first 8 hex chars of the server UUID
+
+        The UUID suffix guarantees key uniqueness even if two servers share a
+        normalized display_name (e.g. "my server" and "my-server" both normalize
+        to "MY_SERVER").  The DB partial-unique index prevents name collisions
+        among active rows, but the suffix acts as a defence-in-depth guard.
+
+        Example: display_name="GitHub MCP", id="a1b2c3d4-..." →
+                 key="WORKSPACE_GITHUB_MCP_A1B2C3D4"
     """
     if workspace_id is None or db_session is None:
         return {}
@@ -676,7 +684,18 @@ async def load_workspace_mcp_servers(
             continue
 
         if config is not None:
-            key = "WORKSPACE_" + re.sub(r"[^A-Z0-9]", "_", server.display_name.upper())
+            normalized = re.sub(r"[^A-Z0-9]", "_", server.display_name.upper())
+            short_id = server.id.hex[:8].upper()
+            key = f"WORKSPACE_{normalized}_{short_id}"
+            if key in servers:
+                # Should never happen given the DB unique constraint, but log
+                # loudly rather than silently dropping a server config.
+                logger.error(
+                    "mcp_server_key_collision",
+                    key=key,
+                    server_id=str(server.id),
+                    workspace_id=str(workspace_id),
+                )
             servers[key] = config
 
     return servers
@@ -750,13 +769,35 @@ def _build_server_config(
     if not command_str:
         return None
 
-    parts = command_str.split()
-    command = parts[0]
-    args = parts[1:] if len(parts) > 1 else []
+    try:
+        import shlex
+        parts = shlex.split(command_str, posix=True)
+    except ValueError:
+        logger.warning(
+            "mcp_command_shlex_parse_failed",
+            server_id=str(server.id),
+            command=command_str,
+        )
+        return None
 
-    # Append command_args if present
+    if not parts:
+        return None
+
+    command = parts[0]
+    args = parts[1:]
+
+    # Append command_args if present, also tokenised with shlex
     if server.command_args:
-        args.extend(server.command_args.split())
+        try:
+            import shlex as _shlex
+            args.extend(_shlex.split(server.command_args, posix=True))
+        except ValueError:
+            logger.warning(
+                "mcp_command_args_shlex_parse_failed",
+                server_id=str(server.id),
+                command_args=server.command_args,
+            )
+            return None
 
     # Decrypt env vars
     env: dict[str, str] | None = None
