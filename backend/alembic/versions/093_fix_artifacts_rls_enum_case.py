@@ -1,12 +1,8 @@
-"""Fix artifacts RLS policy enum case — lowercase to match DB values.
+"""Remove redundant role IN filter from artifacts RLS policy.
 
-Known bug: workspace_role enum stores lowercase ('owner', 'admin', 'member',
-'guest') but migration 092 used UPPERCASE in the RLS policy, making all
-artifact rows invisible to authenticated users. This migration drops and
-recreates the workspace isolation policy with correct lowercase values.
-
-See also: migrations 023 and 066 which fixed the same enum case issue on
-other tables.
+Migration 092 included an unnecessary `wm.role IN (...)` filter in the
+workspace isolation policy — membership in workspace_members is sufficient,
+the role check adds no security value and caused enum case confusion.
 
 Revision ID: 093_fix_artifacts_rls_enum_case
 Revises: 092_add_artifacts_rls_policies
@@ -26,10 +22,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # Drop the policy with incorrect UPPERCASE enum values
+    # Drop the policy with the redundant role IN filter
     op.execute(text('DROP POLICY IF EXISTS "artifacts_workspace_isolation" ON artifacts'))
 
-    # Recreate with correct lowercase enum values matching DB storage
+    # Recreate without the role filter — membership is the only check needed
     op.execute(
         text("""
         CREATE POLICY "artifacts_workspace_isolation"
@@ -41,7 +37,6 @@ def upgrade() -> None:
                 FROM workspace_members wm
                 WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
-                AND wm.role IN ('owner', 'admin', 'member', 'guest')
             )
         )
     """)
@@ -49,7 +44,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Revert to the original UPPERCASE policy from migration 091
+    # Revert to the original policy from migration 092
     op.execute(text('DROP POLICY IF EXISTS "artifacts_workspace_isolation" ON artifacts'))
 
     op.execute(
