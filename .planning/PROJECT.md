@@ -84,18 +84,20 @@ Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data 
 - ✓ Desktop + tablet responsive layout — v1.0.0-alpha2
 - ✓ Drag-and-drop tree reordering with depth limit enforcement — v1.0.0-alpha2
 
+<!-- v1.1 Tauri Desktop Client — shipped 2026-03-20 -->
+- ✓ Tauri v2 desktop shell embedding existing Next.js frontend in WebView — v1.1
+- ✓ Auth bridge: Supabase JWT sync to OS keychain + deep link OAuth — v1.1
+- ✓ Git client: clone/pull/push/branch/status/conflict via git2-rs — v1.1
+- ✓ pilot CLI compiled sidecar (PyInstaller, no Python required) — v1.1
+- ✓ Embedded xterm.js terminal with full PTY support — v1.1
+- ✓ Diff viewer with syntax highlighting + stage/commit/push UI — v1.1
+- ✓ One-click "Implement Issue" flow (branch → implement → commit → push) — v1.1
+- ✓ System tray with minimize-to-tray + native OS notifications — v1.1
+- ✓ Cross-platform packaging (.dmg/.deb/.AppImage/.msi) with signing + auto-update — v1.1
+
 ### Active
 
-<!-- v1.1 Tauri Desktop Client -->
-- [ ] Tauri app shell with embedded Next.js WebView (reuse existing frontend)
-- [ ] Auth bridge: Supabase token sharing between WebView and Tauri backend
-- [ ] Git operations: clone, pull, push via Tauri Rust backend (git2-rs)
-- [ ] pilot implement integration as Tauri sidecar (compiled binary)
-- [ ] Embedded terminal panel (xterm.js) for streaming CLI output
-- [ ] Diff viewer and commit UI inside the app
-- [ ] Shell command execution (tests, builds) with terminal output
-- [ ] App-managed project workspace directory (~/ PilotSpace/projects/)
-- [ ] Cross-platform builds and packaging (macOS, Linux, Windows)
+(No active requirements — next milestone not yet defined)
 
 ### Out of Scope
 
@@ -111,34 +113,13 @@ Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data 
 - Page-level permissions (per-page ACL) — breaks simple workspace RBAC model
 - Synced blocks / transclusion — TipTap doesn't natively support
 
-## Current Milestone: v1.1 Tauri Desktop Client
-
-**Goal:** Wrap the existing Pilot Space web app in a Tauri desktop shell with native local capabilities — git operations, pilot CLI execution, embedded terminal, diff viewer — so developers can manage projects AND execute code from one app.
-
-**Target features:**
-- Tauri shell embedding existing Next.js frontend in WebView
-- Supabase auth token bridge between WebView and Rust backend
-- Git clone/pull/push via git2-rs in Tauri Rust backend
-- pilot CLI as compiled sidecar binary (PyInstaller/Nuitka)
-- xterm.js embedded terminal for streaming command output
-- Diff viewer + commit/stage UI (lightweight Git client)
-- Shell command execution (tests, builds)
-- App-managed workspace directory with configurable base path
-- Cross-platform packaging: macOS (ARM + Intel), Linux, Windows
-
-**Key decisions:**
-- Embed Next.js (not rebuild) — reuse ~95% of existing frontend code
-- Remote FastAPI backend (not bundled) — Tauri connects over HTTPS
-- Tauri sidecar for pilot CLI — compiled Python binary, no Python required on user machine
-- All three platforms from day one (macOS, Linux, Windows)
-
 ## Context
 
-Shipped v1.0.0-alpha2 Notion-Style Restructure on 2026-03-12. Restructured data hierarchy from flat notes to Notion-style project-centric nested page trees with embedded issue views, visual design refresh, and tablet-responsive layout. Total codebase across 29 completed phases and 92 plans over three milestones.
+Shipped v1.1 Tauri Desktop Client on 2026-03-20. Wrapped the web app in a Tauri v2 desktop shell with native git operations, embedded terminal, pilot CLI sidecar, one-click implement flow, and cross-platform packaging. Previously shipped v1.0.0-alpha2 Notion-Style Restructure on 2026-03-12. Restructured data hierarchy from flat notes to Notion-style project-centric nested page trees with embedded issue views, visual design refresh, and tablet-responsive layout. Total codebase across 29 completed phases and 92 plans over three milestones.
 
 **Tech stack:** FastAPI + SQLAlchemy async + Next.js 15 App Router + MobX + TanStack Query + shadcn/ui + Supabase Auth + PostgreSQL 16 (pgvector, pgmq, RLS) + Redis + Meilisearch.
 
-**Current state:** All 86 requirements satisfied across v1.0 (30), v1.0-alpha (39), and v1.0.0-alpha2 (17). Platform features: Notion-style project page trees (3-level), sidebar tree navigation with drag-and-drop, embedded issue views (Board/List/Table/Priority), emoji page icons, Notion-like visual design, tablet-responsive layout, plus all prior enterprise features (SSO, RBAC, audit, BYOK AI, MCP, plugins).
+**Current state:** All 116 requirements satisfied across v1.0 (30), v1.0-alpha (39), v1.0.0-alpha2 (17), and v1.1 (30). Platform features: Notion-style project page trees (3-level), sidebar tree navigation with drag-and-drop, embedded issue views (Board/List/Table/Priority), emoji page icons, Notion-like visual design, tablet-responsive layout, plus all prior enterprise features (SSO, RBAC, audit, BYOK AI, MCP, plugins).
 
 **Known tech debt (minor):**
 - Two test assertions in test_related_issues.py use stale field names (pass vacuously over empty lists)
@@ -184,4 +165,4 @@ Shipped v1.0.0-alpha2 Notion-Style Restructure on 2026-03-12. Restructured data 
 | App-managed workspace directory | Consistent structure for cloned repos; user-configurable base path | — Pending |
 
 ---
-*Last updated: 2026-03-20 after v1.1 Tauri Desktop Client milestone started*
+*Last updated: 2026-03-20 after v1.1 Tauri Desktop Client milestone shipped*

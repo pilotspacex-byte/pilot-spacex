@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.1 Tauri Desktop Client (Shipped: 2026-03-20)
+
+**Phases completed:** 10 phases, 26 plans, 7 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.0.0-alpha2 Notion-Style Restructure (Shipped: 2026-03-12)
 
 **Phases completed:** 6 phases, 14 plans, 10 tasks

@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: completed
 stopped_at: Completed 39-01-PLAN.md
-last_updated: "2026-03-20T17:01:04.381Z"
+last_updated: "2026-03-20T17:04:42.964Z"
 last_activity: 2026-03-20 — Phase 39 Plan 01 complete — Tauri updater pubkey, stores barrel exports, dev CI sidecar download
 progress:
   total_phases: 10
