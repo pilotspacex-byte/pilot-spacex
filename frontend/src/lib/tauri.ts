@@ -140,6 +140,33 @@ export async function listProjects(): Promise<ProjectEntry[]> {
   return invoke<ProjectEntry[]>('list_projects');
 }
 
+// --- Git result types (Phase 33) ---
+
+export interface GitPullResult {
+  updated: boolean;
+  conflicts: string[];
+}
+
+export interface FileStatus {
+  path: string;
+  status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
+  staged: boolean;
+}
+
+export interface GitRepoStatus {
+  files: FileStatus[];
+  branch: string;
+  ahead: number;
+  behind: number;
+}
+
+export interface BranchInfo {
+  name: string;
+  is_current: boolean;
+  is_remote: boolean;
+  upstream: string | null;
+}
+
 // --- Git commands ---
 
 /**
@@ -189,4 +216,96 @@ export async function getGitCredentials(): Promise<GitCredentialInfo | null> {
   if (!isTauri()) return null;
   const { invoke } = await import('@tauri-apps/api/core');
   return invoke<GitCredentialInfo | null>('get_git_credentials');
+}
+
+/**
+ * Pull from the remote for the repository at repoPath.
+ * Uses Tauri v2 Channel API to stream progress updates.
+ * Returns a GitPullResult indicating whether commits were merged and any conflicted paths.
+ * @param repoPath - Absolute path to the local git repository
+ * @param onProgress - Callback invoked on each progress update
+ */
+export async function gitPull(
+  repoPath: string,
+  onProgress: (progress: GitProgress) => void
+): Promise<GitPullResult> {
+  if (!isTauri()) throw new Error('Not in Tauri mode');
+  const { invoke, Channel } = await import('@tauri-apps/api/core');
+  const channel = new Channel<GitProgress>();
+  channel.onmessage = onProgress;
+  return invoke<GitPullResult>('git_pull', { repoPath, onProgress: channel });
+}
+
+/**
+ * Push the current branch to origin for the repository at repoPath.
+ * Uses Tauri v2 Channel API to stream progress updates.
+ * @param repoPath - Absolute path to the local git repository
+ * @param onProgress - Callback invoked on each progress update
+ */
+export async function gitPush(
+  repoPath: string,
+  onProgress: (progress: GitProgress) => void
+): Promise<void> {
+  if (!isTauri()) throw new Error('Not in Tauri mode');
+  const { invoke, Channel } = await import('@tauri-apps/api/core');
+  const channel = new Channel<GitProgress>();
+  channel.onmessage = onProgress;
+  await invoke('git_push', { repoPath, onProgress: channel });
+}
+
+/**
+ * Get the working tree and index status for the repository at repoPath.
+ * Returns an empty status object if not in Tauri mode.
+ * @param repoPath - Absolute path to the local git repository
+ */
+export async function gitStatus(repoPath: string): Promise<GitRepoStatus> {
+  if (!isTauri()) return { files: [], branch: '', ahead: 0, behind: 0 };
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<GitRepoStatus>('git_status', { repoPath });
+}
+
+/**
+ * List all local and remote branches for the repository at repoPath.
+ * Returns an empty array if not in Tauri mode.
+ * @param repoPath - Absolute path to the local git repository
+ */
+export async function gitBranchList(repoPath: string): Promise<BranchInfo[]> {
+  if (!isTauri()) return [];
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<BranchInfo[]>('git_branch_list', { repoPath });
+}
+
+/**
+ * Create a new branch named `name` from the current HEAD commit.
+ * @param repoPath - Absolute path to the local git repository
+ * @param name - New branch name
+ */
+export async function gitBranchCreate(repoPath: string, name: string): Promise<void> {
+  if (!isTauri()) throw new Error('Not in Tauri mode');
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('git_branch_create', { repoPath, name });
+}
+
+/**
+ * Switch to the branch named `name` using a safe checkout.
+ * Safe checkout refuses to overwrite uncommitted changes.
+ * @param repoPath - Absolute path to the local git repository
+ * @param name - Branch name to switch to
+ */
+export async function gitBranchSwitch(repoPath: string, name: string): Promise<void> {
+  if (!isTauri()) throw new Error('Not in Tauri mode');
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('git_branch_switch', { repoPath, name });
+}
+
+/**
+ * Delete the local branch named `name`.
+ * Refuses to delete the currently checked-out branch.
+ * @param repoPath - Absolute path to the local git repository
+ * @param name - Branch name to delete
+ */
+export async function gitBranchDelete(repoPath: string, name: string): Promise<void> {
+  if (!isTauri()) throw new Error('Not in Tauri mode');
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('git_branch_delete', { repoPath, name });
 }
