@@ -50,7 +50,7 @@ Requirements for Tauri Desktop Client milestone. Each maps to roadmap phases.
 - [x] **DIFF-02**: User can stage and unstage individual files
 - [x] **DIFF-03**: User can write a commit message and commit staged changes
 - [x] **DIFF-04**: User can push commits to remote after committing
-- [ ] **DIFF-05**: Diff viewer shows inline annotations with syntax highlighting
+- [x] **DIFF-05**: Diff viewer shows inline annotations with syntax highlighting
 
 ### Workspace
 
@@ -119,7 +119,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DIFF-02 | Phase 36 | Complete |
 | DIFF-03 | Phase 36 | Complete |
 | DIFF-04 | Phase 36 | Complete |
-| DIFF-05 | Phase 36 | Pending |
+| DIFF-05 | Phase 36 | Complete |
 | WKSP-01 | Phase 32 | Complete |
 | WKSP-02 | Phase 32 | Complete |
 | WKSP-03 | Phase 32 | Complete |
