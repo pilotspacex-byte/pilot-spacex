@@ -25,6 +25,8 @@ const mockGenerateSkill = {
   mutateAsync: vi.fn().mockResolvedValue({
     skillContent: '# Generated Skill\n\nContent here',
     suggestedRoleName: 'AI Generated Name',
+    suggestedTags: ['Python', 'FastAPI'],
+    suggestedUsage: 'Use during backend code reviews.',
     wordCount: 5,
   }),
   isPending: false,
@@ -39,6 +41,8 @@ const mockGenerateWorkspaceSkill = {
   mutateAsync: vi.fn().mockResolvedValue({
     skill_content: '# Workspace Skill',
     role_name: 'Workspace Role',
+    tags: ['Architecture', 'Design'],
+    usage: 'Use for workspace-level design reviews.',
   }),
   isPending: false,
 };
@@ -120,6 +124,13 @@ describe('SkillAddModal', () => {
       // Inline tip
       expect(screen.getByText(/include your role, tech stack/i)).toBeInTheDocument();
     });
+
+    it('should render usage textarea and tags input on manual tab', () => {
+      renderModal();
+
+      expect(screen.getByLabelText('Usage (optional)')).toBeInTheDocument();
+      expect(screen.getByText(/press enter or comma to add a tag/i)).toBeInTheDocument();
+    });
   });
 
   describe('2. Manual save', () => {
@@ -148,6 +159,36 @@ describe('SkillAddModal', () => {
         skill_content: 'Some skill content here',
         experience_description: 'A brief description',
       });
+    });
+
+    it('should include tags and usage when provided', async () => {
+      const user = userEvent.setup();
+      renderModal();
+
+      // Fill required fields
+      const nameInput = screen.getByPlaceholderText('e.g. Senior Backend Developer');
+      await user.type(nameInput, 'Skill With Tags');
+      const textarea = screen.getByLabelText('Skill content editor');
+      await user.type(textarea, 'Some skill content');
+
+      // Add a tag
+      const tagInput = screen.getByLabelText('Add tag');
+      await user.type(tagInput, 'python{Enter}');
+
+      // Fill usage
+      const usageTextarea = screen.getByLabelText('Usage (optional)');
+      await user.type(usageTextarea, 'Used during code reviews');
+
+      // Click save
+      const saveBtn = screen.getByRole('button', { name: /save skill/i });
+      await user.click(saveBtn);
+
+      expect(mockCreateUserSkill.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tags: ['python'],
+          usage: 'Used during code reviews',
+        })
+      );
     });
   });
 
@@ -272,13 +313,15 @@ describe('SkillAddModal', () => {
       await user.click(generateBtn);
 
       // Should show generating state (bouncing dots / progress)
-      expect(screen.getByText('Generating your skill...')).toBeInTheDocument();
+      expect(screen.getByText('Crafting your skill...')).toBeInTheDocument();
 
       // Resolve the deferred promise to transition to preview
       await React.act(async () => {
         resolveGenerate({
           skillContent: '# Generated Skill\n\nContent here',
           suggestedRoleName: 'AI Generated Name',
+          suggestedTags: ['Python', 'FastAPI'],
+          suggestedUsage: 'Use during backend code reviews.',
           wordCount: 5,
         });
       });

@@ -284,15 +284,16 @@ describe('NotesPage - NoteGridCard', () => {
 
     await renderNotesPage([note]);
 
-    expect(screen.getByText('react, testing')).toBeInTheDocument();
+    // Topics joined with middle dot separator
+    expect(screen.getByText('react · testing')).toBeInTheDocument();
   });
 
-  it('shows "No topics" when no linked issues and no topics', async () => {
-    const note = makeNote({ topics: [], linkedIssues: [] });
+  it('shows empty word indicator when no linked issues and no topics', async () => {
+    const note = makeNote({ topics: [], linkedIssues: [], wordCount: 0 });
 
     await renderNotesPage([note]);
 
-    expect(screen.getByText('No topics')).toBeInTheDocument();
+    expect(screen.getByText('Empty')).toBeInTheDocument();
   });
 
   it('renders project progress bar with correct width', async () => {

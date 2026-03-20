@@ -41,6 +41,8 @@ class CreateRoleSkillPayload:
     role_name: str
     skill_content: str
     experience_description: str | None = None
+    tags: list[str] | None = None
+    usage: str | None = None
     is_primary: bool = False
 
 
@@ -111,6 +113,8 @@ class CreateRoleSkillService:
             role_name=payload.role_name,
             skill_content=payload.skill_content,
             experience_description=payload.experience_description,
+            tags=payload.tags if payload.tags is not None else [],
+            usage=payload.usage,
             is_primary=payload.is_primary,
             template_version=template_version,
         )

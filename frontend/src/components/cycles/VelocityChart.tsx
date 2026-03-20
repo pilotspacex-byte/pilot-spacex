@@ -216,7 +216,11 @@ export const VelocityChart = observer(function VelocityChart({
   const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
 
   const trendColor =
-    trend === 'up' ? 'text-green-500' : trend === 'down' ? 'text-red-500' : 'text-gray-500';
+    trend === 'up'
+      ? 'text-success'
+      : trend === 'down'
+        ? 'text-destructive'
+        : 'text-muted-foreground';
 
   const trendLabel =
     trend === 'up'
@@ -285,9 +289,9 @@ export const VelocityChart = observer(function VelocityChart({
                   <div
                     className={cn(
                       'flex items-center gap-1 rounded-full px-2 py-1',
-                      trend === 'up' && 'bg-green-100 dark:bg-green-900/30',
-                      trend === 'down' && 'bg-red-100 dark:bg-red-900/30',
-                      trend === 'stable' && 'bg-gray-100 dark:bg-gray-800'
+                      trend === 'up' && 'bg-success/10',
+                      trend === 'down' && 'bg-destructive/10',
+                      trend === 'stable' && 'bg-muted'
                     )}
                   >
                     <TrendIcon className={cn('size-4', trendColor)} />

@@ -57,7 +57,7 @@ export function SDLCSuggestionCards({
           <div
             key={card.id}
             className={cn(
-              'flex items-start gap-2.5 rounded-lg border border-gray-100 px-3 py-2.5',
+              'flex items-start gap-2.5 rounded-lg border border-border-subtle px-3 py-2.5',
               'motion-safe:transition-colors hover:bg-gray-50/50'
             )}
           >

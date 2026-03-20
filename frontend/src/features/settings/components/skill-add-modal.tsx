@@ -10,18 +10,14 @@
 
 import * as React from 'react';
 import {
-  ArrowLeft,
   Bold,
-  Check,
   Code,
   Heading1,
   Heading2,
   Heading3,
   Italic,
   List,
-  Pencil,
   RefreshCw,
-  TriangleAlert,
   User,
   Users,
   Wand2,
@@ -37,13 +33,22 @@ import { useGenerateSkill } from '@/features/onboarding/hooks';
 import { useGenerateWorkspaceSkill } from '@/services/api/workspace-role-skills';
 import { useCreateUserSkill } from '@/services/api/user-skills';
 import { WordCountBar } from './word-count-bar';
+import {
+  AiFormStep,
+  AiPreviewStep,
+  GeneratingStep,
+  TagChipInput,
+  AI_MIN_CHARS,
+} from './skill-add-modal-parts';
 
 type SkillMode = 'personal' | 'workspace';
 type AiStep = 'form' | 'generating' | 'preview';
 
-interface SkillPreview {
+interface AiSkillPreview {
   content: string;
   suggestedName: string;
+  suggestedTags: string[];
+  suggestedUsage: string | null;
   wordCount: number;
 }
 
@@ -58,13 +63,7 @@ export interface SkillAddModalProps {
   template?: { id: string; name: string; description: string; skill_content: string } | null;
 }
 
-const AI_MIN_CHARS = 10;
-const AI_MAX_CHARS = 5000;
 const MAX_WORDS = 2000;
-
-const AI_PLACEHOLDER = `e.g. Senior backend developer with 8 years of Python/FastAPI experience.
-Focused on clean architecture, async patterns, and PostgreSQL optimization.
-Prefer concise code reviews with security-first mindset.`;
 
 interface ToolbarAction {
   icon: React.ElementType;
@@ -106,14 +105,18 @@ export function SkillAddModal({
   const [manualName, setManualName] = React.useState('');
   const [manualDescription, setManualDescription] = React.useState('');
   const [manualContent, setManualContent] = React.useState('');
+  const [manualTags, setManualTags] = React.useState<string[]>([]);
+  const [manualUsage, setManualUsage] = React.useState('');
   const [manualNameError, setManualNameError] = React.useState(false);
 
   // AI Generate tab state
   const [aiStep, setAiStep] = React.useState<AiStep>('form');
   const [aiDescription, setAiDescription] = React.useState('');
-  const [aiPreview, setAiPreview] = React.useState<SkillPreview | null>(null);
+  const [aiPreview, setAiPreview] = React.useState<AiSkillPreview | null>(null);
   const [aiEditableName, setAiEditableName] = React.useState('');
   const [aiEditableContent, setAiEditableContent] = React.useState('');
+  const [aiEditableTags, setAiEditableTags] = React.useState<string[]>([]);
+  const [aiEditableUsage, setAiEditableUsage] = React.useState('');
   const [aiShowError, setAiShowError] = React.useState(false);
   const [mode, setMode] = React.useState<SkillMode>(defaultMode);
 
@@ -148,12 +151,16 @@ export function SkillAddModal({
     setManualName('');
     setManualDescription('');
     setManualContent('');
+    setManualTags([]);
+    setManualUsage('');
     setManualNameError(false);
     setAiStep('form');
     setAiDescription('');
     setAiPreview(null);
     setAiEditableName('');
     setAiEditableContent('');
+    setAiEditableTags([]);
+    setAiEditableUsage('');
     setAiShowError(false);
     setMode(defaultMode);
   }, [defaultTab, defaultMode]);
@@ -176,12 +183,23 @@ export function SkillAddModal({
         skill_name: manualName.trim(),
         skill_content: manualContent,
         experience_description: manualDescription.trim() || undefined,
+        tags: manualTags.length > 0 ? manualTags : undefined,
+        usage: manualUsage.trim() || undefined,
       });
       handleClose();
     } catch {
       /* Error toast from mutation hook */
     }
-  }, [isManualValid, manualName, manualDescription, manualContent, createUserSkill, handleClose]);
+  }, [
+    isManualValid,
+    manualName,
+    manualDescription,
+    manualContent,
+    manualTags,
+    manualUsage,
+    createUserSkill,
+    handleClose,
+  ]);
 
   const handleToolbarAction = React.useCallback(
     (action: ToolbarAction) => {
@@ -222,10 +240,14 @@ export function SkillAddModal({
         setAiPreview({
           content: r.skillContent,
           suggestedName: r.suggestedRoleName,
+          suggestedTags: r.suggestedTags ?? [],
+          suggestedUsage: r.suggestedUsage ?? null,
           wordCount: r.wordCount,
         });
         setAiEditableName(r.suggestedRoleName);
         setAiEditableContent(r.skillContent);
+        setAiEditableTags(r.suggestedTags ?? []);
+        setAiEditableUsage(r.suggestedUsage ?? '');
       } else {
         const s = await generateWorkspace.mutateAsync({
           experience_description: aiDescription.trim(),
@@ -233,10 +255,14 @@ export function SkillAddModal({
         setAiPreview({
           content: s.skill_content,
           suggestedName: s.role_name,
+          suggestedTags: s.tags ?? [],
+          suggestedUsage: s.usage ?? null,
           wordCount: s.skill_content.split(/\s+/).length,
         });
         setAiEditableName(s.role_name);
         setAiEditableContent(s.skill_content);
+        setAiEditableTags(s.tags ?? []);
+        setAiEditableUsage(s.usage ?? '');
       }
       setAiStep('preview');
     } catch {
@@ -256,6 +282,8 @@ export function SkillAddModal({
           skill_content: aiEditableContent,
           experience_description: aiDescription || undefined,
           skill_name: aiEditableName || undefined,
+          tags: aiEditableTags.length > 0 ? aiEditableTags : undefined,
+          usage: aiEditableUsage.trim() || undefined,
         });
         handleClose();
       } catch {
@@ -269,6 +297,8 @@ export function SkillAddModal({
     mode,
     aiEditableName,
     aiEditableContent,
+    aiEditableTags,
+    aiEditableUsage,
     aiDescription,
     createUserSkill,
     template,
@@ -278,6 +308,8 @@ export function SkillAddModal({
   const handleRetry = React.useCallback(() => {
     setAiShowError(false);
     setAiPreview(null);
+    setAiEditableTags([]);
+    setAiEditableUsage('');
     setAiStep('form');
   }, []);
 
@@ -387,6 +419,25 @@ export function SkillAddModal({
                 />
                 <WordCountBar wordCount={manualWordCount} maxWords={MAX_WORDS} />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="manual-skill-usage">Usage (optional)</Label>
+                <Textarea
+                  id="manual-skill-usage"
+                  value={manualUsage}
+                  onChange={(e) => setManualUsage(e.target.value.slice(0, 500))}
+                  placeholder="When and how this skill is applied, e.g. Used during backend architecture reviews and API design sessions."
+                  rows={2}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground text-right">{manualUsage.length}/500</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="manual-skill-tags">Tags (optional)</Label>
+                <TagChipInput id="manual-skill-tags" tags={manualTags} onChange={setManualTags} />
+                <p className="text-xs text-muted-foreground">
+                  Press Enter or comma to add a tag. Up to 20 tags.
+                </p>
+              </div>
               <div className="rounded-md bg-primary/5 border border-primary/10 p-3 mt-4">
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   <span className="font-medium text-foreground">Tip:</span> Include your role, tech
@@ -413,6 +464,10 @@ export function SkillAddModal({
                 onNameChange={setAiEditableName}
                 editableContent={aiEditableContent}
                 onContentChange={setAiEditableContent}
+                editableTags={aiEditableTags}
+                onTagsChange={setAiEditableTags}
+                editableUsage={aiEditableUsage}
+                onUsageChange={setAiEditableUsage}
                 wordCount={aiPreviewWordCount}
                 isReadOnly={isReadOnly}
                 onBack={() => setAiStep('form')}
@@ -501,190 +556,6 @@ function ModeToggle({ mode, onChange }: { mode: SkillMode; onChange: (mode: Skil
     >
       {btn('personal', <User className="h-3.5 w-3.5" />, 'For Me')}
       {btn('workspace', <Users className="h-3.5 w-3.5" />, 'For Workspace')}
-    </div>
-  );
-}
-
-/* AI Form Step */
-function AiFormStep({
-  description,
-  onDescriptionChange,
-  showError,
-  templateName,
-}: {
-  description: string;
-  onDescriptionChange: (text: string) => void;
-  showError: boolean;
-  templateName?: string;
-}) {
-  const wordCount = description.trim().split(/\s+/).filter(Boolean).length;
-  return (
-    <div className="space-y-4">
-      {templateName && (
-        <div className="flex items-center gap-2">
-          <Wand2 className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">Generate from &quot;{templateName}&quot;</span>
-        </div>
-      )}
-      <p className="text-sm text-muted-foreground">
-        Describe your expertise. AI generates a personalized skill for you.
-      </p>
-      {showError && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 rounded-lg border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20 p-3"
-        >
-          <TriangleAlert className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
-          <p className="text-sm text-muted-foreground">
-            Generation failed. Check your AI provider settings or try again.
-          </p>
-        </div>
-      )}
-      <div className="space-y-1.5">
-        <Label htmlFor="ai-skill-description">Experience Description</Label>
-        <Textarea
-          id="ai-skill-description"
-          value={description}
-          onChange={(e) => onDescriptionChange(e.target.value.slice(0, AI_MAX_CHARS))}
-          placeholder={AI_PLACEHOLDER}
-          rows={10}
-          className="resize-none min-h-[260px]"
-        />
-        <div className="flex items-center justify-between">
-          {description.trim().length > 0 && description.trim().length < AI_MIN_CHARS ? (
-            <p className="text-xs text-muted-foreground">Min {AI_MIN_CHARS} characters required</p>
-          ) : (
-            <span />
-          )}
-          <p className="text-xs text-muted-foreground">{wordCount} words</p>
-        </div>
-      </div>
-      <div className="rounded-md bg-primary/5 border border-primary/10 p-3 mt-4">
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          <span className="font-medium text-foreground">Tip:</span> The more specific your
-          description, the better the AI personalizes the skill.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* Generating Step */
-function GeneratingStep() {
-  const [progress, setProgress] = React.useState(0);
-  React.useEffect(() => {
-    const id = setInterval(() => setProgress((p) => (p >= 90 ? 90 : p + (90 - p) * 0.08)), 500);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div className="flex flex-col items-center justify-center flex-1 gap-4 py-8">
-      <div className="flex gap-1.5" aria-hidden="true">
-        <div className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
-        <div className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
-        <div className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary [animation-delay:300ms]" />
-      </div>
-      <p className="text-base font-medium">Generating your skill...</p>
-      <p className="text-sm text-muted-foreground text-center max-w-sm">
-        AI is crafting a personalized skill based on your description. This takes about 15-30
-        seconds.
-      </p>
-      <div className="w-52">
-        <div
-          className="h-1 w-full rounded-full bg-border overflow-hidden"
-          role="progressbar"
-          aria-valuenow={Math.round(progress)}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label="Skill generation progress"
-        >
-          <div
-            className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <p className="mt-1 text-center text-xs text-muted-foreground">{Math.round(progress)}%</p>
-      </div>
-      <div className="sr-only" aria-live="assertive" role="status">
-        Generating your skill. Please wait.
-      </div>
-    </div>
-  );
-}
-
-/* AI Preview Step */
-function AiPreviewStep({
-  editableName,
-  onNameChange,
-  editableContent,
-  onContentChange,
-  wordCount,
-  isReadOnly,
-  onBack,
-}: {
-  editableName: string;
-  onNameChange: (n: string) => void;
-  editableContent: string;
-  onContentChange: (c: string) => void;
-  wordCount: number;
-  isReadOnly: boolean;
-  onBack: () => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onBack}
-        className="text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="mr-1.5 h-4 w-4" />
-        Back to description
-      </Button>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Check className="h-5 w-5 text-primary" />
-          <h3 className="text-base font-semibold">Skill Preview</h3>
-        </div>
-        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-          Generated by AI
-        </span>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="ai-skill-name">
-          {isReadOnly ? 'Skill Name' : 'Skill Name (auto-generated - click to edit)'}
-        </Label>
-        <div className="relative">
-          <Input
-            id="ai-skill-name"
-            value={editableName}
-            onChange={(e) => onNameChange(e.target.value)}
-            readOnly={isReadOnly}
-            className={cn('pr-8 font-semibold', isReadOnly && 'opacity-60 cursor-default')}
-          />
-          {!isReadOnly && (
-            <Pencil
-              className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none"
-              aria-hidden="true"
-            />
-          )}
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label>Generated Content</Label>
-        <Textarea
-          value={editableContent}
-          onChange={(e) => onContentChange(e.target.value)}
-          readOnly={isReadOnly}
-          className={cn(
-            'min-h-[280px] max-h-[400px] font-mono text-xs leading-relaxed resize-y',
-            isReadOnly && 'opacity-60 cursor-default'
-          )}
-          aria-label={
-            isReadOnly ? 'Generated skill content (read-only)' : 'Edit generated skill content'
-          }
-        />
-        <WordCountBar wordCount={wordCount} maxWords={MAX_WORDS} />
-      </div>
     </div>
   );
 }

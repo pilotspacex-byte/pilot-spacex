@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class UserSkillSchema(BaseModel):
@@ -26,6 +26,8 @@ class UserSkillSchema(BaseModel):
     template_id: UUID | None
     skill_content: str
     experience_description: str | None
+    tags: list[str] = Field(default_factory=list)
+    usage: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -54,6 +56,14 @@ class UserSkillCreate(BaseModel):
         description="User-visible skill name (AI-suggested or user-edited)",
         max_length=200,
     )
+    tags: list[str] = Field(default_factory=list, max_length=20)
+    usage: str | None = Field(default=None, max_length=500)
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str]) -> list[str]:
+        """Strip whitespace and enforce max 30 chars per tag."""
+        return [tag.strip()[:30] for tag in v if tag.strip()]
 
     @model_validator(mode="after")
     def require_template_or_content(self) -> Self:
@@ -82,6 +92,16 @@ class UserSkillUpdate(BaseModel):
         description="Updated user-visible skill name",
         max_length=200,
     )
+    tags: list[str] | None = Field(default=None, max_length=20)
+    usage: str | None = Field(default=None, max_length=500)
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str] | None) -> list[str] | None:
+        """Strip whitespace and enforce max 30 chars per tag."""
+        if v is None:
+            return v
+        return [tag.strip()[:30] for tag in v if tag.strip()]
 
 
 __all__ = [

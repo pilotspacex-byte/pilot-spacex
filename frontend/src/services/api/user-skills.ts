@@ -18,6 +18,8 @@ export interface UserSkill {
   template_id: string | null;
   skill_content: string;
   experience_description: string | null;
+  tags: string[];
+  usage: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -30,6 +32,8 @@ export interface UserSkillCreate {
   skill_content?: string;
   experience_description?: string;
   skill_name?: string;
+  tags?: string[];
+  usage?: string;
 }
 
 export interface UserSkillUpdate {
@@ -37,6 +41,8 @@ export interface UserSkillUpdate {
   experience_description?: string;
   skill_content?: string;
   skill_name?: string;
+  tags?: string[];
+  usage?: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -58,6 +58,8 @@ export interface RoleSkill {
   roleName: string;
   skillContent: string;
   experienceDescription: string | null;
+  tags: string[];
+  usage: string | null;
   isPrimary: boolean;
   templateVersion: number | null;
   templateUpdateAvailable: boolean;
@@ -82,6 +84,8 @@ export interface CreateRoleSkillPayload {
   roleName: string;
   skillContent: string;
   experienceDescription?: string;
+  tags?: string[];
+  usage?: string;
   isPrimary?: boolean;
 }
 
@@ -111,6 +115,8 @@ export interface GenerateSkillPayload {
 export interface GenerateSkillResponse {
   skillContent: string;
   suggestedRoleName: string;
+  suggestedTags: string[];
+  suggestedUsage: string | null;
   wordCount: number;
   generationModel: string;
   generationTimeMs: number;

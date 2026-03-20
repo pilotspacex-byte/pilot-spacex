@@ -137,7 +137,7 @@ export function IssueDetailSheet({
           </div>
         )}
 
-        <SheetFooter className="border-t border-gray-100 pt-2">
+        <SheetFooter className="border-t border-border-subtle pt-2">
           {issueId && (
             <Button variant="outline" size="sm" asChild className="w-full gap-1.5">
               <Link href={`/${workspaceSlug}/issues/${issueId}`}>

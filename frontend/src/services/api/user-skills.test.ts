@@ -34,6 +34,8 @@ const mockSkill: UserSkill = {
   template_id: 'tpl-1',
   skill_content: 'You are an expert developer.',
   experience_description: '10 years React',
+  tags: [],
+  usage: null,
   is_active: true,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
@@ -95,7 +97,12 @@ describe('useCreateUserSkill', () => {
     const { apiClient } = await import('./client');
     vi.mocked(apiClient.post).mockResolvedValue(mockSkill);
 
-    const payload: UserSkillCreate = { template_id: 'tpl-1', experience_description: 'My exp' };
+    const payload: UserSkillCreate = {
+      template_id: 'tpl-1',
+      experience_description: 'My exp',
+      tags: ['Python', 'FastAPI'],
+      usage: 'Use for backend reviews',
+    };
     const { result } = renderHook(() => useCreateUserSkill('ws-slug'), {
       wrapper: createWrapper(),
     });
@@ -115,7 +122,11 @@ describe('useUpdateUserSkill', () => {
     const { apiClient } = await import('./client');
     vi.mocked(apiClient.patch).mockResolvedValue({ ...mockSkill, is_active: false });
 
-    const payload: UserSkillUpdate = { is_active: false };
+    const payload: UserSkillUpdate = {
+      is_active: false,
+      tags: ['React', 'TypeScript'],
+      usage: 'Frontend work',
+    };
     const { result } = renderHook(() => useUpdateUserSkill('ws-slug'), {
       wrapper: createWrapper(),
     });

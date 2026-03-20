@@ -1,11 +1,13 @@
 """Unit tests for GenerateRoleSkillService._parse_ai_response.
 
 Verifies that:
-- Valid JSON returns (skill_content, suggested_name, model).
+- Valid JSON returns (skill_content, suggested_name, model, tags, usage).
 - JSON embedded in markdown fences is extracted correctly.
 - JSON embedded in surrounding text is extracted via regex fallback.
 - Pure markdown (no JSON) is returned as skill_content.
 - Empty or too-short responses return None.
+- suggested_tags and suggested_usage are extracted when present.
+- suggested_tags and suggested_usage default gracefully when absent.
 """
 
 from __future__ import annotations
@@ -40,10 +42,46 @@ def test_parse_valid_json(service: GenerateRoleSkillService) -> None:
     )
     result = service._parse_ai_response(payload, "Engineer", "Backend", "claude-3-5-sonnet")
     assert result is not None
-    content, name, model = result
+    content, name, model, tags, usage = result
     assert content == _LONG_SKILL
     assert name == "Backend Dev"
     assert model == "claude-3-5-sonnet"
+    assert tags == []
+    assert usage is None
+
+
+def test_parse_valid_json_with_tags_and_usage(service: GenerateRoleSkillService) -> None:
+    """JSON with suggested_tags and suggested_usage extracts them correctly."""
+    payload = json.dumps(
+        {
+            "skill_content": _LONG_SKILL,
+            "suggested_role_name": "Backend Dev",
+            "suggested_tags": ["Python", "FastAPI", "PostgreSQL"],
+            "suggested_usage": "Use for backend Python code reviews.",
+        }
+    )
+    result = service._parse_ai_response(payload, "Engineer", "Backend", "claude-3-5-sonnet")
+    assert result is not None
+    content, name, model, tags, usage = result
+    assert content == _LONG_SKILL
+    assert name == "Backend Dev"
+    assert tags == ["Python", "FastAPI", "PostgreSQL"]
+    assert usage == "Use for backend Python code reviews."
+
+
+def test_parse_defaults_when_tags_and_usage_absent(service: GenerateRoleSkillService) -> None:
+    """Missing suggested_tags and suggested_usage default to [] and None."""
+    payload = json.dumps(
+        {
+            "skill_content": _LONG_SKILL,
+            "suggested_role_name": "Lead Engineer",
+        }
+    )
+    result = service._parse_ai_response(payload, "Engineer", None, "claude-3-5-sonnet")
+    assert result is not None
+    _content, _name, _model, tags, usage = result
+    assert tags == []
+    assert usage is None
 
 
 def test_parse_json_in_markdown_fences(service: GenerateRoleSkillService) -> None:
@@ -57,11 +95,13 @@ def test_parse_json_in_markdown_fences(service: GenerateRoleSkillService) -> Non
     fenced = f"```json\n{payload}\n```"
     result = service._parse_ai_response(fenced, "Engineer", None, "claude-3-5-sonnet")
     assert result is not None
-    content, name, model = result
+    content, name, model, tags, usage = result
     assert content == _LONG_SKILL
     assert name == "Frontend Engineer"
     # Confirm raw JSON prefix is NOT in the content
     assert not content.startswith('{"skill_content"')
+    assert tags == []
+    assert usage is None
 
 
 def test_parse_json_embedded_in_text(service: GenerateRoleSkillService) -> None:
@@ -75,12 +115,14 @@ def test_parse_json_embedded_in_text(service: GenerateRoleSkillService) -> None:
     wrapped = f"Here is your skill: {payload} Hope this helps!"
     result = service._parse_ai_response(wrapped, "Engineer", None, "gpt-4o")
     assert result is not None
-    content, name, model = result
+    content, name, model, tags, usage = result
     assert content == _LONG_SKILL
     assert name == "DevOps Lead"
     assert model == "gpt-4o"
     # Confirm raw JSON prefix is NOT in the content
     assert not content.startswith('{"skill_content"')
+    assert tags == []
+    assert usage is None
 
 
 def test_parse_malformed_json_with_unescaped_newlines(service: GenerateRoleSkillService) -> None:
@@ -93,7 +135,7 @@ def test_parse_malformed_json_with_unescaped_newlines(service: GenerateRoleSkill
     )
     result = service._parse_ai_response(raw, "Custom Role", None, "kimi")
     assert result is not None
-    content, name, model = result
+    content, name, model, tags, usage = result
     assert content.startswith("# Custom Role")
     assert name == "Senior Backend Developer"
     assert model == "kimi"
@@ -112,10 +154,12 @@ def test_parse_pure_markdown_no_json(service: GenerateRoleSkillService) -> None:
     assert len(markdown) >= 50
     result = service._parse_ai_response(markdown, "Engineer", None, "claude-3-5-sonnet")
     assert result is not None
-    content, _name, model = result
+    content, _name, model, tags, usage = result
     # Service strips the text before returning as raw markdown fallback
     assert content == markdown.strip()
     assert model == "claude-3-5-sonnet"
+    assert tags == []
+    assert usage is None
 
 
 def test_parse_empty_response_returns_none(service: GenerateRoleSkillService) -> None:

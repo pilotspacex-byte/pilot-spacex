@@ -289,12 +289,36 @@ uv run alembic check
 
 ### 3.4 Seed Demo Data (Optional)
 
+The seed script creates a complete demo environment with realistic data. It requires:
+- Supabase stack running (Step 1)
+- Database migrations applied (Step 3.3)
+- `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` set in `backend/.env`
+
 ```bash
 cd backend
 uv run python scripts/seed_demo.py
 ```
 
-Creates a demo workspace with 3 projects, 51 issues, 7 notes, and a test user.
+The script performs two steps:
+1. **Supabase Auth user** — Creates (or reuses) a demo user via the GoTrue Admin API
+2. **Database seeding** — Populates the database with:
+
+| Entity           | Count | Details                                    |
+|------------------|-------|--------------------------------------------|
+| User             | 1     | `test@pilot.space` / `DemoPassword123!`    |
+| Workspace        | 1     | `pilot-space-demo`                         |
+| Projects         | 3     | AUTH, API, FE                              |
+| Workflow states  | 18    | 6 per project (Backlog → Cancelled)        |
+| Labels           | 14    | Type + domain labels per project           |
+| Notes            | 7     | 2 pinned, 5 recent (TipTap JSON content)   |
+| Issues           | 51    | Distributed across all workflow states      |
+| Skill templates  | N     | Seeded from `role_templates` table         |
+
+The script is **idempotent** — re-running it clears existing demo data and reseeds.
+
+After seeding, log in at `http://localhost:3000/login` with:
+- **Email**: `test@pilot.space`
+- **Password**: `DemoPassword123!`
 
 ### 3.5 Start Backend
 

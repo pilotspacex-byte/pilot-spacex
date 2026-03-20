@@ -113,6 +113,30 @@ None.
 - [Phase 32]: Stale `artifactId: null` placeholder nodes from failed uploads need explicit removal strategy on editor mount
 - [Phase 34]: RESOLVED — 500-row truncation with download fallback chosen over virtual scrolling
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 1 | Fix 8 code issues from PR #32 CodeRabbit review | 2026-03-13 | ebeaa9db | | [1-review-all-comments-of-pr-32-then-fix-an](./quick/1-review-all-comments-of-pr-32-then-fix-an/) |
+| 2 | Fix remaining 5 CodeRabbit issues from PR #32 | 2026-03-13 | 4d9b7b7a | | [2-review-all-comments-of-pr-32-then-fix-an](./quick/2-review-all-comments-of-pr-32-then-fix-an/) |
+| 3 | Review and merge PR #31, #32, #33 | 2026-03-13 | 4e50a10c | | [3-review-carefully-opening-pr-31-32-33-the](./quick/3-review-carefully-opening-pr-31-32-33-the/) |
+| 4 | Fix all preexisting pytest failures | 2026-03-13 | 1bd09554 | | [4-checkout-new-branch-from-main-then-fix-a](./quick/4-checkout-new-branch-from-main-then-fix-a/) |
+| 5 | Per-user AI model defaults and base_url overrides | 2026-03-13 | bd06487e | | [5-allow-user-to-setup-default-claude-agent](./quick/5-allow-user-to-setup-default-claude-agent/) |
+| 6 | Phase 1 UI/UX quick wins (fonts, tokens, hover) | 2026-03-13 | 04ad972d | | [6-implement-phase-1-ui-ux-quick-wins-from-](./quick/6-implement-phase-1-ui-ux-quick-wins-from-/) |
+| 8 | Unified AI Providers settings UI with expandable rows | 2026-03-14 | ca12777e | | [8-enhance-ai-providers-settings-ui-unified](./quick/8-enhance-ai-providers-settings-ui-unified/) |
+| 10 | Investigate Note-to-Issue pipeline: 5 pathways traced, 28 tests run | 2026-03-15 | n/a (investigation only) | Verified | [10-investigate-into-codebase-of-pilotspace-](./quick/10-investigate-into-codebase-of-pilotspace-/) |
+| 11 | Fix AI config POST 500, NoteIssueLink creation, linkType enum alignment | 2026-03-15 | d4a62dd5 | Done | [11-fix-all-issues-found-in-browser-testing-](./quick/11-fix-all-issues-found-in-browser-testing-/) |
+| 12 | Validate 3 AI flows + fix LLMProvider enum case mismatch | 2026-03-15 | 4e47d6d4 | Done | [12-validate-3-ai-issue-flows-via-browser-ex](./quick/12-validate-3-ai-issue-flows-via-browser-ex/) |
+| 260316-kaf | Remove note emoji selector | 2026-03-16 | 636933f8 | Done | [260316-kaf-remove-note-emoji-selector-in-new-branch](./quick/260316-kaf-remove-note-emoji-selector-in-new-branch/) |
+| 260316-phe | Investigate & fix skill features (7 issues fixed) | 2026-03-16 | f01d76a0 | Verified | [260316-phe-investigate-into-current-pilot-space-ski](./quick/260316-phe-investigate-into-current-pilot-space-ski/) |
+| 260316-v8c | Improve provider setup UI/UX with dropdown selection | 2026-03-16 | 34d7e3cd | Done | [260316-v8c-improve-provider-setup-ui-ux-with-llm-em](./quick/260316-v8c-improve-provider-setup-ui-ux-with-llm-em/) |
+| 260317-0ce | Fix skill editing: AI parser, skill_name, expandable cards, editable preview | 2026-03-17 | c234324c | Verified | [260317-0ce-fix-skill-editing-allow-edit-skill-conte](./quick/260317-0ce-fix-skill-editing-allow-edit-skill-conte/) |
+| 260317-bch | User skills in agent system prompt (layer 4.5, TDD) | 2026-03-17 | a743eb3f | Verified | [260317-bch-check-change-of-feat-provider-setup-enha](./quick/260317-bch-check-change-of-feat-provider-setup-enha/) |
+| 260317-hms | Migrate provider settings to workspace level (shared resolver, workspace_override) | 2026-03-17 | da3c5101 | Done | [260317-hms-migrate-provider-settings-to-workspace-l](./quick/260317-hms-migrate-provider-settings-to-workspace-l/) |
+| 260317-v27 | Enhance Chat AI Issue Extraction Card | 2026-03-17 | 96381ec4 | Done | [260317-v27-enhance-chat-ai-issue-extraction-card](./quick/260317-v27-enhance-chat-ai-issue-extraction-card/) |
+| 260318-naw | Settings modal migration investigation: 14 pages catalogued, 4-phase 9-plan migration plan, feat/settings-modal branch | 2026-03-18 | 74dac5cc | Verified | [260318-naw-checkout-new-branch-then-investigate-to-](./quick/260318-naw-checkout-new-branch-then-investigate-to-/) |
+| 260318-wqj | Add tags+usage to skill system, extract prompt module, redesign modal with chip tags+usage textarea | 2026-03-18 | d854919c | Needs Review | [260318-wqj-improve-generate-skill-modal-redesign-fo](./quick/260318-wqj-improve-generate-skill-modal-redesign-fo/) |
+
 ## Session Continuity
 
 Last session: 2026-03-20T03:07:18.794Z

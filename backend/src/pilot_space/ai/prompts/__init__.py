@@ -45,8 +45,12 @@ from pilot_space.ai.prompts.pr_review import (
     format_review_as_markdown,
     parse_pr_review_response,
 )
+from pilot_space.ai.prompts.skill_generation import (
+    SKILL_GENERATION_PROMPT_TEMPLATE,
+    build_skill_generation_prompt,
+)
 
-__all__ = [
+__all__ = [  # noqa: RUF022 — grouped by prompt module, not global alphabetical order
     # AI Context
     "AI_CONTEXT_SYSTEM_PROMPT",
     "CLAUDE_CODE_PROMPT_TEMPLATE",
@@ -77,4 +81,7 @@ __all__ = [
     "get_confidence_tag",
     "parse_context_response",
     "parse_pr_review_response",
+    # Skill Generation
+    "SKILL_GENERATION_PROMPT_TEMPLATE",
+    "build_skill_generation_prompt",
 ]

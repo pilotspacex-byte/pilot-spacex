@@ -162,7 +162,7 @@ function EditableTitle({
           'border-b-2 border-primary outline-none',
           'py-1 leading-tight tracking-tight'
         )}
-        style={{ fontFamily: "'Fraunces', Georgia, serif", letterSpacing: '-0.03em' }}
+        style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.03em' }}
         disabled={disabled}
       />
     );
@@ -174,7 +174,7 @@ function EditableTitle({
         'font-display text-[2.25rem] font-semibold text-foreground leading-tight tracking-tight',
         !disabled && 'cursor-text hover:bg-accent/50 rounded px-1 -mx-1 transition-colors'
       )}
-      style={{ fontFamily: "'Fraunces', Georgia, serif", letterSpacing: '-0.03em' }}
+      style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.03em' }}
       onClick={() => !disabled && startEditing()}
     >
       {title || 'Untitled'}

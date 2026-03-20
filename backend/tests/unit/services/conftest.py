@@ -470,6 +470,8 @@ CREATE TABLE IF NOT EXISTS user_role_skills (
     role_name TEXT NOT NULL,
     skill_content TEXT NOT NULL,
     experience_description TEXT,
+    tags TEXT DEFAULT '[]',
+    usage TEXT,
     is_primary BOOLEAN DEFAULT 0 NOT NULL,
     template_version INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,

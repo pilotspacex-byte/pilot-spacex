@@ -62,6 +62,8 @@ class RoleSkillResponse(BaseSchema):
     experience_description: str | None = Field(
         default=None, description="User's input for AI generation"
     )
+    tags: list[str] = Field(default_factory=list, description="Ability tags for discoverability")
+    usage: str | None = Field(default=None, description="When/how this skill should be activated")
     is_primary: bool = Field(description="Primary role flag")
     template_version: int | None = Field(default=None, description="Version of template used")
     template_update_available: bool = Field(
@@ -98,10 +100,22 @@ class CreateRoleSkillRequest(BaseSchema):
     experience_description: str | None = Field(
         default=None, max_length=5000, description="Experience for AI generation"
     )
+    tags: list[str] = Field(
+        default_factory=list, max_length=20, description="Ability tags for discoverability"
+    )
+    usage: str | None = Field(
+        default=None, max_length=500, description="When/how this skill should be activated"
+    )
     is_primary: bool = Field(
         default=False,
         description="If true and another primary exists, demotes the other",
     )
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str]) -> list[str]:
+        """Strip whitespace and enforce max 30 chars per tag."""
+        return [tag.strip()[:30] for tag in v if tag.strip()]
 
 
 class UpdateRoleSkillRequest(BaseSchema):
@@ -120,7 +134,21 @@ class UpdateRoleSkillRequest(BaseSchema):
         max_length=15000,
         description="SKILL.md content",
     )
+    tags: list[str] | None = Field(
+        default=None, max_length=20, description="Ability tags for discoverability"
+    )
+    usage: str | None = Field(
+        default=None, max_length=500, description="When/how this skill should be activated"
+    )
     is_primary: bool | None = Field(default=None, description="If true, demotes other primary")
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str] | None) -> list[str] | None:
+        """Strip whitespace and enforce max 30 chars per tag."""
+        if v is None:
+            return v
+        return [tag.strip()[:30] for tag in v if tag.strip()]
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +197,8 @@ class GenerateRoleSkillResponse(BaseSchema):
     word_count: int = Field(description="Word count of generated content")
     generation_model: str = Field(description="Model used for generation")
     generation_time_ms: int = Field(description="Generation latency in ms")
+    suggested_tags: list[str] = Field(default_factory=list, description="AI-suggested ability tags")
+    suggested_usage: str | None = Field(default=None, description="AI-suggested usage description")
 
 
 class RegenerateRoleSkillRequest(BaseSchema):

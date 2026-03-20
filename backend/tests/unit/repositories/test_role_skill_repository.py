@@ -98,6 +98,8 @@ CREATE TABLE IF NOT EXISTS user_role_skills (
     role_name TEXT NOT NULL,
     skill_content TEXT NOT NULL,
     experience_description TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
+    usage TEXT,
     is_primary BOOLEAN DEFAULT 0 NOT NULL,
     template_version INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -502,6 +504,32 @@ class TestRoleSkillCRUD:
         assert created.id is not None
         assert created.role_type == "tester"
         assert created.role_name == "QA Engineer"
+
+    async def test_create_role_skill_with_tags_and_usage(
+        self,
+        db_session: AsyncSession,
+        user: User,
+        workspace: Workspace,
+    ) -> None:
+        """Create a role skill with tags/usage and verify round-trip."""
+        repo = RoleSkillRepository(db_session)
+        skill = UserRoleSkill(
+            user_id=user.id,
+            workspace_id=workspace.id,
+            role_type="tester",
+            role_name="QA Engineer",
+            skill_content="# Tester\n\nTest content.",
+            tags=["Python", "Testing", "CI/CD"],
+            usage="Use during test reviews and QA planning.",
+            is_primary=False,
+        )
+        created = await repo.create(skill)
+        await db_session.flush()
+
+        reloaded = await repo.get_by_id(created.id)
+        assert reloaded is not None
+        assert reloaded.tags == ["Python", "Testing", "CI/CD"]
+        assert reloaded.usage == "Use during test reviews and QA planning."
 
     async def test_update_skill_content(
         self,

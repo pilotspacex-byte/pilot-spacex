@@ -7,10 +7,6 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
-  Bug,
-  Lightbulb,
-  Wrench,
-  CheckSquare,
   User,
   Calendar,
   Sparkles,
@@ -22,7 +18,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { Issue, IssuePriority, IssueType } from '@/types';
+import type { Issue, IssuePriority } from '@/types';
+import { ISSUE_TYPE_CONFIG } from './issue-type-config';
 
 /** Strip HTML tags and collapse whitespace for plain-text preview. */
 function stripHtml(html: string): string {
@@ -89,13 +86,7 @@ const priorityConfig: Record<
 /**
  * Issue type icon mapping.
  */
-const typeConfig: Record<IssueType, { icon: React.ElementType; className: string; label: string }> =
-  {
-    bug: { icon: Bug, className: 'text-red-500', label: 'Bug' },
-    feature: { icon: Lightbulb, className: 'text-purple-500', label: 'Feature' },
-    improvement: { icon: Wrench, className: 'text-blue-500', label: 'Improvement' },
-    task: { icon: CheckSquare, className: 'text-gray-500', label: 'Task' },
-  };
+const typeConfig = ISSUE_TYPE_CONFIG;
 
 /**
  * Get user initials for avatar fallback.

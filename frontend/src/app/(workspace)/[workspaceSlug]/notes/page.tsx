@@ -24,6 +24,7 @@ import {
   Clock,
   Loader2,
   X,
+  Check,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -331,7 +332,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
                             isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50'
                           )}
                         >
-                          {isSelected && <X className="h-3 w-3" />}
+                          {isSelected && <Check className="h-3 w-3" />}
                         </div>
                         {project.icon && <span className="mr-2 text-sm">{project.icon}</span>}
                         <FolderKanban

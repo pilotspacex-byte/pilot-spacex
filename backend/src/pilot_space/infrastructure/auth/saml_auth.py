@@ -18,13 +18,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from onelogin.saml2.auth import OneLogin_Saml2_Auth
-from onelogin.saml2.settings import OneLogin_Saml2_Settings
-
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
     from fastapi import Request
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth
 
 logger = get_logger(__name__)
 
@@ -61,6 +59,17 @@ class SamlAuthProvider:
         self._sp_certificate = self._strip_pem_headers(sp_certificate_pem)
 
     # ------------------------------------------------------------------
+    # Lazy imports (python3-saml excluded on Vercel to stay under 500MB)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _get_saml_classes() -> tuple[type, type]:
+        from onelogin.saml2.auth import OneLogin_Saml2_Auth
+        from onelogin.saml2.settings import OneLogin_Saml2_Settings
+
+        return OneLogin_Saml2_Auth, OneLogin_Saml2_Settings
+
+    # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
 
@@ -85,9 +94,10 @@ class SamlAuthProvider:
             SamlValidationError: If SAML settings are invalid.
         """
         try:
+            SamlAuth, _ = self._get_saml_classes()
             saml_settings = self._build_settings(request, idp_config)
             req = self._prepare_request(request)
-            auth = OneLogin_Saml2_Auth(req, saml_settings)
+            auth = SamlAuth(req, saml_settings)
             return auth.login(return_to=return_to)  # type: ignore[no-any-return]
         except Exception as exc:
             logger.warning("saml_login_url_failed", error=str(exc))
@@ -114,9 +124,10 @@ class SamlAuthProvider:
                 signature, audience mismatch, or any other validation failure.
         """
         try:
+            SamlAuth, _ = self._get_saml_classes()
             saml_settings = self._build_settings(request, idp_config)
             req = self._prepare_request(request, post_data=post_data)
-            auth = OneLogin_Saml2_Auth(req, saml_settings)
+            auth = SamlAuth(req, saml_settings)
             auth.process_response()
         except SamlValidationError:
             raise
@@ -181,7 +192,8 @@ class SamlAuthProvider:
             fake_request = StarletteRequest(fake_scope)
 
             settings_dict = self._build_settings(fake_request, idp_config)
-            settings_obj = OneLogin_Saml2_Settings(settings=settings_dict, sp_validation_only=True)
+            _, SamlSettings = self._get_saml_classes()
+            settings_obj = SamlSettings(settings=settings_dict, sp_validation_only=True)
             metadata = settings_obj.get_sp_metadata()
             errors = settings_obj.validate_metadata(metadata)
             if errors:

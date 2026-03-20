@@ -128,6 +128,8 @@ async def list_role_skills(
                 role_name=s.role_name,
                 skill_content=s.skill_content,
                 experience_description=s.experience_description,
+                tags=s.tags if s.tags else [],
+                usage=s.usage,
                 is_primary=s.is_primary,
                 template_version=s.template_version,
                 template_update_available=s.template_update_available,
@@ -170,6 +172,8 @@ async def create_role_skill(
                 role_name=request.role_name,
                 skill_content=request.skill_content,
                 experience_description=request.experience_description,
+                tags=request.tags if request.tags else None,
+                usage=request.usage,
                 is_primary=request.is_primary,
             )
         )
@@ -185,6 +189,8 @@ async def create_role_skill(
         role_name=skill.role_name,
         skill_content=skill.skill_content,
         experience_description=skill.experience_description,
+        tags=skill.tags if skill.tags else [],
+        usage=skill.usage,
         is_primary=skill.is_primary,
         template_version=skill.template_version,
         template_update_available=False,
@@ -222,6 +228,8 @@ async def update_role_skill(
                 workspace_id=workspace_id,
                 role_name=request.role_name,
                 skill_content=request.skill_content,
+                tags=request.tags,
+                usage=request.usage,
                 is_primary=request.is_primary,
             )
         )
@@ -248,6 +256,8 @@ async def update_role_skill(
         role_name=skill.role_name,
         skill_content=skill.skill_content,
         experience_description=skill.experience_description,
+        tags=skill.tags if skill.tags else [],
+        usage=skill.usage,
         is_primary=skill.is_primary,
         template_version=skill.template_version,
         template_update_available=False,
@@ -352,6 +362,8 @@ async def generate_role_skill(
         word_count=result.word_count,
         generation_model=result.generation_model,
         generation_time_ms=result.generation_time_ms,
+        suggested_tags=result.suggested_tags,
+        suggested_usage=result.suggested_usage,
     )
 
 
@@ -433,6 +445,8 @@ async def regenerate_role_skill(
         word_count=result.word_count,
         generation_model=result.generation_model,
         generation_time_ms=result.generation_time_ms,
+        suggested_tags=result.suggested_tags,
+        suggested_usage=result.suggested_usage,
         previous_skill_content=previous_content,
         previous_role_name=previous_name,
     )

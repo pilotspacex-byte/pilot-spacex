@@ -12,6 +12,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     ForeignKey,
@@ -127,6 +128,16 @@ class UserRoleSkill(WorkspaceScopedModel):
         nullable=False,
     )
     experience_description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+    tags: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+    usage: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
