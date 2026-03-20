@@ -70,7 +70,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 - [x] **Phase 31: Auth Bridge** — Sync Supabase JWT to OS keychain via Tauri Store; deep link OAuth callback (completed 2026-03-20)
 - [x] **Phase 32: Workspace Management + Git Clone** — App-managed project directory, configure base path, link repos, clone with progress (completed 2026-03-20)
 - [x] **Phase 33: Full Git Operations** — Pull, push, branch management, status, conflict detection (completed 2026-03-20)
-- [ ] **Phase 34: Embedded Terminal** — xterm.js panel with full PTY, batched IPC output, arbitrary shell commands
+- [x] **Phase 34: Embedded Terminal** — xterm.js panel with full PTY, batched IPC output, arbitrary shell commands (completed 2026-03-20)
 - [ ] **Phase 35: Pilot CLI Sidecar** — Compile pilot binary per platform, wire into app, CI matrix artifacts
 - [ ] **Phase 36: Diff Viewer + Commit UI** — File diff view, stage/unstage, commit message, push
 - [ ] **Phase 37: One-Click Implement Flow + Tray** — End-to-end issue→implement→commit loop; system tray with notifications
@@ -154,7 +154,7 @@ Plans:
   2. Interactive programs (vim, less, htop) work correctly with arrow keys, tab completion, and ANSI colors
   3. User can run any shell command and see streaming output in real time
   4. Terminal runs for extended periods and under high output volume without memory leaks or app slowdown
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 34-01-PLAN.md — PTY Rust backend — tauri-plugin-pty (or tauri-plugin-shell fallback), terminal.rs module, TerminalState managed struct, batched output at 16ms intervals via Channel API
@@ -237,7 +237,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 31. Auth Bridge | 3/3 | Complete    | 2026-03-20 | - |
 | 32. Workspace + Git Clone | 4/4 | Complete    | 2026-03-20 | - |
 | 33. Full Git Operations | 3/3 | Complete    | 2026-03-20 | - |
-| 34. Embedded Terminal | 1/2 | In Progress|  | - |
+| 34. Embedded Terminal | 2/2 | Complete   | 2026-03-20 | - |
 | 35. Pilot CLI Sidecar | v1.1 | 0/2 | Not started | - |
 | 36. Diff Viewer + Commit UI | v1.1 | 0/3 | Not started | - |
 | 37. One-Click Implement + Tray | v1.1 | 0/3 | Not started | - |
