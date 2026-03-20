@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: planning
-stopped_at: Completed 030-02-PLAN.md
-last_updated: "2026-03-20T04:08:24.804Z"
+stopped_at: Completed 030-03-PLAN.md
+last_updated: "2026-03-20T04:17:02.958Z"
 last_activity: 2026-03-20 — Roadmap created, 9 phases, 30/30 requirements mapped
 progress:
   total_phases: 9
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -58,6 +58,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 030]: Use generateStaticParams placeholder ('_') for workspace slug — empty array causes Next.js 16 to report missing params on child pages
 - [Phase 030]: Layout-split pattern required for 'use client' layouts — Server Component wrapper exports generateStaticParams, client component handles rendering
 - [Phase 030]: API route handlers changed from force-dynamic to force-static — POST handlers always execute per-request in standalone mode; force-static unblocks static export
+- [Phase 030]: ubuntu-22.04 (not ubuntu-latest) in CI to ensure libwebkit2gtk-4.1-dev availability for Tauri v2 Linux builds
+- [Phase 030]: macos-13 runner for x86_64 CI target — macos-latest now resolves to Apple Silicon (ARM64) runners
+- [Phase 030]: fail-fast: false in Tauri CI matrix — all 4 platform builds run to completion to expose platform-specific failures independently
+- [Phase 030]: Signing secrets commented out for Phase 30 unsigned builds — Phase 38 will populate APPLE_CERTIFICATE and Windows EV certificate secrets
 
 ### Pending Todos
 
@@ -70,7 +74,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T04:08:13.105Z
-Stopped at: Completed 030-02-PLAN.md
+Last session: 2026-03-20T04:17:02.956Z
+Stopped at: Completed 030-03-PLAN.md
 Resume file: None
 Next action: /gsd:plan-phase 30
