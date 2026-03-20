@@ -1,567 +1,607 @@
 # Architecture Research
 
-**Domain:** Notion-style page tree, project-centric navigation, embedded issue views, responsive layout
-**Researched:** 2026-03-12
-**Confidence:** HIGH (based on thorough analysis of existing codebase)
+**Domain:** Tauri Desktop Client — embedding existing Next.js web app with native git/CLI/terminal features
+**Researched:** 2026-03-20
+**Confidence:** HIGH (Tauri v2 official docs verified), MEDIUM (Next.js static export limitations verified via official source + community), HIGH (IPC patterns from official Tauri v2 docs)
 
-## System Overview
+## Standard Architecture
+
+### System Overview
 
 ```
-Current Architecture (unchanged layers)
-========================================
-Frontend: Next.js 15 App Router + MobX + TanStack Query + shadcn/ui
-Backend:  FastAPI 5-layer Clean Architecture + SQLAlchemy async + DI
-Database: PostgreSQL 16 + RLS + pgvector + pgmq
-Auth:     Supabase Auth + JWT + RLS policies
+┌─────────────────────────────────────────────────────────────────────┐
+│                        tauri-app/ (NEW)                              │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  WebView (Chromium/WebKit/WKWebView — per platform)          │   │
+│  │  ┌────────────────────────────────────────────────────────┐  │   │
+│  │  │  Next.js 15 static export (output: 'export')           │  │   │
+│  │  │  • All existing pages/features unchanged               │  │   │
+│  │  │  • Axios -> NEXT_PUBLIC_API_URL (remote FastAPI)        │  │   │
+│  │  │  • Supabase client -> remote Supabase                  │  │   │
+│  │  │  • MobX + TanStack Query (unchanged)                   │  │   │
+│  │  │  • xterm.js terminal panel (NEW component)             │  │   │
+│  │  │  • Diff viewer panel (NEW component)                   │  │   │
+│  │  │  • TauriStore adapter for auth tokens (NEW)            │  │   │
+│  │  └────────────────┬───────────────────────────────────────┘  │   │
+│  └───────────────────┼──────────────────────────────────────────┘   │
+│                       │ @tauri-apps/api invoke() / Channel events    │
+│                       v                                              │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  src-tauri/ (Rust — Tauri v2 backend)                        │   │
+│  │                                                              │   │
+│  │  Commands (IPC handlers):                                    │   │
+│  │  • git_clone, git_pull, git_push, git_status, git_diff       │   │
+│  │  • spawn_terminal, write_stdin, kill_terminal                 │   │
+│  │  • run_pilot_command (pilot-cli sidecar wrapper)             │   │
+│  │  • run_shell_command (tests, builds)                         │   │
+│  │  • get_auth_token, set_auth_token (Store bridge)             │   │
+│  │  • get_workspace_dir, set_workspace_dir                      │   │
+│  │                                                              │   │
+│  │  State (managed via tauri::State<T>):                        │   │
+│  │  • GitState (open Repository handles, credential cache)      │   │
+│  │  • TerminalState (PTY handles by session_id)                 │   │
+│  │  • SidecarState (pilot-cli child handle)                     │   │
+│  │                                                              │   │
+│  │  Sidecar:                                                    │   │
+│  │  • pilot-cli (PyInstaller per platform, no Python required)  │   │
+│  │    spawned on-demand, output streamed via Channel<String>    │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
 
-New Components (this milestone)
-========================================
-                    +--------------------------+
-                    |   Sidebar (MODIFIED)     |
-                    |   +-- ProjectTree        | NEW: expandable 3-level tree
-                    |   +-- PersonalPages      | NEW: user-level pages section
-                    |   +-- PinnedRecent       | EXISTING: keep as-is
-                    +--------------------------+
-                              |
-              +---------------+---------------+
-              |                               |
-    +-------------------+          +--------------------+
-    | Project Hub Page  |          | Notes Page         |
-    | (MODIFIED)        |          | (MODIFIED)         |
-    | +-- PageTree      | NEW      | +-- PersonalPages  | NEW
-    | +-- IssueViews    | NEW      +--------------------+
-    |   +-- Board       |
-    |   +-- List        |
-    |   +-- Timeline    |
-    |   +-- Priority    |
-    +-------------------+
-              |
-    +-------------------+
-    | Page Editor       |
-    | (MODIFIED Note)   | note.py gains parent_id, depth, position
-    +-------------------+
+External (unchanged, remote):
+  FastAPI backend     https://api.pilotspace.io  (or self-hosted)
+  Supabase Auth       https://supabase.pilotspace.io:18000
+  PostgreSQL + Redis  (inaccessible directly from desktop client)
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Status | Key Files |
-|-----------|----------------|--------|-----------|
-| `Note` model | Document storage with tree hierarchy | MODIFY | `backend/.../models/note.py` |
-| `Project` model | Project container | KEEP | `backend/.../models/project.py` |
-| `Sidebar` | Workspace navigation | MODIFY | `frontend/src/components/layout/sidebar.tsx` |
-| `ProjectTreeStore` | MobX store for project page trees | NEW | `frontend/src/stores/features/projects/` |
-| `PageTreeComponent` | Recursive tree with drag/indent | NEW | `frontend/src/features/projects/components/` |
-| `IssueViewTabs` | Board/List/Timeline/Priority tabs | NEW | `frontend/src/features/projects/components/` |
-| `AppShell` | Layout shell with responsive sidebar | MODIFY | `frontend/src/components/layout/app-shell.tsx` |
+| Component | Responsibility | Implementation |
+|-----------|----------------|----------------|
+| `tauri-app/src-tauri/` | Rust Tauri v2 backend: IPC commands, process management, git ops | Tauri v2, git2-rs, tauri-plugin-shell, tauri-plugin-store |
+| `tauri-app/` (root) | Tauri project root with `tauri.conf.json`, Tauri CLI build target | Points devUrl at `http://localhost:3000`, frontendDist at `../frontend/out` |
+| `frontend/` (existing, modified) | Next.js static export in Tauri build mode; adds Tauri-aware feature flags | Conditional `output: 'export'` via `NEXT_TAURI=true`; `isTauri()` guard |
+| `frontend/src/lib/tauri.ts` (NEW) | Typed wrapper for all `invoke()` calls; `isTauri()` platform detection | Re-exports typed wrappers; never use `@tauri-apps/api` directly in components |
+| `frontend/src/features/terminal/` (NEW) | xterm.js embedded terminal panel | xterm.js + tauri-plugin-pty or shell plugin streaming |
+| `frontend/src/features/git/` (NEW) | Diff viewer, commit/stage UI, git status bar | React components consuming Tauri `git_*` IPC commands |
+| pilot-cli sidecar | `pilot implement` compiled binary, no Python runtime on user machine | PyInstaller (per platform, built in CI matrix per OS runner) |
+| Tauri Store | Persistent KV store for auth tokens and workspace dir; readable from both JS and Rust | `@tauri-apps/plugin-store` in JS, `tauri-plugin-store` in Rust |
 
-## Database Schema Changes
-
-### 1. Note Model: Add Tree Hierarchy (Migration ~062)
-
-The `Note` model already has `project_id` (nullable FK to projects) and `owner_id` (FK to users). Add three columns to enable the page tree:
-
-```python
-# New columns on notes table
-parent_id: Mapped[uuid.UUID | None] = mapped_column(
-    UUID(as_uuid=True),
-    ForeignKey("notes.id", ondelete="CASCADE"),
-    nullable=True,
-)
-depth: Mapped[int] = mapped_column(
-    Integer,
-    nullable=False,
-    default=0,
-    server_default=text("0"),
-)
-position: Mapped[float] = mapped_column(
-    # Float for fractional indexing (insert between without reorder)
-    Numeric(10, 4),
-    nullable=False,
-    default=0,
-    server_default=text("0"),
-)
-```
-
-**Depth constraint**: Enforce max depth = 2 (0-indexed: root=0, child=1, grandchild=2) at the application layer via a CHECK constraint in the migration:
-
-```sql
-ALTER TABLE notes ADD CONSTRAINT chk_notes_depth CHECK (depth >= 0 AND depth <= 2);
-```
-
-**Self-referential relationship** on Note model:
-
-```python
-parent: Mapped[Note | None] = relationship(
-    "Note",
-    remote_side="Note.id",
-    back_populates="children",
-    lazy="selectin",
-)
-children: Mapped[list[Note]] = relationship(
-    "Note",
-    back_populates="parent",
-    cascade="all, delete-orphan",
-    lazy="selectin",
-    order_by="Note.position",
-)
-```
-
-**New indexes**:
-
-```python
-Index("ix_notes_parent_id", "parent_id"),
-Index("ix_notes_position", "position"),
-Index("ix_notes_project_depth", "project_id", "depth"),
-```
-
-**RLS**: No new policies needed -- notes already have workspace_id RLS via `WorkspaceScopedModel`. The `parent_id` self-reference stays within the same workspace (enforced by the FK + existing RLS).
-
-### 2. Two Ownership Models
-
-The current `Note` model already supports both patterns:
-
-| Ownership | How It Works | Query Pattern |
-|-----------|-------------|---------------|
-| **Project page** | `project_id IS NOT NULL`, `parent_id` forms tree within project | `WHERE project_id = :pid AND parent_id IS NULL` for roots |
-| **Personal page** | `project_id IS NULL`, `owner_id = current_user` | `WHERE project_id IS NULL AND owner_id = :uid AND parent_id IS NULL` |
-
-No new table needed. The distinction is purely `project_id IS NULL` vs `project_id IS NOT NULL`. Workspace-level notes (current) become personal pages by convention (they already have `owner_id`).
-
-**Migration**: Existing notes with `project_id IS NULL` need no data migration -- they naturally become personal pages. Set `depth = 0` and `position` based on `created_at` ordering for all existing notes.
-
-### 3. No Changes to Issue/Project Models
-
-Issues already belong to projects (`project_id` NOT NULL). The embedded issue database views are purely frontend -- they query `GET /workspaces/{wid}/projects/{pid}/issues` with different grouping/sorting parameters. No schema changes needed.
-
-## Frontend Architecture Changes
-
-### Pattern 1: Project Tree Store (MobX)
-
-**What:** A new `ProjectTreeStore` that loads the page tree for a project and manages expand/collapse state, reordering, and reparenting.
-
-**When to use:** Sidebar project tree sections, project hub page tree panel.
-
-**Why MobX over TanStack Query for this:** Tree state (expanded nodes, drag positions, optimistic reorder) is complex interactive state -- MobX excels here. TanStack Query handles the server fetch; MobX manages the tree UI state. This matches the existing NoteStore pattern.
-
-```typescript
-// frontend/src/stores/features/projects/ProjectTreeStore.ts
-class ProjectTreeStore {
-  // Map<projectId, TreeNode[]> -- root nodes per project
-  trees: Map<string, TreeNode[]> = new Map();
-  // Set<noteId> -- which nodes are expanded in sidebar
-  expandedNodes: Set<string> = new Set();
-  // Currently dragging node
-  draggingNodeId: string | null = null;
-
-  async loadTree(projectId: string): Promise<void> { /* GET /projects/:id/pages */ }
-  toggleExpand(nodeId: string): void { /* toggle in expandedNodes set */ }
-  async movePage(pageId: string, newParentId: string | null, newPosition: number): Promise<void> {
-    // Optimistic update -> PATCH /notes/:id { parent_id, position }
-  }
-}
-
-interface TreeNode {
-  id: string;
-  title: string;
-  parentId: string | null;
-  depth: number;
-  position: number;
-  children: TreeNode[];
-  icon?: string;
-}
-```
-
-**Persist expanded state** in `localStorage` keyed by `pilot-space:tree-expanded:{workspaceId}` to survive page reloads.
-
-### Pattern 2: Sidebar Project Tree Section
-
-**What:** Replace the flat "Notes" section in the sidebar (currently Pinned/Recent notes) with a project-centric tree.
-
-**Current sidebar structure** (`sidebar.tsx` L86-L114):
-```
-Main: Home, Notes, Issues, Projects, Members
-AI: Chat, Skill, Costs, Approvals
----
-Pinned Notes (flat list)
-Recent Notes (flat list)
----
-New Note button
-```
-
-**New sidebar structure:**
-```
-Main: Home, Notes*, Issues, Projects, Members
-AI: Chat, Skill, Costs, Approvals
----
-Projects (expandable per-project trees):
-  Project Alpha
-    > Page 1
-      > Sub-page 1a
-      > Sub-page 1b
-    > Page 2
-  Project Beta
-    > Page 3
----
-Pinned (pages from any project or personal)
-Recent (last 5 visited pages)
----
-New Page button (context-aware: project page or personal page)
-```
-
-*"Notes" link becomes personal pages view; the top-level item label may change to "My Pages" but the route stays `/notes`.*
-
-**Implementation approach:**
-
-1. **New component `SidebarProjectTree`**: Renders a collapsible section per project. Each project header is expandable and shows its page tree (max 3 levels). Uses `ProjectTreeStore.expandedNodes` for state.
-
-2. **Modify `Sidebar` component** (currently 671 lines): Extract the Pinned/Recent sections into a `SidebarShortcuts` sub-component. Add `SidebarProjectTree` between the main nav and shortcuts. This keeps `sidebar.tsx` under the 700-line limit.
-
-3. **Collapsed sidebar**: In collapsed mode, projects show only the project icon. Hovering shows a tooltip flyout with the tree -- same pattern as current collapsed nav items use `Tooltip`.
-
-### Pattern 3: Embedded Issue Database Views
-
-**What:** Tab-based issue views (Board, List, Timeline, Priority) embedded inside the project hub page.
-
-**Current state:** Issues page at `/{ws}/issues` shows a cross-project issue list. Individual project pages at `/{ws}/projects/{pid}` show project overview.
-
-**New state:** Project hub page gains a tabbed section below the page tree showing project issues in different views:
+## Recommended Project Structure
 
 ```
-/{ws}/projects/{pid}
-  +-- Page Tree Panel (left or top)
-  +-- Issue Views (tabs: Board | List | Timeline | Priority)
-```
+tauri-app/                             # NEW top-level directory in monorepo
+├── package.json                       # devDep: @tauri-apps/cli; scripts: tauri dev, tauri build
+└── src-tauri/
+    ├── Cargo.toml                     # Rust deps: tauri, git2, tauri-plugin-shell,
+    │                                  #   tauri-plugin-store, tauri-plugin-pty
+    ├── tauri.conf.json                # app id, devUrl, frontendDist, externalBin, bundle
+    ├── build.rs                       # tauri_build::build()
+    ├── capabilities/
+    │   └── default.json               # IPC permissions: shell:allow-spawn, shell:allow-sidecar,
+    │                                  #   store:allow-*, pty:allow-*
+    ├── icons/                         # App icons (PNG 32-512, ICNS, ICO)
+    └── src/
+        ├── main.rs                    # Desktop entry: lib::run()
+        ├── lib.rs                     # tauri::Builder, invoke_handler!, plugin registration
+        ├── commands/
+        │   ├── mod.rs
+        │   ├── git.rs                 # git_clone, git_pull, git_push, git_status, git_diff
+        │   ├── terminal.rs            # spawn_terminal, write_stdin, kill_terminal
+        │   ├── shell.rs               # run_pilot_command, run_shell_command
+        │   ├── auth.rs                # get_auth_token, set_auth_token (Store bridge)
+        │   └── workspace.rs           # get_workspace_dir, set_workspace_dir
+        └── state/
+            ├── mod.rs
+            ├── git_state.rs           # Managed state: open Repository handles
+            ├── terminal_state.rs      # Managed state: HashMap<SessionId, Child>
+            └── sidecar_state.rs       # Managed state: Option<Child> for pilot-cli
 
-**Reuse existing components:** The current issue list page (`/{ws}/issues`) has sorting, filtering, and grouping logic. Factor out the issue rendering into reusable view components:
-
-| View | Component | Data Source |
-|------|-----------|-------------|
-| Board | `IssueBoardView` | `GET /projects/{pid}/issues?group_by=state` |
-| List | `IssueListView` | `GET /projects/{pid}/issues?sort_by=...` |
-| Timeline | `IssueTimelineView` | `GET /projects/{pid}/issues` + `start_date`/`target_date` |
-| Priority | `IssuePriorityView` | `GET /projects/{pid}/issues?group_by=priority` |
-
-**No new API endpoints needed.** The existing `GET /workspaces/{wid}/projects/{pid}/issues` already supports filtering and sorting. The views are purely frontend presentation variations.
-
-**Timeline view** requires `start_date` and `target_date` on issues, which already exist in the Issue model. Use a horizontal Gantt-style layout with shadcn/ui primitives.
-
-### Pattern 4: Responsive Layout
-
-**What:** Desktop (1280px+) and tablet (768-1024px) responsive layout.
-
-**Current state:** `AppShell` already handles responsive layout:
-- `useResponsive()` hook provides `isMobile`, `isTablet`, `isDesktop`, `isSmallScreen`
-- Sidebar is overlay on `isSmallScreen` (mobile + tablet), inline on desktop
-- `UIStore` persists `sidebarCollapsed` and `sidebarWidth`
-
-**Changes needed:**
-
-1. **Tablet sidebar behavior** (768-1024px): Currently grouped with mobile as `isSmallScreen`. Split tablet behavior:
-   - Tablet: sidebar defaults collapsed (icon rail, 60px), can expand to overlay
-   - Mobile: sidebar hidden, hamburger to open overlay
-   - Desktop: sidebar inline, collapsible
-
-2. **Update `useResponsive` breakpoints**:
-   ```typescript
-   // Current: isSmallScreen = isMobile || isTablet (both get same treatment)
-   // New: keep isSmallScreen but add isTabletUp for sidebar icon-rail
-   isTabletUp: isTablet || isDesktop,  // 768px+ gets icon rail
-   ```
-
-3. **Content area responsive adjustments:**
-   - Project page tree: full panel on desktop, collapsible on tablet
-   - Issue board view: horizontal scroll on tablet, full grid on desktop
-   - Page editor: full-width on tablet (margin panel collapses)
-
-## Recommended Project Structure (New/Modified Files)
-
-```
-backend/
-  alembic/versions/
-    062_add_page_tree_columns.py          # NEW: parent_id, depth, position on notes
-  src/pilot_space/
-    api/v1/
-      routers/
-        workspace_notes.py                # MODIFY: add tree endpoints
-      schemas/
-        note.py                           # MODIFY: add parent_id, depth, position, children
-        page_tree.py                      # NEW: tree-specific request/response schemas
-    infrastructure/database/
-      models/
-        note.py                           # MODIFY: add parent_id, depth, position, relationships
-      repositories/
-        note_repository.py                # MODIFY: add tree queries (get_tree, move_page)
-    application/services/
-      note/
-        page_tree_service.py              # NEW: tree operations with depth validation
-
+# In existing frontend/ — minimal additions:
 frontend/
-  src/
-    stores/features/projects/
-      ProjectTreeStore.ts                 # NEW: MobX store for page trees
-    features/projects/
-      components/
-        page-tree/
-          page-tree.tsx                   # NEW: recursive tree component
-          page-tree-item.tsx              # NEW: single tree node with indent
-          page-tree-actions.tsx           # NEW: context menu (rename, move, delete)
-        issue-views/
-          issue-view-tabs.tsx             # NEW: tab container (Board/List/Timeline/Priority)
-          issue-board-view.tsx            # NEW: kanban board (grouped by state)
-          issue-list-view.tsx             # NEW: table/list view
-          issue-timeline-view.tsx         # NEW: gantt-style timeline
-          issue-priority-view.tsx         # NEW: grouped by priority
-      hooks/
-        usePageTree.ts                    # NEW: TanStack Query hook for tree data
-        useMovePage.ts                    # NEW: mutation for reparenting/reordering
-    components/layout/
-      sidebar.tsx                         # MODIFY: add project trees, extract sub-components
-      sidebar-project-tree.tsx            # NEW: project tree section
-      sidebar-shortcuts.tsx              # NEW: extracted Pinned/Recent from sidebar.tsx
-      app-shell.tsx                       # MODIFY: tablet-specific sidebar behavior
-    hooks/
-      useMediaQuery.ts                    # MODIFY: add isTabletUp convenience
-    types/
-      note.ts                            # MODIFY: add parentId, depth, position, children
+├── next.config.ts                     # MODIFIED: conditional output: 'export' when NEXT_TAURI=true
+├── src/
+│   ├── lib/
+│   │   ├── tauri.ts                   # NEW: isTauri(), typed invoke() wrappers
+│   │   └── tauri-auth.ts              # NEW: syncTokenToTauriStore()
+│   ├── features/
+│   │   ├── terminal/                  # NEW: xterm.js terminal panel
+│   │   │   ├── components/
+│   │   │   │   └── TerminalPanel.tsx  # xterm.js terminal UI
+│   │   │   └── hooks/
+│   │   │       └── useTerminal.ts     # session lifecycle, output streaming
+│   │   └── git/                       # NEW: git operations UI
+│   │       ├── components/
+│   │       │   ├── DiffViewer.tsx     # unified diff renderer
+│   │       │   ├── CommitPanel.tsx    # stage/commit UI
+│   │       │   └── GitStatusBar.tsx   # branch, ahead/behind display
+│   │       ├── stores/
+│   │       │   └── GitStore.ts        # MobX observable git state
+│   │       └── hooks/
+│   │           └── useGitOps.ts       # TanStack mutation wrappers
+│   └── app/
+│       └── layout.tsx                 # MODIFIED: call syncTokenToTauriStore() on mount
+
+# In existing cli/ — build artifacts (not committed):
+cli/
+└── dist/                              # PyInstaller output per platform
+    ├── pilot-aarch64-apple-darwin     # macOS Apple Silicon
+    ├── pilot-x86_64-apple-darwin      # macOS Intel
+    ├── pilot-x86_64-unknown-linux-gnu # Linux x64
+    └── pilot-x86_64-pc-windows-msvc.exe  # Windows
 ```
 
 ### Structure Rationale
 
-- **`page-tree/` under `features/projects/`**: Page trees live within projects, so they belong in the projects feature module. Personal pages reuse the same tree component but render in the notes context.
-- **`issue-views/` under `features/projects/`**: Issue database views are a project-hub concern, not a standalone issue feature. They import issue components but live under projects.
-- **`sidebar-project-tree.tsx` and `sidebar-shortcuts.tsx`**: Extracting from `sidebar.tsx` (currently 671 lines) prevents exceeding the 700-line limit and improves maintainability.
-- **`ProjectTreeStore` in global stores**: Tree expansion state must persist across page navigations (sidebar is always mounted in `AppShell`), so it lives in the global store, not in a feature-local store.
+- **`tauri-app/` as new top-level directory:** Tauri requires a `src-tauri/` subtree with `tauri.conf.json`. Placing the Tauri project at a new top-level `tauri-app/` mirrors how `frontend/`, `backend/`, and `cli/` are organized — each package is self-contained. A nested location (e.g., inside `frontend/`) would pollute the frontend package boundary.
 
-## Data Flow
+- **`tauri.conf.json` points at `../frontend`:** `devUrl: "http://localhost:3000"` for development (Next.js dev server). `frontendDist: "../frontend/out"` for production (static export). This avoids copying or duplicating frontend code into `src-tauri/`.
 
-### Page Tree Load Flow
+- **`frontend/src/lib/tauri.ts` wrapper:** Centralizes all `invoke()` calls and `isTauri()` detection. Components never import `@tauri-apps/api` directly — this keeps the codebase deployable as both web app and desktop app. The module can be mocked entirely in Vitest.
 
-```
-Sidebar mounts
-    |
-    v
-ProjectTreeStore.loadTrees(projectIds[])
-    |
-    v
-TanStack Query: GET /workspaces/{wid}/pages/tree?project_ids=...
-    |
-    v
-Backend: NoteRepository.get_project_trees(project_ids)
-  -> SELECT id, title, parent_id, depth, position, project_id
-     FROM notes
-     WHERE project_id IN (:pids) AND is_deleted = false
-     ORDER BY depth, position
-    |
-    v
-Frontend: Build TreeNode[] hierarchy from flat list
-    |
-    v
-ProjectTreeStore.trees.set(projectId, rootNodes)
-    |
-    v
-SidebarProjectTree renders recursively
-```
+- **`commands/` sub-modules in Rust:** Keeps `lib.rs` clean. Each domain (git, terminal, shell, auth, workspace) gets its own module with a focused command surface area. Avoids a 1000-line `lib.rs`.
 
-### Page Move Flow (Drag & Drop / Indent)
+- **`state/` sub-modules:** Tauri manages shared Rust state via `tauri::State<T>`. Separate structs per domain prevent a monolithic state blob and allow independent `Mutex<T>` locking without contention.
 
-```
-User drags page B under page A
-    |
-    v
-ProjectTreeStore.movePage(pageId, newParentId, newPosition)
-    |
-    v
-Optimistic: update trees map immediately
-    |
-    v
-PATCH /workspaces/{wid}/notes/{noteId}
-  body: { parent_id: newParentId, position: newPosition }
-    |
-    v
-Backend: PageTreeService.move_page()
-  1. Validate depth <= 2 (new parent depth + 1)
-  2. Validate children won't exceed depth 2 (recursive check)
-  3. Update note.parent_id, note.depth, note.position
-  4. Cascade depth update to all descendants
-    |
-    v
-On success: TanStack invalidates tree query
-On error: ProjectTreeStore rolls back optimistic update
-```
+## Architectural Patterns
 
-### Embedded Issue Views Data Flow
+### Pattern 1: Static Export Mode Toggle
 
-```
-Project Hub Page renders IssueViewTabs
-    |
-    v
-Active tab (e.g., Board) fetches:
-  TanStack Query: GET /workspaces/{wid}/projects/{pid}/issues?state_group=...
-    |
-    v
-Board view groups issues by state, renders columns
-    |
-    v
-Issue card click: router.push(`/{ws}/issues/{issueId}`)
-  (navigates to existing issue detail page)
-```
+**What:** Next.js supports `output: 'standalone'` (Docker/SSR web deploy) and `output: 'export'` (Tauri static embedding). The codebase must support both with a single `next.config.ts`.
 
-## Backend API Changes
+**When to use:** Always. The Tauri `beforeBuildCommand` in `tauri.conf.json` sets `NEXT_TAURI=true` before running `next build`. Web CI pipelines do not set this variable.
 
-### New Endpoints
+**Trade-offs:** Two code paths in one config file. The main constraint: Next.js API routes and route handlers do not generate static output. The existing `app/api/health/route.ts` (which uses `force-dynamic`) is silently skipped in export mode — no error, but no file generated.
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/workspaces/{wid}/pages/tree` | Batch tree fetch for sidebar (query param: `project_ids`) |
-| `PATCH` | `/workspaces/{wid}/notes/{nid}/move` | Move page (parent_id, position) with depth validation |
-
-### Modified Endpoints
-
-| Method | Path | Change |
-|--------|------|--------|
-| `GET` | `/workspaces/{wid}/notes` | Add `owner_only=true` query param for personal pages |
-| `POST` | `/workspaces/{wid}/notes` | Accept `parent_id` in create body |
-| `GET` | `/workspaces/{wid}/notes/{nid}` | Response includes `parentId`, `depth`, `children[]` |
-
-### No Changes Needed
-
-| Method | Path | Why |
-|--------|------|-----|
-| `GET` | `/workspaces/{wid}/projects/{pid}/issues` | Already supports filtering/sorting for all four views |
-| All issue CRUD | Various | Issues are project-scoped already |
-
-## Anti-Patterns
-
-### Anti-Pattern 1: Recursive SQL Queries for Tree Loading
-
-**What people do:** Use recursive CTEs or multiple round-trips to load tree nodes level by level.
-**Why it is wrong:** For a max-depth-2 tree, recursion is unnecessary overhead. A flat query with `ORDER BY depth, position` and client-side tree building is simpler and faster.
-**Do this instead:** Single flat query, build tree client-side:
-
+**Example:**
 ```typescript
-function buildTree(flatNodes: FlatNode[]): TreeNode[] {
-  const map = new Map<string, TreeNode>();
-  const roots: TreeNode[] = [];
-  for (const node of flatNodes) {
-    map.set(node.id, { ...node, children: [] });
-  }
-  for (const node of flatNodes) {
-    const treeNode = map.get(node.id)!;
-    if (node.parentId) {
-      map.get(node.parentId)?.children.push(treeNode);
-    } else {
-      roots.push(treeNode);
-    }
-  }
-  return roots;
+// next.config.ts
+const isTauriBuild = process.env.NEXT_TAURI === 'true';
+const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:8000';
+
+const nextConfig: NextConfig = {
+  // Standalone for Docker, export for Tauri
+  output: isTauriBuild ? 'export' : 'standalone',
+  images: {
+    // Static export cannot optimize images at request time
+    unoptimized: isTauriBuild,
+    remotePatterns: isTauriBuild ? [] : [
+      { protocol: 'https', hostname: '*.supabase.co', pathname: '/storage/v1/object/public/**' }
+    ],
+  },
+  // Rewrites only work with a Node.js server — skip for Tauri
+  ...(isTauriBuild ? {} : {
+    async rewrites() {
+      return [{ source: '/api/v1/:path*', destination: `${BACKEND_URL}/api/v1/:path*` }];
+    },
+  }),
+};
+```
+
+### Pattern 2: Typed IPC Command Wrapper
+
+**What:** All Tauri IPC calls go through `frontend/src/lib/tauri.ts`. TypeScript types mirror Rust command signatures exactly. No component ever calls `invoke('some-string')` directly.
+
+**When to use:** Every new Rust command gets a corresponding typed wrapper in `tauri.ts` before any consumer uses it. This is the single point of contact between the frontend and native layer.
+
+**Trade-offs:** One extra indirection layer, but removes string-literal command names from business logic, enables complete mocking in Vitest, and makes the native API surface visible at a glance.
+
+**Example:**
+```typescript
+// frontend/src/lib/tauri.ts
+import { invoke } from '@tauri-apps/api/core';
+
+export function isTauri(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+export interface GitStatusResult {
+  branch: string;
+  ahead: number;
+  behind: number;
+  modified: string[];
+  staged: string[];
+  untracked: string[];
+}
+
+export async function gitStatus(repoPath: string): Promise<GitStatusResult> {
+  return invoke<GitStatusResult>('git_status', { repoPath });
+}
+
+// Channel-based streaming for long operations
+export async function gitClone(
+  url: string,
+  targetDir: string,
+  onProgress: (pct: number, message: string) => void
+): Promise<void> {
+  const { Channel } = await import('@tauri-apps/api/core');
+  const channel = new Channel<{ pct: number; message: string }>();
+  channel.onmessage = ({ pct, message }) => onProgress(pct, message);
+  return invoke('git_clone', { url, targetDir, onProgress: channel });
 }
 ```
 
-### Anti-Pattern 2: Storing Expanded Tree State in Backend
+### Pattern 3: Auth Token Bridge (WebView to Rust)
 
-**What people do:** Persist tree expand/collapse state in the database via user preferences.
-**Why it is wrong:** Creates unnecessary API calls on every toggle. Expand state is ephemeral UI preference.
-**Do this instead:** Use `localStorage` with `pilot-space:tree-expanded:{workspaceId}` key. The `ProjectTreeStore` hydrates from localStorage on mount, just like `UIStore` does.
+**What:** The Supabase JWT lives in the WebView's `localStorage` (managed by the Supabase JS client). Rust commands that need auth (e.g., git push over HTTPS with token, or making authenticated backend calls from Rust) read the token via the Tauri Store plugin.
 
-### Anti-Pattern 3: Separate Tables for "Pages" vs "Notes"
+**When to use:** Call `syncTokenToTauriStore()` once in the root layout `useEffect` (Tauri mode only). Any Rust command needing the JWT reads from the Store rather than making a round-trip back to the WebView.
 
-**What people do:** Create a new `pages` table to represent the tree structure, keeping `notes` for flat documents.
-**Why it is wrong:** A "page" IS a note with tree metadata. Splitting creates data duplication, broken links, and two sets of CRUD endpoints. The existing Note model already has `project_id`, `owner_id`, `content`, and all the TipTap integration.
-**Do this instead:** Add `parent_id`, `depth`, `position` columns directly to the `notes` table. A page is a note. A personal page is a note with `project_id IS NULL`. Terminology can differ in the UI while sharing the same data model.
+**Trade-offs:** The Tauri Store file (`pilot-auth.json`) is written to the app data directory. On macOS, `tauri-plugin-store` files are not encrypted by default — they are plaintext JSON. For higher security, use `tauri-plugin-stronghold` or OS keychain APIs. For v1.1, the Store is acceptable.
 
-### Anti-Pattern 4: Fetching Full Issue Data for Sidebar Tree
+**Critical Windows config:** Set `"useHttpsScheme": true` in the `app > windows` section of `tauri.conf.json`. Without this, `localStorage` and `IndexedDB` are reset on every app restart on Windows.
 
-**What people do:** Load all issues to show counts or status in the sidebar project tree.
-**Why it is wrong:** Sidebar should be lightweight. Loading all issues for every project on every page load is expensive.
-**Do this instead:** The sidebar tree shows only pages (notes), not issues. Issue counts per project come from the existing `Project.issueCount` and `Project.openIssueCount` fields already on the `useProjects` query.
+**Example:**
+```typescript
+// frontend/src/lib/tauri-auth.ts
+import { load } from '@tauri-apps/plugin-store';
+import { supabase } from '@/lib/supabase';
+import { isTauri } from './tauri';
 
-### Anti-Pattern 5: MobX Observer on TipTap Editor Content Component
+export async function syncTokenToTauriStore(): Promise<void> {
+  if (!isTauri()) return;
+  const store = await load('pilot-auth.json', { autoSave: true });
+  supabase.auth.onAuthStateChange(async (_event, session) => {
+    if (session?.access_token) {
+      await store.set('access_token', session.access_token);
+      await store.set('refresh_token', session.refresh_token ?? null);
+    } else {
+      await store.delete('access_token');
+      await store.delete('refresh_token');
+    }
+  });
+}
+```
 
-**What people do:** Wrap the page editor content in `observer()` to make it reactive.
-**Why it is wrong:** This causes nested `flushSync` errors in React 19 with TipTap's `ReactNodeViewRenderer`. This is a known constraint documented in `.claude/rules/tiptap.md`.
-**Do this instead:** Use the Context Bridge pattern (existing `IssueNoteContext`). The page editor content component stays a plain React component; data flows via context from an observer parent.
+```rust
+// src-tauri/src/commands/auth.rs
+use tauri_plugin_store::StoreExt;
 
-## Integration Points
+#[tauri::command]
+pub async fn get_auth_token(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let store = app.store("pilot-auth.json").map_err(|e| e.to_string())?;
+    let token = store.get("access_token")
+        .and_then(|v| v.as_str().map(String::from));
+    Ok(token)
+}
+```
 
-### Internal Boundaries
+### Pattern 4: Sidecar Lifecycle with Streaming Output
 
-| Boundary | Communication | Integration Notes |
-|----------|---------------|-------------------|
-| Sidebar <-> ProjectTreeStore | MobX observable | Sidebar reads `trees` and `expandedNodes` observables |
-| ProjectTreeStore <-> API | TanStack Query + MobX | TanStack fetches, MobX manages UI state (expanded, dragging) |
-| Page Tree <-> Note Editor | Next.js routing | Clicking a tree node navigates to `/{ws}/notes/{noteId}` |
-| Issue Views <-> Existing Issue Hooks | Shared TanStack Query keys | Issue views use existing `useIssues` hooks with project filter |
-| NoteStore <-> Page Tree | Shared note data | NoteStore gains `parentId`/`depth` on Note type; tree store is separate |
-| Knowledge Graph pipeline | Background job | `kg_populate_handler.py` already processes notes -- no change needed |
+**What:** `pilot-cli` runs as a Tauri sidecar (PyInstaller-compiled binary per platform). Long-running commands like `pilot implement PS-123` stream output back to the WebView via `tauri::ipc::Channel<String>`. The xterm.js panel renders each line in real time.
 
-### External Services
+**When to use:** Every invocation of `pilot implement`, `pilot login`. Never fire-and-forget a sidecar — always attach an output channel so the terminal panel receives live output and the user can see what is happening.
 
-| Service | Impact | Notes |
-|---------|--------|-------|
-| Meilisearch | None | Note search index unchanged; `parentId` can be added to index later if needed |
-| Supabase Auth/RLS | None | Notes RLS policies already filter by workspace_id; parent_id is within same workspace |
-| AI Ghost Text | None | Ghost text operates on note content regardless of tree position |
-| pgmq Queue | None | KG populate job works on individual notes; tree structure is irrelevant to processing |
+**Trade-offs:** PyInstaller binaries are ~30-80 MB per platform. Cannot cross-compile — requires OS-specific CI runners (macOS, Linux, Windows) to produce each binary. Must throttle `channel.send()` calls during progress callbacks to avoid overwhelming the WebView event loop.
+
+**Example:**
+```rust
+// src-tauri/src/commands/shell.rs
+use tauri_plugin_shell::ShellExt;
+use tauri::ipc::Channel;
+
+#[tauri::command]
+pub async fn run_pilot_command(
+    app: tauri::AppHandle,
+    args: Vec<String>,
+    on_output: Channel<String>,
+) -> Result<i32, String> {
+    let (mut rx, _child) = app.shell()
+        .sidecar("pilot")
+        .map_err(|e| e.to_string())?
+        .args(&args)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    while let Some(event) = rx.recv().await {
+        match event {
+            tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
+                let _ = on_output.send(String::from_utf8_lossy(&line).into_owned());
+            }
+            tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
+                let _ = on_output.send(format!("[stderr] {}", String::from_utf8_lossy(&line)));
+            }
+            tauri_plugin_shell::process::CommandEvent::Terminated(status) => {
+                return Ok(status.code.unwrap_or(-1));
+            }
+            _ => {}
+        }
+    }
+    Ok(0)
+}
+```
+
+### Pattern 5: Git Operations via git2-rs
+
+**What:** All git operations run in async Tauri commands backed by the `git2` crate. No shelling out to the `git` binary — it is not guaranteed to be installed, especially on Windows. Progress (clone percentage) streams via `Channel<GitProgress>`.
+
+**When to use:** Clone, pull, push, status, diff. The Rust side owns Repository handles in `GitState` (Mutex-protected); the WebView only sees serializable result types.
+
+**Trade-offs:** git2 links `libgit2` statically in Tauri builds. Diff output is raw unified patch text — the frontend diff viewer must parse this or use a React diff library such as `react-diff-view`. Credential management (PAT for HTTPS, SSH key path for SSH) must be explicit in git2 credential callbacks; store PATs in the Tauri Store.
+
+**Example:**
+```rust
+// src-tauri/src/commands/git.rs
+use git2::{Repository, RemoteCallbacks, FetchOptions, build::RepoBuilder};
+use tauri::ipc::Channel;
+
+#[derive(serde::Serialize, Clone)]
+pub struct GitProgress { pub pct: u32, pub message: String }
+
+#[tauri::command]
+pub async fn git_clone(
+    url: String,
+    target_dir: String,
+    on_progress: Channel<GitProgress>,
+) -> Result<(), String> {
+    let mut callbacks = RemoteCallbacks::new();
+    let mut last_pct = 0u32;
+    callbacks.transfer_progress(|stats| {
+        if stats.total_objects() > 0 {
+            let pct = (stats.received_objects() * 100 / stats.total_objects()) as u32;
+            // Throttle: only send when pct changes by >=2 to avoid flooding WebView
+            if pct >= last_pct + 2 || pct == 100 {
+                last_pct = pct;
+                let _ = on_progress.send(GitProgress {
+                    pct,
+                    message: format!("{}/{} objects", stats.received_objects(), stats.total_objects()),
+                });
+            }
+        }
+        true
+    });
+    let mut fo = FetchOptions::new();
+    fo.remote_callbacks(callbacks);
+    RepoBuilder::new()
+        .fetch_options(fo)
+        .clone(&url, std::path::Path::new(&target_dir))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+```
+
+## Data Flow
+
+### Request Flow: Web App API Calls (unchanged in Tauri)
+
+```
+User action in WebView
+    |
+    v
+React component (observer) -> TanStack Query mutation
+    |
+    v
+Axios client (src/services/api/client.ts)
+    -> Authorization: Bearer <supabase_jwt>   (from getAuthProviderSync().getToken())
+    -> X-Workspace-Id header                  (from localStorage)
+    |
+    v
+NEXT_PUBLIC_API_URL -> https://api.pilotspace.io/api/v1/...
+    |
+    v
+FastAPI backend (remote, unchanged)
+```
+
+Note: In Tauri mode, there is no Next.js server proxy. `NEXT_PUBLIC_API_URL` must be the full backend URL, baked into the static export at build time. The existing `/api/v1/:path*` rewrite in `next.config.ts` is disabled when `NEXT_TAURI=true`.
+
+### Request Flow: Native Git Operation
+
+```
+User clicks "Clone Repo" in Git panel
+    |
+    v
+GitStore.cloneRepo(url, dir)    [MobX action]
+    |
+    v
+tauri.ts: gitClone(url, dir, progressCallback)
+    |
+    v
+invoke('git_clone', { url, targetDir, onProgress: channel })  -- IPC
+    |
+    v
+Rust: git.rs::git_clone command
+    -> git2::build::RepoBuilder::clone()
+    -> callbacks.transfer_progress -> channel.send(GitProgress)
+    |
+    v
+Channel events -> progressCallback(pct, msg)   -- back in WebView
+    |
+    v
+GitStore.cloneProgress observable -> ProgressBar component re-renders
+```
+
+### Request Flow: pilot CLI Execution
+
+```
+User clicks "Implement PS-123" (or types in xterm.js terminal)
+    |
+    v
+TerminalStore.runPilotCommand(['implement', 'PS-123'])  [MobX action]
+    |
+    v
+invoke('run_pilot_command', { args, onOutput: channel })
+    |
+    v
+Rust: shell.rs::run_pilot_command
+    -> app.shell().sidecar("pilot").args(...).spawn()
+    -> CommandEvent::Stdout/Stderr -> channel.send(line)
+    |
+    v
+Channel events -> xterm.js writeln(line)   -- real-time terminal output
+    |
+    v
+CommandEvent::Terminated -> TerminalStore.commandExitCode = n
+```
+
+### Auth Token Flow
+
+```
+App startup (Tauri mode):
+    |
+    v
+root layout useEffect: syncTokenToTauriStore() called
+    |
+    v
+supabase.auth.onAuthStateChange -> store.set('access_token', jwt)
+    |
+    v
+Tauri Store: pilot-auth.json persisted to app data dir
+
+When Rust needs token (git push with PAT, etc.):
+    |
+    v
+get_auth_token command -> app.store("pilot-auth.json").get("access_token")
+    |
+    v
+Returns Option<String> JWT to calling Rust code
+```
+
+### State Management
+
+```
+WebView (JavaScript):
+  MobX RootStore (existing + additions)
+    ├── GitStore (NEW)
+    │     observables: repoPath, branch, status, cloneProgress, diffOutput
+    │     actions: cloneRepo, pullRepo, pushRepo, stageFile, commitChanges
+    │     -> invoke() via tauri.ts wrappers
+    ├── TerminalStore (NEW)
+    │     observables: sessions Map<id, TerminalSession>, activeSessionId
+    │     actions: createSession, closeSession, runPilotCommand, writeInput
+    │     -> invoke() via tauri.ts wrappers
+    └── (all existing stores unchanged)
+
+Rust (Tauri managed state):
+  tauri::State<Mutex<GitState>>       (open Repository handles per path)
+  tauri::State<Mutex<TerminalState>>  (active PTY child handles by session_id)
+  tauri::State<Mutex<SidecarState>>   (running pilot-cli child, if any)
+```
 
 ## Scaling Considerations
 
 | Scale | Architecture Adjustments |
 |-------|--------------------------|
-| 0-100 projects, <1000 pages per workspace | Current approach is fine. Single flat query for tree. |
-| 100-500 projects | Lazy-load trees per project on sidebar expand (not all at once). Already supported by `loadTree(projectId)`. |
-| 1000+ pages in a single project | Paginate children at depth 0; show "Load more" for large root lists. Depth 1-2 children are bounded by parent. |
+| Single developer | Current approach sufficient; all native state in-process |
+| Team (5-50) | No change — each user has their own desktop install; collaboration state stays on remote backend |
+| Enterprise (50-500) | Desktop app is purely a local shell; all collaboration data stays in FastAPI+PostgreSQL; no peer-to-peer needed |
 
-### First Bottleneck: Sidebar Tree Load
+### Scaling Priorities
 
-With many projects, loading all trees on sidebar mount is wasteful. Mitigate by:
-1. Only load trees for projects whose nodes are expanded (check localStorage)
-2. Load remaining trees lazily when user expands a project
-3. The batch endpoint `GET /pages/tree?project_ids=...` supports selective loading
+1. **First bottleneck:** Large repo clones blocking UI. Mitigated by streaming progress via Channel. `git2` clone runs on the Tauri async tokio runtime, never blocking the WebView event loop. Throttle `channel.send()` calls (send on pct change >= 2, not every object).
 
-### Second Bottleneck: Issue View Rendering
+2. **Second bottleneck:** Multiple simultaneous terminal sessions. Use `HashMap<SessionId, Child>` in `TerminalState`; each session gets its own OS PTY. Limit to approximately 10 concurrent sessions with UI enforcement.
 
-Board view with hundreds of issues per state column. Mitigate by:
-1. Virtual scrolling within columns (already using `@tanstack/react-virtual` in notes page)
-2. Pagination per state group
+## Anti-Patterns
 
-## Suggested Build Order
+### Anti-Pattern 1: Bundling the Backend
 
-Build order is dependency-driven to ensure each phase has testable output:
+**What people do:** Try to bundle FastAPI + PostgreSQL + Supabase into the Tauri app for offline use.
 
-| Order | Component | Depends On | Rationale |
-|-------|-----------|------------|-----------|
-| 1 | DB migration (parent_id, depth, position) | Nothing | Foundation for all tree features |
-| 2 | Backend tree API (get_tree, move, create with parent) | Migration | Backend must exist before frontend |
-| 3 | Note type updates (frontend types + API client) | Backend API | Types drive all frontend components |
-| 4 | ProjectTreeStore (MobX) | Frontend types | Store drives all tree UI |
-| 5 | Page tree component | ProjectTreeStore | Reusable tree renderer |
-| 6 | Sidebar integration (SidebarProjectTree) | Page tree component | Highest user-visible impact |
-| 7 | Project hub page with tree panel | Page tree component | Project-centric hub |
-| 8 | Embedded issue views (Board, List) | Project hub page | Core issue views first |
-| 9 | Embedded issue views (Timeline, Priority) | Board/List views | Lower priority views |
-| 10 | Personal pages (Notes page refactor) | Tree component | Reuse tree for personal pages |
-| 11 | Responsive layout refinements | All above | Polish responsive behavior |
-| 12 | Visual design refresh | All above | Typography, spacing, colors applied holistically |
+**Why it's wrong:** FastAPI + Python runtime + PostgreSQL + Supabase + Redis = hundreds of MB, complex startup orchestration, and platform-specific dependency issues. The PROJECT.md explicitly chose "Remote FastAPI backend (not bundled)" because enterprise users already have a deployed backend.
 
-**Critical path:** 1 -> 2 -> 3 -> 4 -> 5 -> 6 (sidebar tree is the highest-impact deliverable).
+**Do this instead:** Always connect to the remote backend via `NEXT_PUBLIC_API_URL`. If offline caching becomes a requirement later, implement TanStack Query offline persistence — not a bundled server.
 
-**Parallelizable:** Steps 7-10 can be built in parallel by different developers once step 5 is complete. Step 8-9 (issue views) can run in parallel with step 10 (personal pages).
+### Anti-Pattern 2: Scattered `invoke()` Calls
+
+**What people do:** Import `@tauri-apps/api` and call `invoke('command-name', {...})` directly in components and stores throughout the codebase.
+
+**Why it's wrong:** String-based command names have no type safety. Component code becomes untestable. Web deploy breaks because `@tauri-apps/api` throws when `window.__TAURI_INTERNALS__` is absent, causing hydration errors on the web build.
+
+**Do this instead:** All `invoke()` calls live in `frontend/src/lib/tauri.ts`. Components and stores call typed wrapper functions. The `isTauri()` guard is checked once per wrapper. The entire module can be mocked in Vitest.
+
+### Anti-Pattern 3: SSR/Server Features in Tauri Static Export
+
+**What people do:** Use Next.js API routes, Server Actions, or server-only `fetch` in Server Components, then wonder why the Tauri build fails.
+
+**Why it's wrong:** `output: 'export'` strips all server-side code. The existing `app/api/health/route.ts` uses `export const dynamic = 'force-dynamic'` — this is silently skipped in export mode. The proxy rewrite at `/api/v1/:path*` requires a running Next.js server and is unavailable in the static export.
+
+**Do this instead:** All API calls go to the remote FastAPI backend via `NEXT_PUBLIC_API_URL` (full URL). The proxy rewrite is disabled when `NEXT_TAURI=true`. There are no server-only pages in this codebase (all data fetching is TanStack Query client-side), so existing pages work without modification.
+
+### Anti-Pattern 4: Single Platform Sidecar Build
+
+**What people do:** Build the PyInstaller binary on macOS and assume it works on all platforms.
+
+**Why it's wrong:** PyInstaller cannot cross-compile. A macOS arm64 binary cannot run on Linux x86_64 or Windows. Tauri requires architecture-specific suffix naming: `pilot-aarch64-apple-darwin`, `pilot-x86_64-apple-darwin`, `pilot-x86_64-unknown-linux-gnu`, `pilot-x86_64-pc-windows-msvc.exe`.
+
+**Do this instead:** Use a GitHub Actions matrix with `runs-on: [macos-latest, macos-13, ubuntu-latest, windows-latest]`. Each runner builds its own PyInstaller binary and places it in `tauri-app/binaries/` with the correct triple suffix before `tauri build` executes.
+
+### Anti-Pattern 5: Dynamic Route Pages Without Client-Side Data Fetching
+
+**What people do:** Assume dynamic routes like `[workspaceSlug]` or `[issueId]` work automatically in static export mode because they work in SSR mode.
+
+**Why it's wrong:** With `output: 'export'`, Next.js cannot server-render dynamic routes at request time. `generateStaticParams()` would require enumerating all workspace slugs at build time — impossible for a SaaS app.
+
+**Do this instead:** This codebase already uses the correct pattern — all data fetching is TanStack Query client-side in observer components. The existing pages use `'use client'` implicitly (via MobX observer) and fetch after hydration. No changes needed for existing pages; new Tauri-specific pages must follow the same client-side pattern.
+
+### Anti-Pattern 6: Unthrottled Channel Progress Callbacks
+
+**What people do:** Call `channel.send()` on every git transfer progress event (potentially thousands of times per second during clone).
+
+**Why it's wrong:** Frequent IPC calls to the WebView via `Channel` can freeze the UI. The Tauri team explicitly documented this gotcha for git2 progress callbacks.
+
+**Do this instead:** Throttle `channel.send()` — only send when progress changes by 2+ percentage points or at operation completion. Store `last_pct` in the closure and gate on the delta.
+
+## Integration Points
+
+### External Services
+
+| Service | Integration Pattern | Notes |
+|---------|---------------------|-------|
+| Remote FastAPI backend | Axios -> `NEXT_PUBLIC_API_URL` (full URL; no proxy in Tauri mode) | CORS must be enabled on the backend for `tauri://localhost` origin |
+| Remote Supabase Auth | Supabase JS client (unchanged); token synced to Tauri Store via `onAuthStateChange` | Set `useHttpsScheme: true` in `tauri.conf.json` on Windows to prevent localStorage reset |
+| GitHub (git operations) | git2-rs credential callbacks; PAT stored in Tauri Store | SSH key support via git2 ssh credentials; no GitHub OAuth in v1.1 |
+| pilot-cli sidecar | `app.shell().sidecar("pilot")` with output streamed via `Channel<String>` | Per-platform binary built by CI matrix (4 runners) |
+
+### Internal Boundaries: New vs. Modified
+
+| Boundary | Communication | Status |
+|----------|---------------|--------|
+| WebView JS -> Rust commands | `invoke()` via Tauri IPC (JSON-RPC over custom protocol) | NEW: `frontend/src/lib/tauri.ts` wrapper module |
+| WebView JS -> auth token store | `@tauri-apps/plugin-store` read/write | NEW: `syncTokenToTauriStore()` called in root layout |
+| Rust commands -> git2 | Direct Rust function calls within `commands/git.rs` | NEW: entire `git.rs` module |
+| Rust commands -> pilot-cli sidecar | `tauri_plugin_shell::ShellExt::sidecar()` + streaming channel | NEW: `commands/shell.rs` |
+| Rust commands -> PTY / xterm.js | `tauri-plugin-pty` (pseudo-terminal) or shell plugin streaming | NEW: `commands/terminal.rs` |
+| `frontend/next.config.ts` | Conditional `output: 'export'` for Tauri build mode | MODIFIED: `NEXT_TAURI` env var branch |
+| `frontend/src/services/api/client.ts` | `NEXT_PUBLIC_API_URL` must be full URL in Tauri mode; no `/api/v1` proxy | MODIFIED: remove implicit proxy fallback assumption in Tauri build |
+| `frontend/src/app/layout.tsx` | Add `syncTokenToTauriStore()` call in useEffect | MODIFIED |
+| Monorepo root | Add `tauri-app/` directory | NEW: entire directory |
+| GitHub Actions CI | Add Tauri build matrix job (4 runners: macos-latest, macos-13, ubuntu-latest, windows-latest) | NEW: `.github/workflows/tauri-build.yml` |
+
+### Build Order Considerations
+
+| Order | Task | Depends On | Rationale |
+|-------|------|------------|-----------|
+| 1 | `tauri-app/` scaffold, `tauri.conf.json`, `src-tauri/` skeleton | Nothing | Foundation; must exist before anything else |
+| 2 | `frontend/next.config.ts` static export mode | Scaffold | Verify Next.js builds cleanly with `output: 'export'`; surface route/component issues early |
+| 3 | Dynamic route fix audit (if any routes fail static export) | Export mode | Must be clean before Tauri can load the static output |
+| 4 | Tauri Store auth bridge (`tauri-auth.ts` + `auth.rs`) | Scaffold + export mode | Auth bridge needed before any authenticated native operations |
+| 5 | git2-rs commands (status, diff, clone, pull, push) | Auth bridge | Core native capability; git ops require auth for push |
+| 6 | Git UI components (DiffViewer, CommitPanel, GitStatusBar, GitStore) | git2-rs commands | Frontend over the git IPC layer |
+| 7 | pilot-cli sidecar compilation (PyInstaller CI matrix) | CLI binary | Parallel with git work; sidecar binary needed before terminal integration |
+| 8 | xterm.js terminal panel + streaming output | Sidecar compilation | Terminal renders sidecar output |
+| 9 | Shell command execution (test/build runner) | Terminal panel | Reuses terminal panel infrastructure |
+| 10 | Cross-platform build pipeline (GitHub Actions matrix + signing) | All above | Package everything; macOS notarization, Windows signing |
 
 ## Sources
 
-- Existing codebase analysis (HIGH confidence -- direct code inspection):
-  - `backend/src/pilot_space/infrastructure/database/models/note.py` -- Note model with project_id, owner_id
-  - `backend/src/pilot_space/infrastructure/database/models/project.py` -- Project model
-  - `backend/src/pilot_space/infrastructure/database/models/issue.py` -- Issue model with start_date, target_date
-  - `frontend/src/components/layout/sidebar.tsx` -- Current sidebar (671 lines, flat nav)
-  - `frontend/src/components/layout/app-shell.tsx` -- Current responsive layout
-  - `frontend/src/hooks/useMediaQuery.ts` -- Existing responsive hooks
-  - `frontend/src/stores/UIStore.ts` -- UIStore with sidebar persistence
-  - `frontend/src/stores/features/notes/NoteStore.ts` -- NoteStore pattern
-  - `frontend/src/types/note.ts` -- Note type definition
-  - `.claude/rules/tiptap.md` -- TipTap observer constraint
-  - `.planning/PROJECT.md` -- Milestone requirements
+- [Tauri v2: Next.js Integration](https://v2.tauri.app/start/frontend/nextjs/) — HIGH confidence (official Tauri docs)
+- [Tauri v2: Calling Rust from Frontend (IPC)](https://v2.tauri.app/develop/calling-rust/) — HIGH confidence (official Tauri docs)
+- [Tauri v2: Embedding External Binaries (Sidecars)](https://v2.tauri.app/develop/sidecar/) — HIGH confidence (official Tauri docs)
+- [Tauri v2: Shell Plugin](https://v2.tauri.app/plugin/shell/) — HIGH confidence (official Tauri docs)
+- [Tauri v2: Store Plugin](https://v2.tauri.app/plugin/store/) — HIGH confidence (official Tauri docs)
+- [Tauri v2: GitHub Actions Pipeline](https://v2.tauri.app/distribute/pipelines/github/) — HIGH confidence (official Tauri docs)
+- [Tauri v2: Project Structure](https://v2.tauri.app/start/project-structure/) — HIGH confidence (official Tauri docs)
+- [git2 crate documentation](https://docs.rs/git2) — HIGH confidence (official Rust crate docs)
+- [git2 clone progress + Tauri channel throttling](https://dev.to/yexiyue/how-to-implement-git-clone-operation-progress-display-and-cancellation-in-rust-with-tauri-and-git2-37ec) — MEDIUM confidence (community verified, throttle requirement confirmed)
+- [Tauri v2 + Next.js Monorepo Guide](https://melvinoostendorp.nl/blog/tauri-v2-nextjs-monorepo-guide) — MEDIUM confidence (community blog, consistent with official docs)
+- [tauri-nextjs-starter (Next.js v15 + Tauri v2)](https://github.com/motz0815/tauri-nextjs-starter) — MEDIUM confidence (community reference implementation)
+- [Next.js App Router static export: dynamic routes discussion](https://github.com/vercel/next.js/discussions/64660) — MEDIUM confidence (official Next.js discussion, confirmed limitation)
+- [Supabase + Tauri: PKCE auth + localStorage pattern](https://medium.com/@nathancovey23/supabase-google-oauth-in-a-tauri-2-0-macos-app-with-deep-links-f8876375cb0a) — MEDIUM confidence (community implementation, consistent with Tauri security docs)
+- [tauri-plugin-pty for embedded terminal](https://github.com/Tnze/tauri-plugin-pty) — MEDIUM confidence (community plugin; evaluate vs `tauri-plugin-shell` streaming at implementation time)
+- [Tauri v2: Windows localStorage requires useHttpsScheme](https://github.com/tauri-apps/tauri/issues/10981) — MEDIUM confidence (official GitHub issue)
 
 ---
-*Architecture research for: Notion-style page tree integration with existing Pilot Space codebase*
-*Researched: 2026-03-12*
+*Architecture research for: Tauri Desktop Client — Pilot Space v1.1*
+*Researched: 2026-03-20*

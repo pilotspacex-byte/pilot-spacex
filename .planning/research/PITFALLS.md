@@ -1,213 +1,284 @@
 # Pitfalls Research
 
-**Domain:** Adding nested page tree, project-centric navigation, responsive layout, and visual design refresh to existing SDLC platform (Pilot Space v1.0.0-alpha2)
-**Researched:** 2026-03-12
-**Confidence:** HIGH (based on direct codebase analysis of existing models, stores, sidebar, and app shell)
+**Domain:** Adding Tauri desktop client with Next.js WebView, git operations, CLI sidecar, and embedded terminal to existing web-based SDLC platform (Pilot Space v1.1)
+**Researched:** 2026-03-20
+**Confidence:** HIGH (based on official Tauri v2 docs, libgit2 upstream issues, and verified community reports)
 
 ## Critical Pitfalls
 
-### Pitfall 1: Flat-to-Tree Migration Breaks Existing Note References
+### Pitfall 1: Next.js App Router Dynamic Routes Break With `output: export`
 
 **What goes wrong:**
-The current `notes` table has a flat structure with `workspace_id` and optional `project_id`. Adding `parent_id` for tree hierarchy requires a data migration that re-parents all existing notes. Existing foreign keys (note_issue_links, note_note_links, note_annotations, ai_sessions.source_chat_session_id, knowledge graph NOTE/NOTE_CHUNK nodes) all reference note IDs. If the migration changes note ownership semantics (workspace-level notes become "personal pages" or get moved under projects), any query that assumed `project_id IS NULL` means "workspace-level" will silently return wrong results.
+Pilot Space uses Next.js 15 App Router with deeply nested dynamic routes like `/[workspaceSlug]/issues/[issueId]` and `/[workspaceSlug]/projects/[projectId]/pages/[pageId]`. Tauri cannot run a Node.js server, so the Next.js frontend must be built with `output: 'export'`. In static export mode, `useParams()` on client components does NOT work — the build completes but navigation to dynamic routes renders the wrong content or blank pages. This is a confirmed Next.js bug (issue #54393) that remained open as of 2025.
 
 **Why it happens:**
-The requirement says "remove workspace-level notes" and replace with project-level pages + user-level personal pages. This is a semantic change to existing data, not just adding a column. Developers focus on the new schema and forget that existing queries, RLS policies, and the knowledge graph all depend on the current ownership model.
+Static export generates `[issueId]/index.html` files at build time, but in a Tauri WebView the `tauri://localhost` protocol uses file-based routing. When navigating to a dynamic segment using `router.push()`, the WebView loads the static HTML but the `useParams()` hook returns null or incorrect values because there is no server to parse path parameters — the entire app runs as a client-side SPA on a `tauri://` URL scheme.
 
 **How to avoid:**
-1. Add `parent_id` and `page_type` (project_page / personal_page) columns in a migration without removing any existing columns yet.
-2. Write a data migration that classifies existing notes: notes with `project_id` become project pages, notes without become personal pages owned by `owner_id`.
-3. Keep `workspace_id` on all notes (RLS depends on it). Never remove the workspace scope -- it is the multi-tenant boundary.
-4. Update RLS policies in the same migration to account for personal pages (user can only see their own personal pages, but all workspace members see project pages).
-5. Run the migration against a clone of production data before deploying.
+1. Audit every route that uses `useParams()` before starting the Tauri wrapper. Replace path-based dynamic params with query strings for any route that must work in static export: `/issues/[issueId]` → `/issues?id=[issueId]`.
+2. Add `generateStaticParams()` for routes where the full parameter set is known at build time (e.g., static pages). For user-data-driven routes (issues, projects), use query params.
+3. Set `output: 'export'` and `trailingSlash: true` in `next.config.js` and run `next build` locally before doing any Tauri integration to surface all static export errors.
+4. Configure `tauri.conf.json` `devUrl` to point to `http://localhost:3000` (Next.js dev server) so development uses SSR and you can prototype freely, but ensure production always builds with `output: 'export'`.
 
 **Warning signs:**
-- Notes disappearing after migration (RLS filtering them out due to changed semantics)
-- Knowledge graph `NOTE_CHUNK` nodes with dangling references
-- `NoteStore.loadNotes()` returning empty lists because the API endpoint filters changed
-- Sidebar pinned/recent sections showing stale or missing notes
+- `/issues/[issueId]` renders blank or shows the wrong issue after `next build`
+- `useParams()` returns `{}` in production Tauri build but works in dev
+- Browser console shows "missing params for route" errors
+- `next build` exits without error but `next export` output has zero dynamic route HTML files
 
 **Phase to address:**
-Phase 1 (Data Model & Migration) -- must be the first phase before any UI work begins.
+Phase 1 (Tauri Shell Setup) — must run `next build` with `output: 'export'` before writing any Tauri Rust code. Fix all routing issues before building the shell.
 
 ---
 
-### Pitfall 2: Recursive Tree Queries Causing N+1 or Infinite Loops
+### Pitfall 2: Server Actions and API Routes Silently Vanish in Static Export
 
 **What goes wrong:**
-A 3-level page tree requires fetching parent-child relationships recursively. Naive implementations either: (a) issue one query per node (N+1), (b) load the entire workspace's page tree on every sidebar render, or (c) introduce infinite loops if a circular parent reference sneaks in (parent_id points to a descendant). PostgreSQL recursive CTEs solve this but need careful depth limiting.
+Any Next.js Route Handler (`app/api/*/route.ts`) and all Server Actions are completely dropped in `output: 'export'`. They do not error during build — they simply do not exist in the output. If the frontend codebase has any API routes (e.g., `app/api/auth/callback/route.ts` for Supabase OAuth), they will not function in the Tauri WebView.
 
 **Why it happens:**
-SQLAlchemy's `relationship()` with `remote_side` for self-referential trees defaults to lazy loading, which causes N+1 in async contexts. The existing codebase already has N+1 guardrails (selectinload/joinedload patterns), but a self-referential tree is a new pattern not yet used in this codebase. The 3-level depth limit is a business rule that must be enforced at both DB and application layers.
+Pilot Space's existing frontend relies on Supabase's `@supabase/ssr` package, which requires server-side cookie handling via Route Handlers for auth callback. The `app/api/auth/callback/route.ts` pattern that handles the PKCE exchange requires a running Next.js server. In static export, this handler does not exist.
 
 **How to avoid:**
-1. Use a PostgreSQL recursive CTE wrapped in a repository method, not SQLAlchemy relationship traversal: `WITH RECURSIVE page_tree AS (SELECT ... WHERE parent_id IS NULL UNION ALL SELECT ... FROM pages JOIN page_tree ...)`.
-2. Add a `depth` column (0, 1, 2) computed on insert/move. Enforce `CHECK (depth <= 2)` at the DB level.
-3. Add a unique constraint or trigger preventing circular references: `CHECK (id != parent_id)` plus application-level validation that walks up at most 3 levels.
-4. Load the full tree for a project in one query (projects have bounded page counts). Cache in MobX store.
-5. Add a `position` integer column for sibling ordering within a parent.
+1. Audit `frontend/src/app/api/` for all Route Handlers. Every one of these must be replaced with Tauri-side logic (Rust commands or deep link handling).
+2. Replace Supabase PKCE auth callback handler with a Tauri deep link handler (`tauri-plugin-deep-link`) that intercepts `pilotspace://auth/callback` and passes the token to the WebView via IPC.
+3. Do not use Next.js middleware (`middleware.ts`) — it requires a server runtime and is silently dropped in static export.
+4. Verify by running `next build && ls out/` — any API route that was silently dropped will be absent, confirming you have not shipped dead routes.
 
 **Warning signs:**
-- Sidebar tree taking >500ms to render (N+1 queries)
-- Backend logs showing dozens of SELECT statements per page tree load
-- "Maximum recursion depth" errors in recursive CTE (circular reference)
-- Pages appearing at wrong depth after drag-and-drop reordering
+- Auth redirects fail silently in the built Tauri app but work in `next dev`
+- `middleware.ts` redirects stop working in production Tauri build
+- OAuth callback URLs return 404 after login
+- `next build` logs show "API routes cannot be used with output: export" warning that was dismissed
 
 **Phase to address:**
-Phase 1 (Data Model) for schema design, Phase 2 (Backend API) for CTE queries.
+Phase 1 (Tauri Shell Setup) — before auth bridge work begins. Document every Route Handler that must be migrated or eliminated.
 
 ---
 
-### Pitfall 3: TipTap Property Block Coupling Blocks Page Reuse
+### Pitfall 3: `next/image` Breaks the Static Export Build
 
 **What goes wrong:**
-The existing TipTap editor is tightly coupled with issue-specific property blocks (PropertyBlockNode, PropertyBlockView, guard plugins preventing deletion/movement). When the same editor needs to render project pages and personal pages (which have no issue properties), the property block extension either crashes, renders empty, or the guard plugins prevent normal editing behavior on non-issue pages.
+Pilot Space uses `next/image` components throughout the UI (user avatars, integration icons, logos). In `output: 'export'` mode, `next/image` requires `images: { unoptimized: true }` in `next.config.js`. Without it, the build fails with `Error: Image Optimization using the default loader is not compatible with export`. This blocks the entire Tauri build pipeline.
 
 **Why it happens:**
-The property block is hardcoded as position-0 in the TipTap document with ProseMirror guard plugins that prevent deletion/movement. The `IssueNoteContext` bridge pattern feeds issue data into the editor. For non-issue pages, there is no IssueNoteContext, and the PropertyBlockNode will read undefined context values. The `.claude/rules/tiptap.md` explicitly warns that `IssueEditorContent` must NOT be wrapped in `observer()` due to the React 19 flushSync issue.
+Next.js's default image optimization API requires a running server to resize and cache images on-demand. Static export has no server, so Next.js refuses to build unless you explicitly opt out of optimization.
 
 **How to avoid:**
-1. Extract a base `PageEditor` component that has NO property block extension. The issue editor becomes `PageEditor + PropertyBlockExtension`.
-2. Project pages and personal pages use `PageEditor` directly (no property block, no guard plugins).
-3. Do NOT try to make the property block "optional" within the same editor instance -- the guard plugins use ProseMirror plugin state that assumes the block exists.
-4. Share TipTap extensions (slash commands, ghost text, formatting) via a shared extension kit. Issue-specific extensions are layered on top.
-5. Keep the `IssueNoteContext` bridge pattern for issue pages only. Page pages get a simpler `PageContext` (title, parent, breadcrumb).
+1. Add `images: { unoptimized: true }` to `next.config.js` under an environment check that only applies this in Tauri builds (to avoid degrading the web deployment).
+2. Alternatively, replace `next/image` with a standard `<img>` tag for Tauri-specific builds, or use a third-party static optimizer (`next-image-export-optimizer`) that pre-optimizes images at build time.
+3. Use a build-time env variable `TAURI_BUILD=true` to conditionally toggle image config so the web deployment retains optimization.
 
 **Warning signs:**
-- "Cannot read properties of undefined" errors when opening a non-issue page in the editor
-- ProseMirror guard plugin throwing when property block node is not at position 0
-- Ghost text and slash commands not working on project pages (extension registration order issue)
-- The React 19 nested `flushSync` error reappearing (MobX observer wrapping the wrong component)
+- `next build` fails with "Image Optimization using the default loader is not compatible with export"
+- Images display but are unoptimized and large, causing slow initial render in WebView
+- Responsive image sizes missing in static output
 
 **Phase to address:**
-Phase 3 (Editor Refactoring) -- after data model and API are stable, before building the page tree UI.
+Phase 1 (Tauri Shell Setup) — first `next build` with `output: 'export'` will surface this immediately.
 
 ---
 
-### Pitfall 4: Sidebar State Explosion From Tree + Expand/Collapse
+### Pitfall 4: git2-rs Credential Callback Infinite Loop on Failed Authentication
 
 **What goes wrong:**
-The current sidebar is a flat list of nav items + pinned/recent notes. Converting it to a tree with expandable projects, each containing a 3-level page tree, pinned shortcuts, and recent items creates a state explosion: which projects are expanded, which tree nodes are expanded, scroll position, active node highlight, drag targets. Putting all this in MobX `UIStore` makes it a god object. Putting it in component state loses persistence across navigation.
+When implementing git clone/pull/push using git2-rs, the credential callback can be called indefinitely if authentication fails. libgit2 will keep asking for credentials until it receives a hard error or valid credentials. With SSH agent authentication on macOS, if the SSH agent has no valid key for the remote, the callback loops at nearly 100% CPU. With HTTPS and token auth, if the token is stale or rejected, the same loop occurs.
 
 **Why it happens:**
-The existing `UIStore` only tracks `sidebarCollapsed` and `sidebarWidth`. The existing `NoteStore` loads a flat list. Neither is designed for hierarchical expand/collapse state. Developers tend to add tree state as an afterthought, leading to janky UX where the tree collapses on every navigation or re-renders the entire tree on any state change.
+libgit2's authentication model calls the credential callback every time authentication fails, expecting the application to either provide new credentials or return an error to stop. git2-rs does not add automatic loop detection. A naive callback that always returns `Cred::ssh_key_from_agent(username)` will loop forever on an empty SSH agent.
 
 **How to avoid:**
-1. Create a dedicated `PageTreeStore` (MobX) that manages: expanded node IDs (Set), loaded subtrees (Map), and active page ID.
-2. Persist expanded state per-user in `localStorage` keyed by workspace slug + project ID.
-3. Use `observable.shallow` for the tree data to prevent deep MobX tracking on every nested page object.
-4. Virtualize the sidebar tree if any project has >50 pages (unlikely at 3-level max, but defensive).
-5. Load tree data lazily per-project: only fetch children when a project node is expanded for the first time.
+1. Track how many times the credential callback has been called within a single operation. After 3 attempts, return `Err(git2::Error::from_str("auth failed"))` to break the loop.
+2. Use the `auth-git2` crate (verified crates.io, actively maintained) instead of implementing credential logic from scratch — it handles SSH agent fallback, key file fallback, and credential helper integration with loop detection built in.
+3. Separate the three credential types explicitly: SSH key from agent → SSH key from `~/.ssh/id_*` file → HTTPS token from OS keychain. Each type gets one attempt.
+4. Surface authentication errors to the UI immediately rather than retrying silently. Show a credential input dialog on first failure rather than burning retries in the background.
 
 **Warning signs:**
-- Sidebar re-rendering on every keystroke in the editor (MobX over-observation)
-- Tree collapsing to root on every page navigation
-- Sidebar scroll position resetting when switching pages
-- "New page" action not appearing in tree until manual refresh
+- Git clone hangs indefinitely with no progress indicator
+- Tauri app CPU spikes to 100% during a git operation
+- App becomes unresponsive during clone/pull/push
+- SSH agent is empty (no keys loaded) but git operations don't fail fast
 
 **Phase to address:**
-Phase 4 (Sidebar & Navigation UI) -- after the API can serve tree data.
+Phase 3 (Git Operations) — write the credential callback with loop detection from the start. Do not prototype with `Cred::default()`.
 
 ---
 
-### Pitfall 5: Visual Design Refresh Breaks Existing Component Contracts
+### Pitfall 5: PyInstaller `--onefile` Sidecar Fails to Clean Up on Windows App Exit
 
 **What goes wrong:**
-A "Notion-like" visual refresh means changing typography, spacing, colors, and component styling. With shadcn/ui, these changes propagate through CSS variables and Tailwind classes. Changing `--radius`, `--primary`, or font sizes globally affects every existing page (settings, members, cycles, AI chat, approvals). Components that used hardcoded `px-4 py-2` values or specific color classes will look inconsistent with the new design tokens.
+When `pilot implement` is compiled with PyInstaller in `--onefile` mode and run as a Tauri sidecar, closing the Tauri app leaves orphan Python processes running on Windows. PyInstaller `--onefile` mode extracts to a `_MEIxxxxxx` temp directory on every startup and spawns a separate extraction process before the actual Python process. Tauri's `child.kill()` only kills the wrapper process, leaving the inner Python interpreter running. On Windows, this also locks the temp directory, causing the next launch to extract to a different temp path.
 
 **Why it happens:**
-shadcn/ui components are copy-pasted into the project (not a dependency). Each component may have been customized with hardcoded values. A global CSS variable change affects some components but not others, creating visual inconsistency. The existing 880K-line codebase has hundreds of component files with Tailwind classes that may conflict with new design tokens.
+PyInstaller `--onefile` creates a two-process tree: a bootstrap extractor process that creates a temp directory, then spawns the actual application process. Tauri's sidecar kill signal reaches the parent bootstrap process but not the child Python interpreter. On Windows specifically, the parent-child process relationship means `SIGTERM` to the parent does not propagate to children.
 
 **How to avoid:**
-1. Create a design token changeset document BEFORE touching CSS: list every variable being changed and its old/new values.
-2. Change design tokens in `globals.css` first, then audit every page visually (screenshot comparison).
-3. Do NOT change component-level Tailwind classes during the token phase. Token changes and component refactoring are separate passes.
-4. Add a Storybook or visual regression test for critical components (sidebar, editor, issue detail) before the refresh.
-5. Use CSS custom properties for NEW design values (e.g., `--page-tree-indent`, `--sidebar-tree-font`) rather than overriding existing tokens that affect the whole app.
+1. Use PyInstaller `--onedir` mode instead of `--onefile` for the sidecar. This is faster to start (no extraction), predictable temp directory, and the single process is killable. Bundle the onedir output as `bin/pilot-implement-{target-triple}/`.
+2. If `--onefile` is required for distribution size: use Tauri's `AppHandle::on_window_event` to listen for window close events and send a shutdown signal to the sidecar before the Tauri process exits. Give it 2 seconds to clean up before force-killing.
+3. Use Nuitka for compilation instead of PyInstaller — Nuitka compiles Python to C extensions, produces a single true executable (not an extractor), and does not have the two-process problem.
+4. Add a startup lock file in the sidecar that prevents double-launch (the same temp directory being used by two instances).
 
 **Warning signs:**
-- Settings page suddenly having wrong padding/colors after a "sidebar-only" CSS change
-- Buttons or badges becoming unreadable due to contrast changes
-- Dark mode breaking because only light mode tokens were updated
-- The TipTap editor toolbar losing its styling (it uses custom CSS that may not inherit design tokens)
+- Task Manager shows Python processes persisting after app close on Windows
+- Second launch of the app fails because temp directory is locked
+- Sidecar startup takes 10-25 seconds on Windows (extraction on every start)
+- `child.kill()` returns success but the Python process is still visible
 
 **Phase to address:**
-Phase 5 (Visual Design Refresh) -- should be its own dedicated phase AFTER all structural UI changes are complete.
+Phase 2 (Sidecar Compilation) — choose `--onedir` vs `--onefile` before the sidecar build pipeline is designed. Changing this after CI is configured is expensive.
 
 ---
 
-### Pitfall 6: Responsive Layout Retrofit Collides With Existing Mobile Handling
+### Pitfall 6: Sidecar Binary Triggers Windows Defender False Positive
 
 **What goes wrong:**
-The codebase already has responsive handling: `useResponsive()` hook, `isSmallScreen` checks in `AppShell`, mobile sidebar overlay, `NoteCanvasMobileLayout`. Adding tablet-specific breakpoints (768-1024px) may conflict with existing `isSmallScreen` which groups mobile AND tablet together (`isMobile || isTablet`). Components that check `isSmallScreen` will behave as "mobile" on tablets, but the new requirement wants tablet to have its own layout (collapsible sidebar, adapted content width).
+Python executables compiled with PyInstaller are consistently flagged as malware by Windows Defender and VirusTotal. The false positive rate for PyInstaller binaries is approximately 15-40 AV engines out of 70, regardless of the binary content. This blocks enterprise deployment — Windows Defender will quarantine the sidecar on installation or first run, preventing `pilot implement` from executing. Nuitka has a lower false positive rate but Windows Defender has also flagged it (Nuitka issue #2495).
 
 **Why it happens:**
-The existing `useResponsive()` hook already defines `isTablet` as a separate breakpoint (768-1024px), but `isSmallScreen` lumps tablet with mobile. Code throughout the app uses `isSmallScreen` as the sole responsive check. Changing `isSmallScreen` to exclude tablets would break every existing responsive behavior. Not changing it means tablets get the mobile experience.
+PyInstaller's bundling mechanism (UPX compression + Python runtime extraction) matches known malware packer signatures. The bootstrap extraction pattern is identical to self-extracting malware droppers. Antivirus engines use heuristics, not just signatures, and Python bundlers trigger many heuristics simultaneously.
 
 **How to avoid:**
-1. Do NOT change the semantics of existing `isSmallScreen`. It is used in sidebar.tsx, app-shell.tsx, and at least 7 other files.
-2. Add a new hook or extend `useResponsive()` with `isTabletLayout` that specifically targets 768-1024px for the new tablet behavior.
-3. Refactor responsive checks incrementally: start with AppShell and Sidebar (the layout boundary), then propagate to content pages.
-4. Tablet layout should be "desktop with collapsed sidebar by default" -- not a separate layout component. This minimizes the delta from existing desktop layout.
-5. Test on actual tablet viewport (1024x768) and iPad Pro (1366x1024) during development, not just Chrome responsive mode.
+1. Code sign the sidecar binary with an Authenticode certificate (EV or OV). EV code signing certificates dramatically reduce false positive rates because they require hardware HSM storage (Azure Key Vault) and are associated with a verified identity. This is mandatory for Windows distribution.
+2. Prefer Nuitka over PyInstaller — Nuitka compiles Python to real C extensions without the extractor pattern, giving cleaner binary output with lower AV hit rates.
+3. Submit the signed binary to Microsoft's malware submission portal (`https://www.microsoft.com/en-us/wdsi/filesubmission`) before each release to get the specific binary whitelisted. This takes 1-3 business days.
+4. Budget for an EV code signing certificate in the project timeline. Azure Key Vault HSM-backed certificates cost approximately $300-500/year and the CI setup for signing adds 2-3 days of work.
 
 **Warning signs:**
-- Tablet showing mobile overlay sidebar when it should show inline collapsed sidebar
-- Content area being too narrow on tablet because it still applies mobile padding
-- Editor toolbar wrapping or overflowing on tablet width
-- Existing `NoteCanvasMobileLayout` activating on tablet when it should not
+- VirusTotal scan of the compiled binary shows >5 AV detections
+- Internal testing on Windows Enterprise machines shows Defender blocking on install
+- Users report the app is quarantined before it launches
+- Windows SmartScreen blocks the installer itself (separate from Defender)
 
 **Phase to address:**
-Phase 6 (Responsive Layout) -- after all desktop UI is stable, as a separate responsive pass.
+Phase 2 (Sidecar Compilation) AND Phase 6 (Cross-Platform Packaging). Code signing setup must happen before Windows packaging, but the false positive mitigation (Nuitka choice) must happen in Phase 2.
 
 ---
 
-### Pitfall 7: Embedded Issue Database Views Creating Circular Dependencies
+### Pitfall 7: xterm.js PTY IPC Flooding Causes Memory Leak in Tauri WebView
 
 **What goes wrong:**
-The requirement calls for embedded issue database views (Board, List, Timeline, Priority) inside project pages. This means the page editor component needs to render issue views, and issue views may link back to pages. If the `PageTreeStore` imports from `IssueStore` and `IssueStore` needs page context for navigation, you get a circular dependency between MobX stores. Similarly, the Next.js route structure (`/[workspaceSlug]/projects/[projectId]/pages/[pageId]`) needs to coexist with (`/[workspaceSlug]/issues/[issueId]`).
+Terminal output from long-running commands (build scripts, `pilot implement`) can generate thousands of data chunks per second. Each PTY output chunk triggers a Tauri event emitted from Rust to the WebView. Tauri's event system has a confirmed memory leak (issue #12724) where the `Channel` API's `transformCallback` function registers callbacks on the `window` object but never cleans them up. After sustained terminal output, WebView memory climbs continuously, eventually causing the tab to crash.
 
 **Why it happens:**
-The existing architecture has clean store boundaries: `NoteStore` and `IssueStore` are independent. Embedding issue views inside project pages crosses this boundary. The `IssueViewStore` already exists separately, but it was designed for a standalone issues page, not for embedded rendering within a page editor.
+Tauri's IPC uses `transformCallback` to register each callback as a property on `window.__TAURI_INTERNALS__.callbacks`. Each `Channel.onmessage` call that isn't explicitly cleaned up creates a permanent reference. For high-frequency PTY output, this means thousands of uncollectable callbacks accumulate per terminal session.
 
 **How to avoid:**
-1. Embedded issue views should be read-only query components that accept `projectId` as a prop and fetch independently via TanStack Query -- NOT through `IssueStore` MobX state.
-2. Keep `IssueStore` and `PageTreeStore` independent. Communication happens through URL navigation and TanStack Query cache, not store-to-store references.
-3. Embedded views are NOT TipTap nodes. They are React components rendered alongside the editor in the page layout (like Notion's "linked database" -- it is a page section, not an editor block).
-4. Route structure: `/projects/[projectId]` shows project hub with page tree + embedded views. Individual pages are `/projects/[projectId]/pages/[pageId]`. Issues remain at `/issues/[issueId]`.
+1. Do NOT use Tauri's event system (`emit_all` / `listen`) for continuous PTY output. Use `tauri::ipc::Channel` (the streaming API in Tauri v2) and call `channel.close()` when the command exits to release the callback registration.
+2. Batch PTY output on the Rust side: accumulate output for 16ms (one frame) before sending to the WebView. This reduces the IPC message rate from potentially thousands/second to ~60/second.
+3. In the frontend, use xterm.js's `terminal.write()` inside a `requestAnimationFrame` loop to drain a buffer rather than calling `write()` on every IPC message.
+4. Implement an explicit terminal session lifecycle: `open_terminal()` returns a session ID, all output goes through that session, `close_terminal(sessionId)` cleans up the Rust PTY and the frontend channel listener.
+5. Set a hard buffer limit (e.g., 10,000 lines) in xterm.js via `scrollback` option to bound memory on the frontend side.
 
 **Warning signs:**
-- Circular import errors at build time
-- Issue view inside a project page showing stale data (MobX store was loaded for a different context)
-- Navigation from embedded issue view losing the project context (back button goes to wrong place)
-- TanStack Query cache key collisions between standalone and embedded issue views
+- `window.__TAURI_INTERNALS__.callbacks` object growing unboundedly (check in browser devtools)
+- WebView memory climbing continuously during a running terminal session
+- Terminal slows down significantly after 5+ minutes of output
+- Tauri app RAM usage grows from 200MB to 1GB+ during a build command
 
 **Phase to address:**
-Phase 4 (Project Hub UI) -- design the component boundary before building either the page tree or embedded views.
+Phase 4 (Embedded Terminal) — design the PTY-to-xterm.js bridge with batching from the start. Retrofitting this after the fact requires rewriting the entire IPC layer.
 
 ---
 
-### Pitfall 8: RLS Policy Gaps on New Page Ownership Model
+### Pitfall 8: Supabase Auth Token Stored in localStorage is Accessible to Any Code Running in WebView
 
 **What goes wrong:**
-The two-ownership model (project pages visible to workspace, personal pages visible only to owner) requires new RLS policies. The existing notes RLS policy grants access based on `workspace_id` + membership. Personal pages need an additional clause: `owner_id = current_setting('app.current_user_id')::uuid`. If this is not added atomically with the schema migration, personal pages either leak to all workspace members or become invisible to their owner.
+Supabase's `@supabase/ssr` client stores the JWT access token and refresh token in `localStorage`. In a Tauri WebView, any injected JavaScript or compromised dependency in the Next.js bundle can read the token directly from `localStorage`, extract it, and use it to authenticate as the user against the Pilot Space API. This is worse than a web browser context because the WebView is not sandboxed by the same-origin policy in the same way — malicious code in the Tauri app context has access to OS resources.
 
 **Why it happens:**
-The existing RLS policies on `notes` use workspace membership as the access boundary. The new model adds a second access path (owner-only for personal pages). Developers may add the `page_type` column but forget to update the RLS SELECT policy, leaving personal pages exposed. Or they may add the owner check but forget to OR it with the project-page workspace check, making project pages invisible.
+`localStorage` was designed for web browsers where the same-origin policy limits access. In Tauri's WebView, all JavaScript on the page runs in the same origin (`tauri://localhost`), so any malicious package in `node_modules` that executes in the WebView can read auth tokens.
 
 **How to avoid:**
-1. The RLS SELECT policy must be: `(page_type = 'project_page' AND workspace_member_check) OR (page_type = 'personal_page' AND owner_id = current_user_id)`.
-2. Write the RLS policy in the SAME migration that adds `page_type`. Never have a window where the column exists without the policy.
-3. Add integration tests with `TEST_DATABASE_URL` (real PostgreSQL, not SQLite) that verify: (a) user A cannot see user B's personal pages, (b) both users can see project pages, (c) service_role bypasses both.
-4. Remember the known bug: RLS enum values must be UPPERCASE in policies even if stored lowercase.
+1. Move JWT storage out of `localStorage` and into the OS credential store (macOS Keychain, Windows Credential Manager, Linux Secret Service) using `tauri-plugin-keychain` or the `tauri-plugin-stronghold` plugin.
+2. Architect a clean separation: the Rust backend holds the raw Supabase JWT. The WebView makes a Tauri IPC call (`invoke('get_auth_header')`) to get just the `Authorization` header value for the current request. The token itself never touches WebView JavaScript memory.
+3. Enable Content Security Policy (CSP) in `tauri.conf.json` to prevent inline script injection and restrict `connect-src` to known API domains. This does not fully protect localStorage but reduces the attack surface.
+4. For the auth flow: use `tauri-plugin-deep-link` to handle the OAuth callback in Rust, exchange the code for tokens in Rust, and store only in the OS keychain. The WebView receives a session signal (not the raw token) and re-fetches its Supabase client state.
 
 **Warning signs:**
-- Personal pages visible in another user's "Notes" section
-- A user's personal pages disappearing after the migration (policy too restrictive)
-- Tests passing on SQLite but failing on PostgreSQL (SQLite skips RLS entirely)
+- Supabase auth tokens visible in Chrome DevTools `Application > Local Storage` within the Tauri WebView
+- Supply chain audit shows third-party npm packages with access to `window.localStorage`
+- Sentry or error tracking sending auth tokens in breadcrumbs (token accidentally serialized)
+- Tauri CSP headers not configured in `tauri.conf.json`
 
 **Phase to address:**
-Phase 1 (Data Model & Migration) -- RLS must be part of the schema migration, not an afterthought.
+Phase 1 (Auth Bridge) — this is the first security-critical decision. Do not ship a prototype with `localStorage`-based token storage, even temporarily, as it sets a precedent that is hard to refactor later.
+
+---
+
+### Pitfall 9: macOS Notarization Blocks Every Sidecar Binary Individually
+
+**What goes wrong:**
+On macOS, every embedded binary in a Tauri app bundle must be individually code-signed AND notarized. The `pilot-implement-aarch64-apple-darwin` sidecar binary, the main Tauri binary, and any embedded helper tools all need valid Apple Developer signatures. If even one binary in the bundle is unsigned, Gatekeeper blocks the entire app. Additionally, `tauri-action` in GitHub Actions runs notarization (upload to Apple, wait for response) for every architecture, adding 10-20 minutes per build and sometimes timing out.
+
+**Why it happens:**
+Apple's Gatekeeper verifies every Mach-O binary in an app bundle's `MacOS/` and `Frameworks/` directories. Tauri includes the sidecar in the bundle automatically, but does not automatically code-sign it — the developer must configure `codesign` arguments in `tauri.conf.json` under `bundle.macOS.signingIdentity` and ensure the sidecar is listed in `externalBin`. The notarization wait time (typically 3-10 minutes) can occasionally spike to 60+ minutes, causing CI timeout failures.
+
+**How to avoid:**
+1. Configure `tauri.conf.json` with `"signingIdentity": "Developer ID Application: Your Name (TEAMID)"` so all binaries in the bundle are signed with the same identity.
+2. Use hardened runtime entitlements (`tauri.conf.json > bundle.macOS.entitlements`) — notarization requires hardened runtime since 2019. Without it, notarization submission will fail immediately.
+3. Set CI timeout for the macOS notarization step to 30 minutes (not the default 10), and add retry logic around the `notarytool` submission step.
+4. Build `aarch64-apple-darwin` and `x86_64-apple-darwin` as separate CI jobs in parallel (not sequential) to halve total macOS CI time.
+5. Do not build universal binaries unless specifically required — two separate builds (`aarch64` + `x86_64`) are simpler to manage and debug than universal binary edge cases with the sidecar.
+6. Store the Apple certificate as a base64-encoded `.p12` in GitHub Secrets (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`). The `tauri-action` GitHub Action reads these automatically.
+
+**Warning signs:**
+- macOS CI job runs for >15 minutes with no output (notarization hung)
+- Gatekeeper blocks the `.dmg` with "can't be opened because it is from an unidentified developer"
+- Sidecar binary launches but macOS shows security warning for the binary separately
+- `xcrun notarytool submit` exits with "Package Invalid" — missing hardened runtime
+
+**Phase to address:**
+Phase 6 (Cross-Platform Packaging) — but set up Apple Developer credentials in CI during Phase 1 (Shell Setup) to avoid blocking at the end of the milestone.
+
+---
+
+### Pitfall 10: Cross-Platform Path Handling in git2-rs Operations Corrupts Paths on Windows
+
+**What goes wrong:**
+Git repository paths passed from the Next.js frontend (JavaScript) to Rust via IPC use forward slashes (`/`). git2-rs on Windows expects either forward slashes or backslashes, but the OS APIs in Rust use `Path` / `PathBuf` which normalize to backslashes. When constructing paths programmatically (e.g., repo root + `/` + relative file path for staging), naive string concatenation produces mixed-separator paths like `C:\Users\user/repos/project/src/file.ts` that cause git2-rs operations to fail with `ENOENT`.
+
+**Why it happens:**
+JavaScript always sends paths with forward slashes. Rust's `std::path::Path` normalizes to OS-native separators. If the Tauri IPC handler receives a string path from JavaScript and joins it with `format!("{}/{}", base, relative)` instead of using `Path::new(base).join(relative)`, the result is an invalid path on Windows.
+
+**How to avoid:**
+1. Never build file paths with string concatenation in the Rust backend. Always use `std::path::PathBuf` and `.join()`. Example: `PathBuf::from(base_path).join(relative_path)` handles separator normalization automatically.
+2. When receiving paths from the JavaScript frontend over IPC, parse them with `PathBuf::from(incoming_string)` immediately and work exclusively with `PathBuf` in Rust until the path needs to be serialized back to JSON (where `.to_string_lossy()` is acceptable).
+3. For the workspace directory configuration (user-configurable base path), store the canonical form using `fs::canonicalize()` which returns the absolute platform-native path. Store this canonical path in the Tauri app config, not the user-input string.
+4. On Windows, test with paths that have spaces (e.g., `C:\Users\John Doe\repos\`) as spaces in Windows paths trigger additional quoting requirements in any shell execution.
+
+**Warning signs:**
+- `git2::Error` with `ENOENT` or "path does not exist" on Windows when the path visually looks correct
+- File staging fails on Windows but works on macOS/Linux
+- Repository discovery (`Repository::discover()`) fails for valid repos on Windows
+- Paths with UNC format (`\\server\share`) causing panics in path manipulation code
+
+**Phase to address:**
+Phase 3 (Git Operations) — write platform-path test cases on Windows from the first commit of the git operations module.
+
+---
+
+### Pitfall 11: Tauri `.msi` Installer Can Only Be Built on Windows
+
+**What goes wrong:**
+The Windows `.msi` installer requires WiX Toolset, which only runs on Windows. The Tauri `tauri-action` GitHub Action handles this by running the Windows build job on a `windows-latest` runner, but if the team uses only macOS or Linux development machines, there is no local way to test the Windows installer. The NSIS installer (alternative to WiX) can be cross-compiled from Linux, but produces `.exe` (not `.msi`) and has different behavior.
+
+**Why it happens:**
+WiX is a Windows-only tool. Tauri's bundler shells out to WiX for `.msi` creation. Cross-compilation of Windows apps from macOS/Linux is technically possible for the Rust binary but not for the installer wrapper.
+
+**How to avoid:**
+1. Accept that Windows installer testing must happen in CI (`windows-latest` runner) or a Windows VM. Do not spend time trying to cross-compile `.msi` locally on macOS.
+2. Use NSIS (`.exe` installer) as the primary Windows distribution format and `.msi` as a secondary format. NSIS can be cross-compiled. Configure `tauri.conf.json` to produce both: `"bundle": { "windows": { "nsis": {...}, "wix": {...} } }`.
+3. Set up the GitHub Actions matrix early (Phase 1) with jobs for all three platforms so Windows installer issues surface in CI before the packaging phase.
+4. Use `act` (GitHub Actions local runner) on macOS to simulate the Windows job workflow without pushing to GitHub. Note that `act` uses Docker containers and cannot run actual Windows builds, but it validates the workflow YAML.
+
+**Warning signs:**
+- CI workflow has only `ubuntu-latest` and `macos-latest` runners (Windows build missing)
+- `.msi` installer silently fails during CI and no artifact is uploaded
+- Windows runner in CI uses the wrong Rust target (`x86_64-pc-windows-gnu` instead of `x86_64-pc-windows-msvc`)
+- WiX build fails because a required WiX component version is not installed on the CI runner
+
+**Phase to address:**
+Phase 1 (Tauri Shell Setup) — add all three CI runner jobs in the first GitHub Actions workflow file. Fix immediately when Windows CI fails rather than deferring.
 
 ---
 
@@ -215,105 +286,117 @@ Phase 1 (Data Model & Migration) -- RLS must be part of the schema migration, no
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Skip depth column, compute on read | Faster initial migration | Every tree query needs recursive computation; no DB-level constraint on max depth | Never -- depth column is cheap and critical for the 3-level constraint |
-| Reuse NoteStore for page tree | No new store creation | NoteStore becomes a god store mixing flat lists and tree state; all note consumers re-render on tree changes | Never -- create PageTreeStore from the start |
-| Inline responsive checks per-component | Quick fix for each component | Inconsistent breakpoint behavior across pages; some components responsive, others not | Only during Phase 6 transition -- extract to shared layout components after |
-| Hardcode Notion colors instead of using design tokens | Faster visual matching | Theme switching breaks; dark mode requires separate fixes; future design changes touch every file | Never -- always use CSS custom properties |
-| Store tree expand state in component state | Simple React implementation | State lost on navigation; sidebar tree collapses every time user clicks a link | Never -- must persist in localStorage or MobX |
-| Use SQLAlchemy self-referential relationship for tree | Less custom SQL | N+1 on every tree load; async context makes lazy loading fail silently | Only for single-node parent lookups, never for full tree loads |
+| Use `localStorage` for JWT token in Tauri | Supabase JS client works without modification | Token exposed to any WebView JavaScript; security regression; enterprise customers will flag in pentest | Never — migrate to OS keychain before first release |
+| Ship sidecar unsigned on Windows | Skips $300-500 EV cert cost | Windows Defender quarantines binary; enterprise Windows machines block installation; blocks any paid user | Never for production; acceptable for internal dev builds only |
+| PyInstaller `--onefile` for sidecar | Single file, easy to copy | 10-25s startup delay; orphan processes on Windows; temp directory lock issues; higher AV false positive rate | Only acceptable for internal tooling, never for end-user sidecar |
+| Skip batching for PTY output → xterm.js | Simplest implementation | Memory leak via uncollected Tauri channel callbacks; WebView OOM crash during long builds | Never — batch from day one; the overhead is trivial |
+| Single CI job building all platforms on macOS | Simpler workflow YAML | Windows `.msi` cannot be built on macOS; cross-compilation misses Windows-specific bugs | Never — three separate jobs are required |
+| String concatenation for file paths in Rust | Readable code | Invalid paths on Windows due to separator mismatch; fails only in production | Never — use `PathBuf::join()` always |
+| Rely on system git instead of git2-rs | Zero compilation dependency | System git may not exist on user machine; git version differences cause behavioral differences; no progress reporting | Only for local dev and debugging; never in production sidecar |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Knowledge Graph (kg_populate_handler) | Adding page tree without updating the kg_populate handler -- NOTE_CHUNK nodes reference note IDs that may change semantics | Update `kg_populate_handler.py` to handle page_type: only populate from content pages, skip empty container pages |
-| Meilisearch Index | Notes index assumes flat structure; adding parent/child pages without updating search index means search results lack tree context (breadcrumb) | Add `parent_title` and `breadcrumb` fields to the Meilisearch note document; update the indexing pipeline |
-| TipTap Auto-Save | Current auto-save strips `data-property-block` div; new page types may have different strip logic (or none) | Parameterize the content-strip function per page type rather than hardcoding property block stripping |
-| Cmd+K Command Palette | Currently searches notes and issues as flat lists; must now show page hierarchy in results | Add breadcrumb display to search results; search API returns parent chain |
-| Supabase Realtime (future) | If real-time collaborative editing is added later, tree moves (re-parenting) need conflict resolution | Design parent_id updates as explicit "move" operations with optimistic locking (version column) even if not using realtime yet |
+| Next.js + Tauri | Running `next dev` and assuming production behavior matches | Build with `output: 'export'` locally on every PR that touches routing. Divergence between dev and export modes causes surprises in Phase 3+ |
+| Supabase Auth + Tauri deep links | Registering `tauri://` as OAuth redirect URI in Supabase | Use a custom deep link scheme (`pilotspace://auth/callback`) registered with the OS via `tauri-plugin-deep-link`, NOT `tauri://` which is the WebView internal protocol |
+| git2-rs + macOS Keychain | Expecting git2-rs to automatically use macOS Keychain for HTTPS credentials | macOS Keychain integration requires the `git2_credentials` or `auth-git2` crate — raw git2-rs has no keychain awareness |
+| PyInstaller sidecar + Tauri | Using `Command::new("pilot-implement")` instead of `Command::new_sidecar("pilot-implement")` | `new_sidecar()` resolves the architecture-suffixed binary path automatically and registers it in Tauri's cleanup on app exit; bare `Command::new()` skips both |
+| xterm.js + Tauri IPC | Using `window.__TAURI__.event.listen()` for PTY data stream | Use `tauri::ipc::Channel` (Tauri v2 streaming API) rather than the event system for continuous streams — the event system has memory leaks at high frequency |
+| GitHub Actions + macOS notarization | Setting CI timeout to default 10 minutes | Notarization can take 3-30 minutes; set timeout to 45 minutes and add a retry step for the `notarytool` submission |
+| Windows code signing + Azure Key Vault | Using a local exportable `.pfx` certificate | Since June 2023, new OV/EV code signing certificates require HSM storage; configure `tauri-action` to use Azure Key Vault via `AZURE_KEY_VAULT_URI` env vars |
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Loading full page tree for all projects on sidebar mount | Sidebar takes 2-3s to render; API returns hundreds of pages across all projects | Lazy-load: fetch tree only for expanded projects; cache in PageTreeStore per project ID | >10 projects with >20 pages each |
-| Re-rendering entire sidebar tree on any MobX state change | Sidebar jank when typing in editor (noteStore changes trigger sidebar re-render) | Use `observer()` on leaf tree nodes, not the entire sidebar; use `observable.shallow` for tree data | Any page with active auto-save |
-| Recursive CTE without depth limit | Query takes exponential time if circular reference exists or depth is unbounded | `WHERE depth < 3` in CTE; `CHECK (depth <= 2)` constraint on table | First circular reference in data |
-| CSS layout recalculation on sidebar expand/collapse | Content area janks during sidebar animation; editor loses cursor position | Use CSS `transform` for sidebar animation (already done); ensure editor container has `will-change: width` | Desktop with sidebar animation |
-| Fetching embedded issue views on every project page render | Project hub page takes 3-5s with 4 database views each making separate API calls | Batch API endpoint: `GET /projects/{id}/hub` returns page tree + issue counts + recent activity in one call | Any project with >50 issues |
+| High-frequency PTY events through Tauri IPC | WebView memory grows by 10-50MB/min during active terminal; eventual OOM | Batch output on Rust side at 16ms intervals; use Channel API with explicit cleanup | First build command that generates >100 lines/second of output |
+| Loading full git history for diff viewer | Diff viewer hangs for repos with >1000 commits | Paginate commit history (50 at a time); load diff lazily only when commit is clicked | Repos with >500 commits |
+| git2-rs blocking the Tauri main thread | UI freezes during git clone (can take minutes) | Run all git2-rs operations on a Tokio background task via `tauri::async_runtime::spawn_blocking` | Any clone of a repo >50MB |
+| WebView rendering large unified diffs | Browser tab stalls on 10,000+ line diffs | Virtualize diff lines (only render visible lines); limit diff to first 5,000 lines with "Show more" | Any diff of a generated file or lock file |
+| Sidecar startup on every `pilot implement` invocation | Command takes 20+ seconds before doing work | Implement a long-running sidecar server mode that accepts commands via stdin/IPC and stays alive between invocations | First use by any user expecting CLI-speed response |
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Personal pages accessible via direct URL without owner check | Any workspace member can read another member's private notes by guessing/enumerating page IDs | RLS policy with owner_id check for personal pages; API endpoint must also validate, not just rely on RLS (defense in depth) |
-| Tree move operation not checking destination permissions | User could move a personal page into a project (exposing it) or a project page into personal space (hiding it from team) | Move endpoint must validate: personal pages can only move within personal tree; project pages can only move within same project |
-| Parent_id manipulation to access cross-workspace pages | Setting parent_id to a page in another workspace bypasses workspace isolation | Foreign key constraint: parent page must have same workspace_id; RLS on INSERT/UPDATE validates workspace match |
-| Breadcrumb leak in search results | Search result shows parent page titles that the user should not have access to (e.g., another user's personal page is a parent -- should be impossible but worth checking) | Breadcrumb assembly must go through the same RLS-filtered query, not a service_role query |
+| Storing JWT in `localStorage` in Tauri WebView | Any malicious npm package can exfiltrate the user's Supabase JWT and impersonate them | Store tokens exclusively in OS keychain via `tauri-plugin-keychain`; WebView receives only session signals via IPC |
+| Allowing arbitrary shell commands via `shell:allow-execute` capability | Malicious content loaded in WebView can execute arbitrary OS commands | Use Tauri v2 capability scoping: restrict shell plugin to specific pre-approved command patterns; never grant `shell:allow-execute` with `*` arguments |
+| Filesystem scope too permissive (`**/*`) | WebView JavaScript can read any file on the user's machine | Scope `fs` plugin to specific directories (`$APPDATA/PilotSpace`, `$HOME/PilotSpace/projects`) using `tauri.conf.json` scopes |
+| Logging git credentials during debugging | SSH keys or HTTPS tokens written to log files or crash reports | Never log `Cred::*` values; implement a `Debug` impl that redacts sensitive fields; check `RUST_LOG` level before enabling debug output |
+| Deep link URL not validated before processing | OAuth callback deep link could be crafted to inject a forged token | Validate that deep link origin matches the expected Supabase project URL; verify the token signature server-side, not just accept the deep link payload |
+| Sidecar allowed to access all network resources | Compromised sidecar can exfiltrate data to arbitrary hosts | Use Tauri's process capability scoping to limit sidecar to specific allowed origins; the pilot CLI should only reach the configured Pilot Space backend URL |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Tree drag-and-drop without undo | User accidentally moves a page to wrong location; no way to recover position | Implement undo for tree moves (toast with "Undo" button, 5s timeout); store previous parent_id + position |
-| No empty state for project page tree | New project shows blank sidebar section; user does not know they can create pages | Show "Create your first page" placeholder with one-click page creation inside the project tree |
-| Breadcrumb overflow on deep pages | 3-level breadcrumb like "Project > Parent Page > Child Page > Current Page" overflows on tablet | Truncate middle breadcrumb segments with ellipsis; show full path on hover |
-| Collapsing sidebar hides page tree context | User working in a nested page collapses sidebar; loses context of where they are in the tree | Show breadcrumb in the content header area (above editor) regardless of sidebar state |
-| Design refresh changes colors without updating the editor | Note canvas and issue editor have custom styling that does not inherit from the design system refresh | Audit all TipTap CSS (prose classes, node view styles, toolbar) as part of the design refresh |
-| Forced migration of existing notes confuses users | Users log in and their familiar flat notes list is gone, replaced by a tree they did not ask for | Show a one-time migration notice; auto-organize existing notes into a "Migrated Notes" section at root level; let users reorganize at their pace |
+| No progress indicator during git clone | Users think the app froze when cloning a large repo | Show a progress bar with bytes transferred and estimated time; git2-rs provides `RemoteCallbacks::transfer_progress` for this |
+| PTY session not persisting across navigation | User opens terminal, navigates away, terminal state lost | Store xterm.js `serialize-addon` snapshot in memory when terminal panel is hidden; restore state on re-open |
+| Sidecar startup delay not communicated | `pilot implement` runs but 10+ seconds pass with no feedback | Show a "Starting pilot CLI..." loading state immediately on first invocation; keep sidecar alive between commands |
+| Native file dialogs not used for directory picker | Users must type full paths for workspace directory setup | Use `tauri-plugin-dialog` `open()` with `directory: true` for the workspace base path picker |
+| No error distinction between network failures and auth failures in git operations | "Clone failed" with no actionable information | Map git2-rs error codes to user-facing messages: `GIT_ENOTFOUND` → "Repository not found", `GIT_EAUTH` → "Authentication failed — check your credentials" |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Page tree:** Often missing sibling reordering -- verify drag-and-drop within same parent works, not just cross-parent moves
-- [ ] **Page tree:** Often missing keyboard navigation -- verify Arrow Up/Down/Left/Right traverses and expands/collapses tree nodes
-- [ ] **Responsive layout:** Often missing edge cases at exactly 1024px -- verify the tablet/desktop breakpoint transition is smooth (no layout jump)
-- [ ] **Design refresh:** Often missing dark mode -- verify every new/changed component in both light and dark themes
-- [ ] **Design refresh:** Often missing the TipTap editor styling -- verify headings, code blocks, blockquotes, and slash command menu match new design tokens
-- [ ] **Embedded issue views:** Often missing empty states -- verify Board/List/Timeline/Priority views show meaningful empty state when project has no issues
-- [ ] **Personal pages:** Often missing the "no project" case -- verify personal pages are accessible when user is not a member of any project
-- [ ] **Tree operations:** Often missing optimistic updates -- verify creating/moving/deleting a page updates the sidebar tree immediately without waiting for API response
-- [ ] **RLS:** Often missing test coverage on SQLite -- verify all tree permission tests run against real PostgreSQL with `TEST_DATABASE_URL`
-- [ ] **Migration:** Often missing rollback path -- verify `alembic downgrade` works for the tree migration and does not lose data
+- [ ] **Next.js static export:** Often missing dynamic route support — verify every URL pattern in the app loads correctly in a `next build` + `out/` static server, not just in `next dev`
+- [ ] **Auth bridge:** Often missing token refresh handling — verify that a 1-hour JWT expiry correctly triggers a refresh from the OS keychain, not a logout
+- [ ] **Git credentials:** Often missing SSH key passphrase prompt — verify that an encrypted SSH key prompts the user (not silently fails) before giving up
+- [ ] **Sidecar lifecycle:** Often missing cleanup on crash — verify that if the Tauri app is force-killed (not cleanly exited), the sidecar process is also terminated within 5 seconds
+- [ ] **macOS notarization:** Often missing entitlements file — verify the `.entitlements` file includes `com.apple.security.cs.allow-jit` if the WebView requires it; notarization will fail silently without it
+- [ ] **Windows installer:** Often missing VC++ runtime — verify the `.msi` bundles the MSVC runtime or includes a prerequisite check, otherwise the app fails to start on clean Windows installs
+- [ ] **xterm.js terminal:** Often missing resize handling — verify that resizing the terminal panel sends `SIGWINCH` to the PTY and xterm.js re-wraps long lines
+- [ ] **Cross-platform paths:** Often missing UNC path handling on Windows (`\\server\share`) — verify path normalization handles Windows UNC paths without panicking
+- [ ] **Diff viewer:** Often missing binary file handling — verify the diff viewer shows "Binary files differ" instead of crashing on `.png`, `.jar`, or `.wasm` diffs
+- [ ] **CI matrix:** Often missing `upload-artifact` for all three platforms — verify CI produces downloadable artifacts for macOS ARM, macOS x86, Linux, and Windows on every PR
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Flat-to-tree migration corrupts note ownership | HIGH | Restore from backup; rewrite migration with proper data classification; re-run on staging first |
-| N+1 queries on tree load | LOW | Replace SQLAlchemy relationship traversal with recursive CTE in repository layer; no schema change needed |
-| TipTap property block crashes on non-issue pages | MEDIUM | Extract base PageEditor; requires refactoring editor component hierarchy and updating all page routes |
-| Sidebar state explosion / god store | MEDIUM | Extract PageTreeStore from UIStore/NoteStore; refactor all sidebar tree consumers to use new store |
-| Design token change breaks existing pages | LOW | Revert CSS variable changes; apply tokens incrementally per-component instead of globally |
-| RLS policy gap exposes personal pages | HIGH | Emergency hotfix: add owner_id check to RLS SELECT policy; audit access logs for any unauthorized reads |
-| Responsive breakpoint conflict | LOW | Add new `isTabletLayout` check without changing `isSmallScreen`; update components incrementally |
-| Circular dependency between stores | MEDIUM | Refactor to use TanStack Query for cross-feature data; remove store-to-store imports |
+| Dynamic routes broken in static export | HIGH | Audit all `useParams()` calls across the full Next.js app (can be 50+ occurrences); replace with query params; update all `router.push()` callsites |
+| JWT stored in localStorage (security regression) | HIGH | Implement OS keychain storage; audit logs for any token leaks; rotate all affected user sessions; force re-login |
+| PyInstaller sidecar orphan processes on Windows | MEDIUM | Rebuild sidecar with `--onedir` mode or switch to Nuitka; update CI pipeline; no user data impact but requires new release |
+| PTY memory leak in WebView | MEDIUM | Replace event-based PTY stream with Channel API; requires rewriting the terminal IPC bridge but no Rust side changes |
+| macOS notarization failure in CI | LOW | Add hardened runtime entitlements to `tauri.conf.json`; re-trigger CI; typically resolved in one build cycle |
+| Windows code signing not set up before release | HIGH | Must acquire and configure EV certificate; submit existing builds to Microsoft for whitelisting; 1-2 week delay |
+| git2-rs credential loop causing hang | MEDIUM | Add attempt counter to credential callback; release hotfix patch; no user data impact |
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Flat-to-tree migration breaks references | Phase 1: Data Model & Migration | Run migration on staging data dump; verify note counts before/after; check KG node references |
-| Recursive tree N+1 queries | Phase 2: Backend API | Load test with 50-page project; verify single CTE query in SQL logs |
-| TipTap property block coupling | Phase 3: Editor Refactoring | Open a non-issue page; verify no console errors; verify slash commands work |
-| Sidebar state explosion | Phase 4: Sidebar & Navigation UI | Navigate between 5 pages rapidly; verify tree expand state persists; profile MobX re-renders |
-| Design refresh breaks existing pages | Phase 5: Visual Design Refresh | Screenshot comparison of all existing pages before/after token changes |
-| Responsive layout conflicts | Phase 6: Responsive Layout | Test at 768px, 1024px, 1280px breakpoints; verify no layout jumps |
-| Embedded issue view circular deps | Phase 4: Project Hub UI | Build succeeds with no circular import warnings; embedded views fetch independently |
-| RLS policy gaps | Phase 1: Data Model & Migration | Integration tests with real PostgreSQL; cross-user page visibility tests |
+| Next.js dynamic routes break in static export | Phase 1: Tauri Shell + Next.js Export | Run `next build` with `output: 'export'`; navigate to every dynamic route in the built app |
+| Server Actions / API routes vanish | Phase 1: Tauri Shell + Next.js Export | Audit `app/api/` directory; verify auth callback works via deep link |
+| `next/image` breaks static export build | Phase 1: Tauri Shell + Next.js Export | First `next build` will fail immediately; add `unoptimized: true` before proceeding |
+| Auth token stored in localStorage | Phase 2: Auth Bridge | Security test: open Tauri DevTools, check Application > Local Storage — must be empty of JWT |
+| Sidecar binary AV false positive | Phase 2: Sidecar Compilation | Run VirusTotal scan on compiled binary before CI is finalized; target <5 detections |
+| PyInstaller orphan processes | Phase 2: Sidecar Compilation | Test app force-kill on Windows; verify no Python processes remain after 5 seconds |
+| git2-rs credential loop | Phase 3: Git Operations | Test with empty SSH agent + invalid token; operation must fail with error within 3 seconds |
+| Cross-platform path corruption | Phase 3: Git Operations | Run integration tests on Windows runner with paths containing spaces and UNC format |
+| xterm.js PTY memory leak | Phase 4: Embedded Terminal | Run a 10-minute build command; monitor WebView memory in Tauri DevTools; must not grow unboundedly |
+| macOS notarization blocks sidecar | Phase 6: Cross-Platform Packaging | Verify entire `.app` bundle passes `spctl --assess --verbose` and `codesign --verify` |
+| Windows `.msi` requires Windows CI runner | Phase 1: CI Setup | Add `windows-latest` job in first commit of `.github/workflows/build.yml` |
 
 ## Sources
 
-- Direct codebase analysis: `backend/src/pilot_space/infrastructure/database/models/note.py` (current flat schema)
-- Direct codebase analysis: `frontend/src/components/layout/sidebar.tsx` (current flat nav, 671 lines)
-- Direct codebase analysis: `frontend/src/components/layout/app-shell.tsx` (current responsive handling)
-- Direct codebase analysis: `frontend/src/hooks/useMediaQuery.ts` (existing breakpoint definitions)
-- Direct codebase analysis: `frontend/src/stores/RootStore.ts` (12 independent stores, no tree state)
-- Project rules: `.claude/rules/tiptap.md` (PropertyBlockNode constraints, flushSync issue)
-- Project rules: `.claude/rules/rls-check.md` (RLS policy requirements)
-- Project rules: `.claude/rules/migration.md` (immutable migrations, chain validation)
-- Project memory: `MEMORY.md` (known RLS uppercase/lowercase bug, issue-note architecture)
-- PROJECT.md: v1.0.0-alpha2 requirements and constraints
+- [Tauri v2 Next.js setup guide](https://v2.tauri.app/start/frontend/nextjs/) — static export requirement, image config (HIGH confidence, official docs)
+- [Next.js issue #54393: `useParams()` not supported with `output: export`](https://github.com/vercel/next.js/issues/54393) — confirmed upstream bug (HIGH confidence, official repo)
+- [Next.js issue #79380: Cannot use dynamic params for client-only SPA with `output: export`](https://github.com/vercel/next.js/issues/79380) — still open as of 2025 (HIGH confidence)
+- [Tauri sidecar documentation](https://v2.tauri.app/develop/sidecar/) — binary naming, target triple suffix, permissions (HIGH confidence, official docs)
+- [Tauri issue #11686: PyInstaller creates two processes, `child.kill()` leaves parent](https://github.com/tauri-apps/tauri/issues/11686) — confirmed Windows bug (HIGH confidence)
+- [Tauri issue #12724: Memory leak when emitting events](https://github.com/tauri-apps/tauri/issues/12724) — confirmed memory leak (HIGH confidence, Feb 2025)
+- [Tauri issue #13133: Channel event listeners create memory leak](https://github.com/tauri-apps/tauri/issues/13133) — confirmed (HIGH confidence)
+- [libgit2 issue #3471: Infinite loop with SSH agent and GIT_EAUTH](https://github.com/libgit2/libgit2/issues/3471) — upstream libgit2 bug affecting git2-rs (HIGH confidence)
+- [auth-git2 crate](https://crates.io/crates/auth-git2) — credential handler with loop detection (HIGH confidence)
+- [PyInstaller issue #6754: `--onefile` antivirus false positives](https://github.com/pyinstaller/pyinstaller/issues/6754) — confirmed, ongoing (HIGH confidence)
+- [Nuitka issue #2495: Windows Defender blocks Nuitka onefile exe](https://github.com/Nuitka/Nuitka/issues/2495) — confirmed (HIGH confidence)
+- [Tauri v2 macOS code signing docs](https://v2.tauri.app/distribute/sign/macos/) — notarization requirements (HIGH confidence, official docs)
+- [Tauri v2 Windows code signing docs](https://v2.tauri.app/distribute/sign/windows/) — HSM requirement since June 2023 (HIGH confidence, official docs)
+- [Tauri security advisory GHSA-6mv3-wm7j-h4w5: filesystem scope too permissive](https://github.com/tauri-apps/tauri/security/advisories/GHSA-6mv3-wm7j-h4w5) — glob pattern exploit (HIGH confidence)
+- [PyInstaller onefile slow startup discussion](https://github.com/orgs/pyinstaller/discussions/9080) — 10-25s startup documented (HIGH confidence)
+- [Tauri GitHub Actions pipeline guide](https://v2.tauri.app/distribute/pipelines/github/) — official CI configuration (HIGH confidence, official docs)
 
 ---
-*Pitfalls research for: Pilot Space v1.0.0-alpha2 Notion-Style Restructure*
-*Researched: 2026-03-12*
+*Pitfalls research for: Pilot Space v1.1 Tauri Desktop Client*
+*Researched: 2026-03-20*
