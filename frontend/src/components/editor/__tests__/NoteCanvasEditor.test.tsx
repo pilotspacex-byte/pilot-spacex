@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock supabase (must be before any imports that trigger it)
 vi.mock('@/lib/supabase', () => ({
@@ -34,7 +35,7 @@ vi.mock('@/stores/ai/AIStore', () => ({
       sendMessage: vi.fn(),
     },
     ghostText: { requestSuggestion: vi.fn() },
-    marginAnnotation: { autoTriggerAnnotations: vi.fn() },
+    marginAnnotation: { autoTriggerAnnotations: vi.fn(), getAnnotationsForNote: vi.fn(() => []) },
   })),
 }));
 
@@ -76,6 +77,15 @@ vi.mock('@/features/notes/editor/extensions', () => ({
 
 vi.mock('../hooks/useEditorSync', () => ({
   useEditorSync: vi.fn(),
+}));
+
+vi.mock('@/hooks/useNoteHealth', () => ({
+  useNoteHealth: vi.fn(() => ({
+    extractableCount: 0,
+    clarityIssueCount: 0,
+    overallScore: 'good',
+    suggestedPrompts: [],
+  })),
 }));
 
 vi.mock('react-resizable-panels', () => ({
@@ -152,6 +162,10 @@ vi.mock('../OffScreenAIIndicator', () => ({
 
 vi.mock('../NoteCanvasMobileLayout', () => ({
   NoteCanvasMobileLayout: () => <div data-testid="mock-mobile-layout" />,
+}));
+
+vi.mock('../NoteHealthBadges', () => ({
+  NoteHealthBadges: () => <div data-testid="mock-note-health-badges" />,
 }));
 
 import { EditorErrorFallback, EditorSkeleton, extractFirstHeadingText } from '../NoteCanvasEditor';
@@ -280,6 +294,11 @@ const defaultProps = {
   content: { type: 'doc' as const, content: [] },
 };
 
+function renderWithQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
+
 describe('NoteCanvasLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -297,26 +316,26 @@ describe('NoteCanvasLayout', () => {
 
   // --- Error states ---
   it('renders EditorErrorFallback when error prop is provided', () => {
-    render(<NoteCanvasLayout {...defaultProps} error="Network error" />);
+    renderWithQueryClient(<NoteCanvasLayout {...defaultProps} error="Network error" />);
     expect(screen.getByText('Editor Error')).toBeInTheDocument();
     expect(screen.getByText('Network error')).toBeInTheDocument();
   });
 
   it('prioritizes error prop over editorError', () => {
-    render(<NoteCanvasLayout {...defaultProps} error="Prop error" />);
+    renderWithQueryClient(<NoteCanvasLayout {...defaultProps} error="Prop error" />);
     expect(screen.getByText('Prop error')).toBeInTheDocument();
   });
 
   // --- Loading states ---
   it('renders EditorSkeleton when isLoading is true', () => {
-    const { container } = render(<NoteCanvasLayout {...defaultProps} isLoading />);
+    const { container } = renderWithQueryClient(<NoteCanvasLayout {...defaultProps} isLoading />);
     const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
     expect(skeletons.length).toBe(9);
   });
 
   it('renders EditorSkeleton when editor is null (not yet initialized)', () => {
     mockUseEditor.mockReturnValue(null as unknown as ReturnType<typeof mockUseEditor>);
-    const { container } = render(<NoteCanvasLayout {...defaultProps} />);
+    const { container } = renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
     const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
     expect(skeletons.length).toBe(9);
   });
@@ -327,10 +346,16 @@ describe('NoteCanvasLayout', () => {
       const mockEditor = {
         isDestroyed: false,
         getJSON: vi.fn(() => ({})),
-        state: { doc: { descendants: vi.fn() }, selection: { empty: true }, tr: {} },
+        state: {
+          doc: { descendants: vi.fn(), forEach: vi.fn(), content: { size: 0 }, nodeSize: 2 },
+          selection: { empty: true },
+          tr: {},
+        },
         view: { dispatch: vi.fn() },
         storage: {},
         commands: { setContent: vi.fn() },
+        on: vi.fn(),
+        off: vi.fn(),
       };
       mockUseEditor.mockReturnValue(mockEditor as unknown as ReturnType<typeof useEditor>);
       mockUseResponsive.mockReturnValue({
@@ -344,44 +369,44 @@ describe('NoteCanvasLayout', () => {
     });
 
     it('renders note-editor wrapper with data-testid', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.getByTestId('note-editor')).toBeInTheDocument();
     });
 
     it('renders resizable panel layout when ChatView is open (default)', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.getByTestId('resizable-panel-group')).toBeInTheDocument();
       expect(screen.getByTestId('resizable-handle')).toBeInTheDocument();
     });
 
     it('renders editor content and ChatView inside panels', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.getByTestId('mock-editor-content')).toBeInTheDocument();
       expect(screen.getByTestId('mock-chat-view')).toBeInTheDocument();
     });
 
     it('renders InlineNoteHeader when title is provided', () => {
-      render(<NoteCanvasLayout {...defaultProps} title="My Note" />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} title="My Note" />);
       expect(screen.getByTestId('mock-inline-note-header')).toBeInTheDocument();
     });
 
     it('renders NoteMetadata', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.getByTestId('mock-note-metadata')).toBeInTheDocument();
     });
 
     it('renders SelectionToolbar', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.getByTestId('mock-selection-toolbar')).toBeInTheDocument();
     });
 
     it('renders OffScreenAIIndicator', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.getByTestId('mock-offscreen-indicator')).toBeInTheDocument();
     });
 
     it('does not render mobile layout', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.queryByTestId('mock-mobile-layout')).not.toBeInTheDocument();
     });
   });
@@ -392,10 +417,16 @@ describe('NoteCanvasLayout', () => {
       const mockEditor = {
         isDestroyed: false,
         getJSON: vi.fn(() => ({})),
-        state: { doc: { descendants: vi.fn() }, selection: { empty: true }, tr: {} },
+        state: {
+          doc: { descendants: vi.fn(), forEach: vi.fn(), content: { size: 0 }, nodeSize: 2 },
+          selection: { empty: true },
+          tr: {},
+        },
         view: { dispatch: vi.fn() },
         storage: {},
         commands: { setContent: vi.fn() },
+        on: vi.fn(),
+        off: vi.fn(),
       };
       mockUseEditor.mockReturnValue(mockEditor as unknown as ReturnType<typeof useEditor>);
       mockUseResponsive.mockReturnValue({
@@ -409,17 +440,17 @@ describe('NoteCanvasLayout', () => {
     });
 
     it('renders mobile layout', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.getByTestId('mock-mobile-layout')).toBeInTheDocument();
     });
 
     it('does not render resizable panel group', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.queryByTestId('resizable-panel-group')).not.toBeInTheDocument();
     });
 
     it('does not render collapsed chat strip', () => {
-      render(<NoteCanvasLayout {...defaultProps} />);
+      renderWithQueryClient(<NoteCanvasLayout {...defaultProps} />);
       expect(screen.queryByTestId('mock-collapsed-chat-strip')).not.toBeInTheDocument();
     });
   });

@@ -1,567 +1,617 @@
 # Architecture Research
 
-**Domain:** Notion-style page tree, project-centric navigation, embedded issue views, responsive layout
-**Researched:** 2026-03-12
-**Confidence:** HIGH (based on thorough analysis of existing codebase)
+**Domain:** Medium-style Editor & File Artifacts — integration with existing TipTap + Supabase Storage
+**Researched:** 2026-03-18
+**Confidence:** HIGH (direct codebase inspection)
 
 ## System Overview
 
 ```
-Current Architecture (unchanged layers)
-========================================
+Existing Architecture (unchanged layers)
+==========================================
 Frontend: Next.js 15 App Router + MobX + TanStack Query + shadcn/ui
 Backend:  FastAPI 5-layer Clean Architecture + SQLAlchemy async + DI
 Database: PostgreSQL 16 + RLS + pgvector + pgmq
 Auth:     Supabase Auth + JWT + RLS policies
+Storage:  Supabase Storage (S3-compatible) — already used for chat-attachments bucket
 
-New Components (this milestone)
-========================================
-                    +--------------------------+
-                    |   Sidebar (MODIFIED)     |
-                    |   +-- ProjectTree        | NEW: expandable 3-level tree
-                    |   +-- PersonalPages      | NEW: user-level pages section
-                    |   +-- PinnedRecent       | EXISTING: keep as-is
-                    +--------------------------+
-                              |
-              +---------------+---------------+
-              |                               |
-    +-------------------+          +--------------------+
-    | Project Hub Page  |          | Notes Page         |
-    | (MODIFIED)        |          | (MODIFIED)         |
-    | +-- PageTree      | NEW      | +-- PersonalPages  | NEW
-    | +-- IssueViews    | NEW      +--------------------+
-    |   +-- Board       |
-    |   +-- List        |
-    |   +-- Timeline    |
-    |   +-- Priority    |
-    +-------------------+
-              |
-    +-------------------+
-    | Page Editor       |
-    | (MODIFIED Note)   | note.py gains parent_id, depth, position
-    +-------------------+
+New Components (v1.1 milestone)
+==========================================
+
+                    ┌─────────────────────────────────────────┐
+                    │        Note Editor (TipTap)             │
+                    │                                          │
+                    │  Existing extensions (unchanged):        │
+                    │  GhostText, SlashCommand, BlockId,       │
+                    │  CodeBlock, PMBlock, Mention, etc.        │
+                    │                                          │
+                    │  NEW extensions (Group 3 — block types): │
+                    │  ┌──────────────────────────────────┐   │
+                    │  │ FileCardExtension (Node)          │   │
+                    │  │ VideoEmbedExtension (Node)        │   │
+                    │  │ PullQuoteExtension (Node)         │   │
+                    │  │ ImageCaptionExtension (mark)      │   │
+                    │  └──────────────────────────────────┘   │
+                    │                                          │
+                    │  NEW overlays (Group 5 — marks):         │
+                    │  ┌──────────────────────────────────┐   │
+                    │  │ FloatingToolbarExtension (mark)   │   │
+                    │  └──────────────────────────────────┘   │
+                    └──────────────┬───────────────────────────┘
+                                   │
+              ┌────────────────────┼────────────────────┐
+              │                    │                     │
+    ┌─────────▼──────┐  ┌─────────▼──────┐  ┌──────────▼──────┐
+    │ File Upload    │  │ Preview Modal  │  │ Artifacts Page  │
+    │ (new service)  │  │ (new component)│  │ (new page)      │
+    └────────┬───────┘  └────────────────┘  └──────────┬──────┘
+             │                                          │
+             │ POST multipart                 TanStack Query
+             ▼                                          │
+    ┌────────────────┐                        ┌─────────▼──────┐
+    │ Backend        │                        │ Backend        │
+    │ artifacts API  │◄───────────────────────│ GET/DELETE     │
+    │ (NEW router)   │                        │ artifacts      │
+    └────────┬───────┘                        └────────────────┘
+             │
+             ▼
+    ┌────────────────┐     ┌─────────────────────┐
+    │ Artifact       │     │ Supabase Storage    │
+    │ model (NEW)    │────▶│ note-artifacts/     │
+    │ in PostgreSQL  │     │ {ws}/{note}/{id}/   │
+    └────────────────┘     │ {filename}          │
+                           └─────────────────────┘
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Status | Key Files |
-|-----------|----------------|--------|-----------|
-| `Note` model | Document storage with tree hierarchy | MODIFY | `backend/.../models/note.py` |
-| `Project` model | Project container | KEEP | `backend/.../models/project.py` |
-| `Sidebar` | Workspace navigation | MODIFY | `frontend/src/components/layout/sidebar.tsx` |
-| `ProjectTreeStore` | MobX store for project page trees | NEW | `frontend/src/stores/features/projects/` |
-| `PageTreeComponent` | Recursive tree with drag/indent | NEW | `frontend/src/features/projects/components/` |
-| `IssueViewTabs` | Board/List/Timeline/Priority tabs | NEW | `frontend/src/features/projects/components/` |
-| `AppShell` | Layout shell with responsive sidebar | MODIFY | `frontend/src/components/layout/app-shell.tsx` |
+| Component | Responsibility | Status | Integration Point |
+|-----------|----------------|--------|-------------------|
+| `FileCardExtension` | TipTap node for inline file cards | NEW | Group 3 in `createEditorExtensions.ts` |
+| `VideoEmbedExtension` | TipTap node for YouTube/Vimeo embeds | NEW | Group 3 in `createEditorExtensions.ts` |
+| `PullQuoteExtension` | TipTap node for pull-quote blocks | NEW | Group 3 in `createEditorExtensions.ts` |
+| `FloatingToolbarExtension` | Selection-triggered floating toolbar | NEW | Group 5 in `createEditorExtensions.ts` |
+| `FilePreviewModal` | Multi-format preview dialog | NEW | shadcn/ui Dialog, called from FileCardView |
+| `ArtifactsPage` | Per-project artifacts management | NEW | `/{ws}/projects/{pid}/artifacts/page.tsx` |
+| `ArtifactStore` | MobX store for artifact CRUD + optimistic UI | NEW | `frontend/src/stores/features/artifacts/` |
+| `Artifact` model | PostgreSQL model for persistent artifacts | NEW | `backend/.../models/artifact.py` |
+| `ArtifactsRouter` | FastAPI endpoints for artifact CRUD | NEW | `backend/.../routers/project_artifacts.py` |
+| `ArtifactUploadService` | Upload + Storage key management | NEW | Mirrors `AttachmentUploadService` pattern |
+| `SupabaseStorageClient` | S3-compatible object storage | EXISTING | Already handles `chat-attachments` bucket |
+| `SlashCommandExtension` | `/` block inserter | MODIFY | Add file-card and video-embed commands |
+| `createEditorExtensions` | Extension factory | MODIFY | Register new extensions in correct groups |
 
-## Database Schema Changes
+## Critical Integration Points with Existing Architecture
 
-### 1. Note Model: Add Tree Hierarchy (Migration ~062)
+### 1. TipTap Extension Registration Order
 
-The `Note` model already has `project_id` (nullable FK to projects) and `owner_id` (FK to users). Add three columns to enable the page tree:
+The existing `createEditorExtensions.ts` has a **mandatory ordering** enforced by comments and the `PRE-002` spec:
+
+- **Group 3 (block-type nodes)**: `FileCardExtension`, `VideoEmbedExtension`, `PullQuoteExtension` MUST go here — after `CodeBlockExtension` and `PMBlockExtension`, before `BlockIdExtension`.
+- **Group 5 (inline marks/decorations)**: `FloatingToolbarExtension` goes here — after `GhostTextExtension`.
+
+Violating the order causes `BlockIdExtension` to miss new node types, breaking AI block references and annotation linking (the `PRE-002` constraint).
+
+The `ImageCaptionExtension` is a mark (not a node), so it goes in Group 5 alongside other marks.
+
+### 2. Existing `AttachmentUploadService` Is Not Reusable As-Is
+
+The existing service (`application/services/ai/attachment_upload_service.py`) handles **chat context attachments** (temporary, 24h TTL, stored in `chat-attachments` bucket). Artifacts are **permanent** (no TTL, stored in `note-artifacts` bucket, linked to notes and projects).
+
+The `SupabaseStorageClient` is fully reusable. The upload service pattern is the template — create a new `ArtifactUploadService` with different bucket, no TTL, different size limits (10MB uniform), and different allowed MIME types.
+
+### 3. `ChatAttachment` Model Is Not Reusable
+
+`ChatAttachment` has `expires_at`, `session_id`, and is user-scoped. The new `Artifact` model is note-scoped and project-scoped (permanent). Use `WorkspaceScopedModel` as the base (same as `Note`, `Project`) to get workspace-level RLS automatically.
+
+### 4. Slash Command Integration
+
+The existing `SlashCommandExtension` supports `SlashCommand[]` with an `execute(editor)` function. New commands for file card and video embed are added to `getDefaultCommands()` in `slash-command-items.ts`. The execute function for file-card triggers the file picker via a callback (same pattern as AI commands use `onAICommand`).
+
+The `SlashCommand.group` type is currently `'formatting' | 'blocks' | 'ai'`. Add `'media'` for the new commands to group them correctly in the menu.
+
+### 5. FileCard Node Stores artifact_id in TipTap JSON
+
+The `FileCardExtension` node stores `{ artifact_id, filename, mime_type, size_bytes, uploaded_at }` as node attributes in the TipTap JSON document. The `artifact_id` is a UUID reference to the `artifacts` table. When the note is saved, the TipTap JSON persists in `notes.content` (JSONB), and the artifact metadata is available via the `artifact_id` reference.
+
+This matches how `InlineIssueExtension` stores `issue_id` as an attribute and renders a React component NodeView.
+
+### 6. MobX `ArtifactStore` Follows `NoteStore` Pattern
+
+`NoteStore` uses MobX `makeAutoObservable` with TanStack Query for server sync. The `ArtifactStore` follows the same pattern:
+- `artifacts: Map<string, Artifact[]>` keyed by `project_id`
+- Optimistic updates on delete (remove from map, rollback on error)
+- Optimistic updates on upload (add placeholder with `uploading: true`, replace on success)
+- `isSaving`, `isLoading`, `error` state fields
+
+### 7. RLS on `artifacts` Table
+
+`WorkspaceScopedModel` provides `workspace_id` with an index and a FK to `workspaces.id (ondelete=CASCADE)`. Supabase's RLS policies filter by `workspace_id` in the JWT claims — no new RLS policy syntax needed, just follow the same migration pattern as other `WorkspaceScopedModel` tables.
+
+## New Database Model
 
 ```python
-# New columns on notes table
-parent_id: Mapped[uuid.UUID | None] = mapped_column(
-    UUID(as_uuid=True),
-    ForeignKey("notes.id", ondelete="CASCADE"),
-    nullable=True,
-)
-depth: Mapped[int] = mapped_column(
-    Integer,
-    nullable=False,
-    default=0,
-    server_default=text("0"),
-)
-position: Mapped[float] = mapped_column(
-    # Float for fractional indexing (insert between without reorder)
-    Numeric(10, 4),
-    nullable=False,
-    default=0,
-    server_default=text("0"),
-)
+# backend/src/pilot_space/infrastructure/database/models/artifact.py
+
+class Artifact(WorkspaceScopedModel):
+    """Permanent file artifact linked to a note and project.
+
+    Storage key format:
+        note-artifacts/{workspace_id}/{project_id}/{note_id}/{artifact_id}/{filename}
+
+    Attributes:
+        note_id: Note where this artifact was first uploaded.
+        project_id: Project owning this artifact (for management page).
+        uploader_id: User who uploaded the file.
+        filename: Original filename including extension (max 255 chars).
+        mime_type: MIME type, e.g. 'text/csv' (max 100 chars).
+        size_bytes: File size in bytes; must be > 0 and <= 10MB.
+        storage_key: Supabase Storage object path; globally unique.
+        description: Optional user-provided description.
+    """
+    __tablename__ = "artifacts"
+
+    note_id: Mapped[uuid.UUID | None]  # FK to notes.id (SET NULL on delete)
+    project_id: Mapped[uuid.UUID]      # FK to projects.id (CASCADE delete)
+    uploader_id: Mapped[uuid.UUID]     # FK to users.id (SET NULL on delete)
+    filename: Mapped[str]              # String(255)
+    mime_type: Mapped[str]             # String(100)
+    size_bytes: Mapped[int]            # BigInteger, CHECK > 0
+    storage_key: Mapped[str]           # Text, unique
+    description: Mapped[str | None]    # Text, nullable
+
+    __table_args__ = (
+        Index("ix_artifacts_project_id", "project_id"),
+        Index("ix_artifacts_note_id", "note_id"),
+        Index("ix_artifacts_uploader_id", "uploader_id"),
+        CheckConstraint("size_bytes > 0", name="ck_artifacts_size_positive"),
+        CheckConstraint(
+            "size_bytes <= 10485760",  # 10MB
+            name="ck_artifacts_size_max"
+        ),
+    )
 ```
 
-**Depth constraint**: Enforce max depth = 2 (0-indexed: root=0, child=1, grandchild=2) at the application layer via a CHECK constraint in the migration:
+## New TipTap Extensions
 
-```sql
-ALTER TABLE notes ADD CONSTRAINT chk_notes_depth CHECK (depth >= 0 AND depth <= 2);
+### FileCardExtension
+
+A TipTap `Node` (block-level, non-editable) that renders as an inline file card. Follows the same pattern as `InlineIssueExtension` (which uses `ReactNodeViewRenderer`).
+
+**Node schema:**
+```typescript
+addAttributes() {
+  return {
+    artifactId: { default: null },
+    filename: { default: '' },
+    mimeType: { default: '' },
+    sizeBytes: { default: 0 },
+    uploadedAt: { default: null },
+    // 'uploading' is client-only state — NOT persisted in TipTap JSON
+    // Managed via editor.storage['fileCard'].pendingUploads Set<string>
+  };
+}
 ```
 
-**Self-referential relationship** on Note model:
+**NodeView component** (`FileCardView.tsx`):
+- Displays filename, file type icon, human-readable size
+- Click triggers `FilePreviewModal` (signed URL fetched via `GET /artifacts/{id}/signed-url`)
+- Upload state: show spinner while `artifactId` is null (placeholder node during upload)
+- Only non-`observer()` concern: same constraint as `PropertyBlockView` — `ReactNodeViewRenderer` + MobX `observer()` causes `flushSync` errors in React 19. Use context bridge if MobX reactive state is needed inside the NodeView.
 
-```python
-parent: Mapped[Note | None] = relationship(
-    "Note",
-    remote_side="Note.id",
-    back_populates="children",
-    lazy="selectin",
-)
-children: Mapped[list[Note]] = relationship(
-    "Note",
-    back_populates="parent",
-    cascade="all, delete-orphan",
-    lazy="selectin",
-    order_by="Note.position",
-)
-```
+### VideoEmbedExtension
 
-**New indexes**:
+A TipTap `Node` that parses YouTube/Vimeo URLs and renders `<iframe>` embeds. Uses `ReactNodeViewRenderer`.
 
-```python
-Index("ix_notes_parent_id", "parent_id"),
-Index("ix_notes_position", "position"),
-Index("ix_notes_project_depth", "project_id", "depth"),
-```
+**URL patterns to detect:**
+- YouTube: `https://www.youtube.com/watch?v={id}`, `https://youtu.be/{id}`
+- Vimeo: `https://vimeo.com/{id}`
 
-**RLS**: No new policies needed -- notes already have workspace_id RLS via `WorkspaceScopedModel`. The `parent_id` self-reference stays within the same workspace (enforced by the FK + existing RLS).
+**Node attributes:** `{ url, embedUrl, platform: 'youtube' | 'vimeo', videoId }`
 
-### 2. Two Ownership Models
+**Paste handler**: Override `addProseMirrorPlugins()` with a paste handler that detects YouTube/Vimeo URLs pasted alone on a new line and auto-converts them to video embed nodes. This matches how Medium handles YouTube URLs pasted at the start of a line.
 
-The current `Note` model already supports both patterns:
+### FloatingToolbarExtension
 
-| Ownership | How It Works | Query Pattern |
-|-----------|-------------|---------------|
-| **Project page** | `project_id IS NOT NULL`, `parent_id` forms tree within project | `WHERE project_id = :pid AND parent_id IS NULL` for roots |
-| **Personal page** | `project_id IS NULL`, `owner_id = current_user` | `WHERE project_id IS NULL AND owner_id = :uid AND parent_id IS NULL` |
+A TipTap `Extension` (not a Node or Mark) that renders a floating toolbar when text is selected. Uses a `Decoration.widget` positioned above the selection, similar to how `SlashCommandExtension` renders its menu.
 
-No new table needed. The distinction is purely `project_id IS NULL` vs `project_id IS NOT NULL`. Workspace-level notes (current) become personal pages by convention (they already have `owner_id`).
+**Toolbar buttons:** Bold, Italic, Underline, Code (inline), Link, Highlight, H1/H2/H3 toggle, Quote block.
 
-**Migration**: Existing notes with `project_id IS NULL` need no data migration -- they naturally become personal pages. Set `depth = 0` and `position` based on `created_at` ordering for all existing notes.
+**Key constraint**: The toolbar must NOT use `observer()` for the same reasons as `FileCardView`. Use `editor.on('selectionUpdate', ...)` to show/hide the toolbar based on selection state. This avoids MobX entirely for toolbar visibility state.
 
-### 3. No Changes to Issue/Project Models
+**Position calculation**: Use `editor.view.coordsAtPos(selection.from)` to get absolute coordinates, then position the toolbar DOM element via `position: fixed` in the `Decoration.widget` callback.
 
-Issues already belong to projects (`project_id` NOT NULL). The embedded issue database views are purely frontend -- they query `GET /workspaces/{wid}/projects/{pid}/issues` with different grouping/sorting parameters. No schema changes needed.
+### PullQuoteExtension
 
-## Frontend Architecture Changes
-
-### Pattern 1: Project Tree Store (MobX)
-
-**What:** A new `ProjectTreeStore` that loads the page tree for a project and manages expand/collapse state, reordering, and reparenting.
-
-**When to use:** Sidebar project tree sections, project hub page tree panel.
-
-**Why MobX over TanStack Query for this:** Tree state (expanded nodes, drag positions, optimistic reorder) is complex interactive state -- MobX excels here. TanStack Query handles the server fetch; MobX manages the tree UI state. This matches the existing NoteStore pattern.
+A TipTap `Node` for Medium-style pull quotes (large, centered text block). Extends `Blockquote` with a different HTML rendering. Simple extension — no NodeView needed.
 
 ```typescript
-// frontend/src/stores/features/projects/ProjectTreeStore.ts
-class ProjectTreeStore {
-  // Map<projectId, TreeNode[]> -- root nodes per project
-  trees: Map<string, TreeNode[]> = new Map();
-  // Set<noteId> -- which nodes are expanded in sidebar
-  expandedNodes: Set<string> = new Set();
-  // Currently dragging node
-  draggingNodeId: string | null = null;
-
-  async loadTree(projectId: string): Promise<void> { /* GET /projects/:id/pages */ }
-  toggleExpand(nodeId: string): void { /* toggle in expandedNodes set */ }
-  async movePage(pageId: string, newParentId: string | null, newPosition: number): Promise<void> {
-    // Optimistic update -> PATCH /notes/:id { parent_id, position }
-  }
-}
-
-interface TreeNode {
-  id: string;
-  title: string;
-  parentId: string | null;
-  depth: number;
-  position: number;
-  children: TreeNode[];
-  icon?: string;
-}
+// Renders as: <blockquote class="pull-quote">...</blockquote>
+// CSS handles the large typography treatment
 ```
 
-**Persist expanded state** in `localStorage` keyed by `pilot-space:tree-expanded:{workspaceId}` to survive page reloads.
+## New Frontend Components
 
-### Pattern 2: Sidebar Project Tree Section
+### FilePreviewModal
 
-**What:** Replace the flat "Notes" section in the sidebar (currently Pinned/Recent notes) with a project-centric tree.
+A shadcn/ui `Dialog` that renders different preview UIs based on MIME type. The signed URL is fetched from `GET /workspaces/{wid}/artifacts/{id}/signed-url` when the modal opens.
 
-**Current sidebar structure** (`sidebar.tsx` L86-L114):
-```
-Main: Home, Notes, Issues, Projects, Members
-AI: Chat, Skill, Costs, Approvals
----
-Pinned Notes (flat list)
-Recent Notes (flat list)
----
-New Note button
-```
+| MIME Type | Preview Component | Library |
+|-----------|-------------------|---------|
+| `image/*` | `<img>` with zoom | Browser native |
+| `text/plain`, `text/markdown` | Syntax-highlighted text | `shiki` (already used by `CodeBlockExtension`) |
+| `text/csv` | Scrollable table | Custom table component |
+| `application/json` | Syntax-highlighted JSON | `shiki` |
+| `text/x-python`, `text/javascript`, etc. | Syntax-highlighted code | `shiki` |
+| `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | Table preview | `xlsx` (new dependency) or `SheetJS` |
+| Unsupported | Download button + filename | None |
 
-**New sidebar structure:**
-```
-Main: Home, Notes*, Issues, Projects, Members
-AI: Chat, Skill, Costs, Approvals
----
-Projects (expandable per-project trees):
-  Project Alpha
-    > Page 1
-      > Sub-page 1a
-      > Sub-page 1b
-    > Page 2
-  Project Beta
-    > Page 3
----
-Pinned (pages from any project or personal)
-Recent (last 5 visited pages)
----
-New Page button (context-aware: project page or personal page)
-```
+**No PDF viewer**: PDF preview requires a heavy dependency (`react-pdf`). Given the 10MB limit applies to all file types and PDFs are not in the file-card scope (chat attachments support PDF but note artifacts are for code/data/text files), PDF preview can be deferred.
 
-*"Notes" link becomes personal pages view; the top-level item label may change to "My Pages" but the route stays `/notes`.*
+### ArtifactsPage
 
-**Implementation approach:**
+Route: `/{workspaceSlug}/projects/{projectId}/artifacts`
 
-1. **New component `SidebarProjectTree`**: Renders a collapsible section per project. Each project header is expandable and shows its page tree (max 3 levels). Uses `ProjectTreeStore.expandedNodes` for state.
+A grid/list of all artifacts for a project. Each card shows filename, type icon, uploader avatar, upload date, size. Actions: preview (opens `FilePreviewModal`), copy link, delete (with optimistic removal).
 
-2. **Modify `Sidebar` component** (currently 671 lines): Extract the Pinned/Recent sections into a `SidebarShortcuts` sub-component. Add `SidebarProjectTree` between the main nav and shortcuts. This keeps `sidebar.tsx` under the 700-line limit.
+**TanStack Query integration**: `useQuery(['artifacts', projectId])` fetches `GET /workspaces/{wid}/projects/{pid}/artifacts`. Mutations use `useMutation` with `onMutate` for optimistic updates — same pattern as issue CRUD.
 
-3. **Collapsed sidebar**: In collapsed mode, projects show only the project icon. Hovering shows a tooltip flyout with the tree -- same pattern as current collapsed nav items use `Tooltip`.
+**ArtifactStore (MobX)**: Manages upload progress state (`uploading`, `progress`) for files being uploaded from the editor. TanStack Query manages the fetched list. ArtifactStore handles the ephemeral upload state. This separation matches how `NoteStore` handles save state (MobX) while TanStack Query handles the note list.
 
-### Pattern 3: Embedded Issue Database Views
+## Data Flow
 
-**What:** Tab-based issue views (Board, List, Timeline, Priority) embedded inside the project hub page.
-
-**Current state:** Issues page at `/{ws}/issues` shows a cross-project issue list. Individual project pages at `/{ws}/projects/{pid}` show project overview.
-
-**New state:** Project hub page gains a tabbed section below the page tree showing project issues in different views:
+### File Upload Flow (from Editor)
 
 ```
-/{ws}/projects/{pid}
-  +-- Page Tree Panel (left or top)
-  +-- Issue Views (tabs: Board | List | Timeline | Priority)
+User selects file via /file-card slash command (triggers <input type="file">)
+    |
+    v
+FileCardExtension inserts placeholder node:
+  { type: 'fileCard', attrs: { artifactId: null, filename, mimeType, sizeBytes: 0 } }
+    |
+    v
+ArtifactStore.upload(noteId, projectId, file)
+  -> POST /workspaces/{wid}/projects/{pid}/artifacts (multipart/form-data)
+  -> ArtifactUploadService:
+       1. Validate MIME type (whitelist)
+       2. Validate size <= 10MB
+       3. storage.upload_object('note-artifacts', key, data, content_type)
+       4. artifact_repo.create(Artifact(...))
+       5. Return { artifact_id, filename, mime_type, size_bytes }
+    |
+    v
+On success: editor.commands.updateFileCard(placeholderId, { artifactId, sizeBytes })
+  -> FileCardExtension updates node attrs with real artifact_id
+    |
+    v
+Note auto-save (2s debounce) persists TipTap JSON with artifact_id in node attrs
 ```
 
-**Reuse existing components:** The current issue list page (`/{ws}/issues`) has sorting, filtering, and grouping logic. Factor out the issue rendering into reusable view components:
+### File Preview Flow (from Editor or Artifacts Page)
 
-| View | Component | Data Source |
-|------|-----------|-------------|
-| Board | `IssueBoardView` | `GET /projects/{pid}/issues?group_by=state` |
-| List | `IssueListView` | `GET /projects/{pid}/issues?sort_by=...` |
-| Timeline | `IssueTimelineView` | `GET /projects/{pid}/issues` + `start_date`/`target_date` |
-| Priority | `IssuePriorityView` | `GET /projects/{pid}/issues?group_by=priority` |
+```
+User clicks FileCard / artifact in ArtifactsPage
+    |
+    v
+FilePreviewModal opens (artifact_id passed as prop)
+    |
+    v
+TanStack Query: GET /workspaces/{wid}/artifacts/{id}/signed-url
+  -> Backend: storage.get_signed_url('note-artifacts', artifact.storage_key, expires_in=3600)
+  -> Returns { signed_url }
+    |
+    v
+Modal renders preview using signed_url:
+  - Images: <img src={signed_url}>
+  - Text/code: fetch(signed_url) -> render with shiki
+  - CSV: fetch(signed_url) -> parse -> render table
+  - Excel: fetch(signed_url) -> parse with xlsx library -> render table
+```
 
-**No new API endpoints needed.** The existing `GET /workspaces/{wid}/projects/{pid}/issues` already supports filtering and sorting. The views are purely frontend presentation variations.
+### Video Embed Flow
 
-**Timeline view** requires `start_date` and `target_date` on issues, which already exist in the Issue model. Use a horizontal Gantt-style layout with shadcn/ui primitives.
+```
+User types /video (slash command) or pastes YouTube/Vimeo URL on blank line
+    |
+    v
+VideoEmbedExtension.parseURL(url) -> { platform, videoId, embedUrl }
+    |
+    v
+Insert VideoEmbed node: { url, embedUrl, platform, videoId }
+    |
+    v
+VideoEmbedView renders:
+  <iframe src={embedUrl} sandbox="allow-scripts allow-same-origin" />
+  with aspect-ratio: 16/9 wrapper
+    |
+    v
+Note auto-save persists the node attrs (only url/embedUrl stored, no backend record)
+```
 
-### Pattern 4: Responsive Layout
+Video embeds are purely client-rendered — no backend storage needed. The `embedUrl` is derived from the `url` at insertion time. No `artifact_id` involved.
 
-**What:** Desktop (1280px+) and tablet (768-1024px) responsive layout.
+### Artifacts Management Page Flow
 
-**Current state:** `AppShell` already handles responsive layout:
-- `useResponsive()` hook provides `isMobile`, `isTablet`, `isDesktop`, `isSmallScreen`
-- Sidebar is overlay on `isSmallScreen` (mobile + tablet), inline on desktop
-- `UIStore` persists `sidebarCollapsed` and `sidebarWidth`
+```
+User navigates to /{ws}/projects/{pid}/artifacts
+    |
+    v
+ArtifactsPage mounts
+    |
+    v
+TanStack Query: GET /workspaces/{wid}/projects/{pid}/artifacts
+  -> ArtifactRepository.list_by_project(project_id)
+  -> Returns { items: Artifact[], total }
+    |
+    v
+Grid renders artifact cards
+    |
+    v
+User deletes artifact:
+  1. Optimistic: remove from local cache (TanStack queryClient.setQueryData)
+  2. DELETE /workspaces/{wid}/artifacts/{id}
+     -> ArtifactUploadService.delete(artifact_id, user_id)
+     -> storage.delete_object('note-artifacts', artifact.storage_key)
+     -> artifact_repo.delete(artifact_id)
+  3. On error: rollback (invalidate query to refetch)
+```
 
-**Changes needed:**
-
-1. **Tablet sidebar behavior** (768-1024px): Currently grouped with mobile as `isSmallScreen`. Split tablet behavior:
-   - Tablet: sidebar defaults collapsed (icon rail, 60px), can expand to overlay
-   - Mobile: sidebar hidden, hamburger to open overlay
-   - Desktop: sidebar inline, collapsible
-
-2. **Update `useResponsive` breakpoints**:
-   ```typescript
-   // Current: isSmallScreen = isMobile || isTablet (both get same treatment)
-   // New: keep isSmallScreen but add isTabletUp for sidebar icon-rail
-   isTabletUp: isTablet || isDesktop,  // 768px+ gets icon rail
-   ```
-
-3. **Content area responsive adjustments:**
-   - Project page tree: full panel on desktop, collapsible on tablet
-   - Issue board view: horizontal scroll on tablet, full grid on desktop
-   - Page editor: full-width on tablet (margin panel collapses)
-
-## Recommended Project Structure (New/Modified Files)
+## Recommended Project Structure
 
 ```
 backend/
   alembic/versions/
-    062_add_page_tree_columns.py          # NEW: parent_id, depth, position on notes
+    0XX_add_artifacts_table.py              # NEW: artifacts table + RLS migration
+
   src/pilot_space/
     api/v1/
       routers/
-        workspace_notes.py                # MODIFY: add tree endpoints
+        project_artifacts.py               # NEW: CRUD + signed-url endpoints
       schemas/
-        note.py                           # MODIFY: add parent_id, depth, position, children
-        page_tree.py                      # NEW: tree-specific request/response schemas
+        artifact.py                        # NEW: ArtifactResponse, ArtifactUploadResponse
+
+    application/services/
+      artifact/
+        __init__.py                        # NEW: service exports
+        artifact_upload_service.py         # NEW: upload/delete service (mirrors AttachmentUploadService)
+        artifact_content_service.py        # NEW: signed URL generation
+
     infrastructure/database/
       models/
-        note.py                           # MODIFY: add parent_id, depth, position, relationships
+        artifact.py                        # NEW: Artifact ORM model
       repositories/
-        note_repository.py                # MODIFY: add tree queries (get_tree, move_page)
-    application/services/
-      note/
-        page_tree_service.py              # NEW: tree operations with depth validation
+        artifact_repository.py             # NEW: CRUD repository
+
+    container/
+      container.py                         # MODIFY: wire ArtifactUploadService + ArtifactRepository
 
 frontend/
   src/
-    stores/features/projects/
-      ProjectTreeStore.ts                 # NEW: MobX store for page trees
-    features/projects/
+    stores/features/artifacts/
+      ArtifactStore.ts                     # NEW: MobX store (upload progress, optimistic delete)
+
+    features/notes/editor/extensions/
+      FileCardExtension.ts                 # NEW: TipTap Node for file cards (Group 3)
+      FileCardView.tsx                     # NEW: React NodeView component
+      VideoEmbedExtension.ts              # NEW: TipTap Node for video embeds (Group 3)
+      VideoEmbedView.tsx                   # NEW: React NodeView with <iframe>
+      PullQuoteExtension.ts               # NEW: TipTap Node extending Blockquote (Group 3)
+      FloatingToolbarExtension.ts         # NEW: Selection toolbar Extension (Group 5)
+      FloatingToolbarView.tsx             # NEW: Toolbar DOM component
+
+    features/notes/editor/extensions/
+      slash-command-items.ts              # MODIFY: add file-card, video-embed commands
+      createEditorExtensions.ts           # MODIFY: register new extensions in correct groups
+      index.ts                            # MODIFY: export new extensions
+
+    features/artifacts/
       components/
-        page-tree/
-          page-tree.tsx                   # NEW: recursive tree component
-          page-tree-item.tsx              # NEW: single tree node with indent
-          page-tree-actions.tsx           # NEW: context menu (rename, move, delete)
-        issue-views/
-          issue-view-tabs.tsx             # NEW: tab container (Board/List/Timeline/Priority)
-          issue-board-view.tsx            # NEW: kanban board (grouped by state)
-          issue-list-view.tsx             # NEW: table/list view
-          issue-timeline-view.tsx         # NEW: gantt-style timeline
-          issue-priority-view.tsx         # NEW: grouped by priority
+        artifact-card.tsx                 # NEW: grid card with icon, name, size, actions
+        artifact-grid.tsx                 # NEW: responsive grid layout
+        file-preview-modal.tsx            # NEW: multi-format preview Dialog
+        file-preview-renderers/
+          image-preview.tsx               # NEW
+          text-preview.tsx               # NEW (uses shiki)
+          csv-preview.tsx                # NEW
+          excel-preview.tsx              # NEW (uses xlsx)
+          code-preview.tsx               # NEW (uses shiki)
       hooks/
-        usePageTree.ts                    # NEW: TanStack Query hook for tree data
-        useMovePage.ts                    # NEW: mutation for reparenting/reordering
-    components/layout/
-      sidebar.tsx                         # MODIFY: add project trees, extract sub-components
-      sidebar-project-tree.tsx            # NEW: project tree section
-      sidebar-shortcuts.tsx              # NEW: extracted Pinned/Recent from sidebar.tsx
-      app-shell.tsx                       # MODIFY: tablet-specific sidebar behavior
-    hooks/
-      useMediaQuery.ts                    # MODIFY: add isTabletUp convenience
-    types/
-      note.ts                            # MODIFY: add parentId, depth, position, children
+        useArtifacts.ts                   # NEW: TanStack Query hooks
+        useUploadArtifact.ts             # NEW: mutation hook
+        useDeleteArtifact.ts             # NEW: mutation hook with optimistic update
+        useArtifactSignedUrl.ts          # NEW: signed URL fetch hook
+
+    app/(workspace)/[workspaceSlug]/
+      projects/[projectId]/
+        artifacts/
+          page.tsx                        # NEW: ArtifactsPage route
+
+    stores/
+      RootStore.ts                        # MODIFY: add artifacts: ArtifactStore
 ```
 
 ### Structure Rationale
 
-- **`page-tree/` under `features/projects/`**: Page trees live within projects, so they belong in the projects feature module. Personal pages reuse the same tree component but render in the notes context.
-- **`issue-views/` under `features/projects/`**: Issue database views are a project-hub concern, not a standalone issue feature. They import issue components but live under projects.
-- **`sidebar-project-tree.tsx` and `sidebar-shortcuts.tsx`**: Extracting from `sidebar.tsx` (currently 671 lines) prevents exceeding the 700-line limit and improves maintainability.
-- **`ProjectTreeStore` in global stores**: Tree expansion state must persist across page navigations (sidebar is always mounted in `AppShell`), so it lives in the global store, not in a feature-local store.
+- **`features/artifacts/` separate from `features/notes/`**: Artifacts have their own management page and are not exclusive to the editor. The editor imports from `features/artifacts/` for the preview modal.
+- **`FileCardExtension.ts` stays in `features/notes/editor/extensions/`**: All TipTap extensions live here by convention. The NodeView (`FileCardView.tsx`) is co-located.
+- **`ArtifactStore` in global stores**: Upload progress state must be accessible from both the editor (while uploading) and the artifacts page (showing recent uploads). Global store, not feature-local.
+- **`project_artifacts.py` router**: Named to avoid collision with the existing `ai_attachments.py` (chat context) and `_chat_attachments.py` (internal) routers.
 
-## Data Flow
+## Architectural Patterns
 
-### Page Tree Load Flow
+### Pattern 1: Extension Group Ordering for New Nodes
 
-```
-Sidebar mounts
-    |
-    v
-ProjectTreeStore.loadTrees(projectIds[])
-    |
-    v
-TanStack Query: GET /workspaces/{wid}/pages/tree?project_ids=...
-    |
-    v
-Backend: NoteRepository.get_project_trees(project_ids)
-  -> SELECT id, title, parent_id, depth, position, project_id
-     FROM notes
-     WHERE project_id IN (:pids) AND is_deleted = false
-     ORDER BY depth, position
-    |
-    v
-Frontend: Build TreeNode[] hierarchy from flat list
-    |
-    v
-ProjectTreeStore.trees.set(projectId, rootNodes)
-    |
-    v
-SidebarProjectTree renders recursively
+**What:** Register new TipTap node extensions in Group 3 of `createEditorExtensions.ts`, before `BlockIdExtension`.
+**When to use:** Every new node type extension.
+**Trade-offs:** Requires discipline about ordering. Reward: all new block nodes get stable `blockId` attributes automatically, enabling AI block references, annotation linking, and scroll sync without additional work.
+
+```typescript
+// In createEditorExtensions.ts, Group 3:
+// ... existing: CodeBlockExtension, PMBlockExtension ...
+extensions.push(FileCardExtension.configure({ ... }));
+extensions.push(VideoEmbedExtension.configure({ ... }));
+extensions.push(PullQuoteExtension);
+// ── Group 4: Block IDs (MUST remain last) ────
+extensions.push(BlockIdExtension.configure({ ... }));
 ```
 
-### Page Move Flow (Drag & Drop / Indent)
+### Pattern 2: Placeholder Node for Optimistic Upload
 
-```
-User drags page B under page A
-    |
-    v
-ProjectTreeStore.movePage(pageId, newParentId, newPosition)
-    |
-    v
-Optimistic: update trees map immediately
-    |
-    v
-PATCH /workspaces/{wid}/notes/{noteId}
-  body: { parent_id: newParentId, position: newPosition }
-    |
-    v
-Backend: PageTreeService.move_page()
-  1. Validate depth <= 2 (new parent depth + 1)
-  2. Validate children won't exceed depth 2 (recursive check)
-  3. Update note.parent_id, note.depth, note.position
-  4. Cascade depth update to all descendants
-    |
-    v
-On success: TanStack invalidates tree query
-On error: ProjectTreeStore rolls back optimistic update
+**What:** Insert a placeholder TipTap node with `artifactId: null` immediately on file selection, then update attrs with real `artifactId` after upload completes.
+**When to use:** File card uploads.
+**Trade-offs:** The placeholder node persists in TipTap JSON if the upload fails. Need cleanup: detect `artifactId: null` nodes on editor mount and remove them (stale upload artifacts from failed sessions).
+
+```typescript
+// On file select:
+editor.commands.insertContent({
+  type: 'fileCard',
+  attrs: { artifactId: null, filename, mimeType, sizeBytes: 0, uploading: true }
+});
+
+// After upload:
+editor.commands.command(({ tr, state }) => {
+  state.doc.descendants((node, pos) => {
+    if (node.type.name === 'fileCard' && node.attrs.filename === filename && !node.attrs.artifactId) {
+      tr.setNodeMarkup(pos, null, { ...node.attrs, artifactId, sizeBytes, uploading: false });
+      return false;
+    }
+  });
+  return true;
+});
 ```
 
-### Embedded Issue Views Data Flow
+### Pattern 3: Service Role Storage — No Direct Frontend Uploads
 
-```
-Project Hub Page renders IssueViewTabs
-    |
-    v
-Active tab (e.g., Board) fetches:
-  TanStack Query: GET /workspaces/{wid}/projects/{pid}/issues?state_group=...
-    |
-    v
-Board view groups issues by state, renders columns
-    |
-    v
-Issue card click: router.push(`/{ws}/issues/{issueId}`)
-  (navigates to existing issue detail page)
-```
+**What:** All file uploads go through the FastAPI backend (not directly to Supabase Storage from the browser).
+**When to use:** All artifact operations.
+**Trade-offs:** One extra network hop vs. direct browser-to-storage upload. Reward: backend enforces MIME whitelist, size limits, quota checks, and creates the DB record atomically. Direct browser uploads would bypass all server-side validation.
 
-## Backend API Changes
+This matches the existing `AttachmentUploadService` pattern — the backend uses the service role key to bypass RLS for the storage write, then creates the DB record which IS subject to RLS for subsequent reads.
 
-### New Endpoints
+### Pattern 4: Signed URLs for Preview Downloads
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/workspaces/{wid}/pages/tree` | Batch tree fetch for sidebar (query param: `project_ids`) |
-| `PATCH` | `/workspaces/{wid}/notes/{nid}/move` | Move page (parent_id, position) with depth validation |
+**What:** Never expose the service role key to the frontend. Instead, generate signed URLs server-side with short TTL (1 hour), return to frontend, let browser fetch directly from Supabase Storage.
+**When to use:** All file preview operations.
+**Trade-offs:** Extra round-trip to generate signed URL before preview. Reward: the service role key never leaves the backend; preview URLs expire after 1 hour.
 
-### Modified Endpoints
+The `SupabaseStorageClient.get_signed_url()` method is already implemented and tested. No new client code needed.
 
-| Method | Path | Change |
-|--------|------|--------|
-| `GET` | `/workspaces/{wid}/notes` | Add `owner_only=true` query param for personal pages |
-| `POST` | `/workspaces/{wid}/notes` | Accept `parent_id` in create body |
-| `GET` | `/workspaces/{wid}/notes/{nid}` | Response includes `parentId`, `depth`, `children[]` |
+### Pattern 5: TanStack Query for Artifact List + MobX for Upload Progress
 
-### No Changes Needed
-
-| Method | Path | Why |
-|--------|------|-----|
-| `GET` | `/workspaces/{wid}/projects/{pid}/issues` | Already supports filtering/sorting for all four views |
-| All issue CRUD | Various | Issues are project-scoped already |
+**What:** Separate the concerns: TanStack Query owns the persistent server state (list of artifacts), MobX `ArtifactStore` owns ephemeral client state (current upload progress, placeholder nodes).
+**When to use:** Any feature that combines server-fetched lists with client-side ephemeral state.
+**Trade-offs:** Two state systems to reason about. This is already the established pattern in this codebase (NoteStore + TanStack Query notes list, IssueStore + TanStack Query).
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Recursive SQL Queries for Tree Loading
+### Anti-Pattern 1: Observer on TipTap NodeView
 
-**What people do:** Use recursive CTEs or multiple round-trips to load tree nodes level by level.
-**Why it is wrong:** For a max-depth-2 tree, recursion is unnecessary overhead. A flat query with `ORDER BY depth, position` and client-side tree building is simpler and faster.
-**Do this instead:** Single flat query, build tree client-side:
+**What people do:** Wrap `FileCardView` or `VideoEmbedView` with `observer()` from MobX.
+**Why it is wrong:** `ReactNodeViewRenderer` + MobX `observer()` causes nested `flushSync` errors in React 19. This is the documented constraint from `IssueEditorContent` in the memory notes (`feat/issue-note`).
+**Do this instead:** Keep NodeViews as plain React components. Pass reactive data via React context (same context bridge pattern as `IssueNoteContext`). For upload progress state, pass it as a prop from the Extension's `onUploadProgress` callback.
 
-```typescript
-function buildTree(flatNodes: FlatNode[]): TreeNode[] {
-  const map = new Map<string, TreeNode>();
-  const roots: TreeNode[] = [];
-  for (const node of flatNodes) {
-    map.set(node.id, { ...node, children: [] });
-  }
-  for (const node of flatNodes) {
-    const treeNode = map.get(node.id)!;
-    if (node.parentId) {
-      map.get(node.parentId)?.children.push(treeNode);
-    } else {
-      roots.push(treeNode);
-    }
-  }
-  return roots;
-}
-```
+### Anti-Pattern 2: Storing Video Embed Content in the Backend
 
-### Anti-Pattern 2: Storing Expanded Tree State in Backend
+**What people do:** Create a backend model for video embeds, store the URL in the database separately from the note content.
+**Why it is wrong:** The video embed node attributes (url, embedUrl, videoId) are already stored inside `notes.content` JSONB. Creating a separate table duplicates data and adds an unnecessary join.
+**Do this instead:** Video embeds are purely editor content. The TipTap JSON in `notes.content` is the single source of truth. No backend record needed beyond the note itself.
 
-**What people do:** Persist tree expand/collapse state in the database via user preferences.
-**Why it is wrong:** Creates unnecessary API calls on every toggle. Expand state is ephemeral UI preference.
-**Do this instead:** Use `localStorage` with `pilot-space:tree-expanded:{workspaceId}` key. The `ProjectTreeStore` hydrates from localStorage on mount, just like `UIStore` does.
+### Anti-Pattern 3: Reusing `chat-attachments` Bucket for Artifacts
 
-### Anti-Pattern 3: Separate Tables for "Pages" vs "Notes"
+**What people do:** Store artifacts in the existing `chat-attachments` bucket since the upload service already exists.
+**Why it is wrong:** `chat-attachments` has TTL-based expiry (24h) enforced by a `pg_cron` job. Artifacts are permanent. Using the same bucket would either delete artifacts or require disabling TTL cleanup for the entire bucket.
+**Do this instead:** Use a separate `note-artifacts` bucket with no TTL. Create `ArtifactUploadService` as a sibling of `AttachmentUploadService` — same pattern, different bucket, no `expires_at`.
 
-**What people do:** Create a new `pages` table to represent the tree structure, keeping `notes` for flat documents.
-**Why it is wrong:** A "page" IS a note with tree metadata. Splitting creates data duplication, broken links, and two sets of CRUD endpoints. The existing Note model already has `project_id`, `owner_id`, `content`, and all the TipTap integration.
-**Do this instead:** Add `parent_id`, `depth`, `position` columns directly to the `notes` table. A page is a note. A personal page is a note with `project_id IS NULL`. Terminology can differ in the UI while sharing the same data model.
+### Anti-Pattern 4: Inline File Preview Without Signed URLs
 
-### Anti-Pattern 4: Fetching Full Issue Data for Sidebar Tree
+**What people do:** Return a public download URL from the upload endpoint and store it in the node attrs.
+**Why it is wrong:** Public URLs mean anyone with the URL can access the file — even after workspace membership is revoked. The file is sensitive (code, CSVs, etc.).
+**Do this instead:** Store only `storage_key` in the backend and `artifact_id` in the TipTap node. Generate signed URLs on-demand via `GET /artifacts/{id}/signed-url` with 1-hour TTL.
 
-**What people do:** Load all issues to show counts or status in the sidebar project tree.
-**Why it is wrong:** Sidebar should be lightweight. Loading all issues for every project on every page load is expensive.
-**Do this instead:** The sidebar tree shows only pages (notes), not issues. Issue counts per project come from the existing `Project.issueCount` and `Project.openIssueCount` fields already on the `useProjects` query.
+### Anti-Pattern 5: Loading All Artifact Metadata Into the Editor on Page Load
 
-### Anti-Pattern 5: MobX Observer on TipTap Editor Content Component
+**What people do:** Eagerly fetch all artifact metadata for a note when the editor loads, to hydrate the FileCard nodes.
+**Why it is wrong:** Notes can have many file cards. Fetching all artifact records upfront adds latency to note load. Most cards may not be viewed.
+**Do this instead:** The TipTap JSON node already contains `filename`, `mimeType`, `sizeBytes` as display attributes. The card renders immediately from these. Only when the user clicks "preview" does the frontend fetch the signed URL for that single artifact. Lazy loading per-artifact.
 
-**What people do:** Wrap the page editor content in `observer()` to make it reactive.
-**Why it is wrong:** This causes nested `flushSync` errors in React 19 with TipTap's `ReactNodeViewRenderer`. This is a known constraint documented in `.claude/rules/tiptap.md`.
-**Do this instead:** Use the Context Bridge pattern (existing `IssueNoteContext`). The page editor content component stays a plain React component; data flows via context from an observer parent.
+### Anti-Pattern 6: `onAICommand`-style Callback for File Upload in Slash Command
+
+**What people do:** Extend the `onAICommand` callback to handle file uploads.
+**Why it is wrong:** `onAICommand` is specifically for AI operations. File upload is a different concern.
+**Do this instead:** Add a new `onFileCommand` callback option to `SlashCommandOptions`, and pass it through the same way `onAICommand` is passed. Keeps the interface clean and semantically correct.
 
 ## Integration Points
 
-### Internal Boundaries
-
-| Boundary | Communication | Integration Notes |
-|----------|---------------|-------------------|
-| Sidebar <-> ProjectTreeStore | MobX observable | Sidebar reads `trees` and `expandedNodes` observables |
-| ProjectTreeStore <-> API | TanStack Query + MobX | TanStack fetches, MobX manages UI state (expanded, dragging) |
-| Page Tree <-> Note Editor | Next.js routing | Clicking a tree node navigates to `/{ws}/notes/{noteId}` |
-| Issue Views <-> Existing Issue Hooks | Shared TanStack Query keys | Issue views use existing `useIssues` hooks with project filter |
-| NoteStore <-> Page Tree | Shared note data | NoteStore gains `parentId`/`depth` on Note type; tree store is separate |
-| Knowledge Graph pipeline | Background job | `kg_populate_handler.py` already processes notes -- no change needed |
-
 ### External Services
 
-| Service | Impact | Notes |
-|---------|--------|-------|
-| Meilisearch | None | Note search index unchanged; `parentId` can be added to index later if needed |
-| Supabase Auth/RLS | None | Notes RLS policies already filter by workspace_id; parent_id is within same workspace |
-| AI Ghost Text | None | Ghost text operates on note content regardless of tree position |
-| pgmq Queue | None | KG populate job works on individual notes; tree structure is irrelevant to processing |
+| Service | Integration Pattern | Notes |
+|---------|---------------------|-------|
+| Supabase Storage | Backend `SupabaseStorageClient` (existing) | Use `note-artifacts` bucket; client already handles upload/sign/delete |
+| Supabase RLS | `WorkspaceScopedModel` base class | Automatic workspace filtering on `artifacts` table |
+| `shiki` | Already used by `CodeBlockExtension` | Reuse the same `lowlight`/`shiki` instance for preview |
+| `xlsx` (SheetJS) | New frontend dependency | Only loaded in `ExcelPreview` component (lazy import) |
+
+### Internal Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `FileCardExtension` <-> `ArtifactStore` | Extension callback (`onUpload`) → Store action | Extension calls `onUpload(file)`, store handles API call, returns `artifactId` |
+| `FileCardView` <-> `FilePreviewModal` | React state (local `useState`) | Modal is local to `FileCardView`; signed URL fetched in modal `onOpen` |
+| `ArtifactsPage` <-> `ArtifactStore` | TanStack Query hooks | Page uses `useArtifacts(projectId)` hook; delete uses `useDeleteArtifact()` |
+| `createEditorExtensions` <-> new extensions | Import + configure | New extensions must be imported and inserted at the correct group position |
+| `SlashCommandExtension` <-> `FileCardExtension` | Slash command `execute` callback | `/file-card` command triggers file picker, calls `onFileCommand` callback |
+| `project_artifacts` router <-> `ArtifactUploadService` | FastAPI DI (`AttachmentUploadServiceDep` pattern) | New DI provider `ArtifactUploadServiceDep` wired in `container.py` |
+
+## Suggested Build Order
+
+Build order is dependency-driven. Each phase has a testable output.
+
+| Order | Component | Depends On | Rationale |
+|-------|-----------|------------|-----------|
+| 1 | DB migration + `Artifact` model | Nothing | Foundation for all artifact features |
+| 2 | `ArtifactUploadService` + `project_artifacts` router | Migration + `SupabaseStorageClient` (existing) | Backend must exist before frontend upload |
+| 3 | `FileCardExtension` + `FileCardView` (no upload, static data) | Nothing | Unblocked; test with hardcoded attrs first |
+| 4 | File upload integration (slash command → upload → update node) | Steps 2 + 3 | Connects editor to backend |
+| 5 | `FilePreviewModal` (image + text/code types) | Step 2 (signed URL endpoint) | Common file types first |
+| 6 | `ArtifactStore` + `ArtifactsPage` | Steps 1-2 | Management page can be built after storage layer |
+| 7 | `FilePreviewModal` (CSV + Excel types) | Step 5 | Depends on `xlsx` dependency; do after common types |
+| 8 | `VideoEmbedExtension` + `VideoEmbedView` | Nothing | Fully self-contained; no backend required |
+| 9 | `FloatingToolbarExtension` | Nothing | Self-contained editor UX; no backend |
+| 10 | `PullQuoteExtension` | Nothing | Simple node extension, 30 min effort |
+| 11 | Focus mode (fullscreen editor) | Steps 9-10 | Final editor UX polish; needs toolbar complete |
+
+**Critical path:** 1 → 2 → 4 (storage layer and upload flow before the rest).
+
+**Parallelizable:** Steps 3, 8, 9, 10 are fully independent of the backend and can be built in parallel with steps 1-2. Step 6 (ArtifactsPage) can start once step 2 is done.
+
+**Deferred:** Focus mode (step 11) and Excel preview (step 7) are the lowest-priority items and can slip if time-constrained.
 
 ## Scaling Considerations
 
 | Scale | Architecture Adjustments |
 |-------|--------------------------|
-| 0-100 projects, <1000 pages per workspace | Current approach is fine. Single flat query for tree. |
-| 100-500 projects | Lazy-load trees per project on sidebar expand (not all at once). Already supported by `loadTree(projectId)`. |
-| 1000+ pages in a single project | Paginate children at depth 0; show "Load more" for large root lists. Depth 1-2 children are bounded by parent. |
-
-### First Bottleneck: Sidebar Tree Load
-
-With many projects, loading all trees on sidebar mount is wasteful. Mitigate by:
-1. Only load trees for projects whose nodes are expanded (check localStorage)
-2. Load remaining trees lazily when user expands a project
-3. The batch endpoint `GET /pages/tree?project_ids=...` supports selective loading
-
-### Second Bottleneck: Issue View Rendering
-
-Board view with hundreds of issues per state column. Mitigate by:
-1. Virtual scrolling within columns (already using `@tanstack/react-virtual` in notes page)
-2. Pagination per state group
-
-## Suggested Build Order
-
-Build order is dependency-driven to ensure each phase has testable output:
-
-| Order | Component | Depends On | Rationale |
-|-------|-----------|------------|-----------|
-| 1 | DB migration (parent_id, depth, position) | Nothing | Foundation for all tree features |
-| 2 | Backend tree API (get_tree, move, create with parent) | Migration | Backend must exist before frontend |
-| 3 | Note type updates (frontend types + API client) | Backend API | Types drive all frontend components |
-| 4 | ProjectTreeStore (MobX) | Frontend types | Store drives all tree UI |
-| 5 | Page tree component | ProjectTreeStore | Reusable tree renderer |
-| 6 | Sidebar integration (SidebarProjectTree) | Page tree component | Highest user-visible impact |
-| 7 | Project hub page with tree panel | Page tree component | Project-centric hub |
-| 8 | Embedded issue views (Board, List) | Project hub page | Core issue views first |
-| 9 | Embedded issue views (Timeline, Priority) | Board/List views | Lower priority views |
-| 10 | Personal pages (Notes page refactor) | Tree component | Reuse tree for personal pages |
-| 11 | Responsive layout refinements | All above | Polish responsive behavior |
-| 12 | Visual design refresh | All above | Typography, spacing, colors applied holistically |
-
-**Critical path:** 1 -> 2 -> 3 -> 4 -> 5 -> 6 (sidebar tree is the highest-impact deliverable).
-
-**Parallelizable:** Steps 7-10 can be built in parallel by different developers once step 5 is complete. Step 8-9 (issue views) can run in parallel with step 10 (personal pages).
+| 0-500 artifacts per project | Current approach fine. Single list query with pagination. |
+| 500-5000 artifacts per project | Add cursor-based pagination to `GET /projects/{pid}/artifacts`. |
+| Large files (close to 10MB) | S3 multipart upload via backend presigned URL. Current httpx approach (full file in memory) is a memory spike risk. Not needed for 10MB limit at current scale. |
+| High concurrent uploads | `SupabaseStorageClient` creates a new `httpx.AsyncClient` per call (already async). No pooling issue at current scale. |
 
 ## Sources
 
-- Existing codebase analysis (HIGH confidence -- direct code inspection):
-  - `backend/src/pilot_space/infrastructure/database/models/note.py` -- Note model with project_id, owner_id
-  - `backend/src/pilot_space/infrastructure/database/models/project.py` -- Project model
-  - `backend/src/pilot_space/infrastructure/database/models/issue.py` -- Issue model with start_date, target_date
-  - `frontend/src/components/layout/sidebar.tsx` -- Current sidebar (671 lines, flat nav)
-  - `frontend/src/components/layout/app-shell.tsx` -- Current responsive layout
-  - `frontend/src/hooks/useMediaQuery.ts` -- Existing responsive hooks
-  - `frontend/src/stores/UIStore.ts` -- UIStore with sidebar persistence
-  - `frontend/src/stores/features/notes/NoteStore.ts` -- NoteStore pattern
-  - `frontend/src/types/note.ts` -- Note type definition
-  - `.claude/rules/tiptap.md` -- TipTap observer constraint
-  - `.planning/PROJECT.md` -- Milestone requirements
+- Direct codebase inspection (HIGH confidence):
+  - `backend/src/pilot_space/application/services/ai/attachment_upload_service.py` — template for `ArtifactUploadService`
+  - `backend/src/pilot_space/infrastructure/storage/client.py` — existing `SupabaseStorageClient`
+  - `backend/src/pilot_space/infrastructure/database/models/chat_attachment.py` — template for `Artifact` model design (with differences noted)
+  - `backend/src/pilot_space/api/v1/routers/ai_attachments.py` — template for `project_artifacts.py` router
+  - `frontend/src/features/notes/editor/extensions/createEditorExtensions.ts` — extension ordering constraints (PRE-002)
+  - `frontend/src/features/notes/editor/extensions/slash-command-items.ts` — slash command extension pattern
+  - `frontend/src/features/notes/editor/extensions/SlashCommandExtension.ts` — plugin key/state pattern
+  - `frontend/src/stores/features/notes/NoteStore.ts` — MobX store pattern template
+  - `frontend/src/stores/RootStore.ts` — store registration pattern
+  - `backend/src/pilot_space/infrastructure/database/base.py` — `WorkspaceScopedModel` base
+  - `backend/src/pilot_space/container/container.py` — DI wiring pattern
+  - `.planning/PROJECT.md` — v1.1 milestone requirements and constraints
+  - Memory notes (`feat/issue-note`) — `observer()` + `ReactNodeViewRenderer` constraint
 
 ---
-*Architecture research for: Notion-style page tree integration with existing Pilot Space codebase*
-*Researched: 2026-03-12*
+*Architecture research for: v1.1 Medium Editor & Artifacts integration with existing Pilot Space*
+*Researched: 2026-03-18*

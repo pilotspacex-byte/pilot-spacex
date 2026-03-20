@@ -22,10 +22,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { notesKeys } from '@/features/notes/hooks';
 import { EditorContent } from '@tiptap/react';
 import { motion } from 'motion/react';
-import { History, Users, MessageSquare, SmilePlus } from 'lucide-react';
+import { History, Users, MessageSquare, SmilePlus, Minimize2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const ChatView = lazy(() =>
   import('@/features/ai/ChatView/ChatView').then((m) => ({ default: m.ChatView }))
@@ -112,6 +113,8 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
     onMove,
     iconEmoji,
     onEmojiChange,
+    isFocusMode = false,
+    onToggleFocusMode,
   } = props;
 
   // Issue extraction SSE pipeline (Feature 009)
@@ -235,7 +238,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
   const editorContent = (
     <div className="flex flex-col min-w-0 overflow-hidden h-full">
       {/* Project context header — shown only when note belongs to a project */}
-      {projectId && (
+      {!isFocusMode && projectId && (
         <ProjectContextHeader
           projectId={projectId}
           workspaceSlug={workspaceSlug}
@@ -244,7 +247,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
       )}
 
       {/* Inline Note Header - Fixed at top, outside scrollable area */}
-      {(title || createdAt) && (
+      {!isFocusMode && (title || createdAt) && (
         <InlineNoteHeader
           title={title}
           createdAt={createdAt ?? new Date().toISOString()}
@@ -266,11 +269,13 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
           }}
           onMove={onMove}
           disabled={readOnly}
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={onToggleFocusMode}
         />
       )}
 
       {/* Emoji icon picker — Notion-style page icon, shown above the editor content */}
-      {onEmojiChange && (
+      {!isFocusMode && onEmojiChange && (
         <div className="px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 pt-3 pb-0">
           <div className="mx-auto max-w-full sm:max-w-[640px] md:max-w-[680px] lg:max-w-[720px] xl:max-w-[760px] 2xl:max-w-[800px]">
             <Popover
@@ -336,19 +341,21 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
       )}
 
       {/* Note health badges (T024) */}
-      <NoteHealthBadges
-        health={noteHealth}
-        pilotSpaceStore={aiStore.pilotSpace}
-        onOpenChat={handleChatViewOpen}
-        isSmallScreen={isSmallScreen}
-        className="px-4 py-1"
-      />
+      {!isFocusMode && (
+        <NoteHealthBadges
+          health={noteHealth}
+          pilotSpaceStore={aiStore.pilotSpace}
+          onOpenChat={handleChatViewOpen}
+          isSmallScreen={isSmallScreen}
+          className="px-4 py-1"
+        />
+      )}
 
       {/* Note metadata: linked issues (project context shown in ProjectContextHeader above) */}
-      <NoteMetadata linkedIssues={linkedIssues} workspaceSlug={workspaceSlug} />
+      {!isFocusMode && <NoteMetadata linkedIssues={linkedIssues} workspaceSlug={workspaceSlug} />}
 
       {/* Large note warning banner (>= 1000 blocks) */}
-      <LargeNoteWarning noteId={noteId} blockCount={blockCount} />
+      {!isFocusMode && <LargeNoteWarning noteId={noteId} blockCount={blockCount} />}
 
       {/* Scrollable Editor Area */}
       <div
@@ -357,6 +364,23 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
         aria-label="Note editor"
         className="relative flex-1 overflow-auto bg-background"
       >
+        {/* Fixed exit focus mode affordance — only visible when header is hidden */}
+        {isFocusMode && onToggleFocusMode && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onToggleFocusMode}
+                className="fixed top-3 right-3 z-[41] h-7 w-7 text-muted-foreground hover:text-foreground bg-background/80 backdrop-blur-sm border border-border/40 rounded-md"
+                aria-label="Exit focus mode"
+              >
+                <Minimize2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">Exit focus mode (Cmd+Shift+F)</TooltipContent>
+          </Tooltip>
+        )}
         {/* Selection Toolbar */}
         <SelectionToolbar
           editor={editor}
@@ -377,7 +401,9 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
           <div
             className={cn(
               'mx-auto document-canvas relative',
-              'max-w-full sm:max-w-[640px] md:max-w-[680px] lg:max-w-[720px] xl:max-w-[760px] 2xl:max-w-[800px]'
+              isFocusMode
+                ? 'max-w-[720px]'
+                : 'max-w-full sm:max-w-[640px] md:max-w-[680px] lg:max-w-[720px] xl:max-w-[760px] 2xl:max-w-[800px]'
             )}
           >
             {/* TipTap Editor */}

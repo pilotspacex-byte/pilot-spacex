@@ -39,6 +39,7 @@ export class UIStore {
   theme: Theme = 'system';
   commandPaletteOpen = false;
   searchModalOpen = false;
+  isFocusMode = false;
   hydrated = false;
 
   modals: Map<string, ModalState> = new Map();
@@ -209,6 +210,18 @@ export class UIStore {
 
   toggleSearchModal(): void {
     this.searchModalOpen = !this.searchModalOpen;
+  }
+
+  enterFocusMode(): void {
+    this.isFocusMode = true;
+  }
+
+  exitFocusMode(): void {
+    this.isFocusMode = false;
+  }
+
+  toggleFocusMode(): void {
+    this.isFocusMode = !this.isFocusMode;
   }
 
   openModal(id: string, data?: unknown): void {

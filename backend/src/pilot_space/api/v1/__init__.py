@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from pilot_space.api.v1.routers.ai_configuration import router as ai_configuration_router
 from pilot_space.api.v1.routers.auth import router as auth_router
 from pilot_space.api.v1.routers.memory import router as memory_router
+from pilot_space.api.v1.routers.project_artifacts import router as project_artifacts_router
 from pilot_space.api.v1.routers.projects import router as projects_router
 from pilot_space.api.v1.routers.workspaces import router as workspaces_router
 
@@ -25,6 +26,11 @@ async def health_check() -> dict[str, str]:
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(workspaces_router, prefix="/workspaces", tags=["workspaces"])
 api_router.include_router(projects_router, prefix="/projects", tags=["projects"])
+api_router.include_router(
+    project_artifacts_router,
+    prefix="/workspaces/{workspace_id}/projects/{project_id}/artifacts",
+    tags=["artifacts"],
+)
 api_router.include_router(
     ai_configuration_router,
     prefix="/workspaces/{workspace_id}/ai-configurations",

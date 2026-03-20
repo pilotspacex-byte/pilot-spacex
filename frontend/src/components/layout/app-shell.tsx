@@ -69,37 +69,41 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
 
       {/* Sidebar — overlay on mobile, inline icon-rail on tablet, full inline on desktop */}
       {isMobile ? (
-        <AnimatePresence>
-          {sidebarOpen && (
-            <motion.aside
-              initial={{ x: -260 }}
-              animate={{ x: 0 }}
-              exit={{ x: -260 }}
-              transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
-              className="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-sidebar-border bg-sidebar"
-            >
-              <Sidebar />
-            </motion.aside>
-          )}
-        </AnimatePresence>
+        !uiStore.isFocusMode ? (
+          <AnimatePresence>
+            {sidebarOpen && (
+              <motion.aside
+                initial={{ x: -260 }}
+                animate={{ x: 0 }}
+                exit={{ x: -260 }}
+                transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
+                className="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-sidebar-border bg-sidebar"
+              >
+                <Sidebar />
+              </motion.aside>
+            )}
+          </AnimatePresence>
+        ) : null
       ) : (
         /* Tablet: always-visible 60px icon-rail (collapsed); Desktop: user-controlled full width */
-        <motion.aside
-          initial={false}
-          animate={{
-            width: isTablet ? 60 : uiStore.sidebarCollapsed ? 60 : uiStore.sidebarWidth,
-          }}
-          transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
-          className="relative flex h-full flex-col border-r border-sidebar-border bg-sidebar"
-        >
-          <Sidebar />
-        </motion.aside>
+        !uiStore.isFocusMode && (
+          <motion.aside
+            initial={false}
+            animate={{
+              width: isTablet ? 60 : uiStore.sidebarCollapsed ? 60 : uiStore.sidebarWidth,
+            }}
+            transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
+            className="relative flex h-full flex-col border-r border-sidebar-border bg-sidebar"
+          >
+            <Sidebar />
+          </motion.aside>
+        )
       )}
 
       {/* Main content area — min-w-0 prevents flex children from overflowing viewport */}
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         {/* Mobile hamburger toggle — only on mobile (tablet has persistent icon-rail) */}
-        {isMobile && !sidebarOpen && (
+        {isMobile && !sidebarOpen && !uiStore.isFocusMode && (
           <div className="flex h-10 items-center border-b border-border px-2">
             <Button
               variant="ghost"

@@ -7,12 +7,14 @@ T-068: Routes by task_type:
 - 'memory_dlq_reconciliation' → MemoryDLQJobHandler
 - 'graph_expiration'          → expire_stale_graph_nodes
 - 'kg_populate'               → KgPopulateHandler
+- 'artifact_cleanup'          → run_artifact_cleanup
 
 Follows DigestWorker pattern: poll → process → ack/nack/dead-letter.
 Sleeps 2s on empty queue.
 
 Feature 015: AI Workforce Platform — Memory Engine
 Feature 016: Knowledge Graph — graph_embedding dispatch added
+Feature v1.1: Artifacts — artifact_cleanup dispatch added
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
+    from pilot_space.infrastructure.storage.client import SupabaseStorageClient
 
 logger = get_logger(__name__)
 
@@ -40,6 +43,7 @@ TASK_MEMORY_EMBEDDING = "memory_embedding"
 TASK_GRAPH_EMBEDDING = "graph_embedding"
 TASK_MEMORY_DLQ = "memory_dlq_reconciliation"
 TASK_GRAPH_EXPIRATION = "graph_expiration"
+TASK_ARTIFACT_CLEANUP = "artifact_cleanup"
 
 # _BATCH_SIZE MUST remain 1: _process() handles only messages[0].
 # Increasing this without updating the loop would silently drop messages 1..N.
@@ -50,13 +54,16 @@ _SLEEP_ERROR_S = 5.0
 _MAX_NACK_ATTEMPTS = 2
 # Enqueue a graph_expiration task at most once per day per worker process.
 _EXPIRATION_INTERVAL_S = 24 * 3600
+# Enqueue artifact_cleanup once per hour per worker process.
+_ARTIFACT_CLEANUP_INTERVAL_S = 3600
 
 
 class MemoryWorker:
     """Worker polling ai_normal queue for memory engine jobs.
 
     Handles intent_dedup, memory_embedding, graph_embedding,
-    memory_dlq_reconciliation, and graph_expiration task types.
+    memory_dlq_reconciliation, graph_expiration, kg_populate, and
+    artifact_cleanup task types.
     Uses session per job for clean transaction boundaries.
 
     Args:
@@ -66,6 +73,7 @@ class MemoryWorker:
         openai_api_key: Optional OpenAI API key for EmbeddingService.
         ollama_base_url: Ollama base URL for EmbeddingService fallback.
         anthropic_api_key: Optional Anthropic API key for contextual chunk enrichment.
+        storage_client: Optional Supabase Storage client for artifact_cleanup tasks.
     """
 
     def __init__(
@@ -76,11 +84,13 @@ class MemoryWorker:
         openai_api_key: str | None = None,
         ollama_base_url: str = "http://localhost:11434",
         anthropic_api_key: str | None = None,
+        storage_client: SupabaseStorageClient | None = None,
     ) -> None:
         self.queue = queue
         self._session_factory = session_factory
         self._google_api_key = google_api_key
         self._anthropic_api_key = anthropic_api_key
+        self._storage_client = storage_client
         self._embedding_service = EmbeddingService(
             EmbeddingConfig(openai_api_key=openai_api_key, ollama_base_url=ollama_base_url)
         )
@@ -89,6 +99,7 @@ class MemoryWorker:
         # float('-inf') guarantees the first call always enqueues regardless of system uptime.
         # Resets on worker restart, which is acceptable — daily cleanup is best-effort.
         self._last_expiration_enqueue: float = float("-inf")
+        self._last_artifact_cleanup_enqueue: float = float("-inf")
 
     async def start(self) -> None:
         """Poll loop: dequeue → process → ack/nack."""
@@ -105,6 +116,7 @@ class MemoryWorker:
                     await self._process(messages[0])
                 else:
                     await self._maybe_enqueue_expiration()
+                    await self._maybe_enqueue_artifact_cleanup()
                     await asyncio.sleep(_SLEEP_EMPTY_S)
             except asyncio.CancelledError:
                 logger.info("MemoryWorker cancelled")
@@ -132,6 +144,21 @@ class MemoryWorker:
         except Exception:
             logger.exception("MemoryWorker: failed to enqueue graph_expiration")
 
+    async def _maybe_enqueue_artifact_cleanup(self) -> None:
+        """Enqueue an artifact_cleanup task once per hour per process lifetime."""
+        now = time.monotonic()
+        if now - self._last_artifact_cleanup_enqueue < _ARTIFACT_CLEANUP_INTERVAL_S:
+            return
+        try:
+            await self.queue.enqueue(
+                QueueName.AI_NORMAL,
+                {"task_type": TASK_ARTIFACT_CLEANUP},
+            )
+            self._last_artifact_cleanup_enqueue = now
+            logger.info("MemoryWorker: enqueued artifact_cleanup task")
+        except Exception:
+            logger.exception("MemoryWorker: failed to enqueue artifact_cleanup")
+
     async def _process(self, message: object) -> None:
         """Process a single queue message by routing to the correct handler.
 
@@ -149,6 +176,7 @@ class MemoryWorker:
             TASK_GRAPH_EMBEDDING,
             TASK_MEMORY_DLQ,
             TASK_GRAPH_EXPIRATION,
+            TASK_ARTIFACT_CLEANUP,
         ):
             logger.debug("MemoryWorker: skipping unknown task_type %s", task_type)
             await self.queue.nack(
@@ -190,7 +218,7 @@ class MemoryWorker:
                     original_payload=payload,
                 )
 
-    async def _dispatch(
+    async def _dispatch(  # noqa: PLR0911
         self,
         task_type: str,
         payload: dict[str, Any],
@@ -265,6 +293,17 @@ class MemoryWorker:
                 anthropic_api_key=self._anthropic_api_key,
             )
             return await handler.handle(payload)
+
+        if task_type == TASK_ARTIFACT_CLEANUP:
+            from pilot_space.infrastructure.jobs.artifact_cleanup import run_artifact_cleanup
+
+            if self._storage_client is None:
+                logger.warning(
+                    "MemoryWorker: TASK_ARTIFACT_CLEANUP skipped — storage_client not configured"
+                )
+                return {"task_type": task_type, "deleted_count": 0, "skipped": True}
+            count = await run_artifact_cleanup(session, self._storage_client)
+            return {"task_type": task_type, "deleted_count": count}
 
         raise AssertionError(f"Unreachable: _dispatch called with unknown task_type {task_type!r}")
 

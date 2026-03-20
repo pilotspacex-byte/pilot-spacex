@@ -27,6 +27,24 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            // frame-src: allow only youtube-nocookie and vimeo player iframes.
+            // 'self' preserves any same-origin iframe usage.
+            // youtube-nocookie.com: used by YoutubeExtension (nocookie: true config).
+            // player.vimeo.com: used by VimeoNode embed URLs.
+            value: "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com",
+          },
+        ],
+      },
+    ];
+  },
+
   // Enable standalone output for Docker deployment
   // This creates a self-contained build with minimal node_modules
   output: 'standalone',
@@ -74,6 +92,7 @@ const nextConfig: NextConfig = {
       '@tiptap/starter-kit',
       '@tiptap/extension-placeholder',
       '@tiptap/extension-character-count',
+      '@tiptap/extension-youtube', // added for Phase 33 video embeds
       'recharts',
     ],
   },

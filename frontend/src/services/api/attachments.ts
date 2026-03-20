@@ -32,6 +32,14 @@ export const attachmentsApi = {
   },
 
   /**
+   * Get a 1-hour signed download URL for a chat attachment.
+   * Used by FilePreviewModal to fetch content for preview rendering.
+   */
+  getSignedUrl(attachmentId: string): Promise<{ url: string; expiresIn: number }> {
+    return apiClient.get<{ url: string; expiresIn: number }>(`/ai/attachments/${attachmentId}/url`);
+  },
+
+  /**
    * Check whether Google Drive is connected for the given workspace.
    * GET /ai/drive/status?workspace_id=...
    */

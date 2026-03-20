@@ -84,9 +84,31 @@ Enterprise teams can adopt AI-augmented SDLC workflows without sacrificing data 
 - ✓ Desktop + tablet responsive layout — v1.0.0-alpha2
 - ✓ Drag-and-drop tree reordering with depth limit enforcement — v1.0.0-alpha2
 
+## Current Milestone: v1.1 Medium Editor & Artifacts
+
+**Goal:** Transform the note editor into a polished Medium-style writing experience with file artifact uploads (rendered as inline cards with preview modals), a per-project artifacts management page with optimistic UI, and inline video embeds for YouTube/Vimeo.
+
+**Target features:**
+- Full Medium-style editor: floating toolbar, / block inserter, focus mode, inline image captions, pull quotes, keyboard shortcuts
+- File artifact uploads as inline cards in notes with popup modal preview (markdown, CSV, JSON, text, Excel, code files, images — 10MB limit)
+- Per-project artifacts management page with optimistic UI updates
+- Artifact storage in Supabase Storage (S3) via backend API
+- Video link embeds (YouTube, Vimeo) rendered as inline players in notes
+
 ### Active
 
-(No active requirements — next milestone not yet defined)
+- [ ] Medium-style floating toolbar on text selection
+- [ ] / slash command block inserter (images, embeds, dividers, code blocks, file cards)
+- [ ] Focus mode for distraction-free writing
+- [ ] Inline image captions and pull quotes
+- [ ] File upload as inline card blocks in notes
+- [ ] Popup modal for file preview (syntax-highlighted code, rendered markdown, CSV table, image viewer, Excel preview)
+- [ ] Supported formats: markdown, CSV, JSON, text, Excel, Python, JS, HTML, CSS, images, etc.
+- [ ] 10MB file size limit enforcement
+- [ ] Per-project artifacts management page
+- [ ] Optimistic UI for artifact CRUD operations
+- [ ] Supabase Storage (S3) backend integration for artifact persistence
+- [ ] YouTube/Vimeo link embedding as inline video players in notes
 
 ### Out of Scope
 
@@ -148,4 +170,4 @@ Shipped v1.0.0-alpha2 Notion-Style Restructure on 2026-03-12. Restructured data 
 | Three-mode responsive (mobile/tablet/desktop) | Tablet gets icon-rail sidebar (not overlay drawer); desktop unchanged | ✓ Good |
 
 ---
-*Last updated: 2026-03-12 after v1.0.0-alpha2 milestone shipped*
+*Last updated: 2026-03-18 after v1.1 milestone started*
