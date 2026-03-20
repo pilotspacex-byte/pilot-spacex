@@ -5,7 +5,7 @@
  * Shows mic icon (idle), red pulsing stop icon (recording), and spinner (transcribing).
  */
 
-import { Mic, Square, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Square, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useVoiceRecording } from '../hooks/useVoiceRecording';
@@ -28,16 +28,25 @@ function formatDuration(ms: number): string {
 }
 
 export function RecordButton({ workspaceId, onTranscript, disabled = false }: RecordButtonProps) {
-  const { status, durationMs, startRecording, stopRecording, cancelRecording } = useVoiceRecording({
+  const {
+    status,
+    isSupported,
+    isPermissionDenied,
+    durationMs,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+  } = useVoiceRecording({
     workspaceId,
     onTranscript,
   });
 
   const isRecording = status === 'recording';
   const isTranscribing = status === 'transcribing';
+  const isUnavailable = !isSupported || isPermissionDenied;
 
   const handleClick = () => {
-    if (disabled) return;
+    if (disabled || isUnavailable) return;
     if (isRecording) {
       stopRecording();
     } else if (status === 'idle') {
@@ -53,7 +62,11 @@ export function RecordButton({ workspaceId, onTranscript, disabled = false }: Re
   };
 
   let tooltipLabel = 'Voice input';
-  if (isTranscribing) {
+  if (!isSupported) {
+    tooltipLabel = 'Voice recording not supported in this browser';
+  } else if (isPermissionDenied) {
+    tooltipLabel = 'Microphone access denied — check browser settings';
+  } else if (isTranscribing) {
     tooltipLabel = 'Transcribing...';
   } else if (isRecording) {
     tooltipLabel = `Stop recording (${formatDuration(durationMs)})`;
@@ -98,12 +111,15 @@ export function RecordButton({ workspaceId, onTranscript, disabled = false }: Re
               ].join(' ')}
               onClick={handleClick}
               onKeyDown={handleKeyDown}
-              disabled={disabled || isTranscribing}
+              disabled={disabled || isTranscribing || isUnavailable}
               aria-label={tooltipLabel}
             >
               {isTranscribing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isRecording && <Square className="h-3.5 w-3.5 fill-current" />}
-              {!isTranscribing && !isRecording && <Mic className="h-3.5 w-3.5" />}
+              {!isTranscribing && !isRecording && isUnavailable && (
+                <MicOff className="h-3.5 w-3.5" />
+              )}
+              {!isTranscribing && !isRecording && !isUnavailable && <Mic className="h-3.5 w-3.5" />}
             </Button>
           </div>
         </TooltipTrigger>

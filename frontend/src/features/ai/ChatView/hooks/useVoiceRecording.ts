@@ -22,6 +22,10 @@ export interface UseVoiceRecordingOptions {
 
 export interface UseVoiceRecordingResult {
   status: VoiceRecordingStatus;
+  /** Whether voice recording is supported in this browser */
+  isSupported: boolean;
+  /** Whether microphone permission has been permanently denied */
+  isPermissionDenied: boolean;
   transcript: string | null;
   error: string | null;
   /** Elapsed recording time in milliseconds */
@@ -31,13 +35,27 @@ export interface UseVoiceRecordingResult {
   cancelRecording: () => void;
 }
 
+/** Max recording duration: 5 minutes (matches 25MB backend limit at typical audio bitrate). */
+const MAX_RECORDING_MS = 5 * 60 * 1000;
+
+/** Check if browser supports MediaRecorder + getUserMedia. */
+function checkBrowserSupport(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.mediaDevices !== 'undefined' &&
+    typeof navigator.mediaDevices.getUserMedia === 'function' &&
+    typeof MediaRecorder !== 'undefined'
+  );
+}
+
 /**
  * Pick the best supported audio MIME type for MediaRecorder.
  */
 function getSupportedMimeType(): string {
+  if (typeof MediaRecorder === 'undefined') return '';
   const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
   for (const type of types) {
-    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) {
+    if (MediaRecorder.isTypeSupported(type)) {
       return type;
     }
   }
@@ -50,21 +68,45 @@ export function useVoiceRecording({
   language,
 }: UseVoiceRecordingOptions): UseVoiceRecordingResult {
   const [status, setStatus] = useState<VoiceRecordingStatus>('idle');
+  const [isPermissionDenied, setIsPermissionDenied] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [durationMs, setDurationMs] = useState(0);
+
+  const isSupported = checkBrowserSupport();
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
+  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /** Stop all media tracks and clear the timer. */
+  // Check microphone permission state on mount (non-blocking)
+  useEffect(() => {
+    if (!isSupported) return;
+    navigator.permissions
+      ?.query({ name: 'microphone' as PermissionName })
+      .then((result) => {
+        setIsPermissionDenied(result.state === 'denied');
+        result.addEventListener('change', () => {
+          setIsPermissionDenied(result.state === 'denied');
+        });
+      })
+      .catch(() => {
+        // permissions API not supported — we'll find out on getUserMedia
+      });
+  }, [isSupported]);
+
+  /** Stop all media tracks and clear timers. */
   const cleanupMedia = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+    if (maxDurationTimerRef.current) {
+      clearTimeout(maxDurationTimerRef.current);
+      maxDurationTimerRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -89,6 +131,13 @@ export function useVoiceRecording({
 
   const startRecording = useCallback(async () => {
     if (status !== 'idle') return;
+
+    if (!isSupported) {
+      toast.error('Voice recording not supported', {
+        description: 'Your browser does not support audio recording. Try Chrome, Firefox, or Edge.',
+      });
+      return;
+    }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -137,25 +186,44 @@ export function useVoiceRecording({
       setDurationMs(0);
       timerRef.current = setInterval(() => {
         setDurationMs(Date.now() - startTimeRef.current);
-      }, 100);
+      }, 1000);
       setStatus('recording');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Microphone access denied';
-      const isPermissionDenied =
-        msg.toLowerCase().includes('permission') ||
-        msg.toLowerCase().includes('denied') ||
-        msg.toLowerCase().includes('notallowed');
 
-      if (isPermissionDenied) {
+      // Auto-stop at max duration to prevent oversized uploads
+      maxDurationTimerRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          toast.info('Recording stopped', { description: 'Maximum 5 minutes reached.' });
+          mediaRecorderRef.current.stop();
+        }
+      }, MAX_RECORDING_MS);
+    } catch (err) {
+      // Use DOMException.name for reliable cross-browser permission detection
+      const isDenied =
+        (err instanceof DOMException &&
+          (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) ||
+        (err instanceof Error && err.name === 'NotAllowedError');
+
+      if (isDenied) {
+        setIsPermissionDenied(true);
         toast.error('Microphone access denied', {
           description: 'Please allow microphone access in your browser settings.',
         });
       } else {
+        const msg = err instanceof Error ? err.message : 'Could not start recording';
         toast.error('Could not start recording', { description: msg });
       }
+      const msg = err instanceof Error ? err.message : 'Microphone access denied';
       setErrorWithAutoReset(msg);
     }
-  }, [status, workspaceId, language, onTranscript, cleanupMedia, setErrorWithAutoReset]);
+  }, [
+    status,
+    isSupported,
+    workspaceId,
+    language,
+    onTranscript,
+    cleanupMedia,
+    setErrorWithAutoReset,
+  ]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
@@ -184,6 +252,8 @@ export function useVoiceRecording({
 
   return {
     status,
+    isSupported,
+    isPermissionDenied,
     transcript,
     error,
     durationMs,
