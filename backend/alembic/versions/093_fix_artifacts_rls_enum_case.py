@@ -1,15 +1,15 @@
 """Fix artifacts RLS policy enum case — lowercase to match DB values.
 
 Known bug: workspace_role enum stores lowercase ('owner', 'admin', 'member',
-'guest') but migration 091 used UPPERCASE in the RLS policy, making all
+'guest') but migration 092 used UPPERCASE in the RLS policy, making all
 artifact rows invisible to authenticated users. This migration drops and
 recreates the workspace isolation policy with correct lowercase values.
 
 See also: migrations 023 and 066 which fixed the same enum case issue on
 other tables.
 
-Revision ID: 092_fix_artifacts_rls_enum_case
-Revises: 091_add_artifacts_rls_policies
+Revision ID: 093_fix_artifacts_rls_enum_case
+Revises: 092_add_artifacts_rls_policies
 Create Date: 2026-03-20
 """
 
@@ -19,8 +19,8 @@ from sqlalchemy import text
 
 from alembic import op
 
-revision: str = "092_fix_artifacts_rls_enum_case"
-down_revision: str = "091_add_artifacts_rls_policies"
+revision: str = "093_fix_artifacts_rls_enum_case"
+down_revision: str = "092_add_artifacts_rls_policies"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

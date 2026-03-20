@@ -213,9 +213,11 @@ class ArtifactUploadService:
         _validate_file_size(file_data)
 
         artifact_id = uuid4()
+        # Sanitize filename: strip directory components to prevent path traversal
+        safe_filename = pathlib.Path(filename).name
         # Storage key format: {workspace_id}/{project_id}/{artifact_id}/{filename}
         # IMPORTANT: NO bucket prefix — bucket passed separately to storage client
-        storage_key = f"{workspace_id}/{project_id}/{artifact_id}/{filename}"
+        storage_key = f"{workspace_id}/{project_id}/{artifact_id}/{safe_filename}"
 
         # Step 1 (DB-first): create record as pending_upload BEFORE storage upload
         artifact = Artifact(
@@ -223,7 +225,7 @@ class ArtifactUploadService:
             workspace_id=workspace_id,
             project_id=project_id,
             user_id=user_id,
-            filename=filename,
+            filename=safe_filename,
             mime_type=content_type,
             size_bytes=len(file_data),
             storage_key=storage_key,
@@ -256,35 +258,38 @@ class ArtifactUploadService:
             id=artifact_id,
             project_id=project_id,
             user_id=user_id,
-            filename=filename,
+            filename=safe_filename,
             mime_type=content_type,
             size_bytes=len(file_data),
             status="ready",
             created_at=persisted.created_at,
         )
 
-    async def delete(self, artifact_id: UUID, user_id: UUID, workspace_id: UUID) -> None:
+    async def delete(
+        self, artifact_id: UUID, user_id: UUID, workspace_id: UUID, project_id: UUID
+    ) -> None:
         """Delete a note artifact.
 
-        Verifies the artifact exists, belongs to the requesting workspace,
-        and is owned by the requesting user before removing from storage
-        and the database.
+        Verifies the artifact exists, belongs to the requesting workspace
+        and project, and is owned by the requesting user before removing
+        from storage and the database.
 
         Args:
             artifact_id: UUID of the artifact to delete.
             user_id: Authenticated user performing the deletion.
             workspace_id: Workspace scope for cross-tenant isolation.
+            project_id: Project scope to prevent cross-project IDOR.
 
         Raises:
             ValueError: NOT_FOUND if artifact does not exist or belongs to
-                a different workspace.
+                a different workspace/project.
             PermissionError: FORBIDDEN if user does not own the artifact.
         """
         artifact = await self._repo.get_by_id(artifact_id)
         if artifact is None:
             raise ValueError("NOT_FOUND")
-        # Cross-workspace isolation: treat foreign-workspace artifacts as not found
-        if artifact.workspace_id != workspace_id:
+        # Cross-workspace/project isolation: treat mismatched artifacts as not found
+        if artifact.workspace_id != workspace_id or artifact.project_id != project_id:
             raise ValueError("NOT_FOUND")
         if artifact.user_id != user_id:
             raise PermissionError("FORBIDDEN")

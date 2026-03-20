@@ -1,7 +1,7 @@
 """Add artifacts table for note file uploads.
 
-Revision ID: 090_add_artifacts_table
-Revises: 089_add_role_type_idx
+Revision ID: 091_add_artifacts_table
+Revises: 090_add_tags_and_usage_to_skills
 Create Date: 2026-03-19
 """
 
@@ -12,8 +12,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "090_add_artifacts_table"
-down_revision: str = "089_add_role_type_idx"
+revision: str = "091_add_artifacts_table"
+down_revision: str = "090_add_tags_and_usage_to_skills"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

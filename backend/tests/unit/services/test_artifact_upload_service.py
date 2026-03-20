@@ -77,6 +77,7 @@ def mock_artifact() -> MagicMock:
     art = MagicMock()
     art.id = uuid.uuid4()
     art.workspace_id = _WORKSPACE_ID
+    art.project_id = _PROJECT_ID
     art.user_id = _USER_ID
     art.storage_key = f"{_WORKSPACE_ID}/{_PROJECT_ID}/{art.id}/test.py"
     art.status = "pending_upload"
@@ -574,6 +575,7 @@ class TestDelete:
             artifact_id=artifact_id,
             user_id=_USER_ID,
             workspace_id=_WORKSPACE_ID,
+            project_id=_PROJECT_ID,
         )
 
         mock_storage_client.delete_object.assert_awaited_once_with(
@@ -596,6 +598,7 @@ class TestDelete:
                 artifact_id=uuid.uuid4(),
                 user_id=_USER_ID,
                 workspace_id=_WORKSPACE_ID,
+                project_id=_PROJECT_ID,
             )
 
     @pytest.mark.asyncio
@@ -613,6 +616,7 @@ class TestDelete:
                 artifact_id=mock_artifact.id,
                 user_id=_OTHER_USER_ID,  # Different from mock_artifact.user_id = _USER_ID
                 workspace_id=_WORKSPACE_ID,
+                project_id=_PROJECT_ID,
             )
 
     @pytest.mark.asyncio
@@ -631,4 +635,5 @@ class TestDelete:
                 artifact_id=mock_artifact.id,
                 user_id=_USER_ID,
                 workspace_id=different_workspace,  # artifact.workspace_id is _WORKSPACE_ID
+                project_id=_PROJECT_ID,
             )

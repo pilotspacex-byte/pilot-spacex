@@ -471,6 +471,7 @@ class TestDeleteArtifact:
             artifact_id=TEST_ARTIFACT_ID,
             user_id=TEST_USER_ID,
             workspace_id=TEST_WORKSPACE_ID,
+            project_id=TEST_PROJECT_ID,
         )
 
     async def test_delete_forbidden_returns_403(self) -> None:

@@ -4,8 +4,8 @@ Security: Enables Row-Level Security on the artifacts table and creates
 workspace isolation + service-role bypass policies. Required for multi-tenant
 data isolation — artifacts must only be visible to workspace members.
 
-Revision ID: 091_add_artifacts_rls_policies
-Revises: 090_add_artifacts_table
+Revision ID: 092_add_artifacts_rls_policies
+Revises: 091_add_artifacts_table
 Create Date: 2026-03-20
 """
 
@@ -15,8 +15,8 @@ from sqlalchemy import text
 
 from alembic import op
 
-revision: str = "091_add_artifacts_rls_policies"
-down_revision: str = "090_add_artifacts_table"
+revision: str = "092_add_artifacts_rls_policies"
+down_revision: str = "091_add_artifacts_table"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

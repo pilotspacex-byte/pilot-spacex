@@ -329,6 +329,7 @@ async def delete_artifact(
             artifact_id=artifact_id,
             user_id=current_user.user_id,
             workspace_id=workspace_id,
+            project_id=project_id,
         )
     except ValueError as exc:
         raise _map_service_error(exc) from exc
