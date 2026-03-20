@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Square, AlertCircle, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { FilePreviewModal } from '@/features/artifacts/components/FilePreviewModal';
+import { useAttachmentPreview } from './hooks/useAttachmentPreview';
 import type { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
 import type { ApprovalStore } from '@/stores/ai/ApprovalStore';
 import { SessionListStore } from '@/stores/ai/SessionListStore';
@@ -96,6 +98,9 @@ const ChatViewInternal = observer<ChatViewProps>(
     // Trigger to scroll MessageList to bottom after session resume
     const [scrollToBottomTrigger, setScrollToBottomTrigger] = useState(0);
     const prefersReducedMotion = useReducedMotion();
+
+    // Attachment preview — opens FilePreviewModal when AttachmentChip is clicked
+    const attachmentPreview = useAttachmentPreview();
 
     // Initialize SessionListStore (T075-T079)
     const [sessionListStore] = useState(() => new SessionListStore(store));
@@ -568,6 +573,9 @@ const ChatViewInternal = observer<ChatViewProps>(
             ? `${inlineApprovals.length} pending approval${inlineApprovals.length === 1 ? '' : 's'} require your attention`
             : ''}
         </div>
+
+        {/* File preview modal — opens when AttachmentChip is clicked */}
+        {attachmentPreview.signedUrl && <FilePreviewModal {...attachmentPreview} />}
 
         {/* Clear conversation confirmation dialog */}
         <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
