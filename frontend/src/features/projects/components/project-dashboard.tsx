@@ -2,13 +2,14 @@
 
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
-import { FolderGit2, GitBranch, Link, Plus, Download } from 'lucide-react';
+import { FolderGit2, GitBranch, Link, Plus, Download, ChevronDown } from 'lucide-react';
 import { useProjectStore } from '@/stores/RootStore';
 import { isTauri } from '@/lib/tauri';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CloneRepoDialog } from './clone-repo-dialog';
 import { LinkRepoDialog } from './link-repo-dialog';
+import { GitStatusPanel, BranchSelector, ConflictBanner } from '@/features/git';
 
 function formatDate(iso: string): string {
   try {
@@ -26,6 +27,7 @@ export const ProjectDashboard = observer(function ProjectDashboard() {
   const projectStore = useProjectStore();
   const [cloneOpen, setCloneOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
   useEffect(() => {
     if (isTauri()) {
@@ -100,35 +102,58 @@ export const ProjectDashboard = observer(function ProjectDashboard() {
           {projectStore.projects.map((project) => (
             <div
               key={project.path}
-              className="flex items-center gap-4 rounded-lg border bg-card p-4 shadow-xs transition-shadow hover:shadow-sm"
+              className="rounded-lg border bg-card p-4 shadow-xs transition-shadow hover:shadow-sm cursor-pointer"
+              onClick={() =>
+                setSelectedProject((prev) => (prev === project.path ? null : project.path))
+              }
             >
-              {/* Icon */}
-              <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-md">
-                <GitBranch className="text-muted-foreground size-5" />
-              </div>
-
-              {/* Details */}
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-semibold">{project.name}</span>
-                  <Badge variant={project.linked ? 'secondary' : 'default'} className="shrink-0">
-                    {project.linked ? 'Linked' : 'Cloned'}
-                  </Badge>
+              <div className="flex items-center gap-4">
+                {/* Icon */}
+                <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-md">
+                  <GitBranch className="text-muted-foreground size-5" />
                 </div>
-                <p className="text-muted-foreground truncate font-mono text-xs">{project.path}</p>
-                {project.remote_url ? (
-                  <p className="text-muted-foreground truncate text-xs">{project.remote_url}</p>
-                ) : (
-                  <p className="text-muted-foreground/60 text-xs italic">Local only</p>
-                )}
+
+                {/* Details */}
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-semibold">{project.name}</span>
+                    <Badge variant={project.linked ? 'secondary' : 'default'} className="shrink-0">
+                      {project.linked ? 'Linked' : 'Cloned'}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground truncate font-mono text-xs">{project.path}</p>
+                  {project.remote_url ? (
+                    <p className="text-muted-foreground truncate text-xs">{project.remote_url}</p>
+                  ) : (
+                    <p className="text-muted-foreground/60 text-xs italic">Local only</p>
+                  )}
+                </div>
+
+                {/* Timestamp + expand indicator */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-muted-foreground text-right text-xs">
+                    <span>Added</span>
+                    <br />
+                    <span>{formatDate(project.added_at)}</span>
+                  </div>
+                  <ChevronDown
+                    className={`text-muted-foreground size-4 transition-transform ${
+                      selectedProject === project.path ? 'rotate-180' : ''
+                    }`}
+                  />
+                </div>
               </div>
 
-              {/* Timestamp */}
-              <div className="text-muted-foreground shrink-0 text-right text-xs">
-                <span>Added</span>
-                <br />
-                <span>{formatDate(project.added_at)}</span>
-              </div>
+              {/* Expanded git panel */}
+              {selectedProject === project.path && (
+                <div className="mt-3 border-t pt-3 space-y-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-2">
+                    <BranchSelector repoPath={project.path} />
+                  </div>
+                  <ConflictBanner />
+                  <GitStatusPanel repoPath={project.path} />
+                </div>
+              )}
             </div>
           ))}
         </div>
