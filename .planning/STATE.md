@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: completed
-stopped_at: Completed 38-03-PLAN.md
-last_updated: "2026-03-20T12:49:48.135Z"
+stopped_at: Completed 39-01-PLAN.md
+last_updated: "2026-03-20T16:59:32.138Z"
 last_activity: 2026-03-20 — Phase 38 Plan 03 complete — tauri-plugin-updater, UpdateNotification banner, GitHub Release workflow with update manifest signing
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 25
-  completed_plans: 25
+  total_phases: 10
+  completed_phases: 10
+  total_plans: 26
+  completed_plans: 26
   percent: 100
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 
 ## Current Position
 
-Phase: 38 of 38 (Packaging, Signing & Auto-update)
-Plan: 3 of 3 in current phase — COMPLETE
-Status: All phases complete — v1.1 Tauri Desktop Client milestone finished
-Last activity: 2026-03-20 — Phase 38 Plan 03 complete — tauri-plugin-updater, UpdateNotification banner, GitHub Release workflow with update manifest signing
+Phase: 39 of 39 (Tech Debt Cleanup)
+Plan: 1 of 1 in current phase — COMPLETE
+Status: All phases complete — v1.1 + Phase 39 gap closure finished
+Last activity: 2026-03-20 — Phase 39 Plan 01 complete — Tauri updater pubkey, stores barrel exports, dev CI sidecar download
 
-Progress: [██████████] 100% (v1.1: 25/25 plans)
+Progress: [██████████] 100% (v1.1+gap: 26/26 plans)
 
 ## Milestone History
 
@@ -113,6 +113,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 38]: dialog: false in tauri.conf.json updater config — UI handled by UpdateNotification component (non-blocking banner, not a blocking modal dialog)
 - [Phase 38]: releaseDraft: true in tauri-release.yml — releases require manual publish to prevent accidental production releases; cancel-in-progress: false prevents partial artifact corruption
 - [Phase 38]: 5-second mount delay on UpdateNotification — avoids competing with app init and Supabase auth token load on startup; installs on restart (not forced) to respect user autonomy
+- [Phase 39-01]: Tauri keygen requires interactive TTY — placeholder pubkey used; real key must be generated locally and added as TAURI_SIGNING_PRIVATE_KEY GitHub secret before first release
+- [Phase 39-01]: dawidd6/action-download-artifact@v6 used for cross-workflow sidecar download in tauri-build.yml with if_no_artifact_found: warn to avoid deadlock on parallel CI runs
 
 ### Pending Todos
 
@@ -125,7 +127,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T12:48:17.887Z
-Stopped at: Completed 38-03-PLAN.md
+Last session: 2026-03-20T16:59:32.135Z
+Stopped at: Completed 39-01-PLAN.md
 Resume file: None
 Next action: v1.1 milestone complete — all 25 plans executed across phases 30–38
