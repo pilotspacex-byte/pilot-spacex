@@ -334,3 +334,9 @@ docs/dev-pattern/*
 .specify/*
 .entire/*
 .planning/*
+
+# Tauri build artifacts
+tauri-app/src-tauri/target/
+tauri-app/src-tauri/gen/
+# Placeholder frontend/out directory (relative to src-tauri; populated by next build)
+tauri-app/frontend/

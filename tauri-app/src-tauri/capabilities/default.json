@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for Pilot Space desktop app",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "store:allow-load",
+    "store:allow-set",
+    "store:allow-get",
+    "store:allow-delete",
+    "store:allow-save"
+  ]
+}
