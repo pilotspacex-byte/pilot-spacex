@@ -93,49 +93,49 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SHELL-01 | — | Pending |
-| SHELL-02 | — | Pending |
-| SHELL-03 | — | Pending |
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| GIT-01 | — | Pending |
-| GIT-02 | — | Pending |
-| GIT-03 | — | Pending |
-| GIT-04 | — | Pending |
-| GIT-05 | — | Pending |
-| GIT-06 | — | Pending |
-| GIT-07 | — | Pending |
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
-| CLI-04 | — | Pending |
-| TERM-01 | — | Pending |
-| TERM-02 | — | Pending |
-| TERM-03 | — | Pending |
-| TERM-04 | — | Pending |
-| DIFF-01 | — | Pending |
-| DIFF-02 | — | Pending |
-| DIFF-03 | — | Pending |
-| DIFF-04 | — | Pending |
-| DIFF-05 | — | Pending |
-| WKSP-01 | — | Pending |
-| WKSP-02 | — | Pending |
-| WKSP-03 | — | Pending |
-| WKSP-04 | — | Pending |
-| PKG-01 | — | Pending |
-| PKG-02 | — | Pending |
-| PKG-03 | — | Pending |
-| PKG-04 | — | Pending |
-| PKG-05 | — | Pending |
-| PKG-06 | — | Pending |
+| SHELL-01 | Phase 30 | Pending |
+| SHELL-02 | Phase 30 | Pending |
+| SHELL-03 | Phase 37 | Pending |
+| AUTH-01 | Phase 31 | Pending |
+| AUTH-02 | Phase 31 | Pending |
+| AUTH-03 | Phase 31 | Pending |
+| AUTH-04 | Phase 31 | Pending |
+| GIT-01 | Phase 32 | Pending |
+| GIT-02 | Phase 33 | Pending |
+| GIT-03 | Phase 33 | Pending |
+| GIT-04 | Phase 33 | Pending |
+| GIT-05 | Phase 33 | Pending |
+| GIT-06 | Phase 33 | Pending |
+| GIT-07 | Phase 32 | Pending |
+| CLI-01 | Phase 35 | Pending |
+| CLI-02 | Phase 37 | Pending |
+| CLI-03 | Phase 37 | Pending |
+| CLI-04 | Phase 35 | Pending |
+| TERM-01 | Phase 34 | Pending |
+| TERM-02 | Phase 34 | Pending |
+| TERM-03 | Phase 34 | Pending |
+| TERM-04 | Phase 34 | Pending |
+| DIFF-01 | Phase 36 | Pending |
+| DIFF-02 | Phase 36 | Pending |
+| DIFF-03 | Phase 36 | Pending |
+| DIFF-04 | Phase 36 | Pending |
+| DIFF-05 | Phase 36 | Pending |
+| WKSP-01 | Phase 32 | Pending |
+| WKSP-02 | Phase 32 | Pending |
+| WKSP-03 | Phase 32 | Pending |
+| WKSP-04 | Phase 32 | Pending |
+| PKG-01 | Phase 38 | Pending |
+| PKG-02 | Phase 38 | Pending |
+| PKG-03 | Phase 38 | Pending |
+| PKG-04 | Phase 38 | Pending |
+| PKG-05 | Phase 38 | Pending |
+| PKG-06 | Phase 38 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 30 total
-- Mapped to phases: 0
-- Unmapped: 30 ⚠️
+- Mapped to phases: 30
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-20*
-*Last updated: 2026-03-20 after initial definition*
+*Last updated: 2026-03-20 — traceability filled after roadmap creation*

@@ -5,6 +5,7 @@
 - ✅ **v1.0 Enterprise** — Phases 1–11 (shipped 2026-03-09)
 - ✅ **v1.0-alpha Pre-Production Launch** — Phases 12–23 (shipped 2026-03-12)
 - ✅ **v1.0.0-alpha2 Notion-Style Restructure** — Phases 24–29 (shipped 2026-03-12)
+- 🚧 **v1.1 Tauri Desktop Client** — Phases 30–38 (in progress)
 
 ## Phases
 
@@ -61,17 +62,191 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 
 </details>
 
+### 🚧 v1.1 Tauri Desktop Client (In Progress)
+
+**Milestone Goal:** Wrap the existing Pilot Space web app in a Tauri desktop shell with native local capabilities — git operations, pilot CLI execution, embedded terminal, diff viewer — so developers can manage projects AND execute code from one app.
+
+- [ ] **Phase 30: Tauri Shell + Static Export** — Scaffold tauri-app/, wire Next.js static export mode, verify all dynamic routes and CI matrix
+- [ ] **Phase 31: Auth Bridge** — Sync Supabase JWT to OS keychain via Tauri Store; deep link OAuth callback
+- [ ] **Phase 32: Workspace Management + Git Clone** — App-managed project directory, configure base path, link repos, clone with progress
+- [ ] **Phase 33: Full Git Operations** — Pull, push, branch management, status, conflict detection
+- [ ] **Phase 34: Embedded Terminal** — xterm.js panel with full PTY, batched IPC output, arbitrary shell commands
+- [ ] **Phase 35: Pilot CLI Sidecar** — Compile pilot binary per platform, wire into app, CI matrix artifacts
+- [ ] **Phase 36: Diff Viewer + Commit UI** — File diff view, stage/unstage, commit message, push
+- [ ] **Phase 37: One-Click Implement Flow + Tray** — End-to-end issue→implement→commit loop; system tray with notifications
+- [ ] **Phase 38: Packaging + Signing + Auto-Update** — Signed .dmg/.deb/.AppImage/.msi per platform, notarization, auto-update
+
+## Phase Details
+
+### Phase 30: Tauri Shell + Static Export
+**Goal**: A working Tauri window displays the existing Next.js frontend; the app compiles and runs on macOS, Linux, and Windows from the CI matrix
+**Depends on**: Nothing (first phase of v1.1)
+**Requirements**: SHELL-01, SHELL-02
+**Success Criteria** (what must be TRUE):
+  1. User can launch the desktop app and see the full Pilot Space UI inside a native window
+  2. The existing Next.js frontend builds in both web (standalone) and desktop (static export, NEXT_TAURI=true) modes without errors
+  3. All dynamic routes (e.g., /[workspaceSlug]/issues/[issueId]) navigate correctly in the static export build inside the WebView
+  4. GitHub Actions CI matrix produces unsigned app artifacts for all 4 platform targets (macOS ARM, macOS x86, Linux x64, Windows x64)
+**Plans**: TBD
+
+Plans:
+- [ ] 30-01: Scaffold tauri-app/ directory, Tauri v2 init, Cargo.toml, tauri.conf.json, IPC capabilities file
+- [ ] 30-02: Next.js static export mode — NEXT_TAURI flag, next.config.ts toggle, next/image unoptimized, dynamic route audit and useParams() fixes
+- [ ] 30-03: GitHub Actions CI matrix — 4-runner build workflow, artifact upload, Apple Developer + Windows EV credential placeholders
+
+### Phase 31: Auth Bridge
+**Goal**: Users can sign in and their Supabase session persists securely across app restarts, with tokens stored in the OS keychain rather than browser localStorage
+**Depends on**: Phase 30
+**Requirements**: AUTH-01, AUTH-02, AUTH-03, AUTH-04
+**Success Criteria** (what must be TRUE):
+  1. Supabase JWT token is readable by the Tauri Rust backend after the user signs in (WebView-to-Rust sync)
+  2. User session survives an app restart — user is still logged in when reopening the app
+  3. Auth tokens are stored in the OS keychain (macOS Keychain / Windows Credential Manager / Linux Secret Service), not in localStorage
+  4. User can sign in via Google or GitHub OAuth and be redirected back into the app via deep link (pilotspace://auth/callback)
+**Plans**: TBD
+
+Plans:
+- [ ] 31-01: tauri-plugin-store token sync — syncTokenToTauriStore() in root layout, auth.rs Tauri command, Tauri Store read from Rust
+- [ ] 31-02: OS keychain storage — tauri-plugin-keyring integration, migrate token from Store to keychain, Windows useHttpsScheme: true
+- [ ] 31-03: Deep link OAuth callback — tauri-plugin-deep-link, pilotspace:// custom URL scheme, replace next/api/auth/callback route handler
+
+### Phase 32: Workspace Management + Git Clone
+**Goal**: The app manages a default project directory and users can clone a repository into it with visual progress feedback
+**Depends on**: Phase 31
+**Requirements**: WKSP-01, WKSP-02, WKSP-03, WKSP-04, GIT-01, GIT-07
+**Success Criteria** (what must be TRUE):
+  1. App creates and uses ~/PilotSpace/projects/ as the default directory for cloned repositories
+  2. User can change the base project directory path in Settings using a native folder picker dialog
+  3. User can clone a repository by entering its URL; a progress bar shows clone progress and a cancel button stops the operation
+  4. User can link an existing local repository folder to a Pilot Space project
+  5. User can see a dashboard showing all managed repos with their sync status and last activity
+  6. User can configure HTTPS + Personal Access Token credentials for git operations
+**Plans**: TBD
+
+Plans:
+- [ ] 32-01: Workspace directory management — workspace.rs Rust module, tauri-plugin-fs, tauri-plugin-dialog folder picker, configurable base path persisted in tauri-plugin-store
+- [ ] 32-02: WorkspaceStore MobX + project status dashboard UI — WKSP-01..04 frontend
+- [ ] 32-03: git_clone Rust command — git2-rs vendored-libgit2, auth-git2 credentials, Channel<GitProgress> with 2% throttle, cancellation via AtomicBool
+
+### Phase 33: Full Git Operations
+**Goal**: Users can perform all essential day-to-day git operations (pull, push, branch management, status) from inside the app
+**Depends on**: Phase 32
+**Requirements**: GIT-02, GIT-03, GIT-04, GIT-05, GIT-06
+**Success Criteria** (what must be TRUE):
+  1. User can pull latest changes from remote with a progress indicator
+  2. User can push committed changes to remote with a progress indicator
+  3. User can view a list of all changed, staged, and untracked files in the repository
+  4. User can list branches, create a new branch, switch to a branch, and delete a branch
+  5. When a pull results in merge conflicts, the app notifies the user with the list of conflicted files
+**Plans**: TBD
+
+Plans:
+- [ ] 33-01: git_pull, git_push Rust commands — progress streaming via Channel, credential reuse from Phase 32
+- [ ] 33-02: git_status, git_branch_list/create/switch/delete Rust commands — GitState managed struct
+- [ ] 33-03: GitStore MobX + status/branch UI components — GitStatusBar.tsx, branch selector dropdown, conflict notification
+
+### Phase 34: Embedded Terminal
+**Goal**: Users can open a terminal panel inside the app and run interactive programs with full PTY support
+**Depends on**: Phase 30
+**Requirements**: TERM-01, TERM-02, TERM-03, TERM-04
+**Success Criteria** (what must be TRUE):
+  1. User can open an embedded terminal panel inside the app that shows a live shell prompt
+  2. Interactive programs (vim, less, htop) work correctly with arrow keys, tab completion, and ANSI colors
+  3. User can run any shell command and see streaming output in real time
+  4. Terminal runs for extended periods and under high output volume without memory leaks or app slowdown
+**Plans**: TBD
+
+Plans:
+- [ ] 34-01: PTY Rust backend — tauri-plugin-pty (or tauri-plugin-shell fallback), terminal.rs module, TerminalState managed struct, batched output at 16ms intervals via Channel API
+- [ ] 34-02: TerminalPanel.tsx frontend — @xterm/xterm 5.5.0, @xterm/addon-fit, useTerminal hook, session lifecycle with close_terminal() cleanup, 10,000-line scrollback
+
+### Phase 35: Pilot CLI Sidecar
+**Goal**: The pilot CLI binary ships with the app pre-compiled for every platform and can be spawned by the Rust backend
+**Depends on**: Phase 30
+**Requirements**: CLI-01, CLI-04
+**Success Criteria** (what must be TRUE):
+  1. The app bundles a compiled pilot CLI binary that requires no Python installation on the user's machine
+  2. CI matrix produces platform-specific pilot binaries for all 4 targets (macOS ARM, macOS x86, Linux x64, Windows x64) as build artifacts
+  3. The Rust backend can spawn the sidecar binary and receive streaming output
+**Plans**: TBD
+
+Plans:
+- [ ] 35-01: PyInstaller build pipeline — pyinstaller.spec, --onedir mode, per-platform CI matrix jobs producing tauri-app/binaries/ artifacts
+- [ ] 35-02: Tauri externalBin config + sidecar.rs Rust module — tauri-plugin-shell, spawn with Channel streaming, SidecarState managed struct
+
+### Phase 36: Diff Viewer + Commit UI
+**Goal**: Users can review file diffs, stage changes, write a commit message, and push — a lightweight git client UI on top of the git layer
+**Depends on**: Phase 33
+**Requirements**: DIFF-01, DIFF-02, DIFF-03, DIFF-04, DIFF-05
+**Success Criteria** (what must be TRUE):
+  1. User can click on any changed file and see its diff with syntax-highlighted inline annotations
+  2. User can check/uncheck individual files to stage or unstage them
+  3. User can type a commit message and click Commit to create a commit from staged files
+  4. User can push the committed changes to remote directly from the commit UI
+  5. Large diffs (hundreds of files, thousands of lines) render without the UI freezing
+**Plans**: TBD
+
+Plans:
+- [ ] 36-01: git_diff Rust command — git2-rs unified diff output, per-file and working-tree diff, git_stage/git_unstage commands
+- [ ] 36-02: DiffViewer.tsx — react-diff-view (or @git-diff-view/react), syntax highlighting, virtualized rendering for large diffs, DIFF-05
+- [ ] 36-03: CommitPanel.tsx — file checklist (stage/unstage), commit message input, commit + push button wired to Phase 33 git commands
+
+### Phase 37: One-Click Implement Flow + Tray
+**Goal**: Users can trigger the full implement loop from inside the app — select issue, auto-branch, run pilot implement with live terminal output, then commit and push — and receive background notifications via the system tray
+**Depends on**: Phase 34, Phase 35, Phase 36
+**Requirements**: CLI-02, CLI-03, SHELL-03
+**Success Criteria** (what must be TRUE):
+  1. User can run pilot implement on an issue and watch streaming output appear in the embedded terminal
+  2. User can trigger One-Click Implement: select an issue, and the app automatically creates a branch, runs pilot implement, and stages/commits/pushes the result
+  3. User can minimize the app to the system tray and receive background notifications (e.g., implement complete, CI status)
+**Plans**: TBD
+
+Plans:
+- [ ] 37-01: run_pilot_command Rust command — spawn sidecar with issue ID args, stream output to terminal Channel, exit code handling
+- [ ] 37-02: One-click Implement Issue UI — ImplementIssueButton, auto-branch via git_branch_create, sidecar spawn, stage+commit+push sequence
+- [ ] 37-03: System tray — tauri-plugin-notification or tray icon, background notification for implement completion and CI events, SHELL-03
+
+### Phase 38: Packaging + Signing + Auto-Update
+**Goal**: Signed, distributable app installers are produced for all platforms from the CI matrix, with in-app auto-update
+**Depends on**: Phase 37
+**Requirements**: PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, PKG-06
+**Success Criteria** (what must be TRUE):
+  1. macOS users receive a .dmg installer that passes Gatekeeper without warnings (code-signed and notarized)
+  2. Linux users receive .deb and .AppImage packages that install and run without configuration
+  3. Windows users receive a .msi installer that installs without SmartScreen blocking (EV code signed)
+  4. When a new version is available, the app shows an in-app notification and downloads the update in the background
+**Plans**: TBD
+
+Plans:
+- [ ] 38-01: macOS packaging — .dmg build, Apple Developer codesign + notarytool notarization, hardened runtime entitlements, sidecar signing (PKG-01, PKG-04)
+- [ ] 38-02: Linux + Windows packaging — .deb + .AppImage (Ubuntu 22.04 runner), .msi (Windows runner, WiX), Windows EV code signing via Azure Key Vault (PKG-02, PKG-03, PKG-05)
+- [ ] 38-03: Auto-update — tauri-plugin-updater, GitHub Releases update manifest, in-app notification + background download + install on restart (PKG-06)
+
 ## Progress
 
-| Phase | Milestone | Plans | Status | Completed |
-|-------|-----------|-------|--------|-----------|
+**Execution Order:**
+Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38
+Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel with Phase 32/33 if desired.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
 | 1–11 | v1.0 | 46/46 | Complete | 2026-03-09 |
 | 12–23 | v1.0-alpha | 37/37 | Complete | 2026-03-12 |
 | 24–29 | v1.0.0-alpha2 | 14/14 | Complete | 2026-03-12 |
+| 30. Tauri Shell + Static Export | v1.1 | 0/3 | Not started | - |
+| 31. Auth Bridge | v1.1 | 0/3 | Not started | - |
+| 32. Workspace + Git Clone | v1.1 | 0/3 | Not started | - |
+| 33. Full Git Operations | v1.1 | 0/3 | Not started | - |
+| 34. Embedded Terminal | v1.1 | 0/2 | Not started | - |
+| 35. Pilot CLI Sidecar | v1.1 | 0/2 | Not started | - |
+| 36. Diff Viewer + Commit UI | v1.1 | 0/3 | Not started | - |
+| 37. One-Click Implement + Tray | v1.1 | 0/3 | Not started | - |
+| 38. Packaging + Signing + Auto-Update | v1.1 | 0/3 | Not started | - |
 
-**Total: 29 phases, 97 plans, 86 requirements across 3 milestones**
+**v1.1 total: 9 phases, ~25 plans, 30 requirements**
 
 ---
 *v1.0 shipped: 2026-03-09 — 11 phases, 46 plans, 30/30 requirements*
 *v1.0-alpha shipped: 2026-03-12 — 12 phases, 37 plans, 39/39 requirements + 7 gap closure items*
 *v1.0.0-alpha2 shipped: 2026-03-12 — 6 phases, 14 plans, 17/17 requirements*
+*v1.1 roadmap created: 2026-03-20 — 9 phases, ~25 plans, 30/30 requirements*
