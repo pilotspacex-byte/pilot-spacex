@@ -75,6 +75,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 - [x] **Phase 36: Diff Viewer + Commit UI** — File diff view, stage/unstage, commit message, push (completed 2026-03-20)
 - [x] **Phase 37: One-Click Implement Flow + Tray** — End-to-end issue→implement→commit loop; system tray with notifications (completed 2026-03-20)
 - [x] **Phase 38: Packaging + Signing + Auto-Update** — Signed .dmg/.deb/.AppImage/.msi per platform, notarization, auto-update (completed 2026-03-20)
+- [ ] **Phase 39: Tech Debt Cleanup** — Auto-update pubkey, stores barrel exports, dev CI sidecar download
 
 ## Phase Details
 
@@ -221,10 +222,21 @@ Plans:
 - [ ] 38-02-PLAN.md — Linux .deb + .AppImage, Windows .msi with EV code signing via Azure Key Vault (PKG-02, PKG-03, PKG-05)
 - [ ] 38-03-PLAN.md — tauri-plugin-updater, GitHub Release workflow, in-app update notification + background download (PKG-06)
 
+### Phase 39: Tech Debt Cleanup
+**Goal**: Close tech debt items from milestone audit — auto-update pubkey, stores barrel exports, dev CI sidecar download
+**Depends on**: Phase 38
+**Requirements**: PKG-06 (partial — pubkey completes auto-update verification)
+**Gap Closure:** Closes gaps from v1.1-MILESTONE-AUDIT.md
+**Success Criteria** (what must be TRUE):
+  1. `tauri.conf.json plugins.updater.pubkey` contains a non-empty public key string
+  2. `stores/index.ts` exports `TerminalStore`, `useTerminalStore`, `ImplementStore`, `useImplementStore`
+  3. `tauri-build.yml` downloads pilot-cli sidecar artifacts before building (dev CI includes real binary)
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38
+Phases execute in numeric order: 30 → 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 → 39
 Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel with Phase 32/33 if desired.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -241,8 +253,9 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 36. Diff Viewer + Commit UI | 3/3 | Complete    | 2026-03-20 | - |
 | 37. One-Click Implement + Tray | 2/2 | Complete    | 2026-03-20 | - |
 | 38. Packaging + Signing + Auto-Update | 3/3 | Complete    | 2026-03-20 | - |
+| 39. Tech Debt Cleanup | v1.1 | 0/1 | Not started | - |
 
-**v1.1 total: 9 phases, ~25 plans, 30 requirements**
+**v1.1 total: 10 phases, ~26 plans, 30 requirements**
 
 ---
 *v1.0 shipped: 2026-03-09 — 11 phases, 46 plans, 30/30 requirements*
