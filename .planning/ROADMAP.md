@@ -69,7 +69,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 - [x] **Phase 30: Tauri Shell + Static Export** — Scaffold tauri-app/, wire Next.js static export mode, verify all dynamic routes and CI matrix (completed 2026-03-20)
 - [x] **Phase 31: Auth Bridge** — Sync Supabase JWT to OS keychain via Tauri Store; deep link OAuth callback (completed 2026-03-20)
 - [x] **Phase 32: Workspace Management + Git Clone** — App-managed project directory, configure base path, link repos, clone with progress (completed 2026-03-20)
-- [ ] **Phase 33: Full Git Operations** — Pull, push, branch management, status, conflict detection
+- [x] **Phase 33: Full Git Operations** — Pull, push, branch management, status, conflict detection (completed 2026-03-20)
 - [ ] **Phase 34: Embedded Terminal** — xterm.js panel with full PTY, batched IPC output, arbitrary shell commands
 - [ ] **Phase 35: Pilot CLI Sidecar** — Compile pilot binary per platform, wire into app, CI matrix artifacts
 - [ ] **Phase 36: Diff Viewer + Commit UI** — File diff view, stage/unstage, commit message, push
@@ -138,7 +138,7 @@ Plans:
   3. User can view a list of all changed, staged, and untracked files in the repository
   4. User can list branches, create a new branch, switch to a branch, and delete a branch
   5. When a pull results in merge conflicts, the app notifies the user with the list of conflicted files
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 33-01-PLAN.md — Rust: git_pull, git_push with progress Channel + conflict detection; git_status, branch CRUD commands
@@ -236,7 +236,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 30. Tauri Shell + Static Export | 3/3 | Complete    | 2026-03-20 | - |
 | 31. Auth Bridge | 3/3 | Complete    | 2026-03-20 | - |
 | 32. Workspace + Git Clone | 4/4 | Complete    | 2026-03-20 | - |
-| 33. Full Git Operations | 2/3 | In Progress|  | - |
+| 33. Full Git Operations | 3/3 | Complete   | 2026-03-20 | - |
 | 34. Embedded Terminal | v1.1 | 0/2 | Not started | - |
 | 35. Pilot CLI Sidecar | v1.1 | 0/2 | Not started | - |
 | 36. Diff Viewer + Commit UI | v1.1 | 0/3 | Not started | - |
