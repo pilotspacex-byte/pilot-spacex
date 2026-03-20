@@ -214,12 +214,12 @@ Plans:
   2. Linux users receive .deb and .AppImage packages that install and run without configuration
   3. Windows users receive a .msi installer that installs without SmartScreen blocking (EV code signed)
   4. When a new version is available, the app shows an in-app notification and downloads the update in the background
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 38-01: macOS packaging — .dmg build, Apple Developer codesign + notarytool notarization, hardened runtime entitlements, sidecar signing (PKG-01, PKG-04)
-- [ ] 38-02: Linux + Windows packaging — .deb + .AppImage (Ubuntu 22.04 runner), .msi (Windows runner, WiX), Windows EV code signing via Azure Key Vault (PKG-02, PKG-03, PKG-05)
-- [ ] 38-03: Auto-update — tauri-plugin-updater, GitHub Releases update manifest, in-app notification + background download + install on restart (PKG-06)
+- [ ] 38-01-PLAN.md — macOS .dmg with Apple code signing, notarization, hardened runtime entitlements, sidecar signing (PKG-01, PKG-04)
+- [ ] 38-02-PLAN.md — Linux .deb + .AppImage, Windows .msi with EV code signing via Azure Key Vault (PKG-02, PKG-03, PKG-05)
+- [ ] 38-03-PLAN.md — tauri-plugin-updater, GitHub Release workflow, in-app update notification + background download (PKG-06)
 
 ## Progress
 
