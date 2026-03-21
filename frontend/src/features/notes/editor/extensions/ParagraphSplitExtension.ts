@@ -212,6 +212,14 @@ function splitNodeAtHardBreaks(
   const contentArr: ProseMirrorNode[] = [];
   node.content.forEach((child) => contentArr.push(child));
 
+  // Pre-compute cumulative offsets so lookups are O(1) instead of O(n)
+  const offsets: number[] = [];
+  let acc = 0;
+  for (const child of contentArr) {
+    offsets.push(acc);
+    acc += child.nodeSize;
+  }
+
   // Process each break position
   for (const breakPos of breakPositions) {
     // Get content before this break (excluding the hard breaks themselves)
@@ -222,7 +230,7 @@ function splitNodeAtHardBreaks(
       const child = contentArr[i];
       if (!child) break;
 
-      const currentOffset = getOffset(contentArr, i);
+      const currentOffset = offsets[i]!;
 
       if (currentOffset >= breakPos) {
         // Skip the consecutive hard breaks
@@ -270,20 +278,6 @@ function splitNodeAtHardBreaks(
   }
 
   return paragraphs.length > 1 ? paragraphs : null;
-}
-
-/**
- * Calculate offset position within node content array
- */
-function getOffset(contentArr: ProseMirrorNode[], index: number): number {
-  let offset = 0;
-  for (let i = 0; i < index; i++) {
-    const node = contentArr[i];
-    if (node) {
-      offset += node.nodeSize;
-    }
-  }
-  return offset;
 }
 
 /**
