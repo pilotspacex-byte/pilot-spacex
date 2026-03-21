@@ -62,6 +62,11 @@ export const MembersPage = observer(function MembersPage() {
 
   const currentWorkspace = workspaceStore.getWorkspaceBySlug(workspaceSlug);
   const workspaceId = currentWorkspace?.id || workspaceSlug;
+
+  const refreshMembers = React.useCallback(
+    () => void queryClient.invalidateQueries({ queryKey: workspaceMembersKeys.all(workspaceId) }),
+    [queryClient, workspaceId]
+  );
   const currentUserId = authStore.user?.id ?? '';
 
   const isAdmin = workspaceStore.isAdmin;
@@ -161,7 +166,7 @@ export const MembersPage = observer(function MembersPage() {
         setUpdatingMemberId(null);
 
         if (result) {
-          await queryClient.invalidateQueries({ queryKey: workspaceMembersKeys.all(workspaceId) });
+          refreshMembers();
           toast.success('Role updated', {
             description: `${displayName} is now a ${role}.`,
           });
@@ -202,7 +207,7 @@ export const MembersPage = observer(function MembersPage() {
         setUpdatingMemberId(null);
 
         if (success) {
-          await queryClient.invalidateQueries({ queryKey: workspaceMembersKeys.all(workspaceId) });
+          refreshMembers();
           toast.success('Member removed', {
             description: `${displayName} has been removed from the workspace.`,
           });
@@ -254,7 +259,7 @@ export const MembersPage = observer(function MembersPage() {
         setUpdatingMemberId(null);
 
         if (result) {
-          await queryClient.invalidateQueries({ queryKey: workspaceMembersKeys.all(workspaceId) });
+          refreshMembers();
           toast.success('Ownership transferred', {
             description: `${displayName} is now the workspace owner.`,
           });
