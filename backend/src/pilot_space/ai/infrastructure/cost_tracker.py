@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Sentinel UUID for cost records where user_id is unknown.
+_ZERO_UUID: Final[UUID] = UUID("00000000-0000-0000-0000-000000000000")
+
 # Pricing per million tokens (as of 2026-01)
 # Structure: {provider: {model: (input_cost, output_cost)}}
 PRICING_TABLE: Final[dict[str, dict[str, tuple[Decimal, Decimal]]]] = {
@@ -247,15 +250,7 @@ class CostTracker:
         workspace_id: UUID,
         days: int = 30,
     ) -> CostSummary:
-        """Get aggregated cost summary for a workspace.
-
-        Args:
-            workspace_id: Workspace UUID.
-            days: Number of days to include in summary (default 30).
-
-        Returns:
-            CostSummary with aggregated costs and breakdowns.
-        """
+        """Get aggregated cost summary for a workspace over the last *days* days."""
         end_date = datetime.now(UTC)
         start_date = end_date - timedelta(days=days)
 
@@ -640,6 +635,24 @@ class CostTracker:
         return trends
 
 
+def extract_response_usage(response: Any) -> tuple[int, int]:
+    """Extract (input_tokens, output_tokens) from an Anthropic API Message response.
+
+    Works with both the direct Anthropic client ``response.usage.input_tokens``
+    shape and the Claude Agent SDK ``ResultMessage.usage`` shape where attributes
+    may be ``None``.
+
+    Returns (0, 0) when usage information is unavailable.
+    """
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return 0, 0
+    return (
+        getattr(usage, "input_tokens", 0) or 0,
+        getattr(usage, "output_tokens", 0) or 0,
+    )
+
+
 async def track_cost(
     session: AsyncSession,
     *,
@@ -653,7 +666,6 @@ async def track_cost(
     operation_type: str | None = None,
 ) -> None:
     """Fire-and-forget cost tracking for services without DI-injected CostTracker."""
-    _ZERO_UUID = UUID("00000000-0000-0000-0000-000000000000")
     try:
         tracker = CostTracker(session)
         await tracker.track(
@@ -680,5 +692,6 @@ __all__ = [
     "CostRecord",
     "CostSummary",
     "CostTracker",
+    "extract_response_usage",
     "track_cost",
 ]

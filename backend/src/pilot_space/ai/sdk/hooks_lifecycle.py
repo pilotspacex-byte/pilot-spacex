@@ -136,10 +136,11 @@ def _extract_tokens(result: Any) -> int | None:
         if total is not None:
             return int(total)
         # Some SDK versions use input_tokens + output_tokens
-        input_t = getattr(usage, "input_tokens", 0) or 0
-        output_t = getattr(usage, "output_tokens", 0) or 0
+        from pilot_space.ai.infrastructure.cost_tracker import extract_response_usage
+
+        input_t, output_t = extract_response_usage(result)
         if input_t or output_t:
-            return int(input_t) + int(output_t)
+            return input_t + output_t
 
     return None
 

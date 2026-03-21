@@ -13,7 +13,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
 
-from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, ClaudeSDKClient, Message
+from claude_agent_sdk import (
+    AgentDefinition,
+    ClaudeAgentOptions,
+    ClaudeSDKClient,
+    Message,
+    ResultMessage,
+)
 
 from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
 from pilot_space.ai.agents.pilotspace_agent_helpers import (
@@ -460,13 +466,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         if usage is None:
             return
 
-        input_tokens = usage.get("inputTokens", 0)
-        output_tokens = usage.get("outputTokens", 0)
+        input_tokens = int(usage.get("inputTokens") or 0)
+        output_tokens = int(usage.get("outputTokens") or 0)
         if not (input_tokens or output_tokens):
             return
 
         model = provider_config.model_name or self.DEFAULT_MODEL
-        provider = getattr(provider_config, "provider", None) or "anthropic"
+        provider = provider_config.provider
 
         try:
             await self._cost_tracker.track(
@@ -494,16 +500,17 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         stream_usage_holder: dict[str, Any] | None = None,
     ) -> str | None:
         # Capture usage from ResultMessage for cost tracking
-        msg_type = type(message).__name__
-        if msg_type == "ResultMessage":
-            usage = getattr(message, "usage", None)
-            if usage and stream_usage_holder is not None:
+        if isinstance(message, ResultMessage):
+            from pilot_space.ai.infrastructure.cost_tracker import extract_response_usage
+
+            input_tokens, output_tokens = extract_response_usage(message)
+            if (input_tokens or output_tokens) and stream_usage_holder is not None:
                 stream_usage_holder.clear()
                 stream_usage_holder.update(
                     {
-                        "inputTokens": getattr(usage, "input_tokens", 0) or 0,
-                        "outputTokens": getattr(usage, "output_tokens", 0) or 0,
-                        "costUsd": getattr(usage, "total_cost_usd", None),
+                        "inputTokens": input_tokens,
+                        "outputTokens": output_tokens,
+                        "costUsd": getattr(message, "total_cost_usd", None),
                     }
                 )
 

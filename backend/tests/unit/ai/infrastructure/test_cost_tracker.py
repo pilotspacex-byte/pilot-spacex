@@ -15,6 +15,7 @@ import pytest
 from pilot_space.ai.infrastructure.cost_tracker import (
     PRICING_TABLE,
     CostTracker,
+    extract_response_usage,
 )
 from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
 
@@ -562,3 +563,39 @@ async def test_track_operation_type_nullable() -> None:
     assert len(captured_record) == 1
     saved = captured_record[0]
     assert saved.operation_type is None
+
+
+class TestExtractResponseUsage:
+    """Test extract_response_usage helper for various response shapes."""
+
+    def test_anthropic_message_response(self) -> None:
+        """Standard Anthropic API Message with response.usage.input_tokens."""
+        response = MagicMock()
+        response.usage.input_tokens = 150
+        response.usage.output_tokens = 50
+        assert extract_response_usage(response) == (150, 50)
+
+    def test_sdk_result_message_with_none_tokens(self) -> None:
+        """Claude Agent SDK ResultMessage where usage attributes are None."""
+        response = MagicMock()
+        response.usage.input_tokens = None
+        response.usage.output_tokens = None
+        assert extract_response_usage(response) == (0, 0)
+
+    def test_no_usage_attribute(self) -> None:
+        """Object with no usage attribute returns (0, 0)."""
+        response = MagicMock(spec=[])
+        assert extract_response_usage(response) == (0, 0)
+
+    def test_usage_is_none(self) -> None:
+        """Object where usage is explicitly None."""
+        response = MagicMock()
+        response.usage = None
+        assert extract_response_usage(response) == (0, 0)
+
+    def test_zero_tokens(self) -> None:
+        """Usage with zero tokens returns (0, 0)."""
+        response = MagicMock()
+        response.usage.input_tokens = 0
+        response.usage.output_tokens = 0
+        assert extract_response_usage(response) == (0, 0)
