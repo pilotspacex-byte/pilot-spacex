@@ -352,24 +352,29 @@ class AIContextAgent:
                         message.num_turns,
                     )
                     # Track cost to database (non-fatal)
-                    usage = getattr(message, "usage", None)
-                    if usage and self._cost_tracker:
-                        try:
-                            await self._cost_tracker.track(
-                                workspace_id=context.workspace_id,
-                                user_id=context.user_id,
-                                agent_name=self.AGENT_NAME,
-                                provider="anthropic",
-                                model=model_tier.model_id,
-                                input_tokens=getattr(usage, "input_tokens", 0) or 0,
-                                output_tokens=getattr(usage, "output_tokens", 0) or 0,
-                                operation_type="ai_context",
-                            )
-                        except Exception:
-                            logger.warning(
-                                "ai_context_cost_tracking_failed",
-                                workspace_id=str(context.workspace_id),
-                            )
+                    if self._cost_tracker:
+                        from pilot_space.ai.infrastructure.cost_tracker import (
+                            extract_response_usage,
+                        )
+
+                        input_tokens, output_tokens = extract_response_usage(message)
+                        if input_tokens or output_tokens:
+                            try:
+                                await self._cost_tracker.track(
+                                    workspace_id=context.workspace_id,
+                                    user_id=context.user_id,
+                                    agent_name=self.AGENT_NAME,
+                                    provider="anthropic",
+                                    model=model_tier.model_id,
+                                    input_tokens=input_tokens,
+                                    output_tokens=output_tokens,
+                                    operation_type="ai_context",
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "ai_context_cost_tracking_failed",
+                                    workspace_id=str(context.workspace_id),
+                                )
         except Exception:
             logger.exception(
                 "[AIContext] SDK query() failed. stderr=%s",

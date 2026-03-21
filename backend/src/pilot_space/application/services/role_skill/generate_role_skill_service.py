@@ -279,20 +279,25 @@ class GenerateRoleSkillService:
         """Call LLM via Anthropic API format with provider-specific base_url/api_key."""
         from anthropic import AsyncAnthropic
 
+        from pilot_space.ai.infrastructure.cost_tracker import (
+            extract_response_usage,
+            track_cost,
+        )
+
         client = AsyncAnthropic(
             api_key=api_key or None,
             base_url=base_url or None,
         )
-        _usage: dict[str, int] = {}
+        _usage: tuple[int, int] = (0, 0)
 
         async def _call_api() -> str:
+            nonlocal _usage
             response = await client.messages.create(
                 model=model,
                 max_tokens=2048,
                 messages=[{"role": "user", "content": prompt}],
             )
-            _usage["input"] = response.usage.input_tokens
-            _usage["output"] = response.usage.output_tokens
+            _usage = extract_response_usage(response)
             text_parts: list[str] = []
             for block in response.content:
                 if block.type == "text" and block.text:
@@ -312,9 +317,7 @@ class GenerateRoleSkillService:
         )
 
         # Track cost (non-fatal)
-        if _usage and workspace_id:
-            from pilot_space.ai.infrastructure.cost_tracker import track_cost
-
+        if _usage != (0, 0) and workspace_id:
             await track_cost(
                 self._session,
                 workspace_id=workspace_id,
@@ -322,8 +325,8 @@ class GenerateRoleSkillService:
                 agent_name="role_skill_generation",
                 provider=provider,
                 model=model,
-                input_tokens=_usage.get("input", 0),
-                output_tokens=_usage.get("output", 0),
+                input_tokens=_usage[0],
+                output_tokens=_usage[1],
                 operation_type="role_skill_generation",
             )
 

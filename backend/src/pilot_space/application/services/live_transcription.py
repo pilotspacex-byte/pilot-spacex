@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
@@ -25,7 +26,9 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pilot_space.ai.infrastructure.cost_tracker import CostTracker
 from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+from pilot_space.ai.infrastructure.stt_pricing import calculate_stt_cost
 from pilot_space.dependencies.auth import verify_token
 from pilot_space.dependencies.jwt_providers import JWTExpiredError, JWTValidationError
 from pilot_space.infrastructure.database.engine import get_db_session
@@ -97,6 +100,14 @@ class AuthenticatedSession:
     user_id: UUID
     workspace_id: UUID
     api_key: str
+
+
+@dataclass
+class _SessionMetrics:
+    """Mutable container for proxy session metrics used by cost tracking."""
+
+    start_time: float = field(default_factory=time.monotonic)
+    committed_text: str = ""
 
 
 async def authenticate_ws_session(
@@ -194,6 +205,7 @@ async def run_proxy_session(
     """
     user_id_str = str(session.user_id)
     ws_uuid_str = str(session.workspace_id)
+    metrics = _SessionMetrics()
 
     logger.info(
         "transcription_ws_connected",
@@ -207,7 +219,9 @@ async def run_proxy_session(
             additional_headers={"xi-api-key": session.api_key},
         ) as ws_elevenlabs:
             task_browser = asyncio.create_task(_browser_to_elevenlabs(ws_browser, ws_elevenlabs))
-            task_elevenlabs = asyncio.create_task(_elevenlabs_to_browser(ws_elevenlabs, ws_browser))
+            task_elevenlabs = asyncio.create_task(
+                _elevenlabs_to_browser(ws_elevenlabs, ws_browser, metrics)
+            )
 
             # Wait for browser relay to finish (commit or disconnect).
             # Do NOT cancel ElevenLabs relay yet — it still needs to send
@@ -251,6 +265,9 @@ async def run_proxy_session(
         )
         with suppress(Exception):
             await ws_browser.close()
+
+        # Track STT cost (non-fatal, separate DB session)
+        await _track_live_stt_cost(session, metrics)
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +343,7 @@ async def _browser_to_elevenlabs(
 async def _elevenlabs_to_browser(
     ws_elevenlabs: Any,
     ws_browser: WebSocket,
+    metrics: _SessionMetrics | None = None,
 ) -> None:
     """Forward transcript events from ElevenLabs to the browser.
 
@@ -349,12 +367,57 @@ async def _elevenlabs_to_browser(
             elif msg_type == "committed_transcript":
                 text = msg.get("text", "")
                 await ws_browser.send_text(json.dumps({"type": "committed", "text": text}))
+                if metrics is not None:
+                    metrics.committed_text = text
                 break
 
             # session_started and other messages are silently ignored
 
     except Exception as exc:
         logger.warning("transcription_ws_elevenlabs_to_browser_error", error=str(exc))
+
+
+async def _track_live_stt_cost(
+    session: AuthenticatedSession,
+    metrics: _SessionMetrics,
+) -> None:
+    """Track cost for a completed live STT session. Non-fatal."""
+    try:
+        duration_seconds = time.monotonic() - metrics.start_time
+        if duration_seconds <= 0:
+            return
+
+        cost_usd = calculate_stt_cost("elevenlabs", "scribe_v2_realtime", duration_seconds)
+
+        async with get_db_session() as db:
+            tracker = CostTracker(db)
+            await tracker.track(
+                workspace_id=session.workspace_id,
+                user_id=session.user_id,
+                agent_name="stt_live",
+                provider="elevenlabs",
+                model="scribe_v2_realtime",
+                input_tokens=0,
+                output_tokens=0,
+                operation_type="voice_input",
+                cost_usd_override=cost_usd,
+            )
+            await db.commit()
+
+        logger.info(
+            "stt_live_cost_tracked",
+            workspace_id=str(session.workspace_id),
+            user_id=str(session.user_id),
+            duration_seconds=round(duration_seconds, 2),
+            cost_usd=round(cost_usd, 6),
+        )
+    except Exception:
+        logger.warning(
+            "stt_live_cost_tracking_failed",
+            workspace_id=str(session.workspace_id),
+            user_id=str(session.user_id),
+            exc_info=True,
+        )
 
 
 __all__ = [

@@ -643,7 +643,7 @@ async def _test_google_key(api_key: str) -> tuple[bool, str]:
     Uses a minimal models list API call. Protected by lock to prevent
     race conditions from genai.configure() global state mutation.
     """
-    import google.generativeai as genai
+    import google.generativeai as genai  # type: ignore[import-untyped]
 
     try:
         # Lock protects genai.configure() global state from concurrent access

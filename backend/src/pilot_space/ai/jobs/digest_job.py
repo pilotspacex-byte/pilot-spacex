@@ -164,6 +164,10 @@ class DigestJobHandler:
         try:
             from anthropic import APIConnectionError, AsyncAnthropic, RateLimitError
 
+            from pilot_space.ai.infrastructure.cost_tracker import (
+                extract_response_usage,
+                track_cost,
+            )
             from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
             from pilot_space.ai.sdk.config import MODEL_SONNET
             from pilot_space.config import get_settings
@@ -190,7 +194,6 @@ class DigestJobHandler:
             last_exc: Exception | None = None
             for attempt in range(max_retries):
                 try:
-                    _usage: dict[str, int] = {}
                     response = await asyncio.wait_for(
                         client.messages.create(
                             model=MODEL_SONNET,
@@ -200,8 +203,7 @@ class DigestJobHandler:
                         ),
                         timeout=LLM_TIMEOUT_SECONDS,
                     )
-                    _usage["input"] = response.usage.input_tokens
-                    _usage["output"] = response.usage.output_tokens
+                    input_tokens, output_tokens = extract_response_usage(response)
 
                     # Extract text content from response
                     content = ""
@@ -210,19 +212,18 @@ class DigestJobHandler:
                             content = block.text
                             break
 
-                    from pilot_space.ai.infrastructure.cost_tracker import track_cost
-
-                    await track_cost(
-                        self._session,
-                        workspace_id=workspace_id,
-                        user_id=None,
-                        agent_name="digest_job",
-                        provider="anthropic",
-                        model=MODEL_SONNET,
-                        input_tokens=_usage.get("input", 0),
-                        output_tokens=_usage.get("output", 0),
-                        operation_type="digest",
-                    )
+                    if input_tokens or output_tokens:
+                        await track_cost(
+                            self._session,
+                            workspace_id=workspace_id,
+                            user_id=None,
+                            agent_name="digest_job",
+                            provider="anthropic",
+                            model=MODEL_SONNET,
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            operation_type="digest",
+                        )
 
                     return self._parse_suggestions(content)
 

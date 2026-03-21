@@ -15,6 +15,11 @@ import pytest
 from pilot_space.ai.infrastructure.cost_tracker import (
     PRICING_TABLE,
     CostTracker,
+    extract_response_usage,
+)
+from pilot_space.ai.infrastructure.stt_pricing import (
+    STT_PRICING_PER_MINUTE,
+    calculate_stt_cost,
 )
 from pilot_space.infrastructure.database.models.ai_cost_record import AICostRecord
 
@@ -562,3 +567,170 @@ async def test_track_operation_type_nullable() -> None:
     assert len(captured_record) == 1
     saved = captured_record[0]
     assert saved.operation_type is None
+
+
+class TestExtractResponseUsage:
+    """Test extract_response_usage helper for various response shapes."""
+
+    def test_anthropic_message_response(self) -> None:
+        """Standard Anthropic API Message with response.usage.input_tokens."""
+        response = MagicMock()
+        response.usage.input_tokens = 150
+        response.usage.output_tokens = 50
+        assert extract_response_usage(response) == (150, 50)
+
+    def test_sdk_result_message_with_none_tokens(self) -> None:
+        """Claude Agent SDK ResultMessage where usage attributes are None."""
+        response = MagicMock()
+        response.usage.input_tokens = None
+        response.usage.output_tokens = None
+        assert extract_response_usage(response) == (0, 0)
+
+    def test_no_usage_attribute(self) -> None:
+        """Object with no usage attribute returns (0, 0)."""
+        response = MagicMock(spec=[])
+        assert extract_response_usage(response) == (0, 0)
+
+    def test_usage_is_none(self) -> None:
+        """Object where usage is explicitly None."""
+        response = MagicMock()
+        response.usage = None
+        assert extract_response_usage(response) == (0, 0)
+
+    def test_zero_tokens(self) -> None:
+        """Usage with zero tokens returns (0, 0)."""
+        response = MagicMock()
+        response.usage.input_tokens = 0
+        response.usage.output_tokens = 0
+        assert extract_response_usage(response) == (0, 0)
+
+
+# ============================================================================
+# STT cost tracking tests
+# ============================================================================
+
+
+class TestSTTPricing:
+    """Test STT pricing table and calculate_stt_cost."""
+
+    def test_stt_pricing_table_has_elevenlabs(self) -> None:
+        """Verify ElevenLabs models are in STT pricing table."""
+        assert "elevenlabs" in STT_PRICING_PER_MINUTE
+        assert "scribe_v2" in STT_PRICING_PER_MINUTE["elevenlabs"]
+        assert "scribe_v2_realtime" in STT_PRICING_PER_MINUTE["elevenlabs"]
+
+    def test_stt_pricing_format_is_decimal(self) -> None:
+        """Verify STT pricing is stored as Decimal values."""
+        for models in STT_PRICING_PER_MINUTE.values():
+            for price in models.values():
+                assert isinstance(price, Decimal)
+
+    def test_calculate_stt_cost_one_minute(self) -> None:
+        """60 seconds of audio at $0.012/min = $0.012."""
+        cost = calculate_stt_cost("elevenlabs", "scribe_v2", 60.0)
+        assert cost == pytest.approx(0.012, abs=1e-6)
+
+    def test_calculate_stt_cost_30_seconds(self) -> None:
+        """30 seconds of audio = half a minute = $0.006."""
+        cost = calculate_stt_cost("elevenlabs", "scribe_v2", 30.0)
+        assert cost == pytest.approx(0.006, abs=1e-6)
+
+    def test_calculate_stt_cost_five_minutes(self) -> None:
+        """300 seconds = 5 minutes = $0.06."""
+        cost = calculate_stt_cost("elevenlabs", "scribe_v2", 300.0)
+        assert cost == pytest.approx(0.06, abs=1e-6)
+
+    def test_calculate_stt_cost_zero_duration(self) -> None:
+        """Zero-duration audio costs $0."""
+        cost = calculate_stt_cost("elevenlabs", "scribe_v2", 0.0)
+        assert cost == 0.0
+
+    def test_calculate_stt_cost_realtime_model(self) -> None:
+        """Realtime model uses same pricing as batch."""
+        cost = calculate_stt_cost("elevenlabs", "scribe_v2_realtime", 60.0)
+        assert cost == pytest.approx(0.012, abs=1e-6)
+
+    def test_calculate_stt_cost_unknown_provider(self) -> None:
+        """Unknown STT provider returns 0.0."""
+        cost = calculate_stt_cost("unknown_provider", "some_model", 60.0)
+        assert cost == 0.0
+
+    def test_calculate_stt_cost_unknown_model(self) -> None:
+        """Known provider but unknown model returns 0.0."""
+        cost = calculate_stt_cost("elevenlabs", "nonexistent_model", 60.0)
+        assert cost == 0.0
+
+
+class TestCostUsdOverride:
+    """Test cost_usd_override parameter on CostTracker.track()."""
+
+    @pytest.mark.asyncio
+    async def test_track_with_cost_override_skips_calculation(self) -> None:
+        """When cost_usd_override is provided, calculate_cost is bypassed."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        session = MagicMock()
+        session.add = MagicMock()
+        session.flush = AsyncMock()
+
+        captured: list[AICostRecord] = []
+        session.add.side_effect = lambda r: captured.append(r)
+
+        async def mock_refresh(record: AICostRecord) -> None:
+            record.id = uuid.uuid4()
+            from datetime import UTC, datetime
+
+            record.created_at = datetime.now(UTC)
+
+        session.refresh = mock_refresh
+
+        tracker = CostTracker(session)
+        result = await tracker.track(
+            workspace_id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            agent_name="stt",
+            provider="elevenlabs",
+            model="scribe_v2",
+            input_tokens=0,
+            output_tokens=0,
+            operation_type="voice_input",
+            cost_usd_override=0.042,
+        )
+
+        # Cost should be the override value, not calculated from tokens
+        assert result.cost_usd == pytest.approx(0.042, abs=1e-6)
+        assert captured[0].cost_usd == pytest.approx(0.042, abs=1e-6)
+
+    @pytest.mark.asyncio
+    async def test_track_without_override_uses_calculation(self) -> None:
+        """Without override, cost is calculated from token pricing."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        session = MagicMock()
+        session.add = MagicMock()
+        session.flush = AsyncMock()
+
+        captured: list[AICostRecord] = []
+        session.add.side_effect = lambda r: captured.append(r)
+
+        async def mock_refresh(record: AICostRecord) -> None:
+            record.id = uuid.uuid4()
+            from datetime import UTC, datetime
+
+            record.created_at = datetime.now(UTC)
+
+        session.refresh = mock_refresh
+
+        tracker = CostTracker(session)
+        result = await tracker.track(
+            workspace_id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            agent_name="ghost_text",
+            provider="anthropic",
+            model="claude-sonnet-4-20250514",
+            input_tokens=1000,
+            output_tokens=500,
+        )
+
+        # Cost should be calculated: (1000/1M * 3.00) + (500/1M * 15.00) = 0.0105
+        assert result.cost_usd == pytest.approx(0.0105, abs=1e-6)

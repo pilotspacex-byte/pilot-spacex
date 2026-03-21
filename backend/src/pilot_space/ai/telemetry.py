@@ -70,7 +70,7 @@ TOKEN_COSTS = {
         "text-embedding-3-small": {"input": 0.00002, "output": 0.0},
     },
     AIProvider.GOOGLE: {
-        "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004},
+        "gemini-2.0-flash": {"input": 0.000075, "output": 0.0003},
         "gemini-2.0-pro": {"input": 0.00125, "output": 0.005},
     },
 }
