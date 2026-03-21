@@ -65,7 +65,7 @@ describe('VimeoNode', () => {
     const result = (VimeoNode as any).config.renderHTML({ HTMLAttributes: {} });
     // result is ['iframe', { sandbox: '...', ... }]
     expect(result[1]).toMatchObject({
-      sandbox: 'allow-scripts allow-presentation allow-fullscreen',
+      sandbox: 'allow-scripts allow-same-origin allow-presentation allow-fullscreen',
     });
   });
 

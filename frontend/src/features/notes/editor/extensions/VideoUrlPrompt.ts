@@ -31,9 +31,15 @@ export function showVideoUrlPrompt(editor: Editor, onConfirm: (url: string) => v
     outline: 'none',
   });
 
+  let cleaned = false;
   const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    input.removeEventListener('blur', handleBlur);
     if (input.parentNode) input.parentNode.removeChild(input);
   };
+
+  const handleBlur = () => cleanup();
 
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -47,7 +53,7 @@ export function showVideoUrlPrompt(editor: Editor, onConfirm: (url: string) => v
     }
   });
 
-  input.addEventListener('blur', cleanup);
+  input.addEventListener('blur', handleBlur);
 
   document.body.appendChild(input);
   requestAnimationFrame(() => input.focus());

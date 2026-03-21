@@ -4,8 +4,23 @@ const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:8000';
 
 // Derive Supabase origins from env var for CSP (supports localhost/custom domains)
 const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const sbOrigin = sbUrl ? new URL(sbUrl).origin : null;
-const sbWsOrigin = sbOrigin ? sbOrigin.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:') : null;
+let sbOrigin: string | null = null;
+let sbWsOrigin: string | null = null;
+
+if (sbUrl) {
+  try {
+    const parsed = new URL(sbUrl);
+    sbOrigin = parsed.origin;
+    sbWsOrigin =
+      parsed.protocol === 'https:'
+        ? `wss://${parsed.host}`
+        : parsed.protocol === 'http:'
+          ? `ws://${parsed.host}`
+          : null;
+  } catch {
+    // Ignore malformed env value — CSP falls back to *.supabase.co wildcards.
+  }
+}
 
 const nextConfig: NextConfig = {
   async rewrites() {
@@ -45,8 +60,8 @@ const nextConfig: NextConfig = {
             // player.vimeo.com: used by VimeoNode embed URLs.
             value: [
               "default-src 'self'",
-              // unsafe-inline/unsafe-eval required by Next.js runtime; nonce-based CSP needs custom server
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              // unsafe-inline required by Next.js for inline scripts; unsafe-eval only in dev (hot reload)
+              `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
               "style-src 'self' 'unsafe-inline'",
               `img-src 'self' data: blob: https://*.supabase.co${sbOrigin ? ` ${sbOrigin}` : ''}`,
               "font-src 'self'",

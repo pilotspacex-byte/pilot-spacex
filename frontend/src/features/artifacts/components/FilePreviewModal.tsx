@@ -136,7 +136,7 @@ export function FilePreviewModal({
             {/* Download button — validates URL scheme (https always, http for localhost) */}
             {(() => {
               try {
-                const parsed = new URL(signedUrl, window.location.origin);
+                const parsed = new URL(signedUrl);
                 const isHttps = parsed.protocol === 'https:';
                 const isLocalHttp =
                   parsed.protocol === 'http:' &&

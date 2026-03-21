@@ -22,7 +22,9 @@ export const YoutubeExtension = Youtube.extend({
   nocookie: true,
   HTMLAttributes: {
     class: 'video-embed video-embed--youtube',
-    sandbox: 'allow-scripts allow-presentation allow-fullscreen',
+    // allow-same-origin is safe here: iframe content is cross-origin (youtube-nocookie.com),
+    // so it cannot access the parent page. Without it, YouTube's player JS fails to load.
+    sandbox: 'allow-scripts allow-same-origin allow-presentation allow-fullscreen',
     allow: 'autoplay; fullscreen',
   },
 });
