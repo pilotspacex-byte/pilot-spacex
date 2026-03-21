@@ -194,7 +194,7 @@ export function useGraphCanvas(options: UseGraphCanvasOptions): UseGraphCanvasRe
         const neighbors = await knowledgeGraphApi.getNodeNeighbors(
           workspaceId,
           nodeId,
-          Math.min(expandDepth + 1, 4)
+          Math.min(expandDepth, 4)
         );
         // Abort if filter/depth changed during the async call
         if (resetKeyRef.current !== currentResetKey) return;

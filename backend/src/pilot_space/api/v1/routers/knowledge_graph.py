@@ -337,6 +337,7 @@ async def get_workspace_overview(
     workspace_id: WorkspaceIdPath,
     session: SessionDep,
     current_user_id: SyncedUserId,
+    _member: WorkspaceMemberId,
     node_types: Annotated[
         str | None,
         Query(description="Comma-separated NodeType values to filter by"),

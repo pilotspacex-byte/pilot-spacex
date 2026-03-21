@@ -69,30 +69,30 @@ export const GRAPH_NODE_STYLES: Record<GraphNodeType | 'default', NodeStyle> = {
     tier: 1,
   },
   note: {
-    bg: '#29a386',
+    bg: '#1f7d66',
     bgTint: '#e8f5f1',
-    bgDark: '#1f7d66',
-    tailwind: 'bg-[#29a386]',
+    bgDark: '#165a4a',
+    tailwind: 'bg-[#1f7d66]',
     text: '#fff',
     abbr: 'NO',
     label: 'Note',
     tier: 1,
   },
   cycle: {
-    bg: '#d9853f',
+    bg: '#a0602a',
     bgTint: '#faf0e6',
-    bgDark: '#a0602a',
-    tailwind: 'bg-[#d9853f]',
+    bgDark: '#7a491f',
+    tailwind: 'bg-[#a0602a]',
     text: '#fff',
     abbr: 'CY',
     label: 'Cycle',
     tier: 1,
   },
   decision: {
-    bg: '#c4a035',
+    bg: '#8a7025',
     bgTint: '#faf5e4',
-    bgDark: '#8a7025',
-    tailwind: 'bg-[#c4a035]',
+    bgDark: '#655119',
+    tailwind: 'bg-[#8a7025]',
     text: '#fff',
     abbr: 'DE',
     label: 'Decision',
@@ -169,10 +169,10 @@ export const GRAPH_NODE_STYLES: Record<GraphNodeType | 'default', NodeStyle> = {
     tier: 3,
   },
   skill_outcome: {
-    bg: '#29a386',
+    bg: '#1f7d66',
     bgTint: '#e8f5f1',
-    bgDark: '#1f7d66',
-    tailwind: 'bg-[#29a386]',
+    bgDark: '#165a4a',
+    tailwind: 'bg-[#1f7d66]',
     text: '#fff',
     abbr: 'SO',
     label: 'Skill',
@@ -189,20 +189,20 @@ export const GRAPH_NODE_STYLES: Record<GraphNodeType | 'default', NodeStyle> = {
     tier: 2,
   },
   work_intent: {
-    bg: '#d9853f',
+    bg: '#a0602a',
     bgTint: '#faf0e6',
-    bgDark: '#a0602a',
-    tailwind: 'bg-[#d9853f]',
+    bgDark: '#7a491f',
+    tailwind: 'bg-[#a0602a]',
     text: '#fff',
     abbr: 'WI',
     label: 'Intent',
     tier: 2,
   },
   user_preference: {
-    bg: '#c4a035',
+    bg: '#8a7025',
     bgTint: '#faf5e4',
-    bgDark: '#8a7025',
-    tailwind: 'bg-[#c4a035]',
+    bgDark: '#655119',
+    tailwind: 'bg-[#8a7025]',
     text: '#fff',
     abbr: 'UP',
     label: 'Preference',
@@ -232,29 +232,49 @@ export interface EdgeStyle {
   opacity: number;
 }
 
-const STRUCTURAL_EDGE: EdgeStyle = { stroke: '#9c9590', opacity: 0.6 };
-const SIMILARITY_EDGE: EdgeStyle = { stroke: '#6b8fad', strokeDasharray: '4 3', opacity: 0.4 };
-const CAUSAL_EDGE: EdgeStyle = { stroke: '#d9853f', opacity: 0.6 };
-const BLOCKING_EDGE: EdgeStyle = { stroke: '#d9534f', opacity: 0.7 };
-
+// Each edge type gets a distinct visual signature (stroke color, dash, opacity)
+// so relationships are distinguishable without relying on color alone (WCAG).
 const EDGE_STYLES: Partial<Record<GraphEdgeType, EdgeStyle>> = {
-  belongs_to: STRUCTURAL_EDGE,
-  parent_of: STRUCTURAL_EDGE,
-  relates_to: SIMILARITY_EDGE,
-  references: SIMILARITY_EDGE,
-  caused_by: CAUSAL_EDGE,
-  led_to: CAUSAL_EDGE,
-  blocks: BLOCKING_EDGE,
-  duplicates: BLOCKING_EDGE,
+  belongs_to: { stroke: '#9c9590', opacity: 0.6 },
+  parent_of: { stroke: '#9c9590', strokeDasharray: '6 2', opacity: 0.6 },
+  relates_to: { stroke: '#6b8fad', strokeDasharray: '4 3', opacity: 0.4 },
+  references: { stroke: '#6b8fad', strokeDasharray: '1 3', opacity: 0.45 },
+  caused_by: { stroke: '#d9853f', opacity: 0.6 },
+  led_to: { stroke: '#d9853f', strokeDasharray: '6 2', opacity: 0.6 },
+  blocks: { stroke: '#d9534f', opacity: 0.7 },
+  duplicates: { stroke: '#d9534f', strokeDasharray: '4 3', opacity: 0.65 },
   authored_by: { stroke: '#9c9590', strokeDasharray: '2 2', opacity: 0.35 },
-  assigned_to: { stroke: '#9c9590', strokeDasharray: '2 2', opacity: 0.35 },
-  decided_in: { stroke: '#c4a035', opacity: 0.5 },
+  assigned_to: { stroke: '#9c9590', strokeDasharray: '2 4', opacity: 0.4 },
+  decided_in: { stroke: '#8a7025', opacity: 0.5 },
   learned_from: { stroke: '#6b8fad', strokeDasharray: '6 3', opacity: 0.35 },
   summarizes: { stroke: '#8b7ec8', strokeDasharray: '4 3', opacity: 0.35 },
 };
 
+const DEFAULT_EDGE_STYLE: EdgeStyle = { stroke: '#6b8fad', strokeDasharray: '4 3', opacity: 0.4 };
+
+/** Pre-computed human-readable labels for edge types (avoids per-edge regex in layout). */
+const EDGE_TYPE_LABELS: Record<GraphEdgeType, string> = {
+  relates_to: 'relates to',
+  caused_by: 'caused by',
+  led_to: 'led to',
+  decided_in: 'decided in',
+  authored_by: 'authored by',
+  assigned_to: 'assigned to',
+  belongs_to: 'belongs to',
+  references: 'references',
+  learned_from: 'learned from',
+  summarizes: 'summarizes',
+  blocks: 'blocks',
+  duplicates: 'duplicates',
+  parent_of: 'parent of',
+};
+
+export function getEdgeLabel(edgeType: GraphEdgeType | string): string {
+  return EDGE_TYPE_LABELS[edgeType as GraphEdgeType] ?? edgeType;
+}
+
 export function getEdgeStyle(edgeType: GraphEdgeType | string): EdgeStyle {
-  return EDGE_STYLES[edgeType as GraphEdgeType] ?? SIMILARITY_EDGE;
+  return EDGE_STYLES[edgeType as GraphEdgeType] ?? DEFAULT_EDGE_STYLE;
 }
 
 /** Node dimensions by importance tier */
@@ -370,7 +390,7 @@ export function computeForceLayout(
       source: e.sourceId,
       target: e.targetId,
       type: 'smoothstep',
-      label: e.edgeType === 'blocks' ? e.label : undefined,
+      label: e.label ?? getEdgeLabel(e.edgeType),
       animated: e.edgeType === 'blocks',
       style: {
         stroke: es.stroke,

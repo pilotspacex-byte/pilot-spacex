@@ -124,11 +124,11 @@ export function WorkspaceKnowledgeGraph({ workspaceId }: WorkspaceKnowledgeGraph
               aria-pressed={activeFilter === chip.nodeType}
               onClick={() => setActiveFilter(chip.nodeType)}
               className={[
-                'rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors shrink-0',
+                'rounded-full px-2.5 py-0.5 text-xs transition-colors shrink-0',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 activeFilter === chip.nodeType
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                  ? 'bg-primary text-primary-foreground font-semibold ring-1 ring-primary/40'
+                  : 'bg-muted text-muted-foreground font-medium hover:bg-muted/80',
               ].join(' ')}
             >
               {chip.label}

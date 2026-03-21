@@ -155,6 +155,8 @@ class TestHandleIssue:
         issue.description = "Users cannot log in with OAuth."
         issue.identifier = "PS-42"
         issue.state_id = uuid4()
+        issue.workspace_id = _WORKSPACE_ID
+        issue.project_id = _PROJECT_ID
         session.get.return_value = issue
 
         write_result = MagicMock()
@@ -195,6 +197,8 @@ class TestHandleIssue:
         issue.description = "Description"
         issue.identifier = "PS-1"
         issue.state_id = None
+        issue.workspace_id = _WORKSPACE_ID
+        issue.project_id = _PROJECT_ID
         session.get.return_value = issue
 
         similar_node = _make_scored_node(score=0.9)
@@ -235,6 +239,8 @@ class TestHandleIssue:
         issue.description = "Description"
         issue.identifier = "PS-1"
         issue.state_id = None
+        issue.workspace_id = _WORKSPACE_ID
+        issue.project_id = _PROJECT_ID
         session.get.return_value = issue
 
         low_score_node = _make_scored_node(score=0.3)
@@ -291,6 +297,8 @@ class TestHandleNote:
     async def test_happy_path_note_creates_nodes(self) -> None:
         session = _make_session()
         note = MagicMock()
+        note.workspace_id = _WORKSPACE_ID
+        note.project_id = _PROJECT_ID
         note.title = "Architecture Notes"
         note.content = {
             "type": "doc",
@@ -369,6 +377,8 @@ class TestHandleNote:
         """When embed() returns None, text-only search is used and result is still success."""
         session = _make_session()
         note = MagicMock()
+        note.workspace_id = _WORKSPACE_ID
+        note.project_id = _PROJECT_ID
         note.title = "Simple Note"
         note.content = {
             "type": "doc",
@@ -446,6 +456,8 @@ class TestHandleProject:
         project.identifier = "PILOT"
         project.icon = "rocket"
         project.lead_id = uuid4()
+        project.id = _PROJECT_ID
+        project.workspace_id = _WORKSPACE_ID
         session.get.return_value = project
 
         # Mock session.execute for _link_existing_children query
@@ -525,6 +537,8 @@ class TestHandleCycle:
         cycle.start_date = date(2026, 1, 6)
         cycle.end_date = date(2026, 1, 20)
         cycle.owned_by_id = uuid4()
+        cycle.workspace_id = _WORKSPACE_ID
+        cycle.project_id = _PROJECT_ID
         session.get.return_value = cycle
 
         write_result = MagicMock()

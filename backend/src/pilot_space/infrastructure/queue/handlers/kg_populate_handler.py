@@ -130,7 +130,7 @@ class KgPopulateHandler:
         content = f"{issue.name}\n\n{issue.description or ''}".strip()
         label = issue.name[:120]
         issue_props: dict[str, object] = {
-            "project_id": str(p.project_id),
+            "project_id": str(issue.project_id),
             "identifier": getattr(issue, "identifier", ""),
             "state": str(getattr(issue, "state_id", "") or ""),
         }
@@ -143,7 +143,7 @@ class KgPopulateHandler:
         )
         result = await write_svc.execute(
             GraphWritePayload(
-                workspace_id=p.workspace_id,
+                workspace_id=issue.workspace_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.ISSUE,
@@ -160,7 +160,7 @@ class KgPopulateHandler:
 
         # Chunk long issue descriptions into NOTE_CHUNK nodes
         # Delete stale issue chunks first (idempotent regeneration)
-        await self._delete_stale_issue_chunks(p.workspace_id, p.entity_id)
+        await self._delete_stale_issue_chunks(issue.workspace_id, p.entity_id)
         description = issue.description or ""
         if len(description) > _MIN_CHUNK_CHARS:
             issue_md = f"# {issue.name}\n\n{description}"
@@ -188,7 +188,7 @@ class KgPopulateHandler:
                 ]
                 chunk_result = await write_svc.execute(
                     GraphWritePayload(
-                        workspace_id=p.workspace_id,
+                        workspace_id=issue.workspace_id,
                         nodes=chunk_nodes,
                     )
                 )
@@ -212,17 +212,17 @@ class KgPopulateHandler:
                             )
                     await self._session.flush()
 
-        # BELONGS_TO edge: issue → project
+        # BELONGS_TO edge: issue → project (use loaded model, not stale payload)
         belongs_to = False
         if result.node_ids:
             belongs_to = await self._link_to_project(
-                result.node_ids[0], p.workspace_id, p.project_id
+                result.node_ids[0], issue.workspace_id, issue.project_id
             )
 
         edges_created = 0
         if all_node_ids:
             edges_created = await self._find_and_link_similar(
-                all_node_ids, p.workspace_id, p.project_id, content
+                all_node_ids, issue.workspace_id, issue.project_id, content
             )
 
         n_chunks = len(all_node_ids) - len(result.node_ids)
@@ -281,7 +281,7 @@ class KgPopulateHandler:
         # Upsert the parent NOTE node
         parent_result = await write_svc.execute(
             GraphWritePayload(
-                workspace_id=p.workspace_id,
+                workspace_id=note.workspace_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.NOTE,
@@ -289,7 +289,7 @@ class KgPopulateHandler:
                         content=markdown[:2000],  # cap for embedding token budget
                         external_id=p.entity_id,
                         properties={
-                            "project_id": str(p.project_id),
+                            "project_id": str(note.project_id),
                             "title": note.title or "",
                         },
                     )
@@ -300,7 +300,7 @@ class KgPopulateHandler:
         parent_node_ids = parent_result.node_ids
 
         # Delete stale NOTE_CHUNK nodes for this note (replaced on each run)
-        await self._delete_stale_chunks(p.workspace_id, p.entity_id)
+        await self._delete_stale_chunks(note.workspace_id, p.entity_id)
 
         # Chunk markdown and upsert chunk nodes with PARENT_OF edges
         chunks = chunk_markdown_by_headings(markdown, min_chunk_chars=_MIN_CHUNK_CHARS)
@@ -323,7 +323,7 @@ class KgPopulateHandler:
                         "heading": chunk.heading,
                         "heading_level": chunk.heading_level,
                         "parent_note_id": str(p.entity_id),
-                        "project_id": str(p.project_id),
+                        "project_id": str(note.project_id),
                     },
                 )
                 for chunk in chunks
@@ -331,7 +331,7 @@ class KgPopulateHandler:
 
             chunk_result = await write_svc.execute(
                 GraphWritePayload(
-                    workspace_id=p.workspace_id,
+                    workspace_id=note.workspace_id,
                     nodes=chunk_nodes,
                 )
             )
@@ -353,16 +353,18 @@ class KgPopulateHandler:
                         logger.warning("KgPopulateHandler: PARENT_OF edge failed: %s", exc)
                 await self._session.flush()
 
-        # BELONGS_TO edge: note → project
+        # BELONGS_TO edge: note → project (use loaded model, not stale payload)
         belongs_to = False
-        if parent_node_ids:
+        if parent_node_ids and note.project_id is not None:
             belongs_to = await self._link_to_project(
-                parent_node_ids[0], p.workspace_id, p.project_id
+                parent_node_ids[0], note.workspace_id, note.project_id
             )
 
-        edges_created = await self._find_and_link_similar(
-            all_node_ids, p.workspace_id, p.project_id, markdown[:500]
-        )
+        edges_created = 0
+        if note.project_id is not None:
+            edges_created = await self._find_and_link_similar(
+                all_node_ids, note.workspace_id, note.project_id, markdown[:500]
+            )
 
         logger.info(
             "KgPopulateHandler: note %s → %d nodes (%d chunks), %d similarity edges, belongs_to=%s",
@@ -400,7 +402,7 @@ class KgPopulateHandler:
         )
         result = await write_svc.execute(
             GraphWritePayload(
-                workspace_id=p.workspace_id,
+                workspace_id=project.workspace_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.PROJECT,
@@ -408,7 +410,7 @@ class KgPopulateHandler:
                         content=content,
                         external_id=p.entity_id,
                         properties={
-                            "project_id": str(p.project_id),
+                            "project_id": str(project.id),
                             "identifier": getattr(project, "identifier", ""),
                             "icon": getattr(project, "icon", "") or "",
                             "lead_id": str(project.lead_id) if project.lead_id else "",
@@ -422,13 +424,13 @@ class KgPopulateHandler:
         children_linked = 0
         if result.node_ids:
             children_linked = await self._link_existing_children(
-                result.node_ids[0], p.workspace_id, p.project_id
+                result.node_ids[0], project.workspace_id, project.id
             )
 
         edges_created = 0
         if result.node_ids:
             edges_created = await self._find_and_link_similar(
-                result.node_ids, p.workspace_id, p.project_id, content
+                result.node_ids, project.workspace_id, project.id, content
             )
 
         logger.info(
@@ -473,7 +475,7 @@ class KgPopulateHandler:
         )
         result = await write_svc.execute(
             GraphWritePayload(
-                workspace_id=p.workspace_id,
+                workspace_id=cycle.workspace_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.CYCLE,
@@ -481,7 +483,7 @@ class KgPopulateHandler:
                         content=content,
                         external_id=p.entity_id,
                         properties={
-                            "project_id": str(p.project_id),
+                            "project_id": str(cycle.project_id),
                             "status": status_str,
                             "start_date": str(cycle.start_date) if cycle.start_date else "",
                             "end_date": str(cycle.end_date) if cycle.end_date else "",
@@ -492,17 +494,17 @@ class KgPopulateHandler:
             )
         )
 
-        # BELONGS_TO edge: cycle → project
+        # BELONGS_TO edge: cycle → project (use loaded model, not stale payload)
         belongs_to = False
         if result.node_ids:
             belongs_to = await self._link_to_project(
-                result.node_ids[0], p.workspace_id, p.project_id
+                result.node_ids[0], cycle.workspace_id, cycle.project_id
             )
 
         edges_created = 0
         if result.node_ids:
             edges_created = await self._find_and_link_similar(
-                result.node_ids, p.workspace_id, p.project_id, content
+                result.node_ids, cycle.workspace_id, cycle.project_id, content
             )
 
         logger.info(
