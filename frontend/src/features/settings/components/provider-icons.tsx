@@ -5,7 +5,7 @@
  * Falls back to a generic Cpu icon from Lucide for unknown providers.
  */
 
-import { Cpu } from 'lucide-react';
+import { AudioWaveform, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ProviderIconProps {
@@ -78,22 +78,6 @@ function OpenAIIcon({ className, size = 16 }: { className?: string; size?: numbe
   );
 }
 
-/** ElevenLabs — official simple-icons path. */
-function ElevenLabsIcon({ className, size = 16 }: { className?: string; size?: number }) {
-  return (
-    <svg
-      className={className}
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M12.555 2h2.889v20h-2.889zM8.556 2h2.889v20H8.556z" />
-    </svg>
-  );
-}
-
 const PROVIDER_ICON_COLORS: Record<string, string> = {
   google: 'text-[#8E75B2]', // Gemini brand purple
   anthropic: 'text-[#191919] dark:text-[#D4A574]', // Anthropic brand
@@ -111,7 +95,7 @@ const PROVIDER_ICON_COMPONENTS: Record<
   anthropic: AnthropicIcon,
   ollama: OllamaIcon,
   openai: OpenAIIcon,
-  elevenlabs: ElevenLabsIcon,
+  elevenlabs: AudioWaveform,
 };
 
 export function ProviderIcon({ provider, className, size = 16 }: ProviderIconProps) {

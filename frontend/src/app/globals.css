@@ -2781,3 +2781,16 @@
   outline: 2px solid var(--ring, #94a3b8);
   outline-offset: 1px;
 }
+
+/* Voice recording pulse animation (RecordButton) */
+@keyframes record-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.25);
+  }
+}

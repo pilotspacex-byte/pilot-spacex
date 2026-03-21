@@ -88,6 +88,7 @@ from pilot_space.application.services.role_skill import (
     UpdateRoleSkillService,
 )
 from pilot_space.application.services.task_service import TaskService
+from pilot_space.application.services.transcription import TranscriptionService
 from pilot_space.application.services.workspace import WorkspaceService
 from pilot_space.application.services.workspace_invitation import WorkspaceInvitationService
 from pilot_space.application.services.workspace_member import (
@@ -753,4 +754,18 @@ __all__ = [  # noqa: RUF022
     "RbacServiceDep",
     "MovePageServiceDep",
     "ReorderPageServiceDep",
+    "TranscriptionServiceDep",
 ]
+
+
+# ===== Transcription Service Dependencies =====
+
+
+@inject
+def _get_transcription_service(
+    svc: TranscriptionService = Depends(Provide[Container.transcription_service]),
+) -> TranscriptionService:
+    return svc
+
+
+TranscriptionServiceDep = Annotated[TranscriptionService, Depends(_get_transcription_service)]

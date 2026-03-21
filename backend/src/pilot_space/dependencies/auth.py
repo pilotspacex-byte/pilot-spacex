@@ -56,6 +56,8 @@ def _get_jwt_provider() -> JWTProvider:
     """Get the configured JWT provider singleton.
 
     Provider is chosen by settings.auth_provider (default: "supabase").
+    Also used by WebSocket endpoints that cannot use FastAPI Depends()
+    for token validation (e.g. transcription_ws.py).
 
     Returns:
         JWTProvider implementation.
@@ -64,6 +66,25 @@ def _get_jwt_provider() -> JWTProvider:
     if _jwt_provider is None:
         _jwt_provider = get_jwt_provider(get_settings())
     return _jwt_provider
+
+
+def verify_token(raw_token: str) -> TokenPayload:
+    """Verify a JWT token and return the payload.
+
+    Public accessor for WebSocket endpoints that receive the token as a
+    query parameter instead of an Authorization header.
+
+    Args:
+        raw_token: Raw JWT string.
+
+    Returns:
+        Validated TokenPayload.
+
+    Raises:
+        JWTExpiredError: If token is expired.
+        JWTValidationError: If token is invalid.
+    """
+    return _get_jwt_provider().verify_token(raw_token)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

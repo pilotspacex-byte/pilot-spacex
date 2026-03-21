@@ -64,21 +64,23 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 /**
  * Determine the WebSocket base URL.
  *
- * Next.js rewrites do NOT proxy WebSocket connections. In development mode
- * (NEXT_PUBLIC_API_URL points to localhost:8000), connect directly to the
- * backend. In production, derive the WS host from the current window location
+ * Next.js rewrites do NOT proxy WebSocket connections. When NEXT_PUBLIC_API_URL
+ * is set (e.g. http://localhost:8000/api/v1), derive the WS host from it.
+ * In production, derive the WS host from the current window location
  * (assumes a reverse proxy forwards /api/v1/ to the backend).
  */
 function getWsBaseUrl(): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
 
-  // Development: API URL explicitly points at backend (e.g. http://localhost:8000/api/v1)
-  if (
-    process.env.NODE_ENV === 'development' ||
-    apiUrl.includes('localhost:8000') ||
-    apiUrl.includes('127.0.0.1:8000')
-  ) {
-    return 'ws://localhost:8000';
+  // Explicit API URL set — derive WS URL from it (works for any host/port)
+  if (apiUrl) {
+    try {
+      const parsed = new URL(apiUrl);
+      const proto = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${proto}//${parsed.host}`;
+    } catch {
+      // Relative URL (e.g. "/api/v1") — fall through to window-based detection
+    }
   }
 
   // Production: derive WS protocol from current page protocol

@@ -90,6 +90,7 @@ from pilot_space.application.services.pm_block_insight_service import PMBlockIns
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.sso_service import SsoService
 from pilot_space.application.services.task_service import TaskService
+from pilot_space.application.services.transcription import TranscriptionService
 from pilot_space.application.services.version.diff_service import VersionDiffService
 from pilot_space.application.services.version.digest_service import VersionDigestService
 from pilot_space.application.services.version.impact_service import ImpactAnalysisService
@@ -577,6 +578,14 @@ class Container(SkillContainer, PluginContainer):
     attachment_content_service = providers.Factory(
         AttachmentContentService,
         storage_client=InfraContainer.storage_client,
+    )
+
+    # Transcription Service (ElevenLabs STT with cache + storage)
+    transcription_service = providers.Factory(
+        TranscriptionService,
+        session=providers.Callable(get_current_session),
+        storage_client=InfraContainer.storage_client,
+        encryption_key=InfraContainer.encryption_key,
     )
 
     # Artifact Services (v1.1 — note file uploads; ARTF-04, ARTF-05, ARTF-06)

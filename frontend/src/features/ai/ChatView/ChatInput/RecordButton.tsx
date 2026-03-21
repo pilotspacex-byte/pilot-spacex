@@ -117,14 +117,6 @@ export const RecordButton = observer(function RecordButton({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-
-        {/* Inline CSS for pulse animation */}
-        <style>{`
-          @keyframes record-pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(1.25); }
-          }
-        `}</style>
       </div>
     );
   }
