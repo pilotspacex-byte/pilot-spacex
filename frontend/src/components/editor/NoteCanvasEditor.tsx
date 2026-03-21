@@ -34,6 +34,11 @@ import { useAIAutoScroll } from '@/hooks/useAIAutoScroll';
 import { useNoteHealth } from '@/hooks/useNoteHealth';
 import type { NoteHealthData } from '@/hooks/useNoteHealth';
 import { useEditorSync } from './hooks/useEditorSync';
+import {
+  useFileUploadRefs,
+  createDropHandler,
+  setupUploadListener,
+} from './hooks/useFileUploadHandlers';
 
 // H-6: Helper to update EntityHighlightExtension entities without recreating extensions.
 // Follows the pattern used by updateAIBlockProcessingStorage (functional/immutable-data rule).
@@ -211,6 +216,7 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
     onExtractIssues,
     isFocusMode = false,
     onToggleFocusMode,
+    projectId,
   } = props;
 
   const [editorError, setEditorError] = useState<string | null>(null);
@@ -245,6 +251,9 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
   // @see NoteDetailPage — expected sole consumer; must pre-resolve workspaceId before passing as prop.
   const isWorkspaceUUID = workspaceId ? /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(workspaceId) : false;
   const resolvedWorkspaceId = isWorkspaceUUID ? workspaceId : undefined;
+
+  // File upload refs — keeps workspaceId/projectId fresh for drop handler + slash commands
+  const uploadRefs = useFileUploadRefs(resolvedWorkspaceId, projectId, editorRef);
 
   // Set workspace context on PilotSpaceStore
   useEffect(() => {
@@ -452,6 +461,9 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
           'min-h-[calc(100vh-200px)]'
         ),
       },
+      handleDOMEvents: {
+        drop: createDropHandler(uploadRefs),
+      },
     },
     onUpdate: ({ editor: ed }) => {
       if (onChange) {
@@ -465,6 +477,7 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
       setEditorError(null);
       editorRef.current = ed;
       setIsEditorReady(true);
+      setupUploadListener(ed, uploadRefs);
     },
     onDestroy: () => {
       editorRef.current = null;
