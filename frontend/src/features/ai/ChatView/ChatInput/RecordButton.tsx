@@ -38,9 +38,13 @@ function formatDuration(ms: number): string {
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
-/** Amplitude bar heights for staggered visual effect. Each multiplied by amplitudeLevel. */
-const BAR_BASE_HEIGHTS = [0.4, 0.7, 0.55, 0.85];
-const BAR_DELAYS = ['0ms', '60ms', '30ms', '90ms'];
+/**
+ * Audio waveform visualization — 7 bars with sine-wave phase offsets
+ * that respond to real amplitude, creating an organic flowing wave.
+ * Each bar has a base height (idle breathing) + amplitude-driven height.
+ */
+const WAVE_BARS = 7;
+const WAVE_PHASE_OFFSETS = [0, 0.9, 1.8, 2.7, 1.8, 0.9, 0]; // symmetric wave shape
 
 export const RecordButton = observer(function RecordButton({
   workspaceId,
@@ -171,18 +175,22 @@ export const RecordButton = observer(function RecordButton({
             </TooltipContent>
           </Tooltip>
 
-          {/* Amplitude visualization bars */}
-          <div className="flex items-center gap-[2px] h-4" aria-hidden="true">
-            {BAR_BASE_HEIGHTS.map((baseHeight, i) => {
-              const height = Math.max(20, baseHeight * amplitudeLevel * 100 + 20);
+          {/* Audio waveform — 7 bars with sine-wave phase offsets */}
+          <div className="flex items-end gap-[2px] h-4" aria-hidden="true">
+            {Array.from({ length: WAVE_BARS }, (_, i) => {
+              // Base idle height (20-30%) + amplitude-driven height with wave phase
+              const phase = WAVE_PHASE_OFFSETS[i] ?? 0;
+              const wave = Math.sin(phase + Date.now() * 0.003) * 0.15 + 0.85;
+              const amplitudeFactor = amplitudeLevel * wave;
+              const height = Math.max(15, 15 + amplitudeFactor * 85);
               return (
                 <div
                   key={i}
-                  className="w-[3px] bg-red-500 rounded-full transition-all"
+                  className="w-[2.5px] rounded-full"
                   style={{
                     height: `${Math.min(100, height)}%`,
-                    transitionDuration: '100ms',
-                    transitionDelay: BAR_DELAYS[i],
+                    backgroundColor: `color-mix(in oklch, oklch(0.637 0.177 25.331) ${50 + amplitudeFactor * 50}%, oklch(0.637 0.177 25.331 / 0.4))`,
+                    transition: 'height 120ms cubic-bezier(0.22, 1, 0.36, 1)',
                   }}
                 />
               );
