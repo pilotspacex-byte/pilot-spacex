@@ -26,6 +26,20 @@ class PcmProcessor extends AudioWorkletProcessor {
     // Fractional phase for downsampling — persists across process() calls
     // to avoid drift at non-integer ratios (e.g. 44100 / 16000 = 2.75625)
     this._downsamplePhase = 0;
+
+    // Handle flush command from main thread — post remaining partial buffer
+    this.port.onmessage = (e) => {
+      if (e.data?.type === 'flush') {
+        if (this._bufferOffset > 0) {
+          const byteLength = this._bufferOffset * 2; // int16 = 2 bytes per sample
+          const arrayBuffer = this._buffer.buffer.slice(0, byteLength);
+          this.port.postMessage(arrayBuffer, [arrayBuffer]);
+          this._buffer = new Int16Array(TARGET_SAMPLE_RATE);
+          this._bufferOffset = 0;
+        }
+        this.port.postMessage({ type: 'flushed' });
+      }
+    };
   }
 
   /**

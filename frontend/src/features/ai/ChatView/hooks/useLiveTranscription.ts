@@ -104,6 +104,7 @@ export function useLiveTranscription({
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const flushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep callbacks in refs to avoid stale closures in WS event handlers
   const onPartialRef = useRef(onPartialTranscript);
@@ -119,8 +120,12 @@ export function useLiveTranscription({
     onErrorRef.current = onError;
   }, [onError]);
 
-  /** Tear down AudioContext, worklet, and mic stream. */
+  /** Tear down AudioContext, worklet, mic stream, and flush timer. */
   const cleanupAudio = useCallback(() => {
+    if (flushTimeoutRef.current) {
+      clearTimeout(flushTimeoutRef.current);
+      flushTimeoutRef.current = null;
+    }
     if (workletNodeRef.current) {
       workletNodeRef.current.port.onmessage = null;
       workletNodeRef.current.disconnect();
@@ -235,20 +240,40 @@ export function useLiveTranscription({
       const workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor');
       workletNodeRef.current = workletNode;
 
-      // Forward PCM chunks from worklet to WS
-      workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+      // Forward PCM chunks from worklet to WS.
+      // Handles both regular ArrayBuffer audio and the {type:'flushed'} signal
+      // sent after a flush command (see stopStreaming).
+      workletNode.port.onmessage = (e: MessageEvent) => {
         const ws = wsRef.current;
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-        const base64 = arrayBufferToBase64(e.data);
-        ws.send(
-          JSON.stringify({
-            message_type: 'input_audio_chunk',
-            audio_base_64: base64,
-            commit: false,
-            sample_rate: 16000,
-          })
-        );
+        if (e.data instanceof ArrayBuffer) {
+          // Regular 1s chunk or flush tail — forward to backend
+          const base64 = arrayBufferToBase64(e.data);
+          ws.send(
+            JSON.stringify({
+              message_type: 'input_audio_chunk',
+              audio_base_64: base64,
+              commit: false,
+              sample_rate: 16000,
+            })
+          );
+        } else if (e.data?.type === 'flushed') {
+          // Worklet finished flushing — all audio sent, now commit
+          if (flushTimeoutRef.current) {
+            clearTimeout(flushTimeoutRef.current);
+            flushTimeoutRef.current = null;
+          }
+          ws.send(
+            JSON.stringify({
+              message_type: 'input_audio_chunk',
+              audio_base_64: '',
+              commit: true,
+              sample_rate: 16000,
+            })
+          );
+          cleanupAudio();
+        }
       };
 
       // Connect mic -> worklet (worklet drives PCM to WS; no audio output needed)
@@ -266,21 +291,48 @@ export function useLiveTranscription({
   }, [workspaceId, closeAll, cleanupAudio]);
 
   const stopStreaming = useCallback(() => {
+    const workletNode = workletNodeRef.current;
     const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      // Send commit message — ElevenLabs will finalize and send committed_transcript
-      ws.send(
-        JSON.stringify({
-          message_type: 'input_audio_chunk',
-          audio_base_64: '',
-          commit: true,
-          sample_rate: 16000,
-        })
-      );
+
+    if (workletNode && ws && ws.readyState === WebSocket.OPEN) {
+      // Ask worklet to flush its partial buffer. The onmessage handler
+      // receives the tail audio, then the 'flushed' signal which triggers
+      // the commit + cleanupAudio. This ensures the user's last word is
+      // not silently dropped.
+      workletNode.port.postMessage({ type: 'flush' });
+
+      // Safety: if flush response doesn't arrive within 500ms, commit anyway.
+      // cleanupAudio() clears this timeout if the flush arrives first.
+      flushTimeoutRef.current = setTimeout(() => {
+        flushTimeoutRef.current = null;
+        const wsCurrent = wsRef.current;
+        if (wsCurrent && wsCurrent.readyState === WebSocket.OPEN) {
+          wsCurrent.send(
+            JSON.stringify({
+              message_type: 'input_audio_chunk',
+              audio_base_64: '',
+              commit: true,
+              sample_rate: 16000,
+            })
+          );
+        }
+        cleanupAudio();
+      }, 500);
+    } else {
+      // No worklet or WS not open — commit directly
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            message_type: 'input_audio_chunk',
+            audio_base_64: '',
+            commit: true,
+            sample_rate: 16000,
+          })
+        );
+      }
+      cleanupAudio();
     }
-    // Clean up audio immediately so mic indicator stops
-    cleanupAudio();
-    // WS stays open until committed_transcript arrives (handled in onmessage)
+    // WS stays open until committed_transcript arrives (handled in ws.onmessage)
   }, [cleanupAudio]);
 
   const cancelStreaming = useCallback(() => {
