@@ -1,8 +1,7 @@
 /**
  * Tests for AISettingsPage.
  *
- * Unified provider list view with expandable rows.
- * All 6 providers appear in a single list.
+ * Tabbed provider panel (Embedding | LLM) with feature toggles.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -16,10 +15,44 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceSlug: 'test-workspace' }),
 }));
 
-const findProviderStatus = (provider: string) => {
-  const providers = mockSettings.settings?.providers as Array<{ provider: string }> | undefined;
-  return providers?.find((p) => p.provider === provider);
-};
+const mockProviders = [
+  {
+    provider: 'google',
+    serviceType: 'embedding',
+    isConfigured: true,
+    isValid: true,
+    lastValidatedAt: '2026-01-01T00:00:00Z',
+    baseUrl: null,
+    modelName: null,
+  },
+  {
+    provider: 'ollama',
+    serviceType: 'embedding',
+    isConfigured: false,
+    isValid: null,
+    lastValidatedAt: null,
+    baseUrl: null,
+    modelName: null,
+  },
+  {
+    provider: 'anthropic',
+    serviceType: 'llm',
+    isConfigured: true,
+    isValid: true,
+    lastValidatedAt: '2026-01-01T00:00:00Z',
+    baseUrl: null,
+    modelName: null,
+  },
+  {
+    provider: 'ollama',
+    serviceType: 'llm',
+    isConfigured: false,
+    isValid: null,
+    lastValidatedAt: null,
+    baseUrl: null,
+    modelName: null,
+  },
+];
 
 const mockSettings = {
   isLoading: false,
@@ -27,20 +60,7 @@ const mockSettings = {
   error: null as string | null,
   settings: {
     workspaceId: 'ws-1',
-    providers: [
-      {
-        provider: 'anthropic',
-        isConfigured: true,
-        isValid: true,
-        lastValidatedAt: '2026-01-01T00:00:00Z',
-      },
-      {
-        provider: 'openai',
-        isConfigured: false,
-        isValid: null,
-        lastValidatedAt: null,
-      },
-    ],
+    providers: mockProviders,
     features: {
       ghostTextEnabled: true,
       marginAnnotationsEnabled: false,
@@ -54,7 +74,8 @@ const mockSettings = {
     costLimitUsd: null,
   } as Record<string, unknown> | null,
   anthropicKeySet: true,
-  openaiKeySet: false,
+  llmConfigured: true,
+  embeddingConfigured: true,
   ghostTextEnabled: true,
   marginAnnotationsEnabled: false,
   aiContextEnabled: true,
@@ -63,7 +84,13 @@ const mockSettings = {
   saveSettings: vi.fn(),
   validateKey: vi.fn().mockReturnValue(true),
   validationErrors: {} as Record<string, string>,
-  getProviderStatus: vi.fn(findProviderStatus),
+  getProviderStatus: vi.fn(),
+  getProvidersByService: vi.fn((serviceType: string) =>
+    mockProviders.filter((p) => p.serviceType === serviceType)
+  ),
+  getDefaultProvider: vi.fn((serviceType: string) =>
+    serviceType === 'llm' ? 'anthropic' : 'google'
+  ),
 };
 
 const mockWorkspaceStore = {
@@ -77,9 +104,18 @@ vi.mock('@/stores', () => ({
   }),
 }));
 
-vi.mock('@/features/settings/components/provider-row', () => ({
-  ProviderRow: ({ provider }: { provider: string; status: unknown; onSaved: () => void }) => (
-    <div data-testid={`provider-row-${provider}`}>{provider}</div>
+vi.mock('@/features/settings/components/provider-section', () => ({
+  ProviderSection: ({
+    serviceType,
+    description,
+  }: {
+    serviceType: string;
+    description: string;
+    onSaved: () => void;
+  }) => (
+    <div data-testid={`provider-section-${serviceType}`}>
+      <span>{description}</span>
+    </div>
   ),
 }));
 
@@ -96,20 +132,7 @@ describe('AISettingsPage', () => {
     mockSettings.error = null;
     mockSettings.settings = {
       workspaceId: 'ws-1',
-      providers: [
-        {
-          provider: 'anthropic',
-          isConfigured: true,
-          isValid: true,
-          lastValidatedAt: '2026-01-01T00:00:00Z',
-        },
-        {
-          provider: 'openai',
-          isConfigured: false,
-          isValid: null,
-          lastValidatedAt: null,
-        },
-      ],
+      providers: mockProviders,
       features: {
         ghostTextEnabled: true,
         marginAnnotationsEnabled: false,
@@ -122,16 +145,12 @@ describe('AISettingsPage', () => {
       defaultEmbeddingProvider: 'google',
       costLimitUsd: null,
     };
-    mockSettings.getProviderStatus = vi.fn(findProviderStatus);
   });
 
   it('renders loading skeleton when loading', () => {
     mockSettings.isLoading = true;
-    const { container } = render(<AISettingsPage />);
+    render(<AISettingsPage />);
 
-    expect(
-      container.querySelectorAll('[class*="animate-pulse"], [data-slot="skeleton"]').length
-    ).toBeGreaterThanOrEqual(0);
     expect(screen.queryByText('AI Providers')).not.toBeInTheDocument();
   });
 
@@ -150,23 +169,10 @@ describe('AISettingsPage', () => {
     expect(screen.getByText('AI Providers')).toBeInTheDocument();
   });
 
-  it('renders all 6 provider rows and queries status for each', () => {
+  it('renders Embedding and LLM tabs', () => {
     render(<AISettingsPage />);
-
-    expect(screen.getByTestId('provider-row-anthropic')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-row-openai')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-row-google')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-row-kimi')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-row-glm')).toBeInTheDocument();
-    expect(screen.getByTestId('provider-row-ai_agent')).toBeInTheDocument();
-
-    expect(mockSettings.getProviderStatus).toHaveBeenCalledTimes(6);
-    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('anthropic');
-    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('openai');
-    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('google');
-    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('kimi');
-    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('glm');
-    expect(mockSettings.getProviderStatus).toHaveBeenCalledWith('ai_agent');
+    expect(screen.getByRole('tab', { name: /Embedding/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /LLM/i })).toBeInTheDocument();
   });
 
   it('renders AIFeatureToggles component', () => {
@@ -174,24 +180,9 @@ describe('AISettingsPage', () => {
     expect(screen.getByTestId('ai-feature-toggles')).toBeInTheDocument();
   });
 
-  it('shows security notice', () => {
-    render(<AISettingsPage />);
-    expect(screen.getByText('Security & Privacy')).toBeInTheDocument();
-    expect(screen.getByText(/API keys are encrypted/)).toBeInTheDocument();
-  });
-
   it('calls loadSettings on mount with workspace ID', () => {
     render(<AISettingsPage />);
     expect(mockSettings.loadSettings).toHaveBeenCalledWith('ws-1');
-  });
-
-  it('uses consistent padding matching other settings pages', () => {
-    const { container } = render(<AISettingsPage />);
-
-    const mainDiv = container.firstChild as HTMLElement;
-    expect(mainDiv.className).toContain('px-4');
-    expect(mainDiv.className).toContain('sm:px-6');
-    expect(mainDiv.className).toContain('lg:px-8');
   });
 
   it('does NOT render old ProviderStatusCard or APIKeyForm sections', () => {
@@ -200,5 +191,12 @@ describe('AISettingsPage', () => {
     expect(screen.queryByText('Provider Status')).not.toBeInTheDocument();
     expect(screen.queryByText('API Keys')).not.toBeInTheDocument();
     expect(screen.queryByText('Custom Providers')).not.toBeInTheDocument();
+  });
+
+  it('does NOT render standalone security alert', () => {
+    render(<AISettingsPage />);
+
+    // Security info is now inline in the config form, not a standalone alert
+    expect(screen.queryByText('Security & Privacy')).not.toBeInTheDocument();
   });
 });

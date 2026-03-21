@@ -149,6 +149,7 @@ class GenerateRoleSkillService:
             experience_description=payload.experience_description,
             role_name=payload.role_name,
             workspace_id=payload.workspace_id,
+            user_id=payload.user_id,
         )
 
         if ai_result is not None:
@@ -196,6 +197,7 @@ class GenerateRoleSkillService:
         experience_description: str,
         role_name: str | None,
         workspace_id: UUID | None,
+        user_id: UUID | None = None,
     ) -> tuple[str, str, str, list[str], str | None] | None:
         """Attempt AI-powered generation using the workspace's configured LLM provider.
 
@@ -245,6 +247,8 @@ class GenerateRoleSkillService:
                 executor=executor,
                 retry_config=retry_config,
                 timeout_sec=timeout_sec,
+                workspace_id=workspace_id,
+                user_id=user_id,
             )
         except ProviderUnavailableError as e:
             msg = f"{provider} provider unavailable: {e}"
@@ -269,6 +273,8 @@ class GenerateRoleSkillService:
         executor: ResilientExecutor,
         retry_config: RetryConfig,
         timeout_sec: float = 30.0,
+        workspace_id: UUID | None = None,
+        user_id: UUID | None = None,
     ) -> str:
         """Call LLM via Anthropic API format with provider-specific base_url/api_key."""
         from anthropic import AsyncAnthropic
@@ -277,6 +283,7 @@ class GenerateRoleSkillService:
             api_key=api_key or None,
             base_url=base_url or None,
         )
+        _usage: dict[str, int] = {}
 
         async def _call_api() -> str:
             response = await client.messages.create(
@@ -284,6 +291,8 @@ class GenerateRoleSkillService:
                 max_tokens=2048,
                 messages=[{"role": "user", "content": prompt}],
             )
+            _usage["input"] = response.usage.input_tokens
+            _usage["output"] = response.usage.output_tokens
             text_parts: list[str] = []
             for block in response.content:
                 if block.type == "text" and block.text:
@@ -301,6 +310,23 @@ class GenerateRoleSkillService:
             timeout_sec=timeout_sec,
             retry_config=retry_config,
         )
+
+        # Track cost (non-fatal)
+        if _usage and workspace_id:
+            from pilot_space.ai.infrastructure.cost_tracker import track_cost
+
+            await track_cost(
+                self._session,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                agent_name="role_skill_generation",
+                provider=provider,
+                model=model,
+                input_tokens=_usage.get("input", 0),
+                output_tokens=_usage.get("output", 0),
+                operation_type="role_skill_generation",
+            )
+
         logger.info(
             "LLM response received",
             extra={"provider": provider, "response_length": len(result)},

@@ -46,6 +46,7 @@ export class AISettingsStore {
   constructor(_rootStore: AIStore) {
     makeAutoObservable(this, {
       anthropicKeySet: computed,
+      llmConfigured: computed,
       embeddingConfigured: computed,
       sttConfigured: computed,
       ghostTextEnabled: computed,
@@ -59,6 +60,13 @@ export class AISettingsStore {
       this.settings?.providers?.some(
         (p) => p.provider === 'anthropic' && p.serviceType === 'llm' && p.isConfigured
       ) ?? false
+    );
+  }
+
+  /** True when ANY LLM provider is configured (not just Anthropic). */
+  get llmConfigured(): boolean {
+    return (
+      this.settings?.providers?.some((p) => p.serviceType === 'llm' && p.isConfigured) ?? false
     );
   }
 

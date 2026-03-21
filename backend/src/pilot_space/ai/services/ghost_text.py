@@ -273,6 +273,7 @@ class GhostTextService:
                 model=model,
                 input_tokens=response.usage.input_tokens,
                 output_tokens=response.usage.output_tokens,
+                operation_type="ghost_text",
             )
         except Exception:
             logger.warning("ghost_text_cost_tracking_failed", workspace_id=str(workspace_id))

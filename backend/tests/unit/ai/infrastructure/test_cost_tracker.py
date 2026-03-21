@@ -101,16 +101,14 @@ class TestCostCalculation:
         assert cost == pytest.approx(expected_cost, abs=1e-6)
 
     def test_calculate_cost_unknown_provider(self, cost_tracker_mock: CostTracker) -> None:
-        """Verify error for unknown provider."""
-        # Act & Assert
-        with pytest.raises(ValueError, match="Unknown provider"):
-            cost_tracker_mock.calculate_cost("unknown", "model", 100, 50)
+        """Verify graceful $0.00 for unknown provider (logged as warning)."""
+        cost = cost_tracker_mock.calculate_cost("unknown", "model", 100, 50)
+        assert cost == 0.0
 
     def test_calculate_cost_unknown_model(self, cost_tracker_mock: CostTracker) -> None:
-        """Verify error for unknown model."""
-        # Act & Assert
-        with pytest.raises(ValueError, match="Unknown model"):
-            cost_tracker_mock.calculate_cost("anthropic", "unknown-model", 100, 50)
+        """Verify graceful $0.00 for unknown model (logged as warning)."""
+        cost = cost_tracker_mock.calculate_cost("anthropic", "unknown-model", 100, 50)
+        assert cost == 0.0
 
     def test_calculate_cost_embedding_model(self, cost_tracker_mock: CostTracker) -> None:
         """Verify cost calculation for embedding model (no output tokens)."""

@@ -264,7 +264,7 @@ export const SettingsModal = observer(function SettingsModal() {
           </div>
 
           {/* Content area with close button */}
-          <div className="relative flex-1 min-w-0 flex flex-col">
+          <div className="relative flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
             {/* Desktop close button — positioned inside content area */}
             <button
               onClick={closeSettings}
@@ -275,7 +275,7 @@ export const SettingsModal = observer(function SettingsModal() {
             </button>
 
             {/* Scrollable content with keyed transition */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <div key={effectiveSection} className="animate-in fade-in duration-150">
                 <Suspense fallback={<PanelSkeleton />}>
                   <ActiveComponent />

@@ -2,7 +2,7 @@
  * ProviderConfigForm - Configuration form for a single AI provider.
  *
  * Renders base_url, model_name, and api_key fields based on provider config.
- * Handles save logic with validation and toast feedback.
+ * Inline security note next to API key label. Handles save with toast feedback.
  */
 
 'use client';
@@ -165,7 +165,7 @@ export function ProviderConfigForm({
   };
 
   return (
-    <div className="space-y-4 pt-2">
+    <div className="space-y-4 rounded-lg border border-border bg-background p-4">
       {config.fields.includes('base_url') && (
         <div className="space-y-2">
           <Label htmlFor={`${provider}-${serviceType}-base-url`}>
@@ -175,9 +175,7 @@ export function ProviderConfigForm({
             id={`${provider}-${serviceType}-base-url`}
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder={
-              status?.baseUrl ?? config.baseUrlPlaceholder ?? 'https://api.example.com/v1'
-            }
+            placeholder={config.baseUrlPlaceholder ?? 'https://api.example.com/v1'}
             disabled={isSaving}
             autoComplete="off"
           />
@@ -191,7 +189,7 @@ export function ProviderConfigForm({
             id={`${provider}-${serviceType}-model-name`}
             value={modelName}
             onChange={(e) => setModelName(e.target.value)}
-            placeholder={status?.modelName ?? modelPlaceholder}
+            placeholder={modelPlaceholder}
             disabled={isSaving}
             autoComplete="off"
           />
@@ -209,9 +207,18 @@ export function ProviderConfigForm({
         />
       )}
 
-      <div className="flex justify-end pt-2">
-        <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px]">
-          {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+      <div className="flex items-center justify-between pt-1">
+        <p className="text-xs text-muted-foreground/70">
+          Keys are encrypted at rest and never logged.
+        </p>
+        <Button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving}
+          size="sm"
+          className="min-w-[88px]"
+        >
+          {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {isSaving ? 'Saving...' : 'Save'}
         </Button>
       </div>

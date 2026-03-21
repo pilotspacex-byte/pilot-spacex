@@ -450,13 +450,63 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             content_blocks=content_blocks,
         )
 
+    async def _track_stream_cost(
+        self,
+        usage: dict[str, Any] | None,
+        context: AgentContext,
+        provider_config: _ProviderConfig,
+    ) -> None:
+        """Record SDK stream usage to cost DB. Non-fatal."""
+        if usage is None:
+            return
+
+        input_tokens = usage.get("inputTokens", 0)
+        output_tokens = usage.get("outputTokens", 0)
+        if not (input_tokens or output_tokens):
+            return
+
+        model = provider_config.model_name or self.DEFAULT_MODEL
+        provider = getattr(provider_config, "provider", None) or "anthropic"
+
+        try:
+            await self._cost_tracker.track(
+                workspace_id=context.workspace_id,
+                user_id=context.user_id,
+                agent_name=self.AGENT_NAME,
+                provider=provider,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                operation_type="chat",
+            )
+        except Exception:
+            logger.warning(
+                "pilotspace_agent_cost_tracking_failed",
+                workspace_id=str(context.workspace_id),
+            )
+
     def transform_sdk_message(
         self,
         message: Message,
         context: AgentContext,
         delta_buffer: DeltaBuffer | None = None,
         session_id: str | None = None,
+        stream_usage_holder: dict[str, Any] | None = None,
     ) -> str | None:
+        # Capture usage from ResultMessage for cost tracking
+        msg_type = type(message).__name__
+        if msg_type == "ResultMessage":
+            usage = getattr(message, "usage", None)
+            if usage and stream_usage_holder is not None:
+                stream_usage_holder.clear()
+                stream_usage_holder.update(
+                    {
+                        "inputTokens": getattr(usage, "input_tokens", 0) or 0,
+                        "outputTokens": getattr(usage, "output_tokens", 0) or 0,
+                        "costUsd": getattr(usage, "total_cost_usd", None),
+                    }
+                )
+
         return transform_sdk_message_helper(
             message,
             self._message_id_holder,
@@ -801,6 +851,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 tool_event_count = 0
                 stream_start = time.monotonic()
                 ttft: float | None = None  # time-to-first-token
+                stream_usage: dict[str, Any] = {}  # request-local usage
 
                 try:
                     async for source, item in merge_sdk_and_queue(
@@ -820,6 +871,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                             context,
                             delta_buffer,
                             session_id=session_id_str,
+                            stream_usage_holder=stream_usage,
                         )
                         if sse_event:
                             if ttft is None:
@@ -880,6 +932,13 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         duration_ms=duration_ms,
                         ttft_ms=round(ttft * 1000, 1) if ttft else None,
                         session_id=session_id_str,
+                    )
+
+                    # Track cost from SDK usage (extracted in message_stop SSE)
+                    await self._track_stream_cost(
+                        stream_usage or None,
+                        context,
+                        provider_config,
                     )
 
             finally:
