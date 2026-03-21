@@ -34,6 +34,10 @@ export interface GraphCanvasShellProps {
   onRefetch: () => void;
   /** Custom action for empty state (e.g., "Open AI Chat" for issue graph). */
   emptyStateAction?: () => void;
+  /** Trigger KG regeneration for the current entity. */
+  onRegenerate?: () => void;
+  /** Whether regeneration is in progress. */
+  isRegenerating?: boolean;
   /** Minimum zoom level. Default: 0.3. */
   minZoom?: number;
 }
@@ -46,6 +50,8 @@ export function GraphCanvasShell({
   isError,
   onRefetch,
   emptyStateAction,
+  onRegenerate,
+  isRegenerating,
   minZoom = 0.3,
 }: GraphCanvasShellProps) {
   // Incrementing this key remounts the ErrorBoundary, resetting hasError after retry
@@ -84,7 +90,13 @@ export function GraphCanvasShell({
   if (nodeTypedNodes.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <GraphEmptyState variant="empty" height={400} onOpenChat={emptyStateAction} />
+        <GraphEmptyState
+          variant="empty"
+          height={400}
+          onOpenChat={emptyStateAction}
+          onRegenerate={onRegenerate}
+          isRegenerating={isRegenerating}
+        />
       </div>
     );
   }

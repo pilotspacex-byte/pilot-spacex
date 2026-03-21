@@ -10,7 +10,7 @@
  *  - forbidden: permission denied message with explanation
  */
 
-import { ShieldX } from 'lucide-react';
+import { Loader2, ShieldX, Sparkles } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError } from '@/services/api/client';
 
@@ -26,6 +26,10 @@ export interface GraphEmptyStateProps {
   variant: 'loading' | 'empty' | 'error' | 'forbidden';
   onRetry?: () => void;
   onOpenChat?: () => void;
+  /** Trigger KG regeneration for the current entity. */
+  onRegenerate?: () => void;
+  /** Whether regeneration is in progress. */
+  isRegenerating?: boolean;
   /** Container height in px. Defaults to 200. */
   height?: number;
 }
@@ -34,6 +38,8 @@ export function GraphEmptyState({
   variant,
   onRetry,
   onOpenChat,
+  onRegenerate,
+  isRegenerating,
   height = 200,
 }: GraphEmptyStateProps) {
   if (variant === 'loading') {
@@ -142,7 +148,23 @@ export function GraphEmptyState({
         The knowledge graph visualizes relationships between your notes, issues, and code.
       </p>
 
-      {onOpenChat && (
+      {onRegenerate && (
+        <button
+          type="button"
+          onClick={onRegenerate}
+          disabled={isRegenerating}
+          className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {isRegenerating ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Sparkles className="size-3" />
+          )}
+          {isRegenerating ? 'Generating...' : 'Generate Knowledge Graph'}
+        </button>
+      )}
+
+      {onOpenChat && !onRegenerate && (
         <button
           type="button"
           onClick={onOpenChat}

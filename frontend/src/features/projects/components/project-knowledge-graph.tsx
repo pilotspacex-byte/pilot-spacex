@@ -12,12 +12,15 @@
  */
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { toast } from 'sonner';
 
 import { GraphCanvasShell } from '@/features/issues/components/graph-canvas-shell';
 import { useGraphCanvas } from '@/features/issues/hooks/use-graph-canvas';
 import { useProjectKnowledgeGraph } from '@/features/projects/hooks/useProjectKnowledgeGraph';
+import { knowledgeGraphApi } from '@/services/api/knowledge-graph';
 import type { FilterChip } from '@/features/issues/utils/graph-shared';
 import type { GraphNodeType } from '@/types/knowledge-graph';
 
@@ -46,6 +49,8 @@ interface ProjectGraphCanvasProps {
   depth: number;
   activeFilter: GraphNodeType | 'all';
   onNodeCountChange: (count: number) => void;
+  onRegenerate: () => void;
+  isRegenerating: boolean;
 }
 
 function ProjectGraphCanvas({
@@ -54,6 +59,8 @@ function ProjectGraphCanvas({
   depth,
   activeFilter,
   onNodeCountChange,
+  onRegenerate,
+  isRegenerating,
 }: ProjectGraphCanvasProps) {
   const nodeTypes_ = useMemo<GraphNodeType[] | undefined>(
     () => (activeFilter === 'all' ? undefined : [activeFilter]),
@@ -98,7 +105,14 @@ function ProjectGraphCanvas({
   });
 
   return (
-    <GraphCanvasShell canvas={canvas} isLoading={isLoading} isError={isError} onRefetch={refetch} />
+    <GraphCanvasShell
+      canvas={canvas}
+      isLoading={isLoading}
+      isError={isError}
+      onRefetch={refetch}
+      onRegenerate={onRegenerate}
+      isRegenerating={isRegenerating}
+    />
   );
 }
 
@@ -108,10 +122,29 @@ export function ProjectKnowledgeGraph({ workspaceId, projectId }: ProjectKnowled
   const [depth, setDepth] = useState(2);
   const [activeFilter, setActiveFilter] = useState<GraphNodeType | 'all'>('all');
   const [nodeCount, setNodeCount] = useState(0);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const handleNodeCountChange = useCallback((count: number) => {
     setNodeCount((prev) => (prev === count ? prev : count));
   }, []);
+
+  const { refetch } = useProjectKnowledgeGraph(workspaceId, projectId, {
+    depth,
+    nodeTypes: activeFilter === 'all' ? undefined : [activeFilter],
+  });
+
+  const handleRegenerate = useCallback(async () => {
+    setIsRegenerating(true);
+    try {
+      const result = await knowledgeGraphApi.regenerateProjectGraph(workspaceId, projectId);
+      toast.success(`Knowledge graph regeneration started (${result.enqueued} jobs enqueued)`);
+      setTimeout(() => void refetch(), 3000);
+    } catch {
+      toast.error('Failed to start knowledge graph regeneration');
+    } finally {
+      setIsRegenerating(false);
+    }
+  }, [workspaceId, projectId, refetch]);
 
   return (
     <div className="flex flex-col h-full bg-background" data-testid="project-knowledge-graph">
@@ -167,6 +200,17 @@ export function ProjectKnowledgeGraph({ workspaceId, projectId }: ProjectKnowled
           />
         </div>
 
+        <button
+          type="button"
+          onClick={() => void handleRegenerate()}
+          disabled={isRegenerating}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Regenerate knowledge graph"
+          title="Regenerate knowledge graph"
+        >
+          <RefreshCw className={`size-3.5 ${isRegenerating ? 'animate-spin' : ''}`} />
+        </button>
+
         {nodeCount > 0 && (
           <span className="ml-auto text-xs text-muted-foreground shrink-0 whitespace-nowrap">
             {nodeCount} nodes
@@ -183,6 +227,8 @@ export function ProjectKnowledgeGraph({ workspaceId, projectId }: ProjectKnowled
             depth={depth}
             activeFilter={activeFilter}
             onNodeCountChange={handleNodeCountChange}
+            onRegenerate={handleRegenerate}
+            isRegenerating={isRegenerating}
           />
         </div>
       </ReactFlowProvider>

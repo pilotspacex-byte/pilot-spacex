@@ -13,14 +13,16 @@
  */
 
 import * as React from 'react';
-import { useMemo } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { toast } from 'sonner';
 
 import { GraphCanvasShell } from './graph-canvas-shell';
 import { useGraphCanvas } from '@/features/issues/hooks/use-graph-canvas';
 import { useIssueKnowledgeGraph } from '@/features/issues/hooks/use-issue-knowledge-graph';
+import { knowledgeGraphApi } from '@/services/api/knowledge-graph';
 import type { FilterChip } from '@/features/issues/utils/graph-shared';
 import type { GraphNodeType } from '@/types/knowledge-graph';
 
@@ -52,6 +54,8 @@ interface GraphCanvasProps {
   activeFilter: GraphNodeType | 'all';
   highlightNodeId?: string;
   onClose: () => void;
+  onRegenerate: () => void;
+  isRegenerating: boolean;
 }
 
 function GraphCanvas({
@@ -61,6 +65,8 @@ function GraphCanvas({
   activeFilter,
   highlightNodeId,
   onClose,
+  onRegenerate,
+  isRegenerating,
 }: GraphCanvasProps) {
   const nodeTypes_ = useMemo<GraphNodeType[] | undefined>(
     () => (activeFilter === 'all' ? undefined : [activeFilter]),
@@ -107,6 +113,8 @@ function GraphCanvas({
       isError={isError}
       onRefetch={refetch}
       emptyStateAction={onClose}
+      onRegenerate={onRegenerate}
+      isRegenerating={isRegenerating}
     />
   );
 }
@@ -118,12 +126,27 @@ export function IssueKnowledgeGraphFull(props: IssueKnowledgeGraphFullProps) {
 
   const [depth, setDepth] = React.useState(2);
   const [activeFilter, setActiveFilter] = React.useState<GraphNodeType | 'all'>('all');
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
-  const { data } = useIssueKnowledgeGraph(workspaceId, issueId, {
+  const { data, refetch } = useIssueKnowledgeGraph(workspaceId, issueId, {
     depth,
     nodeTypes: activeFilter === 'all' ? undefined : [activeFilter],
     enabled: true,
   });
+
+  const handleRegenerate = useCallback(async () => {
+    setIsRegenerating(true);
+    try {
+      const result = await knowledgeGraphApi.regenerateIssueGraph(workspaceId, issueId);
+      toast.success(`Knowledge graph regeneration started (${result.enqueued} job enqueued)`);
+      // Refetch after a short delay to let the worker process
+      setTimeout(() => void refetch(), 3000);
+    } catch {
+      toast.error('Failed to start knowledge graph regeneration');
+    } finally {
+      setIsRegenerating(false);
+    }
+  }, [workspaceId, issueId, refetch]);
 
   return (
     <div className="flex flex-col h-full bg-background" data-testid="knowledge-graph-full">
@@ -188,6 +211,17 @@ export function IssueKnowledgeGraphFull(props: IssueKnowledgeGraphFullProps) {
           />
         </div>
 
+        <button
+          type="button"
+          onClick={() => void handleRegenerate()}
+          disabled={isRegenerating}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Regenerate knowledge graph"
+          title="Regenerate knowledge graph"
+        >
+          <RefreshCw className={`size-3.5 ${isRegenerating ? 'animate-spin' : ''}`} />
+        </button>
+
         {data && (
           <span className="ml-auto text-xs text-muted-foreground shrink-0 whitespace-nowrap">
             {data.nodes.length} nodes
@@ -205,6 +239,8 @@ export function IssueKnowledgeGraphFull(props: IssueKnowledgeGraphFullProps) {
             activeFilter={activeFilter}
             highlightNodeId={props.highlightNodeId}
             onClose={onClose}
+            onRegenerate={handleRegenerate}
+            isRegenerating={isRegenerating}
           />
         </div>
       </ReactFlowProvider>
