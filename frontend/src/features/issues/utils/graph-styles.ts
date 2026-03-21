@@ -277,22 +277,33 @@ export function getEdgeStyle(edgeType: GraphEdgeType | string): EdgeStyle {
   return EDGE_STYLES[edgeType as GraphEdgeType] ?? DEFAULT_EDGE_STYLE;
 }
 
-/** Node dimensions by importance tier */
+/** Node dimensions by importance tier — sized for readability at fitView zoom. */
 export function getNodeDimensions(
   tier: number,
   isCurrent: boolean
 ): { width: number; height: number } {
-  if (isCurrent) return { width: 56, height: 38 };
+  if (isCurrent) return { width: 150, height: 48 };
   switch (tier) {
     case 0:
-      return { width: 52, height: 36 }; // project
+      return { width: 140, height: 44 }; // project — cluster anchor
     case 1:
-      return { width: 46, height: 32 }; // entity
+      return { width: 120, height: 38 }; // entity (issue, note, cycle)
     case 2:
-      return { width: 40, height: 28 }; // dev/ai
+      return { width: 100, height: 32 }; // dev/ai (PR, commit, branch)
     default:
-      return { width: 36, height: 26 }; // chunk
+      return { width: 80, height: 28 }; // chunk/meta
   }
+}
+
+/** Truncate label at a word boundary. Falls back to hard truncation for long single words. */
+export function truncateLabel(label: string, maxChars: number): string {
+  if (label.length <= maxChars) return label;
+  const truncated = label.slice(0, maxChars);
+  const lastSpace = truncated.lastIndexOf(' ');
+  if (lastSpace > maxChars * 0.6) {
+    return truncated.slice(0, lastSpace) + '\u2026';
+  }
+  return truncated.slice(0, -1) + '\u2026';
 }
 
 // ── Shared d3-force layout ─────────────────────────────────────────────────
@@ -383,15 +394,21 @@ export function computeForceLayout(
     },
   }));
 
+  // Only show labels on semantically significant edge types — the rest
+  // communicate relationship via stroke style (solid/dashed/dotted).
+  const LABELED_EDGE_TYPES = new Set(['blocks', 'caused_by', 'duplicates']);
+
   const edges: Edge[] = validEdges.map((e) => {
     const es = getEdgeStyle(e.edgeType);
+    const showLabel = LABELED_EDGE_TYPES.has(e.edgeType);
     return {
       id: e.id,
       source: e.sourceId,
       target: e.targetId,
       type: 'smoothstep',
-      label: e.label ?? getEdgeLabel(e.edgeType),
+      label: showLabel ? (e.label ?? getEdgeLabel(e.edgeType)) : undefined,
       animated: e.edgeType === 'blocks',
+      interactionWidth: 20,
       style: {
         stroke: es.stroke,
         strokeWidth: edgeStrokeWidth,

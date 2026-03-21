@@ -72,9 +72,9 @@ export function IssueKnowledgeGraphMini({
         width: GRAPH_WIDTH,
         height: GRAPH_HEIGHT,
         centerNodeId: effectiveCenterNodeId ?? '',
-        linkDistance: 60,
-        chargeStrength: -80,
-        collisionRadius: 28,
+        linkDistance: 100,
+        chargeStrength: -150,
+        collisionRadius: 60,
         edgeStrokeWidth: 1,
       });
       setFlowNodes(nodes);
