@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data: blob:; font-src 'self' data:; connect-src 'self' https://api.pilotspace.io wss://api.pilotspace.io https://*.supabase.co wss://*.supabase.co; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:8000 ws://localhost:8000 http://localhost:18000 ws://localhost:18000 https://api.pilotspace.io wss://api.pilotspace.io https://*.supabase.co wss://*.supabase.co; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     },
     "trayIcon": {
       "iconPath": "icons/32x32.png",
@@ -68,7 +68,7 @@
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IFRBVVJJIFBMQUNFSE9MREVSIFJFUFJFQ0VUIE1FIFdJVEggUkVBTCBLRVkK",
       "endpoints": [
-        "https://github.com/OWNER/pilot-space/releases/latest/download/latest.json"
+        "https://github.com/pilotspace/pilot-space/releases/latest/download/latest.json"
       ]
     }
   }
