@@ -166,6 +166,12 @@ const ChatViewInternal = observer<ChatViewProps>(
         return;
       }
 
+      // If the store already has messages for the same note context (e.g. chat panel
+      // was closed and reopened), preserve the conversation instead of re-fetching.
+      if (previousNoteId === null && store.messages.length > 0) {
+        return;
+      }
+
       // Note context changed - try to auto-resume existing session
       const autoResumeSession = async () => {
         if (isResumingRef.current) return;

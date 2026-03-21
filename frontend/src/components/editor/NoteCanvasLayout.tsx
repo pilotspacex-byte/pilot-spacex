@@ -408,13 +408,6 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
           >
             {/* TipTap Editor */}
             <EditorContent editor={editor} />
-
-            {/* Medium-style "On This Page" TOC — right of content, 2xl+ only, hidden when chat open */}
-            {!isChatViewOpen && (
-              <div className="hidden 2xl:block absolute top-0 bottom-0 left-full ml-8">
-                <OnThisPageTOC editor={editor} headings={noteHeadings} />
-              </div>
-            )}
           </div>
 
           {/* Off-screen AI edit indicator */}
@@ -425,6 +418,13 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
             onDismiss={dismissIndicator}
           />
         </div>
+
+        {/* Medium-style "On This Page" TOC — fixed to right edge, shown when chat closed */}
+        {!isChatViewOpen && noteHeadings.length >= 2 && (
+          <div className="hidden lg:block fixed top-1/4 right-14 w-48 z-30">
+            <OnThisPageTOC editor={editor} headings={noteHeadings} />
+          </div>
+        )}
       </div>
     </div>
   );

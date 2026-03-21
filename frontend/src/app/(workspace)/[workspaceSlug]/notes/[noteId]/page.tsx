@@ -5,7 +5,7 @@
  * Loads note via NoteStore, renders NoteCanvas, handles 404
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { observer } from 'mobx-react-lite';
+import { runInAction } from 'mobx';
 import { useRouter, useParams } from 'next/navigation';
 import { motion } from 'motion/react';
 import { FileX, ArrowLeft } from 'lucide-react';
@@ -121,7 +121,11 @@ function NoteNotFound({ workspaceSlug }: { workspaceSlug: string }) {
 /**
  * Note Detail Page Component
  */
-const NoteDetailPage = observer(function NoteDetailPage() {
+// NOTE: This component intentionally does NOT use observer() from MobX.
+// React 19's useSyncExternalStore (used internally by observer()) calls flushSync
+// during MobX notification, which conflicts with TipTap's EditorContent lifecycle.
+// All MobX interactions here are effect-based writes (runInAction), not render reads.
+function NoteDetailPage() {
   const params = useParams<{ workspaceSlug: string; noteId: string }>();
   const workspaceSlug = params.workspaceSlug ?? '';
   const noteId = params.noteId ?? '';
@@ -166,10 +170,10 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   // Flag to enable autosave only after content is initialized AND baseline is set
   const [isAutosaveReady, setIsAutosaveReady] = useState(false);
 
-  // Reset state when noteId changes
+  // Reset state when noteId changes — intentional synchronous setState in effect
+  /* eslint-disable react-hooks/set-state-in-effect -- batch reset on navigation */
   useEffect(() => {
     if (prevNoteIdRef.current !== null && prevNoteIdRef.current !== noteId) {
-      // Note changed, reset everything
       contentRef.current = null;
       setContentInitialized(false);
       setSaveVersion(0);
@@ -177,6 +181,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     }
     prevNoteIdRef.current = noteId;
   }, [noteId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Initialize content ref when note loads (no re-render triggered).
   // Sanitize content to strip propertyBlock nodes — prevents unknown node errors
@@ -184,6 +189,7 @@ const NoteDetailPage = observer(function NoteDetailPage() {
   useEffect(() => {
     if (note?.content && !contentInitialized) {
       contentRef.current = sanitizeNoteContent(note.content) ?? null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setContentInitialized(true);
     }
   }, [note?.content, contentInitialized]);
@@ -283,10 +289,27 @@ const NoteDetailPage = observer(function NoteDetailPage() {
     };
   }, [note, noteStore]);
 
+  // Local focus mode state — avoids MobX observer flushSync conflict with TipTap EditorContent.
+  // Synced to UIStore via useEffect so app-shell can hide sidebar.
+  const [isFocusMode, setIsFocusMode] = useState(false);
+
+  const handleToggleFocusMode = useCallback(() => {
+    setIsFocusMode((prev) => !prev);
+  }, []);
+
+  // Sync local focus mode → UIStore (async, after render — avoids flushSync)
+  useEffect(() => {
+    runInAction(() => {
+      uiStore.isFocusMode = isFocusMode;
+    });
+  }, [isFocusMode, uiStore]);
+
   // Exit focus mode on unmount — prevents sidebar from staying hidden on other pages
   useEffect(() => {
     return () => {
-      uiStore.exitFocusMode();
+      runInAction(() => {
+        uiStore.isFocusMode = false;
+      });
     };
   }, [uiStore]);
 
@@ -405,8 +428,8 @@ const NoteDetailPage = observer(function NoteDetailPage() {
           projectId={note.projectId}
           linkedIssues={note.linkedIssues}
           iconEmoji={note.iconEmoji}
-          isFocusMode={uiStore.isFocusMode}
-          onToggleFocusMode={uiStore.toggleFocusMode}
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={handleToggleFocusMode}
         />
 
         {/* File preview modal — opens on file card / figure click in editor */}
@@ -432,6 +455,6 @@ const NoteDetailPage = observer(function NoteDetailPage() {
       </div>
     </div>
   );
-});
+}
 
 export default NoteDetailPage;
