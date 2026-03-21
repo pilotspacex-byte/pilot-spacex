@@ -18,7 +18,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pilot_space.ai.infrastructure.cost_tracker import CostTracker
 from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+from pilot_space.ai.infrastructure.stt_pricing import calculate_stt_cost
 from pilot_space.api.v1.schemas.transcription import TranscribeResponse
 from pilot_space.infrastructure.database.models.transcript_cache import (
     TRANSCRIPT_CACHE_TTL_DAYS,
@@ -214,6 +216,14 @@ class TranscriptionService:
             user_id=str(payload.user_id),
         )
 
+        # Track STT cost (non-fatal — never crashes the transcription flow)
+        await self._track_stt_cost(
+            workspace_id=payload.workspace_id,
+            user_id=payload.user_id,
+            model="scribe_v2",
+            duration_seconds=audio_duration,
+        )
+
         # Upload audio to Supabase Storage (non-blocking)
         audio_url, audio_storage_key = await self._upload_audio(
             workspace_id=payload.workspace_id,
@@ -337,6 +347,39 @@ class TranscriptionService:
         record_id = result.scalar_one()
         await self._session.commit()
         return record_id
+
+    async def _track_stt_cost(
+        self,
+        workspace_id: UUID,
+        user_id: UUID,
+        model: str,
+        duration_seconds: float | None,
+    ) -> None:
+        """Track ElevenLabs STT cost. Non-fatal — failures are logged, never raised."""
+        try:
+            duration = duration_seconds or 0.0
+            cost_usd = calculate_stt_cost("elevenlabs", model, duration)
+            tracker = CostTracker(self._session)
+            await tracker.track(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                agent_name="stt",
+                provider="elevenlabs",
+                model=model,
+                input_tokens=0,
+                output_tokens=0,
+                operation_type="voice_input",
+                cost_usd_override=cost_usd,
+            )
+            await self._session.commit()
+        except Exception:
+            logger.warning(
+                "stt_cost_tracking_failed",
+                workspace_id=str(workspace_id),
+                user_id=str(user_id),
+                model=model,
+                exc_info=True,
+            )
 
     async def _upload_audio(
         self,

@@ -1,4 +1,4 @@
-"""AI cost tracking and reporting for LLM usage.
+"""AI cost tracking and reporting for LLM and STT usage.
 
 Tracks token usage and costs across providers for budget monitoring
 and cost optimization.
@@ -52,19 +52,7 @@ TOKENS_PER_MILLION: Final[int] = 1_000_000
 
 @dataclass(frozen=True, slots=True)
 class CostSummary:
-    """Summary of AI costs for a time period.
-
-    Attributes:
-        total_cost: Total cost in USD.
-        total_requests: Number of requests.
-        total_input_tokens: Total input tokens consumed.
-        total_output_tokens: Total output tokens generated.
-        by_provider: Cost breakdown by provider.
-        by_agent: Cost breakdown by agent.
-        by_model: Cost breakdown by model.
-        start_date: Start of the summary period.
-        end_date: End of the summary period.
-    """
+    """Summary of AI costs for a time period."""
 
     total_cost: float
     total_requests: int
@@ -89,21 +77,7 @@ class CostSummary:
 
 @dataclass(frozen=True, slots=True)
 class CostRecord:
-    """Data class for cost record information.
-
-    Attributes:
-        id: Cost record UUID.
-        user_id: User who initiated the request.
-        workspace_id: Workspace the request belongs to.
-        agent_name: Name of the agent.
-        provider: LLM provider.
-        model: Model identifier.
-        input_tokens: Input token count.
-        output_tokens: Output token count.
-        cost_usd: Calculated cost in USD.
-        created_at: Timestamp of the request.
-        operation_type: Optional feature/operation category (AIGOV-06).
-    """
+    """Single cost record (immutable value object)."""
 
     id: UUID
     user_id: UUID
@@ -199,9 +173,18 @@ class CostTracker:
         input_tokens: int,
         output_tokens: int,
         operation_type: str | None = None,
+        cost_usd_override: float | None = None,
     ) -> CostRecord:
-        """Track AI usage cost to database. Returns created CostRecord."""
-        cost_usd = self.calculate_cost(provider, model, input_tokens, output_tokens)
+        """Track AI usage cost to database.
+
+        When *cost_usd_override* is given, the token-based calculation is
+        skipped (used for duration-based STT pricing).
+        """
+        cost_usd = (
+            cost_usd_override
+            if cost_usd_override is not None
+            else self.calculate_cost(provider, model, input_tokens, output_tokens)
+        )
 
         record = AICostRecord(
             workspace_id=workspace_id,
@@ -664,6 +647,7 @@ async def track_cost(
     input_tokens: int,
     output_tokens: int,
     operation_type: str | None = None,
+    cost_usd_override: float | None = None,
 ) -> None:
     """Fire-and-forget cost tracking for services without DI-injected CostTracker."""
     try:
@@ -677,6 +661,7 @@ async def track_cost(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             operation_type=operation_type,
+            cost_usd_override=cost_usd_override,
         )
     except Exception:
         logger.warning(
