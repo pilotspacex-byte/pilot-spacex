@@ -156,15 +156,15 @@ export function GraphNodeComponent({ data }: NodeProps<GraphFlowNode>) {
           }}
           aria-label={`${style.label}: ${node.label}`}
         >
-          {/* Invisible handles for edge connections */}
+          {/* Invisible handles — top-down tree: parent (bottom) → child (top) */}
           <Handle
             type="target"
-            position={Position.Left}
+            position={Position.Top}
             className="!w-0 !h-0 !border-0 !bg-transparent !min-w-0 !min-h-0"
           />
           <Handle
             type="source"
-            position={Position.Right}
+            position={Position.Bottom}
             className="!w-0 !h-0 !border-0 !bg-transparent !min-w-0 !min-h-0"
           />
 

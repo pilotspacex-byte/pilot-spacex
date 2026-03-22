@@ -386,12 +386,14 @@ export function computeForceLayout(
     if (!rootIds.includes(centerNodeId)) rootIds.unshift(centerNodeId);
   }
 
-  // Layout configuration — grid-based tree
-  const CHILD_W = 140; // horizontal space per child node
-  const CHILD_H = 56; // vertical space per child row
-  const COLS = 6; // children per row before wrapping
-  const ROOT_CHILD_GAP = 70; // vertical gap between root and first child row
-  const TREE_GAP = 60; // vertical gap between separate project trees
+  // Layout: top-down tree with wrapped rows (max COLS children per row)
+  const COL_W = 145; // horizontal space per child column
+  const ROW_H = 55; // vertical space per child row
+  const COLS = 5; // children per row before wrapping
+  const ROOT_GAP_Y = 75; // vertical gap: root → first child row
+  const TREE_GAP_Y = 80; // vertical gap between separate project trees
+  const CHUNK_GAP_Y = 45; // vertical gap: child → grandchild
+  const CHUNK_W = 95; // horizontal space per grandchild
 
   const posMap = new Map<string, { x: number; y: number }>();
   const visited = new Set<string>();
@@ -402,44 +404,46 @@ export function computeForceLayout(
     const children = (parentChildren.get(rootId) ?? []).filter((c) => !visited.has(c));
     children.forEach((c) => visited.add(c));
 
-    // Determine grid dimensions
     const cols = Math.min(COLS, Math.max(children.length, 1));
-    const gridWidth = cols * CHILD_W;
+    const gridW = cols * COL_W;
 
-    // Place root node centered above the grid
-    posMap.set(rootId, { x: gridWidth / 2, y: yOffset });
+    // Root: centered above its children
+    posMap.set(rootId, { x: gridW / 2, y: yOffset });
 
-    // Place children in a grid below the root
+    // Children: wrapped grid, each row up to COLS wide
+    let maxChildY = yOffset + ROOT_GAP_Y;
     children.forEach((childId, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      posMap.set(childId, {
-        x: col * CHILD_W + CHILD_W / 2,
-        y: yOffset + ROOT_CHILD_GAP + row * CHILD_H,
-      });
+      const cx = col * COL_W + COL_W / 2;
+      const cy = yOffset + ROOT_GAP_Y + row * ROW_H;
+      posMap.set(childId, { x: cx, y: cy });
 
-      // Place grandchildren (chunks) below their parent
-      const grandchildren = (parentChildren.get(childId) ?? []).filter((g) => !visited.has(g));
-      grandchildren.forEach((gcId, j) => {
-        visited.add(gcId);
-        posMap.set(gcId, {
-          x: col * CHILD_W + CHILD_W / 2 + (j - (grandchildren.length - 1) / 2) * 90,
-          y: yOffset + ROOT_CHILD_GAP + row * CHILD_H + CHILD_H,
+      // Grandchildren (chunks): fanned out below their parent
+      const gkids = (parentChildren.get(childId) ?? []).filter((g) => !visited.has(g));
+      if (gkids.length > 0) {
+        const gkidTotalW = gkids.length * CHUNK_W;
+        const gkidStartX = cx - gkidTotalW / 2 + CHUNK_W / 2;
+        gkids.forEach((gcId, j) => {
+          visited.add(gcId);
+          posMap.set(gcId, { x: gkidStartX + j * CHUNK_W, y: cy + CHUNK_GAP_Y });
         });
-      });
+        maxChildY = Math.max(maxChildY, cy + CHUNK_GAP_Y + ROW_H);
+      } else {
+        maxChildY = Math.max(maxChildY, cy + ROW_H);
+      }
     });
 
-    const rows = Math.ceil(children.length / cols);
-    yOffset += ROOT_CHILD_GAP + rows * CHILD_H + TREE_GAP;
+    yOffset = maxChildY + TREE_GAP_Y;
   }
 
-  // Place orphan nodes in a row at the bottom
+  // Orphan nodes: row at the bottom
   if (orphanIds.length > 0) {
     let orphanX = 0;
     for (const id of orphanIds) {
       if (!visited.has(id)) {
         posMap.set(id, { x: orphanX, y: yOffset });
-        orphanX += CHILD_W;
+        orphanX += COL_W;
         visited.add(id);
       }
     }
