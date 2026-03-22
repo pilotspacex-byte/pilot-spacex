@@ -259,17 +259,22 @@ export function FilePreviewModal({
 
     switch (rendererType) {
       case 'markdown':
-        return <MarkdownRenderer content={content} />;
+        return <MarkdownRenderer content={content as string} />;
       case 'text':
-        return <TextRenderer content={content} />;
+        return <TextRenderer content={content as string} />;
       case 'json':
-        return <JsonRenderer content={content} />;
+        return <JsonRenderer content={content as string} />;
       case 'code':
-        return <CodeRenderer content={content} language={getLanguageForFile(filename)} />;
+        return <CodeRenderer content={content as string} language={getLanguageForFile(filename)} />;
       case 'html-preview':
-        return <HtmlRenderer content={content} filename={filename} />;
+        return <HtmlRenderer content={content as string} filename={filename} />;
       case 'csv':
-        return <CsvRenderer content={content} />;
+        return <CsvRenderer content={content as string} />;
+      // Office renderers are added in later phases — fall through to download for now
+      case 'xlsx':
+      case 'docx':
+      case 'pptx':
+        return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="unsupported" />;
       default:
         return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="unsupported" />;
     }
