@@ -136,9 +136,7 @@ class WorkspaceMcpServerCreate(BaseModel):
     def validate_command_runner_required(self) -> WorkspaceMcpServerCreate:
         """command_runner is required when server_type=command; must not be set for remote."""
         if self.server_type == McpServerType.COMMAND and self.command_runner is None:
-            raise ValueError(
-                "command_runner ('npx' or 'uvx') is required for command-type servers"
-            )
+            raise ValueError("command_runner ('npx' or 'uvx') is required for command-type servers")
         if self.server_type == McpServerType.REMOTE and self.command_runner is not None:
             raise ValueError("command_runner must not be set for remote servers")
         return self
@@ -215,10 +213,7 @@ class WorkspaceMcpServerCreate(BaseModel):
         env_key_re = re.compile(r"^[A-Z_][A-Z0-9_]*$")
         for key in v:
             if not env_key_re.match(key):
-                raise ValueError(
-                    f"Invalid env var name: {key!r} "
-                    "(must match [A-Z_][A-Z0-9_]*)"
-                )
+                raise ValueError(f"Invalid env var name: {key!r} (must match [A-Z_][A-Z0-9_]*)")
         return v
 
 
@@ -304,9 +299,7 @@ class WorkspaceMcpServerUpdate(BaseModel):
                     if not self.url_or_command.strip():
                         raise ValueError("Command must not be empty")
                     if _SHELL_METACHAR_RE.search(self.url_or_command):
-                        raise ValueError(
-                            "Command contains disallowed shell metacharacters"
-                        )
+                        raise ValueError("Command contains disallowed shell metacharacters")
 
         return self
 
@@ -400,9 +393,7 @@ class WorkspaceMcpServerResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     @classmethod
-    def from_orm_model(
-        cls, server: object
-    ) -> WorkspaceMcpServerResponse:
+    def from_orm_model(cls, server: object) -> WorkspaceMcpServerResponse:
         """Build response from ORM model, populating secret flags and visible data.
 
         Headers are returned in full (plaintext). Env var keys are extracted
@@ -528,7 +519,9 @@ class McpOAuthUrlResponse(BaseModel):
 class ImportMcpServersRequest(BaseModel):
     """Request body for bulk MCP server import."""
 
-    config_json: str = Field(..., description="Raw JSON config string in Claude/Cursor/VS Code format")
+    config_json: str = Field(
+        ..., description="Raw JSON config string in Claude/Cursor/VS Code format"
+    )
 
 
 class ImportedServerEntry(BaseModel):

@@ -24,7 +24,6 @@ from pilot_space.application.services.mcp.import_mcp_servers_service import (
 )
 from pilot_space.infrastructure.database.models.workspace_mcp_server import (
     McpServerType,
-    McpStatus,
     McpTransport,
 )
 
@@ -362,4 +361,3 @@ class TestValidateEntry:
             err = _validate_entry(self._make_remote("https://example.com/mcp"))
 
         assert err is None
-

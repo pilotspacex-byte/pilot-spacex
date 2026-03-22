@@ -160,7 +160,9 @@ class ImportMcpServersService:
         return parsed, errors
 
     @staticmethod
-    def _parse_server_entry(name: str, config: dict[str, object]) -> ParsedMcpServer | ErrorEntry | None:
+    def _parse_server_entry(
+        name: str, config: dict[str, object]
+    ) -> ParsedMcpServer | ErrorEntry | None:
         """Parse a single server config entry.
 
         Returns:
@@ -172,8 +174,10 @@ class ImportMcpServersService:
         # Determine server type and url_or_command
         url_value = config.get("url")
         http_url_value = config.get("httpUrl")
-        url = url_value if url_value and isinstance(url_value, str) else (
-            http_url_value if http_url_value and isinstance(http_url_value, str) else None
+        url = (
+            url_value
+            if url_value and isinstance(url_value, str)
+            else (http_url_value if http_url_value and isinstance(http_url_value, str) else None)
         )
         from_http_url = not (url_value and isinstance(url_value, str)) and bool(url)
         command = config.get("command")
@@ -287,9 +291,7 @@ class ImportMcpServersService:
 
             # Check for duplicate name
             if entry.name.lower() in existing_names:
-                result.skipped.append(
-                    SkippedEntry(name=entry.name, reason="name_conflict")
-                )
+                result.skipped.append(SkippedEntry(name=entry.name, reason="name_conflict"))
                 logger.info("mcp_import_skipped_duplicate", name=entry.name)
                 continue
 

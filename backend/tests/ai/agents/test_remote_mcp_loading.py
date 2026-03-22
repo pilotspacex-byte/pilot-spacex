@@ -569,7 +569,6 @@ async def test_load_workspace_mcp_servers_npx_sdk_ready(
 
 def test_build_server_config_returns_none_when_command_runner_missing(workspace_factory) -> None:  # type: ignore[no-untyped-def]
     """T025 extra: command server without command_runner -> _build_server_config returns None."""
-    from unittest.mock import MagicMock
 
     from pilot_space.ai.agents.pilotspace_stream_utils import _build_server_config
     from pilot_space.infrastructure.database.models.workspace_mcp_server import (

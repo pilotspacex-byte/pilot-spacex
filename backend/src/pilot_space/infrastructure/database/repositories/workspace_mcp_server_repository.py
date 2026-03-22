@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.sql.elements import ColumnElement
 
 from pilot_space.infrastructure.database.models.workspace_mcp_server import (
     McpServerType,
@@ -94,7 +95,7 @@ class WorkspaceMcpServerRepository(BaseRepository[WorkspaceMcpServer]):
         Returns:
             Filtered list of MCP servers.
         """
-        conditions: list[object] = [
+        conditions: list[ColumnElement[bool]] = [
             WorkspaceMcpServer.workspace_id == workspace_id,
             WorkspaceMcpServer.is_deleted == False,  # noqa: E712
         ]

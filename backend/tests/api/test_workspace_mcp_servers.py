@@ -314,7 +314,13 @@ async def test_status_endpoint(
     assert status_response.status_code == 200
     status_data = status_response.json()
     assert "status" in status_data
-    assert status_data["status"] in ("enabled", "disabled", "unhealthy", "unreachable", "config_error")
+    assert status_data["status"] in (
+        "enabled",
+        "disabled",
+        "unhealthy",
+        "unreachable",
+        "config_error",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -657,16 +663,12 @@ async def test_oauth_url_stores_workspace_slug_in_state() -> None:
 # Phase 25: Shared fixtures (mock-based, no real DB required)
 # ---------------------------------------------------------------------------
 
-_ADMIN_WORKSPACE_PATH = (
-    "pilot_space.api.v1.routers.workspace_mcp_servers._get_admin_workspace"
-)
+_ADMIN_WORKSPACE_PATH = "pilot_space.api.v1.routers.workspace_mcp_servers._get_admin_workspace"
 _MCP_REPO_PATH = (
     "pilot_space.infrastructure.database.repositories"
     ".workspace_mcp_server_repository.WorkspaceMcpServerRepository"
 )
-_SET_RLS_PATH = (
-    "pilot_space.api.v1.routers.workspace_mcp_servers.set_rls_context"
-)
+_SET_RLS_PATH = "pilot_space.api.v1.routers.workspace_mcp_servers.set_rls_context"
 
 
 @pytest.fixture
@@ -917,8 +919,13 @@ async def test_register_server_with_new_fields(
     assert data["headers"] == {"X-Custom": "value1"}
 
     # Raw secrets MUST NEVER appear
-    for key in ("auth_token", "auth_token_encrypted", "headers_encrypted",
-                "env_vars", "env_vars_encrypted"):
+    for key in (
+        "auth_token",
+        "auth_token_encrypted",
+        "headers_encrypted",
+        "env_vars",
+        "env_vars_encrypted",
+    ):
         assert key not in data, f"Response must not contain {key!r}"
 
 
@@ -1014,9 +1021,11 @@ async def test_response_never_contains_raw_secrets(
     data = response.json()
 
     forbidden_keys = {
-        "auth_token", "auth_token_encrypted",
+        "auth_token",
+        "auth_token_encrypted",
         "headers_encrypted",
-        "env_vars", "env_vars_encrypted",
+        "env_vars",
+        "env_vars_encrypted",
     }
     for key in forbidden_keys:
         assert key not in data, f"Response must not contain {key!r}"
@@ -1075,7 +1084,10 @@ async def test_patch_preserves_existing_secret_when_not_provided(
         if "display_name" in kwargs:
             existing_server.display_name = kwargs["display_name"]
         # auth_token_encrypted should NOT be in kwargs when not provided
-        assert "auth_token_encrypted" not in kwargs or kwargs["auth_token_encrypted"] == existing_server.auth_token_encrypted
+        assert (
+            "auth_token_encrypted" not in kwargs
+            or kwargs["auth_token_encrypted"] == existing_server.auth_token_encrypted
+        )
         return existing_server
 
     repo.get_by_workspace_and_id = AsyncMock(return_value=existing_server)
@@ -1418,7 +1430,6 @@ async def test_soft_deleted_server_not_in_filtered_list(
     """Phase25-05: get_filtered excludes deleted servers (repository contract test)."""
     from unittest.mock import AsyncMock, MagicMock, patch
 
-
     workspace = mock_workspace_p25
     repo = mock_mcp_repo_p25
 
@@ -1453,9 +1464,7 @@ async def test_soft_deleted_server_not_in_filtered_list(
                 base_url="http://test",
                 headers={"Authorization": "Bearer test-token"},
             ) as client:
-                list_resp = await client.get(
-                    f"/api/v1/workspaces/{workspace.id}/mcp-servers"
-                )
+                list_resp = await client.get(f"/api/v1/workspaces/{workspace.id}/mcp-servers")
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_session, None)
@@ -1742,12 +1751,8 @@ _LOADER_REPO_PATH = (
     "pilot_space.infrastructure.database.repositories"
     ".workspace_mcp_server_repository.WorkspaceMcpServerRepository"
 )
-_LOADER_BUILD_PATH = (
-    "pilot_space.ai.agents.pilotspace_stream_utils._build_server_config"
-)
-_LOADER_DECRYPT_PATH = (
-    "pilot_space.infrastructure.encryption.decrypt_api_key"
-)
+_LOADER_BUILD_PATH = "pilot_space.ai.agents.pilotspace_stream_utils._build_server_config"
+_LOADER_DECRYPT_PATH = "pilot_space.infrastructure.encryption.decrypt_api_key"
 
 
 async def test_loader_key_includes_uuid_suffix() -> None:
@@ -1846,7 +1851,7 @@ async def test_loader_two_servers_get_distinct_keys() -> None:
 
 
 # ---------------------------------------------------------------------------
-# T021–T024: McpCommandRunner validation tests
+# T021-T024: McpCommandRunner validation tests
 # ---------------------------------------------------------------------------
 
 
@@ -1869,7 +1874,6 @@ def test_create_command_server_requires_command_runner() -> None:
 
 def test_create_command_server_with_npx_runner() -> None:
     """T022: POST schema accepts command server with command_runner=npx."""
-    from unittest.mock import patch
 
     from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerCreate
 
@@ -1888,22 +1892,25 @@ def test_create_command_server_with_npx_runner() -> None:
 
 def test_remote_server_rejects_command_runner() -> None:
     """T023: POST schema rejects remote server with command_runner set (422)."""
+    from unittest.mock import patch
+
     import pytest
     from pydantic import ValidationError
-    from unittest.mock import patch
 
     from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerCreate
 
-    with pytest.raises(ValidationError, match="command_runner"):
-        with patch("socket.getaddrinfo", return_value=[]):
-            WorkspaceMcpServerCreate(
-                display_name="r",
-                server_type="remote",
-                command_runner="npx",
-                url_or_command="https://mcp.example.com/sse",
-                auth_type="none",
-                transport="sse",
-            )
+    with (
+        pytest.raises(ValidationError, match="command_runner"),
+        patch("socket.getaddrinfo", return_value=[]),
+    ):
+        WorkspaceMcpServerCreate(
+            display_name="r",
+            server_type="remote",
+            command_runner="npx",
+            url_or_command="https://mcp.example.com/sse",
+            auth_type="none",
+            transport="sse",
+        )
 
 
 def test_import_rejects_non_npx_uvx_command() -> None:
@@ -1928,4 +1935,3 @@ def test_import_rejects_non_npx_uvx_command() -> None:
     assert parsed_valid[0].command_runner is not None
     assert parsed_valid[0].command_runner.value == "npx"
     assert parsed_valid[0].url_or_command == "@foo/bar"
-

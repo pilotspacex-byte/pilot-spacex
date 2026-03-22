@@ -701,7 +701,7 @@ async def load_workspace_mcp_servers(
     return servers
 
 
-def _build_server_config(
+def _build_server_config(  # noqa: PLR0911
     server: WorkspaceMcpServer,
     decrypt_fn: Callable[[str], str],
 ) -> McpServerConfig | None:
@@ -761,9 +761,17 @@ def _build_server_config(
                 )
 
         if server.transport == McpTransport.STREAMABLE_HTTP:
-            return McpHttpServerConfig(type="http", url=url, headers=headers) if headers else McpHttpServerConfig(type="http", url=url)
+            return (
+                McpHttpServerConfig(type="http", url=url, headers=headers)
+                if headers
+                else McpHttpServerConfig(type="http", url=url)
+            )
         if server.transport == McpTransport.SSE:
-            return McpSSEServerConfig(type="sse", url=url, headers=headers) if headers else McpSSEServerConfig(type="sse", url=url)
+            return (
+                McpSSEServerConfig(type="sse", url=url, headers=headers)
+                if headers
+                else McpSSEServerConfig(type="sse", url=url)
+            )
 
         # Transport mismatch — remote server with stdio transport is invalid.
         logger.warning(
@@ -800,6 +808,7 @@ def _build_server_config(
 
     try:
         import shlex
+
         parts = shlex.split(command_str, posix=True)
     except ValueError:
         logger.warning(
@@ -819,6 +828,7 @@ def _build_server_config(
     if server.command_args:
         try:
             import shlex as _shlex
+
             args.extend(_shlex.split(server.command_args, posix=True))
         except ValueError:
             logger.warning(

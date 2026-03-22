@@ -61,8 +61,9 @@ async def mcp_api_client(
     Yields:
         httpx.AsyncClient with auth headers.
     """
-    from httpx import ASGITransport, AsyncClient
     from unittest.mock import MagicMock
+
+    from httpx import ASGITransport, AsyncClient
 
     from pilot_space.dependencies.auth import get_current_user
     from pilot_space.infrastructure.auth.models import TokenPayload

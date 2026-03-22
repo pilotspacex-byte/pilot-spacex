@@ -306,9 +306,9 @@ async def update_mcp_server(
     #   1. Only server_type changes — re-validate stored url_or_command against new type.
     #   2. Only url_or_command changes — validate new value against stored server_type.
     if body.server_type is not None or body.url_or_command is not None:
-        from pilot_space.api.v1.routers._mcp_server_schemas import (
-            _validate_command_package,
-            _validate_mcp_url,
+        from pilot_space.security.mcp_validation import (
+            validate_command_package as _validate_command_package,
+            validate_mcp_url as _validate_mcp_url,
         )
 
         # Skip when both are present — already validated by the Pydantic model_validator.
@@ -551,7 +551,7 @@ async def test_mcp_server_connection(
     await _get_admin_workspace(workspace_id, current_user, session)
     await set_rls_context(session, current_user.user_id, workspace_id)
 
-    from pilot_space.application.services.mcp.test_mcp_connection_service import (
+    from pilot_space.application.services.mcp.mcp_connection_tester import (
         TestMcpConnectionService,
     )
     from pilot_space.infrastructure.database.repositories.workspace_mcp_server_repository import (
@@ -841,7 +841,7 @@ async def get_mcp_oauth_url(
             ex=600,
         )
     except Exception as exc:
-        logger.error("mcp_oauth_state_persist_failed", server_id=str(server_id), error=str(exc))
+        logger.exception("mcp_oauth_state_persist_failed", server_id=str(server_id), error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to persist OAuth state; cannot initiate OAuth flow",

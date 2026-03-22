@@ -734,8 +734,8 @@ class TestBuildServerConfigArgvTokenisation:
         args = config.get("args", [])
         assert "my-pkg" in args
         assert "--title" in args
-        assert "my title" in args          # must be a single token
-        assert '"my title"' not in args    # must NOT contain the quotes themselves
+        assert "my title" in args  # must be a single token
+        assert '"my title"' not in args  # must NOT contain the quotes themselves
 
     def test_command_only_no_args(self) -> None:
         """Single-word command has no args key set."""
@@ -756,4 +756,3 @@ class TestBuildServerConfigArgvTokenisation:
         server = self._make_npx_server("npx my-pkg", command_args="--flag 'unterminated")
         config = self._build(server)
         assert config is None
-

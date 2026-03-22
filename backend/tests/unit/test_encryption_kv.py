@@ -76,10 +76,10 @@ class TestDecryptKv:
 
     def test_non_dict_json_raises_error(self) -> None:
         """JSON array (not object) raises EncryptedKVError after decryption."""
-        from pilot_space.infrastructure.encryption import encrypt_api_key
-
         # Encrypt a JSON array to simulate a corrupt blob
         import json
+
+        from pilot_space.infrastructure.encryption import encrypt_api_key
 
         bad_blob = encrypt_api_key(json.dumps(["not", "a", "dict"]))
         with pytest.raises(EncryptedKVError, match="JSON object"):
@@ -87,9 +87,9 @@ class TestDecryptKv:
 
     def test_non_string_values_raise_error(self) -> None:
         """Dict with non-string values raises EncryptedKVError."""
-        from pilot_space.infrastructure.encryption import encrypt_api_key
-
         import json
+
+        from pilot_space.infrastructure.encryption import encrypt_api_key
 
         bad_blob = encrypt_api_key(json.dumps({"KEY": 123}))
         with pytest.raises(EncryptedKVError, match="string keys and values"):
