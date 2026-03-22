@@ -242,6 +242,7 @@ export function useGraphCanvas(options: UseGraphCanvasOptions): UseGraphCanvasRe
         data: {
           ...(n.data as GraphNodeData),
           onNodeClick: handleNodeClick,
+          onNodeExpand: handleNodeDoubleClick,
         },
       })),
     [flowNodes, handleNodeClick]

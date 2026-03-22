@@ -30,6 +30,7 @@ import {
   Zap,
   Heart,
   Scale,
+  Expand,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -47,6 +48,7 @@ export interface GraphNodeData extends Record<string, unknown> {
   isCurrent?: boolean;
   isHighlighted?: boolean;
   onNodeClick?: (node: GraphNodeDTO) => void;
+  onNodeExpand?: (nodeId: string) => void;
 }
 
 export type GraphFlowNode = Node<GraphNodeData, 'graphNode'>;
@@ -73,7 +75,7 @@ const NODE_ICONS: Partial<Record<GraphNodeType, LucideIcon>> = {
 // ── Component ─────────────────────────────────────────────────────────────
 
 export function GraphNodeComponent({ data }: NodeProps<GraphFlowNode>) {
-  const { node, isCurrent = false, isHighlighted = false, onNodeClick } = data;
+  const { node, isCurrent = false, isHighlighted = false, onNodeClick, onNodeExpand } = data;
 
   const style = getGraphNodeStyle(node.nodeType);
   const { width, height } = getNodeDimensions(style.tier, isCurrent);
@@ -122,7 +124,7 @@ export function GraphNodeComponent({ data }: NodeProps<GraphFlowNode>) {
         <button
           type="button"
           onClick={() => onNodeClick?.(node)}
-          className="relative flex items-center gap-1.5 cursor-pointer transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+          className="group relative flex items-center gap-1.5 cursor-pointer transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
           style={{
             width,
             height,
@@ -170,11 +172,36 @@ export function GraphNodeComponent({ data }: NodeProps<GraphFlowNode>) {
               fontSize,
               fontWeight: isProject ? 600 : style.tier <= 1 ? 500 : 400,
               color: isProject ? '#fff' : 'var(--foreground)',
-              maxWidth: maxLabelWidth,
+              maxWidth: maxLabelWidth - (onNodeExpand ? 14 : 0),
             }}
           >
             {truncated}
           </span>
+          {onNodeExpand && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onNodeExpand(node.id);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.stopPropagation();
+                  onNodeExpand(node.id);
+                }
+              }}
+              className="shrink-0 ml-auto rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/10"
+              aria-label="Expand neighbors"
+            >
+              <Expand
+                width={style.tier <= 1 ? 10 : 8}
+                height={style.tier <= 1 ? 10 : 8}
+                style={{ color: isProject ? '#fff' : style.bgDark }}
+                strokeWidth={2}
+              />
+            </span>
+          )}
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[220px] rounded-lg px-3 py-2">
