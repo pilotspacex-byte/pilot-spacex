@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-foundation 01-02-PLAN.md
-last_updated: "2026-03-22T08:26:06.333Z"
+stopped_at: Completed 02-word-renderer 02-01-PLAN.md
+last_updated: "2026-03-22T08:36:48.606Z"
 last_activity: 2026-03-21 — Roadmap created for v1.2 Office Suite Preview
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 10
-  completed_plans: 2
+  completed_plans: 3
   percent: 10
 ---
 
@@ -52,6 +52,7 @@ Progress: [█░░░░░░░░░] 10%
 *Updated after each plan completion*
 | Phase 01-foundation P01 | 4 min | 3 tasks | 6 files |
 | Phase 01-foundation P02 | 15 | 2 tasks | 2 files |
+| Phase 02-word-renderer P01 | 5 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: FilePreviewModal Office cases use DownloadFallback stubs (xlsx/docx/pptx) — real renderers added in Phases 2-4
 - [Phase 01-foundation]: Office format early return placed before content-fetch checks in FilePreviewModal — legacy formats don't need fetch, modern formats need placeholder until Phase 2-4
 - [Phase 01-foundation]: isLegacyOfficeFormat() checks file extension (.doc/.xls/.ppt) for legacy format detection, matching extension-first resolution in resolveRenderer
+- [Phase 02-word-renderer]: DOCX_PURIFY_CONFIG dedicated module with ALLOWED_URI_REGEXP=/^(?:https?|mailto|data:image\/):/i blocks javascript: hrefs from mammoth output; allows style attributes unlike HtmlRenderer config
+- [Phase 02-word-renderer]: docx-preview renders into off-screen div then innerHTML extracted to iframe srcdoc; provides style isolation without shadow DOM complexity
+- [Phase 02-word-renderer]: mammoth fallback invisible to user — no banner shown; renderMode stored as data-render-mode attribute for debugging only
 
 ### Pending Todos
 
@@ -80,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T08:26:06.331Z
-Stopped at: Completed 01-foundation 01-02-PLAN.md
+Last session: 2026-03-22T08:36:48.605Z
+Stopped at: Completed 02-word-renderer 02-01-PLAN.md
 Resume file: None

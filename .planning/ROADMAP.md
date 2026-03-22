@@ -43,7 +43,7 @@ Plans:
   2. When docx-preview fails on a complex document, user sees the document rendered via mammoth fallback without a blank or error screen
   3. User sees visual page-break dividers in the scrollable document view separating logical pages
   4. User can open a sidebar showing the document's table of contents (extracted from DOCX headings) and click a heading to jump to that section
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 02-01-PLAN.md — DocxRenderer with docx-preview primary, mammoth fallback, DOCX_PURIFY_CONFIG security, page-break indicators
 - [ ] 02-02-PLAN.md — Table of contents sidebar with heading extraction and modal toggle
@@ -98,7 +98,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete   | 2026-03-22 |
-| 2. Word Renderer | 0/2 | Planning complete | - |
+| 2. Word Renderer | 1/2 | In Progress|  |
 | 3. Excel Renderer | 0/2 | Planning complete | - |
 | 4. PowerPoint Base | 0/2 | Planning complete | - |
 | 5. PPTX Annotations | 0/2 | Planning complete | - |
