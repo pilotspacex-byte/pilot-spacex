@@ -107,7 +107,84 @@ export function GraphEmptyState({
     );
   }
 
-  // empty
+  // empty — show generating skeleton when in-flight, static placeholder otherwise
+  if (isRegenerating) {
+    return (
+      <div
+        role="status"
+        aria-label="Generating knowledge graph"
+        className="flex flex-col items-center justify-center gap-4 text-center"
+        style={{ height }}
+      >
+        {/* Animated graph skeleton — nodes appearing with staggered fade-in */}
+        <div className="relative" style={{ width: 280, height: 120 }}>
+          {/* Connector lines (pulse) */}
+          <svg
+            aria-hidden="true"
+            className="absolute inset-0 pointer-events-none"
+            width="280"
+            height="120"
+            viewBox="0 0 280 120"
+          >
+            {[
+              { x1: 140, y1: 30, x2: 60, y2: 65 },
+              { x1: 140, y1: 30, x2: 140, y2: 65 },
+              { x1: 140, y1: 30, x2: 220, y2: 65 },
+              { x1: 60, y1: 65, x2: 30, y2: 100 },
+              { x1: 60, y1: 65, x2: 90, y2: 100 },
+              { x1: 220, y1: 65, x2: 190, y2: 100 },
+              { x1: 220, y1: 65, x2: 250, y2: 100 },
+            ].map((l, i) => (
+              <line
+                key={i}
+                {...l}
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className="text-muted-foreground/20 animate-pulse"
+                style={{ animationDelay: `${i * 150}ms` }}
+              />
+            ))}
+          </svg>
+          {/* Skeleton nodes with staggered animation */}
+          {[
+            { x: 116, y: 10, w: 48, h: 28, delay: 0 },
+            { x: 28, y: 50, w: 64, h: 24, delay: 200 },
+            { x: 108, y: 50, w: 64, h: 24, delay: 400 },
+            { x: 188, y: 50, w: 64, h: 24, delay: 600 },
+            { x: 4, y: 88, w: 52, h: 20, delay: 800 },
+            { x: 64, y: 88, w: 52, h: 20, delay: 1000 },
+            { x: 164, y: 88, w: 52, h: 20, delay: 1200 },
+            { x: 224, y: 88, w: 52, h: 20, delay: 1400 },
+          ].map((n, i) => (
+            <div
+              key={i}
+              className="absolute animate-pulse"
+              style={{
+                left: n.x,
+                top: n.y,
+                width: n.w,
+                height: n.h,
+                animationDelay: `${n.delay}ms`,
+              }}
+            >
+              <Skeleton className="w-full h-full rounded-md" />
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col items-center gap-1.5">
+          <p className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Loader2 className="size-3.5 animate-spin text-primary" />
+            Building knowledge graph
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Processing issues, notes, and relationships...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center justify-center gap-3 text-center" style={{ height }}>
       {/* Abstract graph placeholder: diamond — circle — square */}
@@ -118,19 +195,15 @@ export function GraphEmptyState({
         viewBox="0 0 96 28"
         className="text-muted-foreground opacity-40"
       >
-        {/* Connectors */}
         <line x1="18" y1="14" x2="34" y2="14" stroke="currentColor" strokeWidth="1.5" />
         <line x1="62" y1="14" x2="78" y2="14" stroke="currentColor" strokeWidth="1.5" />
-        {/* Diamond (decision) */}
         <polygon
           points="8,14 14,8 20,14 14,20"
           stroke="currentColor"
           strokeWidth="1.5"
           fill="none"
         />
-        {/* Circle (user/node) */}
         <circle cx="48" cy="14" r="8" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        {/* Square (issue) */}
         <rect
           x="78"
           y="6"
@@ -152,15 +225,10 @@ export function GraphEmptyState({
         <button
           type="button"
           onClick={onRegenerate}
-          disabled={isRegenerating}
-          className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {isRegenerating ? (
-            <Loader2 className="size-3 animate-spin" />
-          ) : (
-            <Sparkles className="size-3" />
-          )}
-          {isRegenerating ? 'Generating...' : 'Generate Knowledge Graph'}
+          <Sparkles className="size-3" />
+          Generate Knowledge Graph
         </button>
       )}
 
