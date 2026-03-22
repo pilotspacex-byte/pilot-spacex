@@ -1,4 +1,4 @@
-"""AI cost tracking and reporting for LLM usage.
+"""AI cost tracking and reporting for LLM and STT usage.
 
 Tracks token usage and costs across providers for budget monitoring
 and cost optimization.
@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
+
+# Sentinel UUID for cost records where user_id is unknown.
+_ZERO_UUID: Final[UUID] = UUID("00000000-0000-0000-0000-000000000000")
 
 # Pricing per million tokens (as of 2026-01)
 # Structure: {provider: {model: (input_cost, output_cost)}}
@@ -49,19 +52,7 @@ TOKENS_PER_MILLION: Final[int] = 1_000_000
 
 @dataclass(frozen=True, slots=True)
 class CostSummary:
-    """Summary of AI costs for a time period.
-
-    Attributes:
-        total_cost: Total cost in USD.
-        total_requests: Number of requests.
-        total_input_tokens: Total input tokens consumed.
-        total_output_tokens: Total output tokens generated.
-        by_provider: Cost breakdown by provider.
-        by_agent: Cost breakdown by agent.
-        by_model: Cost breakdown by model.
-        start_date: Start of the summary period.
-        end_date: End of the summary period.
-    """
+    """Summary of AI costs for a time period."""
 
     total_cost: float
     total_requests: int
@@ -86,21 +77,7 @@ class CostSummary:
 
 @dataclass(frozen=True, slots=True)
 class CostRecord:
-    """Data class for cost record information.
-
-    Attributes:
-        id: Cost record UUID.
-        user_id: User who initiated the request.
-        workspace_id: Workspace the request belongs to.
-        agent_name: Name of the agent.
-        provider: LLM provider.
-        model: Model identifier.
-        input_tokens: Input token count.
-        output_tokens: Output token count.
-        cost_usd: Calculated cost in USD.
-        created_at: Timestamp of the request.
-        operation_type: Optional feature/operation category (AIGOV-06).
-    """
+    """Single cost record (immutable value object)."""
 
     id: UUID
     user_id: UUID
@@ -152,22 +129,30 @@ class CostTracker:
             output_tokens: Number of output tokens.
 
         Returns:
-            Cost in USD as float.
-
-        Raises:
-            ValueError: If provider or model is not found in pricing table.
+            Cost in USD as float. Returns 0.0 for unknown providers/models
+            (logged as warning) so cost tracking never crashes callers.
         """
         if provider not in PRICING_TABLE:
-            raise ValueError(
-                f"Unknown provider '{provider}'. Supported: {', '.join(PRICING_TABLE.keys())}"
+            logger.warning(
+                "cost_tracker_unknown_provider",
+                provider=provider,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
+            return 0.0
 
         provider_pricing = PRICING_TABLE[provider]
         if model not in provider_pricing:
-            raise ValueError(
-                f"Unknown model '{model}' for provider '{provider}'. "
-                f"Supported: {', '.join(provider_pricing.keys())}"
+            logger.warning(
+                "cost_tracker_unknown_model",
+                provider=provider,
+                model=model,
+                supported=list(provider_pricing.keys()),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
+            return 0.0
 
         input_price, output_price = provider_pricing[model]
 
@@ -188,28 +173,18 @@ class CostTracker:
         input_tokens: int,
         output_tokens: int,
         operation_type: str | None = None,
+        cost_usd_override: float | None = None,
     ) -> CostRecord:
         """Track AI usage cost to database.
 
-        Args:
-            workspace_id: Workspace UUID.
-            user_id: User UUID.
-            agent_name: Name of the agent that processed the request.
-            provider: LLM provider.
-            model: Model identifier.
-            input_tokens: Number of input tokens.
-            output_tokens: Number of output tokens.
-            operation_type: Optional feature/operation category for cost breakdown
-                            (AIGOV-06). Examples: 'ghost_text', 'issue_extraction',
-                            'pr_review', 'chat'. None for legacy callers.
-
-        Returns:
-            Created CostRecord with calculated cost.
-
-        Raises:
-            ValueError: If provider or model is unknown.
+        When *cost_usd_override* is given, the token-based calculation is
+        skipped (used for duration-based STT pricing).
         """
-        cost_usd = self.calculate_cost(provider, model, input_tokens, output_tokens)
+        cost_usd = (
+            cost_usd_override
+            if cost_usd_override is not None
+            else self.calculate_cost(provider, model, input_tokens, output_tokens)
+        )
 
         record = AICostRecord(
             workspace_id=workspace_id,
@@ -258,15 +233,7 @@ class CostTracker:
         workspace_id: UUID,
         days: int = 30,
     ) -> CostSummary:
-        """Get aggregated cost summary for a workspace.
-
-        Args:
-            workspace_id: Workspace UUID.
-            days: Number of days to include in summary (default 30).
-
-        Returns:
-            CostSummary with aggregated costs and breakdowns.
-        """
+        """Get aggregated cost summary for a workspace over the last *days* days."""
         end_date = datetime.now(UTC)
         start_date = end_date - timedelta(days=days)
 
@@ -651,9 +618,75 @@ class CostTracker:
         return trends
 
 
+def extract_response_usage(response: Any) -> tuple[int, int]:
+    """Extract (input_tokens, output_tokens) from an Anthropic API Message response.
+
+    Works with both the direct Anthropic client ``response.usage.input_tokens``
+    shape and the Claude Agent SDK ``ResultMessage.usage`` shape where attributes
+    may be ``None``.
+
+    Returns (0, 0) when usage information is unavailable.
+    """
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return 0, 0
+    return (
+        getattr(usage, "input_tokens", 0) or 0,
+        getattr(usage, "output_tokens", 0) or 0,
+    )
+
+
+async def track_cost(
+    session: AsyncSession,
+    *,
+    workspace_id: UUID,
+    user_id: UUID | None,
+    agent_name: str,
+    provider: str,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    operation_type: str | None = None,
+    cost_usd_override: float | None = None,
+) -> None:
+    """Fire-and-forget cost tracking for services without DI-injected CostTracker.
+
+    Uses an independent session so cost records survive a caller rollback.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
+
+    try:
+        # Derive the engine from the caller's session so we can open an
+        # independent transaction — cost rows must not be rolled back with the caller.
+        conn = await session.connection()
+        engine = conn.engine
+        async with _AsyncSession(engine) as independent_session, independent_session.begin():
+            tracker = CostTracker(independent_session)
+            await tracker.track(
+                workspace_id=workspace_id,
+                user_id=user_id or _ZERO_UUID,
+                agent_name=agent_name,
+                provider=provider,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                operation_type=operation_type,
+                cost_usd_override=cost_usd_override,
+            )
+    except Exception:
+        logger.warning(
+            "track_cost_failed",
+            agent_name=agent_name,
+            provider=provider,
+            model=model,
+        )
+
+
 __all__ = [
     "PRICING_TABLE",
     "CostRecord",
     "CostSummary",
     "CostTracker",
+    "extract_response_usage",
+    "track_cost",
 ]

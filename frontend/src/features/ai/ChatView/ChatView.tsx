@@ -166,6 +166,12 @@ const ChatViewInternal = observer<ChatViewProps>(
         return;
       }
 
+      // If the store already has messages for the same note context (e.g. chat panel
+      // was closed and reopened), preserve the conversation instead of re-fetching.
+      if (previousNoteId === null && store.messages.length > 0) {
+        return;
+      }
+
       // Note context changed - try to auto-resume existing session
       const autoResumeSession = async () => {
         if (isResumingRef.current) return;
@@ -245,13 +251,16 @@ const ChatViewInternal = observer<ChatViewProps>(
     }, [modalApprovals.length]);
 
     const handleSubmit = useCallback(
-      async (attachmentIds: string[]) => {
+      async (payload: { attachmentIds: string[]; voiceAudioUrl?: string | null }) => {
         if (!inputValue.trim() || store.isStreaming) return;
 
         const message = inputValue.trim();
         try {
           setInputValue('');
-          await store.sendMessage(message, undefined, attachmentIds);
+          const metadata = payload.voiceAudioUrl
+            ? { voiceAudioUrl: payload.voiceAudioUrl }
+            : undefined;
+          await store.sendMessage(message, metadata, payload.attachmentIds);
         } catch (error) {
           setInputValue(message);
           store.error = error instanceof Error ? error.message : 'Failed to send message';

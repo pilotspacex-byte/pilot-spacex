@@ -30,12 +30,14 @@ import { useAttachments } from '../hooks/useAttachments';
 import { useDriveStatus } from '../hooks/useDriveStatus';
 import { AttachmentButton } from './AttachmentButton';
 import { DriveFilePicker } from './DriveFilePicker';
+import { RecordButton } from './RecordButton';
+import { AudioPlaybackPill } from './AudioPlaybackPill';
 import { attachmentsApi } from '@/services/api/attachments';
 
 interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (attachmentIds: string[]) => void;
+  onSubmit: (payload: { attachmentIds: string[]; voiceAudioUrl?: string | null }) => void;
   isStreaming?: boolean;
   isDisabled?: boolean;
   autoFocus?: boolean;
@@ -110,6 +112,9 @@ export const ChatInput = observer<ChatInputProps>(
     const { data: driveStatus } = useDriveStatus(workspaceId);
     const [drivePickerOpen, setDrivePickerOpen] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null);
+    // Text in input before live recording started — used to restore on cancel or prepend on commit
+    const preRecordTextRef = useRef('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const inputContainerRef = useRef<HTMLDivElement>(null);
     const [skillMenuOpen, setSkillMenuOpen] = useState(false);
@@ -298,7 +303,8 @@ export const ChatInput = observer<ChatInputProps>(
         ) {
           e.preventDefault();
           if (value.trim() && !isStreaming && !isDisabled) {
-            onSubmit(attachmentIds);
+            onSubmit({ attachmentIds, voiceAudioUrl: pendingAudioUrl });
+            setPendingAudioUrl(null);
             reset();
           }
         }
@@ -313,6 +319,7 @@ export const ChatInput = observer<ChatInputProps>(
         resumeMenuOpen,
         onSubmit,
         attachmentIds,
+        pendingAudioUrl,
         reset,
       ]
     );
@@ -346,6 +353,14 @@ export const ChatInput = observer<ChatInputProps>(
               onRemoveAttachment={removeFile}
             />
 
+            {/* Audio playback pill — shown after voice transcription, before sending */}
+            {pendingAudioUrl && (
+              <AudioPlaybackPill
+                audioUrl={pendingAudioUrl}
+                onRemove={() => setPendingAudioUrl(null)}
+              />
+            )}
+
             {/* Input area - single container with inline toolbar */}
             <div className="relative" ref={inputContainerRef}>
               <Textarea
@@ -369,6 +384,27 @@ export const ChatInput = observer<ChatInputProps>(
 
               {/* Inline toolbar buttons */}
               <div className="absolute bottom-1.5 right-2 flex items-center gap-0.5">
+                <RecordButton
+                  workspaceId={workspaceId ?? ''}
+                  onTranscript={(text, audioUrl) => {
+                    // Append committed transcript to the pre-recording text
+                    const base = preRecordTextRef.current;
+                    onChange(base + (base ? ' ' : '') + text);
+                    preRecordTextRef.current = '';
+                    setPendingAudioUrl(audioUrl);
+                    setTimeout(() => textareaRef.current?.focus(), 0);
+                  }}
+                  onPartialTranscript={(text) => {
+                    // Save original text on first partial, then show live preview
+                    if (!preRecordTextRef.current && !text) return;
+                    if (!preRecordTextRef.current) {
+                      preRecordTextRef.current = value;
+                    }
+                    const base = preRecordTextRef.current;
+                    onChange(base + (base ? ' ' : '') + text);
+                  }}
+                  disabled={isDisabled || isStreaming || !workspaceId}
+                />
                 <AttachmentButton
                   onAddFile={addFile}
                   disabled={isDisabled || isStreaming}

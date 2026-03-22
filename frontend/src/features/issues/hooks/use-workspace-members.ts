@@ -29,7 +29,13 @@ export const workspaceMembersKeys = {
 export function useWorkspaceMembers(workspaceId: string) {
   return useQuery<WorkspaceMember[]>({
     queryKey: workspaceMembersKeys.all(workspaceId),
-    queryFn: () => apiClient.get<WorkspaceMember[]>(`/workspaces/${workspaceId}/members`),
+    queryFn: async () => {
+      const members = await apiClient.get<WorkspaceMember[]>(`/workspaces/${workspaceId}/members`);
+      return members.map((m) => ({
+        ...m,
+        role: m.role.toLowerCase() as WorkspaceMember['role'],
+      }));
+    },
     enabled: !!workspaceId,
     staleTime: 60_000,
   });

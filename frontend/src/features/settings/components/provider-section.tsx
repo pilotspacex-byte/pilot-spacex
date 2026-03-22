@@ -1,8 +1,8 @@
 /**
- * ProviderSection - Dropdown-based provider selection for a service type.
+ * ProviderSection - Provider selection and configuration for a service type.
  *
- * Replaces the expandable ProviderRow pattern with a Select dropdown.
- * Shows status badge next to dropdown and config form below.
+ * Renders inside a tab panel. Shows provider dropdown with brand icons,
+ * status badge, and inline config form.
  */
 
 'use client';
@@ -10,7 +10,6 @@
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { CheckCircle2, XCircle, Circle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -20,20 +19,23 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ProviderConfigForm } from './provider-config-form';
+import { ProviderIcon } from './provider-icons';
 import { useStore } from '@/stores';
 import type { WorkspaceAISettingsProvider } from '@/services/api/ai';
 
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   google: 'Google Gemini',
   anthropic: 'Anthropic',
+  openai: 'OpenAI',
   ollama: 'Ollama',
+  elevenlabs: 'ElevenLabs',
 };
 
 export function StatusBadge({ status }: { status: WorkspaceAISettingsProvider | undefined }) {
   if (!status || !status.isConfigured) {
     return (
-      <Badge variant="outline" className="gap-1.5">
-        <Circle className="h-3 w-3 fill-muted-foreground text-muted-foreground" />
+      <Badge variant="outline" className="gap-1.5 text-muted-foreground">
+        <Circle className="h-3 w-3 fill-muted-foreground/50 text-muted-foreground/50" />
         Not configured
       </Badge>
     );
@@ -41,10 +43,7 @@ export function StatusBadge({ status }: { status: WorkspaceAISettingsProvider | 
 
   if (status.isValid === true) {
     return (
-      <Badge
-        variant="outline"
-        className="gap-1.5 border-green-500/20 bg-green-500/10 text-green-600"
-      >
+      <Badge variant="outline" className="gap-1.5 border-primary/20 bg-primary/10 text-primary">
         <CheckCircle2 className="h-3 w-3" />
         Connected
       </Badge>
@@ -72,17 +71,13 @@ export function StatusBadge({ status }: { status: WorkspaceAISettingsProvider | 
 }
 
 export interface ProviderSectionProps {
-  serviceType: 'embedding' | 'llm';
-  icon: React.ElementType;
-  title: string;
+  serviceType: 'embedding' | 'llm' | 'stt';
   description: string;
   onSaved: () => void;
 }
 
 export const ProviderSection = observer(function ProviderSection({
   serviceType,
-  icon: Icon,
-  title,
   description,
   onSaved,
 }: ProviderSectionProps) {
@@ -104,12 +99,11 @@ export const ProviderSection = observer(function ProviderSection({
     if (resolvedDefault && selectedProvider !== resolvedDefault) {
       setSelectedProvider(resolvedDefault);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit selectedProvider to avoid infinite loop
   }, [resolvedDefault]);
 
   const handleProviderChange = (provider: string) => {
     setSelectedProvider(provider);
-    // Local-only — persisted atomically when user clicks Save in the form
   };
 
   const selectedStatus = providers.find((p) => p.provider === selectedProvider);
@@ -117,42 +111,40 @@ export const ProviderSection = observer(function ProviderSection({
   if (providers.length === 0) return null;
 
   return (
-    <Card>
-      <CardHeader className="pb-4">
-        <div className="flex items-center gap-2">
-          <Icon className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-lg font-medium">{title}</CardTitle>
-        </div>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Select value={selectedProvider} onValueChange={handleProviderChange}>
-            <SelectTrigger className="w-[240px]">
-              <SelectValue placeholder="Select provider" />
-            </SelectTrigger>
-            <SelectContent>
-              {providers.map((p) => (
-                <SelectItem key={p.provider} value={p.provider}>
-                  {PROVIDER_DISPLAY_NAMES[p.provider] ?? p.provider}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <StatusBadge status={selectedStatus} />
-        </div>
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">{description}</p>
 
-        {selectedProvider && (
-          <ProviderConfigForm
-            key={`${selectedProvider}-${serviceType}`}
-            provider={selectedProvider}
-            serviceType={serviceType}
-            status={selectedStatus}
-            setAsDefault
-            onSaved={onSaved}
-          />
-        )}
-      </CardContent>
-    </Card>
+      {/* Provider selector with icon + status */}
+      <div className="flex items-center gap-3">
+        <Select value={selectedProvider} onValueChange={handleProviderChange}>
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Select provider" />
+          </SelectTrigger>
+          <SelectContent>
+            {providers.map((p) => (
+              <SelectItem key={p.provider} value={p.provider}>
+                <span className="flex items-center gap-2">
+                  <ProviderIcon provider={p.provider} size={14} />
+                  {PROVIDER_DISPLAY_NAMES[p.provider] ?? p.provider}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <StatusBadge status={selectedStatus} />
+      </div>
+
+      {/* Config form */}
+      {selectedProvider && (
+        <ProviderConfigForm
+          key={`${selectedProvider}-${serviceType}`}
+          provider={selectedProvider}
+          serviceType={serviceType}
+          status={selectedStatus}
+          setAsDefault
+          onSaved={onSaved}
+        />
+      )}
+    </div>
   );
 });

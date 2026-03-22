@@ -61,7 +61,7 @@ TOKEN_COSTS = {
     AIProvider.ANTHROPIC: {
         "claude-opus-4-5-20251101": {"input": 0.015, "output": 0.075},
         "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
-        "claude-haiku-3-5-20241022": {"input": 0.00025, "output": 0.00125},
+        "claude-3-5-haiku-20241022": {"input": 0.001, "output": 0.005},
     },
     AIProvider.OPENAI: {
         "gpt-4o": {"input": 0.005, "output": 0.015},
@@ -70,7 +70,7 @@ TOKEN_COSTS = {
         "text-embedding-3-small": {"input": 0.00002, "output": 0.0},
     },
     AIProvider.GOOGLE: {
-        "gemini-2.0-flash": {"input": 0.00035, "output": 0.0015},
+        "gemini-2.0-flash": {"input": 0.000075, "output": 0.0003},
         "gemini-2.0-pro": {"input": 0.00125, "output": 0.005},
     },
 }

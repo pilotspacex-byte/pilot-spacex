@@ -164,6 +164,10 @@ class DigestJobHandler:
         try:
             from anthropic import APIConnectionError, AsyncAnthropic, RateLimitError
 
+            from pilot_space.ai.infrastructure.cost_tracker import (
+                extract_response_usage,
+                track_cost,
+            )
             from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
             from pilot_space.ai.sdk.config import MODEL_SONNET
             from pilot_space.config import get_settings
@@ -199,6 +203,7 @@ class DigestJobHandler:
                         ),
                         timeout=LLM_TIMEOUT_SECONDS,
                     )
+                    input_tokens, output_tokens = extract_response_usage(response)
 
                     # Extract text content from response
                     content = ""
@@ -206,6 +211,19 @@ class DigestJobHandler:
                         if block.type == "text":
                             content = block.text
                             break
+
+                    if input_tokens or output_tokens:
+                        await track_cost(
+                            self._session,
+                            workspace_id=workspace_id,
+                            user_id=None,
+                            agent_name="digest_job",
+                            provider="anthropic",
+                            model=MODEL_SONNET,
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            operation_type="digest",
+                        )
 
                     return self._parse_suggestions(content)
 

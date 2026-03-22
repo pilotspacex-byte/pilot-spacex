@@ -351,6 +351,83 @@ class TestOwnershipTransfer:
         )
 
 
+class TestOwnerSelfDemotion:
+    """Tests verifying owner cannot demote themselves via update_member_role."""
+
+    @pytest.mark.asyncio
+    async def test_owner_cannot_demote_self(self) -> None:
+        """Owner attempting to change own role raises UnauthorizedError."""
+        workspace, owner, owner_member = _make_workspace_with_owner()
+        workspace.members = [owner_member]
+
+        mock_workspace_repo = AsyncMock()
+        mock_workspace_repo.get_with_members.return_value = workspace
+        mock_workspace_repo.update_member_role = AsyncMock()
+
+        from pilot_space.application.services.workspace_member import (
+            UnauthorizedError,
+            UpdateMemberRolePayload,
+            WorkspaceMemberService,
+        )
+
+        service = WorkspaceMemberService(mock_workspace_repo)
+        payload = UpdateMemberRolePayload(
+            workspace_id=workspace.id,
+            target_user_id=owner.id,
+            new_role="ADMIN",
+            actor_id=owner.id,
+        )
+
+        with pytest.raises(UnauthorizedError, match="Cannot change own role"):
+            await service.update_member_role(payload)
+
+        mock_workspace_repo.update_member_role.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_owner_can_change_other_member_role(self) -> None:
+        """Owner can still change another member's role."""
+        workspace, owner, owner_member = _make_workspace_with_owner()
+        other_user = UserFactory(email="other@example.com")
+        other_member = WorkspaceMemberFactory(
+            user=other_user,
+            workspace=workspace,
+            role=WorkspaceRole.MEMBER,
+        )
+        workspace.members = [owner_member, other_member]
+
+        updated_member = WorkspaceMemberFactory(
+            user=other_user,
+            workspace=workspace,
+            role=WorkspaceRole.GUEST,
+        )
+
+        mock_workspace_repo = AsyncMock()
+        mock_workspace_repo.get_with_members.return_value = workspace
+        mock_workspace_repo.update_member_role = AsyncMock(return_value=updated_member)
+
+        from pilot_space.application.services.workspace_member import (
+            UpdateMemberRolePayload,
+            WorkspaceMemberService,
+        )
+
+        service = WorkspaceMemberService(mock_workspace_repo)
+        payload = UpdateMemberRolePayload(
+            workspace_id=workspace.id,
+            target_user_id=other_user.id,
+            new_role="GUEST",
+            actor_id=owner.id,
+        )
+
+        result = await service.update_member_role(payload)
+        assert result.updated_member is updated_member
+        assert result.new_role == "GUEST"
+        mock_workspace_repo.update_member_role.assert_awaited_once_with(
+            workspace.id,
+            other_user.id,
+            WorkspaceRole.GUEST,
+        )
+
+
 class TestIsAdminAuthCheck:
     """Tests verifying is_admin property includes both OWNER and ADMIN roles."""
 

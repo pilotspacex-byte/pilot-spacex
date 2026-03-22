@@ -12,6 +12,7 @@ PROVIDER_SERVICE_SLOTS: list[tuple[str, str, bool]] = [
     ("ollama", "embedding", True),
     ("anthropic", "llm", False),
     ("ollama", "llm", True),
+    ("elevenlabs", "stt", False),
 ]
 
 # Valid provider -> allowed service_types
@@ -19,6 +20,7 @@ VALID_PROVIDER_SERVICES: dict[str, set[str]] = {
     "google": {"embedding"},
     "anthropic": {"llm"},
     "ollama": {"embedding", "llm"},
+    "elevenlabs": {"stt"},
 }
 
 # All valid provider names

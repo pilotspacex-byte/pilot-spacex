@@ -99,10 +99,12 @@ const CODE_EXTENSIONS = new Set([
 /**
  * Extract the lowercased file extension from a filename.
  * Returns empty string if no extension is found.
+ * Handles extensionless filenames like "Dockerfile" by returning the full name lowercased.
  */
 function getExtension(filename: string): string {
-  const parts = filename.split('.');
-  if (parts.length < 2) return '';
+  const base = filename.split(/[\\/]/).pop() ?? '';
+  const parts = base.split('.');
+  if (parts.length < 2) return base.toLowerCase();
   const last = parts[parts.length - 1];
   return last !== undefined ? last.toLowerCase() : '';
 }
@@ -147,10 +149,12 @@ function resolveCodeOrText(filename: string): RendererType {
  * @returns The renderer type to use
  */
 export function resolveRenderer(mimeType: string, filename: string): RendererType {
-  const lowerMime = mimeType.toLowerCase();
+  // Strip MIME parameters (e.g., "application/json; charset=utf-8" → "application/json")
+  const lowerMime = mimeType.toLowerCase().split(';', 1)[0]?.trim() ?? '';
   const ext = getExtension(filename);
 
-  // 1. Image types
+  // 1. Image types — SVGs route to html-preview for sandboxed rendering
+  if (lowerMime === 'image/svg+xml' || ext === 'svg') return 'html-preview';
   if (lowerMime.startsWith('image/')) return 'image';
 
   // 2. CSV — check both MIME and extension (some servers send text/plain for CSV)
@@ -163,7 +167,7 @@ export function resolveRenderer(mimeType: string, filename: string): RendererTyp
   if (lowerMime === 'application/json' || ext === 'json') return 'json';
 
   // 5. HTML — route to html-preview renderer (sandboxed iframe + source toggle)
-  //    DOMPurify sanitization + sandbox="allow-same-origin" prevents XSS.
+  //    DOMPurify sanitization + empty sandbox (no allow-same-origin, no allow-scripts) prevents XSS.
   if (lowerMime === 'text/html' || ext === 'html' || ext === 'htm') return 'html-preview';
 
   // 6. text/* types — resolve to code or plain text by extension

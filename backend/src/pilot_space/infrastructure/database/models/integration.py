@@ -152,7 +152,7 @@ class Integration(WorkspaceScopedModel):
         "IntegrationLink",
         back_populates="integration",
         cascade="all, delete-orphan",
-        lazy="dynamic",
+        lazy="raise",
     )
 
     # Indexes and constraints

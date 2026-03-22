@@ -1,10 +1,13 @@
 /**
- * ParagraphSplitExtension - Enhances paragraph splitting on double newlines
+ * ParagraphSplitExtension - Block-level paragraph editing with double-newline splitting
  *
- * This extension provides improved paragraph handling:
- * 1. Converts double Enter (two hard breaks) into a new paragraph during typing
- * 2. On paste, splits text with double newlines into separate paragraphs
- * 3. On render, normalizes consecutive hard breaks to proper paragraph structure
+ * Typing behavior (paragraph blocks only — headings, lists, code blocks unaffected):
+ * - Single Enter: inserts a hard break (line break within the same block)
+ * - Double Enter: removes the hard break and splits into a new paragraph block
+ *
+ * Additional features:
+ * - On paste, splits text with \n\n into separate paragraphs
+ * - appendTransaction normalizes consecutive hard breaks into paragraph splits
  *
  * Per UI Spec: Blocks are visually separated by double newlines for clear document structure.
  */
@@ -31,10 +34,10 @@ function isHardBreak(node: ProseMirrorNode): boolean {
 }
 
 /**
- * ParagraphSplitExtension - Ensures double newlines create proper paragraph separations
+ * ParagraphSplitExtension - Single Enter = line break, Double Enter = new block
  *
  * Features:
- * - Typing: Two consecutive hard breaks (Enter + Enter) convert to new paragraph
+ * - Typing: Single Enter inserts hard break; second Enter splits to new paragraph
  * - Paste: Text with \n\n splits into separate paragraphs
  * - Normalization: Cleans up consecutive hard breaks into proper structure
  */
@@ -121,17 +124,32 @@ export const ParagraphSplitExtension = Extension.create<ParagraphSplitOptions>({
 
   addKeyboardShortcuts() {
     return {
-      // Double Enter creates a new paragraph with spacing
+      // Single Enter: insert hard break (stay in current block)
+      // Double Enter: remove hard break and split to new paragraph block
       Enter: ({ editor }) => {
         const { selection } = editor.state;
         const { $from } = selection;
 
-        // Check if the previous character is a newline/hard break
-        // If so, this Enter press should create a new paragraph
+        // Only intercept Enter in paragraph blocks — let headings, code blocks,
+        // etc. keep their default behavior (StarterKit handles them).
+        if ($from.parent.type.name !== 'paragraph') {
+          return false;
+        }
+
+        // Don't intercept in list items or task items — their Enter creates
+        // new items, which is the expected UX.
+        for (let d = $from.depth - 1; d >= 0; d--) {
+          const ancestorType = $from.node(d).type.name;
+          if (ancestorType === 'listItem' || ancestorType === 'taskItem') {
+            return false;
+          }
+        }
+
         const nodeBefore = $from.nodeBefore;
 
         if (nodeBefore && isHardBreak(nodeBefore)) {
-          // We have a hard break before cursor - remove it and split to new paragraph
+          // Double Enter: hard break already before cursor — remove it and
+          // split to a new paragraph block.
           return editor
             .chain()
             .deleteRange({
@@ -142,8 +160,8 @@ export const ParagraphSplitExtension = Extension.create<ParagraphSplitOptions>({
             .run();
         }
 
-        // Default behavior: let StarterKit handle it
-        return false;
+        // Single Enter: insert a hard break (line break within the same block).
+        return editor.commands.setHardBreak();
       },
     };
   },
@@ -194,6 +212,14 @@ function splitNodeAtHardBreaks(
   const contentArr: ProseMirrorNode[] = [];
   node.content.forEach((child) => contentArr.push(child));
 
+  // Pre-compute cumulative offsets so lookups are O(1) instead of O(n)
+  const offsets: number[] = [];
+  let acc = 0;
+  for (const child of contentArr) {
+    offsets.push(acc);
+    acc += child.nodeSize;
+  }
+
   // Process each break position
   for (const breakPos of breakPositions) {
     // Get content before this break (excluding the hard breaks themselves)
@@ -204,7 +230,7 @@ function splitNodeAtHardBreaks(
       const child = contentArr[i];
       if (!child) break;
 
-      const currentOffset = getOffset(contentArr, i);
+      const currentOffset = offsets[i]!;
 
       if (currentOffset >= breakPos) {
         // Skip the consecutive hard breaks
@@ -252,20 +278,6 @@ function splitNodeAtHardBreaks(
   }
 
   return paragraphs.length > 1 ? paragraphs : null;
-}
-
-/**
- * Calculate offset position within node content array
- */
-function getOffset(contentArr: ProseMirrorNode[], index: number): number {
-  let offset = 0;
-  for (let i = 0; i < index; i++) {
-    const node = contentArr[i];
-    if (node) {
-      offset += node.nodeSize;
-    }
-  }
-  return offset;
 }
 
 /**

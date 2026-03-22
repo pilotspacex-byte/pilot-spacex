@@ -101,9 +101,23 @@ describe('HtmlRenderer', () => {
     expect(title).toContain('test.html');
   });
 
-  it('component file has use client directive (SSR guard — verified by module import success)', () => {
-    // If HtmlRenderer exports successfully, it loaded as a client component.
-    // We verify the named export exists and is a function.
-    expect(typeof HtmlRenderer).toBe('function');
+  it('DOMPurify config forbids style, link, base, and meta tags', async () => {
+    render(<HtmlRenderer {...defaultProps} />);
+    fireEvent.click(screen.getByRole('tab', { name: /preview/i }));
+    // Access the mock via dynamic import (ESM-compatible)
+    const dompurify = await import('dompurify');
+    const sanitizeFn = dompurify.default.sanitize as ReturnType<typeof vi.fn>;
+    expect(sanitizeFn).toHaveBeenCalled();
+    const config = sanitizeFn.mock.calls[0]?.[1] as
+      | {
+          FORBID_TAGS?: string[];
+          FORBID_ATTR?: string[];
+        }
+      | undefined;
+    expect(config?.FORBID_TAGS).toContain('style');
+    expect(config?.FORBID_TAGS).toContain('link');
+    expect(config?.FORBID_TAGS).toContain('base');
+    expect(config?.FORBID_TAGS).toContain('meta');
+    expect(config?.FORBID_ATTR).toContain('style');
   });
 });

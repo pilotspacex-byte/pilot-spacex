@@ -1,8 +1,13 @@
-"""Remove redundant role IN filter from artifacts RLS policy.
+"""No-op: migration 092 already uses correct UPPERCASE enum values.
 
-Migration 092 included an unnecessary `wm.role IN (...)` filter in the
-workspace isolation policy — membership in workspace_members is sufficient,
-the role check adds no security value and caused enum case confusion.
+This migration was originally created under the false assumption that
+workspace_role stores lowercase values. In fact, the enum was created with
+UPPERCASE values ('OWNER', 'ADMIN', 'MEMBER', 'GUEST') in migration 002,
+and migration 066 normalizes existing data to UPPERCASE. Migration 092
+already creates the policy with correct UPPERCASE values.
+
+The original lowercase policy caused: ERROR invalid input value for enum
+workspace_role: "owner" — breaking the Upgrade Simulation CI workflow.
 
 Revision ID: 093_fix_artifacts_rls_enum_case
 Revises: 092_add_artifacts_rls_policies
@@ -11,9 +16,7 @@ Create Date: 2026-03-20
 
 from collections.abc import Sequence
 
-from sqlalchemy import text
-
-from alembic import op
+from alembic import op  # noqa: F401
 
 revision: str = "093_fix_artifacts_rls_enum_case"
 down_revision: str = "092_add_artifacts_rls_policies"
@@ -22,44 +25,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # Drop the policy with the redundant role IN filter
-    op.execute(text('DROP POLICY IF EXISTS "artifacts_workspace_isolation" ON artifacts'))
-
-    # Recreate without the role filter — membership is the only check needed
-    op.execute(
-        text("""
-        CREATE POLICY "artifacts_workspace_isolation"
-        ON artifacts
-        FOR ALL
-        USING (
-            workspace_id IN (
-                SELECT wm.workspace_id
-                FROM workspace_members wm
-                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
-                AND wm.is_deleted = false
-            )
-        )
-    """)
-    )
+    # No-op: migration 092 already has correct UPPERCASE enum values.
+    pass
 
 
 def downgrade() -> None:
-    # Revert to the original policy from migration 092
-    op.execute(text('DROP POLICY IF EXISTS "artifacts_workspace_isolation" ON artifacts'))
-
-    op.execute(
-        text("""
-        CREATE POLICY "artifacts_workspace_isolation"
-        ON artifacts
-        FOR ALL
-        USING (
-            workspace_id IN (
-                SELECT wm.workspace_id
-                FROM workspace_members wm
-                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
-                AND wm.is_deleted = false
-                AND wm.role IN ('OWNER', 'ADMIN', 'MEMBER', 'GUEST')
-            )
-        )
-    """)
-    )
+    # No-op: nothing to revert.
+    pass

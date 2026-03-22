@@ -22,10 +22,11 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
 
+from pilot_space.infrastructure.database.engine import get_session_factory
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -137,11 +138,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                           ``request.app.state.container`` on the first request.
             enabled: Whether rate limiting is enabled. Set to False to disable
                      entirely (e.g. tests that explicitly opt out).
-            db_url: Optional database URL for per-workspace limit lookups.
-                    When None and no container is available, the DB fallback
-                    path is disabled and system defaults are used on cache miss.
-                    Ignored when ``redis_client`` is None — db_url is then read
-                    lazily from the DI container settings.
+            db_url: Retained for API compatibility. When truthy, the shared
+                    session factory from ``get_session_factory()`` is used
+                    immediately rather than waiting for lazy resolution via the
+                    DI container. The URL itself is no longer used to create a
+                    separate connection pool.
         """
         super().__init__(app)  # type: ignore[arg-type]
         self.redis = redis_client
@@ -149,12 +150,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._db_url = db_url
         self._session_factory: async_sessionmaker[AsyncSession] | None = None
         if db_url:
-            engine = create_async_engine(db_url, pool_pre_ping=True)
-            self._session_factory = async_sessionmaker(
-                engine,
-                class_=AsyncSession,
-                expire_on_commit=False,
-            )
+            # Use the shared engine rather than creating a separate connection pool.
+            # db_url is retained for API compatibility but is no longer used to
+            # construct an engine directly.
+            self._session_factory = get_session_factory()
         # Lazy-resolution state (used when redis_client is not provided at init time)
         self._redis_resolved: bool = redis_client is not None
 
@@ -166,9 +165,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Lazily resolve Redis client from app container on first request.
 
         Follows the same pattern as ``SessionRecordingMiddleware._resolve_dependencies``.
-        No-op after the first successful resolution. Fails open (rate limiting
-        disabled) when the container is not yet available or Redis is not
-        configured.
+        No-op after the first successful resolution. Also initialises the shared
+        session factory (via ``get_session_factory()``) if not already set.
+        Fails open (rate limiting disabled) when the container is not yet
+        available or Redis is not configured.
 
         Args:
             request: Incoming request with access to ``request.app.state.container``.
@@ -180,15 +180,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             redis_client_wrapper = container.redis_client()
             if redis_client_wrapper is not None:
                 self.redis = redis_client_wrapper.client  # raw redis.asyncio.Redis instance
-            settings = container.settings()
-            db_url: str | None = settings.database_url.get_secret_value()
-            if db_url and self._session_factory is None:
-                engine = create_async_engine(db_url, pool_pre_ping=True)
-                self._session_factory = async_sessionmaker(
-                    engine,
-                    class_=AsyncSession,
-                    expire_on_commit=False,
-                )
+            if self._session_factory is None:
+                self._session_factory = get_session_factory()
             self._redis_resolved = True
         except Exception:
             logger.debug("RateLimitMiddleware: container not yet available, rate limiting disabled")

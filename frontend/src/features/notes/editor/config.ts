@@ -103,7 +103,7 @@ export function getBaseExtensions(options?: {
  * @param workspaceId - Required for the artifacts API route
  * @param projectId - Required for the artifacts API route
  */
-async function uploadFileAndUpdateNode(
+export async function uploadFileAndUpdateNode(
   editor: Editor,
   file: File,
   nodeType: 'figure' | 'fileCard',

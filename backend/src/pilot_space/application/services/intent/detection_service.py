@@ -401,14 +401,22 @@ class IntentDetectionService:
         try:
             from anthropic import AsyncAnthropic
 
+            from pilot_space.ai.infrastructure.cost_tracker import (
+                extract_response_usage,
+                track_cost,
+            )
+
             client = AsyncAnthropic(api_key=ws_config.api_key, base_url=ws_config.base_url or None)
+            _usage: tuple[int, int] = (0, 0)
 
             async def _call_api() -> str:
+                nonlocal _usage
                 response = await client.messages.create(
                     model=model,
                     max_tokens=2048,
                     messages=[{"role": "user", "content": prompt}],
                 )
+                _usage = extract_response_usage(response)
                 # Prefer text blocks, fall back to thinking blocks
                 # (some models like kimi via Ollama return only thinking blocks)
                 text_parts: list[str] = []
@@ -426,6 +434,20 @@ class IntentDetectionService:
                 timeout_sec=timeout_sec,
                 retry_config=retry_config,
             )
+
+            # Track cost (non-fatal)
+            if _usage != (0, 0):
+                await track_cost(
+                    self._session,
+                    workspace_id=workspace_id,
+                    user_id=None,
+                    agent_name="intent_detection",
+                    provider=ws_config.provider,
+                    model=model,
+                    input_tokens=_usage[0],
+                    output_tokens=_usage[1],
+                    operation_type="intent_detection",
+                )
 
             intents = _parse_llm_response(
                 raw,

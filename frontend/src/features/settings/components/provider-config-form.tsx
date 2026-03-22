@@ -2,7 +2,7 @@
  * ProviderConfigForm - Configuration form for a single AI provider.
  *
  * Renders base_url, model_name, and api_key fields based on provider config.
- * Handles save logic with validation and toast feedback.
+ * Inline security note next to API key label. Handles save with toast feedback.
  */
 
 'use client';
@@ -45,12 +45,17 @@ const PROVIDER_CONFIG: Record<string, ProviderFieldConfig> = {
     baseUrlPlaceholder: 'http://localhost:11434',
     modelPlaceholder: 'e.g. nomic-embed-text, qwen2.5',
   },
+  elevenlabs: {
+    name: 'ElevenLabs',
+    fields: ['api_key'],
+    // No base_url or model_name — ElevenLabs uses fixed endpoint
+  },
 };
 
 /** Resolve model placeholder based on provider + service type. */
 function getModelPlaceholder(
   provider: string,
-  serviceType: 'embedding' | 'llm',
+  serviceType: 'embedding' | 'llm' | 'stt',
   config: ProviderFieldConfig
 ): string {
   if (provider === 'ollama' && serviceType === 'embedding') {
@@ -64,7 +69,7 @@ function getModelPlaceholder(
 
 export interface ProviderConfigFormProps {
   provider: string;
-  serviceType: 'embedding' | 'llm';
+  serviceType: 'embedding' | 'llm' | 'stt';
   status: WorkspaceAISettingsProvider | undefined;
   /** When true, saving also sets this provider as the active default for its service type. */
   setAsDefault?: boolean;
@@ -101,7 +106,7 @@ export function ProviderConfigForm({
   const handleSave = async () => {
     const entry: {
       provider: string;
-      service_type: 'embedding' | 'llm';
+      service_type: 'embedding' | 'llm' | 'stt';
       api_key?: string;
       base_url?: string;
       model_name?: string;
@@ -132,9 +137,10 @@ export function ProviderConfigForm({
       if (setAsDefault) {
         if (serviceType === 'llm') {
           saveData.default_llm_provider = provider;
-        } else {
+        } else if (serviceType === 'embedding') {
           saveData.default_embedding_provider = provider;
         }
+        // 'stt' providers do not have a default_* field (only one stt provider: elevenlabs)
       }
       await settings.saveSettings(saveData);
       // Check for validation warnings (saved but validation failed, e.g. Ollama not running)
@@ -159,7 +165,7 @@ export function ProviderConfigForm({
   };
 
   return (
-    <div className="space-y-4 pt-2">
+    <div className="space-y-4 rounded-lg border border-border bg-background p-4">
       {config.fields.includes('base_url') && (
         <div className="space-y-2">
           <Label htmlFor={`${provider}-${serviceType}-base-url`}>
@@ -169,9 +175,7 @@ export function ProviderConfigForm({
             id={`${provider}-${serviceType}-base-url`}
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder={
-              status?.baseUrl ?? config.baseUrlPlaceholder ?? 'https://api.example.com/v1'
-            }
+            placeholder={config.baseUrlPlaceholder ?? 'https://api.example.com/v1'}
             disabled={isSaving}
             autoComplete="off"
           />
@@ -185,7 +189,7 @@ export function ProviderConfigForm({
             id={`${provider}-${serviceType}-model-name`}
             value={modelName}
             onChange={(e) => setModelName(e.target.value)}
-            placeholder={status?.modelName ?? modelPlaceholder}
+            placeholder={modelPlaceholder}
             disabled={isSaving}
             autoComplete="off"
           />
@@ -203,9 +207,18 @@ export function ProviderConfigForm({
         />
       )}
 
-      <div className="flex justify-end pt-2">
-        <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px]">
-          {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+      <div className="flex items-center justify-between pt-1">
+        <p className="text-xs text-muted-foreground/70">
+          Keys are encrypted at rest and never logged.
+        </p>
+        <Button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving}
+          size="sm"
+          className="min-w-[88px]"
+        >
+          {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {isSaving ? 'Saving...' : 'Save'}
         </Button>
       </div>

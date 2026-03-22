@@ -65,7 +65,7 @@ class SecureKeyStorage:
     """
 
     VALID_PROVIDERS = VALID_PROVIDERS
-    VALID_SERVICE_TYPES = frozenset({"embedding", "llm"})
+    VALID_SERVICE_TYPES = frozenset({"embedding", "llm", "stt"})
 
     def __init__(
         self,
@@ -304,7 +304,7 @@ class SecureKeyStorage:
 
         return True
 
-    async def validate_api_key(
+    async def validate_api_key(  # noqa: PLR0911
         self,
         provider: str,
         api_key: str | None,
@@ -354,6 +354,20 @@ class SecureKeyStorage:
                     resp = await client.get(f"{url}/api/tags")
                     if resp.status_code != 200:
                         return False, f"Ollama returned HTTP {resp.status_code}"
+            elif provider == "elevenlabs":
+                if not api_key:
+                    return False, "API key is required"
+                import httpx
+
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.get(
+                        "https://api.elevenlabs.io/v1/models",
+                        headers={"xi-api-key": api_key},
+                    )
+                    if resp.status_code in (401, 403):
+                        return False, "Invalid ElevenLabs API key"
+                    if resp.status_code != 200:
+                        return False, f"ElevenLabs returned HTTP {resp.status_code}"
             else:
                 logger.warning("key_storage_unknown_provider", provider=provider)
                 return False, f"Unknown provider: {provider}"

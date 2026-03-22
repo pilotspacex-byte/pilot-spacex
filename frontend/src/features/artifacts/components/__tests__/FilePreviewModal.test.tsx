@@ -8,6 +8,61 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// Mock renderers that are lazy-loaded via next/dynamic.
+// We mock the renderer modules AND next/dynamic itself so components render synchronously.
+vi.mock('../renderers/MarkdownRenderer', () => ({
+  MarkdownRenderer: ({ content }: { content: string }) => (
+    <div data-testid="markdown-content">{content}</div>
+  ),
+}));
+vi.mock('../renderers/TextRenderer', () => ({
+  TextRenderer: ({ content }: { content: string }) => <pre>{content}</pre>,
+}));
+vi.mock('../renderers/JsonRenderer', () => ({
+  JsonRenderer: ({ content }: { content: string }) => (
+    <div data-testid="markdown-content">{`\`\`\`json\n${content}\n\`\`\``}</div>
+  ),
+}));
+vi.mock('../renderers/CodeRenderer', () => ({
+  CodeRenderer: ({ content, language }: { content: string; language: string }) => (
+    <div data-testid="markdown-content">{`\`\`\`${language}\n${content}\n\`\`\``}</div>
+  ),
+}));
+vi.mock('../renderers/CsvRenderer', () => ({
+  CsvRenderer: ({ content }: { content: string }) => (
+    <table>
+      <tbody>
+        <tr>
+          <td>{content}</td>
+        </tr>
+      </tbody>
+    </table>
+  ),
+}));
+
+// next/dynamic mock: synchronously returns the component from vi.mock'd modules
+vi.mock('next/dynamic', () => ({
+  __esModule: true,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  default: (loader: () => Promise<any>) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let C: any = () => null;
+    // In vitest, mocked modules resolve synchronously in the .then microtask
+    // when accessed right after vi.mock registration (hoisted).
+    const p = loader();
+    p.then((m: { default?: unknown }) => {
+      C = m.default ?? m;
+    });
+    // Force microtask flush: vitest resolves mocked imports synchronously
+    // so C is set before the first render.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return function Dynamic(props: any) {
+      return <C {...props} />;
+    };
+  },
+}));
+
 import { FilePreviewModal } from '../FilePreviewModal';
 
 // Mock useFileContent to avoid real network calls
@@ -65,7 +120,7 @@ describe('FilePreviewModal', () => {
     vi.clearAllMocks();
   });
 
-  describe('Header', () => {
+  describe('Header (non-image Dialog)', () => {
     it('shows filename in the header', () => {
       renderModal({ filename: 'my-document.pdf', mimeType: 'application/pdf' });
       expect(screen.getByText('my-document.pdf')).toBeDefined();
@@ -79,12 +134,12 @@ describe('FilePreviewModal', () => {
     });
 
     it('shows maximize button', () => {
-      renderModal();
+      renderModal({ mimeType: 'application/pdf', filename: 'report.pdf' });
       expect(screen.getByRole('button', { name: /maximize/i })).toBeDefined();
     });
 
     it('resets isMaximized to false when modal re-opens', async () => {
-      const { rerender } = renderModal();
+      const { rerender } = renderModal({ mimeType: 'application/pdf', filename: 'report.pdf' });
       const client = makeClient();
       // Click maximize
       fireEvent.click(screen.getByRole('button', { name: /maximize/i }));
@@ -93,12 +148,22 @@ describe('FilePreviewModal', () => {
       // Close and reopen modal
       rerender(
         <QueryClientProvider client={client}>
-          <FilePreviewModal {...defaultProps} open={false} />
+          <FilePreviewModal
+            {...defaultProps}
+            mimeType="application/pdf"
+            filename="report.pdf"
+            open={false}
+          />
         </QueryClientProvider>
       );
       rerender(
         <QueryClientProvider client={client}>
-          <FilePreviewModal {...defaultProps} open={true} />
+          <FilePreviewModal
+            {...defaultProps}
+            mimeType="application/pdf"
+            filename="report.pdf"
+            open={true}
+          />
         </QueryClientProvider>
       );
       // After re-open, maximize button should be back
@@ -108,28 +173,44 @@ describe('FilePreviewModal', () => {
     });
   });
 
-  describe('PREV-01: Image preview', () => {
-    it('renders <img> tag when mimeType starts with image/', () => {
+  describe('PREV-01: Image lightbox preview', () => {
+    it('renders <img> tag in lightbox when mimeType starts with image/', () => {
       renderModal({ mimeType: 'image/png', filename: 'photo.png' });
       expect(screen.getByRole('img')).toBeDefined();
     });
 
-    it('clicking image toggles zoom state (cursor-zoom-in / cursor-zoom-out)', () => {
+    it('shows filename in lightbox toolbar', () => {
+      renderModal({ mimeType: 'image/jpeg', filename: 'photo.jpg' });
+      expect(screen.getByText('photo.jpg')).toBeDefined();
+    });
+
+    it('clicking image area toggles zoom state', () => {
       renderModal({ mimeType: 'image/jpeg', filename: 'photo.jpg' });
       const img = screen.getByRole('img');
       const container = img.parentElement!;
       expect(container.className).toContain('cursor-zoom-in');
-      fireEvent.click(container);
+      fireEvent.click(img);
       expect(container.className).toContain('cursor-zoom-out');
     });
 
-    it('img onError shows DownloadFallback with download link', () => {
+    it('img onError shows failure message', () => {
       renderModal({ mimeType: 'image/png', filename: 'broken.png' });
       const img = screen.getByRole('img');
       fireEvent.error(img);
-      // DownloadFallback with reason="expired" should show download link
-      const downloadLink = screen.getByRole('link', { name: /download broken\.png/i });
-      expect(downloadLink).toBeDefined();
+      expect(screen.getByText('Failed to load image')).toBeDefined();
+    });
+
+    it('shows zoom and download buttons in toolbar', () => {
+      renderModal({ mimeType: 'image/png', filename: 'photo.png' });
+      expect(screen.getByRole('button', { name: /zoom in/i })).toBeDefined();
+      expect(screen.getByRole('link', { name: /download image/i })).toBeDefined();
+    });
+
+    it('close button calls onOpenChange(false)', () => {
+      const onOpenChange = vi.fn();
+      renderModal({ mimeType: 'image/png', filename: 'photo.png', onOpenChange });
+      fireEvent.click(screen.getByRole('button', { name: /close/i }));
+      expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
 

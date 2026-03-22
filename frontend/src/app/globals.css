@@ -2765,10 +2765,19 @@
 .video-embed {
   width: 100%;
   aspect-ratio: 16 / 9;
-  border: none;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: var(--radius, 6px);
   display: block;
   margin: 1rem 0;
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.video-embed:hover {
+  border-color: var(--primary, #0f172a);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .video-embed--youtube,
@@ -2780,4 +2789,17 @@
 .video-url-prompt:focus {
   outline: 2px solid var(--ring, #94a3b8);
   outline-offset: 1px;
+}
+
+/* Voice recording pulse animation (RecordButton) */
+@keyframes record-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.25);
+  }
 }

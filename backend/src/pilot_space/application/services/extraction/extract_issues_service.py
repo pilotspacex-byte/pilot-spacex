@@ -328,14 +328,22 @@ class IssueExtractionService:
         try:
             from anthropic import AsyncAnthropic
 
+            from pilot_space.ai.infrastructure.cost_tracker import (
+                extract_response_usage,
+                track_cost,
+            )
+
             client = AsyncAnthropic(api_key=ws_config.api_key, base_url=ws_config.base_url or None)
+            _usage: tuple[int, int] = (0, 0)
 
             async def _call_api() -> str:
+                nonlocal _usage
                 response = await client.messages.create(
                     model=model,
                     max_tokens=4096,
                     messages=[{"role": "user", "content": prompt}],
                 )
+                _usage = extract_response_usage(response)
                 for block in response.content:
                     if block.type == "text":
                         return block.text
@@ -347,6 +355,20 @@ class IssueExtractionService:
                 timeout_sec=timeout_sec,
                 retry_config=retry_config,
             )
+
+            # Track cost (non-fatal)
+            if _usage != (0, 0):
+                await track_cost(
+                    self._session,
+                    workspace_id=payload.workspace_id,
+                    user_id=None,
+                    agent_name="issue_extraction",
+                    provider=ws_config.provider,
+                    model=model,
+                    input_tokens=_usage[0],
+                    output_tokens=_usage[1],
+                    operation_type="issue_extraction",
+                )
 
             return _parse_extraction_response(raw), model
 

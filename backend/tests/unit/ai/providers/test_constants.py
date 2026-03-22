@@ -37,9 +37,9 @@ class TestProviderConstants:
         assert "openai" not in VALID_PROVIDERS
 
     def test_slots_have_expected_providers(self) -> None:
-        """Slots should contain google, anthropic, ollama entries."""
+        """Slots should contain google, anthropic, ollama, elevenlabs entries."""
         slot_providers = {p for p, _, _ in PROVIDER_SERVICE_SLOTS}
-        assert slot_providers == {"google", "anthropic", "ollama"}
+        assert slot_providers == {"google", "anthropic", "ollama", "elevenlabs"}
 
     def test_ollama_supports_both(self) -> None:
         """Ollama slots should have supports_both=True."""

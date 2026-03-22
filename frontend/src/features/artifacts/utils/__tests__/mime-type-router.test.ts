@@ -19,8 +19,8 @@ describe('resolveRenderer', () => {
       expect(resolveRenderer('image/webp', 'photo.webp')).toBe('image');
     });
 
-    it('returns "image" for image/svg+xml', () => {
-      expect(resolveRenderer('image/svg+xml', 'icon.svg')).toBe('image');
+    it('returns "html-preview" for image/svg+xml (SVGs are sandboxed)', () => {
+      expect(resolveRenderer('image/svg+xml', 'icon.svg')).toBe('html-preview');
     });
   });
 
@@ -226,8 +226,8 @@ describe('getLanguageForFile', () => {
     expect(getLanguageForFile('unknown.xyz')).toBe('plaintext');
   });
 
-  it('returns "plaintext" for file with no extension', () => {
-    expect(getLanguageForFile('Dockerfile')).toBe('plaintext');
+  it('returns "dockerfile" for extensionless Dockerfile', () => {
+    expect(getLanguageForFile('Dockerfile')).toBe('dockerfile');
   });
 
   it('handles uppercase extensions', () => {

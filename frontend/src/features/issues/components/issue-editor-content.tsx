@@ -32,7 +32,13 @@ import {
 } from '@/features/issues/components';
 import { IssueDescriptionEmptyState } from './issue-description-empty-state';
 import { GitHubImplementationSection } from './github-implementation-section';
-import { IssueKnowledgeGraphMini } from './issue-knowledge-graph-mini';
+import dynamic from 'next/dynamic';
+
+const IssueKnowledgeGraphMini = dynamic(
+  () =>
+    import('./issue-knowledge-graph-mini').then((m) => ({ default: m.IssueKnowledgeGraphMini })),
+  { ssr: false }
+);
 import { useIssueLinks, useIssueRelations } from '@/features/issues/hooks';
 import { createIssueNoteExtensions } from '@/features/issues/editor/create-issue-note-extensions';
 import { integrationsApi } from '@/services/api/integrations';

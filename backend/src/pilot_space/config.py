@@ -46,9 +46,12 @@ class Settings(BaseSettings):
         default=SecretStr("postgresql+asyncpg://postgres:postgres@localhost:54322/postgres"),
         description="PostgreSQL connection URL (async driver)",
     )
-    database_pool_size: int = Field(default=5, ge=1, le=100)
+    database_pool_size: int = Field(default=15, ge=1, le=100)
     database_max_overflow: int = Field(default=10, ge=0, le=100)
     database_pool_timeout: int = Field(default=30, ge=1)
+    database_pool_recycle: int = Field(
+        default=1800, ge=0, description="Recycle connections after N seconds"
+    )
 
     # Redis
     redis_url: str = Field(

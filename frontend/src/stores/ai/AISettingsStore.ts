@@ -46,7 +46,9 @@ export class AISettingsStore {
   constructor(_rootStore: AIStore) {
     makeAutoObservable(this, {
       anthropicKeySet: computed,
+      llmConfigured: computed,
       embeddingConfigured: computed,
+      sttConfigured: computed,
       ghostTextEnabled: computed,
       marginAnnotationsEnabled: computed,
       aiContextEnabled: computed,
@@ -58,6 +60,13 @@ export class AISettingsStore {
       this.settings?.providers?.some(
         (p) => p.provider === 'anthropic' && p.serviceType === 'llm' && p.isConfigured
       ) ?? false
+    );
+  }
+
+  /** True when ANY LLM provider is configured (not just Anthropic). */
+  get llmConfigured(): boolean {
+    return (
+      this.settings?.providers?.some((p) => p.serviceType === 'llm' && p.isConfigured) ?? false
     );
   }
 
@@ -82,7 +91,7 @@ export class AISettingsStore {
 
   getProviderStatus(
     provider: string,
-    serviceType: 'embedding' | 'llm'
+    serviceType: 'embedding' | 'llm' | 'stt'
   ): WorkspaceAISettingsProvider | undefined {
     return this.settings?.providers?.find(
       (p) => p.provider === provider && p.serviceType === serviceType
@@ -90,16 +99,26 @@ export class AISettingsStore {
   }
 
   /** Get all providers for a given service type. */
-  getProvidersByService(serviceType: 'embedding' | 'llm'): WorkspaceAISettingsProvider[] {
+  getProvidersByService(serviceType: 'embedding' | 'llm' | 'stt'): WorkspaceAISettingsProvider[] {
     return this.settings?.providers?.filter((p) => p.serviceType === serviceType) ?? [];
   }
 
   /** Get the default/active provider for a service type. */
-  getDefaultProvider(serviceType: 'embedding' | 'llm'): string {
+  getDefaultProvider(serviceType: 'embedding' | 'llm' | 'stt'): string {
     if (serviceType === 'llm') {
       return this.settings?.defaultLlmProvider ?? 'anthropic';
     }
+    if (serviceType === 'stt') {
+      return this.settings?.defaultSttProvider ?? 'elevenlabs';
+    }
     return this.settings?.defaultEmbeddingProvider ?? 'google';
+  }
+
+  /** Get whether any stt provider is configured. */
+  get sttConfigured(): boolean {
+    return (
+      this.settings?.providers?.some((p) => p.serviceType === 'stt' && p.isConfigured) ?? false
+    );
   }
 
   /** Set the default/active provider for a service type. */
@@ -149,7 +168,7 @@ export class AISettingsStore {
   async saveSettings(data: {
     api_keys?: Array<{
       provider: string;
-      service_type: 'embedding' | 'llm';
+      service_type: 'embedding' | 'llm' | 'stt';
       api_key?: string;
       base_url?: string;
       model_name?: string;
@@ -248,6 +267,9 @@ export class AISettingsStore {
         return key.startsWith('sk-ant-');
       case 'google':
         return key.startsWith('AIza');
+      case 'elevenlabs':
+        // ElevenLabs keys are typically 32 hex chars
+        return key.length >= 20;
       default:
         return true;
     }

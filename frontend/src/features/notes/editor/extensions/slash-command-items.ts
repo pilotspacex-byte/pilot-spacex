@@ -509,18 +509,34 @@ export function getDefaultCommands(
           'image/*,application/pdf,text/*,application/json,application/vnd.ms-excel,text/csv',
           (files) => {
             for (const file of files) {
-              editor.commands.insertContent({
-                type: 'fileCard',
-                attrs: {
-                  artifactId: null,
-                  filename: file.name,
-                  mimeType: file.type,
-                  sizeBytes: file.size,
-                  status: 'uploading',
-                },
-              });
+              const isImage = file.type.startsWith('image/');
+              const nodeType = isImage ? 'figure' : 'fileCard';
+
+              editor.commands.insertContent(
+                isImage
+                  ? {
+                      type: 'figure',
+                      attrs: {
+                        src: null,
+                        alt: file.name,
+                        artifactId: null,
+                        status: 'uploading',
+                      },
+                      content: [],
+                    }
+                  : {
+                      type: 'fileCard',
+                      attrs: {
+                        artifactId: null,
+                        filename: file.name,
+                        mimeType: file.type,
+                        sizeBytes: file.size,
+                        status: 'uploading',
+                      },
+                    }
+              );
               const event = new CustomEvent('pilot:upload-artifact', {
-                detail: { file, nodeType: 'fileCard', editor },
+                detail: { file, nodeType, editor },
                 bubbles: true,
               });
               editor.view.dom.dispatchEvent(event);

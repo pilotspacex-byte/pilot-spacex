@@ -312,7 +312,7 @@ class ProviderStatus(BaseSchema):
     """
 
     provider: str = Field(description="Provider name")
-    service_type: str = Field(description="Service category: 'embedding' or 'llm'")
+    service_type: str = Field(description="Service category: 'embedding', 'llm', or 'stt'")
     is_configured: bool = Field(description="Whether provider is configured for this service")
     is_valid: bool | None = Field(
         default=None, description="Validation status (None if never validated)"
@@ -425,11 +425,11 @@ class APIKeyUpdate(BaseSchema):
 
     provider: str = Field(
         description="Provider name",
-        pattern="^(google|anthropic|ollama)$",
+        pattern="^(google|anthropic|ollama|elevenlabs)$",
     )
     service_type: str = Field(
         description="Service category",
-        pattern="^(embedding|llm)$",
+        pattern="^(embedding|llm|stt)$",
     )
     api_key: str | None = Field(
         default=None,

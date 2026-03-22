@@ -1,19 +1,18 @@
 /**
  * AIFeatureToggles - Feature toggle switches for AI capabilities.
  *
- * T181: Toggle switches for ghost text, annotations, AI context, issue extraction, PR review.
+ * Shows inline guidance when prerequisites are not met.
+ * Stops event propagation on disabled switches to prevent dialog dismissal.
  */
 
 'use client';
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { Sparkles, FileText, MessageSquare, GitPullRequest, Lightbulb } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Sparkles, FileText, MessageSquare, GitPullRequest, Lightbulb, Info } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/stores';
 
@@ -37,25 +36,43 @@ function FeatureToggle({
   const id = React.useId();
 
   return (
-    <div className="flex items-center justify-between py-3">
+    <div
+      className="flex items-center justify-between py-3"
+      onClick={(e) => {
+        // Prevent disabled toggle clicks from bubbling up to dialog overlay
+        if (disabled) {
+          e.stopPropagation();
+        }
+      }}
+    >
       <div className="flex items-start gap-3 flex-1">
-        <div className="mt-1">
+        <div className="mt-0.5">
           <Icon className="h-4 w-4 text-muted-foreground" />
         </div>
-        <div className="flex-1 space-y-1">
+        <div className="flex-1 space-y-0.5">
           <Label htmlFor={id} className="text-sm font-medium cursor-pointer">
             {label}
           </Label>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
         </div>
       </div>
-      <Switch
-        id={id}
-        checked={checked}
-        onCheckedChange={onCheckedChange}
-        disabled={disabled}
-        aria-label={`Toggle ${label}`}
-      />
+      <div
+        onClick={(e) => {
+          // Extra safety: stop propagation on the switch wrapper
+          if (disabled) {
+            e.stopPropagation();
+            e.preventDefault();
+          }
+        }}
+      >
+        <Switch
+          id={id}
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+          disabled={disabled}
+          aria-label={`Toggle ${label}`}
+        />
+      </div>
     </div>
   );
 }
@@ -68,32 +85,50 @@ export const AIFeatureToggles = observer(function AIFeatureToggles() {
     try {
       await settings.saveSettings({ features: { [feature]: enabled } });
     } catch (error) {
-      // Error handling already done in store
       console.error('Failed to toggle feature:', error);
     }
   };
 
-  const allKeysConfigured = settings.anthropicKeySet && settings.embeddingConfigured;
+  const hasEmbedding = settings.embeddingConfigured;
+  const hasLlm = settings.llmConfigured;
+  const allKeysConfigured = hasLlm && hasEmbedding;
   const isDisabled = settings.isSaving || !allKeysConfigured;
 
+  // Build guidance message
+  const getMissingMessage = (): string | null => {
+    if (allKeysConfigured) return null;
+    const missing: string[] = [];
+    if (!hasEmbedding) missing.push('Embedding');
+    if (!hasLlm) missing.push('LLM');
+    return `Configure ${missing.join(' and ')} provider${missing.length > 1 ? 's' : ''} above to enable features.`;
+  };
+
+  const missingMessage = getMissingMessage();
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>AI Features</CardTitle>
-            <CardDescription>
-              Enable or disable specific AI capabilities for your workspace
-            </CardDescription>
-          </div>
-          {!allKeysConfigured && (
-            <Badge variant="outline" className="text-muted-foreground">
-              API keys required
-            </Badge>
-          )}
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">AI Features</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Enable or disable AI capabilities for your workspace.
+          </p>
         </div>
-      </CardHeader>
-      <CardContent className={cn('space-y-1', isDisabled && 'opacity-60')}>
+      </div>
+
+      {missingMessage && (
+        <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2.5">
+          <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <p className="text-xs text-muted-foreground">{missingMessage}</p>
+        </div>
+      )}
+
+      <div
+        className={cn(
+          'rounded-lg border border-border bg-background px-4 transition-opacity',
+          isDisabled && 'opacity-60 pointer-events-auto'
+        )}
+      >
         <FeatureToggle
           icon={Sparkles}
           label="Ghost Text Suggestions"
@@ -106,7 +141,7 @@ export const AIFeatureToggles = observer(function AIFeatureToggles() {
         <FeatureToggle
           icon={MessageSquare}
           label="Margin Annotations"
-          description="AI suggestions and improvements displayed in note margins"
+          description="AI suggestions displayed in note margins"
           checked={settings.marginAnnotationsEnabled}
           disabled={isDisabled}
           onCheckedChange={(checked) => handleToggle('margin_annotations_enabled', checked)}
@@ -133,12 +168,12 @@ export const AIFeatureToggles = observer(function AIFeatureToggles() {
         <FeatureToggle
           icon={GitPullRequest}
           label="PR Review"
-          description="AI-powered pull request reviews with architecture and security analysis"
+          description="AI-powered pull request reviews"
           checked={settings.settings?.features?.prReviewEnabled ?? false}
           disabled={isDisabled}
           onCheckedChange={(checked) => handleToggle('pr_review_enabled', checked)}
         />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 });

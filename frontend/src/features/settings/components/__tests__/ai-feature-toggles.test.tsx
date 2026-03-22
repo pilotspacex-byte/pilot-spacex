@@ -13,8 +13,8 @@ vi.mock('mobx-react-lite', () => ({
 }));
 
 const mockSettings = {
-  anthropicKeySet: true,
-  openaiKeySet: true,
+  llmConfigured: true,
+  embeddingConfigured: true,
   isSaving: false,
   ghostTextEnabled: true,
   marginAnnotationsEnabled: false,
@@ -39,8 +39,8 @@ import { AIFeatureToggles } from '../ai-feature-toggles';
 describe('AIFeatureToggles', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSettings.anthropicKeySet = true;
-    mockSettings.openaiKeySet = true;
+    mockSettings.llmConfigured = true;
+    mockSettings.embeddingConfigured = true;
     mockSettings.isSaving = false;
     mockSettings.ghostTextEnabled = true;
     mockSettings.marginAnnotationsEnabled = false;
@@ -76,23 +76,47 @@ describe('AIFeatureToggles', () => {
     expect(switches[4]).toBeChecked(); // PR Review
   });
 
-  it('shows "API keys required" badge when keys not configured', () => {
-    mockSettings.anthropicKeySet = false;
-    mockSettings.openaiKeySet = false;
+  it('shows guidance message when LLM and Embedding not configured', () => {
+    mockSettings.llmConfigured = false;
+    mockSettings.embeddingConfigured = false;
 
     render(<AIFeatureToggles />);
 
-    expect(screen.getByText('API keys required')).toBeInTheDocument();
+    expect(
+      screen.getByText('Configure Embedding and LLM providers above to enable features.')
+    ).toBeInTheDocument();
   });
 
-  it('does not show "API keys required" badge when all keys configured', () => {
+  it('shows guidance message when only LLM not configured', () => {
+    mockSettings.llmConfigured = false;
+    mockSettings.embeddingConfigured = true;
+
     render(<AIFeatureToggles />);
 
-    expect(screen.queryByText('API keys required')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Configure LLM provider above to enable features.')
+    ).toBeInTheDocument();
   });
 
-  it('disables toggles when keys not configured', () => {
-    mockSettings.anthropicKeySet = false;
+  it('shows guidance message when only Embedding not configured', () => {
+    mockSettings.llmConfigured = true;
+    mockSettings.embeddingConfigured = false;
+
+    render(<AIFeatureToggles />);
+
+    expect(
+      screen.getByText('Configure Embedding provider above to enable features.')
+    ).toBeInTheDocument();
+  });
+
+  it('does not show guidance message when all providers configured', () => {
+    render(<AIFeatureToggles />);
+
+    expect(screen.queryByText(/Configure .* provider/)).not.toBeInTheDocument();
+  });
+
+  it('disables toggles when providers not configured', () => {
+    mockSettings.llmConfigured = false;
 
     render(<AIFeatureToggles />);
 
