@@ -18,8 +18,8 @@ Requirements for Office Suite Preview milestone. Each maps to roadmap phases.
 
 - [x] **XLSX-01**: User can preview .xlsx/.xls files as a scrollable table with headers, rows, and column alignment
 - [x] **XLSX-02**: User can switch between sheets via tab bar for multi-sheet workbooks
-- [ ] **XLSX-03**: User can resize columns by dragging and freeze the header row while scrolling
-- [ ] **XLSX-04**: User can search within spreadsheet data with highlight matching
+- [x] **XLSX-03**: User can resize columns by dragging and freeze the header row while scrolling
+- [x] **XLSX-04**: User can search within spreadsheet data with highlight matching
 
 ### Word Preview
 
@@ -71,8 +71,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-04 | Phase 1 | Complete |
 | XLSX-01 | Phase 3 | Complete |
 | XLSX-02 | Phase 3 | Complete |
-| XLSX-03 | Phase 3 | Pending |
-| XLSX-04 | Phase 3 | Pending |
+| XLSX-03 | Phase 3 | Complete |
+| XLSX-04 | Phase 3 | Complete |
 | DOCX-01 | Phase 2 | Complete |
 | DOCX-02 | Phase 2 | Complete |
 | DOCX-03 | Phase 2 | Complete |

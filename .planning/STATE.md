@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-excel-renderer 03-01-PLAN.md
-last_updated: "2026-03-22T08:53:53.999Z"
+stopped_at: Completed 03-excel-renderer 03-02-PLAN.md
+last_updated: "2026-03-22T08:57:40.202Z"
 last_activity: 2026-03-21 — Roadmap created for v1.2 Office Suite Preview
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 5
+  completed_plans: 6
   percent: 10
 ---
 
@@ -55,6 +55,7 @@ Progress: [█░░░░░░░░░] 10%
 | Phase 02-word-renderer P01 | 5 | 2 tasks | 5 files |
 | Phase 02-word-renderer P02 | 7 | 2 tasks | 4 files |
 | Phase 03-excel-renderer P01 | 8 | 2 tasks | 4 files |
+| Phase 03-excel-renderer P02 | 8 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 02-word-renderer]: allow-scripts sandbox injection for scroll-on-load — most reliable approach for sandbox='' iframes without postMessage listener
 - [Phase 02-word-renderer]: tocOpen lifted to FilePreviewModal (Option A) — cleaner than useImperativeHandle, aligns with React unidirectional data flow
 - [Phase 03-excel-renderer]: SheetJS installed from CDN tarball; setTimeout deferred parse over Web Worker (simpler, STATE.md blocker on Next.js bundling); XLSX.read with dense:true for memory efficiency
+- [Phase 03-excel-renderer]: JS drag handler chosen over CSS resize:horizontal — CSS resize on th inconsistent cross-browser; JS approach reliable in table-fixed layout
+- [Phase 03-excel-renderer]: highlightCell as standalone function (not hook) — pure function returning React.ReactNode, no side effects
 
 ### Pending Todos
 
@@ -90,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T08:53:53.997Z
-Stopped at: Completed 03-excel-renderer 03-01-PLAN.md
+Last session: 2026-03-22T08:57:40.201Z
+Stopped at: Completed 03-excel-renderer 03-02-PLAN.md
 Resume file: None
