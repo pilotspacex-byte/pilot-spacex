@@ -12,7 +12,7 @@ This milestone extends the existing Pilot Space artifact preview pipeline to han
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Unblock all Office renderers with ArrayBuffer fetch mode, backend allowlist extension, and MIME-type routing
+- [x] **Phase 1: Foundation** - Unblock all Office renderers with ArrayBuffer fetch mode, backend allowlist extension, and MIME-type routing (completed 2026-03-22)
 - [ ] **Phase 2: Word Renderer** - Preview .docx files with preserved formatting; graceful fallback for legacy .doc
 - [ ] **Phase 3: Excel Renderer** - Preview .xlsx/.xls files as navigable spreadsheet with multi-sheet tabs and 500-row cap
 - [ ] **Phase 4: PowerPoint Base** - Slide-by-slide .pptx preview with navigation controls and fullscreen mode
@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. useFileContent returns an ArrayBuffer (not a string) when fetching .xlsx, .docx, and .pptx files — verified by no "Invalid signature" parse errors in renderer phases
   3. mime-type-router routes .xlsx/.xls to 'xlsx', .docx/.doc to 'docx', and .pptx/.ppt to 'pptx' renderer types
   4. User sees a "Download to view" fallback message when opening .doc or .ppt legacy binary files in the artifact modal
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 01-01-PLAN.md — MIME routing, ArrayBuffer fetch mode, backend allowlist
 - [ ] 01-02-PLAN.md — Legacy format fallback and FilePreviewModal wiring
@@ -97,7 +97,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 1/2 | In Progress|  |
+| 1. Foundation | 2/2 | Complete   | 2026-03-22 |
 | 2. Word Renderer | 0/2 | Planning complete | - |
 | 3. Excel Renderer | 0/2 | Planning complete | - |
 | 4. PowerPoint Base | 0/2 | Planning complete | - |
