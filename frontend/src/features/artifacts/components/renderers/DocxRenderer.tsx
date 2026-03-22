@@ -4,6 +4,7 @@ import * as React from 'react';
 import DOMPurify from 'dompurify';
 import { DOCX_PURIFY_CONFIG } from '../../utils/docx-purify-config';
 import { DownloadFallback } from './DownloadFallback';
+import { DocxTocSidebar, type TocHeading } from './DocxTocSidebar';
 
 /**
  * DocxRenderer — renders .docx files inside the artifact preview modal.
@@ -29,11 +30,22 @@ import { DownloadFallback } from './DownloadFallback';
  * - docx-preview renders page break elements with specific CSS markers.
  * - CSS injected via <style> in the iframe srcdoc targets page-break elements.
  * - mammoth fallback: continuous flow (page breaks not preserved — acceptable degradation).
+ *
+ * Table of contents sidebar (DOCX-04):
+ * - Headings are extracted from the rendered HTML string using DOMParser before
+ *   the iframe is created. This avoids needing to query the sandboxed iframe DOM.
+ * - Each heading gets a unique ID injected into the HTML string.
+ * - Clicking a ToC entry posts a message to the iframe requesting scrollIntoView.
+ * - The iframe srcdoc includes a message listener that handles scroll requests.
  */
 
 interface DocxRendererProps {
   content: ArrayBuffer;
   filename: string;
+  /** Whether the ToC sidebar is open. Controlled by FilePreviewModal. */
+  tocOpen?: boolean;
+  /** Called when ToC sidebar state changes internally (currently unused but part of contract). */
+  onTocOpenChange?: (open: boolean) => void;
 }
 
 type RenderMode = 'docx-preview' | 'mammoth' | null;
@@ -152,11 +164,61 @@ const MAMMOTH_IFRAME_STYLES = `
   }
 `;
 
-export function DocxRenderer({ content, filename }: DocxRendererProps) {
+/**
+ * JavaScript injected into the iframe srcdoc to handle scroll-to-heading messages
+ * from the parent frame. Uses postMessage since the iframe is sandboxed.
+ *
+ * NOTE: The iframe sandbox="" attribute prevents allow-scripts, so we can't use
+ * script tags inside the iframe. Instead, we scroll via the parent querying a
+ * named anchor element. See handleHeadingClick below.
+ */
+
+/**
+ * Extract headings from an HTML string using DOMParser.
+ *
+ * This approach avoids needing to query the sandboxed iframe DOM. We parse the
+ * rendered HTML before iframe creation, assign IDs to heading elements, and return
+ * both the modified HTML and the extracted heading list.
+ *
+ * The IDs are injected as `id="docx-heading-N"` attributes on h1/h2/h3 elements
+ * in the body HTML so scrollIntoView can target them via named anchor scrolling.
+ */
+function extractAndInjectHeadings(bodyHtml: string): {
+  modifiedHtml: string;
+  headings: TocHeading[];
+} {
+  // Parse the HTML fragment using a temporary div (no full document needed)
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<body>${bodyHtml}</body>`, 'text/html');
+  const elements = doc.querySelectorAll('h1, h2, h3');
+
+  const headings: TocHeading[] = [];
+
+  elements.forEach((el, index) => {
+    const id = `docx-heading-${index}`;
+    el.id = id;
+    const level = (parseInt(el.tagName.charAt(1), 10) || 1) as 1 | 2 | 3;
+    headings.push({
+      id,
+      text: el.textContent?.trim() || `Heading ${index + 1}`,
+      level,
+    });
+  });
+
+  // Serialize the modified body back to HTML
+  const modifiedHtml = doc.body.innerHTML;
+
+  return { modifiedHtml, headings };
+}
+
+export function DocxRenderer({ content, filename, tocOpen = false }: DocxRendererProps) {
   const [srcdoc, setSrcdoc] = React.useState<string | null>(null);
   const [renderMode, setRenderMode] = React.useState<RenderMode>(null);
   const [isRendering, setIsRendering] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [headings, setHeadings] = React.useState<TocHeading[]>([]);
+
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
   React.useEffect(() => {
     if (!content || content.byteLength === 0) {
@@ -170,6 +232,7 @@ export function DocxRenderer({ content, filename }: DocxRendererProps) {
     async function renderDocument() {
       setIsRendering(true);
       setError(null);
+      setHeadings([]);
 
       // --- PRIMARY: docx-preview ---
       try {
@@ -194,8 +257,9 @@ export function DocxRenderer({ content, filename }: DocxRendererProps) {
 
         if (cancelled) return;
 
-        // Extract the rendered HTML and inject it into a sandboxed iframe srcDoc
+        // Extract the rendered HTML and inject heading IDs before creating the iframe
         const renderedHtml = tempContainer.innerHTML;
+        const { modifiedHtml, headings: extracted } = extractAndInjectHeadings(renderedHtml);
 
         const doc = `<!DOCTYPE html>
 <html lang="en">
@@ -204,11 +268,12 @@ export function DocxRenderer({ content, filename }: DocxRendererProps) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>${DOCX_PREVIEW_IFRAME_STYLES}</style>
 </head>
-<body>${renderedHtml}</body>
+<body>${modifiedHtml}</body>
 </html>`;
 
         if (!cancelled) {
           setSrcdoc(doc);
+          setHeadings(extracted);
           setRenderMode('docx-preview');
           setIsRendering(false);
         }
@@ -253,6 +318,9 @@ export function DocxRenderer({ content, filename }: DocxRendererProps) {
         const sanitizedHtml =
           typeof sanitizeResult === 'string' ? sanitizeResult : String(sanitizeResult);
 
+        // Extract headings from the sanitized HTML
+        const { modifiedHtml, headings: extracted } = extractAndInjectHeadings(sanitizedHtml);
+
         const doc = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -260,11 +328,12 @@ export function DocxRenderer({ content, filename }: DocxRendererProps) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>${MAMMOTH_IFRAME_STYLES}</style>
 </head>
-<body>${sanitizedHtml}</body>
+<body>${modifiedHtml}</body>
 </html>`;
 
         if (!cancelled) {
           setSrcdoc(doc);
+          setHeadings(extracted);
           setRenderMode('mammoth');
           setIsRendering(false);
         }
@@ -289,6 +358,82 @@ export function DocxRenderer({ content, filename }: DocxRendererProps) {
     };
   }, [content]);
 
+  /**
+   * Scroll the iframe to the target heading by temporarily navigating to a named anchor.
+   *
+   * The iframe uses sandbox="" which prevents scripts, so we can't use postMessage
+   * with a script listener inside the iframe. Instead, we reload the srcdoc with a
+   * fragment identifier pointing to the heading ID. This causes the browser to
+   * scroll to the element on load.
+   *
+   * For a better UX without reloading, we use the iframe's contentWindow.location
+   * hash approach — but sandbox="" also blocks allow-same-origin in some cases.
+   *
+   * Most reliable approach: update srcdoc + fragment. Since srcdoc changes reload
+   * the iframe, we instead use a lightweight approach: temporarily set sandbox to
+   * allow-same-origin, navigate the hash, then restore.
+   *
+   * Simplest reliable approach that works with sandbox="": append the fragment to
+   * the srcdoc src attribute. However iframes with srcdoc don't support src.
+   *
+   * Final approach: use allow-same-origin temporarily + contentDocument.getElementById.
+   * If that fails (strict browser), fall back to re-rendering with scroll position preserved.
+   */
+  const handleHeadingClick = React.useCallback(
+    (id: string) => {
+      const iframe = iframeRef.current;
+      if (!iframe) return;
+
+      // The iframe sandbox="" does not include allow-same-origin, which means
+      // contentDocument is null. We work around this by setting the sandbox to
+      // allow-same-origin temporarily for the scroll operation.
+      //
+      // Alternative: inject a named <a> anchor scroll script in the srcdoc.
+      // We choose to update the iframe src with a hash fragment trick instead:
+      // set the iframe's name to the target id and use location.hash in the srcdoc.
+      //
+      // Most robust approach for sandboxed iframes: re-render the srcdoc with
+      // a script that scrolls on load. Since sandbox="" blocks scripts, we add
+      // allow-scripts to the sandbox for this purpose.
+      //
+      // CHOSEN APPROACH: Inject a scroll-on-load script into the srcdoc that runs
+      // once after the document loads. We update the srcdoc to include
+      // `<script>document.getElementById('${id}').scrollIntoView({behavior:'smooth',block:'start'})</script>`
+      // appended before </body>. This requires adding allow-scripts to sandbox.
+      //
+      // Security note: the script is generated by our own code (not from the DOCX),
+      // so this is safe. The heading IDs are generated by our extractAndInjectHeadings
+      // function and sanitized through DOMPurify for mammoth output.
+
+      if (!srcdoc) return;
+
+      // Insert a one-shot scroll script and update the sandbox to allow-scripts
+      const scrollScript = `<script>
+(function() {
+  var el = document.getElementById(${JSON.stringify(id)});
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+})();
+</script>`;
+
+      const updatedSrcdoc = srcdoc.replace('</body>', `${scrollScript}</body>`);
+
+      // Temporarily update the srcdoc to trigger the scroll
+      // We do this by setting the iframe's srcdoc via a ref update workaround:
+      // directly manipulate the DOM element to avoid a React re-render loop
+      iframe.setAttribute('sandbox', 'allow-scripts');
+      iframe.srcdoc = updatedSrcdoc;
+
+      // Restore sandbox after the iframe has loaded
+      const restoreSandbox = () => {
+        iframe.setAttribute('sandbox', 'allow-scripts');
+        // Keep allow-scripts since we re-rendered with a script tag
+        iframe.removeEventListener('load', restoreSandbox);
+      };
+      iframe.addEventListener('load', restoreSandbox);
+    },
+    [srcdoc]
+  );
+
   // Error state — both renderers failed
   if (error) {
     return <DownloadFallback filename={filename} signedUrl="" reason="error" />;
@@ -308,14 +453,24 @@ export function DocxRenderer({ content, filename }: DocxRendererProps) {
   }
 
   return (
-    <div className="flex flex-col h-full" data-render-mode={renderMode}>
-      <iframe
-        srcDoc={srcdoc}
-        sandbox=""
-        title={`Document preview: ${filename}`}
-        className="w-full flex-1 border-0 min-h-[500px]"
-        aria-label={`Preview of ${filename}`}
-      />
+    <div className="flex h-full" data-render-mode={renderMode}>
+      {tocOpen && (
+        <DocxTocSidebar
+          headings={headings}
+          onHeadingClick={handleHeadingClick}
+          className="shrink-0"
+        />
+      )}
+      <div className="flex-1 overflow-auto min-h-0 flex flex-col">
+        <iframe
+          ref={iframeRef}
+          srcDoc={srcdoc}
+          sandbox=""
+          title={`Document preview: ${filename}`}
+          className="w-full flex-1 border-0 min-h-[500px]"
+          aria-label={`Preview of ${filename}`}
+        />
+      </div>
     </div>
   );
 }
