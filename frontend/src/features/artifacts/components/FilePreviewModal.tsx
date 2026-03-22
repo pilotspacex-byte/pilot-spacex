@@ -14,6 +14,8 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import { observer } from 'mobx-react-lite';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +26,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import dynamic from 'next/dynamic';
+import { useStore } from '@/stores';
 import { resolveRenderer, getLanguageForFile } from '../utils/mime-type-router';
 import { useFileContent } from '../hooks/useFileContent';
 import { DownloadFallback } from './renderers/DownloadFallback';
@@ -68,6 +71,11 @@ const PptxRenderer = dynamic(
 // PptxThumbnailStrip also uses Canvas API and IntersectionObserver — ssr: false is REQUIRED.
 const PptxThumbnailStrip = dynamic(
   () => import('./renderers/PptxThumbnailStrip').then((m) => ({ default: m.PptxThumbnailStrip })),
+  { ssr: false }
+);
+// PptxAnnotationPanel uses TanStack Query and browser APIs — ssr: false is REQUIRED.
+const PptxAnnotationPanel = dynamic(
+  () => import('./PptxAnnotationPanel').then((m) => ({ default: m.PptxAnnotationPanel })),
   { ssr: false }
 );
 
@@ -234,14 +242,21 @@ function ImageLightbox({
 // ---------------------------------------------------------------------------
 // FilePreviewModal — unified entry point
 // ---------------------------------------------------------------------------
-export function FilePreviewModal({
+export const FilePreviewModal = observer(function FilePreviewModal({
   open,
   onOpenChange,
-  artifactId: _artifactId,
+  artifactId,
   filename,
   mimeType,
   signedUrl,
 }: FilePreviewModalProps) {
+  // Workspace and user context — needed for annotation API calls
+  const params = useParams<{ workspaceSlug?: string; projectId?: string }>();
+  const { workspaceStore, authStore } = useStore();
+  const workspaceId = workspaceStore.currentWorkspace?.id ?? '';
+  const projectId = params.projectId ?? '';
+  const currentUserId = authStore.user?.id ?? '';
+
   const [isMaximized, setIsMaximized] = React.useState(false);
   const [docxTocOpen, setDocxTocOpen] = React.useState(false);
 
@@ -453,6 +468,16 @@ export function FilePreviewModal({
                 </Button>
               </div>
             </div>
+            {/* Annotation panel — right side; hidden in fullscreen for clean slide view */}
+            {!isFullscreen && workspaceId && projectId && (
+              <PptxAnnotationPanel
+                workspaceId={workspaceId}
+                projectId={projectId}
+                artifactId={artifactId}
+                currentSlide={currentSlide}
+                currentUserId={currentUserId}
+              />
+            )}
           </div>
         );
       default:
@@ -572,4 +597,4 @@ export function FilePreviewModal({
       </DialogContent>
     </Dialog>
   );
-}
+});
