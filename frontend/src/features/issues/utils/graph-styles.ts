@@ -281,16 +281,16 @@ export function getNodeDimensions(
   tier: number,
   isCurrent: boolean
 ): { width: number; height: number } {
-  if (isCurrent) return { width: 150, height: 48 };
+  if (isCurrent) return { width: 130, height: 40 };
   switch (tier) {
     case 0:
-      return { width: 140, height: 44 }; // project — cluster anchor
+      return { width: 125, height: 38 }; // project — cluster anchor
     case 1:
-      return { width: 120, height: 38 }; // entity (issue, note, cycle)
+      return { width: 115, height: 34 }; // entity (issue, note, cycle)
     case 2:
-      return { width: 100, height: 32 }; // dev/ai (PR, commit, branch)
+      return { width: 95, height: 30 }; // dev/ai (PR, commit, branch)
     default:
-      return { width: 80, height: 28 }; // chunk/meta
+      return { width: 78, height: 26 }; // chunk/meta
   }
 }
 
@@ -386,14 +386,14 @@ export function computeForceLayout(
     if (!rootIds.includes(centerNodeId)) rootIds.unshift(centerNodeId);
   }
 
-  // Layout: top-down tree with wrapped rows (max COLS children per row)
-  const COL_W = 145; // horizontal space per child column
-  const ROW_H = 55; // vertical space per child row
-  const COLS = 5; // children per row before wrapping
-  const ROOT_GAP_Y = 75; // vertical gap: root → first child row
-  const TREE_GAP_Y = 80; // vertical gap between separate project trees
-  const CHUNK_GAP_Y = 45; // vertical gap: child → grandchild
-  const CHUNK_W = 95; // horizontal space per grandchild
+  // Layout: top-down tree with wrapped rows
+  const COL_W = 135; // horizontal space per child column
+  const ROW_H = 50; // vertical space per child row
+  const COLS = 4; // children per row before wrapping — keeps trees narrow
+  const ROOT_GAP_Y = 65; // vertical gap: root → first child row
+  const TREE_GAP_Y = 60; // vertical gap between separate project trees
+  const CHUNK_GAP_Y = 42; // vertical gap: child → grandchild
+  const CHUNK_W = 90; // horizontal space per grandchild
 
   const posMap = new Map<string, { x: number; y: number }>();
   const visited = new Set<string>();
