@@ -18,7 +18,7 @@ import { GraphCanvasShell } from '@/features/issues/components/graph-canvas-shel
 import { useGraphCanvas } from '@/features/issues/hooks/use-graph-canvas';
 import { useWorkspaceKnowledgeGraph } from '@/features/knowledge-graph/hooks/useWorkspaceKnowledgeGraph';
 import { knowledgeGraphApi } from '@/services/api/knowledge-graph';
-import { apiClient } from '@/services/api/client';
+import { projectsApi } from '@/services/api/projects';
 import type { FilterChip } from '@/features/issues/utils/graph-shared';
 import type { GraphNodeType } from '@/types/knowledge-graph';
 
@@ -148,10 +148,8 @@ export function WorkspaceKnowledgeGraph({ workspaceId }: WorkspaceKnowledgeGraph
     setIsRegenerating(true);
     try {
       // Fetch all projects in the workspace
-      const projects = await apiClient.get<{ id: string; name: string }[]>(
-        `/workspaces/${workspaceId}/projects`
-      );
-      const projectList = Array.isArray(projects) ? projects : [];
+      const response = await projectsApi.list(workspaceId);
+      const projectList = response?.items ?? [];
       if (projectList.length === 0) {
         toast.warning('No projects found. Create a project with issues first.');
         return;
