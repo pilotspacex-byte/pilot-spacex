@@ -246,10 +246,11 @@ export function FilePreviewModal({
     );
   }
 
-  /** Returns true for legacy Office formats (.doc, .xls, .ppt) that cannot be parsed client-side. */
+  /** Returns true for legacy Office formats (.doc, .ppt) that cannot be parsed client-side.
+   *  NOTE: .xls IS supported by SheetJS (BIFF8 format) — do NOT include it here. */
   function isLegacyOfficeFormat(fname: string): boolean {
     const ext = fname.split('.').pop()?.toLowerCase() ?? '';
-    return ext === 'doc' || ext === 'xls' || ext === 'ppt';
+    return ext === 'doc' || ext === 'ppt';
   }
 
   function renderContent() {
