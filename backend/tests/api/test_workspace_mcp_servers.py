@@ -629,7 +629,7 @@ async def test_oauth_url_stores_workspace_slug_in_state() -> None:
 
     with (
         patch(
-            "pilot_space.api.v1.routers.workspace_mcp_servers._get_admin_workspace",
+            "pilot_space.api.v1.routers.workspace_mcp_servers.get_admin_workspace",
             return_value=mock_workspace,
         ),
         patch(

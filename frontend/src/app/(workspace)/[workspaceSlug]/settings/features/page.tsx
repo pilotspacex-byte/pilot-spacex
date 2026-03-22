@@ -2,7 +2,7 @@
  * Features settings page — admin toggles for workspace sidebar modules.
  *
  * T008: 8 toggleable features in two groups: Main + AI.
- * Follows AIFeatureToggles UI pattern from ai-feature-toggles.tsx.
+ * Follows AISettingsPage error handling pattern (loading skeleton + error Alert).
  */
 
 'use client';
@@ -19,11 +19,14 @@ import {
   UserCog,
   DollarSign,
   CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useWorkspaceStore } from '@/stores/RootStore';
 import { toast } from 'sonner';
 import type { WorkspaceFeatureToggles } from '@/types';
@@ -89,6 +92,19 @@ const aiFeatures: FeatureToggleItem[] = [
     icon: CheckCircle2,
   },
 ];
+
+function LoadingSkeleton() {
+  return (
+    <div className="mx-auto max-w-2xl space-y-6 p-6">
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-32" />
+        <Skeleton className="h-4 w-80" />
+      </div>
+      <Skeleton className="h-[280px] w-full rounded-lg" />
+      <Skeleton className="h-[200px] w-full rounded-lg" />
+    </div>
+  );
+}
 
 function FeatureToggle({
   item,
@@ -187,12 +203,32 @@ const FeaturesSettingsPage = observer(function FeaturesSettingsPage() {
     if (success) {
       toast.success(`${key.charAt(0).toUpperCase() + key.slice(1)} ${value ? 'enabled' : 'disabled'}`);
     } else {
-      toast.error('Failed to update feature toggle');
+      toast.error('Failed to update feature toggle', {
+        description: workspaceStore.error ?? undefined,
+      });
     }
   };
 
   if (!workspaceStore.isAdmin) {
     return null;
+  }
+
+  // Loading state — toggles not yet fetched
+  if (!toggles && !workspaceStore.error) {
+    return <LoadingSkeleton />;
+  }
+
+  // Error state — failed to load toggles
+  if (workspaceStore.error && !toggles) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Failed to load feature toggles</AlertTitle>
+          <AlertDescription>{workspaceStore.error}</AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   return (

@@ -464,10 +464,12 @@ export class WorkspaceStore {
       const toggles = await this.api.getFeatureToggles(workspaceId);
       runInAction(() => {
         this.featureToggles = toggles;
+        this.error = null;
       });
-    } catch {
-      // Silently fall back to defaults on error
+    } catch (err) {
+      // Surface the error so the UI can display it, then fall back to defaults
       runInAction(() => {
+        this.error = err instanceof Error ? err.message : 'Failed to load feature toggles';
         this.featureToggles = { ...DEFAULT_FEATURE_TOGGLES };
       });
     }

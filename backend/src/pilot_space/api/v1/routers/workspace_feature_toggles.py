@@ -1,6 +1,9 @@
 """Workspace feature toggles router for Pilot Space API.
 
-Provides endpoints for managing workspace sidebar feature visibility.
+Thin HTTP layer — delegates business logic to FeatureToggleService.
+Service exceptions (FeatureToggleError hierarchy) are caught by the global
+RFC 7807 exception handler registered in error_handler.py.
+
 Routes are mounted under /workspaces/{workspace_id}/feature-toggles.
 
 Admin/owner can update toggles; any workspace member can read them.
@@ -10,86 +13,22 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
-from sqlalchemy.orm.attributes import flag_modified
+from fastapi import APIRouter
 
 from pilot_space.api.v1.schemas.workspace import (
     WorkspaceFeatureToggles,
     WorkspaceFeatureTogglesUpdate,
 )
+from pilot_space.application.services.feature_toggle import FeatureToggleService
 from pilot_space.dependencies import (
     CurrentUser,
     DbSession,
-)
-from pilot_space.infrastructure.database.models.workspace import Workspace
-from pilot_space.infrastructure.database.repositories.workspace_repository import (
-    WorkspaceRepository,
 )
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-SETTINGS_KEY = "feature_toggles"
-
-
-def _get_feature_toggles(workspace: Workspace) -> WorkspaceFeatureToggles:
-    """Extract feature toggles from workspace settings, falling back to defaults."""
-    if not workspace.settings or SETTINGS_KEY not in workspace.settings:
-        return WorkspaceFeatureToggles()
-
-    toggles_data = workspace.settings[SETTINGS_KEY]
-    return WorkspaceFeatureToggles(**toggles_data)
-
-
-async def _get_member_workspace(
-    workspace_id: UUID,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> Workspace:
-    """Resolve workspace and verify the user is a member (any role)."""
-    workspace_repo = WorkspaceRepository(session=session)
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
-
-    if not await workspace_repo.is_member(workspace_id, current_user.user_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
-
-    return workspace
-
-
-async def _get_admin_workspace(
-    workspace_id: UUID,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> Workspace:
-    """Resolve workspace and verify admin/owner access."""
-    from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
-
-    workspace_repo = WorkspaceRepository(session=session)
-    workspace = await workspace_repo.get_by_id(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
-
-    role = await workspace_repo.get_member_role(workspace_id, current_user.user_id)
-    if role not in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
-    return workspace
 
 
 @router.get(
@@ -106,9 +45,12 @@ async def get_feature_toggles(
 
     Returns the current enabled/disabled state for all sidebar modules.
     Accessible to any authenticated workspace member.
+
+    Service exceptions propagate to the global feature_toggle_error_handler
+    which returns RFC 7807 application/problem+json responses.
     """
-    workspace = await _get_member_workspace(workspace_id, current_user, session)
-    return _get_feature_toggles(workspace)
+    service = FeatureToggleService(session)
+    return await service.get_toggles(workspace_id, current_user.user_id)
 
 
 @router.patch(
@@ -126,35 +68,9 @@ async def update_feature_toggles(
 
     Partially update feature toggles — only provided fields are changed.
     Restricted to workspace owner or admin.
+
+    Service exceptions propagate to the global feature_toggle_error_handler
+    which returns RFC 7807 application/problem+json responses.
     """
-    workspace = await _get_admin_workspace(workspace_id, current_user, session)
-    workspace_repo = WorkspaceRepository(session=session)
-
-    # Merge only provided (non-None) fields
-    updates = body.model_dump(exclude_none=True)
-
-    # Reject empty body — at least one field must be provided (contract: minProperties: 1)
-    if not updates:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="At least one field must be provided.",
-        )
-
-    workspace_settings = workspace.settings or {}
-    existing_toggles = workspace_settings.get(SETTINGS_KEY, {})
-    existing_toggles.update(updates)
-    workspace_settings[SETTINGS_KEY] = existing_toggles
-
-    workspace.settings = workspace_settings
-    flag_modified(workspace, "settings")
-    await workspace_repo.update(workspace)
-    await session.commit()
-
-    logger.info(
-        "Feature toggles updated for workspace %s by user %s: %s",
-        workspace_id,
-        current_user.user_id,
-        updates,
-    )
-
-    return _get_feature_toggles(workspace)
+    service = FeatureToggleService(session)
+    return await service.update_toggles(workspace_id, current_user.user_id, body)
