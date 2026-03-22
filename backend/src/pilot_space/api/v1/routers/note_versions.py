@@ -415,7 +415,7 @@ async def get_digest(
     svc = VersionDigestService(session, version_repo, anthropic_api_key=anthropic_key)
 
     try:
-        result = await svc.execute(version_id, note_id, ws_uuid)
+        result = await svc.execute(version_id, note_id, ws_uuid, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

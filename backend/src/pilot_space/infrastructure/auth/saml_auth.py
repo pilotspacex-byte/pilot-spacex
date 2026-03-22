@@ -22,7 +22,7 @@ from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
     from fastapi import Request
-    from onelogin.saml2.auth import OneLogin_Saml2_Auth
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth  # type: ignore[import-untyped]
 
 logger = get_logger(__name__)
 
@@ -64,8 +64,8 @@ class SamlAuthProvider:
 
     @staticmethod
     def _get_saml_classes() -> tuple[type, type]:
-        from onelogin.saml2.auth import OneLogin_Saml2_Auth
-        from onelogin.saml2.settings import OneLogin_Saml2_Settings
+        from onelogin.saml2.auth import OneLogin_Saml2_Auth  # type: ignore[import-untyped]
+        from onelogin.saml2.settings import OneLogin_Saml2_Settings  # type: ignore[import-untyped]
 
         return OneLogin_Saml2_Auth, OneLogin_Saml2_Settings
 

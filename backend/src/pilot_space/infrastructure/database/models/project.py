@@ -118,7 +118,7 @@ class Project(WorkspaceScopedModel):
         "Issue",
         back_populates="project",
         cascade="all, delete-orphan",
-        lazy="dynamic",
+        lazy="raise",
     )
 
     # Indexes and constraints

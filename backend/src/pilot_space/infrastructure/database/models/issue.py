@@ -281,7 +281,7 @@ class Issue(WorkspaceScopedModel):
         "Activity",
         back_populates="issue",
         cascade="all, delete-orphan",
-        lazy="dynamic",
+        lazy="raise",
     )
     note_links: Mapped[list[NoteIssueLink]] = relationship(
         "NoteIssueLink",

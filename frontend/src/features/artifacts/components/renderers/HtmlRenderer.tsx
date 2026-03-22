@@ -17,7 +17,8 @@ const SANDBOX_ATTRS = '';
  */
 const PURIFY_CONFIG = {
   USE_PROFILES: { html: true },
-  FORBID_TAGS: ['script', 'object', 'embed'] as string[],
+  FORBID_TAGS: ['script', 'object', 'embed', 'style', 'link', 'base', 'meta'] as string[],
+  FORBID_ATTR: ['style'] as string[],
 };
 
 interface HtmlRendererProps {

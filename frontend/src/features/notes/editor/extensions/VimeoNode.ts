@@ -8,7 +8,7 @@
  * No TipTap 3.x-compatible Vimeo package exists.
  * fourwaves/tiptap-extension-vimeo is TipTap 2.x only, abandoned 2022. Do not use.
  */
-import { Node, mergeAttributes, PasteRule } from '@tiptap/core';
+import { Node, mergeAttributes } from '@tiptap/core';
 
 export function extractVimeoId(url: string): string | null {
   try {
@@ -44,9 +44,6 @@ export function isVideoUrl(url: string): 'youtube' | 'vimeo' | null {
   return null;
 }
 
-const VIDEO_URL_REGEX =
-  /^https?:\/\/(www\.)?(youtube\.com\/watch|youtu\.be\/|vimeo\.com\/\d+)[^\s]*$/;
-
 export const VimeoNode = Node.create({
   name: 'vimeo',
   group: 'block',
@@ -65,6 +62,8 @@ export const VimeoNode = Node.create({
       'iframe',
       mergeAttributes(HTMLAttributes, {
         class: 'video-embed video-embed--vimeo',
+        // allow-same-origin is safe here: iframe content is cross-origin (player.vimeo.com),
+        // so it cannot access the parent page. Without it, Vimeo's player JS fails to load.
         sandbox: 'allow-scripts allow-same-origin allow-presentation allow-fullscreen',
         allow: 'autoplay; fullscreen',
       }),
@@ -81,16 +80,5 @@ export const VimeoNode = Node.create({
     };
   },
 
-  addPasteRules() {
-    // No-op PasteRule: marks standalone video URLs. Real embed offer UI is in
-    // VideoPasteDetector extension (Plan 02). Pattern here must match Plan 02's regex.
-    return [
-      new PasteRule({
-        find: VIDEO_URL_REGEX,
-        handler: () => {
-          /* handled by VideoPasteDetector */
-        },
-      }),
-    ];
-  },
+  // Paste handling moved to VideoPasteDetector (handlePaste plugin — auto-embeds URLs).
 });

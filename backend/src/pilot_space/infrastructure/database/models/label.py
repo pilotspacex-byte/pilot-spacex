@@ -66,7 +66,7 @@ class Label(WorkspaceScopedModel):
         "Issue",
         secondary="issue_labels",
         back_populates="labels",
-        lazy="dynamic",
+        lazy="raise",
     )
 
     # Indexes and constraints

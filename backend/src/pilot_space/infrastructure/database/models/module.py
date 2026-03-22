@@ -114,7 +114,7 @@ class Module(WorkspaceScopedModel):
     issues: Mapped[list[Issue]] = relationship(
         "Issue",
         back_populates="module",
-        lazy="dynamic",
+        lazy="raise",
     )
 
     # Indexes and constraints
