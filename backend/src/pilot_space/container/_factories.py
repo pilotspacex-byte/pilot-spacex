@@ -21,16 +21,17 @@ if TYPE_CHECKING:
 
 
 def create_queue_client() -> SupabaseQueueClient | None:
-    """Create queue client if configured."""
+    """Create queue client if Supabase is configured.
+
+    The client lazily obtains the shared SDK AsyncClient singleton on first use,
+    so no URL/key arguments are needed here.
+    """
     from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
 
     settings = get_settings()
     service_key = settings.supabase_service_key.get_secret_value()
     if settings.supabase_url and service_key:
-        return SupabaseQueueClient(
-            supabase_url=settings.supabase_url,
-            service_key=service_key,
-        )
+        return SupabaseQueueClient()
     return None
 
 

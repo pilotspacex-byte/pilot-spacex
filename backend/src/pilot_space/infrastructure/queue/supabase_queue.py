@@ -1,12 +1,12 @@
 """Supabase Queue client using pgmq pattern.
 
-Provides async job queue operations via Supabase RPC calls for:
+Provides async job queue operations via Supabase SDK's postgrest.rpc() calls for:
 - AI task processing (embeddings, context generation, PR review)
 - GitHub webhook handling
 - Notification delivery
 - Background job orchestration
 
-Uses pgmq (Postgres Message Queue) under the hood via Supabase Edge Functions.
+Uses pgmq (Postgres Message Queue) under the hood via Supabase SDK.
 """
 
 from __future__ import annotations
@@ -14,9 +14,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
-
-import httpx
-import orjson
 
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.infrastructure.queue.models import (
@@ -27,6 +24,8 @@ from pilot_space.infrastructure.queue.models import (
 
 if TYPE_CHECKING:
     from uuid import UUID
+
+    from supabase import AsyncClient
 
 logger = get_logger(__name__)
 
@@ -55,16 +54,16 @@ class QueueOperationError(SupabaseQueueError):
 
 
 class SupabaseQueueClient:
-    """Async Supabase Queue client using pgmq via RPC.
+    """Async Supabase Queue client using pgmq via SDK postgrest.rpc().
 
-    Provides message queue operations through Supabase Edge Functions
-    or direct RPC calls to pgmq functions.
+    Provides message queue operations through Supabase's PostgREST RPC
+    interface using the supabase-py SDK (no raw httpx calls).
+
+    The shared ``AsyncClient`` singleton is obtained lazily from
+    ``get_supabase_client()`` on first use.
 
     Example:
-        client = SupabaseQueueClient(
-            supabase_url="https://project.supabase.co",
-            service_key="your-service-key",  # pragma: allowlist secret
-        )
+        client = SupabaseQueueClient()
 
         # Enqueue a task
         msg_id = await client.enqueue(
@@ -84,88 +83,83 @@ class SupabaseQueueClient:
 
     def __init__(
         self,
-        supabase_url: str,
-        service_key: str,
-        *,
-        timeout: float = 30.0,
-        max_retries: int = 3,
+        client: AsyncClient | None = None,
     ) -> None:
-        """Initialize Supabase Queue client.
+        """Initialise the queue client.
 
         Args:
-            supabase_url: Supabase project URL.
-            service_key: Service role key for authenticated RPC calls.
-            timeout: Request timeout in seconds.
-            max_retries: Maximum retries for failed requests.
+            client: Optional pre-constructed ``AsyncClient``.  When *None*
+                the shared singleton is obtained lazily on the first
+                operation via ``get_supabase_client()``.
         """
-        self._supabase_url = supabase_url.rstrip("/")
-        self._service_key = service_key
-        self._timeout = timeout
-        self._max_retries = max_retries
-        self._client: httpx.AsyncClient | None = None
+        self._client: AsyncClient | None = client
 
-    async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client with proper headers."""
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                base_url=f"{self._supabase_url}/rest/v1",
-                headers={
-                    "apikey": self._service_key,
-                    "Authorization": f"Bearer {self._service_key}",
-                    "Content-Type": "application/json",
-                    "Prefer": "return=representation",
-                },
-                timeout=httpx.Timeout(self._timeout),
-            )
+    async def _get_client(self) -> AsyncClient:
+        """Return the SDK client, initialising lazily if needed."""
+        if self._client is None:
+            from pilot_space.infrastructure.supabase_client import get_supabase_client
+
+            self._client = await get_supabase_client()
         return self._client
 
     async def close(self) -> None:
-        """Close the HTTP client."""
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        """No-op: connection lifecycle is managed by the shared SDK singleton."""
 
     async def _rpc_call(
         self,
         function_name: str,
         params: dict[str, Any],
     ) -> Any:
-        """Execute Supabase RPC call.
+        """Execute Supabase RPC call via SDK postgrest.rpc().
 
         Args:
             function_name: Name of the Postgres function to call.
-            params: Function parameters.
+            params: Function parameters (JSON-serialisable dict).
 
         Returns:
-            RPC response data.
+            RPC response data (type depends on the function; may be None for void).
 
         Raises:
-            QueueConnectionError: If connection fails.
-            QueueOperationError: If RPC call fails.
+            QueueConnectionError: If connection to Supabase fails.
+            QueueOperationError: If the RPC call fails.
         """
-        client = await self._get_client()
-
         try:
-            response = await client.post(
-                f"/rpc/{function_name}",
-                content=orjson.dumps(params),
-            )
-            response.raise_for_status()
-            # pgmq functions that return void send 204 No Content — guard against empty body
-            if not response.content:
-                return None
-            return response.json()
-        except httpx.ConnectError as e:
-            logger.exception("Failed to connect to Supabase")
-            raise QueueConnectionError(f"Connection failed: {e}") from e
-        except httpx.HTTPStatusError as e:
-            logger.exception("RPC call %s failed: %s", function_name, e.response.text)
-            raise QueueOperationError(
-                f"RPC {function_name} failed: {e.response.status_code}"
-            ) from e
-        except httpx.RequestError as e:
-            logger.exception("Request error for %s", function_name)
-            raise QueueOperationError(f"Request failed: {e}") from e
+            sdk_client = await self._get_client()
+            response = await sdk_client.postgrest.rpc(function_name, params).execute()
+        except Exception as exc:
+            # Classify the exception before wrapping
+            exc_type = type(exc).__name__
+            exc_module = type(exc).__module__ or ""
+
+            # postgrest.exceptions.APIError → QueueOperationError
+            if exc_type == "APIError" and "postgrest" in exc_module:
+                logger.exception("rpc_call_api_error", function=function_name)
+                raise QueueOperationError(f"RPC {function_name} failed: {exc}") from exc
+
+            # httpx connection errors → QueueConnectionError
+            if exc_type in ("ConnectError", "ConnectTimeout") and "httpx" in exc_module:
+                logger.exception("rpc_call_connection_error", function=function_name)
+                raise QueueConnectionError(f"Connection failed: {exc}") from exc
+
+            # Any other httpx errors → QueueOperationError
+            if "httpx" in exc_module:
+                logger.exception("rpc_call_http_error", function=function_name)
+                raise QueueOperationError(f"Request failed: {exc}") from exc
+
+            # Re-raise already-domain exceptions as-is
+            if isinstance(exc, SupabaseQueueError):
+                raise
+
+            # Unknown error → QueueOperationError
+            logger.exception("rpc_call_unknown_error", function=function_name)
+            raise QueueOperationError(f"RPC {function_name} failed: {exc}") from exc
+
+        # pgmq functions that return void (204 No Content) produce data=[] in SDK.
+        # Treat both None and empty list as void responses.
+        data = response.data
+        if data is None or data == []:
+            return None
+        return data
 
     # =========================================================================
     # Core Queue Operations
@@ -221,8 +215,8 @@ class SupabaseQueueClient:
             logger.exception("Failed to enqueue message to %s", queue)
             raise QueueOperationError(f"Enqueue failed: {e}") from e
         else:
-            # pgmq_send returns the message ID
-            returned_id = str(result) if result else msg_id
+            # pgmq_send returns the message ID as a bigint
+            returned_id = str(result) if result is not None else msg_id
             logger.info("Enqueued message %s to %s", returned_id, queue)
             return returned_id
 
@@ -461,6 +455,7 @@ class SupabaseQueueClient:
         queue = str(queue_name)
 
         try:
+            # pgmq_create returns void (None after _rpc_call normalisation)
             await self._rpc_call("pgmq_create", {"queue_name": queue})
             logger.info("Created queue: %s", queue)
         except QueueOperationError as e:
@@ -486,6 +481,7 @@ class SupabaseQueueClient:
         queue = str(queue_name)
 
         try:
+            # pgmq_drop returns void (None after _rpc_call normalisation)
             await self._rpc_call("pgmq_drop", {"queue_name": queue})
             logger.info("Deleted queue: %s", queue)
         except QueueOperationError as e:
@@ -512,7 +508,7 @@ class SupabaseQueueClient:
 
         try:
             result = await self._rpc_call("pgmq_purge", {"queue_name": queue})
-            count = int(result) if result else 0
+            count = int(result) if result is not None else 0
             logger.info("Purged %d messages from %s", count, queue)
         except SupabaseQueueError:
             raise

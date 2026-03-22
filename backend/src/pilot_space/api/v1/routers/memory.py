@@ -164,12 +164,7 @@ async def ingest_constitution(
 
     const_repo = ConstitutionRuleRepository(session)
 
-    # Build queue client from settings
-    settings = get_settings()
-    queue = SupabaseQueueClient(
-        supabase_url=settings.supabase_url,
-        service_key=settings.supabase_service_key.get_secret_value(),
-    )
+    queue = SupabaseQueueClient()
 
     service = ConstitutionIngestService(const_repo, queue, session)
 
