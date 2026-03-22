@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -51,6 +52,7 @@ interface ProjectGraphCanvasProps {
   onNodeCountChange: (count: number) => void;
   onRegenerate: () => void;
   isRegenerating: boolean;
+  onNavigate: (nodeType: string, entityId: string) => void;
 }
 
 function ProjectGraphCanvas({
@@ -61,6 +63,7 @@ function ProjectGraphCanvas({
   onNodeCountChange,
   onRegenerate,
   isRegenerating,
+  onNavigate,
 }: ProjectGraphCanvasProps) {
   const nodeTypes_ = useMemo<GraphNodeType[] | undefined>(
     () => (activeFilter === 'all' ? undefined : [activeFilter]),
@@ -112,21 +115,41 @@ function ProjectGraphCanvas({
       onRefetch={refetch}
       onRegenerate={onRegenerate}
       isRegenerating={isRegenerating}
+      onNavigate={onNavigate}
     />
   );
 }
 
 // ── Public component ────────────────────────────────────────────────────────
 
+const NODE_TYPE_ROUTES: Record<string, string> = {
+  issue: 'issues',
+  note: 'notes',
+  project: 'projects',
+  cycle: 'projects',
+};
+
 export function ProjectKnowledgeGraph({ workspaceId, projectId }: ProjectKnowledgeGraphProps) {
   const [depth, setDepth] = useState(2);
   const [activeFilter, setActiveFilter] = useState<GraphNodeType | 'all'>('all');
   const [nodeCount, setNodeCount] = useState(0);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const router = useRouter();
+  const params = useParams<{ workspaceSlug: string }>();
 
   const handleNodeCountChange = useCallback((count: number) => {
     setNodeCount((prev) => (prev === count ? prev : count));
   }, []);
+
+  const handleNavigate = useCallback(
+    (nodeType: string, entityId: string) => {
+      const route = NODE_TYPE_ROUTES[nodeType];
+      if (route && params.workspaceSlug) {
+        router.push(`/${params.workspaceSlug}/${route}/${entityId}`);
+      }
+    },
+    [router, params.workspaceSlug]
+  );
 
   const { refetch } = useProjectKnowledgeGraph(workspaceId, projectId, {
     depth,
@@ -229,6 +252,7 @@ export function ProjectKnowledgeGraph({ workspaceId, projectId }: ProjectKnowled
             onNodeCountChange={handleNodeCountChange}
             onRegenerate={handleRegenerate}
             isRegenerating={isRegenerating}
+            onNavigate={handleNavigate}
           />
         </div>
       </ReactFlowProvider>
