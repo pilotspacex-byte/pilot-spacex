@@ -72,7 +72,7 @@ Plans:
   2. User can click Prev and Next buttons (or arrow keys in fullscreen) to move between slides — the counter updates with each navigation
   3. User can see a thumbnail strip sidebar showing all slides and click any thumbnail to jump directly to that slide
   4. User can enter fullscreen slideshow mode and use left/right arrow keys to advance and retreat between slides
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 04-01-PLAN.md — PptxRenderer with navigation controls, fullscreen mode, slide state in FilePreviewModal
 - [ ] 04-02-PLAN.md — Thumbnail strip sidebar with lazy rendering and toggle
@@ -100,5 +100,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation | 2/2 | Complete   | 2026-03-22 |
 | 2. Word Renderer | 1/2 | In Progress|  |
 | 3. Excel Renderer | 2/2 | Complete   | 2026-03-22 |
-| 4. PowerPoint Base | 0/2 | Planning complete | - |
+| 4. PowerPoint Base | 1/2 | In Progress|  |
 | 5. PPTX Annotations | 0/2 | Planning complete | - |
