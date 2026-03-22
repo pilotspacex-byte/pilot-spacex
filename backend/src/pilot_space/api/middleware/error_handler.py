@@ -290,8 +290,8 @@ def register_exception_handlers(app: Any) -> None:
         app: FastAPI application instance.
     """
     from pilot_space.ai.exceptions import AINotConfiguredError
-    from pilot_space.application.services.transcription import TranscriptionError
     from pilot_space.application.services.feature_toggle import FeatureToggleError
+    from pilot_space.application.services.transcription import TranscriptionError
 
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
