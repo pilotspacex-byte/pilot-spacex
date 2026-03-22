@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 2: Word Renderer** - Preview .docx files with preserved formatting; graceful fallback for legacy .doc
 - [x] **Phase 3: Excel Renderer** - Preview .xlsx/.xls files as navigable spreadsheet with multi-sheet tabs and 500-row cap (completed 2026-03-22)
 - [ ] **Phase 4: PowerPoint Base** - Slide-by-slide .pptx preview with navigation controls and fullscreen mode
-- [ ] **Phase 5: PPTX Annotations** - Per-slide annotations linked to Pilot Space notes, persisted server-side
+- [x] **Phase 5: PPTX Annotations** - Per-slide annotations linked to Pilot Space notes, persisted server-side (completed 2026-03-22)
 
 ## Phase Details
 
@@ -85,7 +85,7 @@ Plans:
   1. User can open the annotation panel on any slide, type a note, and save it — the annotation is visible the next time they open the same PPTX artifact
   2. Each annotation is stored against a specific slide index so navigating to slide 3 shows only slide 3's annotations
   3. User can edit or delete an existing slide annotation from the annotation panel
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 05-01-PLAN.md — Backend: ArtifactAnnotation model, migration with RLS, repository, CRUD API router, DI wiring
 - [ ] 05-02-PLAN.md — Frontend: API client, TanStack Query hooks, PptxAnnotationPanel, FilePreviewModal wiring
@@ -101,4 +101,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Word Renderer | 1/2 | In Progress|  |
 | 3. Excel Renderer | 2/2 | Complete   | 2026-03-22 |
 | 4. PowerPoint Base | 1/2 | In Progress|  |
-| 5. PPTX Annotations | 1/2 | In Progress|  |
+| 5. PPTX Annotations | 2/2 | Complete   | 2026-03-22 |

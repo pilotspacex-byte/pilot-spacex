@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: planning
-stopped_at: Completed 05-pptx-annotations 05-01-PLAN.md
-last_updated: "2026-03-22T09:22:25.786Z"
+stopped_at: Completed 05-pptx-annotations 05-02-PLAN.md
+last_updated: "2026-03-22T09:29:16.229Z"
 last_activity: 2026-03-21 — Roadmap created for v1.2 Office Suite Preview
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
   percent: 10
 ---
 
@@ -59,6 +59,7 @@ Progress: [█░░░░░░░░░] 10%
 | Phase 04-powerpoint-base PP01 | 4 | 2 tasks | 4 files |
 | Phase 04-powerpoint-base P02 | 3 | 2 tasks | 2 files |
 | Phase 05-pptx-annotations PP01 | 8 | 2 tasks | 9 files |
+| Phase 05-pptx-annotations P02 | 4 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Recent decisions affecting current work:
 - [Phase 05-pptx-annotations]: Hard delete for annotations (no soft-delete): annotations are ephemeral comments, not audited entities
 - [Phase 05-pptx-annotations]: Author ownership enforced at router layer (404+403 checks) in addition to RLS workspace isolation
 - [Phase 05-pptx-annotations]: Migration 096 merges two 095 heads using tuple down_revision
+- [Phase 05-pptx-annotations]: Use useParams() inside FilePreviewModal to get projectId; workspaceId/currentUserId from MobX stores via useStore()
+- [Phase 05-pptx-annotations]: PptxAnnotationPanel toggle state is internal; collapses to narrow icon strip with badge; hidden during fullscreen
 
 ### Pending Todos
 
@@ -102,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T09:22:25.784Z
-Stopped at: Completed 05-pptx-annotations 05-01-PLAN.md
+Last session: 2026-03-22T09:29:16.226Z
+Stopped at: Completed 05-pptx-annotations 05-02-PLAN.md
 Resume file: None
