@@ -446,16 +446,24 @@ export function computeForceLayout(
   }
 
   // Build ReactFlow nodes
-  const nodes: Node[] = graphNodes.map((n) => ({
-    id: n.id,
-    type: 'graphNode',
-    position: posMap.get(n.id) ?? { x: 0, y: 0 },
-    data: {
-      node: n,
-      isCurrent: n.id === centerNodeId,
-      isHighlighted: n.id === highlightNodeId,
-    },
-  }));
+  const nodes: Node[] = graphNodes.map((n) => {
+    const style = getGraphNodeStyle(n.nodeType);
+    const isCurrent = n.id === centerNodeId;
+    const dims = getNodeDimensions(style.tier, isCurrent);
+    return {
+      id: n.id,
+      type: 'graphNode',
+      position: posMap.get(n.id) ?? { x: 0, y: 0 },
+      // Explicit dimensions so MiniMap can render node shapes
+      width: dims.width,
+      height: dims.height,
+      data: {
+        node: n,
+        isCurrent,
+        isHighlighted: n.id === highlightNodeId,
+      },
+    };
+  });
 
   // Build ReactFlow edges — only show labels on semantically significant types
   const LABELED_EDGE_TYPES = new Set(['blocks', 'caused_by', 'duplicates']);
