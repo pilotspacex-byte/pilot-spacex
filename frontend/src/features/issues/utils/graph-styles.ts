@@ -473,13 +473,18 @@ export function computeForceLayout(
   // Build ReactFlow edges — only show labels on semantically significant types
   const LABELED_EDGE_TYPES = new Set(['blocks', 'caused_by', 'duplicates']);
 
+  // Structural edges (belongs_to, parent_of) store child→parent direction
+  // in the DB, but the tree renders parent→child (top→bottom). Swap them.
+  const REVERSE_EDGE_TYPES = new Set(['belongs_to']);
+
   const edges: Edge[] = validEdges.map((e) => {
     const es = getEdgeStyle(e.edgeType);
     const showLabel = LABELED_EDGE_TYPES.has(e.edgeType);
+    const reverse = REVERSE_EDGE_TYPES.has(e.edgeType);
     return {
       id: e.id,
-      source: e.sourceId,
-      target: e.targetId,
+      source: reverse ? e.targetId : e.sourceId,
+      target: reverse ? e.sourceId : e.targetId,
       type: 'smoothstep',
       label: showLabel ? (e.label ?? getEdgeLabel(e.edgeType)) : undefined,
       animated: e.edgeType === 'blocks',
