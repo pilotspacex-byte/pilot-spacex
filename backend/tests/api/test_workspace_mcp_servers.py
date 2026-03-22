@@ -707,6 +707,7 @@ def mock_mcp_repo_p25() -> object:
         server.url_or_command = overrides.get("url_or_command", "https://mcp.example.com/sse")
         server.url = overrides.get("url", "https://mcp.example.com/sse")
         server.command_args = overrides.get("command_args")
+        server.command_runner = overrides.get("command_runner")
         server.is_enabled = overrides.get("is_enabled", True)
         server.is_deleted = overrides.get("is_deleted", False)
         server.auth_type = overrides.get("auth_type", McpAuthType.BEARER)
@@ -837,6 +838,7 @@ async def test_register_server_with_new_fields(
     created_server.url_or_command = "https://mcp.example.com/sse"
     created_server.url = "https://mcp.example.com/sse"
     created_server.command_args = None
+    created_server.command_runner = None
     created_server.is_enabled = True
     created_server.auth_type = McpAuthType.BEARER
     created_server.auth_token_encrypted = "encrypted-token"
@@ -945,8 +947,9 @@ async def test_response_never_contains_raw_secrets(
     created_server.display_name = "Secret Test Server"
     created_server.server_type = McpServerType.COMMAND
     created_server.transport = McpTransport.STDIO
-    created_server.url_or_command = "npx my-secret-server"
-    created_server.url = "npx my-secret-server"
+    created_server.url_or_command = "@modelcontextprotocol/server-github"
+    created_server.url = "@modelcontextprotocol/server-github"
+    created_server.command_runner = None
     created_server.command_args = None
     created_server.is_enabled = True
     created_server.auth_type = McpAuthType.BEARER
@@ -979,8 +982,9 @@ async def test_response_never_contains_raw_secrets(
     payload = {
         "display_name": "Secret Test Server",
         "server_type": "command",
+        "command_runner": "npx",
         "transport": "stdio",
-        "url_or_command": "npx my-secret-server",
+        "url_or_command": "@modelcontextprotocol/server-github",
         "auth_type": "bearer",
         "auth_token": "sk-secret-value",
         "env_vars": {"API_KEY": "supersecret"},
@@ -1052,6 +1056,7 @@ async def test_patch_preserves_existing_secret_when_not_provided(
     existing_server.url_or_command = "https://secret-preserve.example.com/sse"
     existing_server.url = "https://secret-preserve.example.com/sse"
     existing_server.command_args = None
+    existing_server.command_runner = None
     existing_server.is_enabled = True
     existing_server.auth_type = McpAuthType.BEARER
     existing_server.auth_token_encrypted = "existing-encrypted-token"  # Has a secret
@@ -1149,6 +1154,7 @@ async def test_disable_sets_status_and_flag(
     existing_server.url_or_command = "https://disable-me.example.com/sse"
     existing_server.url = "https://disable-me.example.com/sse"
     existing_server.command_args = None
+    existing_server.command_runner = None
     existing_server.is_enabled = True
     existing_server.auth_type = McpAuthType.BEARER
     existing_server.auth_token_encrypted = None
@@ -1242,6 +1248,7 @@ async def test_enable_clears_status_and_flag(
     existing_server.url_or_command = "https://re-enable.example.com/sse"
     existing_server.url = "https://re-enable.example.com/sse"
     existing_server.command_args = None
+    existing_server.command_runner = None
     existing_server.is_enabled = False  # Currently disabled
     existing_server.auth_type = McpAuthType.BEARER
     existing_server.auth_token_encrypted = None
@@ -1339,6 +1346,7 @@ async def test_list_with_type_filter(
         s.url_or_command = "https://example.com"
         s.url = "https://example.com"
         s.command_args = None
+        s.command_runner = None
         s.is_enabled = True
         s.auth_type = McpAuthType.BEARER
         s.auth_token_encrypted = None
@@ -1671,6 +1679,7 @@ async def test_patch_rename_to_existing_name_returns_409(
     existing_server.url_or_command = "https://original.example.com/sse"
     existing_server.url = "https://original.example.com/sse"
     existing_server.command_args = None
+    existing_server.command_runner = None
     existing_server.is_enabled = True
     existing_server.auth_type = McpAuthType.NONE
     existing_server.auth_token_encrypted = None
@@ -1835,4 +1844,84 @@ async def test_loader_two_servers_get_distinct_keys() -> None:
     assert "WORKSPACE_MY_SERVER_AAAAAAAA" in result
     assert "WORKSPACE_MY_SERVER_BBBBBBBB" in result
 
+
+# ---------------------------------------------------------------------------
+# T021–T024: McpCommandRunner validation tests
+# ---------------------------------------------------------------------------
+
+
+def test_create_command_server_requires_command_runner() -> None:
+    """T021: POST schema rejects command server without command_runner (422)."""
+    import pytest
+    from pydantic import ValidationError
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerCreate
+
+    with pytest.raises(ValidationError, match="command_runner"):
+        WorkspaceMcpServerCreate(
+            display_name="test",
+            server_type="command",
+            url_or_command="@foo/bar",
+            auth_type="none",
+            transport="stdio",
+        )
+
+
+def test_create_command_server_with_npx_runner() -> None:
+    """T022: POST schema accepts command server with command_runner=npx."""
+    from unittest.mock import patch
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerCreate
+
+    body = WorkspaceMcpServerCreate(
+        display_name="npx-srv",
+        server_type="command",
+        command_runner="npx",
+        url_or_command="@modelcontextprotocol/server",
+        auth_type="none",
+        transport="stdio",
+    )
+    assert body.server_type.value == "command"
+    assert body.command_runner is not None
+    assert body.command_runner.value == "npx"
+
+
+def test_remote_server_rejects_command_runner() -> None:
+    """T023: POST schema rejects remote server with command_runner set (422)."""
+    import pytest
+    from pydantic import ValidationError
+    from unittest.mock import patch
+
+    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerCreate
+
+    with pytest.raises(ValidationError, match="command_runner"):
+        with patch("socket.getaddrinfo", return_value=[]):
+            WorkspaceMcpServerCreate(
+                display_name="r",
+                server_type="remote",
+                command_runner="npx",
+                url_or_command="https://mcp.example.com/sse",
+                auth_type="none",
+                transport="sse",
+            )
+
+
+def test_import_rejects_non_npx_uvx_command() -> None:
+    """T024: Import service rejects entries with unsupported command runners."""
+    from pilot_space.application.services.mcp.import_mcp_servers_service import (
+        ImportMcpServersService,
+    )
+
+    # docker run is not an npx/uvx command — should be excluded from parsed list
+    config = '{"mcpServers": {"bad": {"command": "docker run foo"}}}'
+    parsed = ImportMcpServersService.parse_config_json(config)
+    assert len(parsed) == 0, "docker run command should be rejected by parser"
+
+    # npx command should be accepted
+    config_valid = '{"mcpServers": {"good": {"command": "npx @foo/bar"}}}'
+    parsed_valid = ImportMcpServersService.parse_config_json(config_valid)
+    assert len(parsed_valid) == 1
+    assert parsed_valid[0].command_runner is not None
+    assert parsed_valid[0].command_runner.value == "npx"
+    assert parsed_valid[0].url_or_command == "@foo/bar"
 

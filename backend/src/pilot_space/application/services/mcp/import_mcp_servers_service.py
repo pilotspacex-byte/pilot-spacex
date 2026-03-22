@@ -16,6 +16,7 @@ from uuid import UUID
 
 from pilot_space.infrastructure.database.models.workspace_mcp_server import (
     McpAuthType,
+    McpCommandRunner,
     McpServerType,
     McpStatus,
     McpTransport,
@@ -48,6 +49,7 @@ class ParsedMcpServer:
     server_type: McpServerType
     transport: McpTransport
     url_or_command: str
+    command_runner: McpCommandRunner | None = None
     command_args: str | None = None
     env_vars: dict[str, str] | None = None
     headers: dict[str, str] | None = None
@@ -178,38 +180,34 @@ class ImportMcpServersService:
             )
 
         if command and isinstance(command, str):
-            # Infer COMMAND vs legacy NPX vs UVX
-            if command == "npx" or command.startswith("npx "):
-                server_type = McpServerType.COMMAND
-            elif command == "uvx" or command.startswith("uvx "):
-                server_type = McpServerType.COMMAND
-            else:
-                # Generic command — treat as COMMAND type
-                server_type = McpServerType.COMMAND
+            # Parse runner from first token
+            parts = command.split()
+            runner_str = parts[0].lower() if parts else ""
 
-            # Build url_or_command: if command is bare ("npx"), append args
+            if runner_str == "npx":
+                command_runner = McpCommandRunner.NPX
+            elif runner_str == "uvx":
+                command_runner = McpCommandRunner.UVX
+            else:
+                # Unsupported runner — reject entry
+                return None
+
+            # Strip runner from url_or_command; remaining tokens are the package/args
+            package_args = " ".join(parts[1:]).strip() if len(parts) > 1 else ""
+
+            # Append JSON args list
             args_list = config.get("args")
             if isinstance(args_list, list):
                 str_args = " ".join(str(a) for a in args_list if a)
-            else:
-                str_args = ""
-
-            if not command.startswith(("npx ", "uvx ")):
-                # Prefix with npx for bare 'npx' or arbitrary executables
-                if command == "npx":
-                    full_command = f"npx {str_args}".strip()
-                elif command == "uvx":
-                    full_command = f"uvx {str_args}".strip()
-                else:
-                    full_command = f"npx {command} {str_args}".strip()
-            else:
-                full_command = f"{command} {str_args}".strip()
+                if str_args:
+                    package_args = f"{package_args} {str_args}".strip()
 
             return ParsedMcpServer(
                 name=name,
-                server_type=server_type,
+                server_type=McpServerType.COMMAND,
+                command_runner=command_runner,
                 transport=McpTransport.STDIO,
-                url_or_command=full_command,
+                url_or_command=package_args,
                 env_vars=_extract_env_vars(config),
             )
 
@@ -292,6 +290,7 @@ class ImportMcpServersService:
                 url=entry.url_or_command,
                 url_or_command=entry.url_or_command,
                 server_type=entry.server_type,
+                command_runner=entry.command_runner,
                 transport=entry.transport,
                 command_args=entry.command_args,
                 auth_type=McpAuthType.NONE,
@@ -350,7 +349,7 @@ def _validate_entry(entry: ParsedMcpServer) -> str | None:
             _validate_mcp_url(entry.url_or_command)
         except ValueError as exc:
             return f"invalid_url: {exc}"
-    elif entry.server_type in (McpServerType.COMMAND, McpServerType.NPX, McpServerType.UVX):
+    elif entry.server_type == McpServerType.COMMAND:
         if not entry.url_or_command.strip():
             return "invalid_command: command must not be empty"
         if _SHELL_METACHAR_RE.search(entry.url_or_command):

@@ -17,6 +17,7 @@ const makeServer = (overrides?: Partial<MCPServer>): MCPServer => ({
   display_name: 'Test Server',
   url: 'https://mcp.example.com',
   server_type: 'remote',
+  command_runner: null,
   transport: 'sse',
   url_or_command: 'https://mcp.example.com',
   command_args: null,

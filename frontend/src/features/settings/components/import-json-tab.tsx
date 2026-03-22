@@ -8,7 +8,7 @@
 'use client';
 
 import * as React from 'react';
-import { Upload, CheckCircle2, AlertCircle, Globe, Terminal, Code2 } from 'lucide-react';
+import { Upload, CheckCircle2, AlertCircle, Globe, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -18,7 +18,8 @@ interface DetectedServer {
   name: string;
   url_or_command: string;
   transport: string;
-  type: 'remote' | 'command' | 'npx' | 'uvx';
+  type: 'remote' | 'command';
+  command_runner?: 'npx' | 'uvx';
 }
 
 interface ImportJsonTabProps {
@@ -42,14 +43,17 @@ function parseConfigJson(raw: string): DetectedServer[] {
     const config = cfg as Record<string, unknown>;
 
     let type: DetectedServer['type'] = 'remote';
+    let command_runner: DetectedServer['command_runner'];
     let urlOrCommand = '';
     let transport = 'sse';
 
     if (typeof config.command === 'string') {
       const cmd = config.command as string;
-      if (cmd.startsWith('npx') || cmd.includes('npx')) type = 'command';
-      else if (cmd.startsWith('uvx') || cmd.includes('uvx')) type = 'command';
-      else type = 'command'; // default for command-based
+      const parts = cmd.split(/\s+/);
+      const runner = parts[0]?.toLowerCase();
+      if (runner === 'npx') command_runner = 'npx';
+      else if (runner === 'uvx') command_runner = 'uvx';
+      type = 'command';
       urlOrCommand = cmd;
       transport = 'stdio';
     } else if (typeof config.url === 'string') {
@@ -62,7 +66,7 @@ function parseConfigJson(raw: string): DetectedServer[] {
       transport = 'streamable_http';
     }
 
-    results.push({ name, url_or_command: urlOrCommand, transport, type });
+    results.push({ name, url_or_command: urlOrCommand, transport, type, command_runner });
   }
   return results;
 }
@@ -81,8 +85,6 @@ const PLACEHOLDER = `{
 const TYPE_ICON: Record<string, React.ReactNode> = {
   remote: <Globe className="h-4 w-4" />,
   command: <Terminal className="h-4 w-4" />,
-  npx: <Terminal className="h-4 w-4" />,
-  uvx: <Code2 className="h-4 w-4" />,
 };
 
 // ── Component ───────────────────────────────────────────────
@@ -213,6 +215,11 @@ export function ImportJsonTab({ onImport, isImporting }: ImportJsonTabProps) {
                 <Badge variant="outline" className="text-xs font-mono shrink-0">
                   {server.transport}
                 </Badge>
+                {server.command_runner && (
+                  <Badge variant="secondary" className="text-xs font-mono shrink-0">
+                    {server.command_runner}
+                  </Badge>
+                )}
               </div>
             ))}
           </div>

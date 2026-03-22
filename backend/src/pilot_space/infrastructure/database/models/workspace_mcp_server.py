@@ -1,6 +1,6 @@
 """WorkspaceMcpServer SQLAlchemy model (Phase 14 — MCP-01, MCP-02, MCP-06).
 
-Extended in Phase 25 to support NPX/UVX server types, 5-state status enum,
+Extended in Phase 25 to support command server types, 5-state status enum,
 encrypted headers/env-vars, and enable/disable toggling.
 """
 
@@ -32,7 +32,11 @@ class McpServerType(StrEnum):
 
     REMOTE = "remote"
     COMMAND = "command"
-    # Legacy values — kept for backward compat with existing DB rows.
+
+
+class McpCommandRunner(StrEnum):
+    """Command runner for COMMAND-type servers."""
+
     NPX = "npx"
     UVX = "uvx"
 
@@ -64,11 +68,11 @@ class McpStatus(StrEnum):
 
 
 class WorkspaceMcpServer(WorkspaceScopedModel):
-    """Workspace-registered MCP server (remote, NPX, or UVX).
+    """Workspace-registered MCP server (remote or command).
 
     Stores connection details and encrypted credentials for Model Context
     Protocol servers. Supports Bearer token and OAuth 2.0 authentication,
-    plus encrypted environment variable blobs for NPX/UVX.
+    plus encrypted environment variable blobs for command-type servers.
 
     Headers are stored as **plaintext** in ``headers_json`` and returned
     in full in API responses (they are not sensitive). The legacy
@@ -87,10 +91,11 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         oauth_scopes: Space-separated OAuth 2.0 scope list.
         last_status: 5-state McpStatus enum (previously String(16)).
         last_status_checked_at: Timestamp of last connectivity probe.
-        server_type: Remote, NPX, or UVX.
+        server_type: Remote or command.
         transport: SSE, stdio, or streamable_http.
-        url_or_command: Primary URL (remote) or launch command (NPX/UVX).
-        command_args: Extra CLI arguments for NPX/UVX launch.
+        url_or_command: Primary URL (remote) or package/args (command).
+        command_runner: npx or uvx — required for command-type servers.
+        command_args: Extra CLI arguments for command launch.
         headers_json: Plaintext JSON blob of HTTP headers (returned in API responses).
         headers_encrypted: Legacy Fernet-encrypted headers (read-only migration fallback).
         env_vars_encrypted: Fernet-encrypted JSON blob of env var key-value pairs.
@@ -191,7 +196,7 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
         ),
         nullable=False,
         default=McpServerType.REMOTE,
-        doc="Server type: remote HTTP endpoint, NPX, or UVX",
+        doc="Server type: remote HTTP endpoint or command",
     )
     transport: Mapped[McpTransport] = mapped_column(
         Enum(
@@ -207,12 +212,22 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
     url_or_command: Mapped[str | None] = mapped_column(
         String(1024),
         nullable=True,
-        doc="Primary URL (remote) or launch command (NPX/UVX) — authoritative field",
+        doc="Primary URL (remote) or package/args (command) — authoritative field",
+    )
+    command_runner: Mapped[McpCommandRunner | None] = mapped_column(
+        Enum(
+            McpCommandRunner,
+            name="mcp_command_runner",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=True,
+        doc="Command runner for COMMAND-type servers: npx or uvx",
     )
     command_args: Mapped[str | None] = mapped_column(
         String(512),
         nullable=True,
-        doc="Extra CLI arguments appended to NPX/UVX launch command",
+        doc="Extra CLI arguments appended to command launch",
     )
     headers_encrypted: Mapped[str | None] = mapped_column(
         Text,
@@ -254,6 +269,7 @@ class WorkspaceMcpServer(WorkspaceScopedModel):
 
 __all__ = [
     "McpAuthType",
+    "McpCommandRunner",
     "McpServerType",
     "McpStatus",
     "McpTransport",

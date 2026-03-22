@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type {
+  McpCommandRunner,
   McpServerType,
   McpTransport,
   MCPServer,
@@ -41,6 +42,7 @@ interface KVPair {
 export interface FormConfigData {
   displayName: string;
   serverType: McpServerType;
+  commandRunner: McpCommandRunner;
   urlOrCommand: string;
   transport: McpTransport;
   authType: 'none' | 'bearer' | 'oauth2';
@@ -74,6 +76,7 @@ function buildInitialState(server?: MCPServer): FormConfigData {
     return {
       displayName: '',
       serverType: 'remote',
+      commandRunner: 'npx',
       urlOrCommand: '',
       transport: 'sse',
       authType: 'none',
@@ -98,16 +101,21 @@ function buildInitialState(server?: MCPServer): FormConfigData {
     ? server.env_var_keys.map((key) => ({ key, value: '' }))
     : [];
 
+  const isCommand = server.server_type !== 'remote';
+
   return {
     displayName: server.display_name,
     serverType: server.server_type,
-    urlOrCommand: server.url_or_command || server.url || '',
+    commandRunner: server.command_runner ?? 'npx',
+    // For command servers, url_or_command stores the package/args — populate commandArgs from it.
+    // For remote servers, urlOrCommand holds the URL; commandArgs holds extra CLI args (unused currently).
+    urlOrCommand: isCommand ? '' : (server.url_or_command || server.url || ''),
     transport: server.transport,
     authType: server.auth_type,
     authToken: '',
     headers,
     envVars,
-    commandArgs: server.command_args || '',
+    commandArgs: isCommand ? (server.url_or_command || '') : (server.command_args || ''),
     oauthClientId: '',
     oauthAuthUrl: '',
     oauthTokenUrl: '',
@@ -190,6 +198,7 @@ export function FormConfigTab({ initialData, onSave, isSaving, formId }: FormCon
       transport: getDefaultTransport(type),
       urlOrCommand: '',
       commandArgs: '',
+      commandRunner: 'npx',
       // Clear remote-only auth/header fields so secrets don't persist hidden
       ...(type !== 'remote' && {
         authType: 'none' as const,
@@ -203,10 +212,15 @@ export function FormConfigTab({ initialData, onSave, isSaving, formId }: FormCon
     }));
   };
 
+  const hasRequiredValue =
+    form.serverType === 'remote'
+      ? form.urlOrCommand.trim().length > 0
+      : form.commandArgs.trim().length > 0;
+
   const canSubmit =
     form.displayName.trim().length > 0 &&
     form.displayName.trim().length <= 128 &&
-    form.urlOrCommand.trim().length > 0;
+    hasRequiredValue;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,13 +247,21 @@ export function FormConfigTab({ initialData, onSave, isSaving, formId }: FormCon
     const authType = isRemote ? form.authType : 'none';
     const authToken = isRemote && form.authToken ? form.authToken : undefined;
 
+    // For command servers, commandArgs owns the full package+args string → url_or_command.
+    // For remote servers, urlOrCommand is the URL → url_or_command; commandArgs is unused.
+    const urlOrCommandValue = isRemote
+      ? form.urlOrCommand.trim()
+      : form.commandArgs.trim();
+
     if (isEdit) {
       const data: MCPServerUpdateRequest = {
         display_name: form.displayName.trim(),
         server_type: form.serverType,
+        command_runner: isRemote ? null : form.commandRunner,
         transport: form.transport,
-        url_or_command: form.urlOrCommand.trim(),
-        command_args: form.commandArgs.trim() || null,
+        url_or_command: urlOrCommandValue,
+        // command_args is a remote-only field; not sent for command servers.
+        command_args: isRemote ? (form.commandArgs.trim() || null) : null,
         auth_type: authType,
         ...(authToken ? { auth_token: authToken } : {}),
         ...(headersMap ? { headers: headersMap } : {}),
@@ -250,9 +272,11 @@ export function FormConfigTab({ initialData, onSave, isSaving, formId }: FormCon
       const data: MCPServerRegisterRequest = {
         display_name: form.displayName.trim(),
         server_type: form.serverType,
+        command_runner: isRemote ? undefined : form.commandRunner,
         transport: form.transport,
-        url_or_command: form.urlOrCommand.trim(),
-        command_args: form.commandArgs.trim() || undefined,
+        url_or_command: urlOrCommandValue,
+        // command_args is a remote-only field; not sent for command servers.
+        command_args: isRemote ? (form.commandArgs.trim() || undefined) : undefined,
         auth_type: authType,
         ...(authToken ? { auth_token: authToken } : {}),
         ...(headersMap ? { headers: headersMap } : {}),
@@ -304,43 +328,96 @@ export function FormConfigTab({ initialData, onSave, isSaving, formId }: FormCon
         </div>
       </div>
 
-      {/* Row 2: URL/Command + Transport */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Row 1b: Command Runner + Transport (Command type only) */}
+      {form.serverType === 'command' && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="fc-runner">Command Runner</Label>
+            <Select
+              value={form.commandRunner}
+              onValueChange={(v) => setField('commandRunner', v as McpCommandRunner)}
+              disabled={isSaving}
+            >
+              <SelectTrigger id="fc-runner">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="npx">npx</SelectItem>
+                <SelectItem value="uvx">uvx</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="fc-transport">Transport</Label>
+            <Select
+              value={form.transport}
+              onValueChange={(v) => setField('transport', v as McpTransport)}
+              disabled={isSaving}
+            >
+              <SelectTrigger id="fc-transport">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sse">SSE</SelectItem>
+                <SelectItem value="stdio">stdio</SelectItem>
+                <SelectItem value="streamable_http">StreamableHTTP</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
+      {/* Row 2: Command Arguments (Command type) or Server URL + Transport (Remote) */}
+      {form.serverType === 'command' ? (
         <div className="space-y-2">
-          <Label htmlFor="fc-url">
-            {form.serverType === 'remote' ? 'Server URL' : 'Command'}
-          </Label>
+          <Label htmlFor="fc-args">Command Arguments</Label>
           <Input
-            id="fc-url"
-            value={form.urlOrCommand}
-            onChange={(e) => setField('urlOrCommand', e.target.value)}
-            placeholder={
-              form.serverType === 'remote'
-                ? 'https://mcp.example.com/sse'
-                : 'npx my-server, uvx my-tool ...'
-            }
+            id="fc-args"
+            value={form.commandArgs}
+            onChange={(e) => setField('commandArgs', e.target.value)}
+            placeholder="@modelcontextprotocol/server-github --api-key $API_KEY"
             disabled={isSaving}
             required
           />
+          <p className="text-xs text-muted-foreground">
+            Full command:{' '}
+            <code className="font-mono">
+              {form.commandRunner} {form.commandArgs || '<package or args>'}
+            </code>
+          </p>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="fc-transport">Transport</Label>
-          <Select
-            value={form.transport}
-            onValueChange={(v) => setField('transport', v as McpTransport)}
-            disabled={isSaving}
-          >
-            <SelectTrigger id="fc-transport">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="sse">SSE</SelectItem>
-              <SelectItem value="stdio">stdio</SelectItem>
-              <SelectItem value="streamable_http">StreamableHTTP</SelectItem>
-            </SelectContent>
-          </Select>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="fc-url">Server URL</Label>
+            <Input
+              id="fc-url"
+              value={form.urlOrCommand}
+              onChange={(e) => setField('urlOrCommand', e.target.value)}
+              placeholder="https://mcp.example.com/sse"
+              disabled={isSaving}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="fc-transport">Transport</Label>
+            <Select
+              value={form.transport}
+              onValueChange={(v) => setField('transport', v as McpTransport)}
+              disabled={isSaving}
+            >
+              <SelectTrigger id="fc-transport">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sse">SSE</SelectItem>
+                <SelectItem value="stdio">stdio</SelectItem>
+                <SelectItem value="streamable_http">StreamableHTTP</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Auth Type (Remote only) */}
       {form.serverType === 'remote' && (
@@ -508,19 +585,6 @@ export function FormConfigTab({ initialData, onSave, isSaving, formId }: FormCon
         )}
       </div>
 
-      {/* Command Args (Command type only) */}
-      {form.serverType !== 'remote' && (
-        <div className="space-y-2">
-          <Label htmlFor="fc-args">Command Arguments</Label>
-          <Input
-            id="fc-args"
-            value={form.commandArgs}
-            onChange={(e) => setField('commandArgs', e.target.value)}
-            placeholder="-y @modelcontextprotocol/server --api-key $API_KEY"
-            disabled={isSaving}
-          />
-        </div>
-      )}
     </form>
   );
 }

@@ -17,6 +17,7 @@ const makeServer = (overrides?: Partial<MCPServer>): MCPServer => ({
   display_name: 'Test Server',
   url: 'https://mcp.example.com',
   server_type: 'remote',
+  command_runner: null,
   transport: 'sse',
   url_or_command: 'https://mcp.example.com',
   command_args: null,
@@ -67,13 +68,13 @@ describe('MCPServersTable', () => {
   it('renders server rows with correct data', () => {
     const servers = [
       makeServer({ id: 'srv-1', display_name: 'Alpha Server', server_type: 'remote', transport: 'sse' }),
-      makeServer({ id: 'srv-2', display_name: 'Beta Server', server_type: 'npx', transport: 'stdio', url_or_command: 'npx @mcp/server' }),
+      makeServer({ id: 'srv-2', display_name: 'Beta Server', server_type: 'command', command_runner: 'npx', transport: 'stdio', url_or_command: '@mcp/server' }),
     ];
     render(<MCPServersTable {...defaultProps} servers={servers} totalCount={2} />);
 
     expect(screen.getByText('Alpha Server')).toBeInTheDocument();
     expect(screen.getByText('Beta Server')).toBeInTheDocument();
-    expect(screen.getByText('npx @mcp/server')).toBeInTheDocument();
+    expect(screen.getByText('@mcp/server')).toBeInTheDocument();
   });
 
   it('renders status badge with correct label per status', () => {
@@ -109,13 +110,15 @@ describe('MCPServersTable', () => {
   it('renders ServerTypeBadge for each server type', () => {
     const servers = [
       makeServer({ id: 'srv-1', server_type: 'remote' }),
-      makeServer({ id: 'srv-2', server_type: 'npx' }),
-      makeServer({ id: 'srv-3', server_type: 'uvx' }),
+      makeServer({ id: 'srv-2', server_type: 'command', command_runner: 'npx' }),
+      makeServer({ id: 'srv-3', server_type: 'command', command_runner: 'uvx' }),
     ];
     render(<MCPServersTable {...defaultProps} servers={servers} totalCount={3} />);
 
     expect(screen.getByText('Remote')).toBeInTheDocument();
-    expect(screen.getAllByText('Command').length).toBeGreaterThanOrEqual(1);
+    // command_runner labels shown: 'npx' and 'uvx'
+    expect(screen.getByText('npx')).toBeInTheDocument();
+    expect(screen.getByText('uvx')).toBeInTheDocument();
   });
 
   it('renders TransportBadge for each server', () => {

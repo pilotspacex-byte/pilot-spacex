@@ -169,6 +169,7 @@ async def register_mcp_server(
         url=url_val,
         url_or_command=url_or_command,
         server_type=body.server_type,
+        command_runner=body.command_runner,
         transport=body.transport,
         command_args=body.command_args,
         auth_type=body.auth_type,
@@ -306,8 +307,8 @@ async def update_mcp_server(
     #   2. Only url_or_command changes — validate new value against stored server_type.
     if body.server_type is not None or body.url_or_command is not None:
         from pilot_space.api.v1.routers._mcp_server_schemas import (
+            _validate_command_package,
             _validate_mcp_url,
-            _validate_npx_uvx_command,
         )
 
         # Skip when both are present — already validated by the Pydantic model_validator.
@@ -320,8 +321,14 @@ async def update_mcp_server(
             try:
                 if effective_server_type == McpServerType.REMOTE:
                     _validate_mcp_url(effective_url_or_command)
-                elif effective_server_type in (McpServerType.COMMAND, McpServerType.NPX, McpServerType.UVX):
-                    _validate_npx_uvx_command(effective_url_or_command, effective_server_type)
+                elif effective_server_type == McpServerType.COMMAND:
+                    effective_runner = (
+                        body.command_runner
+                        if body.command_runner is not None
+                        else server.command_runner
+                    )
+                    if effective_runner is not None:
+                        _validate_command_package(effective_url_or_command, effective_runner)
             except ValueError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -342,7 +349,7 @@ async def update_mcp_server(
                     f"got '{effective_transport.value}'"
                 ),
             )
-    elif effective_server_type in (McpServerType.COMMAND, McpServerType.NPX, McpServerType.UVX):
+    elif effective_server_type == McpServerType.COMMAND:
         if effective_transport != McpTransport.STDIO:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -354,6 +361,8 @@ async def update_mcp_server(
 
     if body.server_type is not None:
         server.server_type = body.server_type
+    if body.command_runner is not None:
+        server.command_runner = body.command_runner
     if body.transport is not None:
         server.transport = body.transport
     if body.command_args is not None:

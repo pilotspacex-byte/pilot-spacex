@@ -774,7 +774,7 @@ def _build_server_config(
         )
         return None
 
-    # Command (COMMAND / legacy NPX / UVX) — build McpStdioServerConfig
+    # COMMAND — build McpStdioServerConfig
     if server.transport != McpTransport.STDIO:
         logger.warning(
             "mcp_server_transport_mismatch",
@@ -784,7 +784,17 @@ def _build_server_config(
         )
         return None
 
-    command_str = server.url_or_command
+    if not server.command_runner:
+        logger.warning(
+            "mcp_command_runner_missing",
+            server_id=str(server.id),
+        )
+        return None
+
+    runner = server.command_runner.value  # "npx" or "uvx"
+    package_args = server.url_or_command or ""
+    command_str = f"{runner} {package_args}".strip()
+
     if not command_str:
         return None
 
@@ -830,7 +840,7 @@ def _build_server_config(
                 "mcp_env_decrypt_failed",
                 server_id=str(server.id),
             )
-            return None
+            # Continue without env vars — server is still usable
 
     stdio_config = McpStdioServerConfig(type="stdio", command=command)
     if args:

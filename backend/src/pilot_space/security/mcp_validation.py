@@ -12,7 +12,7 @@ import re
 import socket
 import urllib.parse
 
-from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
+from pilot_space.infrastructure.database.models.workspace_mcp_server import McpCommandRunner, McpServerType
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -88,34 +88,34 @@ def validate_mcp_url(url: str) -> str:
     return url
 
 
-def validate_npx_uvx_command(command: str, server_type: McpServerType) -> str:
-    """Validate NPX or UVX command to prevent command injection.
+def validate_command_package(package_args: str, runner: McpCommandRunner) -> str:
+    """Validate package/args string for a command-type server (command injection prevention).
 
     Enforces:
     - Must not be empty.
     - Must not contain shell metacharacters: ; & | $ ` ( ) { } < >
 
     Args:
-        command: The url_or_command string for a Command-type server.
-        server_type: McpServerType.NPX or McpServerType.UVX.
+        package_args: The url_or_command string (package + args, no runner prefix).
+        runner: McpCommandRunner.NPX or McpCommandRunner.UVX.
 
     Returns:
-        The validated command string.
+        The validated package_args string.
 
     Raises:
         ValueError: If the command fails any validation check.
     """
-    if not command.strip():
+    if not package_args.strip():
         raise ValueError("Command must not be empty")
-    if SHELL_METACHAR_RE.search(command):
+    if SHELL_METACHAR_RE.search(package_args):
         raise ValueError(
-            f"Command for {server_type.value} server contains disallowed shell metacharacters"
+            f"Command for {runner.value} server contains disallowed shell metacharacters"
         )
-    return command
+    return package_args
 
 
 __all__ = [
     "SHELL_METACHAR_RE",
+    "validate_command_package",
     "validate_mcp_url",
-    "validate_npx_uvx_command",
 ]

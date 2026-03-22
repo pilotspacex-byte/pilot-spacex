@@ -79,8 +79,10 @@ async def test_load_workspace_mcp_servers_builds_sse_config(
 
     result = await load_workspace_mcp_servers(workspace.id, db_session)
 
-    # display_name="Test Remote MCP" → WORKSPACE_TEST_REMOTE_MCP
-    key = "WORKSPACE_" + re.sub(r"[^A-Z0-9]", "_", server.display_name.upper())
+    # display_name="Test Remote MCP" → WORKSPACE_TEST_REMOTE_MCP_{SHORT_ID}
+    normalized = re.sub(r"[^A-Z0-9]", "_", server.display_name.upper())
+    short_id = server.id.hex[:8].upper()
+    key = f"WORKSPACE_{normalized}_{short_id}"
     assert key in result
     config = result[key]
     assert config["type"] == "sse"
@@ -154,10 +156,15 @@ async def test_load_workspace_mcp_servers_skips_on_decrypt_failure(
     # Must not raise
     result = await load_workspace_mcp_servers(workspace.id, db_session)
 
-    # Corrupt server excluded — display_name="Corrupt Token Server" → WORKSPACE_CORRUPT_TOKEN_SERVER
-    assert "WORKSPACE_" + re.sub(r"[^A-Z0-9]", "_", corrupt_server.display_name.upper()) not in result
-    # Valid server included — display_name="Valid Token Server" → WORKSPACE_VALID_TOKEN_SERVER
-    assert "WORKSPACE_" + re.sub(r"[^A-Z0-9]", "_", valid_server.display_name.upper()) in result
+    def _key(s):  # type: ignore[no-untyped-def]
+        normalized = re.sub(r"[^A-Z0-9]", "_", s.display_name.upper())
+        short_id = s.id.hex[:8].upper()
+        return f"WORKSPACE_{normalized}_{short_id}"
+
+    # Corrupt server excluded
+    assert _key(corrupt_server) not in result
+    # Valid server included
+    assert _key(valid_server) in result
 
 
 @pytest.mark.asyncio
@@ -207,13 +214,17 @@ def _make_remote_server(workspace_id, *, transport, url_or_command, auth_type=No
     )
 
 
-def _make_command_server(workspace_id, *, server_type, url_or_command, **kwargs):  # type: ignore[no-untyped-def]
+def _make_command_server(workspace_id, *, command_runner, url_or_command, **kwargs):  # type: ignore[no-untyped-def]
     """Helper: build a stdio WorkspaceMcpServer instance (not persisted)."""
     from pilot_space.infrastructure.database.models.workspace_mcp_server import (
         McpAuthType,
+        McpCommandRunner,
+        McpServerType,
         McpTransport,
         WorkspaceMcpServer,
     )
+
+    runner = McpCommandRunner(command_runner) if isinstance(command_runner, str) else command_runner
 
     return WorkspaceMcpServer(
         workspace_id=workspace_id,
@@ -221,7 +232,8 @@ def _make_command_server(workspace_id, *, server_type, url_or_command, **kwargs)
         url=url_or_command,
         url_or_command=url_or_command,
         auth_type=McpAuthType.NONE,
-        server_type=server_type,
+        server_type=McpServerType.COMMAND,
+        command_runner=runner,
         transport=McpTransport.STDIO,
         is_enabled=True,
         **kwargs,
@@ -271,9 +283,8 @@ def test_build_server_config_remote_streamable_http(workspace_factory) -> None: 
 
 
 def test_build_server_config_npx_stdio(workspace_factory) -> None:  # type: ignore[no-untyped-def]
-    """T090c: npx+stdio -> McpStdioServerConfig with command/args/env."""
+    """T090c: command+npx+stdio -> McpStdioServerConfig with command/args/env."""
     from pilot_space.ai.agents.pilotspace_stream_utils import _build_server_config
-    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
     from pilot_space.infrastructure.encryption import decrypt_api_key
     from pilot_space.infrastructure.encryption_kv import encrypt_kv
 
@@ -281,8 +292,8 @@ def test_build_server_config_npx_stdio(workspace_factory) -> None:  # type: igno
     env_blob = encrypt_kv({"API_KEY": "secret123"})
     server = _make_command_server(
         workspace.id,
-        server_type=McpServerType.NPX,
-        url_or_command="npx @modelcontextprotocol/server-filesystem",
+        command_runner="npx",
+        url_or_command="@modelcontextprotocol/server-filesystem",
         command_args="--allow-write",
         env_vars_encrypted=env_blob,
     )
@@ -297,16 +308,15 @@ def test_build_server_config_npx_stdio(workspace_factory) -> None:  # type: igno
 
 
 def test_build_server_config_uvx_stdio(workspace_factory) -> None:  # type: ignore[no-untyped-def]
-    """T090d: uvx+stdio -> McpStdioServerConfig with command only (no env)."""
+    """T090d: command+uvx+stdio -> McpStdioServerConfig with command only (no env)."""
     from pilot_space.ai.agents.pilotspace_stream_utils import _build_server_config
-    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
     from pilot_space.infrastructure.encryption import decrypt_api_key
 
     workspace = workspace_factory()
     server = _make_command_server(
         workspace.id,
-        server_type=McpServerType.UVX,
-        url_or_command="uvx mcp-server-git",
+        command_runner="uvx",
+        url_or_command="mcp-server-git",
     )
 
     config = _build_server_config(server, decrypt_fn=decrypt_api_key)
@@ -369,16 +379,15 @@ def test_build_server_config_returns_none_on_auth_token_decrypt_failure(workspac
 
 
 def test_build_server_config_skips_env_on_decrypt_failure(workspace_factory) -> None:  # type: ignore[no-untyped-def]
-    """T091b: NPX server with corrupt env_vars_encrypted -> config returned without env."""
+    """T091b: command server with corrupt env_vars_encrypted -> config returned without env."""
     from pilot_space.ai.agents.pilotspace_stream_utils import _build_server_config
-    from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
     from pilot_space.infrastructure.encryption import decrypt_api_key
 
     workspace = workspace_factory()
     server = _make_command_server(
         workspace.id,
-        server_type=McpServerType.NPX,
-        url_or_command="npx some-mcp-server",
+        command_runner="npx",
+        url_or_command="some-mcp-server",
         env_vars_encrypted="not-valid-fernet-blob",
     )
 
@@ -518,6 +527,7 @@ async def test_load_workspace_mcp_servers_npx_sdk_ready(
     from pilot_space.ai.agents.pilotspace_stream_utils import load_workspace_mcp_servers
     from pilot_space.infrastructure.database.models.workspace_mcp_server import (
         McpAuthType,
+        McpCommandRunner,
         McpServerType,
         McpTransport,
         WorkspaceMcpServer,
@@ -527,10 +537,11 @@ async def test_load_workspace_mcp_servers_npx_sdk_ready(
     server = WorkspaceMcpServer(
         workspace_id=workspace.id,
         display_name="NPX Smoke Test",
-        url="npx -y some-pkg",
-        url_or_command="npx -y some-pkg",
+        url="-y some-pkg",
+        url_or_command="-y some-pkg",
         auth_type=McpAuthType.NONE,
-        server_type=McpServerType.NPX,
+        server_type=McpServerType.COMMAND,
+        command_runner=McpCommandRunner.NPX,
         transport=McpTransport.STDIO,
         is_enabled=True,
     )
@@ -539,8 +550,10 @@ async def test_load_workspace_mcp_servers_npx_sdk_ready(
 
     result = await load_workspace_mcp_servers(workspace.id, db_session)
 
-    # display_name="NPX Smoke Test" → WORKSPACE_NPX_SMOKE_TEST
-    key = "WORKSPACE_" + re.sub(r"[^A-Z0-9]", "_", server.display_name.upper())
+    # display_name="NPX Smoke Test" → WORKSPACE_NPX_SMOKE_TEST_{SHORT_ID}
+    normalized = re.sub(r"[^A-Z0-9]", "_", server.display_name.upper())
+    short_id = server.id.hex[:8].upper()
+    key = f"WORKSPACE_{normalized}_{short_id}"
     assert key in result, f"Expected key '{key}' in result, got: {list(result.keys())}"
 
     config = result[key]
@@ -552,3 +565,33 @@ async def test_load_workspace_mcp_servers_npx_sdk_ready(
     # Verify fully JSON-serialisable — no unserializable SDK internals
     serialised = json.dumps(config)
     assert serialised  # non-empty string confirms success
+
+
+def test_build_server_config_returns_none_when_command_runner_missing(workspace_factory) -> None:  # type: ignore[no-untyped-def]
+    """T025 extra: command server without command_runner -> _build_server_config returns None."""
+    from unittest.mock import MagicMock
+
+    from pilot_space.ai.agents.pilotspace_stream_utils import _build_server_config
+    from pilot_space.infrastructure.database.models.workspace_mcp_server import (
+        McpAuthType,
+        McpServerType,
+        McpTransport,
+        WorkspaceMcpServer,
+    )
+    from pilot_space.infrastructure.encryption import decrypt_api_key
+
+    workspace = workspace_factory()
+    # Build a COMMAND server with no command_runner
+    server = WorkspaceMcpServer(
+        workspace_id=workspace.id,
+        display_name="No Runner Server",
+        url_or_command="some-pkg",
+        auth_type=McpAuthType.NONE,
+        server_type=McpServerType.COMMAND,
+        command_runner=None,
+        transport=McpTransport.STDIO,
+        is_enabled=True,
+    )
+
+    config = _build_server_config(server, decrypt_fn=decrypt_api_key)
+    assert config is None, "COMMAND server without command_runner should return None"

@@ -17,6 +17,7 @@ const makeServer = (overrides?: Partial<MCPServer>): MCPServer => ({
   display_name: 'Edit Server',
   url: 'https://mcp.example.com',
   server_type: 'remote',
+  command_runner: null,
   transport: 'sse',
   url_or_command: 'https://mcp.example.com',
   command_args: null,
@@ -185,7 +186,6 @@ describe('FormConfigTab', () => {
   });
 
   it('does not include unchanged env vars in submit payload', async () => {
-    const user = userEvent.setup();
     const onSave = vi.fn();
     render(
       <FormConfigTab
@@ -206,5 +206,137 @@ describe('FormConfigTab', () => {
     const payload = onSave.mock.calls[0]?.[0] as Record<string, unknown>;
     // Empty-valued env vars should not be sent (preserves existing encrypted values)
     expect(payload.env_vars).toBeUndefined();
+  });
+
+  it('shows Command Runner selector when server type is command', () => {
+    render(
+      <FormConfigTab
+        initialData={makeServer({ server_type: 'command', command_runner: 'npx', transport: 'stdio', auth_type: 'none' })}
+        onSave={vi.fn()}
+        isSaving={false}
+      />
+    );
+
+    expect(screen.getByLabelText('Command Runner')).toBeInTheDocument();
+  });
+
+  it('does NOT show Command Runner selector for remote type', () => {
+    render(<FormConfigTab onSave={vi.fn()} isSaving={false} />);
+    expect(screen.queryByLabelText('Command Runner')).not.toBeInTheDocument();
+  });
+
+  it('includes command_runner in submit payload for command type servers', async () => {
+    const onSave = vi.fn();
+    render(
+      <FormConfigTab
+        initialData={makeServer({
+          server_type: 'command',
+          command_runner: 'uvx',
+          transport: 'stdio',
+          url_or_command: 'mcp-server-git',
+          auth_type: 'none',
+        })}
+        onSave={onSave}
+        isSaving={false}
+      />
+    );
+
+    const form = screen.getByLabelText('Server Name').closest('form')!;
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const payload = onSave.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(payload.command_runner).toBe('uvx');
+    expect(payload.server_type).toBe('command');
+  });
+
+  it('sends command_runner as null for remote type in edit mode', async () => {
+    const onSave = vi.fn();
+    render(
+      <FormConfigTab
+        initialData={makeServer({ server_type: 'remote', command_runner: null })}
+        onSave={onSave}
+        isSaving={false}
+      />
+    );
+
+    const form = screen.getByLabelText('Server Name').closest('form')!;
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const payload = onSave.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(payload.command_runner).toBeNull();
+  });
+
+  it('does NOT show Package/Command input for command type servers', () => {
+    render(
+      <FormConfigTab
+        initialData={makeServer({ server_type: 'command', command_runner: 'npx', transport: 'stdio', auth_type: 'none' })}
+        onSave={vi.fn()}
+        isSaving={false}
+      />
+    );
+    expect(screen.queryByLabelText('Package / Command')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Server URL')).not.toBeInTheDocument();
+  });
+
+  it('pre-populates Command Arguments from url_or_command for command servers in edit mode', () => {
+    render(
+      <FormConfigTab
+        initialData={makeServer({
+          server_type: 'command',
+          command_runner: 'uvx',
+          transport: 'stdio',
+          url_or_command: 'mcp-server-git',
+          auth_type: 'none',
+        })}
+        onSave={vi.fn()}
+        isSaving={false}
+      />
+    );
+    expect(screen.getByDisplayValue('mcp-server-git')).toBeInTheDocument();
+  });
+
+  it('sends url_or_command from commandArgs field for command servers', async () => {
+    const onSave = vi.fn();
+    render(
+      <FormConfigTab
+        initialData={makeServer({
+          server_type: 'command',
+          command_runner: 'npx',
+          transport: 'stdio',
+          url_or_command: '@foo/bar',
+          auth_type: 'none',
+        })}
+        onSave={onSave}
+        isSaving={false}
+      />
+    );
+
+    const form = screen.getByLabelText('Server Name').closest('form')!;
+    form.dispatchEvent(new Event('submit', { bubbles: true }));
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const payload = onSave.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(payload.url_or_command).toBe('@foo/bar');
+    expect(payload.command_runner).toBe('npx');
+    expect(payload.command_args).toBeNull();
+  });
+
+  it('shows full command preview note after args input for command servers', () => {
+    render(
+      <FormConfigTab
+        initialData={makeServer({
+          server_type: 'command',
+          command_runner: 'npx',
+          transport: 'stdio',
+          url_or_command: '@foo/bar',
+          auth_type: 'none',
+        })}
+        onSave={vi.fn()}
+        isSaving={false}
+      />
+    );
+    expect(screen.getByText(/Full command:/)).toBeInTheDocument();
   });
 });

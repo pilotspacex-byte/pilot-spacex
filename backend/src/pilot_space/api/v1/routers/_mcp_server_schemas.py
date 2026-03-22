@@ -7,7 +7,7 @@ Extended in Phase 25 to support:
 - WorkspaceMcpServerUpdate (partial PATCH)
 - Extended WorkspaceMcpServerCreate with new fields
 - WorkspaceMcpServerResponse with boolean secret presence flags
-- Command injection validation for NPX/UVX url_or_command values
+- Command injection validation for command url_or_command values
 - Bulk import request/response schemas
 - Connection test response schema
 
@@ -26,14 +26,15 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from pilot_space.infrastructure.database.models.workspace_mcp_server import (
     McpAuthType,
+    McpCommandRunner,
     McpServerType,
     McpStatus,
     McpTransport,
 )
 from pilot_space.security.mcp_validation import (
     SHELL_METACHAR_RE as _SHELL_METACHAR_RE,
+    validate_command_package as _validate_command_package,
     validate_mcp_url as _validate_mcp_url,
-    validate_npx_uvx_command as _validate_npx_uvx_command,
 )
 
 # ---------------------------------------------------------------------------
@@ -55,7 +56,7 @@ _SHELL_METACHAR_ARGS_RE = re.compile(r"[;&|`(){}<>]")
 class WorkspaceMcpServerCreate(BaseModel):
     """Request body for registering a new MCP server.
 
-    Supports all server types (remote, command; legacy: npx, uvx) with appropriate
+    Supports all server types (remote, command) with appropriate
     validation rules for each type.
     """
 
@@ -71,7 +72,11 @@ class WorkspaceMcpServerCreate(BaseModel):
     # Phase 25 primary fields
     server_type: McpServerType = Field(
         default=McpServerType.REMOTE,
-        description="Server type: remote or command (legacy: npx, uvx)",
+        description="Server type: remote or command",
+    )
+    command_runner: McpCommandRunner | None = Field(
+        default=None,
+        description="Command runner: npx or uvx. Required when server_type=command.",
     )
     transport: McpTransport = Field(
         default=McpTransport.SSE,
@@ -80,12 +85,12 @@ class WorkspaceMcpServerCreate(BaseModel):
     url_or_command: str | None = Field(
         default=None,
         max_length=1024,
-        description="HTTPS URL for remote, or launch command for command/npx/uvx",
+        description="HTTPS URL for remote, or package/args for command",
     )
     command_args: str | None = Field(
         default=None,
         max_length=512,
-        description="Extra CLI arguments for command launch (command/npx/uvx only)",
+        description="Extra CLI arguments for command launch (command only)",
     )
     headers: dict[str, str] | None = Field(
         default=None,
@@ -93,7 +98,7 @@ class WorkspaceMcpServerCreate(BaseModel):
     )
     env_vars: dict[str, str] | None = Field(
         default=None,
-        description="Environment variables for command/npx/uvx launch (will be encrypted at rest)",
+        description="Environment variables for command launch (will be encrypted at rest)",
     )
 
     # Auth fields
@@ -119,12 +124,23 @@ class WorkspaceMcpServerCreate(BaseModel):
                     f"Remote servers only support 'sse' or 'streamable_http' transport, "
                     f"got '{self.transport.value}'"
                 )
-        elif self.server_type in (McpServerType.COMMAND, McpServerType.NPX, McpServerType.UVX):
+        elif self.server_type == McpServerType.COMMAND:
             if self.transport != McpTransport.STDIO:
                 raise ValueError(
                     f"{self.server_type.value} servers only support 'stdio' transport, "
                     f"got '{self.transport.value}'"
                 )
+        return self
+
+    @model_validator(mode="after")
+    def validate_command_runner_required(self) -> WorkspaceMcpServerCreate:
+        """command_runner is required when server_type=command; must not be set for remote."""
+        if self.server_type == McpServerType.COMMAND and self.command_runner is None:
+            raise ValueError(
+                "command_runner ('npx' or 'uvx') is required for command-type servers"
+            )
+        if self.server_type == McpServerType.REMOTE and self.command_runner is not None:
+            raise ValueError("command_runner must not be set for remote servers")
         return self
 
     @model_validator(mode="after")
@@ -140,8 +156,9 @@ class WorkspaceMcpServerCreate(BaseModel):
 
         if self.server_type == McpServerType.REMOTE:
             _validate_mcp_url(effective)
-        elif self.server_type in (McpServerType.COMMAND, McpServerType.NPX, McpServerType.UVX):
-            _validate_npx_uvx_command(effective, self.server_type)
+        elif self.server_type == McpServerType.COMMAND:
+            if self.command_runner is not None:
+                _validate_command_package(effective, self.command_runner)
 
         # Always populate url_or_command so downstream code has one source of truth
         self.url_or_command = effective
@@ -216,6 +233,7 @@ class WorkspaceMcpServerUpdate(BaseModel):
 
     display_name: str | None = Field(default=None, max_length=128)
     server_type: McpServerType | None = Field(default=None)
+    command_runner: McpCommandRunner | None = Field(default=None)
     transport: McpTransport | None = Field(default=None)
     url_or_command: str | None = Field(default=None, max_length=1024)
     command_args: str | None = Field(default=None, max_length=512)
@@ -242,12 +260,23 @@ class WorkspaceMcpServerUpdate(BaseModel):
                         f"Remote servers only support 'sse' or 'streamable_http' transport, "
                         f"got '{self.transport.value}'"
                     )
-            elif self.server_type in (McpServerType.COMMAND, McpServerType.NPX, McpServerType.UVX):
+            elif self.server_type == McpServerType.COMMAND:
                 if self.transport != McpTransport.STDIO:
                     raise ValueError(
                         f"{self.server_type.value} servers only support 'stdio' transport, "
                         f"got '{self.transport.value}'"
                     )
+        return self
+
+    @model_validator(mode="after")
+    def validate_command_runner_required(self) -> WorkspaceMcpServerUpdate:
+        """When server_type is provided in PATCH, validate command_runner consistency."""
+        if self.server_type == McpServerType.COMMAND and self.command_runner is None:
+            # Only enforce if server_type is being changed to command without runner
+            # The route handler must check the stored value if runner not in request
+            pass
+        if self.server_type == McpServerType.REMOTE and self.command_runner is not None:
+            raise ValueError("command_runner must not be set for remote servers")
         return self
 
     @model_validator(mode="after")
@@ -257,7 +286,7 @@ class WorkspaceMcpServerUpdate(BaseModel):
         Rules applied when url_or_command is provided:
         - Must not be an empty string.
         - If server_type is also provided in this request, validate the value
-          against the new type (SSRF check for REMOTE, injection check for COMMAND/NPX/UVX).
+          against the new type (SSRF check for REMOTE, injection check for COMMAND).
         - If server_type is NOT provided, we cannot know the stored type here;
           the route handler performs cross-field validation using the stored value.
         """
@@ -270,8 +299,14 @@ class WorkspaceMcpServerUpdate(BaseModel):
                 # the new type immediately.
                 if self.server_type == McpServerType.REMOTE:
                     _validate_mcp_url(self.url_or_command)
-                elif self.server_type in (McpServerType.COMMAND, McpServerType.NPX, McpServerType.UVX):
-                    _validate_npx_uvx_command(self.url_or_command, self.server_type)
+                elif self.server_type == McpServerType.COMMAND:
+                    # Validate shell metacharacters even without command_runner
+                    if not self.url_or_command.strip():
+                        raise ValueError("Command must not be empty")
+                    if _SHELL_METACHAR_RE.search(self.url_or_command):
+                        raise ValueError(
+                            "Command contains disallowed shell metacharacters"
+                        )
 
         return self
 
@@ -332,6 +367,7 @@ class WorkspaceMcpServerResponse(BaseModel):
     server_type: McpServerType
     transport: McpTransport
     url_or_command: str | None
+    command_runner: McpCommandRunner | None = None
     command_args: str | None = None
     is_enabled: bool
 
@@ -416,6 +452,7 @@ class WorkspaceMcpServerResponse(BaseModel):
             server_type=server.server_type,
             transport=server.transport,
             url_or_command=uoc,
+            command_runner=server.command_runner,
             command_args=server.command_args,
             is_enabled=server.is_enabled,
             url=server.url,

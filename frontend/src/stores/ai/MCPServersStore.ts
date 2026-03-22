@@ -1,7 +1,7 @@
 /**
  * MCPServersStore - MobX observable store for workspace MCP server management.
  *
- * Phase 25: Extended for multi-type servers (Remote/Command/NPX/UVX legacy), 5-state status,
+ * Phase 25: Extended for multi-type servers (Remote/Command), 5-state status,
  * bulk import, connection testing, and enable/disable toggling.
  */
 import { makeAutoObservable, runInAction, computed } from 'mobx';
@@ -11,7 +11,8 @@ import { mcpServersApi } from '@/services/api/mcp-servers';
 // Domain types
 // ============================================================
 
-export type McpServerType = 'remote' | 'command' | 'npx' | 'uvx';
+export type McpServerType = 'remote' | 'command';
+export type McpCommandRunner = 'npx' | 'uvx';
 export type McpTransport = 'sse' | 'stdio' | 'streamable_http';
 export type McpStatus = 'enabled' | 'disabled' | 'unhealthy' | 'unreachable' | 'config_error';
 
@@ -21,6 +22,7 @@ export interface MCPServer {
   display_name: string;
   url: string;
   server_type: McpServerType;
+  command_runner: McpCommandRunner | null;
   transport: McpTransport;
   url_or_command: string;
   command_args: string | null;
@@ -62,6 +64,7 @@ export interface MCPServerRegisterRequest {
   display_name: string;
   url?: string;
   server_type?: McpServerType;
+  command_runner?: McpCommandRunner;
   transport?: McpTransport;
   url_or_command?: string;
   command_args?: string;
@@ -78,6 +81,7 @@ export interface MCPServerRegisterRequest {
 export interface MCPServerUpdateRequest {
   display_name?: string;
   server_type?: McpServerType;
+  command_runner?: McpCommandRunner | null;
   transport?: McpTransport;
   url_or_command?: string;
   command_args?: string | null;

@@ -8,7 +8,7 @@
 'use client';
 
 import * as React from 'react';
-import { Globe, Terminal, Code2, Search } from 'lucide-react';
+import { Globe, Terminal, Search } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/select';
 import { McpStatusBadge } from './mcp-status-badge';
 import { MCPServerRowActions } from './mcp-server-row-actions';
-import type { MCPServer, McpServerType, McpStatus } from '@/stores/ai/MCPServersStore';
+import type { MCPServer, McpCommandRunner, McpServerType, McpStatus } from '@/stores/ai/MCPServersStore';
 
 interface MCPServersTableProps {
   servers: MCPServer[];
@@ -50,22 +50,19 @@ interface MCPServersTableProps {
 const SERVER_TYPE_ICON: Record<McpServerType, React.ReactNode> = {
   remote: <Globe className="h-4 w-4" />,
   command: <Terminal className="h-4 w-4" />,
-  npx: <Terminal className="h-4 w-4" />,
-  uvx: <Code2 className="h-4 w-4" />,
 };
 
 const SERVER_TYPE_LABEL: Record<McpServerType, string> = {
   remote: 'Remote',
   command: 'Command',
-  npx: 'Command',
-  uvx: 'Command',
 };
 
-function ServerTypeBadge({ type }: { type: McpServerType }) {
+function ServerTypeBadge({ type, runner }: { type: McpServerType; runner?: McpCommandRunner | null }) {
+  const label = type === 'command' ? (runner ?? 'command') : SERVER_TYPE_LABEL[type];
   return (
     <Badge variant={type === 'remote' ? 'default' : 'secondary'} className="gap-1 text-xs">
       {SERVER_TYPE_ICON[type]}
-      {SERVER_TYPE_LABEL[type]}
+      {label}
     </Badge>
   );
 }
@@ -169,7 +166,7 @@ export function MCPServersTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <ServerTypeBadge type={server.server_type} />
+                    <ServerTypeBadge type={server.server_type} runner={server.command_runner} />
                   </TableCell>
                   <TableCell className="max-w-[300px]">
                     <span

@@ -40,6 +40,7 @@ const makeMockServer = (overrides?: Partial<MCPServer>): MCPServer => ({
   display_name: 'Test MCP',
   url: 'https://example.com/sse',
   server_type: 'remote',
+  command_runner: null,
   transport: 'sse',
   url_or_command: 'https://example.com/sse',
   command_args: null,
