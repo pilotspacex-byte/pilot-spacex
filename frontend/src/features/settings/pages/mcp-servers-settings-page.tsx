@@ -212,7 +212,7 @@ export const MCPServersSettingsPage = observer(function MCPServersSettingsPage()
 
   // ── Render ────────────────────────────────────────────
 
-  if (mcpStore.isLoading && mcpStore.servers.length === 0) {
+  if (mcpStore.isLoading && mcpStore.servers.length === 0 && !dialogOpen) {
     return (
       <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
         <LoadingSkeleton />
