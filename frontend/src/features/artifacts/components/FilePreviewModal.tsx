@@ -230,9 +230,24 @@ export function FilePreviewModal({
     );
   }
 
+  /** Returns true for legacy Office formats (.doc, .xls, .ppt) that cannot be parsed client-side. */
+  function isLegacyOfficeFormat(fname: string): boolean {
+    const ext = fname.split('.').pop()?.toLowerCase() ?? '';
+    return ext === 'doc' || ext === 'xls' || ext === 'ppt';
+  }
+
   function renderContent() {
     // Download fallback: no content fetch needed
     if (rendererType === 'download') {
+      return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="unsupported" />;
+    }
+
+    // Office formats — handle before content fetch checks (legacy doesn't need fetch;
+    // modern formats will get real renderers in Phase 2-4, placeholder for now)
+    if (rendererType === 'xlsx' || rendererType === 'docx' || rendererType === 'pptx') {
+      if (isLegacyOfficeFormat(filename)) {
+        return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="legacy" />;
+      }
       return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="unsupported" />;
     }
 
@@ -270,11 +285,6 @@ export function FilePreviewModal({
         return <HtmlRenderer content={content as string} filename={filename} />;
       case 'csv':
         return <CsvRenderer content={content as string} />;
-      // Office renderers are added in later phases — fall through to download for now
-      case 'xlsx':
-      case 'docx':
-      case 'pptx':
-        return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="unsupported" />;
       default:
         return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="unsupported" />;
     }
