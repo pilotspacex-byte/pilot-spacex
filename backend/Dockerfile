@@ -25,12 +25,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv - fast Python package manager
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.7 /uv /uvx /bin/
 
 WORKDIR /app
 
 # Copy dependency files first for better layer caching
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 
 # Create virtual environment and install production dependencies only
 # --frozen ensures uv.lock is used exactly as-is
@@ -42,6 +42,12 @@ COPY src/ ./src/
 
 # Install the project itself
 RUN uv sync --frozen --no-dev
+
+# Strip unnecessary files from venv to reduce image size
+RUN find .venv -type d -name "tests" -exec rm -rf {} + 2>/dev/null; \
+    find .venv -type d -name "test" -exec rm -rf {} + 2>/dev/null; \
+    find .venv -name "*.pyi" -delete 2>/dev/null; \
+    true
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime - Minimal production image
@@ -86,10 +92,8 @@ WORKDIR /app
 # Copy virtual environment from builder stage
 COPY --from=builder --chown=pilot:pilot /app/.venv /app/.venv
 
-# Copy application source code
+# Copy application source code and alembic config
 COPY --chown=pilot:pilot src/ ./src/
-
-# Copy alembic configuration for database migrations
 COPY --chown=pilot:pilot alembic.ini ./
 COPY --chown=pilot:pilot alembic/ ./alembic/
 
