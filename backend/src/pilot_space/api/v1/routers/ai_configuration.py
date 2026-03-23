@@ -500,7 +500,18 @@ async def test_ai_configuration(
         )
 
     # Decrypt API key for testing
-    api_key = decrypt_api_key(config.api_key_encrypted)
+    from pilot_space.infrastructure.encryption import EncryptionError
+
+    try:
+        api_key = decrypt_api_key(config.api_key_encrypted)
+    except EncryptionError:
+        logger.exception("Failed to decrypt API key for testing")
+        return AIConfigurationTestResponse(
+            success=False,
+            provider=config.provider,
+            message="Failed to decrypt API key. Configuration may be corrupted.",
+            latency_ms=None,
+        )
 
     # Test the API key with the provider
     start_time = time.perf_counter()
