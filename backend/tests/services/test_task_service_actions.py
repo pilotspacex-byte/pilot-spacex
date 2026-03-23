@@ -176,7 +176,7 @@ class TestUpdateStatus:
         workspace_id: UUID,
         mock_task: Task,
     ) -> None:
-        """Raises ValueError for invalid status."""
+        """Raises ValidationError for invalid status."""
         mock_task_repo.get_by_id.return_value = mock_task
 
         with pytest.raises(ValidationError, match="Invalid status"):
@@ -188,7 +188,7 @@ class TestUpdateStatus:
         mock_task_repo: AsyncMock,
         workspace_id: UUID,
     ) -> None:
-        """Raises ValueError if task not found."""
+        """Raises NotFoundError if task not found."""
         mock_task_repo.get_by_id.return_value = None
 
         with pytest.raises(NotFoundError, match="not found"):
@@ -269,7 +269,7 @@ class TestReorderTasks:
         workspace_id: UUID,
         issue_id: UUID,
     ) -> None:
-        """Raises ValueError if task ID not in issue."""
+        """Raises NotFoundError if task ID not in issue."""
         task1_id = uuid4()
         existing_tasks = [
             Task(
@@ -383,7 +383,7 @@ class TestExportContext:
         workspace_id: UUID,
         issue_id: UUID,
     ) -> None:
-        """Raises ValueError if issue not found."""
+        """Raises NotFoundError if issue not found."""
         mock_issue_repo.get_by_id.return_value = None
 
         with pytest.raises(NotFoundError, match="not found"):
@@ -397,7 +397,7 @@ class TestExportContext:
         issue_id: UUID,
         mock_issue: Issue,
     ) -> None:
-        """Raises ValueError if workspace mismatch."""
+        """Raises ForbiddenError if workspace mismatch."""
         mock_issue.workspace_id = uuid4()
         mock_issue_repo.get_by_id.return_value = mock_issue
 

@@ -312,7 +312,7 @@ class TestCreateTask:
         workspace_id: UUID,
         issue_id: UUID,
     ) -> None:
-        """Raises ValueError if issue does not exist."""
+        """Raises NotFoundError if issue does not exist."""
         mock_issue_repo.get_by_id_scalar.return_value = None
 
         payload = CreateTaskPayload(
@@ -332,7 +332,7 @@ class TestCreateTask:
         issue_id: UUID,
         mock_issue: Issue,
     ) -> None:
-        """Raises ValueError if issue workspace mismatch."""
+        """Raises ForbiddenError if issue workspace mismatch."""
         mock_issue.workspace_id = uuid4()
         mock_issue_repo.get_by_id_scalar.return_value = mock_issue
 
@@ -454,7 +454,7 @@ class TestUpdateTask:
         mock_task_repo: AsyncMock,
         workspace_id: UUID,
     ) -> None:
-        """Raises ValueError if task not found."""
+        """Raises NotFoundError if task not found."""
         mock_task_repo.get_by_id.return_value = None
 
         payload = UpdateTaskPayload(
@@ -472,7 +472,7 @@ class TestUpdateTask:
         workspace_id: UUID,
         mock_task: Task,
     ) -> None:
-        """Raises ValueError if workspace mismatch."""
+        """Raises ForbiddenError if workspace mismatch."""
         mock_task.workspace_id = uuid4()
         mock_task_repo.get_by_id.return_value = mock_task
 
@@ -602,7 +602,7 @@ class TestDeleteTask:
         mock_task_repo: AsyncMock,
         workspace_id: UUID,
     ) -> None:
-        """Raises ValueError if task not found."""
+        """Raises NotFoundError if task not found."""
         mock_task_repo.get_by_id.return_value = None
 
         with pytest.raises(NotFoundError, match="not found"):
@@ -615,7 +615,7 @@ class TestDeleteTask:
         workspace_id: UUID,
         mock_task: Task,
     ) -> None:
-        """Raises ValueError if workspace mismatch."""
+        """Raises ForbiddenError if workspace mismatch."""
         mock_task.workspace_id = uuid4()
         mock_task_repo.get_by_id.return_value = mock_task
 
