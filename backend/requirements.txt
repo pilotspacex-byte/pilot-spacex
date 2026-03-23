@@ -5,7 +5,7 @@
 alembic==1.18.4
 annotated-doc==0.0.4
 annotated-types==0.7.0
-anthropic==0.85.0
+anthropic==0.86.0
 anyio==4.12.1
 asyncpg==0.31.0
 attrs==25.4.0
@@ -14,11 +14,11 @@ camel-converter==5.1.0
 certifi==2026.2.25
 cffi==2.0.0 ; platform_python_implementation != 'PyPy'
 charset-normalizer==3.4.6
-claude-agent-sdk==0.1.48
+claude-agent-sdk==0.1.50
 click==8.3.1
 colorama==0.4.6 ; sys_platform == 'win32'
 cryptography==46.0.5
-dependency-injector==4.48.3
+dependency-injector==4.49.0
 deprecation==2.1.0
 distro==1.9.0
 dnspython==2.8.0
@@ -49,27 +49,27 @@ meilisearch==0.40.0
 mmh3==5.2.1
 multidict==6.7.1
 numpy==2.4.3
-openai==2.28.0
+openai==2.29.0
 orjson==3.11.7
 packaging==26.0
 pgvector==0.4.2
-postgrest==2.28.2
+postgrest==2.28.3
 propcache==0.4.1
 pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
 pydantic==2.12.5
-pydantic-core==2.41.5
+pydantic-core==2.42.0
 pydantic-settings==2.13.1
 pygments==2.19.2
 pyiceberg==0.11.1
 pyjwt==2.12.1
 pyparsing==3.3.2
-pyroaring==1.0.3
+pyroaring==1.0.4
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-multipart==0.0.22
 pywin32==311 ; sys_platform == 'win32'
 pyyaml==6.0.3
-realtime==2.28.2
+realtime==2.28.3
 redis==7.3.0
 referencing==0.37.0
 requests==2.32.5
@@ -78,15 +78,15 @@ rpds-py==0.30.0
 six==1.17.0
 sniffio==1.3.1
 sqlalchemy==2.0.48
-sse-starlette==3.3.2
+sse-starlette==3.3.3
 starlette==0.52.1
-storage3==2.28.2
+storage3==2.28.3
 strenum==0.4.15
 strictyaml==1.7.3
 structlog==25.5.0
-supabase==2.28.2
-supabase-auth==2.28.2
-supabase-functions==2.28.2
+supabase==2.28.3
+supabase-auth==2.28.3
+supabase-functions==2.28.3
 tenacity==9.1.4
 tqdm==4.67.3
 typing-extensions==4.15.0
