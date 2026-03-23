@@ -20,6 +20,7 @@ from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 
 from pilot_space.api.v1.schemas.artifact_annotations import (
     AnnotationListResponse,
@@ -29,6 +30,7 @@ from pilot_space.api.v1.schemas.artifact_annotations import (
 )
 from pilot_space.container._base import InfraContainer
 from pilot_space.dependencies.auth import CurrentUser, SessionDep, require_workspace_member
+from pilot_space.infrastructure.database.models.artifact import Artifact
 from pilot_space.infrastructure.database.models.artifact_annotation import ArtifactAnnotation
 from pilot_space.infrastructure.database.repositories.artifact_annotation_repository import (
     ArtifactAnnotationRepository,
@@ -36,6 +38,20 @@ from pilot_space.infrastructure.database.repositories.artifact_annotation_reposi
 from pilot_space.infrastructure.database.rls import set_rls_context
 
 router = APIRouter()
+
+
+async def _validate_artifact_project(
+    session: SessionDep, artifact_id: UUID, project_id: UUID
+) -> None:
+    """Verify the artifact belongs to the given project. Raises 404 if not."""
+    result = await session.execute(
+        select(Artifact.id).where(Artifact.id == artifact_id, Artifact.project_id == project_id)
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Artifact not found in this project",
+        )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ArtifactAnnotationResponse)
@@ -68,6 +84,7 @@ async def create_annotation(
         ArtifactAnnotationResponse with the created annotation.
     """
     await set_rls_context(session, current_user.user_id, workspace_id)
+    await _validate_artifact_project(session, artifact_id, project_id)
 
     annotation = ArtifactAnnotation(
         artifact_id=artifact_id,
@@ -112,6 +129,7 @@ async def list_annotations(
         AnnotationListResponse with annotations and total count.
     """
     await set_rls_context(session, current_user.user_id, workspace_id)
+    await _validate_artifact_project(session, artifact_id, project_id)
 
     orm_annotations = await repo.list_by_slide(artifact_id, slide_index)
     annotations = [ArtifactAnnotationResponse.model_validate(a) for a in orm_annotations]
@@ -154,6 +172,7 @@ async def update_annotation(
         HTTPException 403: Current user is not the annotation author.
     """
     await set_rls_context(session, current_user.user_id, workspace_id)
+    await _validate_artifact_project(session, artifact_id, project_id)
 
     annotation = await repo.get_by_id(annotation_id)
     if annotation is None or annotation.artifact_id != artifact_id:
@@ -207,6 +226,7 @@ async def delete_annotation(
         HTTPException 403: Current user is not the annotation author.
     """
     await set_rls_context(session, current_user.user_id, workspace_id)
+    await _validate_artifact_project(session, artifact_id, project_id)
 
     annotation = await repo.get_by_id(annotation_id)
     if annotation is None or annotation.artifact_id != artifact_id:

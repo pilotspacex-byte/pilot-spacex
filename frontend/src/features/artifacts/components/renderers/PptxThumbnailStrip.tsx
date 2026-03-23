@@ -92,19 +92,24 @@ function ThumbnailSlot({
     const canvas = canvasRef.current;
     if (!viewer || !canvas) return;
 
-    void viewer.renderSlide(index, canvas).then(() => {
-      renderedRef.current.add(index);
-      setIsRendered(true);
-    });
+    void viewer
+      .renderSlide(index, canvas)
+      .then(() => {
+        renderedRef.current.add(index);
+        setIsRendered(true);
+      })
+      .catch(() => {
+        // Mark as rendered to avoid infinite retries; placeholder shows slide number
+        renderedRef.current.add(index);
+        setIsRendered(true);
+      });
   }, [isVisible, index, viewerRef, renderedRef]);
 
   return (
     <div
       ref={wrapperRef}
-      role="button"
-      tabIndex={0}
-      aria-label={`Slide ${index + 1}${isActive ? ' (current)' : ''}`}
-      aria-pressed={isActive}
+      tabIndex={-1}
+      aria-hidden="true"
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -229,9 +234,24 @@ export function PptxThumbnailStrip({
         <div
           key={i}
           ref={i === currentSlide ? activeSlotRef : undefined}
-          className="flex flex-col items-center gap-1 p-2"
+          className="flex flex-col items-center gap-1 p-2 cursor-pointer"
           role="option"
           aria-selected={i === currentSlide}
+          aria-label={`Slide ${i + 1}`}
+          tabIndex={i === currentSlide ? 0 : -1}
+          onClick={() => onNavigate(i)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate(i);
+            } else if (e.key === 'ArrowDown' && i < slideCount - 1) {
+              e.preventDefault();
+              onNavigate(i + 1);
+            } else if (e.key === 'ArrowUp' && i > 0) {
+              e.preventDefault();
+              onNavigate(i - 1);
+            }
+          }}
         >
           {isReady ? (
             <ThumbnailSlot

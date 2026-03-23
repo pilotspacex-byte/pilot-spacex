@@ -262,8 +262,15 @@ export function DocxRenderer({ content, filename, signedUrl, tocOpen = false }: 
 
         if (cancelled) return;
 
+        // CRITICAL: Sanitize docx-preview output before DOM insertion.
+        // docx-preview renders arbitrary DOCX content which may contain malicious elements.
+        // Defense-in-depth: sandbox="" prevents JS execution, but sanitize anyway.
+        const sanitizedRendered = DOMPurify.sanitize(renderedHtml, DOCX_PURIFY_CONFIG);
+        const sanitizedHtml =
+          typeof sanitizedRendered === 'string' ? sanitizedRendered : String(sanitizedRendered);
+
         // Extract the rendered HTML and inject heading IDs before creating the iframe
-        const { modifiedHtml, headings: extracted } = extractAndInjectHeadings(renderedHtml);
+        const { modifiedHtml, headings: extracted } = extractAndInjectHeadings(sanitizedHtml);
 
         const doc = `<!DOCTYPE html>
 <html lang="en">
@@ -363,63 +370,37 @@ export function DocxRenderer({ content, filename, signedUrl, tocOpen = false }: 
   }, [content]);
 
   /**
-   * Scroll the iframe to the target heading by temporarily navigating to a named anchor.
+   * Scroll the iframe to the target heading using contentDocument access.
    *
-   * The iframe uses sandbox="" which prevents scripts, so we can't use postMessage
-   * with a script listener inside the iframe. Instead, we reload the srcdoc with a
-   * fragment identifier pointing to the heading ID. This causes the browser to
-   * scroll to the element on load.
-   *
-   * For a better UX without reloading, we use the iframe's contentWindow.location
-   * hash approach — but sandbox="" also blocks allow-same-origin in some cases.
-   *
-   * Most reliable approach: update srcdoc + fragment. Since srcdoc changes reload
-   * the iframe, we instead use a lightweight approach: temporarily set sandbox to
-   * allow-same-origin, navigate the hash, then restore.
-   *
-   * Simplest reliable approach that works with sandbox="": append the fragment to
-   * the srcdoc src attribute. However iframes with srcdoc don't support src.
-   *
-   * Final approach: use allow-same-origin temporarily + contentDocument.getElementById.
-   * If that fails (strict browser), fall back to re-rendering with scroll position preserved.
+   * The iframe uses sandbox="allow-same-origin" (no allow-scripts) so we can
+   * access contentDocument for DOM queries. This is safe because:
+   * 1. Content is sanitized with DOMPurify (DOCX_PURIFY_CONFIG)
+   * 2. No scripts can execute (allow-scripts is NOT in sandbox)
+   * 3. Heading IDs are injected by extractAndInjectHeadings (our own code)
    */
-  const handleHeadingClick = React.useCallback(
-    (id: string) => {
-      const iframe = iframeRef.current;
-      if (!iframe || !srcdoc) return;
+  const handleHeadingClick = React.useCallback((id: string) => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
 
-      // SAFE APPROACH: Re-render the srcdoc with a CSS :target pseudo-class scroll hint.
-      // The heading IDs are injected by extractAndInjectHeadings (our own code, not DOCX content).
-      // Adding a hash fragment to srcdoc causes the browser to scroll to the matching element
-      // on iframe reload — no JavaScript needed, sandbox stays empty (maximum isolation).
-      //
-      // We also inject a <style> rule that highlights the :target element briefly.
-      const targetStyle = `<style>:target { scroll-margin-top: 16px; outline: 2px solid #3b82f6; outline-offset: 2px; animation: docx-target-fade 2s ease-out; } @keyframes docx-target-fade { from { outline-color: #3b82f6; } to { outline-color: transparent; } }</style>`;
+    try {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+      const el = doc.getElementById(id);
+      if (!el) return;
 
-      // Inject target style if not already present, and append the hash fragment
-      let updatedSrcdoc = srcdoc;
-      if (!updatedSrcdoc.includes('docx-target-fade')) {
-        updatedSrcdoc = updatedSrcdoc.replace('</head>', `${targetStyle}</head>`);
-      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-      // Set srcdoc with hash fragment — browser scrolls to #id on load
-      // We manipulate the DOM directly to avoid React state cycle
-      iframe.srcdoc = updatedSrcdoc.replace('</body>', `</body>`) + '';
-      // Force a reload by slightly changing content, then set the location hash
-      // Actually, srcdoc iframes don't support hash navigation natively.
-      // Instead: re-set srcdoc and use a <meta> redirect trick to the anchor.
-      // Simplest: just re-set the srcdoc — the browser re-parses and scrolls to :target.
-
-      // Most reliable for sandbox="": destroy and recreate the srcdoc with the anchor.
-      // The iframe re-renders on srcdoc change; we embed the fragment in an anchor link.
-      const anchorDoc = updatedSrcdoc.replace(
-        '<body>',
-        `<body><a id="__docx_scroll_target" href="#${id}" style="display:none"></a>`
-      );
-      iframe.srcdoc = anchorDoc;
-    },
-    [srcdoc]
-  );
+      // Brief highlight animation
+      el.style.outline = '2px solid #3b82f6';
+      el.style.outlineOffset = '2px';
+      setTimeout(() => {
+        el.style.outline = '';
+        el.style.outlineOffset = '';
+      }, 2000);
+    } catch {
+      // Fallback: if contentDocument access fails, do nothing gracefully
+    }
+  }, []);
 
   // Error state — both renderers failed
   if (error) {
@@ -452,7 +433,7 @@ export function DocxRenderer({ content, filename, signedUrl, tocOpen = false }: 
         <iframe
           ref={iframeRef}
           srcDoc={srcdoc}
-          sandbox=""
+          sandbox="allow-same-origin"
           title={`Document preview: ${filename}`}
           className="w-full flex-1 border-0 min-h-[500px]"
           aria-label={`Preview of ${filename}`}

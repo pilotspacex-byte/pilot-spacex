@@ -42,10 +42,12 @@ export const DOCX_PURIFY_CONFIG: Record<string, unknown> = {
 
   /**
    * Block javascript: and data: URI schemes in href, src, action, and other
-   * URI-accepting attributes. Only allows https:, http:, and mailto:.
+   * URI-accepting attributes. Only allows https:, http:, mailto:, and data:image/
+   * for safe raster image types (NOT svg+xml which can contain scripts).
    * This is the primary defense against javascript: href XSS from crafted DOCX files.
    */
-  ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|data:image\/)/i,
+  ALLOWED_URI_REGEXP:
+    /^(?:https?:|mailto:|data:image\/(?:png|jpe?g|gif|webp|bmp|tiff?|x-icon|vnd\.microsoft\.icon);)/i,
 
   /**
    * Forbidden tags — executable or metadata injection vectors.

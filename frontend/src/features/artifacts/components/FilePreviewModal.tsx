@@ -300,7 +300,15 @@ export const FilePreviewModal = observer(function FilePreviewModal({
   }, []);
 
   const rendererType = resolveRenderer(mimeType, filename);
-  const { content, isLoading, isExpired } = useFileContent(signedUrl, rendererType, open);
+
+  /** Legacy Office formats (.doc, .ppt) degrade to download — skip content fetch */
+  const isLegacyOffice = React.useMemo(() => isLegacyOfficeFormat(filename), [filename]);
+
+  const { content, isLoading, isExpired } = useFileContent(
+    signedUrl,
+    rendererType,
+    open && !isLegacyOffice
+  );
 
   // Keyboard navigation for PPTX slides — only when renderer is pptx, slides loaded,
   // modal is open, and focus is NOT inside an editable element (textarea, input, contenteditable)
@@ -309,7 +317,8 @@ export const FilePreviewModal = observer(function FilePreviewModal({
     function handleKeyDown(e: KeyboardEvent) {
       // Skip if focus is inside an editable element (annotation textarea, search input, etc.)
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'TEXTAREA' || tag === 'INPUT' || (e.target as HTMLElement)?.isContentEditable) return;
+      if (tag === 'TEXTAREA' || tag === 'INPUT' || (e.target as HTMLElement)?.isContentEditable)
+        return;
       if (e.key === 'ArrowLeft' && currentSlide > 0) {
         setCurrentSlide((s) => s - 1);
       } else if (e.key === 'ArrowRight' && currentSlide < slideCount - 1) {
@@ -345,15 +354,9 @@ export const FilePreviewModal = observer(function FilePreviewModal({
       return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="unsupported" />;
     }
 
-    // Office formats — handle before content fetch checks
-    // Legacy formats (.doc, .ppt) degrade to download — cannot be parsed client-side.
-    // Modern formats (docx, xlsx, pptx) fall through to content fetch below.
-    if (rendererType === 'xlsx' || rendererType === 'docx' || rendererType === 'pptx') {
-      if (isLegacyOfficeFormat(filename)) {
-        return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="legacy" />;
-      }
-      // docx: real renderer (Phase 2), xlsx: real renderer (Phase 3), pptx: real renderer (Phase 4).
-      // All fall through to content fetch below.
+    // Legacy Office formats (.doc, .ppt) degrade to download — cannot be parsed client-side.
+    if (isLegacyOffice) {
+      return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="legacy" />;
     }
 
     // Content-based renderers: need fetch
@@ -392,7 +395,13 @@ export const FilePreviewModal = observer(function FilePreviewModal({
         return <CsvRenderer content={content as string} />;
       case 'xlsx':
         // content is ArrayBuffer for 'xlsx' renderer type (useFileContent binary branch)
-        return <XlsxRenderer content={content as ArrayBuffer} filename={filename} signedUrl={signedUrl} />;
+        return (
+          <XlsxRenderer
+            content={content as ArrayBuffer}
+            filename={filename}
+            signedUrl={signedUrl}
+          />
+        );
       case 'docx':
         // content is ArrayBuffer for 'docx' renderer type (useFileContent binary branch)
         return (

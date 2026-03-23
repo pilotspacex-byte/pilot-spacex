@@ -234,8 +234,8 @@ DOCS_DIR := .planning
 
 sync-docs:
 	@echo "Syncing docs submodule..."
-	@git submodule update --init --remote $(DOCS_DIR) 2>/dev/null \
-		|| { echo "⚠ No access to planning docs. Request access from a project admin."; exit 0; }
+	@git submodule update --init --remote $(DOCS_DIR) \
+		|| { echo "⚠ No access to planning docs. Request access from a project admin."; exit 1; }
 
 push-docs:
 	@if [ ! -d "$(DOCS_DIR)/.git" ]; then \

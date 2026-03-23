@@ -17,8 +17,8 @@ import { DownloadFallback } from './DownloadFallback';
 
 interface XlsxRendererProps {
   content: ArrayBuffer;
-  filename?: string;
-  signedUrl?: string;
+  filename: string;
+  signedUrl: string;
 }
 
 interface SheetData {
@@ -43,7 +43,7 @@ function highlightCell(value: string, term: string): React.ReactNode {
   );
 }
 
-export function XlsxRenderer({ content, filename = 'spreadsheet.xlsx', signedUrl = '' }: XlsxRendererProps) {
+export function XlsxRenderer({ content, filename, signedUrl }: XlsxRendererProps) {
   const [parsedWorkbook, setParsedWorkbook] = React.useState<XLSX.WorkBook | null>(null);
   const [isParsing, setIsParsing] = React.useState(true);
   const [activeSheet, setActiveSheet] = React.useState<string>('');
@@ -177,6 +177,7 @@ export function XlsxRenderer({ content, filename = 'spreadsheet.xlsx', signedUrl
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           className="h-8 max-w-xs text-sm"
+          aria-label="Search in sheet"
         />
         {searchTerm && (
           <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -197,9 +198,27 @@ export function XlsxRenderer({ content, filename = 'spreadsheet.xlsx', signedUrl
                   {highlightCell(String(h), searchTerm)}
                   <div
                     role="separator"
-                    aria-label="Resize column"
-                    className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-primary/30 select-none"
+                    aria-label={`Resize column ${i + 1}`}
+                    aria-orientation="vertical"
+                    tabIndex={0}
+                    className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-primary/30 focus:bg-primary/40 select-none"
                     onMouseDown={(e) => handleResizeMouseDown(e, i)}
+                    onKeyDown={(e) => {
+                      const step = e.shiftKey ? 20 : 5;
+                      if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        setColWidths((prev) => ({
+                          ...prev,
+                          [i]: Math.max(60, (prev[i] ?? 120) + step),
+                        }));
+                      } else if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        setColWidths((prev) => ({
+                          ...prev,
+                          [i]: Math.max(60, (prev[i] ?? 120) - step),
+                        }));
+                      }
+                    }}
                   />
                 </TableHead>
               ))}

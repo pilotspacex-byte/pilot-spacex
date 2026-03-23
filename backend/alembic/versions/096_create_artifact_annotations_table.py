@@ -34,7 +34,7 @@ def upgrade() -> None:
         CREATE TABLE artifact_annotations (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             artifact_id UUID NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
-            slide_index INTEGER NOT NULL,
+            slide_index INTEGER NOT NULL CHECK (slide_index >= 0),
             content TEXT NOT NULL,
             user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -83,14 +83,22 @@ def upgrade() -> None:
     """)
     )
 
-    # Workspace isolation — INSERT: workspace members can create annotations
+    # Workspace isolation — INSERT: workspace members can create annotations.
+    # Prevents user_id spoofing (must match session user) and ties workspace_id
+    # to the referenced artifact's workspace.
     op.execute(
         text("""
         CREATE POLICY "artifact_annotations_workspace_insert"
         ON artifact_annotations
         FOR INSERT
         WITH CHECK (
-            workspace_id IN (
+            user_id = current_setting('app.current_user_id', true)::uuid
+            AND workspace_id IN (
+                SELECT a.workspace_id
+                FROM artifacts a
+                WHERE a.id = artifact_id
+            )
+            AND workspace_id IN (
                 SELECT wm.workspace_id
                 FROM workspace_members wm
                 WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
@@ -101,24 +109,40 @@ def upgrade() -> None:
     """)
     )
 
-    # Author-only UPDATE — only the annotation creator can modify
+    # Author-only UPDATE — only the annotation creator can modify, scoped to workspace
     op.execute(
         text("""
         CREATE POLICY "artifact_annotations_author_update"
         ON artifact_annotations
         FOR UPDATE
-        USING (user_id = current_setting('app.current_user_id', true)::uuid)
+        USING (
+            user_id = current_setting('app.current_user_id', true)::uuid
+            AND workspace_id IN (
+                SELECT wm.workspace_id
+                FROM workspace_members wm
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
+                AND wm.is_deleted = false
+            )
+        )
         WITH CHECK (user_id = current_setting('app.current_user_id', true)::uuid)
     """)
     )
 
-    # Author-only DELETE — only the annotation creator can delete
+    # Author-only DELETE — only the annotation creator can delete, scoped to workspace
     op.execute(
         text("""
         CREATE POLICY "artifact_annotations_author_delete"
         ON artifact_annotations
         FOR DELETE
-        USING (user_id = current_setting('app.current_user_id', true)::uuid)
+        USING (
+            user_id = current_setting('app.current_user_id', true)::uuid
+            AND workspace_id IN (
+                SELECT wm.workspace_id
+                FROM workspace_members wm
+                WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
+                AND wm.is_deleted = false
+            )
+        )
     """)
     )
 
