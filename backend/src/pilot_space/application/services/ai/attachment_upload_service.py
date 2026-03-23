@@ -10,6 +10,7 @@ Source: FR-001, FR-004, FR-008, US-1, US-2
 
 from __future__ import annotations
 
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -133,7 +134,9 @@ class AttachmentUploadService:
             raise ValueError("FILE_TOO_LARGE")
 
         attachment_id = uuid4()
-        storage_key = f"{_BUCKET}/{workspace_id}/{user_id}/{attachment_id}/{filename}"
+        # Sanitize filename: strip directory components and null bytes to prevent path traversal
+        safe_filename = PurePosixPath(filename).name.replace("\x00", "") or "upload"
+        storage_key = f"{_BUCKET}/{workspace_id}/{user_id}/{attachment_id}/{safe_filename}"
 
         await self._storage.upload_object(
             bucket=_BUCKET,

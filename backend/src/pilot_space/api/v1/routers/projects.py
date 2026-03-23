@@ -36,9 +36,9 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 async def _enqueue_kg_populate(project: Project) -> None:
     """Enqueue a KG populate job for a project (non-fatal)."""
     try:
-        from pilot_space.container.container import Container
+        from pilot_space.container import get_container
 
-        queue = Container.queue_client()
+        queue = get_container().queue_client()
         if queue is None:
             return
 

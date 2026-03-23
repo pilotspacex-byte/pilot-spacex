@@ -109,6 +109,11 @@ async def upload_attachment(
         )
     )
     role = result.scalar()
+    if role is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "NOT_A_MEMBER", "message": "Not a member of this workspace"},
+        )
     if role == WorkspaceRole.GUEST:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

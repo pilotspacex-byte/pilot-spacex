@@ -172,7 +172,7 @@ class SupabaseStorageClient:
                 "storage_sign_url_missing_field",
                 bucket=bucket,
                 key=key,
-                response=response,
+                response_keys=list(response.keys()),
             )
             raise StorageSignedUrlError(
                 f"Signed URL response missing 'signedURL' field for {bucket}/{key}"
@@ -199,22 +199,12 @@ class SupabaseStorageClient:
             client = await self._get_client()
             await client.storage.from_(bucket).remove([key])
         except StorageApiError as exc:
-            # Treat "not found" (404-equivalent) as success — object already absent.
-            if hasattr(exc, "status") and exc.status in (404, "404"):
-                logger.info(
-                    "storage_delete_not_found",
-                    bucket=bucket,
-                    key=key,
-                )
-                return
-            # Check error message for not-found patterns
-            error_str = str(exc).lower()
-            if "not found" in error_str or "does not exist" in error_str:
-                logger.info(
-                    "storage_delete_not_found",
-                    bucket=bucket,
-                    key=key,
-                )
+            # Treat "not found" as success — object already absent.
+            is_not_found = (hasattr(exc, "status") and exc.status == 404) or any(
+                p in str(exc).lower() for p in ("not found", "does not exist")
+            )
+            if is_not_found:
+                logger.info("storage_delete_not_found", bucket=bucket, key=key)
                 return
             logger.exception("storage_delete_failed", bucket=bucket, key=key)
             raise StorageDeleteError(f"Delete failed for {bucket}/{key}: {exc}") from exc

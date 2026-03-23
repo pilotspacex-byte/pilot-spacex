@@ -15,6 +15,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
+import httpx
+from postgrest.exceptions import APIError as PostgrestAPIError
+
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.infrastructure.queue.models import (
     MessageStatus,
@@ -105,6 +108,19 @@ class SupabaseQueueClient:
     async def close(self) -> None:
         """No-op: connection lifecycle is managed by the shared SDK singleton."""
 
+    _ALLOWED_RPC_FUNCTIONS: frozenset[str] = frozenset(
+        {
+            "pgmq_send",
+            "pgmq_read",
+            "pgmq_delete",
+            "pgmq_archive",
+            "pgmq_create",
+            "pgmq_drop",
+            "pgmq_purge",
+            "pgmq_metrics",
+        }
+    )
+
     async def _rpc_call(
         self,
         function_name: str,
@@ -114,6 +130,7 @@ class SupabaseQueueClient:
 
         Args:
             function_name: Name of the Postgres function to call.
+                Must be in ``_ALLOWED_RPC_FUNCTIONS``.
             params: Function parameters (JSON-serialisable dict).
 
         Returns:
@@ -122,15 +139,13 @@ class SupabaseQueueClient:
         Raises:
             QueueConnectionError: If connection to Supabase fails.
             QueueOperationError: If the RPC call fails.
+            ValueError: If ``function_name`` is not in the allowlist.
         """
-        import httpx
-        from postgrest.exceptions import APIError as PostgrestAPIError
-
+        if function_name not in self._ALLOWED_RPC_FUNCTIONS:
+            raise ValueError(f"Disallowed RPC function: {function_name}")
         try:
             sdk_client = await self._get_client()
             response = await sdk_client.postgrest.rpc(function_name, params).execute()
-        except SupabaseQueueError:
-            raise
         except PostgrestAPIError as exc:
             logger.exception("rpc_call_api_error", function=function_name)
             raise QueueOperationError(f"RPC {function_name} failed: {exc}") from exc
