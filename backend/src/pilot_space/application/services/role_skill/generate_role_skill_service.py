@@ -27,6 +27,7 @@ from pilot_space.ai.providers.provider_selector import (
     resolve_workspace_llm_config,
 )
 from pilot_space.application.services.role_skill.types import VALID_ROLE_TYPES
+from pilot_space.domain.exceptions import AppError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -40,15 +41,21 @@ _RATE_LIMIT_WINDOW_SECONDS = 3600
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 
 
-class SkillGenerationError(Exception):
+class SkillGenerationError(AppError):
     """Raised when AI skill generation fails (422)."""
+
+    http_status = 500
+    error_code = "skill_generation_error"
 
     def __init__(self, message: str = "Skill generation failed") -> None:
         super().__init__(message)
 
 
-class SkillGenerationRateLimitError(Exception):
+class SkillGenerationRateLimitError(AppError):
     """Raised when user exceeds generation rate limit."""
+
+    http_status = 429
+    error_code = "skill_generation_rate_limit"
 
     def __init__(
         self,

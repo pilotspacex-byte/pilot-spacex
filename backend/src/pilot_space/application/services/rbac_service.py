@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from pilot_space.domain.exceptions import ConflictError, NotFoundError
 from pilot_space.infrastructure.database.models.custom_role import CustomRole
 from pilot_space.infrastructure.database.permissions import ACTIONS, RESOURCES
 
@@ -34,15 +35,15 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-class DuplicateRoleNameError(ValueError):
+class DuplicateRoleNameError(ConflictError):
     """Raised when a custom role name already exists within the workspace."""
 
 
-class RoleNotFoundError(ValueError):
+class RoleNotFoundError(NotFoundError):
     """Raised when a custom role cannot be found in the workspace."""
 
 
-class MemberNotFoundError(ValueError):
+class MemberNotFoundError(NotFoundError):
     """Raised when a workspace member cannot be found."""
 
 

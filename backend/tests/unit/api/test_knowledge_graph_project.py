@@ -73,7 +73,7 @@ class TestProjectKnowledgeGraph404:
     """GET /workspaces/{wid}/projects/{pid}/knowledge-graph — not found."""
 
     async def test_returns_404_with_correct_detail(self) -> None:
-        """EntityNotFoundError from service is translated to 404."""
+        """EntityNotFoundError from service bubbles up (caught by global app_error_handler)."""
         kg_service = _make_kg_service()
         kg_service.get_project_knowledge_graph.side_effect = EntityNotFoundError(
             "Project", TEST_PROJECT_ID
@@ -82,7 +82,7 @@ class TestProjectKnowledgeGraph404:
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(EntityNotFoundError) as exc_info,
         ):
             await get_project_knowledge_graph(
                 session=session,
@@ -90,8 +90,8 @@ class TestProjectKnowledgeGraph404:
                 **_default_kwargs(),  # type: ignore[arg-type]
             )
 
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "Project not found"
+        assert exc_info.value.http_status == 404
+        assert exc_info.value.entity_type == "Project"
 
 
 # ---------------------------------------------------------------------------
@@ -309,7 +309,7 @@ class TestProjectKnowledgeGraphSuccess:
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock) as mock_rls,
-            pytest.raises(HTTPException, match="Project not found"),
+            pytest.raises(EntityNotFoundError),
         ):
             await get_project_knowledge_graph(
                 session=session,

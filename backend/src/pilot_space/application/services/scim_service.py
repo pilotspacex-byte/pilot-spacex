@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
@@ -45,11 +46,11 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class ScimUserNotFoundError(ValueError):
+class ScimUserNotFoundError(NotFoundError):
     """Raised when a SCIM user (workspace member) is not found."""
 
 
-class ScimWorkspaceNotFoundError(ValueError):
+class ScimWorkspaceNotFoundError(NotFoundError):
     """Raised when the workspace referenced by SCIM token does not exist."""
 
 

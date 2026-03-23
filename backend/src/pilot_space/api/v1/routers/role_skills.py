@@ -37,10 +37,6 @@ from pilot_space.application.services.role_skill import (
     ListRoleSkillsPayload,
     UpdateRoleSkillPayload,
 )
-from pilot_space.application.services.role_skill.generate_role_skill_service import (
-    SkillGenerationError,
-    SkillGenerationRateLimitError,
-)
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep, WorkspaceMemberId
 from pilot_space.infrastructure.logging import get_logger
 
@@ -340,16 +336,6 @@ async def generate_role_skill(
                 user_id=current_user_id,
             )
         )
-    except SkillGenerationRateLimitError as e:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(e),
-        ) from e
-    except SkillGenerationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -423,16 +409,6 @@ async def regenerate_role_skill(
                 user_id=current_user_id,
             )
         )
-    except SkillGenerationRateLimitError as e:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(e),
-        ) from e
-    except SkillGenerationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

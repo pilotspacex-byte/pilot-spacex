@@ -28,10 +28,8 @@ from pilot_space.application.services.memory.graph_search_service import (
     GraphSearchService,
 )
 from pilot_space.application.services.memory.knowledge_graph_query_service import (
-    EntityNotFoundError,
     EntitySubgraphResult,
     EphemeralNode,
-    RootNodeNotFoundError,
     node_tier,
 )
 from pilot_space.dependencies import QueueClientDep
@@ -272,17 +270,12 @@ async def get_subgraph(
     """Extract a subgraph for visualization centered on root_id."""
     await set_rls_context(session, current_user_id, workspace_id)
 
-    try:
-        result = await kg_service.get_subgraph(
-            root_id=root_id,
-            workspace_id=workspace_id,
-            max_depth=max_depth,
-            max_nodes=max_nodes,
-        )
-    except RootNodeNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Root node not found"
-        ) from exc
+    result = await kg_service.get_subgraph(
+        root_id=root_id,
+        workspace_id=workspace_id,
+        max_depth=max_depth,
+        max_nodes=max_nodes,
+    )
 
     node_dtos = [_node_to_dto(n) for n in result.nodes]
     return GraphResponse(
@@ -402,19 +395,14 @@ async def get_issue_knowledge_graph(
     await set_rls_context(session, current_user_id, workspace_id)
     _parse_csv_enum(node_types, NodeType, "node_type")
 
-    try:
-        result = await kg_service.get_issue_knowledge_graph(
-            issue_id=issue_id,
-            workspace_id=workspace_id,
-            depth=depth,
-            node_types=node_types,
-            max_nodes=max_nodes,
-            include_github=include_github,
-        )
-    except EntityNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found"
-        ) from exc
+    result = await kg_service.get_issue_knowledge_graph(
+        issue_id=issue_id,
+        workspace_id=workspace_id,
+        depth=depth,
+        node_types=node_types,
+        max_nodes=max_nodes,
+        include_github=include_github,
+    )
 
     return _entity_result_to_response(result)
 
@@ -456,19 +444,14 @@ async def get_project_knowledge_graph(
     await set_rls_context(session, current_user_id, workspace_id)
     _parse_csv_enum(node_types, NodeType, "node_type")
 
-    try:
-        result = await kg_service.get_project_knowledge_graph(
-            project_id=project_id,
-            workspace_id=workspace_id,
-            depth=depth,
-            node_types=node_types,
-            max_nodes=max_nodes,
-            include_github=include_github,
-        )
-    except EntityNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
-        ) from exc
+    result = await kg_service.get_project_knowledge_graph(
+        project_id=project_id,
+        workspace_id=workspace_id,
+        depth=depth,
+        node_types=node_types,
+        max_nodes=max_nodes,
+        include_github=include_github,
+    )
 
     return _entity_result_to_response(result)
 

@@ -385,14 +385,14 @@ class TestGetSubgraph:
         assert result.edges[0].edge_type == "relates_to"
 
     async def test_subgraph_returns_404_when_root_not_found(self) -> None:
-        """RootNodeNotFoundError from service is translated to 404."""
+        """RootNodeNotFoundError from service bubbles up (caught by global app_error_handler)."""
         kg_service = _make_kg_service()
         kg_service.get_subgraph.side_effect = RootNodeNotFoundError(TEST_NODE_ID)
         session = _make_session()
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(RootNodeNotFoundError) as exc_info,
         ):
             await get_subgraph(
                 workspace_id=TEST_WORKSPACE_ID,
@@ -404,7 +404,8 @@ class TestGetSubgraph:
                 max_nodes=50,
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
+        assert str(TEST_NODE_ID) in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------
@@ -471,7 +472,7 @@ class TestIssueKnowledgeGraph:
     """GET /workspaces/{workspace_id}/issues/{issue_id}/knowledge-graph"""
 
     async def test_issue_graph_returns_404_when_issue_not_found(self) -> None:
-        """EntityNotFoundError from service is translated to 404."""
+        """EntityNotFoundError from service bubbles up (caught by global app_error_handler)."""
         kg_service = _make_kg_service()
         kg_service.get_issue_knowledge_graph.side_effect = EntityNotFoundError(
             "Issue", TEST_ISSUE_ID
@@ -480,7 +481,7 @@ class TestIssueKnowledgeGraph:
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(EntityNotFoundError) as exc_info,
         ):
             await get_issue_knowledge_graph(
                 workspace_id=TEST_WORKSPACE_ID,
@@ -494,8 +495,8 @@ class TestIssueKnowledgeGraph:
                 include_github=False,
             )
 
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "Issue not found"
+        assert exc_info.value.http_status == 404
+        assert exc_info.value.entity_type == "Issue"
 
     async def test_issue_graph_returns_empty_when_no_graph_node(self) -> None:
         """Issue exists but has no graph node — empty response."""

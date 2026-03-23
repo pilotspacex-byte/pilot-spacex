@@ -111,10 +111,6 @@ async def create_workspace_skill(
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.role_skill.generate_role_skill_service import (
-        SkillGenerationError,
-        SkillGenerationRateLimitError,
-    )
     from pilot_space.application.services.workspace_role_skill import (
         CreateWorkspaceSkillPayload,
         CreateWorkspaceSkillService,
@@ -136,18 +132,6 @@ async def create_workspace_skill(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         )
-    except SkillGenerationRateLimitError as exc:
-        return create_problem_response(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(exc),
-        )
-    except SkillGenerationError as exc:
-        return create_problem_response(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        )
-    except Exception:
-        raise
 
     logger.info(
         "[WorkspaceRoleSkills] Created skill workspace=%s role_type=%s user=%s",

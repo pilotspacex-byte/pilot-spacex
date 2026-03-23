@@ -26,11 +26,6 @@ from pilot_space.api.v1.schemas.rbac import (
     CustomRoleResponse,
     CustomRoleUpdate,
 )
-from pilot_space.application.services.rbac_service import (
-    DuplicateRoleNameError,
-    MemberNotFoundError,
-    RoleNotFoundError,
-)
 from pilot_space.dependencies import SyncedUserId
 from pilot_space.dependencies.auth import SessionDep, WorkspaceAdminId
 from pilot_space.infrastructure.database.rls import set_rls_context
@@ -136,24 +131,13 @@ async def create_custom_role(
     workspace_id = await _resolve_workspace_id(workspace_slug, workspace_repo)
     await set_rls_context(session, current_user_id, workspace_id)
 
-    try:
-        role = await rbac_service.create_role(
-            workspace_id=workspace_id,
-            name=body.name,
-            description=body.description,
-            permissions=body.permissions,
-            session=session,
-        )
-    except DuplicateRoleNameError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    role = await rbac_service.create_role(
+        workspace_id=workspace_id,
+        name=body.name,
+        description=body.description,
+        permissions=body.permissions,
+        session=session,
+    )
 
     await session.commit()
     return CustomRoleResponse.model_validate(role)
@@ -226,30 +210,14 @@ async def update_custom_role(
     workspace_id = await _resolve_workspace_id(workspace_slug, workspace_repo)
     await set_rls_context(session, current_user_id, workspace_id)
 
-    try:
-        role = await rbac_service.update_role(
-            role_id=role_id,
-            workspace_id=workspace_id,
-            name=body.name,
-            description=body.description,
-            permissions=body.permissions,
-            session=session,
-        )
-    except RoleNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-    except DuplicateRoleNameError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    role = await rbac_service.update_role(
+        role_id=role_id,
+        workspace_id=workspace_id,
+        name=body.name,
+        description=body.description,
+        permissions=body.permissions,
+        session=session,
+    )
 
     await session.commit()
     return CustomRoleResponse.model_validate(role)
@@ -282,17 +250,11 @@ async def delete_custom_role(
     workspace_id = await _resolve_workspace_id(workspace_slug, workspace_repo)
     await set_rls_context(session, current_user_id, workspace_id)
 
-    try:
-        await rbac_service.delete_role(
-            role_id=role_id,
-            workspace_id=workspace_id,
-            session=session,
-        )
-    except RoleNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    await rbac_service.delete_role(
+        role_id=role_id,
+        workspace_id=workspace_id,
+        session=session,
+    )
 
     await session.commit()
 
@@ -326,18 +288,12 @@ async def assign_member_role(
     workspace_id = await _resolve_workspace_id(workspace_slug, workspace_repo)
     await set_rls_context(session, current_user_id, workspace_id)
 
-    try:
-        await rbac_service.assign_role_to_member(
-            user_id=user_id,
-            workspace_id=workspace_id,
-            custom_role_id=body.custom_role_id,
-            session=session,
-        )
-    except MemberNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    await rbac_service.assign_role_to_member(
+        user_id=user_id,
+        workspace_id=workspace_id,
+        custom_role_id=body.custom_role_id,
+        session=session,
+    )
 
     await session.commit()
     return {"detail": "Role assignment updated"}

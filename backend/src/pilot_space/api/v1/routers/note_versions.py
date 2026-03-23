@@ -47,7 +47,6 @@ from pilot_space.application.services.version.diff_service import VersionDiffSer
 from pilot_space.application.services.version.digest_service import VersionDigestService
 from pilot_space.application.services.version.impact_service import ImpactAnalysisService
 from pilot_space.application.services.version.restore_service import (
-    ConcurrentRestoreError,
     RestorePayload,
     VersionRestoreService,
 )
@@ -351,14 +350,6 @@ async def restore_version(
                 expected_version_number=request.version_number,
             )
         )
-    except ConcurrentRestoreError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": "Another restore was applied. Reload to see current state.",
-                "current_version_number": exc.competing_version_number,
-            },
-        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -583,14 +574,6 @@ async def undo_ai_changes(
                 expected_version_number=request.version_number,
             )
         )
-    except ConcurrentRestoreError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": "Another change was applied. Reload to see current state.",
-                "current_version_number": exc.competing_version_number,
-            },
-        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

@@ -15,11 +15,10 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from pydantic import BaseModel
 
 from pilot_space.application.services.notification.notification_service import (
-    NotificationNotFoundError,
     NotificationService,
 )
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep
@@ -201,14 +200,12 @@ async def mark_notification_read(
         Updated notification.
 
     Raises:
-        HTTPException 404: If notification not found or not owned by the user.
+        NotificationNotFoundError: If notification not found or not owned by the user
+            (handled by the global AppError handler as 404).
     """
     await set_rls_context(session, current_user_id, workspace_id)
     service = _get_notification_service(session)
-    try:
-        notification = await service.mark_read(notification_id, current_user_id)
-    except NotificationNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    notification = await service.mark_read(notification_id, current_user_id)
     return NotificationResponse.model_validate(notification)
 
 

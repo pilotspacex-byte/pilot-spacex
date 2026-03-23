@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from pilot_space.domain.exceptions import ConflictError
 from pilot_space.domain.note_version import NoteVersion, VersionTrigger
 from pilot_space.infrastructure.database.repositories.note_repository import NoteRepository
 from pilot_space.infrastructure.database.repositories.note_version_repository import (
@@ -43,7 +44,7 @@ class RestoreResult:
     restored_from_version_id: UUID
 
 
-class ConcurrentRestoreError(Exception):
+class ConcurrentRestoreError(ConflictError):
     """Raised when a concurrent restore is detected (C-9, FR-039-C)."""
 
     def __init__(self, competing_version_number: int) -> None:

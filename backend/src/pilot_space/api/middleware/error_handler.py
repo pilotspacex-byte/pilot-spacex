@@ -222,35 +222,67 @@ async def generic_exception_handler(
     )
 
 
-async def ai_not_configured_handler(
+async def ai_error_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    """Handle AINotConfiguredError with 503 Problem Details response.
+    """Handle all AIError subclasses with RFC 7807 Problem Details.
 
-    AIGOV-05: Workspace AI calls without a configured BYOK key return 503
-    with error_code AI_BYOK_REQUIRED so the frontend can prompt for key setup.
+    Uses ``exc.http_status`` and ``exc.code`` from the AIError hierarchy
+    to produce the correct status code automatically — covers
+    AINotConfiguredError (503), RateLimitError (429), AITimeoutError (504),
+    ProviderUnavailableError (503), and all other AIError subtypes.
 
     Args:
         request: The incoming request.
-        exc: The AINotConfiguredError exception.
+        exc: Any AIError subclass.
 
     Returns:
-        Problem Details JSON response (503).
+        Problem Details JSON response.
     """
-    from pilot_space.ai.exceptions import AINotConfiguredError
+    from pilot_space.ai.exceptions import AIError
 
-    if isinstance(exc, AINotConfiguredError):
-        return JSONResponse(
-            status_code=503,
-            content={
-                "type": "about:blank",
-                "title": "AI Not Configured",
-                "status": 503,
-                "detail": "No BYOK API key configured for this workspace. Configure a key in Settings > API Keys.",
-                "error_code": "AI_BYOK_REQUIRED",
-            },
-            media_type="application/problem+json",
+    if isinstance(exc, AIError):
+        extensions: dict[str, Any] = {"error_code": exc.code}
+        if exc.details:
+            extensions["details"] = exc.details
+        return create_problem_response(
+            status_code=exc.http_status,
+            detail=exc.message,
+            instance=str(request.url),
+            extensions=extensions,
+        )
+    return await generic_exception_handler(request, exc)
+
+
+async def app_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Handle all AppError domain exceptions with RFC 7807 Problem Details.
+
+    Uses ``exc.http_status`` and ``exc.error_code`` to produce the correct
+    status code. Covers NotFoundError (404), ForbiddenError (403),
+    ConflictError (409), ValidationError (422), and any future AppError subclasses.
+
+    Args:
+        request: The incoming request.
+        exc: Any AppError subclass.
+
+    Returns:
+        Problem Details JSON response.
+    """
+    from pilot_space.domain.exceptions import AppError
+
+    if isinstance(exc, AppError):
+        extensions: dict[str, Any] = {"error_code": exc.error_code}
+        if exc.details:
+            extensions["details"] = exc.details
+        return create_problem_response(
+            status_code=exc.http_status,
+            detail=exc.message,
+            instance=str(request.url),
+            extensions=extensions,
         )
     return await generic_exception_handler(request, exc)
 
@@ -342,18 +374,25 @@ async def mcp_server_error_handler(
 def register_exception_handlers(app: Any) -> None:
     """Register all exception handlers with the app.
 
+    Order matters: more specific exception classes must be registered before
+    their base classes. FastAPI matches handlers by isinstance checks, so
+    the first matching handler wins.
+
     Args:
         app: FastAPI application instance.
     """
-    from pilot_space.ai.exceptions import AINotConfiguredError
+    from pilot_space.ai.exceptions import AIError
     from pilot_space.application.services.feature_toggle import FeatureToggleError
     from pilot_space.application.services.mcp.exceptions import McpServerError
     from pilot_space.application.services.transcription import TranscriptionError
+    from pilot_space.domain.exceptions import AppError
 
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
-    app.add_exception_handler(AINotConfiguredError, ai_not_configured_handler)
+    # Domain exceptions — specific hierarchies before generic fallback
+    app.add_exception_handler(AIError, ai_error_handler)
     app.add_exception_handler(TranscriptionError, transcription_error_handler)
     app.add_exception_handler(FeatureToggleError, feature_toggle_error_handler)
     app.add_exception_handler(McpServerError, mcp_server_error_handler)
+    app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(Exception, generic_exception_handler)

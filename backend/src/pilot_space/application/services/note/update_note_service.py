@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
+from pilot_space.domain.exceptions import ConflictError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -34,7 +35,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
 
 
-class OptimisticLockError(Exception):
+class OptimisticLockError(ConflictError):
     """Raised when optimistic lock check fails."""
 
 
