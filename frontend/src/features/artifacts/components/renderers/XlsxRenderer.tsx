@@ -101,9 +101,10 @@ export function XlsxRenderer({ content, filename, signedUrl }: XlsxRendererProps
     const [headerRow, ...dataRows] = jsonRows;
     const totalRows = dataRows.length;
     const truncated = totalRows > MAX_ROWS;
+    // Only keep up to MAX_ROWS to limit memory — large arrays are GC'd
     return {
       headers: (headerRow ?? []) as string[],
-      rows: dataRows.slice(0, MAX_ROWS) as string[][],
+      rows: truncated ? (dataRows.slice(0, MAX_ROWS) as string[][]) : (dataRows as string[][]),
       totalRows,
       truncated,
     };
@@ -132,10 +133,12 @@ export function XlsxRenderer({ content, filename, signedUrl }: XlsxRendererProps
     dragState.current = { colIndex, startX: e.clientX, startWidth };
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      if (!dragState.current) return;
-      const delta = moveEvent.clientX - dragState.current.startX;
-      const newWidth = Math.max(60, dragState.current.startWidth + delta);
-      setColWidths((prev) => ({ ...prev, [dragState.current!.colIndex]: newWidth }));
+      const currentDrag = dragState.current;
+      if (!currentDrag) return;
+      const delta = moveEvent.clientX - currentDrag.startX;
+      const newWidth = Math.max(60, currentDrag.startWidth + delta);
+      const { colIndex: dragColIndex } = currentDrag;
+      setColWidths((prev) => ({ ...prev, [dragColIndex]: newWidth }));
     };
 
     const onMouseUp = () => {

@@ -206,9 +206,10 @@ export function PptxThumbnailStrip({
     };
   }, [content, slideCount]);
 
-  // Auto-scroll to keep active slide visible when currentSlide changes
+  // Auto-scroll and focus active slide when currentSlide changes
   React.useEffect(() => {
     if (!activeSlotRef.current) return;
+    activeSlotRef.current.focus({ preventScroll: true });
     activeSlotRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [currentSlide]);
 
