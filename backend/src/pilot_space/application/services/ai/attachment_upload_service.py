@@ -14,7 +14,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from pilot_space.domain.exceptions import NotFoundError, ValidationError
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.chat_attachment import ChatAttachment
 from pilot_space.infrastructure.logging import get_logger
 
@@ -233,7 +233,7 @@ class AttachmentUploadService:
 
         Raises:
             ValueError: NOT_FOUND if the attachment does not exist.
-            PermissionError: FORBIDDEN if user does not own the attachment.
+            ForbiddenError: FORBIDDEN if user does not own the attachment.
         """
         attachment = await self._repo.get_by_id(attachment_id)
         if attachment is None:
@@ -251,7 +251,7 @@ class AttachmentUploadService:
             raw_owner if isinstance(raw_owner, UUID) else getattr(attachment, "owner_id", None)
         )
         if owner_id != user_id:
-            raise PermissionError("FORBIDDEN")
+            raise ForbiddenError("FORBIDDEN")
 
         await self._storage.delete_object(
             bucket=_BUCKET,

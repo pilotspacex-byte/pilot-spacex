@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from pilot_space.domain.exceptions import NotFoundError
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.logging import get_logger
 
@@ -440,7 +440,7 @@ class GetImplementContextService:
                 "member_role": member_role.value if member_role else None,
             },
         )
-        raise PermissionError(
+        raise ForbiddenError(
             "Only the issue assignee or workspace admins/owners can access implement context"
         )
 

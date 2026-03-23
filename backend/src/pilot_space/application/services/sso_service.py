@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pilot_space.config import get_settings
-from pilot_space.domain.exceptions import ValidationError
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -67,7 +67,7 @@ class SsoService:
 
         Raises:
             ValueError: If required config keys are missing.
-            LookupError: If workspace not found.
+            NotFoundError: If workspace not found.
         """
         required_keys = ("entity_id", "sso_url", "certificate")
         missing = [k for k in required_keys if not config.get(k)]
@@ -76,7 +76,7 @@ class SsoService:
 
         workspace = await self._workspace_repo.get_by_id(workspace_id)
         if workspace is None:
-            raise LookupError(f"Workspace {workspace_id} not found")
+            raise NotFoundError(f"Workspace {workspace_id} not found")
 
         existing: dict[str, Any] = dict(workspace.settings or {})
         existing["saml_config"] = {
@@ -127,7 +127,7 @@ class SsoService:
 
         Raises:
             ValueError: If required config keys are missing.
-            LookupError: If workspace not found.
+            NotFoundError: If workspace not found.
         """
         required_keys = ("provider", "client_id", "client_secret")
         missing = [k for k in required_keys if not config.get(k)]
@@ -136,7 +136,7 @@ class SsoService:
 
         workspace = await self._workspace_repo.get_by_id(workspace_id)
         if workspace is None:
-            raise LookupError(f"Workspace {workspace_id} not found")
+            raise NotFoundError(f"Workspace {workspace_id} not found")
 
         existing: dict[str, Any] = dict(workspace.settings or {})
         issuer_url = config.get("issuer_url")
@@ -186,11 +186,11 @@ class SsoService:
             required: True to require SSO, False to allow password login.
 
         Raises:
-            LookupError: If workspace not found.
+            NotFoundError: If workspace not found.
         """
         workspace = await self._workspace_repo.get_by_id(workspace_id)
         if workspace is None:
-            raise LookupError(f"Workspace {workspace_id} not found")
+            raise NotFoundError(f"Workspace {workspace_id} not found")
 
         existing: dict[str, Any] = dict(workspace.settings or {})
         existing["sso_required"] = required
@@ -350,11 +350,11 @@ class SsoService:
             mappings: List of {"claim_value": "...", "role": "..."} dicts.
 
         Raises:
-            LookupError: If workspace not found.
+            NotFoundError: If workspace not found.
         """
         workspace = await self._workspace_repo.get_by_id(workspace_id)
         if workspace is None:
-            raise LookupError(f"Workspace {workspace_id} not found")
+            raise NotFoundError(f"Workspace {workspace_id} not found")
 
         existing: dict[str, Any] = dict(workspace.settings or {})
         existing["role_claim_mapping"] = {
@@ -473,7 +473,7 @@ class SsoService:
             Updated WorkspaceMember instance.
 
         Raises:
-            LookupError: If workspace or member not found.
+            NotFoundError: If workspace or member not found.
         """
         from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 
@@ -483,7 +483,7 @@ class SsoService:
             # No mapping configured — leave role unchanged; return current membership
             member = await self._get_member_for_user(user_id, workspace_id)
             if member is None:
-                raise LookupError(
+                raise NotFoundError(
                     f"No workspace membership found for user {user_id} in workspace {workspace_id}"
                 )
             return member
@@ -504,7 +504,7 @@ class SsoService:
         # Fetch and update the membership
         member = await self._get_member_for_user(user_id, workspace_id)
         if member is None:
-            raise LookupError(
+            raise NotFoundError(
                 f"No workspace membership found for user {user_id} in workspace {workspace_id}"
             )
 

@@ -282,9 +282,10 @@ async def validate_api_key(
         )
 
     raw_key = auth_header[len("Bearer ") :]
-    result = await service.execute(ValidateAPIKeyPayload(raw_key=raw_key), _session)
-
-    await asyncio.sleep(0.05)  # uniform timing on success path too
+    try:
+        result = await service.execute(ValidateAPIKeyPayload(raw_key=raw_key), _session)
+    finally:
+        await asyncio.sleep(0.05)  # constant-time regardless of success/failure
     return {"workspace_slug": result.workspace_slug}
 
 

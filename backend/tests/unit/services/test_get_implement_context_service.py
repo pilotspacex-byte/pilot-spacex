@@ -20,7 +20,7 @@ from pilot_space.application.services.issue.get_implement_context_service import
     _extract_text_blocks,
     _slugify,
 )
-from pilot_space.domain.exceptions import NotFoundError
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models import IssuePriority
 from pilot_space.infrastructure.database.models.state import StateGroup
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
@@ -677,13 +677,13 @@ class TestGetImplementContextServiceAuth:
         note_link_repo: AsyncMock,
         workspace_repo: AsyncMock,
     ) -> None:
-        """Regular member who is not the assignee should get PermissionError."""
+        """Regular member who is not the assignee should get ForbiddenError."""
         non_assignee_id = uuid.uuid4()
         issue = _make_issue(assignee_id=uuid.uuid4())  # different assignee
         issue_repo.get_by_id_with_relations.return_value = issue
         workspace_repo.get_member_role.return_value = WorkspaceRole.MEMBER
 
-        with pytest.raises(PermissionError, match="assignee or workspace admins"):
+        with pytest.raises(ForbiddenError, match="assignee or workspace admins"):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -698,13 +698,13 @@ class TestGetImplementContextServiceAuth:
         issue_repo: AsyncMock,
         workspace_repo: AsyncMock,
     ) -> None:
-        """Guest user (not assignee) should get PermissionError."""
+        """Guest user (not assignee) should get ForbiddenError."""
         guest_id = uuid.uuid4()
         issue = _make_issue(assignee_id=uuid.uuid4())
         issue_repo.get_by_id_with_relations.return_value = issue
         workspace_repo.get_member_role.return_value = WorkspaceRole.GUEST
 
-        with pytest.raises(PermissionError):
+        with pytest.raises(ForbiddenError):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -719,13 +719,13 @@ class TestGetImplementContextServiceAuth:
         issue_repo: AsyncMock,
         workspace_repo: AsyncMock,
     ) -> None:
-        """User not in workspace (role=None) should get PermissionError."""
+        """User not in workspace (role=None) should get ForbiddenError."""
         requester_id = uuid.uuid4()
         issue = _make_issue(assignee_id=uuid.uuid4())
         issue_repo.get_by_id_with_relations.return_value = issue
         workspace_repo.get_member_role.return_value = None
 
-        with pytest.raises(PermissionError):
+        with pytest.raises(ForbiddenError):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -747,7 +747,7 @@ class TestGetImplementContextServiceAuth:
         issue_repo.get_by_id_with_relations.return_value = issue
         workspace_repo.get_member_role.return_value = WorkspaceRole.MEMBER
 
-        with pytest.raises(PermissionError):
+        with pytest.raises(ForbiddenError):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,

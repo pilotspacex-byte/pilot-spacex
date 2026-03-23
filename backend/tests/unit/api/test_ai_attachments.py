@@ -264,10 +264,12 @@ class TestDeleteEndpoint:
 
     async def test_delete_other_user_attachment_returns_403(self) -> None:
         """Attachment owned by a different user → 403 FORBIDDEN."""
-        svc = AsyncMock()
-        svc.delete = AsyncMock(side_effect=PermissionError("FORBIDDEN"))
+        from pilot_space.domain.exceptions import ForbiddenError
 
-        with pytest.raises(PermissionError):
+        svc = AsyncMock()
+        svc.delete = AsyncMock(side_effect=ForbiddenError("FORBIDDEN"))
+
+        with pytest.raises(ForbiddenError):
             await delete_attachment(
                 attachment_id=TEST_ATTACHMENT_ID,
                 user_id=TEST_USER_ID,
