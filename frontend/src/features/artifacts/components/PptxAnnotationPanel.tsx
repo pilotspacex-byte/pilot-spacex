@@ -83,20 +83,19 @@ function AnnotationCard({
   return (
     <div
       className={cn(
-        'rounded-lg bg-muted/50 p-3 space-y-2 border border-border/50 transition-opacity',
-        (isDeleting || isTemp) && 'opacity-60'
+        'rounded-lg bg-background p-3 space-y-2 border border-border/40 shadow-sm transition-opacity',
+        (isDeleting || isTemp) && 'opacity-50'
       )}
     >
       {/* Header: author avatar + timestamp */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          {/* User avatar — first letter of userId as placeholder */}
-          <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-            <span className="text-[10px] font-semibold text-primary uppercase">
+          <div className="size-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <span className="text-[9px] font-bold text-primary/80 uppercase">
               {annotation.userId?.[0]?.toUpperCase() ?? '?'}
             </span>
           </div>
-          <span className="text-xs text-muted-foreground truncate">
+          <span className="text-[11px] text-muted-foreground/70 truncate">
             {formatRelativeTime(annotation.updatedAt)}
           </span>
         </div>
@@ -272,18 +271,18 @@ export function PptxAnnotationPanel({
   // ---------------------------------------------------------------------------
   if (!isOpen) {
     return (
-      <div className="shrink-0 flex flex-col items-center border-l border-border py-3 px-1 gap-2 bg-background">
+      <div className="shrink-0 flex flex-col items-center border-l border-border/60 py-3 px-1.5 gap-2 bg-muted/10">
         <Button
           variant="ghost"
           size="icon"
-          className="size-8 relative"
+          className="size-8 relative hover:bg-primary/10"
           onClick={() => setIsOpen(true)}
           aria-label="Open annotation panel"
           title={`Annotations (${annotationCount})`}
         >
           <MessageSquarePlus className="size-4" />
           {annotationCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 size-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-semibold leading-none">
+            <span className="absolute -top-1 -right-1 size-[18px] rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold leading-none ring-2 ring-background">
               {annotationCount > 9 ? '9+' : annotationCount}
             </span>
           )}
@@ -296,24 +295,28 @@ export function PptxAnnotationPanel({
   // Expanded panel — 320px side panel
   // ---------------------------------------------------------------------------
   return (
-    <div className="shrink-0 w-80 flex flex-col border-l border-border bg-background">
+    <div className="shrink-0 w-80 flex flex-col border-l border-border/60 bg-background">
       {/* Panel header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
-        <div className="flex items-center gap-2">
-          <MessageSquarePlus className="size-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Slide {currentSlide + 1} Annotations</span>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/60 shrink-0 bg-muted/20">
+        <div className="flex items-center gap-2 min-w-0">
+          <MessageSquarePlus className="size-3.5 text-primary/70 shrink-0" />
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground truncate">
+            Slide {currentSlide + 1}
+          </span>
           {annotationCount > 0 && (
-            <span className="text-xs text-muted-foreground tabular-nums">({annotationCount})</span>
+            <span className="text-[10px] text-muted-foreground/70 tabular-nums shrink-0">
+              ({annotationCount})
+            </span>
           )}
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="size-7"
+          className="size-6"
           onClick={() => setIsOpen(false)}
           aria-label="Close annotation panel"
         >
-          <ChevronRight className="size-4" />
+          <ChevronRight className="size-3.5" />
         </Button>
       </div>
 
@@ -333,9 +336,12 @@ export function PptxAnnotationPanel({
               Failed to load annotations. Please try again.
             </p>
           ) : annotations.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No annotations on this slide. Add one below.
-            </p>
+            <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+              <div className="size-10 rounded-full bg-muted/80 flex items-center justify-center mb-3">
+                <MessageSquarePlus className="size-4 text-muted-foreground/60" />
+              </div>
+              <p className="text-xs text-muted-foreground">No annotations on this slide yet.</p>
+            </div>
           ) : (
             annotations.map((annotation) => (
               <AnnotationCard
@@ -358,24 +364,29 @@ export function PptxAnnotationPanel({
       </ScrollArea>
 
       {/* New annotation form */}
-      <div className="shrink-0 p-3 border-t border-border space-y-2">
+      <div className="shrink-0 p-3 border-t border-border/60 space-y-2 bg-muted/10">
         <Textarea
-          placeholder="Add an annotation…"
+          placeholder="Add a note..."
           value={newContent}
           onChange={(e) => setNewContent(e.target.value)}
           onKeyDown={handleNewContentKeyDown}
-          className="min-h-[80px] text-sm resize-none"
+          className="min-h-[72px] text-sm resize-none bg-background"
           aria-label="New annotation content"
           disabled={createMutation.isPending}
         />
-        <Button
-          size="sm"
-          className="w-full"
-          onClick={handleCreate}
-          disabled={!newContent.trim() || createMutation.isPending}
-        >
-          {createMutation.isPending ? 'Adding…' : 'Add annotation'}
-        </Button>
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-muted-foreground/60">
+            {newContent.trim() ? 'Cmd+Enter to submit' : ''}
+          </span>
+          <Button
+            size="sm"
+            className="h-7 px-3 text-xs"
+            onClick={handleCreate}
+            disabled={!newContent.trim() || createMutation.isPending}
+          >
+            {createMutation.isPending ? 'Adding...' : 'Add'}
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -31,35 +31,37 @@ export function DocxTocSidebar({ headings, onHeadingClick, className }: DocxTocS
   return (
     <aside
       className={cn(
-        'w-56 shrink-0 border-r border-border flex flex-col h-full bg-background',
+        'w-56 shrink-0 border-r border-border/60 flex flex-col h-full bg-muted/10',
         className
       )}
       aria-label="Table of contents"
     >
-      <div className="px-3 py-2 border-b border-border">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <div className="px-3 py-2 border-b border-border/60 bg-muted/20">
+        <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
           Contents
         </p>
       </div>
 
       <ScrollArea className="flex-1">
-        <nav className="px-2 py-2">
+        <nav className="px-1.5 py-2">
           {headings.length === 0 ? (
-            <p className="text-xs text-muted-foreground px-2 py-3">No headings found</p>
+            <p className="text-xs text-muted-foreground/60 px-2 py-4 text-center">
+              No headings found
+            </p>
           ) : (
-            <ul className="space-y-0.5">
+            <ul className="space-y-px">
               {headings.map((heading) => (
                 <li key={heading.id}>
                   <button
                     type="button"
                     onClick={() => onHeadingClick(heading.id)}
                     className={cn(
-                      'w-full text-left text-sm text-muted-foreground',
-                      'hover:text-foreground hover:bg-accent/50',
-                      'transition-colors cursor-pointer rounded px-2 py-1 truncate block',
-                      heading.level === 1 && 'font-medium',
-                      heading.level === 2 && 'pl-3',
-                      heading.level === 3 && 'pl-6 text-xs'
+                      'w-full text-left text-[13px] text-muted-foreground leading-snug',
+                      'hover:text-foreground hover:bg-accent/60 active:bg-accent/80',
+                      'transition-colors cursor-pointer rounded-md px-2 py-1.5 truncate block',
+                      heading.level === 1 && 'font-medium text-foreground/80',
+                      heading.level === 2 && 'pl-4',
+                      heading.level === 3 && 'pl-7 text-xs text-muted-foreground/70'
                     )}
                     title={heading.text}
                   >

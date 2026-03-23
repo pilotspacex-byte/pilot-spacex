@@ -118,9 +118,8 @@ function ThumbnailSlot({
         }
       }}
       className={cn(
-        'relative cursor-pointer rounded-sm overflow-hidden transition-all duration-100',
-        'ring-1 hover:ring-muted-foreground/30',
-        isActive ? 'ring-2 ring-primary' : 'ring-transparent'
+        'relative cursor-pointer rounded overflow-hidden transition-all duration-150',
+        isActive ? 'ring-2 ring-primary shadow-sm' : 'ring-1 ring-border/50 hover:ring-border'
       )}
       style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT }}
     >
@@ -224,57 +223,66 @@ export function PptxThumbnailStrip({
   return (
     <div
       ref={scrollContainerRef}
-      className="flex flex-col overflow-y-auto bg-muted/30"
-      style={{ width: 140 }}
+      className="flex flex-col overflow-y-auto bg-muted/20 py-2"
+      style={{ width: 156 }}
       aria-label="Slide thumbnails"
       role="listbox"
       aria-orientation="vertical"
     >
-      {/* Render all slide slots regardless of ready state — IntersectionObserver handles lazy rendering */}
-      {Array.from({ length: slideCount }, (_, i) => (
-        <div
-          key={i}
-          ref={i === currentSlide ? activeSlotRef : undefined}
-          className="flex flex-col items-center gap-1 p-2 cursor-pointer"
-          role="option"
-          aria-selected={i === currentSlide}
-          aria-label={`Slide ${i + 1}`}
-          tabIndex={i === currentSlide ? 0 : -1}
-          onClick={() => onNavigate(i)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onNavigate(i);
-            } else if (e.key === 'ArrowDown' && i < slideCount - 1) {
-              e.preventDefault();
-              onNavigate(i + 1);
-            } else if (e.key === 'ArrowUp' && i > 0) {
-              e.preventDefault();
-              onNavigate(i - 1);
-            }
-          }}
-        >
-          {isReady ? (
-            <ThumbnailSlot
-              index={i}
-              isActive={i === currentSlide}
-              onClick={() => onNavigate(i)}
-              viewerRef={viewerRef}
-              renderedRef={renderedRef}
-            />
-          ) : (
-            /* Skeleton placeholder while viewer initialises */
-            <div
-              className="rounded-sm bg-muted animate-pulse"
-              style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT }}
-              aria-hidden="true"
-            />
-          )}
-          <span className="text-[10px] text-muted-foreground tabular-nums select-none">
-            {i + 1}
-          </span>
-        </div>
-      ))}
+      {Array.from({ length: slideCount }, (_, i) => {
+        const active = i === currentSlide;
+        return (
+          <div
+            key={i}
+            ref={active ? activeSlotRef : undefined}
+            className={cn(
+              'flex items-center gap-2 px-2.5 py-1.5 cursor-pointer transition-colors',
+              active ? 'bg-primary/8' : 'hover:bg-muted/60'
+            )}
+            role="option"
+            aria-selected={active}
+            aria-label={`Slide ${i + 1}`}
+            tabIndex={active ? 0 : -1}
+            onClick={() => onNavigate(i)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onNavigate(i);
+              } else if (e.key === 'ArrowDown' && i < slideCount - 1) {
+                e.preventDefault();
+                onNavigate(i + 1);
+              } else if (e.key === 'ArrowUp' && i > 0) {
+                e.preventDefault();
+                onNavigate(i - 1);
+              }
+            }}
+          >
+            <span
+              className={cn(
+                'text-[10px] tabular-nums select-none w-4 text-right shrink-0',
+                active ? 'text-primary font-semibold' : 'text-muted-foreground'
+              )}
+            >
+              {i + 1}
+            </span>
+            {isReady ? (
+              <ThumbnailSlot
+                index={i}
+                isActive={active}
+                onClick={() => onNavigate(i)}
+                viewerRef={viewerRef}
+                renderedRef={renderedRef}
+              />
+            ) : (
+              <div
+                className="rounded-sm bg-muted animate-pulse"
+                style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT }}
+                aria-hidden="true"
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

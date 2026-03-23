@@ -154,23 +154,25 @@ export function PptxRenderer({ content, currentSlide, onSlideCountKnown }: PptxR
   }
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className="relative w-full p-4">
       {isLoading && (
         <div
-          className="absolute inset-0 flex items-center justify-center bg-background/80 z-10"
+          className="absolute inset-0 flex items-center justify-center bg-background/80 z-10 rounded-lg"
           role="status"
           aria-label="Loading presentation"
         >
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
         </div>
       )}
-      <canvas
-        ref={canvasRef}
-        width={canvasWidth || undefined}
-        height={canvasHeight || undefined}
-        className="block w-full"
-        aria-label={`Presentation slide ${currentSlide + 1}`}
-      />
+      <div className="rounded-lg overflow-hidden shadow-md ring-1 ring-border/40 bg-white dark:bg-neutral-900">
+        <canvas
+          ref={canvasRef}
+          width={canvasWidth || undefined}
+          height={canvasHeight || undefined}
+          className="block w-full"
+          aria-label={`Presentation slide ${currentSlide + 1}`}
+        />
+      </div>
     </div>
   );
 }

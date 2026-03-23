@@ -179,28 +179,28 @@ export function XlsxRenderer({ content, filename, signedUrl }: XlsxRendererProps
   return (
     <div className="flex flex-col h-full">
       {sheetData.truncated && (
-        <p className="text-xs text-muted-foreground px-4 py-2 border-b shrink-0">
+        <p className="text-xs text-muted-foreground px-4 py-1.5 border-b border-amber-200/50 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800/30 shrink-0">
           Showing 500 of {sheetData.totalRows.toLocaleString()} rows. Download for full data.
         </p>
       )}
-      <div className="flex items-center gap-2 px-3 py-2 border-b shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60 shrink-0 bg-muted/20">
         <Input
           placeholder="Search in sheet..."
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          className="h-8 max-w-xs text-sm"
+          className="h-7 max-w-[240px] text-xs bg-background"
           aria-label="Search in sheet"
         />
         {searchTerm && (
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
             {matchCount} {matchCount === 1 ? 'match' : 'matches'}
           </span>
         )}
       </div>
       <ScrollArea className="flex-1">
         <Table className="table-fixed">
-          <TableHeader className="sticky top-0 z-10 bg-background">
-            <TableRow>
+          <TableHeader className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm shadow-[0_1px_3px_0_rgb(0_0_0/0.05)]">
+            <TableRow className="border-b-2 border-border/60">
               {sheetData.headers.map((h, i) => (
                 <TableHead
                   key={i}
@@ -254,16 +254,16 @@ export function XlsxRenderer({ content, filename, signedUrl }: XlsxRendererProps
         </Table>
       </ScrollArea>
       {parsedWorkbook && parsedWorkbook.SheetNames.length > 1 && (
-        <div className="flex items-center gap-1 px-3 py-2 border-t overflow-x-auto shrink-0">
+        <div className="flex items-center gap-0.5 px-2 py-1.5 border-t border-border/60 overflow-x-auto shrink-0 bg-muted/30">
           {parsedWorkbook.SheetNames.map((name) => (
             <button
               key={name}
               onClick={() => setActiveSheet(name)}
               className={cn(
-                'px-3 py-1 text-xs rounded-md whitespace-nowrap transition-colors',
+                'px-3 py-1 text-xs rounded-md whitespace-nowrap transition-all duration-150',
                 activeSheet === name
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  ? 'bg-background text-foreground font-medium shadow-sm ring-1 ring-border/50'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
               )}
             >
               {name}

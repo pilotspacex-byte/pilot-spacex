@@ -431,7 +431,7 @@ export const FilePreviewModal = observer(function FilePreviewModal({
           <div className="flex h-full">
             {/* Thumbnail sidebar — left; hidden in fullscreen for clean slide-only view */}
             {showThumbnails && slideCount > 0 && !isFullscreen && (
-              <div className="border-r shrink-0 overflow-hidden">
+              <div className="border-r border-border/60 shrink-0 overflow-hidden">
                 <PptxThumbnailStrip
                   content={content as ArrayBuffer}
                   slideCount={slideCount}
@@ -444,11 +444,11 @@ export const FilePreviewModal = observer(function FilePreviewModal({
             <div
               ref={slideContainerRef}
               className={cn(
-                'flex flex-col items-center flex-1 min-w-0',
+                'flex flex-col items-center flex-1 min-w-0 bg-muted/30',
                 isFullscreen && 'bg-black h-screen w-screen justify-center'
               )}
             >
-              <div className={cn('w-full', isFullscreen && 'max-w-5xl px-4')}>
+              <div className={cn('w-full flex-1 min-h-0', isFullscreen && 'max-w-5xl px-4')}>
                 <PptxRenderer
                   content={content as ArrayBuffer}
                   currentSlide={currentSlide}
@@ -459,15 +459,19 @@ export const FilePreviewModal = observer(function FilePreviewModal({
               {/* Navigation toolbar */}
               <div
                 className={cn(
-                  'flex items-center justify-center gap-2 py-2',
+                  'flex items-center justify-center gap-1 py-2 px-3 shrink-0',
+                  'border-t border-border/40 bg-background/80 backdrop-blur-sm w-full',
                   isFullscreen &&
-                    'absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 rounded-lg px-4 py-2'
+                    'absolute bottom-4 left-1/2 -translate-x-1/2 w-auto bg-black/70 rounded-full border-white/10 px-2'
                 )}
               >
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={cn('size-8', isFullscreen && 'text-white hover:bg-white/10')}
+                  className={cn(
+                    'size-7 rounded-full',
+                    isFullscreen && 'text-white hover:bg-white/10'
+                  )}
                   disabled={currentSlide === 0}
                   onClick={() => setCurrentSlide((s) => s - 1)}
                   aria-label="Previous slide"
@@ -476,33 +480,38 @@ export const FilePreviewModal = observer(function FilePreviewModal({
                 </Button>
                 <span
                   className={cn(
-                    'text-xs tabular-nums min-w-[80px] text-center',
+                    'text-xs tabular-nums min-w-[80px] text-center font-medium',
                     isFullscreen ? 'text-white/80' : 'text-muted-foreground'
                   )}
                 >
-                  Slide {currentSlide + 1} of {slideCount || '…'}
+                  {currentSlide + 1} / {slideCount || '...'}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={cn('size-8', isFullscreen && 'text-white hover:bg-white/10')}
+                  className={cn(
+                    'size-7 rounded-full',
+                    isFullscreen && 'text-white hover:bg-white/10'
+                  )}
                   disabled={slideCount === 0 || currentSlide >= slideCount - 1}
                   onClick={() => setCurrentSlide((s) => s + 1)}
                   aria-label="Next slide"
                 >
                   <ChevronRight className="size-4" />
                 </Button>
-                {/* Exit fullscreen — visible only inside fullscreen since header is outside subtree */}
                 {isFullscreen && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-white hover:bg-white/10 ml-2"
-                    onClick={toggleFullscreen}
-                    aria-label="Exit fullscreen"
-                  >
-                    <X className="size-4" />
-                  </Button>
+                  <>
+                    <div className="w-px h-4 bg-white/20 mx-1" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 rounded-full text-white hover:bg-white/10"
+                      onClick={toggleFullscreen}
+                      aria-label="Exit fullscreen"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -531,8 +540,8 @@ export const FilePreviewModal = observer(function FilePreviewModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'flex flex-col p-0 gap-0 overflow-hidden',
-          isMaximized ? 'w-[95vw] h-[95vh] max-w-none' : 'sm:max-w-3xl max-h-[85vh]'
+          'flex flex-col p-0 gap-0 overflow-hidden transition-[width,height,max-width] duration-200 ease-out',
+          isMaximized ? 'w-[96vw] h-[94vh] max-w-none' : 'sm:max-w-3xl max-h-[85vh]'
         )}
         showCloseButton={false}
         onPointerDownOutside={(e) => {
@@ -549,15 +558,15 @@ export const FilePreviewModal = observer(function FilePreviewModal({
         }}
       >
         {/* Header */}
-        <DialogHeader className="flex-row items-center justify-between px-4 py-3 border-b shrink-0 gap-2">
-          <DialogTitle className="text-sm font-medium truncate flex-1">{filename}</DialogTitle>
-          <DialogDescription className="sr-only">Preview of {filename}</DialogDescription>
-          <div className="flex items-center gap-1 shrink-0">
-            {/* File type badge */}
-            <span className="text-xs text-muted-foreground px-2 py-0.5 rounded bg-muted">
+        <DialogHeader className="flex-row items-center justify-between px-4 py-2.5 border-b border-border/60 shrink-0 gap-2 bg-muted/20">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-1.5 py-0.5 rounded-md bg-muted border border-border/50 shrink-0">
               {mimeType.split('/')[1]?.toUpperCase() ?? 'FILE'}
             </span>
-
+            <DialogTitle className="text-sm font-medium truncate">{filename}</DialogTitle>
+          </div>
+          <DialogDescription className="sr-only">Preview of {filename}</DialogDescription>
+          <div className="flex items-center gap-0.5 shrink-0">
             {/* Download button — validates URL scheme (https always, http for localhost) */}
             {(() => {
               try {
@@ -627,21 +636,28 @@ export const FilePreviewModal = observer(function FilePreviewModal({
               </Button>
             )}
 
+            {/* Separator between feature actions and window controls */}
+            <div className="w-px h-4 bg-border/60 mx-0.5" aria-hidden="true" />
+
             {/* Maximize toggle */}
             <Button
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="size-7"
               onClick={() => setIsMaximized((m) => !m)}
               aria-label={isMaximized ? 'Restore size' : 'Maximize'}
             >
-              {isMaximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+              {isMaximized ? (
+                <Minimize2 className="size-3.5" />
+              ) : (
+                <Maximize2 className="size-3.5" />
+              )}
             </Button>
 
             {/* Close */}
             <DialogClose asChild>
-              <Button variant="ghost" size="icon" className="size-8" aria-label="Close">
-                <X className="size-4" />
+              <Button variant="ghost" size="icon" className="size-7" aria-label="Close">
+                <X className="size-3.5" />
               </Button>
             </DialogClose>
           </div>

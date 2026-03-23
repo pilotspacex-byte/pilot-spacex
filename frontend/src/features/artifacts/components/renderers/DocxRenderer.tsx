@@ -429,13 +429,13 @@ export function DocxRenderer({ content, filename, signedUrl, tocOpen = false }: 
           className="shrink-0"
         />
       )}
-      <div className="flex-1 overflow-auto min-h-0 flex flex-col">
+      <div className="flex-1 overflow-auto min-h-0 flex flex-col bg-neutral-50 dark:bg-neutral-950/30">
         <iframe
           ref={iframeRef}
           srcDoc={srcdoc}
           sandbox="allow-same-origin"
           title={`Document preview: ${filename}`}
-          className="w-full flex-1 border-0 min-h-[500px]"
+          className="w-full flex-1 border-0 min-h-[500px] bg-white dark:bg-neutral-900"
           aria-label={`Preview of ${filename}`}
         />
       </div>
