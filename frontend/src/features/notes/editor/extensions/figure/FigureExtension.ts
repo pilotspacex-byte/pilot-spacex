@@ -98,7 +98,21 @@ export const FigureExtension = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(FigureNodeView);
+    return ReactNodeViewRenderer(FigureNodeView, {
+      // Stop mouse events on the image preview area so ProseMirror's
+      // selectClickedLeaf doesn't fire (causes flushSync + RangeError).
+      // Only stop events on [role="button"] (the image); let caption clicks through.
+      stopEvent: ({ event }) => {
+        const t = event.type;
+        if (t === 'mousedown' || t === 'mouseup' || t === 'click') {
+          const target = event.target as HTMLElement;
+          if (target.closest('[role="button"]') || target.tagName === 'IMG') {
+            return true;
+          }
+        }
+        return false;
+      },
+    });
   },
 
   addStorage() {
