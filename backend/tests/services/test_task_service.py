@@ -19,6 +19,7 @@ from pilot_space.application.services.task_service import (
     TaskService,
     UpdateTaskPayload,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models import Issue
 from pilot_space.infrastructure.database.models.task import Task, TaskStatus
 
@@ -320,7 +321,7 @@ class TestCreateTask:
             title="Task",
         )
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await task_service.create_task(payload)
 
     async def test_create_task_validates_workspace_match(
@@ -341,7 +342,7 @@ class TestCreateTask:
             title="Task",
         )
 
-        with pytest.raises(ValueError, match="does not belong to workspace"):
+        with pytest.raises(ForbiddenError, match="does not belong to workspace"):
             await task_service.create_task(payload)
 
     async def test_create_task_assigns_next_sort_order(
@@ -461,7 +462,7 @@ class TestUpdateTask:
             workspace_id=workspace_id,
         )
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await task_service.update_task(payload)
 
     async def test_update_task_validates_workspace(
@@ -480,7 +481,7 @@ class TestUpdateTask:
             workspace_id=workspace_id,
         )
 
-        with pytest.raises(ValueError, match="does not belong to workspace"):
+        with pytest.raises(ForbiddenError, match="does not belong to workspace"):
             await task_service.update_task(payload)
 
     async def test_update_task_clears_description(
@@ -604,7 +605,7 @@ class TestDeleteTask:
         """Raises ValueError if task not found."""
         mock_task_repo.get_by_id.return_value = None
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await task_service.delete_task(uuid4(), workspace_id)
 
     async def test_delete_task_validates_workspace(
@@ -618,5 +619,5 @@ class TestDeleteTask:
         mock_task.workspace_id = uuid4()
         mock_task_repo.get_by_id.return_value = mock_task
 
-        with pytest.raises(ValueError, match="does not belong to workspace"):
+        with pytest.raises(ForbiddenError, match="does not belong to workspace"):
             await task_service.delete_task(mock_task.id, workspace_id)

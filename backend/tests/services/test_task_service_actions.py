@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from pilot_space.application.services.task_service import TaskService
-from pilot_space.domain.exceptions import NotFoundError, ValidationError
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import Issue
 from pilot_space.infrastructure.database.models.task import Task, TaskStatus
 
@@ -286,7 +286,7 @@ class TestReorderTasks:
         mock_task_repo.list_by_issue.return_value = existing_tasks
 
         invalid_id = uuid4()
-        with pytest.raises(ValueError, match="not found for issue"):
+        with pytest.raises(NotFoundError, match="not found for issue"):
             await task_service.reorder_tasks(issue_id, workspace_id, [task1_id, invalid_id])
 
 
@@ -386,7 +386,7 @@ class TestExportContext:
         """Raises ValueError if issue not found."""
         mock_issue_repo.get_by_id.return_value = None
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await task_service.export_context(issue_id, workspace_id, "markdown")
 
     async def test_export_context_validates_workspace(
@@ -401,5 +401,5 @@ class TestExportContext:
         mock_issue.workspace_id = uuid4()
         mock_issue_repo.get_by_id.return_value = mock_issue
 
-        with pytest.raises(ValueError, match="does not belong to workspace"):
+        with pytest.raises(ForbiddenError, match="does not belong to workspace"):
             await task_service.export_context(issue_id, workspace_id, "markdown")
