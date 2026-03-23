@@ -92,19 +92,28 @@ export function XlsxRenderer({ content, filename, signedUrl }: XlsxRendererProps
   const sheetData = React.useMemo<SheetData | null>(() => {
     if (!parsedWorkbook || !activeSheet) return null;
     const ws = parsedWorkbook.Sheets[activeSheet];
-    if (!ws) return null;
+    if (!ws || !ws['!ref']) return null;
+
+    // Decode full range to get total row count BEFORE conversion
+    const fullRange = XLSX.utils.decode_range(ws['!ref']);
+    const totalRows = Math.max(0, fullRange.e.r); // row 0 is header, data rows start at 1
+    const truncated = totalRows > MAX_ROWS;
+
+    // Limit conversion range to header + MAX_ROWS to avoid memory spikes on large sheets
+    const limitedRange = truncated
+      ? { s: fullRange.s, e: { ...fullRange.e, r: MAX_ROWS } }
+      : fullRange;
+
     const jsonRows = XLSX.utils.sheet_to_json<unknown[]>(ws, {
       header: 1,
       raw: false,
       defval: '',
+      range: limitedRange,
     });
     const [headerRow, ...dataRows] = jsonRows;
-    const totalRows = dataRows.length;
-    const truncated = totalRows > MAX_ROWS;
-    // Only keep up to MAX_ROWS to limit memory — large arrays are GC'd
     return {
       headers: (headerRow ?? []) as string[],
-      rows: truncated ? (dataRows.slice(0, MAX_ROWS) as string[][]) : (dataRows as string[][]),
+      rows: dataRows as string[][],
       totalRows,
       truncated,
     };

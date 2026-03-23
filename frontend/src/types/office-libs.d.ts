@@ -58,6 +58,16 @@ declare module 'pptxviewjs' {
 }
 
 declare module 'xlsx' {
+  export interface CellAddress {
+    c: number;
+    r: number;
+  }
+
+  export interface Range {
+    s: CellAddress;
+    e: CellAddress;
+  }
+
   export interface WorkBook {
     SheetNames: string[];
     Sheets: Record<string, WorkSheet>;
@@ -65,6 +75,8 @@ declare module 'xlsx' {
 
   export interface WorkSheet {
     [key: string]: unknown;
+    '!ref'?: string;
+    '!merges'?: Range[];
   }
 
   export interface ReadOptions {
@@ -75,11 +87,17 @@ declare module 'xlsx' {
     header?: number | string[];
     raw?: boolean;
     defval?: unknown;
+    range?: Range | string | number;
+    blankrows?: boolean;
+    skipHidden?: boolean;
   }
 
   export function read(data: ArrayBuffer, opts?: ReadOptions): WorkBook;
 
   export const utils: {
     sheet_to_json<T = unknown[]>(sheet: WorkSheet, opts?: Sheet2JSONOpts): T[];
+    decode_range(range: string): Range;
+    encode_range(range: Range): string;
+    encode_range(s: CellAddress, e: CellAddress): string;
   };
 }
