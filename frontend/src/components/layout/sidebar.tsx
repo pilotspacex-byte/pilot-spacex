@@ -209,7 +209,7 @@ export const SidebarUserControls = observer(function SidebarUserControls({
 
   if (collapsed) {
     return (
-      <div className="flex flex-col items-center gap-1.5 border-t border-sidebar-border p-2">
+      <div className="flex shrink-0 flex-col items-center gap-1.5 border-t border-sidebar-border p-2">
         <NotificationPanel store={notificationStore} workspaceId={workspaceId} collapsed />
         <DropdownMenu>
           <Tooltip delayDuration={0}>
@@ -239,7 +239,7 @@ export const SidebarUserControls = observer(function SidebarUserControls({
   }
 
   return (
-    <div className="flex items-center gap-1 border-t border-sidebar-border px-2 py-2">
+    <div className="flex shrink-0 items-center gap-1 border-t border-sidebar-border px-2 py-2">
       <NotificationPanel store={notificationStore} workspaceId={workspaceId} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -398,7 +398,7 @@ export const Sidebar = observer(function Sidebar() {
         {/* Logo & Workspace */}
         <div
           className={cn(
-            'flex h-10 items-center gap-2 border-b border-sidebar-border',
+            'flex h-10 shrink-0 items-center gap-2 border-b border-sidebar-border',
             collapsed ? 'justify-center px-2' : 'px-3'
           )}
         >
@@ -408,138 +408,142 @@ export const Sidebar = observer(function Sidebar() {
           >
             <Compass className="h-5 w-5 text-primary" />
           </motion.div>
-          {!collapsed && (
+          {collapsed ? (
+            <WorkspaceSwitcher currentSlug={workspaceSlug} collapsed />
+          ) : (
             <motion.div
               initial={shouldReduceMotion ? false : { opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={shouldReduceMotion ? undefined : { opacity: 0, x: -10 }}
-              className="flex flex-col"
+              className="flex flex-1 flex-col min-w-0"
             >
               <WorkspaceSwitcher currentSlug={workspaceSlug} />
             </motion.div>
           )}
         </div>
 
-        {/* Main Navigation */}
-        <div className="flex flex-col gap-1 p-2">
-          {navigation.map((section, sectionIndex) => (
-            <nav
-              key={section.label}
-              aria-label={`${section.label} navigation`}
-              className={cn(sectionIndex > 0 && 'mt-4')}
-            >
-              {!collapsed ? (
-                <div
-                  className="mb-1 flex items-center gap-1.5 px-2.5"
-                  role="heading"
-                  aria-level={3}
-                >
-                  {section.icon && <section.icon className="h-2.5 w-2.5 text-muted-foreground" />}
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {section.label}
-                  </span>
-                </div>
-              ) : (
-                sectionIndex > 0 && (
+        {/* Scrollable area: navigation + pinned notes */}
+        <ScrollArea className="flex-1 min-h-0">
+          {/* Main Navigation */}
+          <div className="flex flex-col gap-1 p-2">
+            {navigation.map((section, sectionIndex) => (
+              <nav
+                key={section.label}
+                aria-label={`${section.label} navigation`}
+                className={cn(sectionIndex > 0 && 'mt-4')}
+              >
+                {!collapsed ? (
                   <div
-                    className="mx-auto mb-2 h-px w-8 rounded-full bg-sidebar-border"
-                    aria-hidden="true"
-                  />
-                )
-              )}
-              {section.items.map((item) => {
-                // Hide adminOnly items from non-Owner/Admin members
-                if (item.adminOnly && !isAdminOrOwner) return null;
+                    className="mb-1 flex items-center gap-1.5 px-2.5"
+                    role="heading"
+                    aria-level={3}
+                  >
+                    {section.icon && <section.icon className="h-2.5 w-2.5 text-muted-foreground" />}
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {section.label}
+                    </span>
+                  </div>
+                ) : (
+                  sectionIndex > 0 && (
+                    <div
+                      className="mx-auto mb-2 h-px w-8 rounded-full bg-sidebar-border"
+                      aria-hidden="true"
+                    />
+                  )
+                )}
+                {section.items.map((item) => {
+                  // Hide adminOnly items from non-Owner/Admin members
+                  if (item.adminOnly && !isAdminOrOwner) return null;
 
-                const isActive = item.path
-                  ? pathname === item.href || pathname.startsWith(`${item.href}/`)
-                  : pathname === item.href;
+                  const isActive = item.path
+                    ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                    : pathname === item.href;
 
-                const badgeCount =
-                  item.badgeKey !== undefined ? (badgeValues[item.badgeKey] ?? 0) : 0;
+                  const badgeCount =
+                    item.badgeKey !== undefined ? (badgeValues[item.badgeKey] ?? 0) : 0;
 
-                return (
-                  <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
-                    <TooltipTrigger asChild>
-                      <Link
-                        href={item.href}
-                        data-testid={item.testId}
-                        aria-current={isActive ? 'page' : undefined}
-                        aria-label={
-                          collapsed && badgeCount > 0
-                            ? `${item.name} (${badgeCount} pending)`
-                            : undefined
-                        }
-                        className={cn(
-                          'group relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar',
-                          isActive
-                            ? [
-                                'bg-sidebar-accent text-sidebar-primary font-semibold',
-                                !collapsed &&
-                                  'before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-4 before:w-[3px] before:rounded-full before:bg-primary',
-                                collapsed &&
-                                  'after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:h-[3px] after:w-3 after:rounded-full after:bg-primary',
-                              ]
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent/50',
-                          collapsed && 'justify-center px-0 py-2'
-                        )}
-                      >
-                        <item.icon
+                  return (
+                    <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
+                      <TooltipTrigger asChild>
+                        <Link
+                          href={item.href}
+                          data-testid={item.testId}
+                          aria-current={isActive ? 'page' : undefined}
+                          aria-label={
+                            collapsed
+                              ? badgeCount > 0
+                                ? `${item.name} (${badgeCount} pending)`
+                                : item.name
+                              : undefined
+                          }
                           className={cn(
-                            'h-4 w-4 shrink-0 transition-colors',
+                            'group relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar',
                             isActive
-                              ? 'text-sidebar-primary'
-                              : 'text-muted-foreground group-hover:text-sidebar-foreground'
+                              ? [
+                                  'bg-sidebar-accent text-sidebar-primary font-semibold',
+                                  !collapsed &&
+                                    'before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-4 before:w-[3px] before:rounded-full before:bg-primary',
+                                  collapsed &&
+                                    'after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:h-[3px] after:w-3 after:rounded-full after:bg-primary',
+                                ]
+                              : 'text-sidebar-foreground hover:bg-sidebar-accent/50',
+                            collapsed && 'justify-center px-0 py-2'
                           )}
-                        />
-                        {!collapsed && (
-                          <motion.span
-                            initial={shouldReduceMotion ? false : { opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={shouldReduceMotion ? undefined : { opacity: 0 }}
-                            className="flex flex-1 items-center justify-between"
-                          >
-                            {item.name}
-                            {badgeCount > 0 && (
-                              <span
-                                className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
-                                aria-label={`${badgeCount} pending`}
-                                data-testid={`${item.testId}-badge`}
-                              >
-                                {badgeCount}
-                              </span>
+                        >
+                          <item.icon
+                            className={cn(
+                              'h-4 w-4 shrink-0 transition-colors',
+                              isActive
+                                ? 'text-sidebar-primary'
+                                : 'text-muted-foreground group-hover:text-sidebar-foreground'
                             )}
-                          </motion.span>
-                        )}
-                        {/* Collapsed badge dot */}
-                        {collapsed && badgeCount > 0 && (
-                          <span
-                            className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary"
-                            aria-hidden
                           />
-                        )}
-                      </Link>
-                    </TooltipTrigger>
-                    {collapsed && (
-                      <TooltipContent side="right" className="font-medium">
-                        {item.name}
-                        {badgeCount > 0 && ` (${badgeCount} pending)`}
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                );
-              })}
-            </nav>
-          ))}
-        </div>
+                          {!collapsed && (
+                            <motion.span
+                              initial={shouldReduceMotion ? false : { opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={shouldReduceMotion ? undefined : { opacity: 0 }}
+                              className="flex flex-1 items-center justify-between"
+                            >
+                              {item.name}
+                              {badgeCount > 0 && (
+                                <span
+                                  className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+                                  aria-label={`${badgeCount} pending`}
+                                  data-testid={`${item.testId}-badge`}
+                                >
+                                  {badgeCount}
+                                </span>
+                              )}
+                            </motion.span>
+                          )}
+                          {/* Collapsed badge dot */}
+                          {collapsed && badgeCount > 0 && (
+                            <span
+                              className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary"
+                              aria-hidden
+                            />
+                          )}
+                        </Link>
+                      </TooltipTrigger>
+                      {collapsed && (
+                        <TooltipContent side="right" className="font-medium">
+                          {item.name}
+                          {badgeCount > 0 && ` (${badgeCount} pending)`}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  );
+                })}
+              </nav>
+            ))}
+          </div>
 
-        <Separator className="mx-2" />
+          <Separator className="mx-2" />
 
-        {/* Notes sections — Project page trees + Personal pages */}
-        <ScrollArea className="flex-1 px-2 py-2">
+          {/* Pinned Notes — inside scrollable area */}
           {!collapsed && (
-            <>
-              {/* Pinned Notes */}
+            <div className="px-2 py-2">
               <div className="mb-4" data-testid="pinned-notes">
                 <div className="mb-2 flex items-center gap-1.5 px-1.5">
                   <PinIcon className="h-2.5 w-2.5 text-muted-foreground" />
@@ -589,14 +593,17 @@ export const Sidebar = observer(function Sidebar() {
                   )}
                 </div>
               </div>
-            </>
+            </div>
           )}
         </ScrollArea>
 
         {/* New Note Button — hidden for guests */}
         {canCreateContent && (
           <div
-            className={cn('border-t border-sidebar-border p-2', collapsed && 'flex justify-center')}
+            className={cn(
+              'shrink-0 border-t border-sidebar-border p-2',
+              collapsed && 'flex justify-center'
+            )}
           >
             <Tooltip delayDuration={collapsed ? 0 : 1000}>
               <TooltipTrigger asChild>
@@ -604,6 +611,7 @@ export const Sidebar = observer(function Sidebar() {
                   variant="default"
                   size={collapsed ? 'icon' : 'sm'}
                   data-testid="new-note-button"
+                  aria-label={collapsed ? 'New Note' : undefined}
                   onClick={handleNewNote}
                   disabled={createNote.isPending || !resolvedWorkspaceId}
                   className={cn(
@@ -640,8 +648,8 @@ export const Sidebar = observer(function Sidebar() {
           uiStore={uiStore}
         />
 
-        {/* Collapse Toggle — close button on mobile, chevron toggle on desktop */}
-        <div className="border-t border-sidebar-border p-2">
+        {/* Collapse/Expand Toggle — always visible at bottom */}
+        <div className="shrink-0 border-t border-sidebar-border p-2">
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <Button
