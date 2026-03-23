@@ -508,13 +508,17 @@ export const FilePreviewModal = observer(function FilePreviewModal({
             </div>
             {/* Annotation panel — right side; hidden in fullscreen for clean slide view */}
             {!isFullscreen && workspaceId && projectId && (
-              <PptxAnnotationPanel
-                workspaceId={workspaceId}
-                projectId={projectId}
-                artifactId={artifactId}
-                currentSlide={currentSlide}
-                currentUserId={currentUserId}
-              />
+              <React.Suspense
+                fallback={<div className="w-80 shrink-0 border-l p-4 animate-pulse" />}
+              >
+                <PptxAnnotationPanel
+                  workspaceId={workspaceId}
+                  projectId={projectId}
+                  artifactId={artifactId}
+                  currentSlide={currentSlide}
+                  currentUserId={currentUserId}
+                />
+              </React.Suspense>
             )}
           </div>
         );

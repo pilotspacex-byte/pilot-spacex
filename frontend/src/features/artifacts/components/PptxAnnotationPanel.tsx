@@ -93,7 +93,7 @@ function AnnotationCard({
           {/* User avatar — first letter of userId as placeholder */}
           <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
             <span className="text-[10px] font-semibold text-primary uppercase">
-              {annotation.userId ? annotation.userId.charAt(0) : '?'}
+              {annotation.userId?.[0]?.toUpperCase() ?? '?'}
             </span>
           </div>
           <span className="text-xs text-muted-foreground truncate">
@@ -200,12 +200,11 @@ export function PptxAnnotationPanel({
   }, [currentSlide]);
 
   // TanStack Query hooks
-  const { data: annotations = [], isLoading, isError } = useSlideAnnotations(
-    workspaceId,
-    projectId,
-    artifactId,
-    currentSlide
-  );
+  const {
+    data: annotations = [],
+    isLoading,
+    isError,
+  } = useSlideAnnotations(workspaceId, projectId, artifactId, currentSlide);
 
   const createMutation = useCreateAnnotation(workspaceId, projectId, artifactId);
   const updateMutation = useUpdateAnnotation(workspaceId, projectId, artifactId);
