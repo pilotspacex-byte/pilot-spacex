@@ -19,7 +19,7 @@ pytestmark = pytest.mark.asyncio
 _OWNER_USER_ID = uuid4()
 _WORKSPACE_ID = uuid4()
 
-_ADMIN_WORKSPACE_PATH = "pilot_space.api.v1.routers.workspace_ai_settings._get_admin_workspace"
+_ADMIN_WORKSPACE_PATH = "pilot_space.api.v1.routers.workspace_ai_settings.get_admin_workspace"
 _KEY_STORAGE_PATH = "pilot_space.ai.infrastructure.key_storage.SecureKeyStorage"
 _GET_SETTINGS_PATH = "pilot_space.config.get_settings"
 

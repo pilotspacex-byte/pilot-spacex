@@ -69,6 +69,7 @@ class PromptLayerConfig(BaseModel):
             is a dict with keys ``name`` (str) and ``description`` (str).
             Used to populate the "Your Skills" section in the assembled prompt
             so the agent can proactively suggest relevant skills.
+        feature_toggles: dict[str, bool] = Field(default_factory=dict)
     """
 
     base_prompt: str = ""
@@ -83,6 +84,7 @@ class PromptLayerConfig(BaseModel):
     budget_warning: str | None = None
     conversation_summary: str | None = None
     user_skills: list[dict[str, str]] = Field(default_factory=list)
+    feature_toggles: dict[str, bool] = Field(default_factory=dict)
 
 
 class AssembledPrompt(BaseModel):

@@ -14,6 +14,7 @@ import {
   Settings,
   Shield,
   ShieldCheck,
+  Sliders,
   Sparkles,
   User,
   Users,
@@ -69,6 +70,9 @@ const SkillsSettingsPage = lazy(() =>
 const IntegrationsSettingsPage = lazy(
   () => import('@/app/(workspace)/[workspaceSlug]/settings/integrations/page')
 );
+const FeaturesSettingsPage = lazy(
+  () => import('@/app/(workspace)/[workspaceSlug]/settings/features/page')
+);
 
 // Billing placeholder (inline — trivial component)
 function BillingPlaceholder() {
@@ -108,6 +112,7 @@ const settingsNavSections: NavSection[] = [
     label: 'Workspace',
     items: [
       { id: 'general', label: 'General', icon: Building2 },
+      { id: 'features', label: 'Features', icon: Sliders },
       { id: 'ai-providers', label: 'AI Providers', icon: Sparkles },
       { id: 'mcp-servers', label: 'MCP Servers', icon: ServerCog },
       { id: 'integrations', label: 'Integrations', icon: Plug },
@@ -131,6 +136,7 @@ const SECTION_COMPONENTS: Record<
   React.LazyExoticComponent<React.ComponentType>
 > = {
   general: WorkspaceGeneralPage,
+  features: FeaturesSettingsPage,
   profile: ProfileSettingsPage,
   'ai-providers': AISettingsPage,
   'mcp-servers': MCPServersSettingsPage,

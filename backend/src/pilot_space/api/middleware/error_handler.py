@@ -255,6 +255,34 @@ async def transcription_error_handler(
     return await generic_exception_handler(request, exc)
 
 
+async def feature_toggle_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Handle FeatureToggleError with RFC 7807 Problem Details response.
+
+    Maps FeatureToggleError.http_status and error_code to a structured
+    problem+json body so the feature toggles router stays thin.
+
+    Args:
+        request: The incoming request.
+        exc: The FeatureToggleError exception.
+
+    Returns:
+        Problem Details JSON response.
+    """
+    from pilot_space.application.services.feature_toggle import FeatureToggleError
+
+    if isinstance(exc, FeatureToggleError):
+        return create_problem_response(
+            status_code=exc.http_status,
+            detail=exc.message,
+            instance=str(request.url),
+            extensions={"error_code": exc.error_code},
+        )
+    return await generic_exception_handler(request, exc)
+
+
 def register_exception_handlers(app: Any) -> None:
     """Register all exception handlers with the app.
 
@@ -262,10 +290,12 @@ def register_exception_handlers(app: Any) -> None:
         app: FastAPI application instance.
     """
     from pilot_space.ai.exceptions import AINotConfiguredError
+    from pilot_space.application.services.feature_toggle import FeatureToggleError
     from pilot_space.application.services.transcription import TranscriptionError
 
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(AINotConfiguredError, ai_not_configured_handler)
     app.add_exception_handler(TranscriptionError, transcription_error_handler)
+    app.add_exception_handler(FeatureToggleError, feature_toggle_error_handler)
     app.add_exception_handler(Exception, generic_exception_handler)

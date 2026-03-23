@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -27,11 +28,16 @@ from pilot_space.infrastructure.database.models.note import Note
 
 router = APIRouter(prefix="/notes", tags=["notes-ai"])
 
-# Type alias for dependency injection
-PilotSpaceAgentDep = Annotated[
-    PilotSpaceAgent,
-    Depends(Container.pilotspace_agent),
-]
+
+# DI bridge: @inject makes Provide[] resolvable; FastAPI sees a plain callable.
+@inject
+def _get_pilotspace_agent(
+    agent: PilotSpaceAgent = Depends(Provide[Container.pilotspace_agent]),
+) -> PilotSpaceAgent:
+    return agent
+
+
+PilotSpaceAgentDep = Annotated[PilotSpaceAgent, Depends(_get_pilotspace_agent)]
 
 
 class GhostTextRequest(BaseModel):

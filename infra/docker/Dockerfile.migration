@@ -25,6 +25,9 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
+    libffi-dev \
+    pkg-config \
+    libssl-dev \
     build-essential \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
@@ -35,7 +38,7 @@ RUN uv venv /app/.venv
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync --frozen --no-install-project
+RUN uv sync --frozen --no-install-project --extra migrations
 
 COPY src/ ./src/
 COPY alembic/ ./alembic/
@@ -43,7 +46,7 @@ COPY alembic.ini ./
 COPY README.md ./
 COPY scripts/ ./scripts/
 
-RUN uv sync --frozen
+RUN uv sync --frozen --extra migrations
 
 RUN groupadd --gid 1000 appgroup \
     && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser \

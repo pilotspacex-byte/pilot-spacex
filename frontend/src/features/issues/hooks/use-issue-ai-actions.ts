@@ -24,14 +24,12 @@ interface UseIssueAiActionsOptions {
   pilotSpace: PilotSpaceActionAPI;
   issueId: string;
   setIsChatOpen: (open: boolean) => void;
-  setRightPanelTab: (tab: 'chat') => void;
 }
 
 export function useIssueAiActions({
   pilotSpace,
   issueId,
   setIsChatOpen,
-  setRightPanelTab,
 }: UseIssueAiActionsOptions) {
   const handleChatSend = useCallback(
     (prompt: string) => {
@@ -59,9 +57,8 @@ export function useIssueAiActions({
       pilotSpace.setActiveSkill(skillName);
       void pilotSpace.sendMessage(`Run ${button.name} on this issue`);
       setIsChatOpen(true);
-      setRightPanelTab('chat');
     },
-    [pilotSpace, issueId, setIsChatOpen, setRightPanelTab]
+    [pilotSpace, issueId, setIsChatOpen]
   );
 
   return {

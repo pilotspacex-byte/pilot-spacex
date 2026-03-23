@@ -96,4 +96,35 @@ export const knowledgeGraphApi = {
       params: queryParams,
     });
   },
+
+  getWorkspaceOverview(
+    workspaceId: string,
+    params?: { nodeTypes?: GraphNodeType[]; maxNodes?: number }
+  ): Promise<GraphResponse> {
+    const queryParams: Record<string, string | number> = {};
+    if (params?.nodeTypes?.length) queryParams.node_types = params.nodeTypes.join(',');
+    if (params?.maxNodes !== undefined) queryParams.max_nodes = params.maxNodes;
+
+    return apiClient.get<GraphResponse>(`/workspaces/${workspaceId}/knowledge-graph/overview`, {
+      params: queryParams,
+    });
+  },
+
+  regenerateIssueGraph(
+    workspaceId: string,
+    issueId: string
+  ): Promise<{ enqueued: number; detail: string }> {
+    return apiClient.post(
+      `/workspaces/${workspaceId}/issues/${issueId}/knowledge-graph/regenerate`
+    );
+  },
+
+  regenerateProjectGraph(
+    workspaceId: string,
+    projectId: string
+  ): Promise<{ enqueued: number; detail: string }> {
+    return apiClient.post(
+      `/workspaces/${workspaceId}/projects/${projectId}/knowledge-graph/regenerate`
+    );
+  },
 };

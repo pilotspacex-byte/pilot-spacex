@@ -101,6 +101,12 @@ async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
         sections.append(skills_section)
         layers_loaded.append("skills")
 
+    # Layer 4.6: Disabled features notice (between skills and session)
+    disabled_section = _build_disabled_features_section(config)
+    if disabled_section:
+        sections.append(disabled_section)
+        layers_loaded.append("disabled_features")
+
     # Layer 5: Session state (memory, summary — placed before rules for recency)
     session_parts = _build_session_section(config)
     if session_parts:
@@ -193,6 +199,27 @@ def _build_skills_section(config: PromptLayerConfig) -> str | None:
     lines.append("")
     lines.append("Proactively suggest relevant skills when they match the user's request.")
     return "\n".join(lines)
+
+
+def _build_disabled_features_section(config: PromptLayerConfig) -> str | None:
+    """Build the disabled features notice section for the prompt (layer 4.6).
+
+    When workspace features are disabled, the agent should not attempt to use
+    related tools and should politely inform the user.
+
+    Returns:
+        Formatted "## Disabled Features" section, or None if all features enabled.
+    """
+    disable_features = ", ".join([k for k, v in config.feature_toggles.items() if not v])
+    if not disable_features:
+        return None
+    return (
+        f"## Disabled Workspace Features\n\n"
+        f"The following features are currently disabled in this workspace: {disable_features}.\n"
+        f"If the user requests functionality related to a disabled feature, politely inform them "
+        f"that the feature is not enabled and suggest they ask a workspace admin to enable it "
+        f"in Settings > Features."
+    )
 
 
 def _build_session_section(config: PromptLayerConfig) -> list[str]:

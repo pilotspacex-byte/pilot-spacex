@@ -1,6 +1,7 @@
 ---
 name: sprint-planning
 description: Generate a sprint planning checklist with tasks, assignments, and timeline
+feature_module: projects
 trigger:
   - "plan sprint"
   - "sprint planning"

@@ -38,11 +38,16 @@ WORKDIR /app
 # Install system dependencies
 # - curl: health checks
 # - build-essential: compile native extensions
+# - libffi-dev: required by cffi (C Foreign Function Interface) used by cryptography
+# - pkg-config, libssl-dev: required by openssl-sys (Rust crate) for cryptography
 # - libpq-dev: PostgreSQL client library
 # - libxml2-dev, libxmlsec1-dev, libxmlsec1: required by python3-saml (SAML 2.0 SSO)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
+    libffi-dev \
+    pkg-config \
+    libssl-dev \
     libpq-dev \
     libxml2-dev \
     libxmlsec1-dev \

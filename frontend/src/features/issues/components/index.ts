@@ -82,9 +82,6 @@ export type { IssueEditorContentProps } from './issue-editor-content';
 export { IssueDescriptionEmptyState } from './issue-description-empty-state';
 export type { IssueDescriptionEmptyStateProps } from './issue-description-empty-state';
 
-export { IssueGraph } from './issue-graph';
-export type { IssueGraphProps } from './issue-graph';
-
 export { IssueKnowledgeGraphMini } from './issue-knowledge-graph-mini';
 export type { IssueKnowledgeGraphMiniProps } from './issue-knowledge-graph-mini';
 

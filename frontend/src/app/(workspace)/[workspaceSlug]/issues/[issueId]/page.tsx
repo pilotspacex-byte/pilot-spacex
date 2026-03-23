@@ -12,7 +12,7 @@
  * during the same render cycle as TipTap's ReactNodeViewRenderer.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -53,7 +53,7 @@ import type { ExportFormat } from '@/features/issues/components';
 import type { UpdateIssueData, IssueState, UserBrief } from '@/types';
 import { IssueChatEmptyState } from '@/features/issues/components/issue-chat-empty-state';
 import type { AIContextResult } from '@/stores/ai/AIContextStore';
-import type { RightPanelTab } from '@/features/issues/components/issue-note-layout';
+// RightPanelTab type removed — graph tab no longer in issue right panel
 
 import '@/features/notes/editor/extensions/note-link.css';
 
@@ -84,11 +84,7 @@ interface IssuePagePilotSpaceAPI {
 // ---------------------------------------------------------------------------
 // Lazy-loaded heavy components
 // ---------------------------------------------------------------------------
-const IssueKnowledgeGraphFull = lazy(() =>
-  import('@/features/issues/components/issue-knowledge-graph-full').then((m) => ({
-    default: m.IssueKnowledgeGraphFull,
-  }))
-);
+// IssueKnowledgeGraphFull removed — full view navigates to project graph page
 
 // ---------------------------------------------------------------------------
 // Loading skeleton
@@ -163,8 +159,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const [editorKey, setEditorKey] = useState(0);
 
   // -- Right panel tab state --
-  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('chat');
-  const [highlightNodeId, setHighlightNodeId] = useState<string | undefined>();
+  // Graph tab removed — full graph view navigates to project/workspace page
 
   // -- Derived data --
   const memberUsers = useMemo<UserBrief[]>(() => {
@@ -271,25 +266,22 @@ const IssueDetailPage = observer(function IssueDetailPage() {
       pilotSpace,
       issueId,
       setIsChatOpen,
-      setRightPanelTab,
     }
   );
 
   // -- Knowledge graph handlers --
 
-  /** Called by mini-graph "Expand full view" button → switch right panel to graph tab */
+  /** Called by mini-graph "Expand full view" → navigate to project knowledge graph */
   const handleExpandGraphFullView = useCallback(() => {
-    setRightPanelTab('knowledge-graph');
-  }, []);
+    if (issue?.projectId) {
+      router.push(`/${workspaceSlug}/projects/${issue.projectId}/knowledge`);
+    } else {
+      // No project — navigate to workspace knowledge graph
+      router.push(`/${workspaceSlug}/knowledge`);
+    }
+  }, [issue?.projectId, router, workspaceSlug]);
 
-  /**
-   * Called when user clicks a node in the GitHub implementation panel.
-   * Highlights the node in the graph panel and switches to the graph tab.
-   */
-  const handleNodeClickHighlight = useCallback((nodeId: string) => {
-    setHighlightNodeId(nodeId);
-    setRightPanelTab('knowledge-graph');
-  }, []);
+  // handleNodeClickHighlight removed — graph tab no longer in issue right panel
 
   // -- Keyboard shortcuts --
   const handleForceSave = useCallback(() => {
@@ -410,26 +402,8 @@ const IssueDetailPage = observer(function IssueDetailPage() {
       onChatOpen={handleChatOpen}
       onAiGenerate={handleAiGenerateFromEditor}
       onExpandGraphFullView={handleExpandGraphFullView}
-      onNodeClickHighlight={handleNodeClickHighlight}
+      onNodeClickHighlight={undefined}
     />
-  );
-
-  // -- Knowledge graph full view (lazy-loaded, rendered in right panel) --
-  const knowledgeGraphContent = (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center h-full p-4 text-sm text-muted-foreground">
-          Loading graph...
-        </div>
-      }
-    >
-      <IssueKnowledgeGraphFull
-        workspaceId={workspaceId}
-        issueId={issueId}
-        highlightNodeId={highlightNodeId}
-        onClose={() => setRightPanelTab('chat')}
-      />
-    </Suspense>
   );
 
   const header = (
@@ -471,9 +445,6 @@ const IssueDetailPage = observer(function IssueDetailPage() {
           onChatClose={handleChatClose}
           emptyStateSlot={chatEmptyState}
           initialPrompt={initialPrompt}
-          knowledgeGraphContent={knowledgeGraphContent}
-          rightPanelTab={rightPanelTab}
-          onRightPanelTabChange={setRightPanelTab}
         />
 
         <Sheet open={mobilePropertiesOpen} onOpenChange={setMobilePropertiesOpen}>

@@ -1,6 +1,7 @@
 ---
 name: find-duplicates
 description: Find similar/duplicate issues using semantic search with pgvector
+feature_module: issues
 ---
 
 # Find Duplicates Skill

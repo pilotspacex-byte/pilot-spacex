@@ -195,7 +195,7 @@ services:
       target: ${FRONTEND_BUILD_TARGET:-development}
       args:
         NODE_VERSION: "20"
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
         NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
     container_name: pilot-space-frontend
@@ -207,7 +207,7 @@ services:
       PORT: "3000"
 
       # API Configuration
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
 
       # Supabase (frontend)
       NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}

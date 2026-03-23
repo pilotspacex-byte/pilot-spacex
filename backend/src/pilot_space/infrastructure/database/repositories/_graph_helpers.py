@@ -387,3 +387,48 @@ async def find_node_by_content_hash(
         GraphNodeModel.is_deleted == False,  # noqa: E712
     )
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def workspace_overview(
+    session: AsyncSession,
+    workspace_id: UUID,
+    max_nodes: int = 200,
+    node_types: list[NodeType] | None = None,
+) -> tuple[list[GraphNode], list[GraphEdge]]:
+    """Return all nodes and their inter-edges for a workspace.
+
+    Nodes ordered by updated_at DESC, capped at max_nodes.
+    Edges filtered to only include those between returned nodes.
+    """
+    conditions: list[Any] = [
+        GraphNodeModel.workspace_id == workspace_id,
+        GraphNodeModel.is_deleted == False,  # noqa: E712
+    ]
+    if node_types:
+        conditions.append(GraphNodeModel.node_type.in_([nt.value for nt in node_types]))
+    else:
+        # Exclude chunk nodes from default overview — they crowd out structural nodes
+        conditions.append(GraphNodeModel.node_type != NodeType.NOTE_CHUNK.value)
+
+    stmt = (
+        select(GraphNodeModel)
+        .where(and_(*conditions))
+        .order_by(GraphNodeModel.updated_at.desc())
+        .limit(max_nodes)
+    )
+    node_models = (await session.execute(stmt)).scalars().all()
+    nodes = [node_model_to_domain(m) for m in node_models]
+
+    if not nodes:
+        return nodes, []
+
+    node_ids = [n.id for n in nodes]
+    edge_filters: list[Any] = [
+        GraphEdgeModel.source_id.in_(node_ids),
+        GraphEdgeModel.target_id.in_(node_ids),
+        GraphEdgeModel.workspace_id == workspace_id,
+    ]
+    edge_result = await session.execute(select(GraphEdgeModel).where(*edge_filters))
+    edges = [edge_model_to_domain(m) for m in edge_result.scalars().all()]
+
+    return nodes, edges

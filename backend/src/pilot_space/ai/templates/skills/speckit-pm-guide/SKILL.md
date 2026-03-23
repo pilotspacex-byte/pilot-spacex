@@ -1,6 +1,7 @@
 ---
 name: speckit-pm-guide
 description: "Senior Project Manager skill for Specification-Driven Development (SDD). Combines structured PM methodology (stakeholder mapping, risk management, resource planning, progress tracking) with three fill-in-the-blank templates for spec/plan/task artifacts. Uses research-backed prompting techniques (Bsharat et al., 2023) for structured reasoning. Triggers on: \"PM guide\", \"project management\", \"spec template\", \"plan template\", \"task template\", \"SDD template\", \"manual speckit\", \"create a spec\", \"create a plan\", \"break down tasks\", \"risk assessment\", \"stakeholder mapping\", \"resource planning\", \"project kickoff\", \"sprint planning\", \"progress tracking\", \"RACI matrix\", \"WBS\", \"work breakdown\", or when the user wants to manage a software project end-to-end."
+feature_module: projects
 ---
 
 # Speckit PM Guide — Project Management & SDD Templates

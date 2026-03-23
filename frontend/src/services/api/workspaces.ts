@@ -6,6 +6,7 @@ import type {
   CreateWorkspaceData,
   UpdateWorkspaceData,
   InviteMemberData,
+  WorkspaceFeatureToggles,
 } from '@/types';
 
 export type {
@@ -186,6 +187,30 @@ export const workspacesApi = {
     await apiClient.patch<WorkspaceMemberResponse>(
       `/workspaces/${workspaceId}/members/${userId}/availability`,
       { weeklyAvailableHours }
+    );
+  },
+
+  /**
+   * Get workspace feature toggles (sidebar module visibility).
+   * Accessible to any workspace member.
+   */
+  async getFeatureToggles(workspaceId: string): Promise<WorkspaceFeatureToggles> {
+    return apiClient.get<WorkspaceFeatureToggles>(
+      `/workspaces/${workspaceId}/feature-toggles`
+    );
+  },
+
+  /**
+   * Update workspace feature toggles. Admin/owner only.
+   * Partial update — only provided fields are changed.
+   */
+  async updateFeatureToggles(
+    workspaceId: string,
+    data: Partial<WorkspaceFeatureToggles>
+  ): Promise<WorkspaceFeatureToggles> {
+    return apiClient.patch<WorkspaceFeatureToggles>(
+      `/workspaces/${workspaceId}/feature-toggles`,
+      data
     );
   },
 };

@@ -1,6 +1,7 @@
 ---
 name: generate-diagram
 description: Generate Mermaid diagrams from natural language descriptions
+feature_module: docs
 ---
 
 # Generate Diagram Skill

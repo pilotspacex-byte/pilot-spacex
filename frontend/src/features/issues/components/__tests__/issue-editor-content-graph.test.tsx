@@ -16,6 +16,20 @@ import type { Issue } from '@/types';
 // Mocks — declared before importing the component under test
 // ---------------------------------------------------------------------------
 
+vi.mock('next/dynamic', () => ({
+  default: (loader: () => Promise<{ default: React.ComponentType }>) => {
+    // Eagerly resolve the dynamic import for tests
+    let Component: React.ComponentType | null = null;
+    void loader().then((m) => {
+      Component = m.default;
+    });
+    return function DynamicWrapper(props: Record<string, unknown>) {
+      if (!Component) return null;
+      return <Component {...props} />;
+    };
+  },
+}));
+
 vi.mock('@tiptap/react', () => ({
   useEditor: () => null,
   EditorContent: () => <div data-testid="editor-content" />,
@@ -49,7 +63,6 @@ vi.mock('@/features/issues/components', () => ({
     </div>
   ),
   IssueSectionDivider: () => <div data-testid="section-divider" />,
-  IssueGraph: () => <div data-testid="issue-graph" />,
 }));
 
 vi.mock('../issue-description-empty-state', () => ({
@@ -92,10 +105,6 @@ vi.mock('@/features/issues/hooks', () => ({
     pullRequests: [],
     commits: [],
     branches: [],
-    isLoading: false,
-  }),
-  useIssueRelations: () => ({
-    data: [],
     isLoading: false,
   }),
 }));
@@ -194,9 +203,8 @@ describe('IssueEditorContent — knowledge graph integration', () => {
     });
   });
 
-  it('renders Relationships and Activity sections', () => {
+  it('renders Activity section', () => {
     renderComponent();
-    expect(screen.getByTestId('collapsible-relationships')).toBeTruthy();
     expect(screen.getByTestId('collapsible-activity')).toBeTruthy();
   });
 });

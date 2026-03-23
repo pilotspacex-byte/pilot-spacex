@@ -606,6 +606,24 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             context.workspace_id, context.user_id
         )
 
+        # Load workspace feature toggles for skill/MCP filtering.
+        # Normalize to a full dict by merging schema defaults with any stored
+        # overrides so that missing keys never silently disable features.
+        from pilot_space.api.v1.schemas.workspace import WorkspaceFeatureToggles
+
+        _toggle_defaults: dict[str, bool] = WorkspaceFeatureToggles().model_dump()
+        _workspace_obj = await _workspace_repo.get_by_id(context.workspace_id)
+        _raw_toggles = (
+            (_workspace_obj.settings or {}).get("feature_toggles") if _workspace_obj else None
+        )
+        # Validate: stored value must be a mapping; non-boolean values are coerced/dropped.
+        _stored_toggles: dict[str, bool] = (
+            {k: bool(v) for k, v in _raw_toggles.items() if isinstance(v, bool)}
+            if isinstance(_raw_toggles, dict)
+            else {}
+        )
+        _feature_toggles: dict[str, bool] = {**_toggle_defaults, **_stored_toggles}
+
         tool_context = ToolContext(
             db_session=db_session,
             workspace_id=str(context.workspace_id),
@@ -615,7 +633,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         # MCP-04: pre-fetch async before sync build_mcp_servers, then merge
         remote_servers = await _load_remote_mcp_servers(context.workspace_id, db_session)
-        mcp_servers, ref_map = build_mcp_servers(tool_event_queue, tool_context, input_data)
+        mcp_servers, ref_map = build_mcp_servers(
+            tool_event_queue, tool_context, input_data, feature_toggles=_feature_toggles
+        )
         mcp_servers.update(remote_servers)
 
         skill_name = detect_skill_from_message(input_data.message)
@@ -642,6 +662,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 has_note_context="<note_context>" in input_data.message,
                 graph_context=graph_context,
                 user_skills=_user_skills_for_prompt,
+                feature_toggles=_feature_toggles,
             )
         )
 

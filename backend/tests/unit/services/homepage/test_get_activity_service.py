@@ -222,7 +222,7 @@ class TestGetActivityService:
         workspace_id = uuid.uuid4()
         mock_session = AsyncMock()
 
-        now = datetime.now(tz=UTC)
+        now = datetime.now(tz=UTC).replace(hour=12, minute=0, second=0, microsecond=0)
 
         # Create 3 notes with different timestamps
         notes = [
@@ -263,7 +263,7 @@ class TestGetActivityService:
         workspace_id = uuid.uuid4()
         mock_session = AsyncMock()
 
-        now = datetime.now(tz=UTC)
+        now = datetime.now(tz=UTC).replace(hour=12, minute=0, second=0, microsecond=0)
 
         # Create 3 notes
         note_ids = [uuid.uuid4() for _ in range(3)]
@@ -324,7 +324,7 @@ class TestGetActivityService:
         workspace_id = uuid.uuid4()
         mock_session = AsyncMock()
 
-        now = datetime.now(tz=UTC)
+        now = datetime.now(tz=UTC).replace(hour=12, minute=0, second=0, microsecond=0)
         note_id = uuid.uuid4()
         issue_id = uuid.uuid4()
 

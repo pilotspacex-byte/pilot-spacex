@@ -134,12 +134,12 @@ describe('IssueKnowledgeGraphFull', () => {
     render(<IssueKnowledgeGraphFull workspaceId="ws-1" issueId="issue-1" onClose={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: /back to chat/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Issues' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Notes' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'PRs' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Decisions' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Code' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Issues' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notes' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PRs' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Decisions' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Code' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
   });
 
   it('renders depth slider in toolbar', () => {
@@ -164,17 +164,17 @@ describe('IssueKnowledgeGraphFull', () => {
     render(<IssueKnowledgeGraphFull workspaceId="ws-1" issueId="issue-1" onClose={vi.fn()} />);
 
     // Default: "All" is active
-    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Issues' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Issues' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('updates active filter chip when clicked', () => {
     render(<IssueKnowledgeGraphFull workspaceId="ws-1" issueId="issue-1" onClose={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Issues' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Issues' }));
 
-    expect(screen.getByRole('tab', { name: 'Issues' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('button', { name: 'Issues' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('renders ReactFlow canvas', () => {

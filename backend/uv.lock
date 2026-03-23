@@ -2,13 +2,20 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
-    "python_full_version >= '3.14'",
-    "python_full_version == '3.13.*'",
-    "python_full_version < '3.13'",
+    "python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux'",
+    "python_full_version == '3.13.*' and platform_machine == 'aarch64' and sys_platform == 'linux'",
+    "python_full_version < '3.13' and platform_machine == 'aarch64' and sys_platform == 'linux'",
 ]
 supported-markers = [
     "platform_machine == 'arm64' and sys_platform == 'darwin'",
     "platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "platform_machine == 'aarch64' and sys_platform == 'linux'",
 ]
 
 [[package]]
@@ -25,9 +32,9 @@ name = "alembic"
 version = "1.18.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mako" },
-    { name = "sqlalchemy" },
-    { name = "typing-extensions" },
+    { name = "mako", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "sqlalchemy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/94/13/8b084e0f2efb0275a1d534838844926f798bd766566b1375174e2448cd31/alembic-1.18.4.tar.gz", hash = "sha256:cb6e1fd84b6174ab8dbb2329f86d631ba9559dd78df550b57804d607672cedbc", size = 2056725, upload-time = "2026-02-10T16:00:47.195Z" }
 wheels = [
@@ -57,14 +64,14 @@ name = "anthropic"
 version = "0.85.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
-    { name = "distro" },
-    { name = "docstring-parser" },
-    { name = "httpx" },
-    { name = "jiter" },
-    { name = "pydantic" },
-    { name = "sniffio" },
-    { name = "typing-extensions" },
+    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "distro", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "docstring-parser", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httpx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "jiter", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "sniffio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c5/08/c620a0eb8625539a8ea9f5a6e06f13d131be0bc8b5b714c235d4b25dd1b5/anthropic-0.85.0.tar.gz", hash = "sha256:d45b2f38a1efb1a5d15515a426b272179a0d18783efa2bb4c3925fa773eb50b9", size = 542034, upload-time = "2026-03-16T17:00:44.324Z" }
 wheels = [
@@ -76,8 +83,8 @@ name = "anyio"
 version = "4.12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "idna" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "idna", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.13' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/96/f0/5eb65b2bb0d09ac6776f2eb54adee6abe8228ea05b20a5ad0e4945de8aac/anyio-4.12.1.tar.gz", hash = "sha256:41cfcc3a4c85d3f05c932da7c26d0201ac36f72abd4435ba90d0464a3ffed703", size = 228685, upload-time = "2026-01-06T11:45:21.246Z" }
 wheels = [
@@ -142,7 +149,7 @@ wheels = [
 
 [package.optional-dependencies]
 pydantic = [
-    { name = "pydantic" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [[package]]
@@ -159,7 +166,7 @@ name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
+    { name = "pycparser", marker = "(implementation_name != 'PyPy' and platform_machine == 'arm64' and sys_platform == 'darwin') or (implementation_name != 'PyPy' and platform_machine == 'aarch64' and sys_platform == 'linux') or (implementation_name != 'PyPy' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529", size = 523588, upload-time = "2025-09-08T23:24:04.541Z" }
 wheels = [
@@ -212,8 +219,8 @@ name = "claude-agent-sdk"
 version = "0.1.48"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
-    { name = "mcp" },
+    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "mcp", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6c/dd/2818538efd18ed4ef72d4775efa75bb36cbea0fa418eda51df85ee9c2424/claude_agent_sdk-0.1.48.tar.gz", hash = "sha256:ee294d3f02936c0b826119ffbefcf88c67731cf8c2d2cb7111ccc97f76344272", size = 87375, upload-time = "2026-03-07T00:21:37.087Z" }
 wheels = [
@@ -225,21 +232,9 @@ wheels = [
 name = "click"
 version = "8.3.1"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-]
 sdist = { url = "https://files.pythonhosted.org/packages/3d/fa/656b739db8587d7b5dfa22e22ed02566950fbfbcdc20311993483657a5c0/click-8.3.1.tar.gz", hash = "sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a", size = 295065, upload-time = "2025-11-15T20:45:42.706Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/98/78/01c019cdb5d6498122777c1a43056ebb3ebfeef2076d9d026bfe15583b2b/click-8.3.1-py3-none-any.whl", hash = "sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6", size = 108274, upload-time = "2025-11-15T20:45:41.139Z" },
-]
-
-[[package]]
-name = "colorama"
-version = "0.4.6"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697, upload-time = "2022-10-25T02:36:22.414Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
 ]
 
 [[package]]
@@ -271,7 +266,7 @@ name = "cryptography"
 version = "46.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
+    { name = "cffi", marker = "(platform_machine == 'arm64' and platform_python_implementation != 'PyPy' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation != 'PyPy' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation != 'PyPy' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/60/04/ee2a9e8542e4fa2773b81771ff8349ff19cdd56b7258a0cc442639052edb/cryptography-46.0.5.tar.gz", hash = "sha256:abace499247268e3757271b2f1e244b36b06f8515cf27c4d49468fc9eb16e93d", size = 750064, upload-time = "2026-02-10T19:18:38.255Z" }
 wheels = [
@@ -306,7 +301,7 @@ name = "dependency-injector"
 version = "4.48.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "typing-extensions", marker = "(python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.13' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9d/14/4f7b2d24d3ad50ac399262636cdf4b66b9318bfd0e9de5c61669625dc77c/dependency_injector-4.48.3.tar.gz", hash = "sha256:106e43a6a9959b2c49926edc45bdf07fdc377bc5fa1fd59012741590df30b20c", size = 1129251, upload-time = "2025-12-04T18:43:55.751Z" }
 wheels = [
@@ -320,7 +315,7 @@ name = "deprecation"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "packaging" },
+    { name = "packaging", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5a/d3/8ae2869247df154b64c1884d7346d412fed0c49df84db635aab2d1c40e62/deprecation-2.1.0.tar.gz", hash = "sha256:72b3bde64e5d778694b0cf68178aed03d15e15477116add3fb773e581f9518ff", size = 173788, upload-time = "2020-04-20T14:23:38.738Z" }
 wheels = [
@@ -368,8 +363,8 @@ name = "email-validator"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "dnspython" },
-    { name = "idna" },
+    { name = "dnspython", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "idna", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f5/22/900cb125c76b7aaa450ce02fd727f452243f2e91a61af068b40adba60ea9/email_validator-2.3.0.tar.gz", hash = "sha256:9fc05c37f2f6cf439ff414f8fc46d917929974a82244c20eb10231ba60c54426", size = 51238, upload-time = "2025-08-26T13:09:06.831Z" }
 wheels = [
@@ -399,7 +394,7 @@ name = "factory-boy"
 version = "3.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "faker" },
+    { name = "faker", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ba/98/75cacae9945f67cfe323829fc2ac451f64517a8a330b572a06a323997065/factory_boy-3.3.3.tar.gz", hash = "sha256:866862d226128dfac7f2b4160287e899daf54f2612778327dd03d0e2cb1e3d03", size = 164146, upload-time = "2025-02-03T09:49:04.433Z" }
 wheels = [
@@ -410,9 +405,6 @@ wheels = [
 name = "faker"
 version = "40.11.0"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "tzdata", marker = "sys_platform == 'win32'" },
-]
 sdist = { url = "https://files.pythonhosted.org/packages/94/dc/b68e5378e5a7db0ab776efcdd53b6fe374b29d703e156fd5bb4c5437069e/faker-40.11.0.tar.gz", hash = "sha256:7c419299103b13126bd02ec14bd2b47b946edb5a5eedf305e66a193b25f9a734", size = 1957570, upload-time = "2026-03-13T14:36:11.844Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b1/fa/a86c6ba66f0308c95b9288b1e3eaccd934b545646f63494a86f1ec2f8c8e/faker-40.11.0-py3-none-any.whl", hash = "sha256:0e9816c950528d2a37d74863f3ef389ea9a3a936cbcde0b11b8499942e25bf90", size = 1989457, upload-time = "2026-03-13T14:36:09.792Z" },
@@ -423,11 +415,11 @@ name = "fastapi"
 version = "0.135.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "annotated-doc" },
-    { name = "pydantic" },
-    { name = "starlette" },
-    { name = "typing-extensions" },
-    { name = "typing-inspection" },
+    { name = "annotated-doc", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "starlette", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-inspection", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e7/7b/f8e0211e9380f7195ba3f3d40c292594fd81ba8ec4629e3854c353aaca45/fastapi-0.135.1.tar.gz", hash = "sha256:d04115b508d936d254cea545b7312ecaa58a7b3a0f84952535b4c9afae7668cd", size = 394962, upload-time = "2026-03-01T18:18:29.369Z" }
 wheels = [
@@ -457,11 +449,11 @@ name = "google-ai-generativelanguage"
 version = "0.6.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "python_full_version >= '3.14'" },
-    { name = "google-api-core", version = "2.30.0", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "python_full_version < '3.14'" },
-    { name = "google-auth" },
-    { name = "proto-plus" },
-    { name = "protobuf" },
+    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "google-api-core", version = "2.30.0", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "google-auth", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "proto-plus", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "protobuf", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/11/d1/48fe5d7a43d278e9f6b5ada810b0a3530bbeac7ed7fcbcd366f932f05316/google_ai_generativelanguage-0.6.15.tar.gz", hash = "sha256:8f6d9dc4c12b065fe2d0289026171acea5183ebf2d0b11cefe12f3821e159ec3", size = 1375443, upload-time = "2025-01-13T21:50:47.459Z" }
 wheels = [
@@ -473,14 +465,16 @@ name = "google-api-core"
 version = "2.25.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.14'",
+    "python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux'",
 ]
 dependencies = [
-    { name = "google-auth", marker = "python_full_version >= '3.14'" },
-    { name = "googleapis-common-protos", marker = "python_full_version >= '3.14'" },
-    { name = "proto-plus", marker = "python_full_version >= '3.14'" },
-    { name = "protobuf", marker = "python_full_version >= '3.14'" },
-    { name = "requests", marker = "python_full_version >= '3.14'" },
+    { name = "google-auth", marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "googleapis-common-protos", marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "proto-plus", marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "protobuf", marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "requests", marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/09/cd/63f1557235c2440fe0577acdbc32577c5c002684c58c7f4d770a92366a24/google_api_core-2.25.2.tar.gz", hash = "sha256:1c63aa6af0d0d5e37966f157a77f9396d820fba59f9e43e9415bc3dc5baff300", size = 166266, upload-time = "2025-10-03T00:07:34.778Z" }
 wheels = [
@@ -489,8 +483,8 @@ wheels = [
 
 [package.optional-dependencies]
 grpc = [
-    { name = "grpcio", marker = "python_full_version >= '3.14'" },
-    { name = "grpcio-status", marker = "python_full_version >= '3.14'" },
+    { name = "grpcio", marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "grpcio-status", marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [[package]]
@@ -498,15 +492,19 @@ name = "google-api-core"
 version = "2.30.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version == '3.13.*'",
-    "python_full_version < '3.13'",
+    "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "python_full_version == '3.13.*' and platform_machine == 'aarch64' and sys_platform == 'linux'",
+    "python_full_version < '3.13' and platform_machine == 'aarch64' and sys_platform == 'linux'",
 ]
 dependencies = [
-    { name = "google-auth", marker = "python_full_version < '3.14'" },
-    { name = "googleapis-common-protos", marker = "python_full_version < '3.14'" },
-    { name = "proto-plus", marker = "python_full_version < '3.14'" },
-    { name = "protobuf", marker = "python_full_version < '3.14'" },
-    { name = "requests", marker = "python_full_version < '3.14'" },
+    { name = "google-auth", marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "googleapis-common-protos", marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "proto-plus", marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "protobuf", marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "requests", marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/22/98/586ec94553b569080caef635f98a3723db36a38eac0e3d7eb3ea9d2e4b9a/google_api_core-2.30.0.tar.gz", hash = "sha256:02edfa9fab31e17fc0befb5f161b3bf93c9096d99aed584625f38065c511ad9b", size = 176959, upload-time = "2026-02-18T20:28:11.926Z" }
 wheels = [
@@ -515,8 +513,8 @@ wheels = [
 
 [package.optional-dependencies]
 grpc = [
-    { name = "grpcio", marker = "python_full_version < '3.14'" },
-    { name = "grpcio-status", marker = "python_full_version < '3.14'" },
+    { name = "grpcio", marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "grpcio-status", marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [[package]]
@@ -524,12 +522,12 @@ name = "google-api-python-client"
 version = "2.192.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
-    { name = "google-api-core", version = "2.30.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
-    { name = "google-auth" },
-    { name = "google-auth-httplib2" },
-    { name = "httplib2" },
-    { name = "uritemplate" },
+    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "google-api-core", version = "2.30.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "google-auth", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "google-auth-httplib2", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httplib2", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "uritemplate", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/85/d8/489052a40935e45b9b5b3d6accc14b041360c1507bdc659c2e1a19aaa3ff/google_api_python_client-2.192.0.tar.gz", hash = "sha256:d48cfa6078fadea788425481b007af33fe0ab6537b78f37da914fb6fc112eb27", size = 14209505, upload-time = "2026-03-05T15:17:01.598Z" }
 wheels = [
@@ -541,8 +539,8 @@ name = "google-auth"
 version = "2.49.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "pyasn1-modules" },
+    { name = "cryptography", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyasn1-modules", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ea/80/6a696a07d3d3b0a92488933532f03dbefa4a24ab80fb231395b9a2a1be77/google_auth-2.49.1.tar.gz", hash = "sha256:16d40da1c3c5a0533f57d268fe72e0ebb0ae1cc3b567024122651c045d879b64", size = 333825, upload-time = "2026-03-12T19:30:58.135Z" }
 wheels = [
@@ -554,8 +552,8 @@ name = "google-auth-httplib2"
 version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "google-auth" },
-    { name = "httplib2" },
+    { name = "google-auth", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httplib2", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d5/ad/c1f2b1175096a8d04cf202ad5ea6065f108d26be6fc7215876bde4a7981d/google_auth_httplib2-0.3.0.tar.gz", hash = "sha256:177898a0175252480d5ed916aeea183c2df87c1f9c26705d74ae6b951c268b0b", size = 11134, upload-time = "2025-12-15T22:13:51.825Z" }
 wheels = [
@@ -567,15 +565,15 @@ name = "google-generativeai"
 version = "0.8.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "google-ai-generativelanguage" },
-    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
-    { name = "google-api-core", version = "2.30.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
-    { name = "google-api-python-client" },
-    { name = "google-auth" },
-    { name = "protobuf" },
-    { name = "pydantic" },
-    { name = "tqdm" },
-    { name = "typing-extensions" },
+    { name = "google-ai-generativelanguage", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "google-api-core", version = "2.30.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.14' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "google-api-python-client", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "google-auth", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "protobuf", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "tqdm", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/97/0f/ef33b5bb71437966590c6297104c81051feae95d54b11ece08533ef937d3/google_generativeai-0.8.6-py3-none-any.whl", hash = "sha256:37a0eaaa95e5bbf888828e20a4a1b2c196cc9527d194706e58a68ff388aeb0fa", size = 155098, upload-time = "2025-12-16T17:53:58.61Z" },
@@ -586,7 +584,7 @@ name = "googleapis-common-protos"
 version = "1.73.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "protobuf" },
+    { name = "protobuf", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/99/96/a0205167fa0154f4a542fd6925bdc63d039d88dab3588b875078107e6f06/googleapis_common_protos-1.73.0.tar.gz", hash = "sha256:778d07cd4fbeff84c6f7c72102f0daf98fa2bfd3fa8bea426edc545588da0b5a", size = 147323, upload-time = "2026-03-06T21:53:09.727Z" }
 wheels = [
@@ -598,9 +596,9 @@ name = "gotrue"
 version = "2.12.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "httpx", extra = ["http2"] },
-    { name = "pydantic" },
-    { name = "pyjwt" },
+    { name = "httpx", extra = ["http2"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyjwt", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/aa/6c/fe920e91959bd211325860332be5898b6b53d6ccd873c053fc5cc829020c/gotrue-2.12.4.tar.gz", hash = "sha256:35d2e58e066486321f4dff0033b30a53d057c7f436c15287122fa0cb833029b1", size = 34817, upload-time = "2025-08-08T15:55:49.393Z" }
 wheels = [
@@ -632,7 +630,7 @@ name = "grpcio"
 version = "1.78.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/06/8a/3d098f35c143a89520e568e6539cc098fcd294495910e359889ce8741c84/grpcio-1.78.0.tar.gz", hash = "sha256:7382b95189546f375c174f53a5fa873cef91c4b8005faa05cc5b3beea9c4f1c5", size = 12852416, upload-time = "2026-02-06T09:57:18.093Z" }
 wheels = [
@@ -652,9 +650,9 @@ name = "grpcio-status"
 version = "1.71.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "googleapis-common-protos" },
-    { name = "grpcio" },
-    { name = "protobuf" },
+    { name = "googleapis-common-protos", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "grpcio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "protobuf", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fd/d1/b6e9877fedae3add1afdeae1f89d1927d296da9cf977eca0eb08fb8a460e/grpcio_status-1.71.2.tar.gz", hash = "sha256:c7a97e176df71cdc2c179cd1847d7fc86cca5832ad12e9798d7fed6b7a1aab50", size = 13677, upload-time = "2025-06-28T04:24:05.426Z" }
 wheels = [
@@ -675,8 +673,8 @@ name = "h2"
 version = "4.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "hpack" },
-    { name = "hyperframe" },
+    { name = "hpack", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "hyperframe", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1d/17/afa56379f94ad0fe8defd37d6eb3f89a25404ffc71d4d848893d270325fc/h2-4.3.0.tar.gz", hash = "sha256:6c59efe4323fa18b47a632221a1888bd7fde6249819beda254aeca909f221bf1", size = 2152026, upload-time = "2025-08-23T18:12:19.778Z" }
 wheels = [
@@ -697,8 +695,8 @@ name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "certifi" },
-    { name = "h11" },
+    { name = "certifi", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "h11", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/06/94/82699a10bca87a5556c9c59b5963f2d039dbd239f25bc2a63907a05a14cb/httpcore-1.0.9.tar.gz", hash = "sha256:6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8", size = 85484, upload-time = "2025-04-24T22:06:22.219Z" }
 wheels = [
@@ -710,7 +708,7 @@ name = "httplib2"
 version = "0.31.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyparsing" },
+    { name = "pyparsing", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c1/1f/e86365613582c027dda5ddb64e1010e57a3d53e99ab8a72093fa13d565ec/httplib2-0.31.2.tar.gz", hash = "sha256:385e0869d7397484f4eab426197a4c020b606edd43372492337c0b4010ae5d24", size = 250800, upload-time = "2026-01-23T11:04:44.165Z" }
 wheels = [
@@ -742,10 +740,10 @@ name = "httpx"
 version = "0.28.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
-    { name = "certifi" },
-    { name = "httpcore" },
-    { name = "idna" },
+    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "certifi", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httpcore", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "idna", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b1/df/48c586a5fe32a0f01324ee087459e112ebb7224f646c0b5023f5e79e9956/httpx-0.28.1.tar.gz", hash = "sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc", size = 141406, upload-time = "2024-12-06T15:37:23.222Z" }
 wheels = [
@@ -754,7 +752,7 @@ wheels = [
 
 [package.optional-dependencies]
 http2 = [
-    { name = "h2" },
+    { name = "h2", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [[package]]
@@ -807,16 +805,15 @@ name = "ipython"
 version = "9.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-    { name = "decorator" },
-    { name = "ipython-pygments-lexers" },
-    { name = "jedi" },
-    { name = "matplotlib-inline" },
-    { name = "pexpect", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
-    { name = "prompt-toolkit" },
-    { name = "pygments" },
-    { name = "stack-data" },
-    { name = "traitlets" },
+    { name = "decorator", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "ipython-pygments-lexers", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "jedi", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "matplotlib-inline", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pexpect", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "prompt-toolkit", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pygments", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "stack-data", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "traitlets", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/86/28/a4698eda5a8928a45d6b693578b135b753e14fa1c2b36ee9441e69a45576/ipython-9.11.0.tar.gz", hash = "sha256:2a94bc4406b22ecc7e4cb95b98450f3ea493a76bec8896cda11b78d7752a6667", size = 4427354, upload-time = "2026-03-05T08:57:30.549Z" }
 wheels = [
@@ -828,7 +825,7 @@ name = "ipython-pygments-lexers"
 version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pygments" },
+    { name = "pygments", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ef/4c/5dd1d8af08107f88c7f741ead7a40854b8ac24ddf9ae850afbcf698aa552/ipython_pygments_lexers-1.1.1.tar.gz", hash = "sha256:09c0138009e56b6854f9535736f4171d855c8c08a563a0dcd8022f78355c7e81", size = 8393, upload-time = "2025-01-17T11:24:34.505Z" }
 wheels = [
@@ -849,7 +846,7 @@ name = "jedi"
 version = "0.19.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "parso" },
+    { name = "parso", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/72/3a/79a912fbd4d8dd6fbb02bf69afd3bb72cf0c729bb3063c6f4498603db17a/jedi-0.19.2.tar.gz", hash = "sha256:4770dc3de41bde3966b02eb84fbcf557fb33cce26ad23da12c742fb50ecb11f0", size = 1231287, upload-time = "2024-11-11T01:41:42.873Z" }
 wheels = [
@@ -885,10 +882,10 @@ name = "jsonschema"
 version = "4.26.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "attrs" },
-    { name = "jsonschema-specifications" },
-    { name = "referencing" },
-    { name = "rpds-py" },
+    { name = "attrs", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "jsonschema-specifications", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "referencing", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "rpds-py", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b3/fc/e067678238fa451312d4c62bf6e6cf5ec56375422aee02f9cb5f909b3047/jsonschema-4.26.0.tar.gz", hash = "sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326", size = 366583, upload-time = "2026-01-07T13:41:07.246Z" }
 wheels = [
@@ -900,7 +897,7 @@ name = "jsonschema-specifications"
 version = "2025.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "referencing" },
+    { name = "referencing", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/19/74/a633ee74eb36c44aa6d1095e7cc5569bebf04342ee146178e2d36600708b/jsonschema_specifications-2025.9.1.tar.gz", hash = "sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d", size = 32855, upload-time = "2025-09-08T01:34:59.186Z" }
 wheels = [
@@ -936,7 +933,7 @@ name = "mako"
 version = "1.3.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markupsafe" },
+    { name = "markupsafe", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/38/bd5b78a920a64d708fe6bc8e0a2c075e1389d53bef8413725c63ba041535/mako-1.3.10.tar.gz", hash = "sha256:99579a6f39583fa7e5630a28c3c1f440e4e97a414b80372649c0ce338da2ea28", size = 392474, upload-time = "2025-04-10T12:44:31.16Z" }
 wheels = [
@@ -948,7 +945,7 @@ name = "markdown-it-py"
 version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mdurl" },
+    { name = "mdurl", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5b/f5/4ec618ed16cc4f8fb3b701563655a69816155e79e24a17b651541804721d/markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3", size = 73070, upload-time = "2025-08-11T12:57:52.854Z" }
 wheels = [
@@ -983,7 +980,7 @@ name = "matplotlib-inline"
 version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "traitlets" },
+    { name = "traitlets", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c7/74/97e72a36efd4ae2bccb3463284300f8953f199b5ffbc04cbbb0ec78f74b1/matplotlib_inline-0.2.1.tar.gz", hash = "sha256:e1ee949c340d771fc39e241ea75683deb94762c8fa5f2927ec57c83c4dffa9fe", size = 8110, upload-time = "2025-10-23T09:00:22.126Z" }
 wheels = [
@@ -995,20 +992,19 @@ name = "mcp"
 version = "1.26.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
-    { name = "httpx" },
-    { name = "httpx-sse" },
-    { name = "jsonschema" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "python-multipart" },
-    { name = "pywin32", marker = "sys_platform == 'win32'" },
-    { name = "sse-starlette" },
-    { name = "starlette" },
-    { name = "typing-extensions" },
-    { name = "typing-inspection" },
-    { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
+    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httpx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httpx-sse", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "jsonschema", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic-settings", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyjwt", extra = ["crypto"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "python-multipart", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "sse-starlette", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "starlette", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-inspection", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "uvicorn", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fc/6d/62e76bbb8144d6ed86e202b5edd8a4cb631e7c8130f3f4893c3f90262b10/mcp-1.26.0.tar.gz", hash = "sha256:db6e2ef491eecc1a0d93711a76f28dec2e05999f93afd48795da1c1137142c66", size = 608005, upload-time = "2026-01-24T19:40:32.468Z" }
 wheels = [
@@ -1029,8 +1025,8 @@ name = "meilisearch"
 version = "0.40.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "camel-converter", extra = ["pydantic"] },
-    { name = "requests" },
+    { name = "camel-converter", extra = ["pydantic"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "requests", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/10/94/b69c53be760d49d38a3e933aabcc506e48938fc1834c32cbf23a8b795a33/meilisearch-0.40.0.tar.gz", hash = "sha256:4348ea6e4bacb4b1391b9b577956a03090ff9327d6ebcddcf479f39b2d4b5b05", size = 31259, upload-time = "2026-01-15T06:29:18.305Z" }
 wheels = [
@@ -1138,14 +1134,14 @@ name = "openai"
 version = "2.28.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
-    { name = "distro" },
-    { name = "httpx" },
-    { name = "jiter" },
-    { name = "pydantic" },
-    { name = "sniffio" },
-    { name = "tqdm" },
-    { name = "typing-extensions" },
+    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "distro", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httpx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "jiter", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "sniffio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "tqdm", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/56/87/eb0abb4ef88ddb95b3c13149384c4c288f584f3be17d6a4f63f8c3e3c226/openai-2.28.0.tar.gz", hash = "sha256:bb7fdff384d2a787fa82e8822d1dd3c02e8cf901d60f1df523b7da03cbb6d48d", size = 670334, upload-time = "2026-03-13T19:56:27.306Z" }
 wheels = [
@@ -1195,7 +1191,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess" },
+    { name = "ptyprocess", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -1207,7 +1203,7 @@ name = "pgvector"
 version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/25/6c/6d8b4b03b958c02fa8687ec6063c49d952a189f8c91ebbe51e877dfab8f7/pgvector-0.4.2.tar.gz", hash = "sha256:322cac0c1dc5d41c9ecf782bd9991b7966685dee3a00bc873631391ed949513a", size = 31354, upload-time = "2025-12-05T01:07:17.87Z" }
 wheels = [
@@ -1250,19 +1246,19 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
-    { name = "factory-boy" },
-    { name = "faker" },
-    { name = "httpx" },
-    { name = "ipython" },
-    { name = "pre-commit" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-    { name = "respx" },
-    { name = "rich" },
-    { name = "ruff" },
+    { name = "factory-boy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "faker", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httpx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "ipython", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pre-commit", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyright", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pytest", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pytest-asyncio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pytest-cov", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pytest-xdist", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "respx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "rich", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "ruff", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 google-ai = [
     { name = "google-generativeai" },
@@ -1277,8 +1273,8 @@ saml = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "aiosqlite" },
-    { name = "faker" },
+    { name = "aiosqlite", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "faker", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [package.metadata]
@@ -1359,10 +1355,10 @@ name = "postgrest"
 version = "2.28.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "deprecation" },
-    { name = "httpx", extra = ["http2"] },
-    { name = "pydantic" },
-    { name = "yarl" },
+    { name = "deprecation", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httpx", extra = ["http2"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "yarl", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d6/24/805ac03a32f3a0c3076cb5147ad35f8379fd44bddf3934f1cf3a25c5cfa8/postgrest-2.28.2.tar.gz", hash = "sha256:e1efd55147a50ebdc3aaba7cdf49143ce98c5844563ae10938b8bfaf17cf86cd", size = 13764, upload-time = "2026-03-13T18:42:30.196Z" }
 wheels = [
@@ -1374,11 +1370,11 @@ name = "pre-commit"
 version = "4.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cfgv" },
-    { name = "identify" },
-    { name = "nodeenv" },
-    { name = "pyyaml" },
-    { name = "virtualenv" },
+    { name = "cfgv", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "identify", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "nodeenv", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyyaml", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "virtualenv", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/40/f1/6d86a29246dfd2e9b6237f0b5823717f60cad94d47ddc26afa916d21f525/pre_commit-4.5.1.tar.gz", hash = "sha256:eb545fcff725875197837263e977ea257a402056661f09dae08e4b149b030a61", size = 198232, upload-time = "2025-12-16T21:14:33.552Z" }
 wheels = [
@@ -1390,7 +1386,7 @@ name = "prompt-toolkit"
 version = "3.0.52"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "wcwidth" },
+    { name = "wcwidth", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a1/96/06e01a7b38dce6fe1db213e061a4602dd6032a8a97ef6c1a862537732421/prompt_toolkit-3.0.52.tar.gz", hash = "sha256:28cde192929c8e7321de85de1ddbe736f1375148b02f2e17edd840042b1be855", size = 434198, upload-time = "2025-08-27T15:24:02.057Z" }
 wheels = [
@@ -1431,7 +1427,7 @@ name = "proto-plus"
 version = "1.27.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "protobuf" },
+    { name = "protobuf", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3a/02/8832cde80e7380c600fbf55090b6ab7b62bd6825dbedde6d6657c15a1f8e/proto_plus-1.27.1.tar.gz", hash = "sha256:912a7460446625b792f6448bade9e55cd4e41e6ac10e27009ef71a7f317fa147", size = 56929, upload-time = "2026-02-02T17:34:49.035Z" }
 wheels = [
@@ -1498,7 +1494,7 @@ name = "pyasn1-modules"
 version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyasn1" },
+    { name = "pyasn1", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e9/e6/78ebbb10a8c8e4b61a59249394a4a594c1a7af95593dc933a349c8d00964/pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6", size = 307892, upload-time = "2025-03-28T02:41:22.17Z" }
 wheels = [
@@ -1519,10 +1515,10 @@ name = "pydantic"
 version = "2.12.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "annotated-types" },
-    { name = "pydantic-core" },
-    { name = "typing-extensions" },
-    { name = "typing-inspection" },
+    { name = "annotated-types", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic-core", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-inspection", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/69/44/36f1a6e523abc58ae5f928898e4aca2e0ea509b5aa6f6f392a5d882be928/pydantic-2.12.5.tar.gz", hash = "sha256:4d351024c75c0f085a9febbb665ce8c0c6ec5d30e903bdb6394b7ede26aebb49", size = 821591, upload-time = "2025-11-26T15:11:46.471Z" }
 wheels = [
@@ -1531,7 +1527,7 @@ wheels = [
 
 [package.optional-dependencies]
 email = [
-    { name = "email-validator" },
+    { name = "email-validator", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [[package]]
@@ -1539,7 +1535,7 @@ name = "pydantic-core"
 version = "2.41.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/71/70/23b021c950c2addd24ec408e9ab05d59b035b39d97cdc1130e1bce647bb6/pydantic_core-2.41.5.tar.gz", hash = "sha256:08daa51ea16ad373ffd5e7606252cc32f07bc72b28284b6bc9c6df804816476e", size = 460952, upload-time = "2025-11-04T13:43:49.098Z" }
 wheels = [
@@ -1564,9 +1560,9 @@ name = "pydantic-settings"
 version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "typing-inspection" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "python-dotenv", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-inspection", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/52/6d/fffca34caecc4a3f97bda81b2098da5e8ab7efc9a66e819074a11955d87e/pydantic_settings-2.13.1.tar.gz", hash = "sha256:b4c11847b15237fb0171e1462bf540e294affb9b86db4d9aa5c01730bdbe4025", size = 223826, upload-time = "2026-02-19T13:45:08.055Z" }
 wheels = [
@@ -1587,18 +1583,18 @@ name = "pyiceberg"
 version = "0.11.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cachetools" },
-    { name = "click" },
-    { name = "fsspec" },
-    { name = "mmh3" },
-    { name = "pydantic" },
-    { name = "pyparsing" },
-    { name = "pyroaring" },
-    { name = "requests" },
-    { name = "rich" },
-    { name = "strictyaml" },
-    { name = "tenacity" },
-    { name = "zstandard" },
+    { name = "cachetools", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "click", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "fsspec", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "mmh3", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyparsing", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyroaring", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "requests", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "rich", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "strictyaml", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "tenacity", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "zstandard", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ce/f0/7616676603fdbd05ab97816337a9b31be08a5f9e1ffd636260812b217e0f/pyiceberg-0.11.1.tar.gz", hash = "sha256:366fe0d5a74e3cf1d4e7cbf3c49e308da60e7835ea268667be9185388f05d7a5", size = 1076075, upload-time = "2026-03-03T00:10:27.61Z" }
 wheels = [
@@ -1621,7 +1617,7 @@ wheels = [
 
 [package.optional-dependencies]
 crypto = [
-    { name = "cryptography" },
+    { name = "cryptography", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [[package]]
@@ -1638,8 +1634,8 @@ name = "pyright"
 version = "1.1.408"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nodeenv" },
-    { name = "typing-extensions" },
+    { name = "nodeenv", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/74/b2/5db700e52554b8f025faa9c3c624c59f1f6c8841ba81ab97641b54322f16/pyright-1.1.408.tar.gz", hash = "sha256:f28f2321f96852fa50b5829ea492f6adb0e6954568d1caa3f3af3a5f555eb684", size = 4400578, upload-time = "2026-01-08T08:07:38.795Z" }
 wheels = [
@@ -1667,11 +1663,10 @@ name = "pytest"
 version = "9.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-    { name = "iniconfig" },
-    { name = "packaging" },
-    { name = "pluggy" },
-    { name = "pygments" },
+    { name = "iniconfig", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "packaging", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pluggy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pygments", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d1/db/7ef3487e0fb0049ddb5ce41d3a49c235bf9ad299b6a25d5780a89f19230f/pytest-9.0.2.tar.gz", hash = "sha256:75186651a92bd89611d1d9fc20f0b4345fd827c41ccd5c299a868a05d70edf11", size = 1568901, upload-time = "2025-12-06T21:30:51.014Z" }
 wheels = [
@@ -1683,8 +1678,8 @@ name = "pytest-asyncio"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pytest" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "pytest", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.13' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/90/2c/8af215c0f776415f3590cac4f9086ccefd6fd463befeae41cd4d3f193e5a/pytest_asyncio-1.3.0.tar.gz", hash = "sha256:d7f52f36d231b80ee124cd216ffb19369aa168fc10095013c6b014a34d3ee9e5", size = 50087, upload-time = "2025-11-10T16:07:47.256Z" }
 wheels = [
@@ -1696,9 +1691,9 @@ name = "pytest-cov"
 version = "7.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "coverage" },
-    { name = "pluggy" },
-    { name = "pytest" },
+    { name = "coverage", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pluggy", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pytest", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5e/f7/c933acc76f5208b3b00089573cf6a2bc26dc80a8aece8f52bb7d6b1855ca/pytest_cov-7.0.0.tar.gz", hash = "sha256:33c97eda2e049a0c5298e91f519302a1334c26ac65c1a483d6206fd458361af1", size = 54328, upload-time = "2025-09-09T10:57:02.113Z" }
 wheels = [
@@ -1710,8 +1705,8 @@ name = "pytest-xdist"
 version = "3.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "execnet" },
-    { name = "pytest" },
+    { name = "execnet", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pytest", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/78/b4/439b179d1ff526791eb921115fca8e44e596a13efeda518b9d845a619450/pytest_xdist-3.8.0.tar.gz", hash = "sha256:7e578125ec9bc6050861aa93f2d59f1d8d085595d6551c2c90b6f4fad8d3a9f1", size = 88069, upload-time = "2025-07-01T13:30:59.346Z" }
 wheels = [
@@ -1723,7 +1718,7 @@ name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "six" },
+    { name = "six", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3", size = 342432, upload-time = "2024-03-01T18:36:20.211Z" }
 wheels = [
@@ -1735,8 +1730,8 @@ name = "python-discovery"
 version = "1.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock" },
-    { name = "platformdirs" },
+    { name = "filelock", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "platformdirs", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d7/7e/9f3b0dd3a074a6c3e1e79f35e465b1f2ee4b262d619de00cfce523cc9b24/python_discovery-1.1.3.tar.gz", hash = "sha256:7acca36e818cd88e9b2ba03e045ad7e93e1713e29c6bbfba5d90202310b7baa5", size = 56945, upload-time = "2026-03-10T15:08:15.038Z" }
 wheels = [
@@ -1766,9 +1761,9 @@ name = "python3-saml"
 version = "1.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "isodate" },
-    { name = "lxml" },
-    { name = "xmlsec" },
+    { name = "isodate", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "lxml", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "xmlsec", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5d/98/6e0268c3a9893af3d4c5cf670183e0314cd6b5cb034a612d6a7cc5060df8/python3-saml-1.16.0.tar.gz", hash = "sha256:97c9669aecabc283c6e5fb4eb264f446b6e006f5267d01c9734f9d8bffdac133", size = 83468, upload-time = "2023-10-09T10:37:43.128Z" }
 wheels = [
@@ -1805,9 +1800,9 @@ name = "realtime"
 version = "2.28.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pydantic" },
-    { name = "typing-extensions" },
-    { name = "websockets" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "websockets", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/db/c6/162d42e7c3a871ca9d441cc994e4c5c0f6dcc0c1f815fa50a4e387d0413d/realtime-2.28.2.tar.gz", hash = "sha256:b39cfd4b748a3a4dd20a3ad59a3e59ff0b77c72f03c24ea3b2f2ad50eb270dac", size = 18722, upload-time = "2026-03-13T18:42:32.378Z" }
 wheels = [
@@ -1828,9 +1823,9 @@ name = "referencing"
 version = "0.37.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "attrs" },
-    { name = "rpds-py" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "attrs", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "rpds-py", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.13' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/22/f5/df4e9027acead3ecc63e50fe1e36aca1523e1719559c499951bb4b53188f/referencing-0.37.0.tar.gz", hash = "sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8", size = 78036, upload-time = "2025-10-13T15:30:48.871Z" }
 wheels = [
@@ -1842,10 +1837,10 @@ name = "requests"
 version = "2.32.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "certifi" },
-    { name = "charset-normalizer" },
-    { name = "idna" },
-    { name = "urllib3" },
+    { name = "certifi", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "charset-normalizer", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "idna", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "urllib3", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3f5c837e9c3dfcfe2018ea6ecef224c710c85ef728f4/requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf", size = 134517, upload-time = "2025-08-18T20:46:02.573Z" }
 wheels = [
@@ -1857,7 +1852,7 @@ name = "respx"
 version = "0.22.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "httpx" },
+    { name = "httpx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f4/7c/96bd0bc759cf009675ad1ee1f96535edcb11e9666b985717eb8c87192a95/respx-0.22.0.tar.gz", hash = "sha256:3c8924caa2a50bd71aefc07aa812f2466ff489f1848c96e954a5362d17095d91", size = 28439, upload-time = "2024-12-19T22:33:59.374Z" }
 wheels = [
@@ -1869,8 +1864,8 @@ name = "rich"
 version = "14.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markdown-it-py" },
-    { name = "pygments" },
+    { name = "markdown-it-py", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pygments", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b3/c6/f3b320c27991c46f43ee9d856302c70dc2d0fb2dba4842ff739d5f46b393/rich-14.3.3.tar.gz", hash = "sha256:b8daa0b9e4eef54dd8cf7c86c03713f53241884e814f4e2f5fb342fe520f639b", size = 230582, upload-time = "2026-02-19T17:23:12.474Z" }
 wheels = [
@@ -1916,7 +1911,7 @@ name = "scim2-models"
 version = "0.6.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pydantic", extra = ["email"] },
+    { name = "pydantic", extra = ["email"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/4d/0f/7a67dc05dd7984f5c75c7992054a22b813aafbe13f3d7261b60ab62fc157/scim2_models-0.6.6.tar.gz", hash = "sha256:372fdecc072a5b773082878fb7d15f993e444f298515de10c8b895797019c24f", size = 45788, upload-time = "2026-03-12T15:52:54.742Z" }
 wheels = [
@@ -1946,8 +1941,8 @@ name = "sqlalchemy"
 version = "2.0.48"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "greenlet", marker = "platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64'" },
-    { name = "typing-extensions" },
+    { name = "greenlet", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1f/73/b4a9737255583b5fa858e0bb8e116eb94b88c910164ed2ed719147bde3de/sqlalchemy-2.0.48.tar.gz", hash = "sha256:5ca74f37f3369b45e1f6b7b06afb182af1fd5dde009e4ffd831830d98cbe5fe7", size = 9886075, upload-time = "2026-03-02T15:28:51.474Z" }
 wheels = [
@@ -1969,7 +1964,7 @@ wheels = [
 
 [package.optional-dependencies]
 asyncio = [
-    { name = "greenlet" },
+    { name = "greenlet", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [[package]]
@@ -1977,8 +1972,8 @@ name = "sse-starlette"
 version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
-    { name = "starlette" },
+    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "starlette", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5a/9f/c3695c2d2d4ef70072c3a06992850498b01c6bc9be531950813716b426fa/sse_starlette-3.3.2.tar.gz", hash = "sha256:678fca55a1945c734d8472a6cad186a55ab02840b4f6786f5ee8770970579dcd", size = 32326, upload-time = "2026-02-28T11:24:34.36Z" }
 wheels = [
@@ -1990,9 +1985,9 @@ name = "stack-data"
 version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "asttokens" },
-    { name = "executing" },
-    { name = "pure-eval" },
+    { name = "asttokens", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "executing", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pure-eval", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/28/e3/55dcc2cfbc3ca9c29519eb6884dd1415ecb53b0e934862d3559ddcb7e20b/stack_data-0.6.3.tar.gz", hash = "sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9", size = 44707, upload-time = "2023-09-30T13:58:05.479Z" }
 wheels = [
@@ -2004,8 +1999,8 @@ name = "starlette"
 version = "0.52.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "typing-extensions", marker = "(python_full_version < '3.13' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.13' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.13' and platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c4/68/79977123bb7be889ad680d79a40f339082c1978b5cfcf62c2d8d196873ac/starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933", size = 2653702, upload-time = "2026-01-18T13:34:11.062Z" }
 wheels = [
@@ -2017,11 +2012,11 @@ name = "storage3"
 version = "2.28.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "deprecation" },
-    { name = "httpx", extra = ["http2"] },
-    { name = "pydantic" },
-    { name = "pyiceberg" },
-    { name = "yarl" },
+    { name = "deprecation", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "httpx", extra = ["http2"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyiceberg", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "yarl", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3d/c5/f2463a1b8f4a63da5f6256bc28070489db289c15a8c3fd819fc2170ab648/storage3-2.28.2.tar.gz", hash = "sha256:da91700de2579605e28bef7b9c30f25e0281d57867fd721ea20baf12c1bf2cc0", size = 20107, upload-time = "2026-03-13T18:42:33.89Z" }
 wheels = [
@@ -2042,7 +2037,7 @@ name = "strictyaml"
 version = "1.7.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "python-dateutil" },
+    { name = "python-dateutil", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b3/08/efd28d49162ce89c2ad61a88bd80e11fb77bc9f6c145402589112d38f8af/strictyaml-1.7.3.tar.gz", hash = "sha256:22f854a5fcab42b5ddba8030a0e4be51ca89af0267961c8d6cfa86395586c407", size = 115206, upload-time = "2023-03-10T12:50:27.062Z" }
 wheels = [
@@ -2063,13 +2058,13 @@ name = "supabase"
 version = "2.28.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "httpx" },
-    { name = "postgrest" },
-    { name = "realtime" },
-    { name = "storage3" },
-    { name = "supabase-auth" },
-    { name = "supabase-functions" },
-    { name = "yarl" },
+    { name = "httpx", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "postgrest", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "realtime", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "storage3", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "supabase-auth", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "supabase-functions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "yarl", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/de/a9/4d79ebbcc54a84136e746b4cebb50a395ede8ca48bfe5b60858dda2999ff/supabase-2.28.2.tar.gz", hash = "sha256:6dd5d50c4da72638ffc9587798339c117929d952c38e69039e21ddf6d33e2eca", size = 9694, upload-time = "2026-03-13T18:42:35.487Z" }
 wheels = [
@@ -2081,9 +2076,9 @@ name = "supabase-auth"
 version = "2.28.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "httpx", extra = ["http2"] },
-    { name = "pydantic" },
-    { name = "pyjwt", extra = ["crypto"] },
+    { name = "httpx", extra = ["http2"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pydantic", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyjwt", extra = ["crypto"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c4/94/829feb4d2c6524d1ed1d3b61fe04cf8e3f29a21ec460478116446d4fb4db/supabase_auth-2.28.2.tar.gz", hash = "sha256:b0703a15c52b14feab9141e0c913943c439ba4b4eafe6de44e844622bd77a2ca", size = 39154, upload-time = "2026-03-13T18:42:37.497Z" }
 wheels = [
@@ -2095,9 +2090,9 @@ name = "supabase-functions"
 version = "2.28.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "httpx", extra = ["http2"] },
-    { name = "strenum" },
-    { name = "yarl" },
+    { name = "httpx", extra = ["http2"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "strenum", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "yarl", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1b/5d/e222d006d1c5817ecbe56aef52384a56566830520f8c510e297f7a6fa42f/supabase_functions-2.28.2.tar.gz", hash = "sha256:4ed534ea1991d2eeaaac4166d4843c193508211b9822535fdc74f15c3dbf2579", size = 4679, upload-time = "2026-03-13T18:42:39.214Z" }
 wheels = [
@@ -2117,9 +2112,6 @@ wheels = [
 name = "tqdm"
 version = "4.67.3"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-]
 sdist = { url = "https://files.pythonhosted.org/packages/09/a9/6ba95a270c6f1fbcd8dac228323f2777d886cb206987444e4bce66338dd4/tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb", size = 169598, upload-time = "2026-02-03T17:35:53.048Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/16/e1/3079a9ff9b8e11b846c6ac5c8b5bfb7ff225eee721825310c91b3b50304f/tqdm-4.67.3-py3-none-any.whl", hash = "sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf", size = 78374, upload-time = "2026-02-03T17:35:50.982Z" },
@@ -2148,7 +2140,7 @@ name = "typing-inspection"
 version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/55/e3/70399cb7dd41c10ac53367ae42139cf4b1ca5f36bb3dc6c9d33acdb43655/typing_inspection-0.4.2.tar.gz", hash = "sha256:ba561c48a67c5958007083d386c3295464928b01faa735ab8547c5692e87f464", size = 75949, upload-time = "2025-10-01T02:14:41.687Z" }
 wheels = [
@@ -2156,20 +2148,11 @@ wheels = [
 ]
 
 [[package]]
-name = "tzdata"
-version = "2025.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/5e/a7/c202b344c5ca7daf398f3b8a477eeb205cf3b6f32e7ec3a6bac0629ca975/tzdata-2025.3.tar.gz", hash = "sha256:de39c2ca5dc7b0344f2eba86f49d614019d29f060fc4ebc8a417896a620b56a7", size = 196772, upload-time = "2025-12-13T17:45:35.667Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/b0/003792df09decd6849a5e39c28b513c06e84436a54440380862b5aeff25d/tzdata-2025.3-py2.py3-none-any.whl", hash = "sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1", size = 348521, upload-time = "2025-12-13T17:45:33.889Z" },
-]
-
-[[package]]
 name = "ua-parser"
 version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ua-parser-builtins" },
+    { name = "ua-parser-builtins", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/70/0e/ed98be735bc89d5040e0c60f5620d0b8c04e9e7da99ed1459e8050e90a77/ua_parser-1.0.1.tar.gz", hash = "sha256:f9d92bf19d4329019cef91707aecc23c6d65143ad7e29a233f0580fb0d15547d", size = 728106, upload-time = "2025-02-01T14:13:32.508Z" }
 wheels = [
@@ -2207,8 +2190,8 @@ name = "uvicorn"
 version = "0.42.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click" },
-    { name = "h11" },
+    { name = "click", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "h11", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e3/ad/4a96c425be6fb67e0621e62d86c402b4a17ab2be7f7c055d9bd2f638b9e2/uvicorn-0.42.0.tar.gz", hash = "sha256:9b1f190ce15a2dd22e7758651d9b6d12df09a13d51ba5bf4fc33c383a48e1775", size = 85393, upload-time = "2026-03-16T06:19:50.077Z" }
 wheels = [
@@ -2217,13 +2200,12 @@ wheels = [
 
 [package.optional-dependencies]
 standard = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-    { name = "httptools" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "uvloop", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'" },
-    { name = "watchfiles" },
-    { name = "websockets" },
+    { name = "httptools", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "python-dotenv", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "pyyaml", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "uvloop", marker = "(platform_machine == 'arm64' and platform_python_implementation != 'PyPy' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation != 'PyPy' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation != 'PyPy' and sys_platform == 'linux')" },
+    { name = "watchfiles", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "websockets", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 
 [[package]]
@@ -2251,10 +2233,10 @@ name = "virtualenv"
 version = "21.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "distlib" },
-    { name = "filelock" },
-    { name = "platformdirs" },
-    { name = "python-discovery" },
+    { name = "distlib", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "filelock", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "platformdirs", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "python-discovery", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/aa/92/58199fe10049f9703c2666e809c4f686c54ef0a68b0f6afccf518c0b1eb9/virtualenv-21.2.0.tar.gz", hash = "sha256:1720dc3a62ef5b443092e3f499228599045d7fea4c79199770499df8becf9098", size = 5840618, upload-time = "2026-03-09T17:24:38.013Z" }
 wheels = [
@@ -2266,7 +2248,7 @@ name = "watchfiles"
 version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio" },
+    { name = "anyio", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c2/c9/8869df9b2a2d6c59d79220a4db37679e74f807c559ffe5265e08b227a210/watchfiles-1.1.1.tar.gz", hash = "sha256:a173cb5c16c4f40ab19cecf48a534c409f7ea983ab8fed0741304a1c0a31b3f2", size = 94440, upload-time = "2025-10-14T15:06:21.08Z" }
 wheels = [
@@ -2318,7 +2300,7 @@ name = "xmlsec"
 version = "1.3.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "lxml" },
+    { name = "lxml", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/49/14/538b75379e6ab8f688f14d8663e2ab138d9c778bac4999d155b5f33c71c1/xmlsec-1.3.17.tar.gz", hash = "sha256:f3fac9ae679f66585925cc00c5f6839ae36c1d03157619571dee18acc05b9c01", size = 115637, upload-time = "2025-11-11T16:20:46.019Z" }
 wheels = [
@@ -2338,9 +2320,9 @@ name = "yarl"
 version = "1.23.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "idna" },
-    { name = "multidict" },
-    { name = "propcache" },
+    { name = "idna", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "multidict", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "propcache", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/23/6e/beb1beec874a72f23815c1434518bfc4ed2175065173fb138c3705f658d4/yarl-1.23.0.tar.gz", hash = "sha256:53b1ea6ca88ebd4420379c330aea57e258408dd0df9af0992e5de2078dc9f5d5", size = 194676, upload-time = "2026-03-01T22:07:53.373Z" }
 wheels = [

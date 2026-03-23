@@ -6,7 +6,7 @@ Uses synchronous psycopg2 for migrations to support multi-statement SQL.
 
 from logging.config import fileConfig
 
-from sqlalchemy import String, create_engine, pool
+from sqlalchemy import String, create_engine, pool, text
 from sqlalchemy.engine import Connection
 
 from alembic import context
@@ -63,8 +63,42 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _ensure_version_table_width(connection: Connection) -> None:
+    """Ensure alembic_version.version_num is wide enough for descriptive IDs.
+
+    Alembic creates the table with varchar(32) by default. Some revision IDs
+    exceed 32 chars. This pre-creates or widens the table to varchar(128).
+    """
+    # Create table if it doesn't exist (with correct width from the start)
+    connection.execute(
+        text("""
+            CREATE TABLE IF NOT EXISTS alembic_version (
+                version_num varchar(128) NOT NULL,
+                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            )
+        """)
+    )
+    # If table already existed with varchar(32), widen it
+    result = connection.execute(
+        text("""
+            SELECT character_maximum_length
+            FROM information_schema.columns
+            WHERE table_name = 'alembic_version'
+              AND column_name = 'version_num'
+        """)
+    )
+    row = result.fetchone()
+    if row and row[0] and row[0] < 128:
+        connection.execute(
+            text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE varchar(128)")
+        )
+    connection.commit()
+
+
 def do_run_migrations(connection: Connection) -> None:
     """Run migrations with a connection."""
+    _ensure_version_table_width(connection)
+
     context.configure(
         connection=connection,
         target_metadata=target_metadata,

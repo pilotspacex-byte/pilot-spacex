@@ -20,6 +20,7 @@ function pathnameToSection(pathname: string): SettingsSection {
   const section = segments[3]; // after '', slug, 'settings'
   const valid: SettingsSection[] = [
     'general',
+    'features',
     'ai-providers',
     'mcp-servers',
     'integrations',

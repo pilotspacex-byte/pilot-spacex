@@ -127,3 +127,26 @@ export interface Project {
 
 // Issue Priority (shared across issue and cycle domains)
 export type IssuePriority = 'urgent' | 'high' | 'medium' | 'low' | 'none';
+
+// Workspace Feature Toggles
+export interface WorkspaceFeatureToggles {
+  notes: boolean;
+  issues: boolean;
+  projects: boolean;
+  members: boolean;
+  docs: boolean;
+  skills: boolean;
+  costs: boolean;
+  approvals: boolean;
+}
+
+export const DEFAULT_FEATURE_TOGGLES: WorkspaceFeatureToggles = {
+  notes: true,
+  issues: true,
+  projects: true,
+  members: true,
+  docs: true,
+  skills: true,
+  costs: true,
+  approvals: true,
+};

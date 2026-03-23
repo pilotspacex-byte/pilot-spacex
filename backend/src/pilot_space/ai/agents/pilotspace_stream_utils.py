@@ -84,16 +84,28 @@ def build_mcp_servers(
     tool_event_queue: asyncio.Queue[str],
     tool_context: ToolContext,
     input_data: ChatInput,
+    *,
+    feature_toggles: dict[str, bool] | None = None,
 ) -> tuple[dict[str, McpServerConfig], BlockRefMap | None]:
     """Build the MCP server dict and block-reference map for an SDK session.
 
     Constructs a ¶N block reference map from the note context (if present)
     and instantiates all 8 MCP tool servers (7 domain + 1 interaction).
 
+    When *feature_toggles* is provided, servers whose feature module is
+    disabled are excluded from the returned dict.  ``None`` (no stored config)
+    is treated as "all defaults" for backward compatibility with existing
+    workspaces that have never saved a feature_toggles object.
+
     Returns:
         Tuple of (mcp_servers dict keyed by server name, block_ref_map or None).
     """
     from pilot_space.ai.mcp.block_ref_map import BlockRefMap
+
+    if feature_toggles is None:
+        from pilot_space.api.v1.schemas.workspace import WorkspaceFeatureToggles
+
+        feature_toggles = WorkspaceFeatureToggles().model_dump()
 
     _note_obj = input_data.context.get("note")
     _note_raw = getattr(_note_obj, "content", {}) if _note_obj else {}
@@ -106,32 +118,6 @@ def build_mcp_servers(
     publisher = EventPublisher(tool_event_queue)
 
     servers: dict[str, McpServerConfig] = {
-        NOTE_SERVER_NAME: create_note_tools_server(
-            publisher,
-            context_note_id=str(context_note_id) if context_note_id else None,
-            tool_context=tool_context,
-            block_ref_map=ref_map,
-        ),
-        NOTE_QUERY_SERVER_NAME: create_note_query_server(
-            tool_context=tool_context,
-        ),
-        NOTE_CONTENT_SERVER_NAME: create_note_content_server(
-            publisher,
-            tool_context=tool_context,
-            block_ref_map=ref_map,
-        ),
-        ISSUE_SERVER_NAME: create_issue_tools_server(
-            publisher,
-            tool_context=tool_context,
-        ),
-        ISSUE_REL_SERVER_NAME: create_issue_relation_tools_server(
-            publisher,
-            tool_context=tool_context,
-        ),
-        PROJECT_SERVER_NAME: create_project_tools_server(
-            publisher=publisher,
-            tool_context=tool_context,
-        ),
         COMMENT_SERVER_NAME: create_comment_tools_server(
             publisher,
             tool_context=tool_context,
@@ -141,6 +127,38 @@ def build_mcp_servers(
             user_id=input_data.user_id,
         ),
     }
+
+    if feature_toggles.get("notes") is True:
+        servers[NOTE_SERVER_NAME] = create_note_tools_server(
+            publisher,
+            context_note_id=str(context_note_id) if context_note_id else None,
+            tool_context=tool_context,
+            block_ref_map=ref_map,
+        )
+        servers[NOTE_QUERY_SERVER_NAME] = create_note_query_server(
+            tool_context=tool_context,
+        )
+        servers[NOTE_CONTENT_SERVER_NAME] = create_note_content_server(
+            publisher,
+            tool_context=tool_context,
+            block_ref_map=ref_map,
+        )
+
+    if feature_toggles.get("issues") is True:
+        servers[ISSUE_SERVER_NAME] = create_issue_tools_server(
+            publisher,
+            tool_context=tool_context,
+        )
+        servers[ISSUE_REL_SERVER_NAME] = create_issue_relation_tools_server(
+            publisher,
+            tool_context=tool_context,
+        )
+
+    if feature_toggles.get("projects") is True:
+        servers[PROJECT_SERVER_NAME] = create_project_tools_server(
+            publisher=publisher,
+            tool_context=tool_context,
+        )
 
     return servers, ref_map
 
@@ -608,7 +626,10 @@ def build_graph_write_service_for_session(db_session: Any, queue_client: Any) ->
 
 
 async def get_workspace_embedding_key(db_session: Any, workspace_id: Any) -> str | None:
-    """Look up the workspace BYOK embedding API key (Google), returning None on any failure."""
+    """Look up the workspace BYOK embedding API key, checking openai then google.
+
+    Returns the first non-None key found, or None if no embedding key is configured.
+    """
     try:
         from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
         from pilot_space.config import get_settings
@@ -617,7 +638,12 @@ async def get_workspace_embedding_key(db_session: Any, workspace_id: Any) -> str
             db=db_session,
             master_secret=get_settings().encryption_key.get_secret_value(),
         )
-        return await storage.get_api_key(workspace_id, "google", "embedding")
+        # Check openai first (primary embedding provider), then google
+        for provider in ("openai", "google"):
+            key = await storage.get_api_key(workspace_id, provider, "embedding")
+            if key:
+                return key
+        return None
     except Exception:
         return None
 
