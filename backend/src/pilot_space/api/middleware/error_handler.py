@@ -1,10 +1,12 @@
 """RFC 7807 Problem Details error handler.
 
 Provides standardized error responses following RFC 7807 specification.
+Sanitizes internal details in production to prevent information leakage.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -16,19 +18,56 @@ from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Regex to strip UUIDs from error messages sent to clients
+_UUID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+    re.IGNORECASE,
+)
+
+# Keys that must never appear in client-facing error responses
+_SENSITIVE_DETAIL_KEYS = frozenset(
+    {
+        "raw_response",
+        "cause_type",
+        "agent_name",
+        "workspace_id",
+        "provider",
+        "missing_fields",
+        "input_tokens",
+        "max_tokens",
+        "context_size",
+        "max_context",
+    }
+)
+
+# Keys safe to include in client responses
+_SAFE_DETAIL_KEYS = frozenset(
+    {
+        "retry_after_seconds",
+        "error_code",
+    }
+)
+
+
+def _is_production() -> bool:
+    """Check if running in production (cached after first call)."""
+    from pilot_space.config import get_settings
+
+    return get_settings().app_env == "production"
+
+
+def _sanitize_message(message: str) -> str:
+    """Strip UUIDs and internal identifiers from error messages."""
+    return _UUID_RE.sub("<id>", message)
+
+
+def _sanitize_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Remove sensitive keys from details dict for client response."""
+    return {k: v for k, v in details.items() if k not in _SENSITIVE_DETAIL_KEYS}
+
 
 class ProblemDetail:
-    """RFC 7807 Problem Details representation.
-
-    Provides a standardized error response format.
-
-    Attributes:
-        type: URI reference identifying the problem type.
-        title: Short, human-readable summary.
-        status: HTTP status code.
-        detail: Human-readable explanation specific to this occurrence.
-        instance: URI reference identifying the specific occurrence.
-    """
+    """RFC 7807 Problem Details representation."""
 
     def __init__(
         self,
@@ -40,16 +79,6 @@ class ProblemDetail:
         instance: str | None = None,
         extensions: dict[str, Any] | None = None,
     ) -> None:
-        """Initialize Problem Detail.
-
-        Args:
-            type_uri: URI identifying the problem type.
-            title: Short summary of the problem.
-            status_code: HTTP status code.
-            detail: Detailed explanation of the problem.
-            instance: URI of the specific occurrence.
-            extensions: Additional problem-specific fields.
-        """
         self.type = type_uri
         self.title = title
         self.status = status_code
@@ -58,11 +87,6 @@ class ProblemDetail:
         self.extensions = extensions or {}
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation.
-
-        Returns:
-            Dictionary suitable for JSON response.
-        """
         result: dict[str, Any] = {
             "type": self.type,
             "title": self.title,
@@ -86,6 +110,9 @@ PROBLEM_TYPES = {
     422: ("https://httpstatuses.com/422", "Unprocessable Entity"),
     429: ("https://httpstatuses.com/429", "Too Many Requests"),
     500: ("https://httpstatuses.com/500", "Internal Server Error"),
+    502: ("https://httpstatuses.com/502", "Bad Gateway"),
+    503: ("https://httpstatuses.com/503", "Service Unavailable"),
+    504: ("https://httpstatuses.com/504", "Gateway Timeout"),
 }
 
 
@@ -95,17 +122,7 @@ def create_problem_response(
     instance: str | None = None,
     extensions: dict[str, Any] | None = None,
 ) -> JSONResponse:
-    """Create a Problem Details JSON response.
-
-    Args:
-        status_code: HTTP status code.
-        detail: Detailed error message.
-        instance: URI of the specific occurrence.
-        extensions: Additional problem-specific fields.
-
-    Returns:
-        JSONResponse with Problem Details format.
-    """
+    """Create a Problem Details JSON response."""
     type_uri, title = PROBLEM_TYPES.get(status_code, ("about:blank", "Error"))
 
     problem = ProblemDetail(
@@ -128,19 +145,11 @@ async def http_exception_handler(
     request: Request,
     exc: HTTPException,
 ) -> JSONResponse:
-    """Handle HTTPException with Problem Details format.
-
-    Args:
-        request: The incoming request.
-        exc: The HTTP exception.
-
-    Returns:
-        Problem Details JSON response.
-    """
+    """Handle HTTPException with Problem Details format."""
     return create_problem_response(
         status_code=exc.status_code,
         detail=str(exc.detail) if exc.detail else None,
-        instance=str(request.url),
+        instance=str(request.url.path),
     )
 
 
@@ -175,19 +184,13 @@ async def validation_exception_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    """Handle validation errors with Problem Details format.
-
-    Args:
-        request: The incoming request.
-        exc: The validation exception.
-
-    Returns:
-        Problem Details JSON response.
-    """
+    """Handle validation errors with Problem Details format."""
     if isinstance(exc, RequestValidationError):
         errors = _sanitize_pydantic_errors(exc.errors())
+        # Strip 'url' key from each error dict (Pydantic v2 includes it)
+        sanitized_errors = [{k: v for k, v in err.items() if k != "url"} for err in errors]
         detail = "Validation failed"
-        extensions = {"errors": errors}
+        extensions: dict[str, Any] | None = {"errors": sanitized_errors}
     else:
         detail = str(exc)
         extensions = None
@@ -195,7 +198,7 @@ async def validation_exception_handler(
     return create_problem_response(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail=detail,
-        instance=str(request.url),
+        instance=str(request.url.path),
         extensions=extensions,
     )
 
@@ -206,19 +209,14 @@ async def generic_exception_handler(
 ) -> JSONResponse:
     """Handle unexpected exceptions with Problem Details format.
 
-    Args:
-        request: The incoming request.
-        exc: The exception.
-
-    Returns:
-        Problem Details JSON response.
+    Never exposes internal details to clients.
     """
     logger.exception("Unhandled exception", exc_info=exc)
 
     return create_problem_response(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="An unexpected error occurred",
-        instance=str(request.url),
+        instance=str(request.url.path),
     )
 
 
@@ -228,28 +226,36 @@ async def ai_error_handler(
 ) -> JSONResponse:
     """Handle all AIError subclasses with RFC 7807 Problem Details.
 
-    Uses ``exc.http_status`` and ``exc.code`` from the AIError hierarchy
-    to produce the correct status code automatically — covers
-    AINotConfiguredError (503), RateLimitError (429), AITimeoutError (504),
-    ProviderUnavailableError (503), and all other AIError subtypes.
-
-    Args:
-        request: The incoming request.
-        exc: Any AIError subclass.
-
-    Returns:
-        Problem Details JSON response.
+    Logs full details server-side; sanitizes client response in production.
     """
     from pilot_space.ai.exceptions import AIError
 
     if isinstance(exc, AIError):
+        # Always log full details server-side
+        logger.warning(
+            "ai_error",
+            error_code=exc.code,
+            message=exc.message,
+            http_status=exc.http_status,
+            details=exc.details,
+        )
+
+        # Build client-safe extensions
         extensions: dict[str, Any] = {"error_code": exc.code}
-        if exc.details:
+        if exc.details and not _is_production():
             extensions["details"] = exc.details
+        elif exc.details:
+            extensions["details"] = _sanitize_details(exc.details)
+
+        # Sanitize message in production
+        detail = exc.message
+        if _is_production():
+            detail = _sanitize_message(detail)
+
         return create_problem_response(
             status_code=exc.http_status,
-            detail=exc.message,
-            instance=str(request.url),
+            detail=detail,
+            instance=str(request.url.path),
             extensions=extensions,
         )
     return await generic_exception_handler(request, exc)
@@ -261,27 +267,36 @@ async def app_error_handler(
 ) -> JSONResponse:
     """Handle all AppError domain exceptions with RFC 7807 Problem Details.
 
-    Uses ``exc.http_status`` and ``exc.error_code`` to produce the correct
-    status code. Covers NotFoundError (404), ForbiddenError (403),
-    ConflictError (409), ValidationError (422), and any future AppError subclasses.
-
-    Args:
-        request: The incoming request.
-        exc: Any AppError subclass.
-
-    Returns:
-        Problem Details JSON response.
+    Logs full details server-side; sanitizes client response in production.
     """
     from pilot_space.domain.exceptions import AppError
 
     if isinstance(exc, AppError):
+        # Log full details server-side for debugging
+        logger.info(
+            "app_error",
+            error_code=exc.error_code,
+            message=exc.message,
+            http_status=exc.http_status,
+            details=exc.details if exc.details else None,
+        )
+
+        # Build client-safe extensions
         extensions: dict[str, Any] = {"error_code": exc.error_code}
-        if exc.details:
+        if exc.details and not _is_production():
             extensions["details"] = exc.details
+        elif exc.details:
+            extensions["details"] = _sanitize_details(exc.details)
+
+        # Sanitize message in production (strip UUIDs)
+        detail = exc.message
+        if _is_production():
+            detail = _sanitize_message(detail)
+
         return create_problem_response(
             status_code=exc.http_status,
-            detail=exc.message,
-            instance=str(request.url),
+            detail=detail,
+            instance=str(request.url.path),
             extensions=extensions,
         )
     return await generic_exception_handler(request, exc)
@@ -291,25 +306,14 @@ async def transcription_error_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    """Handle TranscriptionError with RFC 7807 Problem Details response.
-
-    Maps TranscriptionError.http_status and error_code to a structured
-    problem+json body so routers don't need manual try/except → HTTPException.
-
-    Args:
-        request: The incoming request.
-        exc: The TranscriptionError exception.
-
-    Returns:
-        Problem Details JSON response.
-    """
+    """Handle TranscriptionError with RFC 7807 Problem Details response."""
     from pilot_space.application.services.transcription import TranscriptionError
 
     if isinstance(exc, TranscriptionError):
         return create_problem_response(
             status_code=exc.http_status,
             detail=exc.message,
-            instance=str(request.url),
+            instance=str(request.url.path),
             extensions={"error_code": exc.error_code},
         )
     return await generic_exception_handler(request, exc)
@@ -377,9 +381,6 @@ def register_exception_handlers(app: Any) -> None:
     Order matters: more specific exception classes must be registered before
     their base classes. FastAPI matches handlers by isinstance checks, so
     the first matching handler wins.
-
-    Args:
-        app: FastAPI application instance.
     """
     from pilot_space.ai.exceptions import AIError
     from pilot_space.application.services.feature_toggle import FeatureToggleError
