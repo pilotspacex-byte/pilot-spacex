@@ -435,7 +435,7 @@ export const WorkspaceSwitcher = observer(function WorkspaceSwitcher({
             aria-haspopup="listbox"
             aria-expanded={popoverOpen}
           >
-            <span className="max-w-[96px] truncate text-xs font-semibold text-sidebar-foreground leading-tight">
+            <span className="min-w-0 flex-1 truncate text-xs font-semibold text-sidebar-foreground leading-tight">
               {displayName}
             </span>
             <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
