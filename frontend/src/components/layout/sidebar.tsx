@@ -434,10 +434,8 @@ export const Sidebar = observer(function Sidebar() {
                   role="heading"
                   aria-level={3}
                 >
-                  {section.icon && (
-                    <section.icon className="h-2.5 w-2.5 text-sidebar-foreground/40" />
-                  )}
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                  {section.icon && <section.icon className="h-2.5 w-2.5 text-muted-foreground" />}
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {section.label}
                   </span>
                 </div>
@@ -550,37 +548,45 @@ export const Sidebar = observer(function Sidebar() {
                   </span>
                 </div>
                 <div className="space-y-px">
-                  {pinnedNotes.map((note, index) => {
-                    const isActive = pathname === note.href;
-                    return (
-                      <motion.div
-                        key={note.id}
-                        initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={shouldReduceMotion ? { duration: 0 } : { delay: index * 0.05 }}
-                      >
-                        <Link
-                          href={note.href}
-                          data-testid="note-item"
-                          aria-current={isActive ? 'page' : undefined}
-                          className={cn(
-                            'group relative flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar',
-                            isActive
-                              ? 'bg-sidebar-accent text-sidebar-primary font-semibold before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-3.5 before:w-[3px] before:rounded-full before:bg-primary'
-                              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                          )}
+                  {pinnedNotes.length === 0 ? (
+                    <p className="px-1.5 py-1 text-[10px] text-muted-foreground/60">
+                      Pin a note for quick access
+                    </p>
+                  ) : (
+                    pinnedNotes.map((note, index) => {
+                      const isActive = pathname === note.href;
+                      return (
+                        <motion.div
+                          key={note.id}
+                          initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={
+                            shouldReduceMotion ? { duration: 0 } : { delay: index * 0.05 }
+                          }
                         >
-                          <FileText className="h-3 w-3 text-muted-foreground" />
-                          <span className="truncate">{note.title}</span>
-                          {note.projectId && projectMap[note.projectId] && (
-                            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60 truncate max-w-[60px]">
-                              {projectMap[note.projectId]}
-                            </span>
-                          )}
-                        </Link>
-                      </motion.div>
-                    );
-                  })}
+                          <Link
+                            href={note.href}
+                            data-testid="note-item"
+                            aria-current={isActive ? 'page' : undefined}
+                            className={cn(
+                              'group relative flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar',
+                              isActive
+                                ? 'bg-sidebar-accent text-sidebar-primary font-semibold before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-3.5 before:w-[3px] before:rounded-full before:bg-primary'
+                                : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                            )}
+                          >
+                            <FileText className="h-3 w-3 text-muted-foreground" />
+                            <span className="truncate">{note.title}</span>
+                            {note.projectId && projectMap[note.projectId] && (
+                              <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60 truncate max-w-[80px]">
+                                {projectMap[note.projectId]}
+                              </span>
+                            )}
+                          </Link>
+                        </motion.div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </>
@@ -601,7 +607,7 @@ export const Sidebar = observer(function Sidebar() {
                   onClick={handleNewNote}
                   disabled={createNote.isPending || !resolvedWorkspaceId}
                   className={cn(
-                    'shadow-warm-sm transition-all duration-200',
+                    'shadow-warm-sm transition-[colors,box-shadow] duration-200',
                     'hover:shadow-warm-md',
                     collapsed ? 'h-9 w-9' : 'w-full'
                   )}
@@ -652,7 +658,7 @@ export const Sidebar = observer(function Sidebar() {
                       : 'Collapse sidebar'
                 }
                 className={cn(
-                  'h-8 w-full justify-center text-muted-foreground hover:text-sidebar-foreground',
+                  'h-8 w-full justify-center text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
                   collapsed && 'px-2'
                 )}
               >
