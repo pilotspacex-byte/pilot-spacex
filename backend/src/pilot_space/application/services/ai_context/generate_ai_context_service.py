@@ -156,7 +156,8 @@ class GenerateAIContextService:
             GenerateAIContextResult with generated context.
 
         Raises:
-            ValueError: If issue not found.
+            NotFoundError: If issue not found.
+            ValidationError: If agent execution fails.
             AIConfigurationError: If API keys missing.
         """
         logger.info(

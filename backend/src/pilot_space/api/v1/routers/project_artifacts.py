@@ -81,12 +81,7 @@ async def upload_artifact(
     if file.size is not None and file.size > _MAX_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail={
-                "type": "about:blank",
-                "title": "File Too Large",
-                "status": 413,
-                "detail": f"File exceeds 10 MB limit ({file.size} bytes declared).",
-            },
+            detail=f"File exceeds 10 MB limit ({file.size} bytes declared).",
         )
 
     file_data = await file.read()
@@ -95,12 +90,7 @@ async def upload_artifact(
     if len(file_data) > _MAX_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail={
-                "type": "about:blank",
-                "title": "File Too Large",
-                "status": 413,
-                "detail": f"File exceeds 10 MB limit ({len(file_data)} bytes received).",
-            },
+            detail=f"File exceeds 10 MB limit ({len(file_data)} bytes received).",
         )
 
     await set_rls_context(session, current_user.user_id, workspace_id)

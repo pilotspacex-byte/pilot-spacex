@@ -136,7 +136,8 @@ class RefineAIContextService:
             RefineAIContextResult with AI response.
 
         Raises:
-            ValueError: If context or issue not found.
+            NotFoundError: If context or issue not found.
+            ValidationError: If agent refinement fails.
         """
         logger.info(
             "Refining AI context",

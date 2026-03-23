@@ -77,7 +77,7 @@ class UpdateAnnotationService:
             UpdateAnnotationResult with updated annotation.
 
         Raises:
-            ValueError: If annotation not found.
+            NotFoundError: If annotation not found.
         """
         # Get annotation
         annotation = await self._annotation_repo.get_by_id(payload.annotation_id)

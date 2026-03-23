@@ -215,7 +215,7 @@ class SessionService:
             db: Database session for writes.
 
         Raises:
-            ValueError: If session not found or already revoked.
+            NotFoundError: If session not found or already revoked.
         """
         session = await self._repo.get_session_by_id(session_id, workspace_id)
         if session is None:

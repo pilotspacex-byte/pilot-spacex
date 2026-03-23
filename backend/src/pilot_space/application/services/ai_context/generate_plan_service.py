@@ -111,8 +111,8 @@ class GenerateImplementationPlanService:
             GeneratePlanResult with context ID and subagent count.
 
         Raises:
-            ValueError: If AIContext not found (must generate AI context first)
-                        or if issue not found.
+            NotFoundError: If AIContext or issue not found.
+            ValidationError: If plan persistence fails.
         """
         logger.info(
             "Generating implementation plan",

@@ -107,7 +107,8 @@ class UpdateOnboardingService:
             UpdateOnboardingResult with updated state.
 
         Raises:
-            ValueError: If validation fails.
+            ValidationError: If completed is not provided.
+            NotFoundError: If onboarding record not found.
         """
 
         # Get or create onboarding record

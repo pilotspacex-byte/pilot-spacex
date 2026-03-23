@@ -40,6 +40,7 @@ from pilot_space.api.v1.schemas.ai_context import (
 from pilot_space.dependencies import RedisDep
 from pilot_space.dependencies.auth import SessionDep, get_current_user_id
 from pilot_space.dependencies.workspace import get_current_workspace_id
+from pilot_space.domain.exceptions import AppError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -157,6 +158,8 @@ async def get_ai_context(
 
     try:
         await service.execute(payload)
+    except AppError:
+        raise  # Let domain exceptions propagate to global handler
     except Exception as e:
         logger.exception("Failed to generate AI context")
         raise HTTPException(
@@ -222,6 +225,8 @@ async def regenerate_ai_context(
 
     try:
         result = await service.execute(payload)
+    except AppError:
+        raise  # Let domain exceptions propagate to global handler
     except Exception as e:
         logger.exception("Failed to regenerate AI context")
         raise HTTPException(
@@ -292,6 +297,8 @@ async def refine_ai_context(
 
     try:
         result = await service.execute(payload)
+    except AppError:
+        raise  # Let domain exceptions propagate to global handler
     except Exception as e:
         logger.exception("Failed to refine AI context")
         raise HTTPException(
@@ -574,6 +581,8 @@ async def generate_implementation_plan(
 
     try:
         result = await service.execute(payload)
+    except AppError:
+        raise  # Let domain exceptions propagate to global handler
     except Exception as e:
         logger.exception("Failed to generate implementation plan")
         raise HTTPException(

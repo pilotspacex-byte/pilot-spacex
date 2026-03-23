@@ -270,7 +270,7 @@ async def test_reorder_no_siblings() -> None:
 
 @pytest.mark.asyncio
 async def test_reorder_not_found() -> None:
-    """Reordering a non-existent note raises ValueError."""
+    """Reordering a non-existent note raises NotFoundError."""
     workspace_id = uuid.uuid4()
 
     repo = _make_repo()  # get_by_id always returns None
@@ -290,7 +290,7 @@ async def test_reorder_not_found() -> None:
 
 @pytest.mark.asyncio
 async def test_reorder_personal_page() -> None:
-    """Reordering a personal page (project_id=None) raises ValueError."""
+    """Reordering a personal page (project_id=None) raises ValidationError."""
     workspace_id = uuid.uuid4()
 
     # Personal page: project_id is None

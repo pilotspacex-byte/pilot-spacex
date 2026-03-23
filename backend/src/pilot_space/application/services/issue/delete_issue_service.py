@@ -85,7 +85,7 @@ class DeleteIssueService:
             DeleteIssueResult with deletion status.
 
         Raises:
-            ValueError: If issue not found.
+            NotFoundError: If issue not found.
         """
         # Get issue
         issue = await self._issue_repo.get_by_id(payload.issue_id)

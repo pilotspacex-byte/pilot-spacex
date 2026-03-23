@@ -101,7 +101,8 @@ class CreateAnnotationService:
             CreateAnnotationResult with created annotation.
 
         Raises:
-            ValueError: If validation fails.
+            ValidationError: If content, block_id, or confidence invalid.
+            NotFoundError: If note not found.
         """
         from pilot_space.infrastructure.database.models.note_annotation import (
             NoteAnnotation,
@@ -170,7 +171,8 @@ class CreateAnnotationService:
             List of CreateAnnotationResult for each annotation.
 
         Raises:
-            ValueError: If any validation fails.
+            ValidationError: If content, block_id, or confidence invalid.
+            NotFoundError: If note not found.
         """
         results: list[CreateAnnotationResult] = []
         for payload in payloads:

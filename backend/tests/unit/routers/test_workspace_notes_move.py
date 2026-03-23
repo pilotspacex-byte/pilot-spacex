@@ -7,7 +7,7 @@ Covers all conditional branches in the move_workspace_note handler:
 - note workspace mismatch (note.workspace_id != workspace.id)
 - project not found (project_repo returns None when project_id provided)
 - project workspace mismatch (project.workspace_id != workspace.id)
-- ValueError raised by UpdateNoteService.execute → JSONResponse 404
+- NotFoundError raised by UpdateNoteService.execute → JSONResponse 404
 - workspace not found (workspace_repo returns None) → HTTPException 404
 
 Handler under test:
@@ -472,7 +472,7 @@ class TestWorkspaceNotFound:
 
 
 # ---------------------------------------------------------------------------
-# ValueError from UpdateNoteService.execute
+# NotFoundError from UpdateNoteService.execute
 # ---------------------------------------------------------------------------
 
 

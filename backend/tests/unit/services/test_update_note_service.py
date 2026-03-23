@@ -176,7 +176,7 @@ async def test_icon_emoji_whitespace_only_clears_field() -> None:
 
 @pytest.mark.asyncio
 async def test_note_not_found_raises_value_error() -> None:
-    """When note does not exist, execute raises ValueError."""
+    """When note does not exist, execute raises NotFoundError."""
     repo = _make_repo(note=None)
     session = _make_session()
     service = UpdateNoteService(session=session, note_repository=repo)

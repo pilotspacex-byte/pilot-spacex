@@ -16,7 +16,7 @@ Covers:
 - GET signed URL: returns 200 ArtifactUrlResponse with url and expires_in
 - DELETE: returns 204 (None)
 - GET URL: artifact.workspace_id != path workspace_id → 404
-- DELETE: service raises PermissionError("FORBIDDEN") → 403
+- DELETE: service raises ForbiddenError("FORBIDDEN") → 403
 
 Feature: v1.1 — Artifacts (ARTF-04, ARTF-05, ARTF-06)
 """
@@ -36,7 +36,7 @@ from pilot_space.api.v1.routers.project_artifacts import (
     list_artifacts,
     upload_artifact,
 )
-from pilot_space.domain.exceptions import ValidationError
+from pilot_space.domain.exceptions import ForbiddenError, ValidationError
 
 pytestmark = pytest.mark.asyncio
 
@@ -465,13 +465,13 @@ class TestDeleteArtifact:
             project_id=TEST_PROJECT_ID,
         )
 
-    async def test_delete_forbidden_raises_permission_error(self) -> None:
-        """service raises PermissionError("FORBIDDEN") → propagates to global handler."""
-        svc = _make_artifact_service(delete_raises=PermissionError("FORBIDDEN"))
+    async def test_delete_forbidden_raises_forbidden_error(self) -> None:
+        """service raises ForbiddenError("FORBIDDEN") → propagates to global handler."""
+        svc = _make_artifact_service(delete_raises=ForbiddenError("FORBIDDEN"))
         session = _make_session()
         current_user = _make_current_user()
 
-        with pytest.raises(PermissionError):
+        with pytest.raises(ForbiddenError):
             await delete_artifact(
                 workspace_id=TEST_WORKSPACE_ID,
                 project_id=TEST_PROJECT_ID,

@@ -273,7 +273,7 @@ async def test_create_role_raises_duplicate_name() -> None:
 
 @pytest.mark.asyncio
 async def test_create_role_raises_invalid_permission() -> None:
-    """create_role raises ValueError for unknown resource or action."""
+    """create_role raises ValidationError for unknown resource or action."""
     custom_role_repo = MagicMock()
     custom_role_repo.get_by_name = AsyncMock(return_value=None)
 

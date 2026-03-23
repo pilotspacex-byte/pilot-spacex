@@ -22,7 +22,7 @@ import pathlib
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from pilot_space.domain.exceptions import NotFoundError, ValidationError
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.artifact import Artifact
 from pilot_space.infrastructure.logging import get_logger
 
@@ -288,7 +288,7 @@ class ArtifactUploadService:
         Raises:
             ValueError: NOT_FOUND if artifact does not exist or belongs to
                 a different workspace/project.
-            PermissionError: FORBIDDEN if user does not own the artifact.
+            ForbiddenError: FORBIDDEN if user does not own the artifact.
         """
         artifact = await self._repo.get_by_id(artifact_id)
         if artifact is None:
@@ -297,7 +297,7 @@ class ArtifactUploadService:
         if artifact.workspace_id != workspace_id or artifact.project_id != project_id:
             raise NotFoundError("NOT_FOUND")
         if artifact.user_id != user_id:
-            raise PermissionError("FORBIDDEN")
+            raise ForbiddenError("FORBIDDEN")
 
         await self._storage.delete_object(bucket=_BUCKET, key=artifact.storage_key)
         await self._repo.delete(artifact_id)

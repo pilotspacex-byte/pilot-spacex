@@ -519,8 +519,14 @@ async def deprovision_user(
     Raises ScimUserNotFoundError (404) via global handler if user not found.
     """
     service = get_scim_service(session)
-    await service.deprovision_user(
-        user_id=user_id,
-        workspace_id=workspace.id,
-        db=session,
-    )
+    try:
+        await service.deprovision_user(
+            user_id=user_id,
+            workspace_id=workspace.id,
+            db=session,
+        )
+    except ScimUserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_id} not found",
+        ) from None

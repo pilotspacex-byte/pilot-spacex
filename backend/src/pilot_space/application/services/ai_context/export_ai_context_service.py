@@ -113,7 +113,7 @@ class ExportAIContextService:
             ExportAIContextResult with exported content.
 
         Raises:
-            ValueError: If context or issue not found.
+            NotFoundError: If context, issue, or plan not found.
         """
         logger.info(
             "Exporting AI context",

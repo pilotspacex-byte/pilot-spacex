@@ -109,7 +109,8 @@ class CreateDiscussionService:
             CreateDiscussionResult with discussion and first comment.
 
         Raises:
-            ValueError: If validation fails.
+            ValidationError: If validation fails.
+            NotFoundError: If note/discussion not found.
         """
         from pilot_space.infrastructure.database.models.discussion_comment import (
             DiscussionComment,
@@ -183,7 +184,8 @@ class CreateDiscussionService:
             The created comment.
 
         Raises:
-            ValueError: If validation fails or discussion not found.
+            ValidationError: If validation fails.
+            NotFoundError: If discussion not found.
         """
         from pilot_space.infrastructure.database.models.discussion_comment import (
             DiscussionComment,
@@ -235,7 +237,8 @@ class CreateDiscussionService:
             The resolved discussion.
 
         Raises:
-            ValueError: If discussion not found or already resolved.
+            NotFoundError: If discussion not found.
+            ValidationError: If discussion already resolved.
         """
         discussion = await self._discussion_repo.get_by_id(discussion_id)
         if not discussion:

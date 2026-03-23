@@ -29,7 +29,7 @@ import pytest
 from pilot_space.application.services.artifact.artifact_upload_service import (
     ArtifactUploadService,
 )
-from pilot_space.domain.exceptions import NotFoundError, ValidationError
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -609,10 +609,10 @@ class TestDelete:
         mock_artifact_repo: AsyncMock,
         mock_artifact: MagicMock,
     ) -> None:
-        """artifact.user_id != requesting user_id → raises PermissionError('FORBIDDEN')."""
+        """artifact.user_id != requesting user_id → raises ForbiddenError('FORBIDDEN')."""
         mock_artifact_repo.get_by_id.return_value = mock_artifact
 
-        with pytest.raises(PermissionError, match="FORBIDDEN"):
+        with pytest.raises(ForbiddenError, match="FORBIDDEN"):
             await service.delete(
                 artifact_id=mock_artifact.id,
                 user_id=_OTHER_USER_ID,  # Different from mock_artifact.user_id = _USER_ID

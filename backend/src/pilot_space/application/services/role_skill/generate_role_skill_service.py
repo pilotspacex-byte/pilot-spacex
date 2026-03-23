@@ -42,7 +42,7 @@ _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 
 
 class SkillGenerationError(AppError):
-    """Raised when AI skill generation fails (422)."""
+    """Raised when AI skill generation fails (500)."""
 
     http_status = 500
     error_code = "skill_generation_error"
