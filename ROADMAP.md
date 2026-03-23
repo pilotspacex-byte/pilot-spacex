@@ -253,7 +253,7 @@ Plans:
   8. Cmd+P quick open provides fuzzy file search
   9. Markdown preview renders GFM, KaTeX math, Mermaid diagrams, and admonitions
   10. Spring physics scrolling (Lenis) active on file tree and sidebar
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 
 Plans:
 - [ ] 40-01-PLAN.md — Dependencies, types, Monaco theme, PM block marker parser, FileStore
@@ -285,7 +285,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 37. One-Click Implement + Tray | 2/2 | Complete    | 2026-03-20 | - |
 | 38. Packaging + Signing + Auto-Update | 3/3 | Complete    | 2026-03-20 | - |
 | 39. Tech Debt Cleanup | 1/1 | Complete    | 2026-03-20 | - |
-| 40. WebGPU Canvas IDE Editor | 4/7 | In Progress|  | - |
+| 40. WebGPU Canvas IDE Editor | 5/7 | In Progress|  | - |
 
 **v1.1 total: 11 phases, ~33 plans, 30+ requirements**
 
