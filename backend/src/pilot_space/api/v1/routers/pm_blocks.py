@@ -215,13 +215,7 @@ async def refresh_pm_block_insights(
         if datetime.now(UTC) - newest < timedelta(seconds=30):
             return [_to_insight_response(i) for i in existing]
 
-    try:
-        block_type_enum = PMBlockType(body.block_type)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid block_type: {body.block_type!r}",
-        ) from exc
+    block_type_enum = PMBlockType(body.block_type)
 
     service = PMBlockInsightService(session=session, repository=repo)
     insights = await service.refresh_insights(

@@ -405,21 +405,15 @@ async def create_note_from_chat(
     note_repo = NoteRepository(session)
     service = CreateNoteFromChatService(session, note_repo)
 
-    try:
-        result = await service.execute(
-            ServicePayload(
-                workspace_id=workspace_id,
-                user_id=user_id,
-                chat_session_id=payload.chat_session_id,
-                title=payload.title,
-                project_id=payload.project_id,
-            )
+    result = await service.execute(
+        ServicePayload(
+            workspace_id=workspace_id,
+            user_id=user_id,
+            chat_session_id=payload.chat_session_id,
+            title=payload.title,
+            project_id=payload.project_id,
         )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    )
 
     await session.commit()
 

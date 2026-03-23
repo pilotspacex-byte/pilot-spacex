@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
-from pilot_space.domain.exceptions import ConflictError
+from pilot_space.domain.exceptions import ConflictError, NotFoundError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -130,7 +130,7 @@ class UpdateNoteService:
         note = await self._note_repo.get_by_id(payload.note_id)
         if not note:
             msg = f"Note with ID {payload.note_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Optimistic lock check
         if (
@@ -151,7 +151,7 @@ class UpdateNoteService:
         if payload.title is not None:
             if not payload.title.strip():
                 msg = "Note title cannot be empty"
-                raise ValueError(msg)
+                raise ValidationError(msg)
             note.title = payload.title.strip()
             fields_updated.append("title")
 

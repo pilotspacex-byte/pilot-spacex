@@ -248,33 +248,31 @@ class TestDeleteEndpoint:
 
     async def test_delete_not_found_returns_404(self) -> None:
         """Unknown attachment_id → 404 NOT_FOUND."""
-        svc = AsyncMock()
-        svc.delete = AsyncMock(side_effect=ValueError("NOT_FOUND"))
+        from pilot_space.domain.exceptions import NotFoundError
 
-        with pytest.raises(HTTPException) as exc_info:
+        svc = AsyncMock()
+        svc.delete = AsyncMock(side_effect=NotFoundError("NOT_FOUND"))
+
+        with pytest.raises(NotFoundError) as exc_info:
             await delete_attachment(
                 attachment_id=uuid4(),
                 user_id=TEST_USER_ID,
                 upload_service=svc,
             )
 
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail["code"] == "NOT_FOUND"
+        assert exc_info.value.http_status == 404
 
     async def test_delete_other_user_attachment_returns_403(self) -> None:
         """Attachment owned by a different user → 403 FORBIDDEN."""
         svc = AsyncMock()
         svc.delete = AsyncMock(side_effect=PermissionError("FORBIDDEN"))
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(PermissionError):
             await delete_attachment(
                 attachment_id=TEST_ATTACHMENT_ID,
                 user_id=TEST_USER_ID,
                 upload_service=svc,
             )
-
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.detail["code"] == "FORBIDDEN"
 
 
 # ---------------------------------------------------------------------------

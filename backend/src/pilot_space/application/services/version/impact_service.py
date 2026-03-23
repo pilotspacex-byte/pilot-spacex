@@ -14,6 +14,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.repositories.note_version_repository import (
     NoteVersionRepository,
 )
@@ -102,7 +103,7 @@ class ImpactAnalysisService:
         version = await self._version_repo.get_by_id_for_note(version_id, note_id, workspace_id)
         if not version:
             msg = f"Version {version_id} not found for note {note_id}"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         text = _extract_text_from_tiptap(version.content)
         refs = _detect_references(text)

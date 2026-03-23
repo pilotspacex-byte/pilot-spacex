@@ -174,8 +174,8 @@ class TestCreateBranchForIssueErrors:
     """Error mapping tests."""
 
     @pytest.mark.asyncio
-    async def test_duplicate_branch_returns_409(self) -> None:
-        """ValueError from service (duplicate) maps to 409 Conflict."""
+    async def test_duplicate_branch_raises_value_error(self) -> None:
+        """ValueError from service (duplicate) propagates to global handler."""
         workspace_id = uuid4()
         integration = _make_integration(workspace_id=workspace_id)
         issue = _make_issue(workspace_id=workspace_id)
@@ -210,7 +210,7 @@ class TestCreateBranchForIssueErrors:
                 "pilot_space.api.v1.routers.github_links.CreateBranchService",
                 return_value=service,
             ),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(ValueError, match="already linked"),
         ):
             await create_branch_for_issue(
                 session=session,
@@ -221,12 +221,9 @@ class TestCreateBranchForIssueErrors:
                 request=_make_request(),
             )
 
-        assert exc_info.value.status_code == 409
-        assert "already linked" in exc_info.value.detail
-
     @pytest.mark.asyncio
-    async def test_create_branch_error_returns_400_sanitized(self) -> None:
-        """CreateBranchError maps to 400; GitHub detail is NOT leaked."""
+    async def test_create_branch_error_propagates_as_app_error(self) -> None:
+        """CreateBranchError (AppError subclass) propagates to global handler."""
         workspace_id = uuid4()
         integration = _make_integration(workspace_id=workspace_id)
         issue = _make_issue(workspace_id=workspace_id)
@@ -263,7 +260,7 @@ class TestCreateBranchForIssueErrors:
                 "pilot_space.api.v1.routers.github_links.CreateBranchService",
                 return_value=service,
             ),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(CreateBranchError) as exc_info,
         ):
             await create_branch_for_issue(
                 session=session,
@@ -274,10 +271,8 @@ class TestCreateBranchForIssueErrors:
                 request=_make_request(),
             )
 
-        assert exc_info.value.status_code == 400
-        # Generic message — must NOT contain raw GitHub API details
-        assert "GitHub API" not in exc_info.value.detail
-        assert "Failed to create branch" in exc_info.value.detail
+        assert exc_info.value.http_status == 400
+        assert "Failed to create branch" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_happy_path_returns_201_link(self) -> None:

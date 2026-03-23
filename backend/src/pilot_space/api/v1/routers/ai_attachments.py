@@ -222,18 +222,7 @@ async def delete_attachment(
         HTTPException 404: NOT_FOUND if attachment does not exist.
         HTTPException 403: FORBIDDEN if user does not own the attachment.
     """
-    try:
-        await upload_service.delete(attachment_id=attachment_id, user_id=user_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "NOT_FOUND", "message": "Attachment not found or expired"},
-        ) from exc
-    except PermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "FORBIDDEN", "message": "You do not own this attachment"},
-        ) from exc
+    await upload_service.delete(attachment_id=attachment_id, user_id=user_id)
 
     logger.info(
         "attachment_deleted",

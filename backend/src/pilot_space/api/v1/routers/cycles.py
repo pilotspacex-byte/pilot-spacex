@@ -86,13 +86,7 @@ async def create_cycle(
         status=request.status,
     )
 
-    try:
-        result = await create_service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    result = await create_service.execute(payload)
 
     return CycleResponse.from_cycle(result.cycle)
 
@@ -340,13 +334,7 @@ async def update_cycle(
         ),
     )
 
-    try:
-        result = await update_service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    result = await update_service.execute(payload)
 
     return CycleResponse.from_cycle(result.cycle)
 
@@ -421,13 +409,7 @@ async def add_issue_to_cycle(
         actor_id=user_id,
     )
 
-    try:
-        result = await add_service.add_issue(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    result = await add_service.add_issue(payload)
 
     return {"added": result.added, "issue_id": str(request.issue_id)}
 
@@ -504,13 +486,7 @@ async def remove_issue_from_cycle(
         actor_id=user_id,
     )
 
-    try:
-        await add_service.remove_issue(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    await add_service.remove_issue(payload)
 
 
 # ============================================================================
@@ -555,13 +531,7 @@ async def rollover_cycle(
         complete_source_cycle=request.complete_source_cycle,
     )
 
-    try:
-        result = await rollover_service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    result = await rollover_service.execute(payload)
 
     return RolloverCycleResponse(
         source_cycle=CycleResponse.from_cycle(result.source_cycle),

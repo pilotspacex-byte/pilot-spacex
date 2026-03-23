@@ -55,18 +55,12 @@ async def add_workspace_member(
 
     Note: Authorization check is now in service layer.
     """
-    try:
-        result = await workspace_service.invite_member(
-            workspace_id=workspace_id,
-            email=request.email,
-            role=request.role,
-            invited_by=current_user.user_id,
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e),
-        ) from e
+    result = await workspace_service.invite_member(
+        workspace_id=workspace_id,
+        email=request.email,
+        role=request.role,
+        invited_by=current_user.user_id,
+    )
 
     if result.is_immediate and result.member:
         member = result.member
@@ -113,24 +107,12 @@ async def list_workspace_invitations(
     Requires admin or owner role.
     Source: plan.md API Contract Endpoint 2.
     """
-    try:
-        result = await service.list_invitations(
-            ListInvitationsPayload(
-                workspace_id=workspace_id,
-                requesting_user_id=current_user.user_id,
-            )
+    result = await service.list_invitations(
+        ListInvitationsPayload(
+            workspace_id=workspace_id,
+            requesting_user_id=current_user.user_id,
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_msg,
-        ) from e
+    )
 
     return [
         InvitationResponse(
@@ -164,25 +146,13 @@ async def cancel_workspace_invitation(
     Requires admin or owner role.
     Source: plan.md API Contract Endpoint 3, US3 acceptance scenario 5.
     """
-    try:
-        await service.cancel_invitation(
-            CancelInvitationPayload(
-                workspace_id=workspace_id,
-                invitation_id=invitation_id,
-                actor_id=current_user.user_id,
-            )
+    await service.cancel_invitation(
+        CancelInvitationPayload(
+            workspace_id=workspace_id,
+            invitation_id=invitation_id,
+            actor_id=current_user.user_id,
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower() or "already processed" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_msg,
-        ) from e
+    )
 
 
 __all__ = ["router"]

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from pilot_space.application.services.workspace_role_skill.types import (
     DeleteWorkspaceSkillPayload,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -34,7 +35,8 @@ class DeleteWorkspaceSkillService:
             payload: Contains skill_id and workspace_id for ownership validation.
 
         Raises:
-            ValueError: If skill not found, already deleted, or workspace mismatch.
+            NotFoundError: If skill not found or already deleted.
+            ForbiddenError: If workspace mismatch.
         """
         from pilot_space.infrastructure.database.repositories.workspace_role_skill_repository import (
             WorkspaceRoleSkillRepository,
@@ -45,15 +47,15 @@ class DeleteWorkspaceSkillService:
 
         if skill is None:
             msg = f"Workspace role skill {payload.skill_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         if skill.is_deleted:
             msg = f"Workspace role skill {payload.skill_id} is already deleted"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         if skill.workspace_id != payload.workspace_id:
             msg = f"Workspace role skill {payload.skill_id} does not belong to workspace {payload.workspace_id}"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         await repo.soft_delete(payload.skill_id)
 

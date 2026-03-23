@@ -21,6 +21,7 @@ from pilot_space.application.services.note.create_note_service import (
     CreateNotePayload,
     CreateNoteService,
 )
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.note import Note
 
 # ---------------------------------------------------------------------------
@@ -252,7 +253,7 @@ class TestCreateNoteDepthLimitExceeded:
             parent_id=parent_id,
         )
 
-        with pytest.raises(ValueError, match="depth"):
+        with pytest.raises(ValidationError, match="depth"):
             await service.execute(payload)
 
     @pytest.mark.asyncio
@@ -273,7 +274,7 @@ class TestCreateNoteDepthLimitExceeded:
             parent_id=nonexistent_parent_id,
         )
 
-        with pytest.raises(ValueError, match=r"(?i)parent"):
+        with pytest.raises(NotFoundError, match=r"(?i)parent"):
             await service.execute(payload)
 
 
@@ -298,5 +299,5 @@ class TestCreateNotePersonalPageNesting:
             parent_id=parent_id,
         )
 
-        with pytest.raises(ValueError, match="personal"):
+        with pytest.raises(ValidationError, match="personal"):
             await service.execute(payload)

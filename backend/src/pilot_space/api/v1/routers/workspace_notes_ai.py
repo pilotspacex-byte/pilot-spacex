@@ -147,35 +147,25 @@ async def ai_update_workspace_note(
     )
 
     # Execute update
-    try:
-        result = await ai_update_service.execute(payload)
-        await session.commit()
+    result = await ai_update_service.execute(payload)
+    await session.commit()
 
-        logger.info(
-            "AI note update applied",
-            extra={
-                "note_id": str(note_id),
-                "operation": update_data.operation,
-                "affected_blocks": len(result.affected_block_ids),
-                "agent_session": update_data.agent_session_id,
-            },
-        )
+    logger.info(
+        "AI note update applied",
+        extra={
+            "note_id": str(note_id),
+            "operation": update_data.operation,
+            "affected_blocks": len(result.affected_block_ids),
+            "agent_session": update_data.agent_session_id,
+        },
+    )
 
-        return AIUpdateResponse(
-            success=result.success,
-            note_id=str(result.note_id),
-            affected_block_ids=result.affected_block_ids,
-            conflict=result.conflict,
-        )
-    except ValueError as e:
-        logger.warning(
-            "AI note update failed",
-            extra={"note_id": str(note_id), "error": str(e)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    return AIUpdateResponse(
+        success=result.success,
+        note_id=str(result.note_id),
+        affected_block_ids=result.affected_block_ids,
+        conflict=result.conflict,
+    )
 
 
 class ExtractedIssueInput(BaseModel):

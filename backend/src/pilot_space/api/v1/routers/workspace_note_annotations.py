@@ -152,32 +152,25 @@ async def update_annotation_status(
             detail="Note not found",
         )
 
-    try:
-        # Execute service — ownership is validated inside before any DB write
-        result = await update_annotation_service.execute(
-            UpdateAnnotationPayload(
-                annotation_id=annotation_id,
-                note_id=note_id,
-                status=DBAnnotationStatus(status_update.status.value),
-            )
+    # Execute service — ownership is validated inside before any DB write
+    result = await update_annotation_service.execute(
+        UpdateAnnotationPayload(
+            annotation_id=annotation_id,
+            note_id=note_id,
+            status=DBAnnotationStatus(status_update.status.value),
         )
+    )
 
-        logger.info(
-            "Annotation status updated",
-            extra={
-                "annotation_id": str(annotation_id),
-                "note_id": str(note_id),
-                "new_status": status_update.status.value,
-            },
-        )
+    logger.info(
+        "Annotation status updated",
+        extra={
+            "annotation_id": str(annotation_id),
+            "note_id": str(note_id),
+            "new_status": status_update.status.value,
+        },
+    )
 
-        return _annotation_to_response(result.annotation)
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    return _annotation_to_response(result.annotation)
 
 
 __all__ = ["annotations_router"]

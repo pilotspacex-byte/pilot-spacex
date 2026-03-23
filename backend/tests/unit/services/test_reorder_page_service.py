@@ -17,6 +17,7 @@ from pilot_space.application.services.note.reorder_page_service import (
     ReorderPageResult,
     ReorderPageService,
 )
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.note import Note
 
 # ---------------------------------------------------------------------------
@@ -276,7 +277,7 @@ async def test_reorder_not_found() -> None:
     session = _make_session()
     service = ReorderPageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="Note not found"):
+    with pytest.raises(NotFoundError, match="Note not found"):
         await service.execute(
             ReorderPagePayload(
                 note_id=uuid.uuid4(),
@@ -299,7 +300,7 @@ async def test_reorder_personal_page() -> None:
     session = _make_session()
     service = ReorderPageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="Personal page reordering not yet supported"):
+    with pytest.raises(ValidationError, match="Personal page reordering not yet supported"):
         await service.execute(
             ReorderPagePayload(
                 note_id=note.id,

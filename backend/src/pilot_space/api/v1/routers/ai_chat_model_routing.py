@@ -85,7 +85,7 @@ async def resolve_model_override(
     from pilot_space.infrastructure.database.repositories.ai_configuration_repository import (
         AIConfigurationRepository,
     )
-    from pilot_space.infrastructure.encryption import EncryptionError, decrypt_api_key
+    from pilot_space.infrastructure.encryption import decrypt_api_key
 
     try:
         config_id = UUID(model_override.config_id)
@@ -121,13 +121,6 @@ async def resolve_model_override(
             base_url=base_url,
         )
 
-    except EncryptionError as exc:
-        logger.warning(
-            "model_override_decryption_failed",
-            config_id=str(model_override.config_id),
-            error=str(exc),
-        )
-        return None
     except Exception as exc:
         logger.warning(
             "model_override_resolution_failed",

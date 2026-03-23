@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -92,17 +93,17 @@ class MovePageService:
         note = await self._note_repo.get_by_id(payload.note_id)
         if note is None or note.workspace_id != payload.workspace_id:
             msg = "Note not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Guard: cannot move a page to itself
         if payload.new_parent_id == note.id:
             msg = "Cannot move a page to itself"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Guard: personal pages (project_id=None) cannot be re-parented yet
         if note.project_id is None:
             msg = "Personal page re-parenting not yet supported"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Resolve target depth and validate parent
         new_depth: int
@@ -110,10 +111,10 @@ class MovePageService:
             parent = await self._note_repo.get_by_id(payload.new_parent_id)
             if parent is None or parent.workspace_id != payload.workspace_id:
                 msg = "Target parent not found"
-                raise ValueError(msg)
+                raise NotFoundError(msg)
             if parent.project_id != note.project_id:
                 msg = "Cannot move page to a different project"
-                raise ValueError(msg)
+                raise ValidationError(msg)
             new_depth = parent.depth + 1
         else:
             new_depth = 0
@@ -121,7 +122,7 @@ class MovePageService:
         # Depth limit check for the note itself
         if new_depth > MAX_DEPTH:
             msg = "Move would exceed the 3-level depth limit"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Descendant depth check — mocked in tests since SQLite lacks recursive CTE
         descendants = await self._note_repo.get_descendants(note.id)
@@ -131,13 +132,13 @@ class MovePageService:
             descendant_ids = {d["id"] for d in descendants}
             if payload.new_parent_id in descendant_ids:
                 msg = "Cannot move a page to one of its descendants (would create cycle)"
-                raise ValueError(msg)
+                raise ValidationError(msg)
 
         if descendants:
             max_offset = max(int(d["depth"]) - note.depth for d in descendants)
             if new_depth + max_offset > MAX_DEPTH:
                 msg = "Move would push a descendant beyond the 3-level depth limit"
-                raise ValueError(msg)
+                raise ValidationError(msg)
 
         depth_delta = new_depth - note.depth
 

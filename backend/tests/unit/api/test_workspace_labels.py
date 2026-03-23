@@ -148,7 +148,9 @@ class TestListWorkspaceLabels:
         )
 
     async def test_rejects_non_member(self):
-        """Non-members get ValueError."""
+        """Non-members get ForbiddenError."""
+        from pilot_space.domain.exceptions import ForbiddenError
+
         workspace_id = uuid4()
         user_id = uuid4()
         other_member = _make_member(uuid4())  # Different user
@@ -160,7 +162,7 @@ class TestListWorkspaceLabels:
 
         service = _make_service(workspace_repo)
 
-        with pytest.raises(ValueError, match=r"[Nn]ot a member"):
+        with pytest.raises(ForbiddenError):
             await service.list_labels(
                 ListLabelsPayload(
                     workspace_id_or_slug=str(workspace_id),
@@ -170,14 +172,16 @@ class TestListWorkspaceLabels:
             )
 
     async def test_workspace_not_found(self):
-        """Missing workspace raises ValueError."""
+        """Missing workspace raises NotFoundError."""
+        from pilot_space.domain.exceptions import NotFoundError
+
         workspace_repo = AsyncMock()
         workspace_repo.get_with_members.return_value = None
         workspace_repo.get_by_slug_with_members.return_value = None
 
         service = _make_service(workspace_repo)
 
-        with pytest.raises(ValueError, match=r"[Nn]ot found"):
+        with pytest.raises(NotFoundError):
             await service.list_labels(
                 ListLabelsPayload(
                     workspace_id_or_slug=str(uuid4()),
@@ -187,7 +191,9 @@ class TestListWorkspaceLabels:
             )
 
     async def test_non_member_denied_access(self):
-        """Non-member should get ValueError when accessing workspace labels."""
+        """Non-member should get ForbiddenError when accessing workspace labels."""
+        from pilot_space.domain.exceptions import ForbiddenError
+
         workspace_id = uuid4()
         non_member_user_id = uuid4()
         other_member = _make_member(uuid4())  # Different user
@@ -199,7 +205,7 @@ class TestListWorkspaceLabels:
 
         service = _make_service(workspace_repo)
 
-        with pytest.raises(ValueError, match=r"[Nn]ot a member|access denied|permission"):
+        with pytest.raises(ForbiddenError):
             await service.list_labels(
                 ListLabelsPayload(
                     workspace_id_or_slug=str(workspace_id),

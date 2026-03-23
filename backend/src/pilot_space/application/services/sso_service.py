@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pilot_space.config import get_settings
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -71,7 +72,7 @@ class SsoService:
         required_keys = ("entity_id", "sso_url", "certificate")
         missing = [k for k in required_keys if not config.get(k)]
         if missing:
-            raise ValueError(f"SAML config missing required fields: {missing}")
+            raise ValidationError(f"SAML config missing required fields: {missing}")
 
         workspace = await self._workspace_repo.get_by_id(workspace_id)
         if workspace is None:
@@ -131,7 +132,7 @@ class SsoService:
         required_keys = ("provider", "client_id", "client_secret")
         missing = [k for k in required_keys if not config.get(k)]
         if missing:
-            raise ValueError(f"OIDC config missing required fields: {missing}")
+            raise ValidationError(f"OIDC config missing required fields: {missing}")
 
         workspace = await self._workspace_repo.get_by_id(workspace_id)
         if workspace is None:

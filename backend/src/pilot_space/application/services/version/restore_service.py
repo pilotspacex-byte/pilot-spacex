@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pilot_space.domain.exceptions import ConflictError
+from pilot_space.domain.exceptions import ConflictError, NotFoundError
 from pilot_space.domain.note_version import NoteVersion, VersionTrigger
 from pilot_space.infrastructure.database.repositories.note_repository import NoteRepository
 from pilot_space.infrastructure.database.repositories.note_version_repository import (
@@ -95,12 +95,12 @@ class VersionRestoreService:
         )
         if not target_version:
             msg = f"Version {payload.version_id} not found for note {payload.note_id}"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         note = await self._note_repo.get_by_id(payload.note_id)
         if not note or str(note.workspace_id) != str(payload.workspace_id):
             msg = f"Note {payload.note_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # C-9: Acquire PostgreSQL advisory lock on note_id (numeric hash of UUID).
         # The lock is released automatically when the transaction ends.

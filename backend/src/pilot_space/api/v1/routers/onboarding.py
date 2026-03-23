@@ -99,20 +99,14 @@ async def update_onboarding_state(
             detail="completed is required when step is provided",
         )
 
-    try:
-        result = await service.execute(
-            UpdateOnboardingPayload(
-                workspace_id=workspace_id,
-                step=request.step.value if request.step else None,
-                completed=request.completed,
-                dismissed=request.dismissed,
-            )
+    result = await service.execute(
+        UpdateOnboardingPayload(
+            workspace_id=workspace_id,
+            step=request.step.value if request.step else None,
+            completed=request.completed,
+            dismissed=request.dismissed,
         )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    )
 
     return OnboardingResponse(
         id=result.id,
@@ -194,18 +188,12 @@ async def create_guided_note(
 
     Returns existing note if already created.
     """
-    try:
-        result = await service.execute(
-            CreateGuidedNotePayload(
-                workspace_id=workspace_id,
-                owner_id=user_id,
-            )
+    result = await service.execute(
+        CreateGuidedNotePayload(
+            workspace_id=workspace_id,
+            owner_id=user_id,
         )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    )
 
     # Return 409 if note already existed
     if result.already_exists:

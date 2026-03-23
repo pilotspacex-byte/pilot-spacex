@@ -17,6 +17,7 @@ from pilot_space.application.services.note.ai_update_service import (
     AIUpdatePayload,
     NoteAIUpdateService,
 )
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 
 
 @pytest.fixture
@@ -189,7 +190,7 @@ class TestReplaceBlockOperation:
                 content=_p("New text"),
             )
 
-            with pytest.raises(ValueError, match="not found"):
+            with pytest.raises(NotFoundError, match="not found"):
                 await ai_update_service.execute(payload)
 
     @pytest.mark.asyncio
@@ -213,7 +214,7 @@ class TestReplaceBlockOperation:
                 content=_p("New text"),
             )
 
-            with pytest.raises(ValueError, match="not found"):
+            with pytest.raises(NotFoundError, match="not found"):
                 await ai_update_service.execute(payload)
 
     @pytest.mark.asyncio
@@ -686,5 +687,5 @@ class TestEdgeCases:
                 content=None,
             )
 
-            with pytest.raises(ValueError, match="content"):
+            with pytest.raises(ValidationError, match="content"):
                 await ai_update_service.execute(payload)

@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from pilot_space.application.services.sso_service import SsoService
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.database.models.workspace import Workspace
 
 
@@ -72,7 +73,7 @@ async def test_saml_config_missing_required_fields_raises() -> None:
     """configure_saml raises ValueError when required fields are absent."""
     ws = _make_workspace()
     service, _ = _make_service(ws)
-    with pytest.raises(ValueError, match="missing required fields"):
+    with pytest.raises(ValidationError, match="missing required fields"):
         await service.configure_saml(UUID(str(ws.id)), {"entity_id": "only"})
 
 

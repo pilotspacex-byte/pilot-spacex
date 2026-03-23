@@ -129,28 +129,16 @@ async def create_user_skill(
         )
 
     svc = CreateUserSkillService(session)
-    try:
-        skill = await svc.create(
-            user_id=current_user_id,
-            workspace_id=workspace_id,
-            template_id=body.template_id,
-            experience_description=body.experience_description or "",
-            skill_content=body.skill_content,
-            skill_name=body.skill_name,
-            tags=body.tags if body.tags else None,
-            usage=body.usage,
-        )
-    except ValueError as exc:
-        msg = str(exc)
-        if "already has" in msg:
-            return create_problem_response(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=msg,
-            )
-        return create_problem_response(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=msg,
-        )
+    skill = await svc.create(
+        user_id=current_user_id,
+        workspace_id=workspace_id,
+        template_id=body.template_id,
+        experience_description=body.experience_description or "",
+        skill_content=body.skill_content,
+        skill_name=body.skill_name,
+        tags=body.tags if body.tags else None,
+        usage=body.usage,
+    )
 
     logger.info(
         "[UserSkills] Created skill=%s user=%s workspace=%s",

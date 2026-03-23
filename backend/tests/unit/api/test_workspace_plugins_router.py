@@ -22,12 +22,14 @@ def _create_test_app():
     """Create a minimal FastAPI app with plugins router and dependency overrides."""
     from fastapi import FastAPI
 
+    from pilot_space.api.middleware.error_handler import register_exception_handlers
     from pilot_space.api.middleware.request_context import get_workspace_id
     from pilot_space.api.v1.routers.workspace_plugins import router
     from pilot_space.dependencies.auth import get_current_user_id, get_db_session
 
     app = FastAPI()
     app.include_router(router, prefix="/api/v1/workspaces")
+    register_exception_handlers(app)
 
     # Override DI dependencies for testing
     mock_session = AsyncMock()

@@ -331,8 +331,6 @@ async def test_saml_callback_rejects_tampered_assertion() -> None:
         When saml_callback is called with tampered SAMLResponse
         Then the response status is 401
     """
-    from fastapi import HTTPException
-
     from pilot_space.api.v1.routers.auth_sso import saml_callback
     from pilot_space.infrastructure.auth.saml_auth import SamlValidationError
 
@@ -356,7 +354,7 @@ async def test_saml_callback_rejects_tampered_assertion() -> None:
         mock_provider.process_response.side_effect = SamlValidationError("Invalid signature")
         mock_provider_factory.return_value = mock_provider
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(SamlValidationError) as exc_info:
             await saml_callback(
                 request=mock_request,
                 workspace_id=workspace_id,
@@ -365,7 +363,7 @@ async def test_saml_callback_rejects_tampered_assertion() -> None:
                 RelayState="",
             )
 
-    assert exc_info.value.status_code == 401
+    assert exc_info.value.http_status == 401
 
 
 # ---------------------------------------------------------------------------

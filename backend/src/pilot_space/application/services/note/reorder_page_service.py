@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -88,12 +89,12 @@ class ReorderPageService:
         note = await self._note_repo.get_by_id(payload.note_id)
         if note is None or note.workspace_id != payload.workspace_id:
             msg = "Note not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Guard: personal pages not yet supported
         if note.project_id is None:
             msg = "Personal page reordering not yet supported"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Fetch siblings (ordered by position ASC, note itself excluded)
         siblings = await self._note_repo.get_siblings(

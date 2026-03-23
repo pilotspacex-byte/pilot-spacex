@@ -157,11 +157,6 @@ async def get_ai_context(
 
     try:
         await service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
     except Exception as e:
         logger.exception("Failed to generate AI context")
         raise HTTPException(
@@ -227,11 +222,6 @@ async def regenerate_ai_context(
 
     try:
         result = await service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
     except Exception as e:
         logger.exception("Failed to regenerate AI context")
         raise HTTPException(
@@ -302,11 +292,6 @@ async def refine_ai_context(
 
     try:
         result = await service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
     except Exception as e:
         logger.exception("Failed to refine AI context")
         raise HTTPException(
@@ -374,13 +359,7 @@ async def export_ai_context(
         include_conversation=include_conversation,
     )
 
-    try:
-        result = await service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    result = await service.execute(payload)
 
     return ExportContextResponse(
         content=result.content,
@@ -595,11 +574,6 @@ async def generate_implementation_plan(
 
     try:
         result = await service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
     except Exception as e:
         logger.exception("Failed to generate implementation plan")
         raise HTTPException(

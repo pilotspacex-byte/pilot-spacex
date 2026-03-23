@@ -20,6 +20,7 @@ from uuid import UUID
 
 import pytest
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.domain.note_version import NoteVersion, VersionTrigger
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -249,7 +250,7 @@ class TestVersionDiffService:
         session = AsyncMock()
         svc = VersionDiffService(session, repo)
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await svc.execute(uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4())
 
 
@@ -323,7 +324,7 @@ class TestImpactAnalysisService:
         session = AsyncMock()
         svc = ImpactAnalysisService(session, repo)
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await svc.execute(uuid.uuid4(), uuid.uuid4(), uuid.uuid4())
 
 

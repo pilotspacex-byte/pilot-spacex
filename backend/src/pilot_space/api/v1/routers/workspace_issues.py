@@ -515,13 +515,7 @@ async def update_workspace_issue(
         else UNCHANGED,
     )
 
-    try:
-        result = await update_service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    result = await update_service.execute(payload)
 
     try:
         await _update_storage_usage(session, workspace.id, delta_bytes)
@@ -618,13 +612,7 @@ async def update_workspace_issue_state(
         label_ids=UNCHANGED,
     )
 
-    try:
-        result = await update_service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    result = await update_service.execute(payload)
 
     return IssueResponse.from_issue(result.issue)
 
@@ -656,26 +644,19 @@ async def delete_workspace_issue(
     if issue_workspace_id != workspace.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    try:
-        result = await delete_service.execute(
-            DeleteIssuePayload(
-                issue_id=issue_id,
-                actor_id=current_user_id,
-            )
+    result = await delete_service.execute(
+        DeleteIssuePayload(
+            issue_id=issue_id,
+            actor_id=current_user_id,
         )
+    )
 
-        logger.info(
-            "Issue deleted",
-            extra={"issue_id": str(issue_id), "workspace_id": str(workspace.id)},
-        )
+    logger.info(
+        "Issue deleted",
+        extra={"issue_id": str(issue_id), "workspace_id": str(workspace.id)},
+    )
 
-        return DeleteResponse(id=result.issue_id, message="Issue deleted successfully")
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    return DeleteResponse(id=result.issue_id, message="Issue deleted successfully")
 
 
 __all__ = ["router"]

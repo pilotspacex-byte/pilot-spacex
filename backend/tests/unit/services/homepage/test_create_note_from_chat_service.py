@@ -24,6 +24,7 @@ from pilot_space.application.services.note.create_note_from_chat_service import 
     CreateNoteFromChatPayload,
     CreateNoteFromChatService,
 )
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models.note import Note
 from pilot_space.infrastructure.database.repositories.note_repository import (
     NoteRepository,
@@ -237,7 +238,7 @@ class TestCreateNoteFromChatService:
             title="Test Note",
         )
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await service.execute(payload)
 
     @pytest.mark.usefixtures("_seed_workspace")

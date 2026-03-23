@@ -223,8 +223,10 @@ class TestAuthMiddleware:
         await db_session.flush()
 
         # Create mock auth service that raises user not found (404 path)
+        from pilot_space.domain.exceptions import NotFoundError
+
         mock_service = AsyncMock(spec=AuthService)
-        mock_service.get_profile.side_effect = ValueError("User not found")
+        mock_service.get_profile.side_effect = NotFoundError("User not found")
 
         # Override auth service DI — get_current_user is already overridden by authenticated_client
         app.dependency_overrides[_get_auth_service] = lambda: mock_service

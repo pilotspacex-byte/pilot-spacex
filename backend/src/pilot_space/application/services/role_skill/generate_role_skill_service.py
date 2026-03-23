@@ -27,7 +27,7 @@ from pilot_space.ai.providers.provider_selector import (
     resolve_workspace_llm_config,
 )
 from pilot_space.application.services.role_skill.types import VALID_ROLE_TYPES
-from pilot_space.domain.exceptions import AppError
+from pilot_space.domain.exceptions import AppError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -136,7 +136,7 @@ class GenerateRoleSkillService:
         """
         if payload.role_type not in VALID_ROLE_TYPES:
             msg = f"Invalid role type: {payload.role_type}"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Rate limit check (only when user_id is provided)
         if payload.user_id is not None:

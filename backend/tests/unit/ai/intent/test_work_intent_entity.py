@@ -19,6 +19,7 @@ from uuid import uuid4
 
 import pytest
 
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.domain.intent_artifact import ArtifactType, IntentArtifact
 from pilot_space.domain.work_intent import DedupStatus, IntentStatus, WorkIntent
 from tests.factories import make_intent_artifact, make_work_intent
@@ -161,27 +162,27 @@ class TestWorkIntentInvalidTransitions:
 
     def test_detected_cannot_skip_to_executing(self) -> None:
         intent = make_work_intent()
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.start_executing()
 
     def test_detected_cannot_go_to_accepted(self) -> None:
         intent = make_work_intent()
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.accept()
 
     def test_detected_cannot_go_to_review(self) -> None:
         intent = make_work_intent()
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.mark_review()
 
     def test_confirmed_cannot_go_to_accepted(self) -> None:
         intent = make_confirmed_work_intent()
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.accept()
 
     def test_executing_cannot_go_to_confirmed(self) -> None:
         intent = make_executing_work_intent()
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.confirm()
 
     def test_accepted_has_no_transitions(self) -> None:
@@ -190,18 +191,18 @@ class TestWorkIntentInvalidTransitions:
         intent.start_executing()
         intent.mark_review()
         intent.accept()
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.reject()
 
     def test_rejected_has_no_transitions(self) -> None:
         intent = make_work_intent()
         intent.reject()
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.confirm()
 
     def test_error_message_includes_allowed_targets(self) -> None:
         intent = make_work_intent()
-        with pytest.raises(ValueError, match="Allowed:"):
+        with pytest.raises(ValidationError, match="Allowed:"):
             intent.start_executing()
 
 
@@ -235,16 +236,16 @@ class TestWorkIntentConfidenceValidation:
     """UT-015-006: Confidence outside [0.0, 1.0] raises ValueError."""
 
     def test_negative_confidence_rejected(self) -> None:
-        with pytest.raises(ValueError, match="Confidence"):
+        with pytest.raises(ValidationError, match="Confidence"):
             make_work_intent(confidence=-0.1)
 
     def test_confidence_above_one_rejected(self) -> None:
-        with pytest.raises(ValueError, match="Confidence"):
+        with pytest.raises(ValidationError, match="Confidence"):
             make_work_intent(confidence=1.01)
 
     def test_set_confidence_out_of_range_rejected(self) -> None:
         intent = make_work_intent(confidence=0.8)
-        with pytest.raises(ValueError, match="Confidence"):
+        with pytest.raises(ValidationError, match="Confidence"):
             intent.set_confidence(1.5)
 
     def test_set_confidence_in_range_accepted(self) -> None:
@@ -319,12 +320,12 @@ class TestWorkIntentImmutabilityAfterConfirm:
 
     def test_update_what_blocked_after_confirm(self) -> None:
         intent = make_confirmed_work_intent(what="Original task")
-        with pytest.raises(ValueError, match="Cannot update 'what'"):
+        with pytest.raises(ValidationError, match="Cannot update 'what'"):
             intent.update_what("Modified task")
 
     def test_update_why_blocked_after_confirm(self) -> None:
         intent = make_confirmed_work_intent()
-        with pytest.raises(ValueError, match="Cannot update 'why'"):
+        with pytest.raises(ValidationError, match="Cannot update 'why'"):
             intent.update_why("Changed motivation")
 
     def test_update_what_allowed_before_confirm(self) -> None:
@@ -339,7 +340,7 @@ class TestWorkIntentImmutabilityAfterConfirm:
 
     def test_what_unchanged_on_failed_update(self) -> None:
         intent = make_confirmed_work_intent(what="Final task")
-        with pytest.raises(ValueError, match="Cannot update 'what' after status"):
+        with pytest.raises(ValidationError, match="Cannot update 'what' after status"):
             intent.update_what("Blocked update")
         assert intent.what == "Final task"
 

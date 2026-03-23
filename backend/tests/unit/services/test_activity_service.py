@@ -11,6 +11,7 @@ from pilot_space.application.services.issue.activity_service import (
     ActivityService,
     CreateActivityPayload,
 )
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.database.models.activity import (
     Activity,
     ActivityType,
@@ -117,7 +118,7 @@ class TestActivityServiceCreate:
         activity_service: ActivityService,
     ) -> None:
         """add_comment should reject empty comment text."""
-        with pytest.raises(ValueError, match="Comment text is required"):
+        with pytest.raises(ValidationError, match="Comment text is required"):
             await activity_service.add_comment(
                 workspace_id=uuid.uuid4(),
                 issue_id=uuid.uuid4(),
@@ -131,7 +132,7 @@ class TestActivityServiceCreate:
         activity_service: ActivityService,
     ) -> None:
         """add_comment should reject whitespace-only comment text."""
-        with pytest.raises(ValueError, match="Comment text is required"):
+        with pytest.raises(ValidationError, match="Comment text is required"):
             await activity_service.add_comment(
                 workspace_id=uuid.uuid4(),
                 issue_id=uuid.uuid4(),

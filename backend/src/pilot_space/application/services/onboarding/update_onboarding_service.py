@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from pilot_space.application.services.onboarding.types import OnboardingStepsResult
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -119,7 +120,7 @@ class UpdateOnboardingService:
         if payload.step is not None:
             if payload.completed is None:
                 msg = "completed is required when step is provided"
-                raise ValueError(msg)
+                raise ValidationError(msg)
 
             onboarding = await self._repo.update_step(
                 workspace_id=payload.workspace_id,
@@ -140,7 +141,7 @@ class UpdateOnboardingService:
 
         if not onboarding:
             msg = "Onboarding record not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         steps = onboarding.steps
         return UpdateOnboardingResult(

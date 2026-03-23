@@ -12,7 +12,7 @@ import asyncio
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Path, Query, status
 
 from pilot_space.api.v1.dependencies import WorkspaceServiceDep
 from pilot_space.api.v1.schemas.base import DeleteResponse, PaginatedResponse
@@ -130,20 +130,14 @@ async def create_workspace(
         HTTPException: If slug already exists.
     """
     await set_rls_context(session, current_user_id)
-    try:
-        result = await service.create_workspace(
-            CreateWorkspacePayload(
-                name=request.name,
-                slug=request.slug,
-                description=request.description,
-                owner_id=current_user_id,
-            )
+    result = await service.create_workspace(
+        CreateWorkspacePayload(
+            name=request.name,
+            slug=request.slug,
+            description=request.description,
+            owner_id=current_user_id,
         )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e),
-        ) from e
+    )
 
     workspace = result.workspace
 
@@ -189,24 +183,12 @@ async def get_workspace(
         HTTPException: If workspace not found or user not a member.
     """
     await set_rls_context(session, current_user_id)
-    try:
-        result = await service.get_workspace(
-            GetWorkspacePayload(
-                workspace_id_or_slug=workspace_id,
-                user_id=current_user_id,
-            )
+    result = await service.get_workspace(
+        GetWorkspacePayload(
+            workspace_id_or_slug=workspace_id,
+            user_id=current_user_id,
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_msg,
-        ) from e
+    )
 
     workspace = result.workspace
     return WorkspaceDetailResponse(
@@ -252,33 +234,16 @@ async def update_workspace(
     await set_rls_context(session, current_user_id)
     update_data = request.model_dump(exclude_unset=True)
 
-    try:
-        result = await service.update_workspace(
-            UpdateWorkspacePayload(
-                workspace_id_or_slug=workspace_id,
-                user_id=current_user_id,
-                name=update_data.get("name"),
-                slug=update_data.get("slug"),
-                description=update_data.get("description"),
-                settings=update_data.get("settings"),
-            )
+    result = await service.update_workspace(
+        UpdateWorkspacePayload(
+            workspace_id_or_slug=workspace_id,
+            user_id=current_user_id,
+            name=update_data.get("name"),
+            slug=update_data.get("slug"),
+            description=update_data.get("description"),
+            settings=update_data.get("settings"),
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        if "already taken" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_msg,
-        ) from e
+    )
 
     workspace = result.workspace
     return WorkspaceDetailResponse(
@@ -320,24 +285,12 @@ async def delete_workspace(
         HTTPException: If workspace not found or user not owner.
     """
     await set_rls_context(session, current_user_id)
-    try:
-        result = await service.delete_workspace(
-            DeleteWorkspacePayload(
-                workspace_id_or_slug=workspace_id,
-                user_id=current_user_id,
-            )
+    result = await service.delete_workspace(
+        DeleteWorkspacePayload(
+            workspace_id_or_slug=workspace_id,
+            user_id=current_user_id,
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_msg,
-        ) from e
+    )
 
     return DeleteResponse(
         id=result.workspace_id,
@@ -381,25 +334,13 @@ async def list_workspace_labels(
         HTTPException: If workspace not found or user not a member.
     """
     await set_rls_context(session, current_user_id)
-    try:
-        result = await service.list_labels(
-            ListLabelsPayload(
-                workspace_id_or_slug=workspace_id,
-                user_id=current_user_id,
-                project_id=project_id,
-            )
+    result = await service.list_labels(
+        ListLabelsPayload(
+            workspace_id_or_slug=workspace_id,
+            user_id=current_user_id,
+            project_id=project_id,
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_msg,
-        ) from e
+    )
 
     return [LabelBriefSchema.model_validate(label) for label in result.labels]
 

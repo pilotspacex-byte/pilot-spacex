@@ -35,7 +35,6 @@ from pilot_space.infrastructure.database.repositories.ai_configuration_repositor
 )
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.encryption import (
-    EncryptionError,
     decrypt_api_key,
     encrypt_api_key,
 )
@@ -205,14 +204,7 @@ async def create_ai_configuration(
         )
 
     # Encrypt the API key
-    try:
-        encrypted_key = encrypt_api_key(request.api_key)
-    except EncryptionError as e:
-        logger.exception("Failed to encrypt API key")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to securely store API key",
-        ) from e
+    encrypted_key = encrypt_api_key(request.api_key)
 
     # Create configuration
     config = AIConfiguration(
@@ -388,14 +380,7 @@ async def update_ai_configuration(
     if "api_key" in update_data:
         api_key = update_data.pop("api_key")
         if api_key:
-            try:
-                config.api_key_encrypted = encrypt_api_key(api_key)
-            except EncryptionError as e:
-                logger.exception("Failed to encrypt API key")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to securely store API key",
-                ) from e
+            config.api_key_encrypted = encrypt_api_key(api_key)
 
     # Apply remaining updates
     for key, value in update_data.items():
@@ -515,16 +500,7 @@ async def test_ai_configuration(
         )
 
     # Decrypt API key for testing
-    try:
-        api_key = decrypt_api_key(config.api_key_encrypted)
-    except EncryptionError:
-        logger.exception("Failed to decrypt API key for testing")
-        return AIConfigurationTestResponse(
-            success=False,
-            provider=config.provider,
-            message="Failed to decrypt API key. Configuration may be corrupted.",
-            latency_ms=None,
-        )
+    api_key = decrypt_api_key(config.api_key_encrypted)
 
     # Test the API key with the provider
     start_time = time.perf_counter()

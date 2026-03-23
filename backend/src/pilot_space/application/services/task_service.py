@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.task import Task, TaskStatus
 from pilot_space.infrastructure.logging import get_logger
 
@@ -83,9 +84,9 @@ class TaskService:
         """List all tasks for an issue with progress stats."""
         issue = await self._issue_repo.get_by_id_scalar(issue_id)
         if not issue:
-            raise ValueError(f"Issue {issue_id} not found")
+            raise NotFoundError(f"Issue {issue_id} not found")
         if issue.workspace_id != workspace_id:
-            raise ValueError("Issue does not belong to workspace")
+            raise ForbiddenError("Issue does not belong to workspace")
 
         tasks = await self._task_repo.list_by_issue(issue_id)
         total = len(tasks)
@@ -104,9 +105,9 @@ class TaskService:
         # Validate issue exists
         issue = await self._issue_repo.get_by_id_scalar(payload.issue_id)
         if not issue:
-            raise ValueError(f"Issue {payload.issue_id} not found")
+            raise NotFoundError(f"Issue {payload.issue_id} not found")
         if issue.workspace_id != payload.workspace_id:
-            raise ValueError("Issue does not belong to workspace")
+            raise ForbiddenError("Issue does not belong to workspace")
 
         # Get next sort order
         existing = await self._task_repo.list_by_issue(payload.issue_id)
@@ -137,9 +138,9 @@ class TaskService:
         """Update an existing task."""
         task = await self._task_repo.get_by_id(payload.task_id)
         if not task:
-            raise ValueError(f"Task {payload.task_id} not found")
+            raise NotFoundError(f"Task {payload.task_id} not found")
         if task.workspace_id != payload.workspace_id:
-            raise ValueError("Task does not belong to workspace")
+            raise ForbiddenError("Task does not belong to workspace")
 
         if payload.title is not None:
             task.title = payload.title.strip()
@@ -172,9 +173,9 @@ class TaskService:
         """Soft-delete a task."""
         task = await self._task_repo.get_by_id(task_id)
         if not task:
-            raise ValueError(f"Task {task_id} not found")
+            raise NotFoundError(f"Task {task_id} not found")
         if task.workspace_id != workspace_id:
-            raise ValueError("Task does not belong to workspace")
+            raise ForbiddenError("Task does not belong to workspace")
 
         await self._task_repo.delete(task)
         logger.info("Task deleted", extra={"task_id": str(task_id)})
@@ -188,14 +189,14 @@ class TaskService:
         """Update task status."""
         task = await self._task_repo.get_by_id(task_id)
         if not task:
-            raise ValueError(f"Task {task_id} not found")
+            raise NotFoundError(f"Task {task_id} not found")
         if task.workspace_id != workspace_id:
-            raise ValueError("Task does not belong to workspace")
+            raise ForbiddenError("Task does not belong to workspace")
 
         try:
             task.status = TaskStatus(new_status)
         except ValueError as e:
-            raise ValueError(f"Invalid status: {new_status}") from e
+            raise ValidationError(f"Invalid status: {new_status}") from e
 
         task = await self._task_repo.update(task)
         logger.info(
@@ -217,7 +218,7 @@ class TaskService:
 
         for tid in task_ids:
             if tid not in existing_ids:
-                raise ValueError(f"Task {tid} not found for issue {issue_id}")
+                raise NotFoundError(f"Task {tid} not found for issue {issue_id}")
 
         await self._task_repo.bulk_update_order(issue_id, task_ids)
 
@@ -233,9 +234,9 @@ class TaskService:
         """Export issue context with tasks as markdown."""
         issue = await self._issue_repo.get_by_id(issue_id)
         if not issue:
-            raise ValueError(f"Issue {issue_id} not found")
+            raise NotFoundError(f"Issue {issue_id} not found")
         if issue.workspace_id != workspace_id:
-            raise ValueError("Issue does not belong to workspace")
+            raise ForbiddenError("Issue does not belong to workspace")
 
         tasks = await self._task_repo.list_by_issue(issue_id)
 
@@ -438,14 +439,15 @@ class TaskService:
             List of created Task entities
 
         Raises:
-            ValueError: If issue not found or workspace mismatch
+            NotFoundError: If issue not found
+            ForbiddenError: If workspace mismatch
         """
         # Validate issue exists and belongs to workspace (single query with relationships)
         issue = await self._issue_repo.get_by_id(issue_id)
         if not issue:
-            raise ValueError(f"Issue {issue_id} not found")
+            raise NotFoundError(f"Issue {issue_id} not found")
         if issue.workspace_id != workspace_id:
-            raise ValueError("Issue does not belong to workspace")
+            raise ForbiddenError("Issue does not belong to workspace")
 
         # Pre-fetch existing tasks to determine starting sort_order.
         # Use the persisted maximum sort_order so gaps from deletions/reorders

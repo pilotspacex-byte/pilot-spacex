@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from pilot_space.domain.exceptions import AppError, NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -46,12 +47,15 @@ def parse_github_url(url: str) -> tuple[str, str]:
     return m.group("owner"), m.group("repo")
 
 
-class PluginRepoError(Exception):
+class PluginRepoError(NotFoundError):
     """Raised when a plugin repository is not found or inaccessible."""
 
 
-class PluginRateLimitError(Exception):
+class PluginRateLimitError(AppError):
     """Raised when GitHub API rate limit is exceeded."""
+
+    http_status: int = 502
+    error_code: str = "plugin_rate_limit"
 
 
 @dataclass

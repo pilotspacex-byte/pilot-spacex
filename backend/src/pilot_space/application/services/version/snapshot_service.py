@@ -14,6 +14,7 @@ from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.domain.note_version import NoteVersion, VersionTrigger
 from pilot_space.infrastructure.database.repositories.note_repository import NoteRepository
 from pilot_space.infrastructure.database.repositories.note_version_repository import (
@@ -79,7 +80,7 @@ class VersionSnapshotService:
         note = await self._note_repo.get_by_id(payload.note_id)
         if not note or str(note.workspace_id) != str(payload.workspace_id):
             msg = f"Note {payload.note_id} not found in workspace {payload.workspace_id}"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         label = payload.label or _default_label(payload.trigger)
 

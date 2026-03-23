@@ -16,6 +16,7 @@ import pytest
 from pilot_space.application.services.user_skill.create_user_skill_service import (
     CreateUserSkillService,
 )
+from pilot_space.domain.exceptions import ValidationError
 
 
 @pytest.fixture
@@ -105,7 +106,7 @@ class TestCreateUserSkill:
             mock_tmpl_repo.get_by_id = AsyncMock(return_value=None)
             MockTemplateRepo.return_value = mock_tmpl_repo
 
-            with pytest.raises(ValueError, match="Template not found"):
+            with pytest.raises(ValidationError, match="Template not found"):
                 await service.create(
                     user_id=uuid4(),
                     workspace_id=uuid4(),
@@ -128,7 +129,7 @@ class TestCreateUserSkill:
             mock_tmpl_repo.get_by_id = AsyncMock(return_value=mock_template)
             MockTemplateRepo.return_value = mock_tmpl_repo
 
-            with pytest.raises(ValueError, match="not active"):
+            with pytest.raises(ValidationError, match="not active"):
                 await service.create(
                     user_id=uuid4(),
                     workspace_id=workspace_id,
@@ -151,7 +152,7 @@ class TestCreateUserSkill:
             mock_tmpl_repo.get_by_id = AsyncMock(return_value=mock_template)
             MockTemplateRepo.return_value = mock_tmpl_repo
 
-            with pytest.raises(ValueError, match="not active"):
+            with pytest.raises(ValidationError, match="not active"):
                 await service.create(
                     user_id=uuid4(),
                     workspace_id=workspace_id,
@@ -189,7 +190,7 @@ class TestCreateUserSkill:
             mock_skill_repo.get_by_user_workspace_template = AsyncMock(return_value=existing_skill)
             MockUserSkillRepo.return_value = mock_skill_repo
 
-            with pytest.raises(ValueError, match="already has a skill"):
+            with pytest.raises(ValidationError, match="already has a skill"):
                 await service.create(
                     user_id=user_id,
                     workspace_id=workspace_id,
@@ -268,7 +269,7 @@ class TestCreateUserSkill:
             mock_tmpl_repo.get_by_id = AsyncMock(return_value=mock_template)
             MockTemplateRepo.return_value = mock_tmpl_repo
 
-            with pytest.raises(ValueError, match="not active"):
+            with pytest.raises(ValidationError, match="not active"):
                 await service.create(
                     user_id=uuid4(),
                     workspace_id=uuid4(),

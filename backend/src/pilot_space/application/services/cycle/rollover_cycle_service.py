@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import ConflictError, NotFoundError
 from pilot_space.infrastructure.database.models import (
     Activity,
     ActivityType,
@@ -110,20 +111,20 @@ class RolloverCycleService:
         # Validate source cycle
         source_cycle = await self._cycle_repo.get_by_id_with_relations(payload.source_cycle_id)
         if not source_cycle:
-            raise ValueError(f"Source cycle not found: {payload.source_cycle_id}")
+            raise NotFoundError(f"Source cycle not found: {payload.source_cycle_id}")
 
         # Validate target cycle
         target_cycle = await self._cycle_repo.get_by_id_with_relations(payload.target_cycle_id)
         if not target_cycle:
-            raise ValueError(f"Target cycle not found: {payload.target_cycle_id}")
+            raise NotFoundError(f"Target cycle not found: {payload.target_cycle_id}")
 
         # Ensure cycles are in the same project
         if source_cycle.project_id != target_cycle.project_id:
-            raise ValueError("Source and target cycles must be in the same project")
+            raise ConflictError("Source and target cycles must be in the same project")
 
         # Ensure target cycle is not completed/cancelled
         if target_cycle.status in (CycleStatus.COMPLETED, CycleStatus.CANCELLED):
-            raise ValueError(f"Cannot rollover to {target_cycle.status.value} cycle")
+            raise ConflictError(f"Cannot rollover to {target_cycle.status.value} cycle")
 
         # Get issues to rollover
         if payload.issue_ids:

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from pilot_space.domain.exceptions import AppError
 from pilot_space.infrastructure.database.models import (
     Activity,
     ActivityType,
@@ -58,8 +59,11 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class CreateBranchError(Exception):
+class CreateBranchError(AppError):
     """Raised when branch creation fails."""
+
+    http_status: int = 400
+    error_code: str = "create_branch_error"
 
 
 @dataclass

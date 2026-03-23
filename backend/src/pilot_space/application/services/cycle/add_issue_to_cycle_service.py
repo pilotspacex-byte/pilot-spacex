@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import AppError, ConflictError, NotFoundError
 from pilot_space.infrastructure.database.models import Activity, ActivityType, Issue
 from pilot_space.infrastructure.logging import get_logger
 
@@ -125,12 +126,12 @@ class AddIssueToCycleService:
         # Validate cycle exists
         cycle = await self._cycle_repo.get_by_id(payload.cycle_id)
         if not cycle:
-            raise ValueError(f"Cycle not found: {payload.cycle_id}")
+            raise NotFoundError(f"Cycle not found: {payload.cycle_id}")
 
         # Validate issue exists
         issue = await self._issue_repo.get_by_id_with_relations(payload.issue_id)
         if not issue:
-            raise ValueError(f"Issue not found: {payload.issue_id}")
+            raise NotFoundError(f"Issue not found: {payload.issue_id}")
 
         # Check if issue is already in this cycle
         if issue.cycle_id == payload.cycle_id:
@@ -212,16 +213,16 @@ class AddIssueToCycleService:
         # Validate cycle exists
         cycle = await self._cycle_repo.get_by_id(payload.cycle_id)
         if not cycle:
-            raise ValueError(f"Cycle not found: {payload.cycle_id}")
+            raise NotFoundError(f"Cycle not found: {payload.cycle_id}")
 
         # Validate issue exists
         issue = await self._issue_repo.get_by_id_with_relations(payload.issue_id)
         if not issue:
-            raise ValueError(f"Issue not found: {payload.issue_id}")
+            raise NotFoundError(f"Issue not found: {payload.issue_id}")
 
         # Check if issue is in this cycle
         if issue.cycle_id != payload.cycle_id:
-            raise ValueError(f"Issue {payload.issue_id} is not in cycle {payload.cycle_id}")
+            raise ConflictError(f"Issue {payload.issue_id} is not in cycle {payload.cycle_id}")
 
         # Update issue
         issue.cycle_id = None
@@ -311,7 +312,7 @@ class AddIssueToCycleService:
                     )
                 )
                 results.append(result)
-            except ValueError as e:
+            except AppError as e:
                 logger.warning(
                     f"Failed to add issue {issue_id} to cycle: {e}",
                     extra={

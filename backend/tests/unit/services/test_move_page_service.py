@@ -19,6 +19,7 @@ from pilot_space.application.services.note.move_page_service import (
     MovePageResult,
     MovePageService,
 )
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.note import Note
 
 # ---------------------------------------------------------------------------
@@ -208,7 +209,7 @@ async def test_move_exceeds_depth_limit() -> None:
     session = _make_session()
     service = MovePageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="descendant beyond the 3-level depth limit"):
+    with pytest.raises(ValidationError, match="descendant beyond the 3-level depth limit"):
         await service.execute(
             MovePagePayload(
                 note_id=note.id,
@@ -233,7 +234,7 @@ async def test_move_cross_project_rejected() -> None:
     session = _make_session()
     service = MovePageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="different project"):
+    with pytest.raises(ValidationError, match="different project"):
         await service.execute(
             MovePagePayload(
                 note_id=note.id,
@@ -255,7 +256,7 @@ async def test_move_personal_page_rejected() -> None:
     session = _make_session()
     service = MovePageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="Personal page re-parenting not yet supported"):
+    with pytest.raises(ValidationError, match="Personal page re-parenting not yet supported"):
         await service.execute(
             MovePagePayload(
                 note_id=note.id,
@@ -275,7 +276,7 @@ async def test_move_note_not_found() -> None:
     session = _make_session()
     service = MovePageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="Note not found"):
+    with pytest.raises(NotFoundError, match="Note not found"):
         await service.execute(
             MovePagePayload(
                 note_id=uuid.uuid4(),
@@ -298,7 +299,7 @@ async def test_move_target_parent_not_found() -> None:
     session = _make_session()
     service = MovePageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="Target parent not found"):
+    with pytest.raises(NotFoundError, match="Target parent not found"):
         await service.execute(
             MovePagePayload(
                 note_id=note.id,
@@ -323,7 +324,7 @@ async def test_move_note_to_deep_parent_exceeds_depth() -> None:
     session = _make_session()
     service = MovePageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="3-level depth limit"):
+    with pytest.raises(ValidationError, match="3-level depth limit"):
         await service.execute(
             MovePagePayload(
                 note_id=note.id,
@@ -351,7 +352,7 @@ async def test_move_page_to_itself_raises_value_error() -> None:
     session = _make_session()
     service = MovePageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="Cannot move a page to itself"):
+    with pytest.raises(ValidationError, match="Cannot move a page to itself"):
         await service.execute(
             MovePagePayload(
                 note_id=note.id,
@@ -391,7 +392,7 @@ async def test_move_page_to_descendant_raises_cycle_error() -> None:
     session = _make_session()
     service = MovePageService(session=session, note_repository=repo)
 
-    with pytest.raises(ValueError, match="cycle"):
+    with pytest.raises(ValidationError, match="cycle"):
         await service.execute(
             MovePagePayload(
                 note_id=note.id,

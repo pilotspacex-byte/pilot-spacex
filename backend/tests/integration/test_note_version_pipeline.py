@@ -160,7 +160,9 @@ class TestVersionSnapshotServiceIntegration:
 
     @pytest.mark.asyncio
     async def test_snapshot_note_not_found_raises(self) -> None:
-        """Raises ValueError when note doesn't exist."""
+        """Raises NotFoundError when note doesn't exist."""
+        from pilot_space.domain.exceptions import NotFoundError
+
         session = MagicMock()
         note_repo = MagicMock()
         note_repo.get_by_id = AsyncMock(return_value=None)
@@ -170,7 +172,7 @@ class TestVersionSnapshotServiceIntegration:
         svc = VersionSnapshotService(
             session=session, note_repo=note_repo, version_repo=version_repo
         )
-        with pytest.raises(ValueError, match="not found in workspace"):
+        with pytest.raises(NotFoundError, match="not found in workspace"):
             await svc.execute(
                 SnapshotPayload(
                     note_id=_NOTE_ID,
@@ -181,7 +183,9 @@ class TestVersionSnapshotServiceIntegration:
 
     @pytest.mark.asyncio
     async def test_snapshot_wrong_workspace_raises(self) -> None:
-        """Raises ValueError when note belongs to a different workspace."""
+        """Raises NotFoundError when note belongs to a different workspace."""
+        from pilot_space.domain.exceptions import NotFoundError
+
         session = MagicMock()
         note = _make_note()
         note.workspace_id = uuid.uuid4()  # Different workspace
@@ -193,7 +197,7 @@ class TestVersionSnapshotServiceIntegration:
         svc = VersionSnapshotService(
             session=session, note_repo=note_repo, version_repo=version_repo
         )
-        with pytest.raises(ValueError, match="not found in workspace"):
+        with pytest.raises(NotFoundError, match="not found in workspace"):
             await svc.execute(
                 SnapshotPayload(
                     note_id=_NOTE_ID,
@@ -241,12 +245,14 @@ class TestVersionDiffServiceIntegration:
 
     @pytest.mark.asyncio
     async def test_diff_version_not_found_raises(self) -> None:
-        """Raises ValueError when a version is not found."""
+        """Raises NotFoundError when a version is not found."""
+        from pilot_space.domain.exceptions import NotFoundError
+
         version_repo = MagicMock()
         version_repo.get_by_id_for_note = AsyncMock(return_value=None)
 
         svc = VersionDiffService(session=MagicMock(), version_repo=version_repo)
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await svc.execute(_V1_ID, _V2_ID, _NOTE_ID, _WS_ID)
 
 
@@ -327,14 +333,16 @@ class TestVersionRestoreServiceIntegration:
 
     @pytest.mark.asyncio
     async def test_restore_version_not_found_raises(self) -> None:
-        """Raises ValueError when the target version doesn't exist."""
+        """Raises NotFoundError when the target version doesn't exist."""
+        from pilot_space.domain.exceptions import NotFoundError
+
         session = MagicMock()
         version_repo = MagicMock()
         version_repo.get_by_id_for_note = AsyncMock(return_value=None)
         note_repo = MagicMock()
 
         svc = VersionRestoreService(session=session, note_repo=note_repo, version_repo=version_repo)
-        with pytest.raises(ValueError, match="not found for note"):
+        with pytest.raises(NotFoundError, match="not found for note"):
             await svc.execute(
                 RestorePayload(
                     version_id=_V1_ID,
@@ -396,12 +404,14 @@ class TestVersionDigestServiceIntegration:
 
     @pytest.mark.asyncio
     async def test_digest_version_not_found_raises(self) -> None:
-        """Raises ValueError when version not found."""
+        """Raises NotFoundError when version not found."""
+        from pilot_space.domain.exceptions import NotFoundError
+
         version_repo = MagicMock()
         version_repo.get_by_id_for_note = AsyncMock(return_value=None)
 
         svc = VersionDigestService(session=MagicMock(), version_repo=version_repo)
-        with pytest.raises(ValueError, match="not found for note"):
+        with pytest.raises(NotFoundError, match="not found for note"):
             await svc.execute(_V1_ID, _NOTE_ID, _WS_ID)
 
 
@@ -467,12 +477,14 @@ class TestImpactAnalysisServiceIntegration:
 
     @pytest.mark.asyncio
     async def test_impact_version_not_found_raises(self) -> None:
-        """Raises ValueError when version not found."""
+        """Raises NotFoundError when version not found."""
+        from pilot_space.domain.exceptions import NotFoundError
+
         version_repo = MagicMock()
         version_repo.get_by_id_for_note = AsyncMock(return_value=None)
 
         svc = ImpactAnalysisService(session=MagicMock(), version_repo=version_repo)
-        with pytest.raises(ValueError, match="not found for note"):
+        with pytest.raises(NotFoundError, match="not found for note"):
             await svc.execute(_V1_ID, _NOTE_ID, _WS_ID)
 
 

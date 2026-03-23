@@ -114,15 +114,9 @@ async def confirm_intent(
 ) -> IntentResponse:
     """Confirm a detected intent, locking its what/why fields."""
 
-    try:
-        updated = await intent_service.confirm(
-            ConfirmIntentPayload(intent_id=intent_id, workspace_id=workspace_id)
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    updated = await intent_service.confirm(
+        ConfirmIntentPayload(intent_id=intent_id, workspace_id=workspace_id)
+    )
 
     return IntentResponse.from_model(updated)
 
@@ -142,15 +136,9 @@ async def reject_intent(
 ) -> IntentResponse:
     """Reject an intent from any non-terminal state."""
 
-    try:
-        updated = await intent_service.reject(
-            RejectIntentPayload(intent_id=intent_id, workspace_id=workspace_id)
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    updated = await intent_service.reject(
+        RejectIntentPayload(intent_id=intent_id, workspace_id=workspace_id)
+    )
 
     return IntentResponse.from_model(updated)
 
@@ -174,22 +162,16 @@ async def edit_intent(
     Updating 'what' resets dedup_status to pending so J-1 re-processes.
     """
 
-    try:
-        updated = await intent_service.edit(
-            EditIntentPayload(
-                intent_id=intent_id,
-                workspace_id=workspace_id,
-                new_what=request.new_what,
-                new_why=request.new_why,
-                new_constraints=request.new_constraints,
-                new_acceptance=request.new_acceptance,
-            )
+    updated = await intent_service.edit(
+        EditIntentPayload(
+            intent_id=intent_id,
+            workspace_id=workspace_id,
+            new_what=request.new_what,
+            new_why=request.new_why,
+            new_constraints=request.new_constraints,
+            new_acceptance=request.new_acceptance,
         )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    )
 
     return IntentResponse.from_model(updated)
 
@@ -272,12 +254,6 @@ async def get_intent(
 ) -> IntentResponse:
     """Get a single intent by ID."""
 
-    try:
-        intent = await intent_service.get_intent(intent_id, workspace_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    intent = await intent_service.get_intent(intent_id, workspace_id)
 
     return IntentResponse.from_model(intent)

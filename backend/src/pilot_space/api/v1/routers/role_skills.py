@@ -159,25 +159,19 @@ async def create_role_skill(
     FR-018: Max 3 roles per user-workspace.
     FR-020: Guests cannot create skills.
     """
-    try:
-        skill = await service.execute(
-            CreateRoleSkillPayload(
-                user_id=current_user_id,
-                workspace_id=workspace_id,
-                role_type=request.role_type,
-                role_name=request.role_name,
-                skill_content=request.skill_content,
-                experience_description=request.experience_description,
-                tags=request.tags if request.tags else None,
-                usage=request.usage,
-                is_primary=request.is_primary,
-            )
+    skill = await service.execute(
+        CreateRoleSkillPayload(
+            user_id=current_user_id,
+            workspace_id=workspace_id,
+            role_type=request.role_type,
+            role_name=request.role_name,
+            skill_content=request.skill_content,
+            experience_description=request.experience_description,
+            tags=request.tags if request.tags else None,
+            usage=request.usage,
+            is_primary=request.is_primary,
         )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    )
 
     return RoleSkillResponse(
         id=skill.id,
@@ -216,35 +210,18 @@ async def update_role_skill(
     FR-009: Edit role skill content.
     FR-010: Update skill metadata.
     """
-    try:
-        skill = await service.execute(
-            UpdateRoleSkillPayload(
-                user_id=current_user_id,
-                skill_id=skill_id,
-                workspace_id=workspace_id,
-                role_name=request.role_name,
-                skill_content=request.skill_content,
-                tags=request.tags,
-                usage=request.usage,
-                is_primary=request.is_primary,
-            )
+    skill = await service.execute(
+        UpdateRoleSkillPayload(
+            user_id=current_user_id,
+            skill_id=skill_id,
+            workspace_id=workspace_id,
+            role_name=request.role_name,
+            skill_content=request.skill_content,
+            tags=request.tags,
+            usage=request.usage,
+            is_primary=request.is_primary,
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        if "not authorized" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_msg,
-        ) from e
+    )
 
     return RoleSkillResponse(
         id=skill.id,
@@ -281,30 +258,13 @@ async def delete_role_skill(
 
     FR-009: Remove configured role skill.
     """
-    try:
-        await service.execute(
-            DeleteRoleSkillPayload(
-                user_id=current_user_id,
-                skill_id=skill_id,
-                workspace_id=workspace_id,
-            )
+    await service.execute(
+        DeleteRoleSkillPayload(
+            user_id=current_user_id,
+            skill_id=skill_id,
+            workspace_id=workspace_id,
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        if "not authorized" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_msg,
-        ) from e
+    )
 
 
 @router.post(
@@ -326,21 +286,15 @@ async def generate_role_skill(
     FR-003: AI-powered skill generation.
     FR-004: Experience-based personalization.
     """
-    try:
-        result = await service.execute(
-            GenerateRoleSkillPayload(
-                role_type=request.role_type,
-                experience_description=request.experience_description,
-                role_name=request.role_name,
-                workspace_id=workspace_id,
-                user_id=current_user_id,
-            )
+    result = await service.execute(
+        GenerateRoleSkillPayload(
+            role_type=request.role_type,
+            experience_description=request.experience_description,
+            role_name=request.role_name,
+            workspace_id=workspace_id,
+            user_id=current_user_id,
         )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    )
 
     return GenerateRoleSkillResponse(
         skill_content=result.skill_content,
@@ -399,21 +353,15 @@ async def regenerate_role_skill(
     previous_content = skill.skill_content
     previous_name = skill.role_name
 
-    try:
-        result = await service.execute(
-            GenerateRoleSkillPayload(
-                role_type=skill.role_type,
-                experience_description=request.experience_description,
-                role_name=skill.role_name,
-                workspace_id=workspace_id,
-                user_id=current_user_id,
-            )
+    result = await service.execute(
+        GenerateRoleSkillPayload(
+            role_type=skill.role_type,
+            experience_description=request.experience_description,
+            role_name=skill.role_name,
+            workspace_id=workspace_id,
+            user_id=current_user_id,
         )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    )
 
     return RegenerateRoleSkillResponse(
         skill_content=result.skill_content,

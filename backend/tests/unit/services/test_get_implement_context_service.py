@@ -20,6 +20,7 @@ from pilot_space.application.services.issue.get_implement_context_service import
     _extract_text_blocks,
     _slugify,
 )
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models import IssuePriority
 from pilot_space.infrastructure.database.models.state import StateGroup
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
@@ -364,7 +365,7 @@ class TestDeriveRepoInfo:
             repositories=[],
             external_account_name=None,
         )
-        with pytest.raises(ValueError, match="cannot derive clone_url"):
+        with pytest.raises(NotFoundError, match="cannot derive clone_url"):
             _derive_repo_info(integration)
 
     def test_provider_is_always_github(self) -> None:
@@ -778,7 +779,7 @@ class TestGetImplementContextServiceValueErrors:
         missing_id = uuid.uuid4()
         issue_repo.get_by_id_with_relations.return_value = None
 
-        with pytest.raises(ValueError, match=str(missing_id)):
+        with pytest.raises(NotFoundError, match=str(missing_id)):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=missing_id,
@@ -802,7 +803,7 @@ class TestGetImplementContextServiceValueErrors:
         note_link_repo.get_by_issue.return_value = []
         integration_repo.get_active_github.return_value = None  # no integration
 
-        with pytest.raises(ValueError, match="no_github_integration"):
+        with pytest.raises(NotFoundError, match="no_github_integration"):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -828,7 +829,7 @@ class TestGetImplementContextServiceValueErrors:
         integration_repo.get_active_github.return_value = _make_integration()
         workspace_repo.get_by_id.return_value = None  # workspace missing
 
-        with pytest.raises(ValueError, match=str(workspace_id)):
+        with pytest.raises(NotFoundError, match=str(workspace_id)):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -857,7 +858,7 @@ class TestGetImplementContextServiceValueErrors:
         bad_integration.external_account_name = None
         integration_repo.get_active_github.return_value = bad_integration
 
-        with pytest.raises(ValueError, match="cannot derive clone_url"):
+        with pytest.raises(NotFoundError, match="cannot derive clone_url"):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -876,7 +877,7 @@ class TestGetImplementContextServiceValueErrors:
         missing_id = uuid.uuid4()
         issue_repo.get_by_id_with_relations.return_value = None
 
-        with pytest.raises(ValueError, match=str(missing_id)):
+        with pytest.raises(NotFoundError, match=str(missing_id)):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=missing_id,

@@ -262,13 +262,7 @@ async def put_encryption_key(
     workspace_id = await _resolve_workspace(workspace_slug, session)
     await _require_settings_manage(session, current_user.user_id, workspace_id)
 
-    try:
-        validate_workspace_key(body.key)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    validate_workspace_key(body.key)
 
     repo = WorkspaceEncryptionRepository(session)
     record = await repo.upsert_key(workspace_id, body.key)
@@ -376,22 +370,10 @@ async def rotate_encryption_key(
     workspace_id = await _resolve_workspace(workspace_slug, session)
     await _require_settings_manage(session, current_user.user_id, workspace_id)
 
-    try:
-        validate_workspace_key(body.new_key)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+    validate_workspace_key(body.new_key)
 
-    try:
-        counts = await rotate_workspace_key(session, workspace_id, body.new_key, batch_size=100)
-        await session.commit()
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+    counts = await rotate_workspace_key(session, workspace_id, body.new_key, batch_size=100)
+    await session.commit()
 
     # Fetch updated key version
     repo = WorkspaceEncryptionRepository(session)

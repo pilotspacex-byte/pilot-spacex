@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.threaded_discussion import (
     DiscussionStatus,
 )
@@ -120,18 +121,18 @@ class CreateDiscussionService:
         # Validate initial comment
         if not payload.initial_comment or not payload.initial_comment.strip():
             msg = "Initial comment is required"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Verify note exists
         note = await self._note_repo.get_by_id(payload.note_id)
         if not note:
             msg = f"Note with ID {payload.note_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Verify note belongs to workspace
         if note.workspace_id != payload.workspace_id:
             msg = "Note does not belong to the specified workspace"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Create discussion
         discussion = ThreadedDiscussion(
@@ -191,21 +192,21 @@ class CreateDiscussionService:
         # Validate content
         if not content or not content.strip():
             msg = "Comment content is required"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Verify discussion exists and is open
         discussion = await self._discussion_repo.get_by_id(discussion_id)
         if not discussion:
             msg = f"Discussion with ID {discussion_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         if discussion.workspace_id != workspace_id:
             msg = "Discussion does not belong to the specified workspace"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         if discussion.status != DiscussionStatus.OPEN:
             msg = "Cannot add comment to resolved discussion"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Create comment
         comment = DiscussionComment(
@@ -239,11 +240,11 @@ class CreateDiscussionService:
         discussion = await self._discussion_repo.get_by_id(discussion_id)
         if not discussion:
             msg = f"Discussion with ID {discussion_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         if discussion.status == DiscussionStatus.RESOLVED:
             msg = "Discussion is already resolved"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         discussion.status = DiscussionStatus.RESOLVED
         discussion.resolved_by_id = resolved_by_id

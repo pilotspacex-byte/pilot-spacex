@@ -26,6 +26,7 @@ from pilot_space.application.services.role_skill import (
     UpdateRoleSkillPayload,
     UpdateRoleSkillService,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import (
     User,
     Workspace,
@@ -178,7 +179,7 @@ class TestCreateRoleSkillService:
     ) -> None:
         """Reject invalid role type."""
         service = CreateRoleSkillService(db_session)
-        with pytest.raises(ValueError, match="Invalid role type"):
+        with pytest.raises(ValidationError, match="Invalid role type"):
             await service.execute(
                 CreateRoleSkillPayload(
                     user_id=user.id,
@@ -212,7 +213,7 @@ class TestCreateRoleSkillService:
             )
         await db_session.flush()
 
-        with pytest.raises(ValueError, match="Maximum 3 roles"):
+        with pytest.raises(ValidationError, match="Maximum 3 roles"):
             await service.execute(
                 CreateRoleSkillPayload(
                     user_id=user.id,
@@ -309,7 +310,7 @@ class TestUpdateRoleSkillService:
     ) -> None:
         """Reject update from non-owner."""
         service = UpdateRoleSkillService(db_session)
-        with pytest.raises(ValueError, match="Not authorized"):
+        with pytest.raises(ForbiddenError, match="Not authorized"):
             await service.execute(
                 UpdateRoleSkillPayload(
                     user_id=other_user.id,
@@ -327,7 +328,7 @@ class TestUpdateRoleSkillService:
     ) -> None:
         """Reject update of non-existent skill."""
         service = UpdateRoleSkillService(db_session)
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await service.execute(
                 UpdateRoleSkillPayload(
                     user_id=user.id,
@@ -380,7 +381,7 @@ class TestUpdateRoleSkillService:
     ) -> None:
         """Reject update with wrong workspace_id."""
         service = UpdateRoleSkillService(db_session)
-        with pytest.raises(ValueError, match="does not belong"):
+        with pytest.raises(ForbiddenError, match="does not belong"):
             await service.execute(
                 UpdateRoleSkillPayload(
                     user_id=user.id,
@@ -429,7 +430,7 @@ class TestDeleteRoleSkillService:
     ) -> None:
         """Reject delete from non-owner."""
         service = DeleteRoleSkillService(db_session)
-        with pytest.raises(ValueError, match="Not authorized"):
+        with pytest.raises(ForbiddenError, match="Not authorized"):
             await service.execute(
                 DeleteRoleSkillPayload(
                     user_id=other_user.id,
@@ -446,7 +447,7 @@ class TestDeleteRoleSkillService:
     ) -> None:
         """Reject delete of non-existent skill."""
         service = DeleteRoleSkillService(db_session)
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await service.execute(
                 DeleteRoleSkillPayload(
                     user_id=user.id,
@@ -575,7 +576,7 @@ class TestGenerateRoleSkillService:
     ) -> None:
         """Reject generation for invalid role type."""
         service = GenerateRoleSkillService(db_session)
-        with pytest.raises(ValueError, match="Invalid role type"):
+        with pytest.raises(ValidationError, match="Invalid role type"):
             await service.execute(
                 GenerateRoleSkillPayload(
                     role_type="nonexistent",

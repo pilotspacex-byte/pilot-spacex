@@ -15,6 +15,8 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
+from pilot_space.domain.exceptions import ValidationError
+
 
 class IntentStatus(StrEnum):
     """Work intent lifecycle status."""
@@ -108,7 +110,7 @@ class WorkIntent:
                 f"Cannot transition from {self.status.value!r} to {new_status.value!r}. "
                 f"Allowed: {[s.value for s in allowed]}"
             )
-            raise ValueError(msg)
+            raise ValidationError(msg)
         self.status = new_status
         self.updated_at = datetime.now(tz=UTC)
 
@@ -143,7 +145,7 @@ class WorkIntent:
         """
         if self.status not in (IntentStatus.DETECTED,):
             msg = f"Cannot update 'what' after status is {self.status.value!r}"
-            raise ValueError(msg)
+            raise ValidationError(msg)
         self.what = new_what
         self.dedup_hash = self.compute_dedup_hash(new_what)
         self.updated_at = datetime.now(tz=UTC)
@@ -159,7 +161,7 @@ class WorkIntent:
         """
         if self.status not in (IntentStatus.DETECTED,):
             msg = f"Cannot update 'why' after status is {self.status.value!r}"
-            raise ValueError(msg)
+            raise ValidationError(msg)
         self.why = new_why
         self.updated_at = datetime.now(tz=UTC)
 
@@ -218,7 +220,7 @@ class WorkIntent:
         """
         if not (0.0 <= confidence <= 1.0):
             msg = f"Confidence must be between 0.0 and 1.0, got {confidence}"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
 
 __all__ = ["DedupStatus", "IntentStatus", "WorkIntent"]

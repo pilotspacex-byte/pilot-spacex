@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import (
     Activity,
     ActivityType,
@@ -141,9 +142,9 @@ class CreateIssueService:
 
         # Validate name
         if not payload.name or not payload.name.strip():
-            raise ValueError("Issue name is required")
+            raise ValidationError("Issue name is required")
         if len(payload.name) > 255:
-            raise ValueError("Issue name must be 255 characters or less")
+            raise ValidationError("Issue name must be 255 characters or less")
 
         # Get next sequence ID for project
         sequence_id = await self._issue_repo.get_next_sequence_id(payload.project_id)
@@ -286,7 +287,7 @@ class CreateIssueService:
         workspace_id = proj_result.scalar_one_or_none()
 
         if not workspace_id:
-            raise ValueError(f"Project not found: {project_id}")
+            raise NotFoundError(f"Project not found: {project_id}")
 
         # Get first unstarted state for the project (or workspace default)
         state_query = (
@@ -305,7 +306,7 @@ class CreateIssueService:
         state = state_result.scalar_one_or_none()
 
         if not state:
-            raise ValueError(f"No default state found for project: {project_id}")
+            raise NotFoundError(f"No default state found for project: {project_id}")
 
         return state.id
 

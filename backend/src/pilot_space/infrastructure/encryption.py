@@ -11,13 +11,17 @@ from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from pilot_space.domain.exceptions import AppError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-class EncryptionError(Exception):
+class EncryptionError(AppError):
     """Raised when encryption/decryption fails."""
+
+    http_status: int = 500
+    error_code: str = "encryption_error"
 
 
 class EncryptionService:

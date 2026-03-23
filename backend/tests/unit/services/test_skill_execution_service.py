@@ -31,6 +31,7 @@ from pilot_space.application.services.skill.skill_execution_service import (
     SkillExecutionService,
     SkillOutputValidationError,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.domain.work_intent import WorkIntent
 from pilot_space.infrastructure.database.models.skill_execution import (
     SkillApprovalRole,
@@ -436,7 +437,7 @@ class TestSkillExecutionServiceGuards:
             workspace_id=workspace_id,
             user_id=uuid4(),
         )
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(NotFoundError, match="not found"):
             await service.execute(payload)
 
     async def test_workspace_mismatch_raises_value_error(self) -> None:
@@ -460,7 +461,7 @@ class TestSkillExecutionServiceGuards:
             workspace_id=workspace_id,
             user_id=uuid4(),
         )
-        with pytest.raises(ValueError, match="workspace"):
+        with pytest.raises(ForbiddenError, match="workspace"):
             await service.execute(payload)
 
     async def test_concurrency_limit_raises_runtime_error(self) -> None:

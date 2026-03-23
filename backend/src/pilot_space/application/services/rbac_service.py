@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pilot_space.domain.exceptions import ConflictError, NotFoundError
+from pilot_space.domain.exceptions import ConflictError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.custom_role import CustomRole
 from pilot_space.infrastructure.database.permissions import ACTIONS, RESOURCES
 
@@ -64,15 +64,15 @@ def _validate_permissions(permissions: list[str]) -> None:
     for perm in permissions:
         parts = perm.split(":", 1)
         if len(parts) != 2:
-            raise ValueError(f"invalid permission string '{perm}': must be 'resource:action'")
+            raise ValidationError(f"invalid permission string '{perm}': must be 'resource:action'")
         resource, action = parts
         if resource not in RESOURCES:
-            raise ValueError(
+            raise ValidationError(
                 f"invalid permission '{perm}': unknown resource '{resource}'. "
                 f"Known resources: {sorted(RESOURCES)}"
             )
         if action not in ACTIONS:
-            raise ValueError(
+            raise ValidationError(
                 f"invalid permission '{perm}': unknown action '{action}'. "
                 f"Known actions: {sorted(ACTIONS)}"
             )

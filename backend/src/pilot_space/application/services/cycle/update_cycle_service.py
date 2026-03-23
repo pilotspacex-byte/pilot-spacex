@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from pilot_space.domain.exceptions import ConflictError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import Cycle, CycleStatus
 from pilot_space.infrastructure.logging import get_logger
 
@@ -106,7 +107,7 @@ class UpdateCycleService:
         """
         cycle = await self._cycle_repo.get_by_id_with_relations(payload.cycle_id)
         if not cycle:
-            raise ValueError(f"Cycle not found: {payload.cycle_id}")
+            raise NotFoundError(f"Cycle not found: {payload.cycle_id}")
 
         updated_fields: list[str] = []
 
@@ -114,11 +115,11 @@ class UpdateCycleService:
         if payload.name is not UNCHANGED:
             if payload.name and payload.name.strip():
                 if len(payload.name) > 255:
-                    raise ValueError("Cycle name must be 255 characters or less")
+                    raise ValidationError("Cycle name must be 255 characters or less")
                 cycle.name = payload.name.strip()
                 updated_fields.append("name")
             else:
-                raise ValueError("Cycle name cannot be empty")
+                raise ValidationError("Cycle name cannot be empty")
 
         # Update description
         if payload.description is not UNCHANGED:
@@ -138,7 +139,7 @@ class UpdateCycleService:
         start = payload.start_date if payload.start_date is not UNCHANGED else cycle.start_date
         end = payload.end_date if payload.end_date is not UNCHANGED else cycle.end_date
         if start and end and end < start:
-            raise ValueError("End date must be after start date")
+            raise ValidationError("End date must be after start date")
 
         # Update owner
         if payload.owned_by_id is not UNCHANGED:
@@ -259,7 +260,7 @@ class UpdateCycleService:
         }
 
         if target not in valid_transitions.get(current, set()):
-            raise ValueError(f"Invalid status transition: {current.value} -> {target.value}")
+            raise ConflictError(f"Invalid status transition: {current.value} -> {target.value}")
 
 
 __all__ = ["UNCHANGED", "UpdateCyclePayload", "UpdateCycleResult", "UpdateCycleService"]

@@ -113,11 +113,12 @@ class TestH6DeleteWorkspaceRequiresOwner:
 
     @pytest.mark.asyncio
     async def test_admin_cannot_delete_workspace(self) -> None:
-        """Admin (non-owner) gets ValueError when trying to delete workspace."""
+        """Admin (non-owner) gets ForbiddenError when trying to delete workspace."""
         from pilot_space.application.services.workspace import (
             DeleteWorkspacePayload,
             WorkspaceService,
         )
+        from pilot_space.domain.exceptions import ForbiddenError
 
         workspace, admin, admin_member = _make_workspace_with_admin()
 
@@ -132,7 +133,7 @@ class TestH6DeleteWorkspaceRequiresOwner:
             label_repo=AsyncMock(),
         )
 
-        with pytest.raises(ValueError, match=r"[Oo]wner"):
+        with pytest.raises(ForbiddenError):
             await service.delete_workspace(
                 DeleteWorkspacePayload(
                     workspace_id_or_slug=str(workspace.id),
@@ -345,7 +346,9 @@ class TestH5CrossWorkspaceInvitationCancel:
             invitation_repo=mock_invitation_repo,
         )
 
-        with pytest.raises(ValueError, match="not found"):
+        from pilot_space.domain.exceptions import NotFoundError
+
+        with pytest.raises(NotFoundError):
             await service.cancel_invitation(
                 CancelInvitationPayload(
                     workspace_id=workspace_a.id,
