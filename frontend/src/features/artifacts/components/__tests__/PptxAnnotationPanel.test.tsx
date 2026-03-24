@@ -1,67 +1,58 @@
 /**
  * PptxAnnotationPanel tests -- ANNOT-PANEL
  *
- * Tests annotation panel rendering including:
- * - New annotation textarea with aria-label
- * - Empty state message
- * - Add button disabled when textarea empty
- * - Annotation card rendering with content
- * - Collapsed badge with annotation count
- * - Owner-only edit/delete buttons
+ * Mocks usePptxAnnotations hook to isolate component behavior.
+ * Tests: empty state, annotation list, owner controls, create, Cmd+Enter, collapsed badge, delete.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { AnnotationResponse } from '@/services/api/artifact-annotations';
+import PptxAnnotationPanel from '../PptxAnnotationPanel';
 
-// --- Mock use-slide-annotations hooks ---
-const mockMutate = vi.fn();
-const mockCreateMutation = { mutate: mockMutate, isPending: false };
-const mockUpdateMutation = { mutate: vi.fn(), isPending: false };
-const mockDeleteMutation = { mutate: vi.fn(), isPending: false };
+// ---- Mock usePptxAnnotations ----
+const mockCreateMutate = vi.fn();
+const mockUpdateMutate = vi.fn();
+const mockDeleteMutate = vi.fn();
 
-let mockAnnotations: import('@/services/api/artifact-annotations').ArtifactAnnotation[] = [];
-let mockIsLoading = false;
-let mockIsError = false;
-
-vi.mock('../../hooks/use-slide-annotations', () => ({
-  useSlideAnnotations: () => ({
-    data: mockAnnotations,
-    isLoading: mockIsLoading,
-    isError: mockIsError,
-  }),
-  useCreateAnnotation: () => mockCreateMutation,
-  useUpdateAnnotation: () => mockUpdateMutation,
-  useDeleteAnnotation: () => mockDeleteMutation,
-  annotationKeys: {
-    all: ['artifact-annotations'] as const,
-    workspace: (wid: string, pid: string) => ['artifact-annotations', wid, pid] as const,
-    artifact: (wid: string, pid: string, aid: string) =>
-      ['artifact-annotations', wid, pid, aid] as const,
-    slide: (wid: string, pid: string, aid: string, si: number) =>
-      ['artifact-annotations', wid, pid, aid, si] as const,
+const defaultHookReturn = {
+  annotations: [] as AnnotationResponse[],
+  total: 0,
+  isLoading: false,
+  createAnnotation: { mutate: mockCreateMutate, isPending: false, variables: undefined },
+  updateAnnotation: { mutate: mockUpdateMutate, isPending: false, variables: undefined },
+  deleteAnnotation: {
+    mutate: mockDeleteMutate,
+    isPending: false,
+    variables: undefined as { annotationId: string } | undefined,
   },
+};
+
+let hookReturn: typeof defaultHookReturn = { ...defaultHookReturn };
+
+vi.mock('../../hooks/usePptxAnnotations', () => ({
+  usePptxAnnotations: vi.fn(() => hookReturn),
 }));
 
-import { PptxAnnotationPanel } from '../PptxAnnotationPanel';
+function makeClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
 
-function renderPanel(overrides: Partial<Parameters<typeof PptxAnnotationPanel>[0]> = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+const baseProps = {
+  workspaceId: 'ws-1',
+  projectId: 'proj-1',
+  artifactId: 'art-1',
+  slideIndex: 0,
+  currentUserId: 'user-1',
+  isCollapsed: false,
+  onToggleCollapse: vi.fn(),
+};
 
-  const props = {
-    workspaceId: 'ws-1',
-    projectId: 'proj-1',
-    artifactId: 'art-1',
-    currentSlide: 0,
-    currentUserId: 'user-1',
-    ...overrides,
-  };
-
+function renderPanel(overrides: Partial<typeof baseProps> = {}) {
+  const client = makeClient();
   return render(
-    <QueryClientProvider client={queryClient}>
-      <PptxAnnotationPanel {...props} />
+    <QueryClientProvider client={client}>
+      <PptxAnnotationPanel {...baseProps} {...overrides} />
     </QueryClientProvider>
   );
 }
@@ -69,188 +60,158 @@ function renderPanel(overrides: Partial<Parameters<typeof PptxAnnotationPanel>[0
 describe('PptxAnnotationPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAnnotations = [];
-    mockIsLoading = false;
-    mockIsError = false;
+    hookReturn = { ...defaultHookReturn };
   });
 
-  it('renders collapsed state with annotation toggle button', () => {
+  // 1. Empty state
+  it('renders empty state when no annotations', () => {
     renderPanel();
-
-    // Panel starts collapsed — should show toggle button
-    expect(screen.getByLabelText('Open annotation panel')).toBeDefined();
-  });
-
-  it('shows collapsed badge with count when annotations exist', () => {
-    mockAnnotations = [
-      {
-        id: 'ann-1',
-        artifactId: 'art-1',
-        slideIndex: 0,
-        content: 'First note',
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: 'ann-2',
-        artifactId: 'art-1',
-        slideIndex: 0,
-        content: 'Second note',
-        userId: 'user-2',
-        workspaceId: 'ws-1',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
-
-    renderPanel();
-
-    // Badge should display count
-    expect(screen.getByText('2')).toBeDefined();
-  });
-
-  it('shows 9+ cap for collapsed badge when more than 9 annotations', () => {
-    mockAnnotations = Array.from({ length: 12 }, (_, i) => ({
-      id: `ann-${i}`,
-      artifactId: 'art-1',
-      slideIndex: 0,
-      content: `Note ${i}`,
-      userId: 'user-1',
-      workspaceId: 'ws-1',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }));
-
-    renderPanel();
-
-    expect(screen.getByText('9+')).toBeDefined();
-  });
-
-  it('renders annotation textarea when panel is expanded', async () => {
-    const user = userEvent.setup();
-    renderPanel();
-
-    // Expand panel
-    await user.click(screen.getByLabelText('Open annotation panel'));
-
-    // Should show new annotation textarea
-    expect(screen.getByLabelText('New annotation content')).toBeDefined();
-  });
-
-  it('shows empty state message when no annotations exist', async () => {
-    const user = userEvent.setup();
-    mockAnnotations = [];
-
-    renderPanel();
-
-    // Expand panel
-    await user.click(screen.getByLabelText('Open annotation panel'));
-
     expect(screen.getByText('No annotations on this slide yet.')).toBeDefined();
   });
 
-  it('Add button is disabled when textarea is empty', async () => {
-    const user = userEvent.setup();
+  // 2. Annotation list with correct content
+  it('renders annotation list with correct content', () => {
+    hookReturn = {
+      ...defaultHookReturn,
+      annotations: [
+        {
+          id: 'ann-1',
+          artifact_id: 'art-1',
+          slide_index: 0,
+          content: 'First annotation',
+          user_id: 'user-1',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 'ann-2',
+          artifact_id: 'art-1',
+          slide_index: 0,
+          content: 'Second annotation',
+          user_id: 'user-2',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      total: 2,
+    };
     renderPanel();
+    expect(screen.getByText('First annotation')).toBeDefined();
+    expect(screen.getByText('Second annotation')).toBeDefined();
+  });
 
-    await user.click(screen.getByLabelText('Open annotation panel'));
+  // 3. Owner-only edit/delete buttons
+  it('shows edit/delete buttons only for current user annotations', () => {
+    hookReturn = {
+      ...defaultHookReturn,
+      annotations: [
+        {
+          id: 'ann-1',
+          artifact_id: 'art-1',
+          slide_index: 0,
+          content: 'My annotation',
+          user_id: 'user-1',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 'ann-2',
+          artifact_id: 'art-1',
+          slide_index: 0,
+          content: 'Other annotation',
+          user_id: 'user-2',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      total: 2,
+    };
+    renderPanel();
+    // There should be exactly one Edit and one Delete button (for user-1's annotation only)
+    const editButtons = screen.getAllByRole('button', { name: /edit annotation/i });
+    const deleteButtons = screen.getAllByRole('button', { name: /delete annotation/i });
+    expect(editButtons).toHaveLength(1);
+    expect(deleteButtons).toHaveLength(1);
+  });
 
-    const addButton = screen.getByRole('button', { name: /add/i });
+  // 4. Create form submits on button click
+  it('submits annotation on Add Note button click', () => {
+    renderPanel();
+    const textarea = screen.getByLabelText('Add annotation');
+    fireEvent.change(textarea, { target: { value: 'New note' } });
+    const addButton = screen.getByRole('button', { name: /add note/i });
+    fireEvent.click(addButton);
+    expect(mockCreateMutate).toHaveBeenCalledWith({ content: 'New note' });
+  });
+
+  // 5. Create form submits on Cmd+Enter
+  it('submits annotation on Cmd+Enter', () => {
+    renderPanel();
+    const textarea = screen.getByLabelText('Add annotation');
+    fireEvent.change(textarea, { target: { value: 'Keyboard note' } });
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
+    expect(mockCreateMutate).toHaveBeenCalledWith({ content: 'Keyboard note' });
+  });
+
+  // 6. Collapsed state shows badge with count
+  it('shows badge with annotation count when collapsed', () => {
+    hookReturn = { ...defaultHookReturn, total: 5 };
+    renderPanel({ isCollapsed: true });
+    expect(screen.getByText('5')).toBeDefined();
+  });
+
+  // 7. Collapsed badge caps at 9+
+  it('caps badge at 9+ for large counts', () => {
+    hookReturn = { ...defaultHookReturn, total: 15 };
+    renderPanel({ isCollapsed: true });
+    expect(screen.getByText('9+')).toBeDefined();
+  });
+
+  // 8. Delete calls deleteAnnotation mutation
+  it('calls deleteAnnotation on trash button click', () => {
+    hookReturn = {
+      ...defaultHookReturn,
+      annotations: [
+        {
+          id: 'ann-1',
+          artifact_id: 'art-1',
+          slide_index: 0,
+          content: 'To delete',
+          user_id: 'user-1',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+    };
+    renderPanel();
+    const deleteButton = screen.getByRole('button', { name: /delete annotation/i });
+    fireEvent.click(deleteButton);
+    expect(mockDeleteMutate).toHaveBeenCalledWith({ annotationId: 'ann-1' });
+  });
+
+  // 9. Add Note button disabled when textarea empty
+  it('disables Add Note button when textarea is empty', () => {
+    renderPanel();
+    const addButton = screen.getByRole('button', { name: /add note/i });
     expect(addButton).toHaveProperty('disabled', true);
   });
 
-  it('renders existing annotations with content text', async () => {
-    const user = userEvent.setup();
-    mockAnnotations = [
-      {
-        id: 'ann-1',
-        artifactId: 'art-1',
-        slideIndex: 0,
-        content: 'This is a test annotation',
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
-
+  // 10. Shows Cmd+Enter hint only when textarea has content
+  it('shows Cmd+Enter hint only when textarea has content', () => {
     renderPanel();
-
-    await user.click(screen.getByLabelText('Open annotation panel'));
-
-    expect(screen.getByText('This is a test annotation')).toBeDefined();
+    expect(screen.queryByText('Cmd+Enter to submit')).toBeNull();
+    const textarea = screen.getByLabelText('Add annotation');
+    fireEvent.change(textarea, { target: { value: 'some text' } });
+    expect(screen.getByText('Cmd+Enter to submit')).toBeDefined();
   });
 
-  it('shows edit and delete buttons for own annotations', async () => {
-    const user = userEvent.setup();
-    mockAnnotations = [
-      {
-        id: 'ann-1',
-        artifactId: 'art-1',
-        slideIndex: 0,
-        content: 'My annotation',
-        userId: 'user-1', // matches currentUserId
-        workspaceId: 'ws-1',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
-
-    renderPanel();
-
-    await user.click(screen.getByLabelText('Open annotation panel'));
-
-    expect(screen.getByLabelText('Edit annotation')).toBeDefined();
-    expect(screen.getByLabelText('Delete annotation')).toBeDefined();
-  });
-
-  it('hides edit and delete buttons for other users annotations', async () => {
-    const user = userEvent.setup();
-    mockAnnotations = [
-      {
-        id: 'ann-1',
-        artifactId: 'art-1',
-        slideIndex: 0,
-        content: 'Their annotation',
-        userId: 'user-other', // does NOT match currentUserId
-        workspaceId: 'ws-1',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
-
-    renderPanel();
-
-    await user.click(screen.getByLabelText('Open annotation panel'));
-
-    expect(screen.queryByLabelText('Edit annotation')).toBeNull();
-    expect(screen.queryByLabelText('Delete annotation')).toBeNull();
-  });
-
-  it('shows "Adding..." text when create mutation is pending', async () => {
-    const user = userEvent.setup();
-    mockCreateMutation.isPending = true;
-
-    renderPanel();
-
-    await user.click(screen.getByLabelText('Open annotation panel'));
-
-    expect(screen.getByText('Adding...')).toBeDefined();
-
-    // Reset
-    mockCreateMutation.isPending = false;
-  });
-
-  it('shows error state when query fails', async () => {
-    const user = userEvent.setup();
-    mockIsError = true;
-
-    renderPanel();
-
-    await user.click(screen.getByLabelText('Open annotation panel'));
-
-    expect(screen.getByText(/Failed to load annotations/)).toBeDefined();
+  // 11. Collapsed strip toggle calls onToggleCollapse
+  it('calls onToggleCollapse when collapsed strip is clicked', () => {
+    const onToggleCollapse = vi.fn();
+    renderPanel({ isCollapsed: true, onToggleCollapse });
+    const button = screen.getByRole('button', { name: /annotations/i });
+    fireEvent.click(button);
+    expect(onToggleCollapse).toHaveBeenCalledOnce();
   });
 });

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -82,10 +83,49 @@ class RateLimitInfo:
     used: int = 0
 
 
+@dataclass
+class GitBlob:
+    """GitHub git blob."""
+
+    sha: str
+
+
+@dataclass
+class GitTreeEntry:
+    """Entry in a git tree."""
+
+    path: str
+    mode: str
+    type: str
+    sha: str
+
+
+@dataclass
+class GitRef:
+    """GitHub git ref (branch pointer)."""
+
+    ref: str
+    sha: str
+
+
+@dataclass
+class GitCompareResult:
+    """Result of comparing two commits."""
+
+    files: list[dict[str, Any]]
+    ahead_by: int
+    behind_by: int
+    total_commits: int
+
+
 __all__ = [
+    "GitBlob",
+    "GitCompareResult",
     "GitHubCommit",
     "GitHubPullRequest",
     "GitHubRepository",
     "GitHubUser",
+    "GitRef",
+    "GitTreeEntry",
     "RateLimitInfo",
 ]

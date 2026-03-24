@@ -40,6 +40,8 @@ export interface SupabaseYjsProviderOptions {
   awareness: Awareness;
   /** User display info for awareness */
   user: { id: string; name: string; color: string };
+  /** Channel prefix for Realtime channel name. Defaults to 'yjs:note:'. Use 'yjs:monaco:' for Monaco editor to avoid shared type conflicts with TipTap sessions. */
+  channelPrefix?: string;
   onStatusChange?: (status: ProviderStatus) => void;
   onError?: (error: Error) => void;
 }
@@ -71,6 +73,7 @@ export class SupabaseYjsProvider {
   private readonly ydoc: Y.Doc;
   private readonly awareness: Awareness;
   private readonly user: SupabaseYjsProviderOptions['user'];
+  private readonly channelPrefix: string;
   private readonly onStatusChange?: (status: ProviderStatus) => void;
   private readonly onError?: (error: Error) => void;
 
@@ -89,12 +92,13 @@ export class SupabaseYjsProvider {
     this.ydoc = options.ydoc;
     this.awareness = options.awareness;
     this.user = options.user;
+    this.channelPrefix = options.channelPrefix ?? 'yjs:note:';
     this.onStatusChange = options.onStatusChange;
     this.onError = options.onError;
   }
 
   get channelName(): string {
-    return `yjs:note:${this.noteId}`;
+    return `${this.channelPrefix}${this.noteId}`;
   }
 
   /** Connect to the Realtime channel and start syncing. */

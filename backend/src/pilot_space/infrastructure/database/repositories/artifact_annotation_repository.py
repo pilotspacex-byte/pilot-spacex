@@ -1,135 +1,129 @@
-"""ArtifactAnnotationRepository — data access for the artifact_annotations table.
+"""ArtifactAnnotationRepository — data access for artifact annotations.
 
-Handles CRUD operations for ArtifactAnnotation entities including:
-- Create new annotation for a slide
-- List annotations by artifact + slide index (ordered by created_at asc)
-- Get single annotation by id
-- Update annotation content (author-only check enforced at router layer)
-- Hard delete with boolean return
-
-Feature: v1.2 — PPTX Annotations
+Provides queries scoped by artifact and optional slide index.
+Hard delete: remove() permanently deletes the row.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import select
 
-from pilot_space.infrastructure.database.models.artifact_annotation import ArtifactAnnotation
+from pilot_space.domain.artifact_annotation import ArtifactAnnotation
+from pilot_space.infrastructure.database.repositories.base import BaseRepository
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class ArtifactAnnotationRepository:
+class ArtifactAnnotationRepository(BaseRepository[ArtifactAnnotation]):
     """Repository for ArtifactAnnotation entities.
 
-    Uses hard delete. Author-only enforcement for PUT/DELETE is handled
-    at the router layer; RLS enforces workspace isolation at the DB layer.
-
-    Provides:
-    - Create and return annotation with generated fields
-    - Slide-scoped listing ordered by created_at ascending
-    - Single annotation lookup by primary key
-    - Content update by annotation id
-    - Hard delete returning bool
+    Extends BaseRepository with artifact-specific queries.
+    All public list methods exclude soft-deleted rows (is_deleted=False)
+    for consistency, although the service layer always calls hard delete.
     """
 
     def __init__(self, session: AsyncSession) -> None:
-        """Initialize repository.
+        """Initialize ArtifactAnnotationRepository.
 
         Args:
-            session: Async database session.
+            session: The async database session.
         """
-        self.session = session
+        super().__init__(session, ArtifactAnnotation)
 
-    async def create(self, annotation: ArtifactAnnotation) -> ArtifactAnnotation:
-        """Persist a new annotation and return it with generated fields.
+    async def list_by_artifact(
+        self,
+        workspace_id: UUID,
+        artifact_id: UUID,
+    ) -> Sequence[ArtifactAnnotation]:
+        """Return all annotations for an artifact (all slides), newest first.
 
         Args:
-            annotation: The ArtifactAnnotation instance to persist.
+            workspace_id: Workspace scope for RLS enforcement.
+            artifact_id: The artifact to query.
 
         Returns:
-            The persisted annotation with id and server defaults populated.
+            Sequence of ArtifactAnnotation ordered by created_at desc.
         """
-        self.session.add(annotation)
-        await self.session.flush()
-        await self.session.refresh(annotation)
-        return annotation
+        query = (
+            select(ArtifactAnnotation)
+            .where(
+                ArtifactAnnotation.workspace_id == workspace_id,
+                ArtifactAnnotation.artifact_id == artifact_id,
+                ArtifactAnnotation.is_deleted == False,  # noqa: E712
+            )
+            .order_by(ArtifactAnnotation.created_at.desc())
+        )
+        result = await self.session.execute(query)
+        return result.scalars().all()
 
     async def list_by_slide(
         self,
+        workspace_id: UUID,
         artifact_id: UUID,
         slide_index: int,
-    ) -> list[ArtifactAnnotation]:
-        """List annotations for a specific slide, ordered by creation time ascending.
-
-        Uses the composite index ix_artifact_annotations_artifact_slide.
+    ) -> Sequence[ArtifactAnnotation]:
+        """Return annotations for a specific slide, newest first.
 
         Args:
-            artifact_id: Artifact to list annotations for.
-            slide_index: Zero-based slide index to filter by.
+            workspace_id: Workspace scope for RLS enforcement.
+            artifact_id: The artifact to query.
+            slide_index: Zero-based slide/page index.
 
         Returns:
-            List of ArtifactAnnotation rows, oldest first.
+            Sequence of ArtifactAnnotation for the given slide.
         """
-        result = await self.session.execute(
+        query = (
             select(ArtifactAnnotation)
             .where(
+                ArtifactAnnotation.workspace_id == workspace_id,
                 ArtifactAnnotation.artifact_id == artifact_id,
                 ArtifactAnnotation.slide_index == slide_index,
+                ArtifactAnnotation.is_deleted == False,  # noqa: E712
             )
-            .order_by(ArtifactAnnotation.created_at.asc())
+            .order_by(ArtifactAnnotation.created_at.desc())
         )
-        return list(result.scalars().all())
+        result = await self.session.execute(query)
+        return result.scalars().all()
 
-    async def get_by_id(self, annotation_id: UUID) -> ArtifactAnnotation | None:
-        """Fetch a single annotation by primary key.
+    async def get_for_artifact(
+        self,
+        workspace_id: UUID,
+        artifact_id: UUID,
+        annotation_id: UUID,
+    ) -> ArtifactAnnotation | None:
+        """Fetch a single annotation with workspace + artifact ownership check.
 
         Args:
-            annotation_id: UUID of the annotation row.
+            workspace_id: Workspace scope.
+            artifact_id: Artifact scope.
+            annotation_id: The annotation primary key.
 
         Returns:
-            ArtifactAnnotation if found, None otherwise.
+            ArtifactAnnotation if found and not deleted, else None.
         """
-        result = await self.session.execute(
-            select(ArtifactAnnotation).where(ArtifactAnnotation.id == annotation_id)
+        query = select(ArtifactAnnotation).where(
+            ArtifactAnnotation.id == annotation_id,
+            ArtifactAnnotation.workspace_id == workspace_id,
+            ArtifactAnnotation.artifact_id == artifact_id,
+            ArtifactAnnotation.is_deleted == False,  # noqa: E712
         )
+        result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def update_content(self, annotation_id: UUID, content: str) -> None:
-        """Update the content field for an annotation.
+    async def remove(self, annotation: ArtifactAnnotation) -> None:
+        """Hard-delete an annotation permanently.
 
         Args:
-            annotation_id: UUID of the annotation to update.
-            content: New content value.
+            annotation: The annotation to delete.
         """
-        await self.session.execute(
-            update(ArtifactAnnotation)
-            .where(ArtifactAnnotation.id == annotation_id)
-            .values(content=content, updated_at=func.now())
-        )
-        # Expire any cached ORM instance so the next get_by_id fetches fresh data
-        # (Core-level update bypasses the ORM identity map)
-        self.session.expire_all()
-
-    async def delete(self, annotation_id: UUID) -> bool:
-        """Hard-delete an annotation row by primary key.
-
-        Args:
-            annotation_id: UUID of the annotation to delete.
-
-        Returns:
-            True if a row was deleted, False if no matching row existed.
-        """
-        result = await self.session.execute(
-            delete(ArtifactAnnotation)
-            .where(ArtifactAnnotation.id == annotation_id)
-            .returning(ArtifactAnnotation.id)
-        )
-        return result.scalar_one_or_none() is not None
+        await self.session.delete(annotation)
+        await self.session.flush()
 
 
 __all__ = ["ArtifactAnnotationRepository"]

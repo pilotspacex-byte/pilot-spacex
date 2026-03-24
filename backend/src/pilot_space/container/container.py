@@ -26,6 +26,12 @@ from pilot_space.application.services.annotation import CreateAnnotationService
 from pilot_space.application.services.artifact.artifact_upload_service import (
     ArtifactUploadService,
 )
+from pilot_space.application.services.artifact_annotation import (
+    CreateArtifactAnnotationService,
+    DeleteArtifactAnnotationService,
+    ListArtifactAnnotationsService,
+    UpdateArtifactAnnotationService,
+)
 from pilot_space.application.services.auth import AuthService, ValidateAPIKeyService
 from pilot_space.application.services.cycle import (
     AddIssueToCycleService,
@@ -158,8 +164,8 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.api.v1.intent_deps",
             "pilot_space.api.v1.dependencies_workspace_skills",
             "pilot_space.api.v1.routers.project_artifacts",
-            "pilot_space.api.v1.routers.artifact_annotations",
             "pilot_space.api.v1.routers.notes_ai",
+            "pilot_space.api.v1.routers.workspace_artifact_annotations",
         ],
     )
 
@@ -596,6 +602,32 @@ class Container(SkillContainer, PluginContainer):
         session=providers.Callable(get_current_session),
         storage_client=InfraContainer.storage_client,
         artifact_repo=InfraContainer.artifact_repository,
+    )
+
+    # Artifact Annotation Services
+    list_artifact_annotations_service = providers.Factory(
+        ListArtifactAnnotationsService,
+        session=providers.Callable(get_current_session),
+        annotation_repo=InfraContainer.artifact_annotation_repository,
+    )
+
+    create_artifact_annotation_service = providers.Factory(
+        CreateArtifactAnnotationService,
+        session=providers.Callable(get_current_session),
+        artifact_repo=InfraContainer.artifact_repository,
+        annotation_repo=InfraContainer.artifact_annotation_repository,
+    )
+
+    update_artifact_annotation_service = providers.Factory(
+        UpdateArtifactAnnotationService,
+        session=providers.Callable(get_current_session),
+        annotation_repo=InfraContainer.artifact_annotation_repository,
+    )
+
+    delete_artifact_annotation_service = providers.Factory(
+        DeleteArtifactAnnotationService,
+        session=providers.Callable(get_current_session),
+        annotation_repo=InfraContainer.artifact_annotation_repository,
     )
 
     # Task Services

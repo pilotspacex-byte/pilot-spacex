@@ -11,7 +11,10 @@ import { motion } from 'motion/react';
 import { FileX, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { NoteCanvas } from '@/components/editor/NoteCanvas';
+import { NoteCanvasMonaco } from '@/components/editor/NoteCanvas';
+import { InlineNoteHeader } from '@/components/editor/InlineNoteHeader';
+import { jsonContentToMarkdown } from '@/features/editor/utils/jsonContentToMarkdown';
+import { markdownToJsonContent } from '@/features/editor/utils/markdownToJsonContent';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
 import { EditorFilePreview } from '@/features/artifacts/components/EditorFilePreview';
 import { useNote, useUpdateNote, useAutoSave } from '@/features/notes/hooks';
@@ -25,6 +28,9 @@ import { notesKeys } from '@/features/notes/hooks';
 import type { JSONContent } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { aiApi } from '@/services/api/ai';
+import type { GhostTextFetcher } from '@/features/editor/hooks/useMonacoGhostText';
 
 /**
  * Strips propertyBlock nodes from TipTap content to prevent unknown node errors
@@ -234,7 +240,7 @@ function NoteDetailPage() {
   // This avoids re-rendering the entire component tree on every keystroke.
   const {
     status: _saveStatus,
-    save: manualSave,
+    save: _manualSave,
     reset: resetAutoSave,
   } = useAutoSave({
     data: saveVersion,
@@ -312,24 +318,60 @@ function NoteDetailPage() {
     };
   }, [uiStore]);
 
-  // Handle content change - store in ref (no re-render), bump version to trigger debounced auto-save
-  const handleContentChange = useCallback((content: JSONContent) => {
-    contentRef.current = content;
+  // Convert JSONContent to markdown string for Monaco editor
+  const markdownContent = useMemo(
+    () => jsonContentToMarkdown(sanitizedContent),
+    [sanitizedContent]
+  );
+
+  // Ghost text fetcher — calls the AI ghost text endpoint and returns the suggestion string.
+  // Follows the same auth + POST pattern as GhostTextStore.fetchSuggestion but returns a
+  // Promise<string> matching the GhostTextFetcher interface expected by Monaco.
+  const ghostTextFetcher: GhostTextFetcher = useCallback(
+    async (ctx) => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
+        const response = await fetch(aiApi.getGhostTextUrl(''), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            context: ctx.textBeforeCursor.slice(-500),
+            prefix: ctx.textBeforeCursor.slice(-200),
+            workspace_id: workspaceId,
+            note_title: note?.title,
+          }),
+        });
+
+        if (!response.ok) return '';
+
+        const data = (await response.json()) as {
+          suggestion: string;
+          confidence: number;
+          cached: boolean;
+        };
+        return data.confidence >= 0.5 ? (data.suggestion ?? '') : '';
+      } catch {
+        return '';
+      }
+    },
+    [workspaceId, note]
+  );
+
+  // Handle content change from Monaco (markdown string) - convert back to JSONContent for API
+  const handleContentChange = useCallback((content: string) => {
+    contentRef.current = markdownToJsonContent(content);
     setSaveVersion((v) => v + 1);
   }, []);
-
-  // Handle manual save (Cmd+S)
-  const handleSave = useCallback(() => {
-    manualSave();
-  }, [manualSave]);
-
-  // Handle title change
-  const handleTitleChange = useCallback(
-    (title: string) => {
-      updateNote.mutate({ title });
-    },
-    [updateNote]
-  );
 
   // Handle delete
   const handleDelete = useCallback(() => {
@@ -396,37 +438,40 @@ function NoteDetailPage() {
     <div className="flex h-full flex-col">
       {/* Editor with merged header - Three-column layout per Prototype v4 */}
       <div className="relative flex-1 overflow-hidden">
-        <NoteCanvas
-          key={noteId}
-          noteId={noteId}
-          content={sanitizedContent}
-          readOnly={false}
-          onChange={handleContentChange}
-          onSave={handleSave}
-          workspaceId={workspaceId}
-          // Merged header props per Prototype v4
-          title={note.title}
-          author={note.owner}
-          createdAt={note.createdAt}
-          updatedAt={note.updatedAt}
-          wordCount={note.wordCount}
-          isPinned={note.isPinned}
-          isAIAssisted={note.isAIAssisted}
-          topics={note.topics}
-          workspaceSlug={workspaceSlug}
-          onTitleChange={handleTitleChange}
-          onShare={handleShare}
-          onExport={handleExport}
-          onDelete={handleDelete}
-          onTogglePin={handleTogglePin}
-          onVersionHistory={handleVersionHistory}
-          onMove={handleMove}
-          projectId={note.projectId}
-          linkedIssues={note.linkedIssues}
-          iconEmoji={note.iconEmoji}
-          isFocusMode={isFocusMode}
-          onToggleFocusMode={handleToggleFocusMode}
-        />
+        <div className="flex flex-col h-full">
+          {/* Note header with metadata, breadcrumbs, and actions */}
+          <InlineNoteHeader
+            title={note.title}
+            createdAt={note.createdAt}
+            updatedAt={note.updatedAt}
+            wordCount={note.wordCount ?? 0}
+            isPinned={note.isPinned}
+            isAIAssisted={note.isAIAssisted}
+            topics={note.topics}
+            workspaceSlug={workspaceSlug}
+            workspaceId={workspaceId}
+            projectId={note.projectId ?? undefined}
+            onShare={handleShare}
+            onExport={handleExport}
+            onDelete={handleDelete}
+            onTogglePin={handleTogglePin}
+            onVersionHistory={handleVersionHistory}
+            onMove={handleMove}
+            isFocusMode={isFocusMode}
+            onToggleFocusMode={handleToggleFocusMode}
+          />
+
+          {/* Monaco editor */}
+          <NoteCanvasMonaco
+            key={noteId}
+            noteId={noteId}
+            initialContent={markdownContent}
+            onChange={handleContentChange}
+            isReadOnly={false}
+            ghostTextFetcher={ghostTextFetcher}
+            className="flex-1"
+          />
+        </div>
 
         {/* File preview modal — self-contained to isolate state from EditorContent */}
         <EditorFilePreview workspaceId={workspaceId} projectId={note.projectId ?? ''} />

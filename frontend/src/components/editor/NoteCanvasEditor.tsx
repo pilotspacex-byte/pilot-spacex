@@ -1,7 +1,7 @@
+// DEPRECATED: Replaced by MonacoNoteEditor in Phase 40. Keep for rollback.
 'use client';
 
-/**
- * NoteCanvasEditor - Editor initialization, TipTap hooks, and all editor logic.
+/** NoteCanvasEditor - Editor initialization, TipTap hooks, and all editor logic.
  * Extracted from NoteCanvas to stay under 700-line limit.
  *
  * Exports:

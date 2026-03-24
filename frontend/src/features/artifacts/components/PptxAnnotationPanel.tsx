@@ -1,289 +1,131 @@
 'use client';
 
 /**
- * PptxAnnotationPanel — collapsible right panel showing per-slide annotations.
+ * PptxAnnotationPanel -- Per-slide annotation CRUD panel for PPTX previews.
  *
- * Props:
- *   workspaceId, projectId, artifactId — for API calls
- *   currentSlide — the 0-based slide index (re-queries when this changes)
- *   currentUserId — to gate edit/delete actions to annotation author
+ * Renders alongside the slide canvas in FilePreviewModal. Supports:
+ * - Create via textarea + "Add Note" button (or Cmd/Ctrl+Enter)
+ * - Inline edit (owner-only) with Save/Cancel
+ * - Optimistic delete (owner-only) with no confirmation dialog
+ * - Collapsed strip with count badge (capped at "9+")
+ * - Resets textarea and edit state on slide change
  *
- * Layout: 320px side panel with border-l, flex column.
- * Toggle button shown in panel header area; collapses to a narrow icon strip.
- *
- * Data: TanStack Query hooks (not MobX) — annotations are server state.
+ * IMPORTANT: Plain React component (NOT observer) to avoid React 19
+ * flushSync issues with TipTap portals.
  */
 
 import * as React from 'react';
-import { MessageSquarePlus, Pencil, Trash2, X, ChevronRight, Check } from 'lucide-react';
+import { ChevronRight, Check, MessageSquarePlus, Pencil, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  useSlideAnnotations,
-  useCreateAnnotation,
-  useUpdateAnnotation,
-  useDeleteAnnotation,
-} from '../hooks/use-slide-annotations';
-import type { ArtifactAnnotation } from '@/services/api/artifact-annotations';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatRelativeTime(isoDate: string): string {
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
-}
-
-// ---------------------------------------------------------------------------
-// AnnotationCard
-// ---------------------------------------------------------------------------
-
-interface AnnotationCardProps {
-  annotation: ArtifactAnnotation;
-  isOwner: boolean;
-  onEdit: (id: string, content: string) => void;
-  onDelete: (id: string) => void;
-  editingId: string | null;
-  editDraft: string;
-  onEditDraftChange: (v: string) => void;
-  onEditSave: () => void;
-  onEditCancel: () => void;
-  isUpdating: boolean;
-  isDeleting: boolean;
-}
-
-function AnnotationCard({
-  annotation,
-  isOwner,
-  onEdit,
-  onDelete,
-  editingId,
-  editDraft,
-  onEditDraftChange,
-  onEditSave,
-  onEditCancel,
-  isUpdating,
-  isDeleting,
-}: AnnotationCardProps) {
-  const isEditing = editingId === annotation.id;
-  const isTemp = annotation.id.startsWith('temp-');
-
-  return (
-    <div
-      className={cn(
-        'rounded-lg bg-background p-3 space-y-2 border border-border/40 shadow-sm transition-opacity',
-        (isDeleting || isTemp) && 'opacity-50'
-      )}
-    >
-      {/* Header: author avatar + timestamp */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="size-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-            <span className="text-[9px] font-bold text-primary/80 uppercase">
-              {annotation.userId?.[0]?.toUpperCase() ?? '?'}
-            </span>
-          </div>
-          <span className="text-[11px] text-muted-foreground/70 truncate">
-            {formatRelativeTime(annotation.updatedAt)}
-          </span>
-        </div>
-
-        {/* Edit / delete — owner only */}
-        {isOwner && !isTemp && !isEditing && (
-          <div className="flex items-center gap-0.5 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6"
-              onClick={() => onEdit(annotation.id, annotation.content)}
-              aria-label="Edit annotation"
-              disabled={isDeleting}
-            >
-              <Pencil className="size-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6 text-destructive hover:text-destructive"
-              onClick={() => onDelete(annotation.id)}
-              aria-label="Delete annotation"
-              disabled={isDeleting}
-            >
-              <Trash2 className="size-3" />
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Content — or edit textarea */}
-      {isEditing ? (
-        <div className="space-y-2">
-          <Textarea
-            value={editDraft}
-            onChange={(e) => onEditDraftChange(e.target.value)}
-            className="min-h-[80px] text-sm resize-none"
-            autoFocus
-            aria-label="Edit annotation content"
-          />
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={onEditCancel}
-              disabled={isUpdating}
-            >
-              <X className="size-3 mr-1" />
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={onEditSave}
-              disabled={isUpdating || !editDraft.trim()}
-            >
-              <Check className="size-3 mr-1" />
-              Save
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm whitespace-pre-wrap break-words">{annotation.content}</p>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// PptxAnnotationPanel — main export
-// ---------------------------------------------------------------------------
+import { usePptxAnnotations } from '../hooks/usePptxAnnotations';
 
 export interface PptxAnnotationPanelProps {
   workspaceId: string;
   projectId: string;
   artifactId: string;
-  currentSlide: number;
+  slideIndex: number;
   currentUserId: string;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-export function PptxAnnotationPanel({
+/** Format an ISO timestamp as a relative time string (e.g., "2m ago", "3h ago"). */
+function formatRelativeTime(isoString: string): string {
+  const now = Date.now();
+  const then = new Date(isoString).getTime();
+  const diffSeconds = Math.max(0, Math.floor((now - then) / 1000));
+
+  if (diffSeconds < 60) return 'just now';
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
+export default function PptxAnnotationPanel({
   workspaceId,
   projectId,
   artifactId,
-  currentSlide,
+  slideIndex,
   currentUserId,
+  isCollapsed,
+  onToggleCollapse,
 }: PptxAnnotationPanelProps) {
-  const [isOpen, setIsOpen] = React.useState(false);
+  const { annotations, total, isLoading, createAnnotation, updateAnnotation, deleteAnnotation } =
+    usePptxAnnotations({ workspaceId, projectId, artifactId, slideIndex });
+
   const [newContent, setNewContent] = React.useState('');
   const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [editDraft, setEditDraft] = React.useState('');
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [editContent, setEditContent] = React.useState('');
 
-  // Reset new annotation textarea when slide changes
+  // Reset textarea and edit state when slide changes
   React.useEffect(() => {
     setNewContent('');
     setEditingId(null);
-    setEditDraft('');
-  }, [currentSlide]);
+    setEditContent('');
+  }, [slideIndex]);
 
-  // TanStack Query hooks
-  const {
-    data: annotations = [],
-    isLoading,
-    isError,
-  } = useSlideAnnotations(workspaceId, projectId, artifactId, currentSlide);
+  // ---- Create ----
+  function handleCreate() {
+    const trimmed = newContent.trim();
+    if (!trimmed) return;
+    createAnnotation.mutate({ content: trimmed });
+    setNewContent('');
+  }
 
-  const createMutation = useCreateAnnotation(workspaceId, projectId, artifactId);
-  const updateMutation = useUpdateAnnotation(workspaceId, projectId, artifactId);
-  const deleteMutation = useDeleteAnnotation(workspaceId, projectId, artifactId);
-
-  const annotationCount = annotations.length;
-
-  // Handlers
-  const handleCreate = () => {
-    if (!newContent.trim()) return;
-    createMutation.mutate(
-      { slideIndex: currentSlide, content: newContent.trim() },
-      {
-        onSuccess: () => setNewContent(''),
-      }
-    );
-  };
-
-  const handleEditStart = (id: string, content: string) => {
-    setEditingId(id);
-    setEditDraft(content);
-  };
-
-  const handleEditSave = () => {
-    if (!editingId || !editDraft.trim()) return;
-    updateMutation.mutate(
-      { annotationId: editingId, content: editDraft.trim(), slideIndex: currentSlide },
-      {
-        onSuccess: () => {
-          setEditingId(null);
-          setEditDraft('');
-        },
-        onError: () => {
-          // Toast already shown in hook; keep edit mode open
-        },
-      }
-    );
-  };
-
-  const handleEditCancel = () => {
-    setEditingId(null);
-    setEditDraft('');
-  };
-
-  const handleDelete = (annotationId: string) => {
-    setDeletingId(annotationId);
-    deleteMutation.mutate(
-      { annotationId, slideIndex: currentSlide },
-      {
-        onSettled: () => setDeletingId(null),
-      }
-    );
-  };
-
-  const handleNewContentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Cmd+Enter / Ctrl+Enter submits the form
+  function handleCreateKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
       handleCreate();
     }
-  };
+  }
 
-  // ---------------------------------------------------------------------------
-  // Collapsed state — narrow toggle strip
-  // ---------------------------------------------------------------------------
-  if (!isOpen) {
+  // ---- Edit ----
+  function startEdit(id: string, content: string) {
+    setEditingId(id);
+    setEditContent(content);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditContent('');
+  }
+
+  function saveEdit() {
+    if (!editingId) return;
+    const trimmed = editContent.trim();
+    if (!trimmed) return;
+    updateAnnotation.mutate({ annotationId: editingId, content: trimmed });
+    setEditingId(null);
+    setEditContent('');
+  }
+
+  // ---- Delete ----
+  function handleDelete(annotationId: string) {
+    deleteAnnotation.mutate({ annotationId });
+  }
+
+  // ---- Collapsed strip ----
+  if (isCollapsed) {
+    const badgeText = total > 9 ? '9+' : String(total);
     return (
-      <div className="shrink-0 flex flex-col items-center border-l border-border/60 py-3 px-1.5 gap-2 bg-muted/10">
+      <div className="flex flex-col items-center py-3 px-1 border-l bg-muted/10">
         <Button
           variant="ghost"
           size="icon"
-          className="size-8 relative hover:bg-primary/10"
-          onClick={() => setIsOpen(true)}
-          aria-label="Open annotation panel"
-          title={`Annotations (${annotationCount})`}
+          className="size-8 relative"
+          onClick={onToggleCollapse}
+          aria-label="Annotations"
         >
           <MessageSquarePlus className="size-4" />
-          {annotationCount > 0 && (
-            <span className="absolute -top-1 -right-1 size-[18px] rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold leading-none ring-2 ring-background">
-              {annotationCount > 9 ? '9+' : annotationCount}
+          {total > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center px-1">
+              {badgeText}
             </span>
           )}
         </Button>
@@ -291,100 +133,154 @@ export function PptxAnnotationPanel({
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Expanded panel — 320px side panel
-  // ---------------------------------------------------------------------------
+  // ---- Expanded panel ----
   return (
-    <div className="shrink-0 w-80 flex flex-col border-l border-border/60 bg-background">
-      {/* Panel header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/60 shrink-0 bg-muted/20">
-        <div className="flex items-center gap-2 min-w-0">
-          <MessageSquarePlus className="size-3.5 text-primary/70 shrink-0" />
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground truncate">
-            Slide {currentSlide + 1}
-          </span>
-          {annotationCount > 0 && (
-            <span className="text-[10px] text-muted-foreground/70 tabular-nums shrink-0">
-              ({annotationCount})
-            </span>
-          )}
-        </div>
+    <div
+      className="w-80 shrink-0 border-l flex flex-col bg-background"
+      data-testid="annotation-panel"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          Annotations
+        </span>
         <Button
           variant="ghost"
           size="icon"
-          className="size-6"
-          onClick={() => setIsOpen(false)}
-          aria-label="Close annotation panel"
+          className="size-7"
+          onClick={onToggleCollapse}
+          aria-label="Collapse annotations"
         >
-          <ChevronRight className="size-3.5" />
+          <ChevronRight className="size-4" />
         </Button>
       </div>
 
       {/* Annotation list */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-3 space-y-3">
-          {isLoading ? (
+          {isLoading && annotations.length === 0 && (
             <div
               className="flex items-center justify-center py-8"
               role="status"
               aria-label="Loading annotations"
             >
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-primary" />
             </div>
-          ) : isError ? (
-            <p className="text-sm text-destructive text-center py-8">
-              Failed to load annotations. Please try again.
-            </p>
-          ) : annotations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-              <div className="size-10 rounded-full bg-muted/80 flex items-center justify-center mb-3">
-                <MessageSquarePlus className="size-4 text-muted-foreground/60" />
-              </div>
-              <p className="text-xs text-muted-foreground">No annotations on this slide yet.</p>
-            </div>
-          ) : (
-            annotations.map((annotation) => (
-              <AnnotationCard
-                key={annotation.id}
-                annotation={annotation}
-                isOwner={annotation.userId === currentUserId}
-                onEdit={handleEditStart}
-                onDelete={handleDelete}
-                editingId={editingId}
-                editDraft={editDraft}
-                onEditDraftChange={setEditDraft}
-                onEditSave={handleEditSave}
-                onEditCancel={handleEditCancel}
-                isUpdating={updateMutation.isPending}
-                isDeleting={deletingId === annotation.id}
-              />
-            ))
           )}
+
+          {!isLoading && annotations.length === 0 && (
+            <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
+              <MessageSquarePlus className="size-8 opacity-40" />
+              <p className="text-sm">No annotations on this slide yet.</p>
+            </div>
+          )}
+
+          {annotations.map((annotation) => {
+            const isOwner = annotation.user_id === currentUserId;
+            const isTemp = annotation.id.startsWith('temp-');
+            const isEditing = editingId === annotation.id;
+            const isDeleting =
+              deleteAnnotation.variables?.annotationId === annotation.id &&
+              deleteAnnotation.isPending;
+
+            return (
+              <div
+                key={annotation.id}
+                className={cn(
+                  'rounded-md border p-2.5 space-y-1.5 transition-opacity',
+                  (isTemp || isDeleting) && 'opacity-50'
+                )}
+              >
+                {isEditing ? (
+                  <>
+                    <Textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="min-h-[60px] text-sm resize-none"
+                      aria-label="Edit annotation"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7"
+                        onClick={saveEdit}
+                        aria-label="Save edit"
+                      >
+                        <Check className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7"
+                        onClick={cancelEdit}
+                        aria-label="Cancel edit"
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm whitespace-pre-wrap break-words">{annotation.content}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-muted-foreground">
+                        {formatRelativeTime(annotation.created_at)}
+                      </span>
+                      {isOwner && !isTemp && (
+                        <div className="flex items-center gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            onClick={() => startEdit(annotation.id, annotation.content)}
+                            aria-label="Edit annotation"
+                          >
+                            <Pencil className="size-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 hover:text-destructive"
+                            onClick={() => handleDelete(annotation.id)}
+                            aria-label="Delete annotation"
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       </ScrollArea>
 
-      {/* New annotation form */}
-      <div className="shrink-0 p-3 border-t border-border/60 space-y-2 bg-muted/10">
+      {/* Create form */}
+      <div className="border-t p-3 space-y-2">
         <Textarea
-          placeholder="Add a note..."
           value={newContent}
           onChange={(e) => setNewContent(e.target.value)}
-          onKeyDown={handleNewContentKeyDown}
-          className="min-h-[72px] text-sm resize-none bg-background"
-          aria-label="New annotation content"
-          disabled={createMutation.isPending}
+          onKeyDown={handleCreateKeyDown}
+          placeholder="Add a note..."
+          className="min-h-[60px] text-sm resize-none"
+          aria-label="Add annotation"
         />
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-muted-foreground/60">
-            {newContent.trim() ? 'Cmd+Enter to submit' : ''}
-          </span>
+          {newContent.trim() ? (
+            <span className="text-[11px] text-muted-foreground">Cmd+Enter to submit</span>
+          ) : (
+            <span />
+          )}
           <Button
             size="sm"
-            className="h-7 px-3 text-xs"
             onClick={handleCreate}
-            disabled={!newContent.trim() || createMutation.isPending}
+            disabled={!newContent.trim() || createAnnotation.isPending}
           >
-            {createMutation.isPending ? 'Adding...' : 'Add'}
+            {createAnnotation.isPending ? 'Adding...' : 'Add Note'}
           </Button>
         </div>
       </div>

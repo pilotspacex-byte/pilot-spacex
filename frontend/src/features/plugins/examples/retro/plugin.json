@@ -1,0 +1,30 @@
+{
+  "name": "retro",
+  "version": "1.0.0",
+  "displayName": "Retrospective Board",
+  "description": "Insert a retrospective board for team reviews",
+  "author": "Pilot Space",
+  "entrypoint": "index.js",
+  "permissions": ["editor:write"],
+  "blockTypes": [
+    {
+      "type": "retro",
+      "label": "Retrospective",
+      "icon": "MessageSquare"
+    }
+  ],
+  "slashCommands": [
+    {
+      "trigger": "/retro",
+      "label": "Insert Retro Board",
+      "description": "Insert a retrospective board"
+    }
+  ],
+  "actions": [
+    {
+      "id": "retro.insert",
+      "label": "Insert Retro Board",
+      "category": "note"
+    }
+  ]
+}

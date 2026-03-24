@@ -319,6 +319,105 @@
 }
 
 /* =============================================================================
+   HIGH CONTRAST THEME - WCAG AAA compliant
+   ============================================================================= */
+.high-contrast {
+  /* Base - Maximum contrast */
+  --background: #000000;
+  --background-subtle: #0a0a0a;
+  --background-muted: #1a1a1a;
+  --foreground: #ffffff;
+  --foreground-muted: #e0e0e0;
+
+  /* Card surfaces */
+  --card: #0a0a0a;
+  --card-foreground: #ffffff;
+
+  /* Popover */
+  --popover: #0a0a0a;
+  --popover-foreground: #ffffff;
+
+  /* Primary - High contrast green */
+  --primary: #00ff88;
+  --primary-hover: #00cc6e;
+  --primary-muted: #003322;
+  --primary-foreground: #000000;
+
+  /* Secondary */
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ffffff;
+
+  /* Muted */
+  --muted: #1a1a1a;
+  --muted-foreground: #e0e0e0;
+
+  /* Accent */
+  --accent: #1a1a1a;
+  --accent-foreground: #ffffff;
+
+  /* Destructive - Maximum contrast red */
+  --destructive: #ff4444;
+  --destructive-foreground: #000000;
+
+  /* Warning */
+  --warning: #ffaa00;
+
+  /* Info - High contrast blue */
+  --info: #80c0ff;
+  --info-foreground: #000000;
+
+  /* Success */
+  --success: #00ff88;
+  --success-foreground: #000000;
+
+  /* Borders - White for maximum visibility */
+  --border: #ffffff;
+  --border-subtle: #cccccc;
+  --input: #ffffff;
+  --ring: #00ff88;
+
+  /* AI Partner - High contrast blue */
+  --ai: #80c0ff;
+  --ai-hover: #60a0e0;
+  --ai-muted: #002244;
+  --ai-border: #80c0ff;
+  --ai-foreground: #000000;
+  --ai-bg: #001a33;
+
+  /* Question Request */
+  --color-question-bg: #1a1a0a;
+
+  /* Issue States - Maximum contrast */
+  --state-backlog: #cccccc;
+  --state-todo: #80c0ff;
+  --state-in-progress: #ffaa00;
+  --state-in-review: #cc99ff;
+  --state-done: #00ff88;
+  --state-cancelled: #ff4444;
+
+  /* Priority - Maximum contrast */
+  --priority-urgent: #ff4444;
+  --priority-high: #ffaa00;
+  --priority-medium: #ffdd00;
+  --priority-low: #80c0ff;
+  --priority-none: #cccccc;
+
+  /* Sidebar */
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #00ff88;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #ffffff;
+  --sidebar-ring: #00ff88;
+
+  /* Accessible text colors (AAA compliant) */
+  --primary-text: #00ff88;
+  --ai-text: #80c0ff;
+}
+
+/* =============================================================================
    REDUCED MOTION — C-1/C-2: Respect prefers-reduced-motion globally
    ============================================================================= */
 @media (prefers-reduced-motion: reduce) {

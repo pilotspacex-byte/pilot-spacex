@@ -11,6 +11,7 @@ import {
   KeyRound,
   Palette,
   Plug,
+  Puzzle,
   ServerCog,
   Settings,
   Shield,
@@ -77,6 +78,9 @@ const FeaturesSettingsPage = lazy(
 const AppearanceSettingsPage = lazy(() =>
   import('./pages/appearance-settings-page').then((m) => ({ default: m.AppearanceSettingsPage }))
 );
+const PluginsSettingsPage = lazy(() =>
+  import('./pages/plugins-settings-page').then((m) => ({ default: m.PluginsSettingsPage }))
+);
 
 // Billing placeholder (inline — trivial component)
 function BillingPlaceholder() {
@@ -134,6 +138,7 @@ const settingsNavSections: NavSection[] = [
     items: [
       { id: 'profile', label: 'Profile', icon: User },
       { id: 'appearance', label: 'Appearance', icon: Palette },
+      { id: 'plugins', label: 'Plugins', icon: Puzzle },
     ],
   },
 ];
@@ -158,6 +163,7 @@ const SECTION_COMPONENTS: Record<
   integrations: IntegrationsSettingsPage,
   billing: BillingPlaceholder as unknown as React.LazyExoticComponent<React.ComponentType>,
   appearance: AppearanceSettingsPage,
+  plugins: PluginsSettingsPage,
 };
 
 function PanelSkeleton() {

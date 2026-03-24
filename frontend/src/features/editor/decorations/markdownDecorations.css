@@ -1,0 +1,39 @@
+/* Markdown decoration classes for Monaco editor inline decorations */
+
+.md-h1 {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.md-h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.md-h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.md-bold {
+  font-weight: 700;
+}
+
+.md-italic {
+  font-style: italic;
+}
+
+.md-inline-code {
+  font-family: var(--font-mono);
+  background: hsl(var(--background-subtle));
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.md-blockquote-glyph {
+  border-left: 3px solid hsl(var(--primary));
+}
+
+.md-list-bullet {
+  color: hsl(var(--muted-foreground));
+}

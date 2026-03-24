@@ -14,6 +14,7 @@ from pilot_space.integrations.github.exceptions import (
     GitHubAuthError,
     GitHubRateLimitError,
 )
+from pilot_space.integrations.github.git_data import GitDataMixin
 from pilot_space.integrations.github.models import (
     GitHubCommit,
     GitHubPullRequest,
@@ -30,20 +31,8 @@ GITHUB_OAUTH_URL = "https://github.com/login/oauth"
 
 
 @dataclass
-class GitHubClient:
-    """GitHub API client with OAuth and rate limiting.
-
-    Provides:
-    - OAuth code exchange
-    - Authenticated API requests
-    - Repository, commit, PR operations
-    - Webhook management
-    - Rate limit handling
-
-    Attributes:
-        access_token: OAuth access token.
-        _http_client: httpx async client.
-    """
+class GitHubClient(GitDataMixin):
+    """GitHub API client with OAuth, rate limiting, and Git Data API (via mixin)."""
 
     access_token: str
     _http_client: httpx.AsyncClient = field(init=False, repr=False)
@@ -219,6 +208,10 @@ class GitHubClient:
                 status_code=response.status_code,
                 response_body=body,
             )
+
+        # Handle 204 No Content (e.g. DELETE operations)
+        if response.status_code == 204 or not response.content:
+            return {}
 
         return response.json()
 

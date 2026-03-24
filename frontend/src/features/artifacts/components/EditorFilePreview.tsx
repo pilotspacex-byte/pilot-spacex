@@ -71,6 +71,8 @@ export function EditorFilePreview({
       filename={selected?.filename ?? ''}
       mimeType={selected?.mimeType ?? ''}
       signedUrl={signedUrl}
+      workspaceId={workspaceId}
+      projectId={projectId}
     />
   );
 }

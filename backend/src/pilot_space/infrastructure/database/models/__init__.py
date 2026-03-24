@@ -50,6 +50,7 @@ from pilot_space.infrastructure.database.models.discussion_comment import (
     DiscussionComment,
 )
 from pilot_space.infrastructure.database.models.drive_credential import DriveCredential
+from pilot_space.infrastructure.database.models.editor_plugin import EditorPlugin
 from pilot_space.infrastructure.database.models.embedding import Embedding, EmbeddingType
 from pilot_space.infrastructure.database.models.graph_edge import GraphEdgeModel
 from pilot_space.infrastructure.database.models.graph_node import GraphNodeModel
@@ -150,6 +151,9 @@ from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
 )
+from pilot_space.infrastructure.database.models.workspace_member_preferences import (
+    WorkspaceMemberPreferences,
+)
 from pilot_space.infrastructure.database.models.workspace_plugin import WorkspacePlugin
 from pilot_space.infrastructure.database.models.workspace_role_skill import WorkspaceRoleSkill
 from pilot_space.infrastructure.database.models.workspace_session import WorkspaceSession
@@ -187,6 +191,7 @@ __all__ = [
     "DriveCredential",
     "Embedding",
     "EmbeddingType",
+    "EditorPlugin",
     "EntityId",
     "GraphEdgeModel",
     "GraphNodeModel",
@@ -255,6 +260,7 @@ __all__ = [
     "WorkspaceInvitation",
     "WorkspaceMcpServer",
     "WorkspaceMember",
+    "WorkspaceMemberPreferences",
     "WorkspaceOnboarding",
     "WorkspacePlugin",
     "WorkspaceRole",

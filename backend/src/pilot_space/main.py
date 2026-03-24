@@ -30,7 +30,6 @@ from pilot_space.api.v1.routers import (
     ai_router,
     ai_sessions_router,
     ai_tasks_router,
-    artifact_annotations_router,
     audit_router,
     auth_router,
     auth_sso_router,
@@ -73,6 +72,7 @@ from pilot_space.api.v1.routers import (
     skills_router,
     webhooks_router,
     workspace_ai_settings_router,
+    workspace_artifact_annotations_router,
     workspace_cycles_router,
     workspace_encryption_router,
     workspace_feature_toggles_router,
@@ -91,6 +91,8 @@ from pilot_space.api.v1.routers import (
     workspace_tasks_router,
     workspaces_router,
 )
+from pilot_space.api.v1.routers.editor_plugins import router as editor_plugins_router
+from pilot_space.api.v1.routers.git_proxy import router as git_proxy_router
 from pilot_space.api.v1.routers.skill_templates import (
     router as skill_templates_router,
 )
@@ -191,12 +193,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _anthropic_api_key: str | None = (
             _anthropic_secret.get_secret_value() if _anthropic_secret else None
         )
+        from pilot_space.infrastructure.storage.client import SupabaseStorageClient
+
         memory_worker = MemoryWorker(
             queue=queue_client,
             session_factory=session_factory,
             google_api_key=_google_api_key,
             anthropic_api_key=_anthropic_api_key,
-            storage_client=container.storage_client(),
+            storage_client=SupabaseStorageClient(),
         )
         memory_worker_task = asyncio.create_task(memory_worker.start())
 
@@ -323,6 +327,7 @@ if ai_pr_review_router is not None:  # type: ignore[reportUnnecessaryComparison]
     app.include_router(ai_pr_review_router, prefix=API_V1_PREFIX)
 app.include_router(ai_sessions_router, prefix=API_V1_PREFIX)
 app.include_router(integrations_router, prefix=API_V1_PREFIX)
+app.include_router(git_proxy_router, prefix=API_V1_PREFIX)
 app.include_router(github_links_router, prefix=API_V1_PREFIX)
 app.include_router(webhooks_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_ai_settings_router, prefix=f"{API_V1_PREFIX}/workspaces")
@@ -338,6 +343,7 @@ app.include_router(workspace_role_skills_router, prefix=f"{API_V1_PREFIX}/worksp
 app.include_router(skill_templates_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(user_skills_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_plugins_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(editor_plugins_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_action_buttons_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_issue_branches_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_invitations_router, prefix=API_V1_PREFIX)
@@ -366,9 +372,12 @@ app.include_router(
     tags=["artifacts"],
 )
 app.include_router(
-    artifact_annotations_router,
-    prefix=API_V1_PREFIX
-    + "/workspaces/{workspace_id}/projects/{project_id}/artifacts/{artifact_id}/annotations",
+    workspace_artifact_annotations_router,
+    prefix=(
+        API_V1_PREFIX
+        + "/workspaces/{workspace_id}/projects/{project_id}"
+        + "/artifacts/{artifact_id}/annotations"
+    ),
     tags=["artifact-annotations"],
 )
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)

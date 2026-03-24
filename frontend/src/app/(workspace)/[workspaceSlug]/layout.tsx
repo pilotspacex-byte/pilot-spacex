@@ -15,6 +15,7 @@ import { useWorkspace } from '@/components/workspace-guard';
 import { useWorkspaceStore } from '@/stores';
 import { saveLastWorkspacePath } from '@/lib/workspace-nav';
 import { AiNotConfiguredBanner } from '@/components/workspace/ai-not-configured-banner';
+import { SmoothScrollProvider } from '@/features/editor/hooks/useLenisScroll';
 import type { WorkspaceFeatureToggles } from '@/types';
 
 /** Map first pathname segment after workspace slug to a feature toggle key. */
@@ -23,7 +24,7 @@ const ROUTE_FEATURE_MAP: Record<string, keyof WorkspaceFeatureToggles> = {
   issues: 'issues',
   projects: 'projects',
   members: 'members',
-  knowledge: 'knowledge',
+  docs: 'docs',
   skills: 'skills',
   costs: 'costs',
   approvals: 'approvals',
@@ -65,7 +66,7 @@ const WorkspaceSlugLayout = observer(function WorkspaceSlugLayout({
   return (
     <>
       <AiNotConfiguredBanner workspaceSlug={workspaceSlug} isOwner={isOwner} />
-      {children}
+      <SmoothScrollProvider>{children}</SmoothScrollProvider>
     </>
   );
 });

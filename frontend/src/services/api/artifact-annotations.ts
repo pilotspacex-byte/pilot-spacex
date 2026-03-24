@@ -1,94 +1,86 @@
 import { apiClient } from './client';
 
-/**
- * ArtifactAnnotation — a text annotation scoped to a specific slide within a PPTX artifact.
- *
- * Annotations are ephemeral comments (hard-deleted, no soft-delete) owned by a single user.
- * RLS enforces workspace isolation; author ownership enforced at router layer.
- */
-export interface ArtifactAnnotation {
+export interface AnnotationResponse {
   id: string;
-  artifactId: string;
-  slideIndex: number;
+  artifact_id: string;
+  slide_index: number;
   content: string;
-  userId: string;
-  workspaceId: string;
-  createdAt: string;
-  updatedAt: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
-interface AnnotationListResponse {
-  annotations: ArtifactAnnotation[];
+export interface AnnotationListResponse {
+  annotations: AnnotationResponse[];
   total: number;
 }
 
-/**
- * annotationApi — CRUD operations for PPTX slide annotations.
- *
- * All endpoints are scoped under:
- *   /workspaces/{wid}/projects/{pid}/artifacts/{aid}/annotations
- */
-export const annotationApi = {
+export const annotationsApi = {
   /**
-   * List all annotations for a specific slide.
+   * List annotations for an artifact, optionally filtered by slide index.
    *
-   * GET /workspaces/{wid}/projects/{pid}/artifacts/{aid}/annotations?slideIndex=N
-   * Returns the `annotations` array from the paginated response.
+   * GET /workspaces/{wid}/projects/{pid}/artifacts/{aid}/annotations?slide_index=N
    */
-  list(wid: string, pid: string, aid: string, slideIndex: number): Promise<ArtifactAnnotation[]> {
-    return apiClient
-      .get<AnnotationListResponse>(
-        `/workspaces/${wid}/projects/${pid}/artifacts/${aid}/annotations?slide_index=${slideIndex}`
-      )
-      .then((res) => res.annotations);
+  list(
+    workspaceId: string,
+    projectId: string,
+    artifactId: string,
+    slideIndex?: number
+  ): Promise<AnnotationListResponse> {
+    const params = slideIndex !== undefined ? `?slide_index=${slideIndex}` : '';
+    return apiClient.get<AnnotationListResponse>(
+      `/workspaces/${workspaceId}/projects/${projectId}/artifacts/${artifactId}/annotations${params}`
+    );
   },
 
   /**
-   * Create a new annotation on a specific slide.
+   * Create an annotation on a specific slide.
    *
    * POST /workspaces/{wid}/projects/{pid}/artifacts/{aid}/annotations
-   * Returns the newly created ArtifactAnnotation (201).
    */
   create(
-    wid: string,
-    pid: string,
-    aid: string,
-    body: { slideIndex: number; content: string }
-  ): Promise<ArtifactAnnotation> {
-    return apiClient.post<ArtifactAnnotation>(
-      `/workspaces/${wid}/projects/${pid}/artifacts/${aid}/annotations`,
-      { slide_index: body.slideIndex, content: body.content }
+    workspaceId: string,
+    projectId: string,
+    artifactId: string,
+    data: { slide_index: number; content: string }
+  ): Promise<AnnotationResponse> {
+    return apiClient.post<AnnotationResponse>(
+      `/workspaces/${workspaceId}/projects/${projectId}/artifacts/${artifactId}/annotations`,
+      data
     );
   },
 
   /**
-   * Update the content of an existing annotation (author only).
+   * Update an annotation's content.
    *
    * PUT /workspaces/{wid}/projects/{pid}/artifacts/{aid}/annotations/{annotationId}
-   * Returns the updated ArtifactAnnotation.
    */
   update(
-    wid: string,
-    pid: string,
-    aid: string,
+    workspaceId: string,
+    projectId: string,
+    artifactId: string,
     annotationId: string,
-    body: { content: string }
-  ): Promise<ArtifactAnnotation> {
-    return apiClient.put<ArtifactAnnotation>(
-      `/workspaces/${wid}/projects/${pid}/artifacts/${aid}/annotations/${annotationId}`,
-      body
+    data: { content: string }
+  ): Promise<AnnotationResponse> {
+    return apiClient.put<AnnotationResponse>(
+      `/workspaces/${workspaceId}/projects/${projectId}/artifacts/${artifactId}/annotations/${annotationId}`,
+      data
     );
   },
 
   /**
-   * Delete an annotation (author only, hard delete).
+   * Delete an annotation.
    *
    * DELETE /workspaces/{wid}/projects/{pid}/artifacts/{aid}/annotations/{annotationId}
-   * Returns 204 No Content.
    */
-  delete(wid: string, pid: string, aid: string, annotationId: string): Promise<void> {
+  delete(
+    workspaceId: string,
+    projectId: string,
+    artifactId: string,
+    annotationId: string
+  ): Promise<void> {
     return apiClient.delete<void>(
-      `/workspaces/${wid}/projects/${pid}/artifacts/${aid}/annotations/${annotationId}`
+      `/workspaces/${workspaceId}/projects/${projectId}/artifacts/${artifactId}/annotations/${annotationId}`
     );
   },
 };
