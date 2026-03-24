@@ -11,8 +11,6 @@ import {
   Play,
   TableOfContents,
   X,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { observer } from 'mobx-react-lite';
@@ -26,12 +24,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import dynamic from 'next/dynamic';
 import { useStore } from '@/stores';
 import { resolveRenderer, getLanguageForFile } from '../utils/mime-type-router';
 import { useFileContent } from '../hooks/useFileContent';
 import { DownloadFallback } from './renderers/DownloadFallback';
 import { CodeSkeleton, TableSkeleton, ProseSkeleton } from './preview-skeletons';
+import { ImageLightbox } from './ImageLightbox';
 
 // Lazy-load heavy renderers — papaparse (~50KB), DOMPurify (~30KB), react-markdown
 // are only loaded when the user actually opens a file preview of that type.
@@ -95,157 +95,6 @@ export interface FilePreviewModalProps {
   filename: string;
   mimeType: string;
   signedUrl: string;
-}
-
-// ---------------------------------------------------------------------------
-// Image Lightbox — gallery-style fullscreen overlay for images
-// ---------------------------------------------------------------------------
-function ImageLightbox({
-  open,
-  onOpenChange,
-  filename,
-  signedUrl,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  filename: string;
-  signedUrl: string;
-}) {
-  const [isZoomed, setIsZoomed] = React.useState(false);
-  const [imgError, setImgError] = React.useState(false);
-
-  // Reset state when lightbox opens
-  React.useEffect(() => {
-    if (open) {
-      setIsZoomed(false);
-      setImgError(false);
-    }
-  }, [open]);
-
-  // Close on Escape
-  React.useEffect(() => {
-    if (!open) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onOpenChange(false);
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, onOpenChange]);
-
-  // Prevent body scroll when open
-  React.useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
-  if (!open) return null;
-
-  const isValidUrl = (() => {
-    try {
-      const parsed = new URL(signedUrl);
-      return (
-        parsed.protocol === 'https:' ||
-        (parsed.protocol === 'http:' &&
-          (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'))
-      );
-    } catch {
-      return false;
-    }
-  })();
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Image preview: ${filename}`}
-    >
-      {/* Backdrop — click to close */}
-      <div
-        className="absolute inset-0 bg-black/90 animate-in fade-in-0 duration-200"
-        onClick={() => onOpenChange(false)}
-        aria-hidden="true"
-      />
-
-      {/* Floating toolbar */}
-      <div className="relative z-10 flex items-center justify-between px-4 py-3">
-        <p className="text-sm font-medium text-white/80 truncate max-w-[50vw]">{filename}</p>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 text-white/70 hover:text-white hover:bg-white/10"
-            onClick={() => setIsZoomed((z) => !z)}
-            aria-label={isZoomed ? 'Zoom out' : 'Zoom in'}
-          >
-            {isZoomed ? <ZoomOut className="size-4" /> : <ZoomIn className="size-4" />}
-          </Button>
-
-          {isValidUrl && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 text-white/70 hover:text-white hover:bg-white/10"
-              asChild
-            >
-              <a
-                href={signedUrl}
-                download={filename}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Download image"
-              >
-                <Download className="size-4" />
-              </a>
-            </Button>
-          )}
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 text-white/70 hover:text-white hover:bg-white/10"
-            onClick={() => onOpenChange(false)}
-            aria-label="Close"
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Image area */}
-      <div
-        className={cn(
-          'relative z-10 flex-1 flex items-center justify-center overflow-auto min-h-0 px-4 pb-4',
-          isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
-        )}
-        onClick={(e) => {
-          // Only toggle zoom when clicking directly on the container or image
-          if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'IMG') {
-            setIsZoomed((z) => !z);
-          }
-        }}
-      >
-        {imgError ? (
-          <div className="text-sm text-white/60">Failed to load image</div>
-        ) : (
-          <img
-            src={signedUrl}
-            alt={filename}
-            onError={() => setImgError(true)}
-            draggable={false}
-            className={cn(
-              'rounded-lg shadow-2xl transition-all duration-300 ease-out select-none',
-              isZoomed ? 'max-w-none w-auto scale-100' : 'max-w-[90vw] max-h-[85vh] object-contain'
-            )}
-          />
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -566,101 +415,147 @@ export const FilePreviewModal = observer(function FilePreviewModal({
             <DialogTitle className="text-sm font-medium truncate">{filename}</DialogTitle>
           </div>
           <DialogDescription className="sr-only">Preview of {filename}</DialogDescription>
-          <div className="flex items-center gap-0.5 shrink-0">
-            {/* Download button — validates URL scheme (https always, http for localhost) */}
-            {(() => {
-              try {
-                const parsed = new URL(signedUrl);
-                const isHttps = parsed.protocol === 'https:';
-                const isLocalHttp =
-                  parsed.protocol === 'http:' &&
-                  (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
-                return isHttps || isLocalHttp;
-              } catch {
-                return false;
-              }
-            })() && (
-              <Button variant="ghost" size="icon" className="size-8" asChild>
-                <a
-                  href={signedUrl}
-                  download={filename}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Download file"
-                >
-                  <Download className="size-4" />
-                </a>
-              </Button>
-            )}
-
-            {/* ToC toggle — only shown for .docx files */}
-            {rendererType === 'docx' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                onClick={() => setDocxTocOpen((o) => !o)}
-                aria-label={docxTocOpen ? 'Hide table of contents' : 'Show table of contents'}
-                aria-pressed={docxTocOpen}
-              >
-                <TableOfContents className="size-4" />
-              </Button>
-            )}
-
-            {/* Thumbnail strip toggle — only shown for PPTX when slides are loaded */}
-            {rendererType === 'pptx' && slideCount > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                onClick={() => setShowThumbnails((s) => !s)}
-                aria-label={showThumbnails ? 'Hide slide thumbnails' : 'Show slide thumbnails'}
-                aria-pressed={showThumbnails}
-              >
-                <LayoutList className="size-4" />
-              </Button>
-            )}
-
-            {/* Fullscreen slideshow button — only shown for PPTX when slides are loaded */}
-            {rendererType === 'pptx' && slideCount > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                onClick={toggleFullscreen}
-                aria-label={
-                  isFullscreen ? 'Exit fullscreen slideshow' : 'Enter fullscreen slideshow'
+          <TooltipProvider delayDuration={300}>
+            <div className="flex items-center gap-0.5 shrink-0">
+              {/* Download button — validates URL scheme (https always, http for localhost) */}
+              {(() => {
+                try {
+                  const parsed = new URL(signedUrl);
+                  const isHttps = parsed.protocol === 'https:';
+                  const isLocalHttp =
+                    parsed.protocol === 'http:' &&
+                    (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
+                  return isHttps || isLocalHttp;
+                } catch {
+                  return false;
                 }
-              >
-                <Play className="size-4" />
-              </Button>
-            )}
-
-            {/* Separator between feature actions and window controls */}
-            <div className="w-px h-4 bg-border/60 mx-0.5" aria-hidden="true" />
-
-            {/* Maximize toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={() => setIsMaximized((m) => !m)}
-              aria-label={isMaximized ? 'Restore size' : 'Maximize'}
-            >
-              {isMaximized ? (
-                <Minimize2 className="size-3.5" />
-              ) : (
-                <Maximize2 className="size-3.5" />
+              })() && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="size-8" asChild>
+                      <a
+                        href={signedUrl}
+                        download={filename}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Download file"
+                      >
+                        <Download className="size-4" />
+                      </a>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    Download file
+                  </TooltipContent>
+                </Tooltip>
               )}
-            </Button>
 
-            {/* Close */}
-            <DialogClose asChild>
-              <Button variant="ghost" size="icon" className="size-7" aria-label="Close">
-                <X className="size-3.5" />
-              </Button>
-            </DialogClose>
-          </div>
+              {/* ToC toggle — only shown for .docx files */}
+              {rendererType === 'docx' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => setDocxTocOpen((o) => !o)}
+                      aria-label={docxTocOpen ? 'Hide table of contents' : 'Show table of contents'}
+                      aria-pressed={docxTocOpen}
+                    >
+                      <TableOfContents className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    Table of contents
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Thumbnail strip toggle — only shown for PPTX when slides are loaded */}
+              {rendererType === 'pptx' && slideCount > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => setShowThumbnails((s) => !s)}
+                      aria-label={
+                        showThumbnails ? 'Hide slide thumbnails' : 'Show slide thumbnails'
+                      }
+                      aria-pressed={showThumbnails}
+                    >
+                      <LayoutList className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    Toggle thumbnails
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Fullscreen slideshow button — only shown for PPTX when slides are loaded */}
+              {rendererType === 'pptx' && slideCount > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={toggleFullscreen}
+                      aria-label={
+                        isFullscreen ? 'Exit fullscreen slideshow' : 'Enter fullscreen slideshow'
+                      }
+                    >
+                      <Play className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    {isFullscreen ? 'Exit slideshow' : 'Slideshow'}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Separator between feature actions and window controls */}
+              <div className="w-px h-4 bg-border/60 mx-0.5" aria-hidden="true" />
+
+              {/* Maximize toggle */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onClick={() => setIsMaximized((m) => !m)}
+                    aria-label={isMaximized ? 'Restore size' : 'Maximize'}
+                  >
+                    {isMaximized ? (
+                      <Minimize2 className="size-3.5" />
+                    ) : (
+                      <Maximize2 className="size-3.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {isMaximized ? 'Restore' : 'Maximize'}
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Close */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DialogClose asChild>
+                    <Button variant="ghost" size="icon" className="size-7" aria-label="Close">
+                      <X className="size-3.5" />
+                    </Button>
+                  </DialogClose>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  Close (Esc)
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         </DialogHeader>
 
         {/* Body — Suspense boundary prevents dynamic() imports from bubbling
