@@ -135,10 +135,26 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
     rawDisplayName && rawDisplayName !== emailPrefix ? rawDisplayName.split(' ')[0] : '';
   const todayFormatted = format(new Date(), 'EEEE, MMMM d, yyyy');
 
+  // --- Feature visibility ---
+  const showNotesSection = workspaceStore.isFeatureEnabled('notes');
+  const showIssuesSection = workspaceStore.isFeatureEnabled('issues');
+  const showAISection = workspaceStore.isFeatureEnabled('skills');
+  const showProjectsSection = workspaceStore.isFeatureEnabled('projects');
+  const hasAnySection =
+    showNotesSection || showIssuesSection || showAISection || showProjectsSection;
+  const isAdmin = workspaceStore.isAdmin || workspaceStore.isOwner;
+
   // --- Data fetching ---
+  const shouldFetchNotes = showNotesSection;
+  const shouldFetchIssues = showIssuesSection;
+  const shouldFetchAI = showAISection;
+  const shouldFetchProjects = showProjectsSection;
+  const shouldFetchIssueDevObjects = showIssuesSection;
+  const shouldFetchCycleMetrics = showAISection;
 
   const { data: activityData, isLoading: notesLoading } = useHomepageActivity({
     workspaceId,
+    enabled: shouldFetchNotes,
   });
 
   // W6: Fetch 50 issues to reduce risk of missing active ones due to in-memory state
@@ -147,16 +163,16 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
   const { data: issueData, isLoading: issuesLoading } = useQuery({
     queryKey: ['homepage', 'active-issues', workspaceId],
     queryFn: () => issuesApi.list(workspaceId, {}, 1, 50),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && shouldFetchIssues,
     staleTime: 30_000,
   });
 
-  const digest = useWorkspaceDigest({ workspaceId });
+  const digest = useWorkspaceDigest({ workspaceId, enabled: shouldFetchAI });
 
   const { data: projectData, isLoading: projectsLoading } = useQuery({
     queryKey: ['homepage', 'projects', workspaceId],
     queryFn: () => projectsApi.list(workspaceId),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && shouldFetchProjects,
     staleTime: 60_000,
   });
 
@@ -207,7 +223,7 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
   const { devObjects, isLoading: devObjectsLoading } = useIssueDevObjects({
     workspaceId,
     issueIds: activeIssueIds,
-    enabled: activeIssueIds.length > 0,
+    enabled: shouldFetchIssueDevObjects && activeIssueIds.length > 0,
   });
 
   const {
@@ -218,7 +234,7 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
   } = useActiveCycleMetrics({
     workspaceId,
     projectIds,
-    enabled: projectIds.length > 0,
+    enabled: shouldFetchCycleMetrics && projectIds.length > 0,
   });
 
   const staleIssues = useStaleIssueDetection({
@@ -232,15 +248,6 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
     const pct = total > 0 ? Math.round((completed / total) * 100) : null;
     return buildSuggestionCards(pct, activeCycle?.name ?? null);
   }, [activeCycle]);
-
-  // --- Feature visibility ---
-  const showNotesSection = workspaceStore.isFeatureEnabled('notes');
-  const showIssuesSection = workspaceStore.isFeatureEnabled('issues');
-  const showAISection = workspaceStore.isFeatureEnabled('skills');
-  const showProjectsSection = workspaceStore.isFeatureEnabled('projects');
-  const hasAnySection =
-    showNotesSection || showIssuesSection || showAISection || showProjectsSection;
-  const isAdmin = workspaceStore.isAdmin || workspaceStore.isOwner;
 
   // --- Navigation ---
 
