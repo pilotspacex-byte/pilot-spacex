@@ -3,6 +3,8 @@ import type {
   AttachmentUploadResponse,
   DriveStatusResponse,
   DriveFileListResponse,
+  AttachmentExtractionResult,
+  DocumentIngestRequest,
 } from '@/types/attachments';
 
 export const attachmentsApi = {
@@ -94,5 +96,28 @@ export const attachmentsApi = {
     return apiClient.delete<void>('/ai/drive/credentials', {
       params: { workspace_id: workspaceId },
     });
+  },
+
+  /**
+   * Fetch extraction metadata, full text, chunks, and tables for an attachment.
+   * Returns extraction_source="none" if extraction has not yet completed.
+   * GET /ai/attachments/{id}/extraction
+   */
+  getExtraction(attachmentId: string): Promise<AttachmentExtractionResult> {
+    return apiClient.get<AttachmentExtractionResult>(`/ai/attachments/${attachmentId}/extraction`);
+  },
+
+  /**
+   * Enqueue an attachment for KG ingestion with optional chunk adjustments.
+   * POST /ai/attachments/{id}/ingest
+   */
+  ingestDocument(
+    attachmentId: string,
+    request: DocumentIngestRequest
+  ): Promise<{ status: string; attachmentId: string }> {
+    return apiClient.post<{ status: string; attachmentId: string }>(
+      `/ai/attachments/${attachmentId}/ingest`,
+      request
+    );
   },
 };

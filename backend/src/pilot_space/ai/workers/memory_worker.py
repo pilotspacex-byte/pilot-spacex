@@ -7,6 +7,7 @@ T-068: Routes by task_type:
 - 'memory_dlq_reconciliation' → MemoryDLQJobHandler
 - 'graph_expiration'          → expire_stale_graph_nodes
 - 'kg_populate'               → KgPopulateHandler
+- 'document_ingestion'        → DocumentIngestionHandler
 - 'artifact_cleanup'          → run_artifact_cleanup
 
 Follows DigestWorker pattern: poll → process → ack/nack/dead-letter.
@@ -43,6 +44,7 @@ TASK_MEMORY_EMBEDDING = "memory_embedding"
 TASK_GRAPH_EMBEDDING = "graph_embedding"
 TASK_MEMORY_DLQ = "memory_dlq_reconciliation"
 TASK_GRAPH_EXPIRATION = "graph_expiration"
+TASK_DOCUMENT_INGESTION = "document_ingestion"
 TASK_ARTIFACT_CLEANUP = "artifact_cleanup"
 
 # _BATCH_SIZE MUST remain 1: _process() handles only messages[0].
@@ -62,8 +64,8 @@ class MemoryWorker:
     """Worker polling ai_normal queue for memory engine jobs.
 
     Handles intent_dedup, memory_embedding, graph_embedding,
-    memory_dlq_reconciliation, graph_expiration, kg_populate, and
-    artifact_cleanup task types.
+    memory_dlq_reconciliation, graph_expiration, kg_populate,
+    document_ingestion, and artifact_cleanup task types.
     Uses session per job for clean transaction boundaries.
 
     Args:
@@ -176,6 +178,7 @@ class MemoryWorker:
             TASK_GRAPH_EMBEDDING,
             TASK_MEMORY_DLQ,
             TASK_GRAPH_EXPIRATION,
+            TASK_DOCUMENT_INGESTION,
             TASK_ARTIFACT_CLEANUP,
         ):
             logger.debug("MemoryWorker: skipping unknown task_type %s", task_type)
@@ -281,12 +284,17 @@ class MemoryWorker:
             count = await expire_stale_graph_nodes(session)
             return {"task_type": task_type, "expired_count": count}
 
-        if task_type == TASK_KG_POPULATE:
-            from pilot_space.infrastructure.queue.handlers.kg_populate_handler import (
-                KgPopulateHandler,
-            )
-
-            handler = KgPopulateHandler(
+        if task_type in (TASK_KG_POPULATE, TASK_DOCUMENT_INGESTION):
+            # Both handlers share the same constructor signature — select by task_type.
+            if task_type == TASK_KG_POPULATE:
+                from pilot_space.infrastructure.queue.handlers.kg_populate_handler import (
+                    KgPopulateHandler as _Handler,
+                )
+            else:
+                from pilot_space.infrastructure.queue.handlers.document_ingestion_handler import (  # type: ignore[assignment]
+                    DocumentIngestionHandler as _Handler,
+                )
+            handler = _Handler(  # type: ignore[call-arg]
                 session,
                 self._embedding_service,
                 self.queue,
@@ -308,4 +316,4 @@ class MemoryWorker:
         raise AssertionError(f"Unreachable: _dispatch called with unknown task_type {task_type!r}")
 
 
-__all__ = ["MemoryWorker"]
+__all__ = ["TASK_DOCUMENT_INGESTION", "MemoryWorker"]

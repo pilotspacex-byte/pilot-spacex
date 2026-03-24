@@ -13,6 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pilot_space.application.services.ai.attachment_content_service import (
     AttachmentContentService,
 )
+from pilot_space.application.services.ai.ocr_service import OcrService
+from pilot_space.application.services.document.office_extraction_service import (
+    OfficeExtractionService,
+)
+from pilot_space.config import get_settings
 from pilot_space.domain.exceptions import AppError, ForbiddenError
 from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
     ChatAttachmentRepository,
@@ -66,5 +71,12 @@ async def resolve_attachments(
             error_code="ATTACHMENT_EXPIRED",
         )
 
-    blocks = await AttachmentContentService(storage_client).build_content_blocks(valid_records)
+    settings = get_settings()
+    ocr_service = OcrService(master_secret=settings.encryption_key.get_secret_value())
+    blocks = await AttachmentContentService(
+        storage_client=SupabaseStorageClient(),
+        office_extraction=OfficeExtractionService(),
+        ocr_service=ocr_service,
+        session=session,
+    ).build_content_blocks(valid_records)
     return valid_records, blocks

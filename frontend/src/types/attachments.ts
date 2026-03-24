@@ -118,3 +118,81 @@ export interface DriveFileListResponse {
   files: DriveFileItem[];
   nextPageToken: string | null;
 }
+
+// --- Artifact Extraction (Phase 44) ---
+
+/**
+ * Metadata returned by GET /ai/attachments/{id}/extraction.
+ * Mirrors backend ExtractionMetadata (BaseSchema → camelCase).
+ */
+export interface ExtractionMetadata {
+  pageCount: number | null;
+  language: string | null;
+  extractionSource: 'office' | 'ocr' | 'raw' | 'none';
+  confidence: number | null; // 0.0-1.0
+  wordCount: number | null;
+  providerName: string | null; // e.g., "HunyuanOCR" - shown in UI footer
+}
+
+/**
+ * One pre-chunked section of a document.
+ * Mirrors backend ExtractionChunk (BaseSchema → camelCase).
+ */
+export interface ExtractionChunk {
+  chunkIndex: number;
+  heading: string;
+  content: string;
+  charCount: number;
+  tokenCount: number;
+  headingHierarchy: string[];
+}
+
+/**
+ * Full extraction result from GET /ai/attachments/{id}/extraction.
+ * Mirrors backend ExtractionResultResponse (BaseSchema → camelCase).
+ */
+export interface AttachmentExtractionResult {
+  attachmentId: string;
+  extractedText: string | null;
+  metadata: ExtractionMetadata;
+  chunks: ExtractionChunk[];
+  tables: string[]; // Markdown table strings
+}
+
+/**
+ * Adjustment to a single chunk before KG ingestion.
+ * Mirrors backend ChunkAdjustment (BaseSchema → camelCase).
+ */
+export interface ChunkAdjustment {
+  chunkIndex: number;
+  excluded: boolean;
+}
+
+/**
+ * Request body for POST /ai/attachments/{id}/ingest.
+ * Mirrors backend DocumentIngestRequest (BaseSchema → camelCase).
+ */
+export interface DocumentIngestRequest {
+  workspaceId: string;
+  chunkAdjustments: ChunkAdjustment[];
+}
+
+/**
+ * MIME types that have extraction results available (from Phase 41 Office extraction
+ * and Phase 42 OCR). Used to conditionally show extraction tabs in FilePreviewModal.
+ */
+export const EXTRACTION_SUPPORTED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
+
+/** Returns true if this MIME type supports extraction (OCR or Office). */
+export function supportsExtraction(mimeType: string): boolean {
+  return EXTRACTION_SUPPORTED_MIME_TYPES.has(mimeType.toLowerCase());
+}

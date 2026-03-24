@@ -208,6 +208,10 @@ def estimate_tokens(input_data: ChatInput) -> int:
     """Rough token estimate (~4 chars/token) for context size detection (T62)."""
     total_chars = len(input_data.message)
     total_chars += sum(len(str(v)) for v in input_data.context.values())
+    # Account for attachment blocks — each base64-encoded block can be large (e.g., PDFs)
+    if input_data.attachment_content_blocks:
+        for block in input_data.attachment_content_blocks:
+            total_chars += len(str(block))
     return total_chars // 4
 
 

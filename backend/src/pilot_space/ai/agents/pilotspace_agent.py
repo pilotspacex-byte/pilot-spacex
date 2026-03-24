@@ -172,6 +172,8 @@ class ChatInput:
     user_id: UUID | None = None
     workspace_id: UUID | None = None
     resolved_model: Any | None = None  # ResolvedModelConfig when model_override set (AIPR-04)
+    attachment_content_blocks: list[dict[str, Any]] | None = None
+    attachment_metadata: list[dict[str, Any]] | None = None
 
 
 @dataclass
@@ -199,6 +201,42 @@ class _ProviderConfig:
 class _StreamConfig:
     sdk_options: ClaudeAgentOptions
     ref_map: BlockRefMap | None
+
+
+def _build_multimodal_prompt(
+    enriched_message: str,
+    blocks: list[dict[str, Any]],
+    session_id: str,
+) -> AsyncIterator[dict[str, Any]]:
+    """Return an async generator that yields a single multimodal user message for the Claude SDK.
+
+    Captures blocks by value eagerly (at call time, not at iteration time) to
+    prevent closure mutation bugs — the caller's list can be modified after this
+    function returns without affecting the yielded message.
+
+    The yielded dict matches the Claude SDK wire format for content arrays:
+      {"type": "user", "message": {"role": "user", "content": [...]}, ...}
+
+    Args:
+        enriched_message: Pre-built contextual message string.
+        blocks: Attachment content blocks (document/image/text types).
+        session_id: SDK session identifier for the query.
+    """
+    # Copy eagerly here (regular function body) — before the async generator is entered.
+    # This ensures the caller mutating 'blocks' after calling this function has no effect.
+    _blocks = list(blocks)
+    content: list[dict[str, Any]] = [{"type": "text", "text": enriched_message}]
+    content.extend(_blocks)
+
+    async def _gen() -> AsyncIterator[dict[str, Any]]:
+        yield {
+            "type": "user",
+            "message": {"role": "user", "content": content},
+            "parent_tool_use_id": None,
+            "session_id": session_id,
+        }
+
+    return _gen()
 
 
 class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
@@ -877,7 +915,18 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     input_data,
                     block_ref_map=ref_map,
                 )
-                await client.query(enriched_message, session_id=query_session_id)
+
+                if input_data.attachment_content_blocks:
+                    await client.query(
+                        _build_multimodal_prompt(
+                            enriched_message,
+                            input_data.attachment_content_blocks,
+                            session_id=query_session_id,
+                        ),
+                        session_id=query_session_id,
+                    )
+                else:
+                    await client.query(enriched_message, session_id=query_session_id)
 
                 # Yield intent_detected events after query is dispatched
                 for intent_sse in intent_events:

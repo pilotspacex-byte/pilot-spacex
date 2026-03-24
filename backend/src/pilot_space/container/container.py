@@ -16,6 +16,7 @@ from pilot_space.application.services.ai import (
     GetPRReviewStatusService,
     TriggerPRReviewService,
 )
+from pilot_space.application.services.ai.ocr_service import OcrService
 from pilot_space.application.services.ai_context import (
     ExportAIContextService,
     GenerateAIContextService,
@@ -35,6 +36,9 @@ from pilot_space.application.services.cycle import (
     UpdateCycleService,
 )
 from pilot_space.application.services.discussion import CreateDiscussionService
+from pilot_space.application.services.document.office_extraction_service import (
+    OfficeExtractionService,
+)
 from pilot_space.application.services.homepage import (
     DismissSuggestionService,
     GetActivityService,
@@ -577,9 +581,21 @@ class Container(SkillContainer, PluginContainer):
         attachment_repo=InfraContainer.chat_attachment_repository,
     )
 
+    office_extraction_service = providers.Factory(
+        OfficeExtractionService,
+    )
+
+    ocr_service = providers.Factory(
+        OcrService,
+        master_secret=InfraContainer.encryption_key,
+    )
+
     attachment_content_service = providers.Factory(
         AttachmentContentService,
         storage_client=InfraContainer.storage_client,
+        office_extraction=office_extraction_service,
+        ocr_service=ocr_service,
+        session=providers.Callable(get_current_session),
     )
 
     # Transcription Service (ElevenLabs STT with cache + storage)

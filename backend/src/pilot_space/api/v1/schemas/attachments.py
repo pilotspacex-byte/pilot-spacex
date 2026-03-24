@@ -115,10 +115,66 @@ class DriveImportRequest(BaseSchema):
     )
 
 
+class ExtractionMetadata(BaseSchema):
+    """Document extraction metadata returned by GET /ai/attachments/{id}/extraction."""
+
+    page_count: int | None = None
+    language: str | None = None  # e.g., "en", "zh"
+    extraction_source: str = "none"  # "office" | "ocr" | "raw" | "none"
+    confidence: float | None = None  # 0.0-1.0, from OCR provider
+    word_count: int | None = None
+    provider_name: str | None = None  # e.g., "HunyuanOCR" - shown in UI footer
+
+
+class ExtractionChunk(BaseSchema):
+    """A single chunk of a pre-chunked document, as produced by markdown_chunker."""
+
+    chunk_index: int
+    heading: str
+    content: str
+    char_count: int
+    token_count: int
+    heading_hierarchy: list[str] = Field(default_factory=list)
+
+
+class ExtractionResultResponse(BaseSchema):
+    """Response from GET /ai/attachments/{id}/extraction.
+
+    Returns extraction metadata, full extracted text, pre-chunked content,
+    and extracted markdown table strings. All fields are nullable to handle
+    the case where extraction has not yet completed (extraction_source="none").
+    """
+
+    attachment_id: UUID
+    extracted_text: str | None = None  # Full text for Extracted Text tab
+    metadata: ExtractionMetadata
+    chunks: list[ExtractionChunk] = Field(default_factory=list)  # Pre-chunked for Chunks tab
+    tables: list[str] = Field(default_factory=list)  # Markdown table strings
+
+
+class ChunkAdjustment(BaseSchema):
+    """User-requested adjustment to a single chunk before KG ingestion."""
+
+    chunk_index: int
+    excluded: bool = False
+
+
+class DocumentIngestRequest(BaseSchema):
+    """Request body for POST /ai/attachments/{id}/ingest."""
+
+    workspace_id: UUID
+    chunk_adjustments: list[ChunkAdjustment] = Field(default_factory=list)  # Empty = use all chunks
+
+
 __all__ = [
     "AttachmentUploadResponse",
+    "ChunkAdjustment",
+    "DocumentIngestRequest",
     "DriveFileItem",
     "DriveFileListResponse",
     "DriveImportRequest",
     "DriveStatusResponse",
+    "ExtractionChunk",
+    "ExtractionMetadata",
+    "ExtractionResultResponse",
 ]

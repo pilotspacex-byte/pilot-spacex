@@ -621,6 +621,8 @@ async def _execute_agent_stream(
         user_id=UUID(input_data["user_id"]) if input_data.get("user_id") else None,
         workspace_id=UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None,
         resolved_model=input_data.get("resolved_model"),
+        attachment_content_blocks=input_data.get("attachment_content_blocks") or None,
+        attachment_metadata=input_data.get("attachment_metadata") or None,
     )
 
     ws_id = input_data.get("workspace_id")
