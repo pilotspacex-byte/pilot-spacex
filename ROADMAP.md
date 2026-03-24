@@ -286,10 +286,27 @@ Plans:
 - [ ] 41-06-PLAN.md — Annotation frontend: API client, TanStack Query hook, panel component, FilePreviewModal integration
 - [ ] 41-07-PLAN.md — Quality gates + human verification of all six success criteria
 
+### Phase 42: Command Palette and Breadcrumb Navigation
+
+**Goal:** Add VS Code-style command palette (Cmd+Shift+P) with searchable actions, file path breadcrumbs above the editor, and symbol outline panel (Cmd+Shift+O) for navigating within files
+**Depends on:** Phase 40
+**Requirements**: CMD-01, CMD-02, CMD-03, CMD-04
+**Success Criteria** (what must be TRUE):
+  1. Cmd+Shift+P opens a full-width command palette overlay with fuzzy search across all registered actions
+  2. File path breadcrumbs appear above the editor with clickable segments and sibling dropdowns
+  3. Cmd+Shift+O toggles a symbol outline panel showing heading hierarchy with click-to-navigate
+  4. All keyboard shortcuts work both inside and outside Monaco editor (keybinding overrides)
+**Plans:** 3 plans
+
+Plans:
+- [ ] 42-01-PLAN.md — ActionRegistry, CommandPalette component, 6 action modules, useRecentActions
+- [ ] 42-02-PLAN.md — BreadcrumbBar, useBreadcrumbs, SymbolOutlinePanel, markdownSymbols parser
+- [ ] 42-03-PLAN.md — EditorLayout integration, Monaco keybinding overrides, human verification
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 30 -> 31 -> 32 -> 33 -> 34 -> 35 -> 36 -> 37 -> 38 -> 39 -> 40 -> 41
+Phases execute in numeric order: 30 -> 31 -> 32 -> 33 -> 34 -> 35 -> 36 -> 37 -> 38 -> 39 -> 40 -> 41 -> 42
 Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel with Phase 32/33 if desired.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -309,8 +326,49 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 39. Tech Debt Cleanup | 1/1 | Complete    | 2026-03-20 | - |
 | 40. WebGPU Canvas IDE Editor | 8/8 | Complete    | 2026-03-24 | - |
 | 41. Office Suite Preview Redesign | 7/7 | Complete   | 2026-03-24 | - |
+| 42. Command Palette + Breadcrumbs | 0/3 | Planning   | - | - |
 
 **v1.1 total: 12 phases, ~39 plans, 30+ requirements**
+
+### Phase 43: LSP Integration and Code Intelligence
+
+**Goal:** Integrate Language Server Protocol for code intelligence — autocomplete, hover info, go-to-definition, find references, signature help, and diagnostics for TypeScript, Python, and common languages in the Monaco editor
+**Requirements**: TBD
+**Depends on:** Phase 42
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 43 to break down)
+
+### Phase 44: Web Git Integration and Source Control Panel
+
+**Goal:** Bring git operations to the web app (not just Tauri desktop) via GitHub/GitLab API — source control panel showing changed files, inline diff viewer, commit from browser, branch switching, and PR creation without leaving the app
+**Requirements**: TBD
+**Depends on:** Phase 40
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 44 to break down)
+
+### Phase 45: Editor Plugin API and Custom Block Types
+
+**Goal:** Design and ship a plugin API so teams can register custom PM block types, slash commands, and editor actions without forking the core — includes plugin manifest format, sandboxed execution, a built-in plugin gallery, and 3 example plugins (changelog, standup, retro)
+**Requirements**: TBD
+**Depends on:** Phase 42
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 45 to break down)
+
+### Phase 46: Multi-Theme System and Editor Customization
+
+**Goal:** Expand the Pilot Space theme into a full theme engine — light/dark/high-contrast modes, user-selectable accent colors, Monaco theme marketplace import (VS Code .tmTheme), and per-workspace theme settings synced across devices
+**Requirements**: TBD
+**Depends on:** Phase 40
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 46 to break down)
 
 ---
 *v1.0 shipped: 2026-03-09 — 11 phases, 46 plans, 30/30 requirements*
