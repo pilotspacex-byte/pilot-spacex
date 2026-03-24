@@ -326,3 +326,114 @@ async def test_lazy_client_init_calls_get_supabase_client() -> None:
         supabase_client_mod.get_supabase_client = original  # type: ignore[assignment]
 
     mock_get.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# nack
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_nack_requeue_calls_pgmq_set_vt() -> None:
+    """nack(requeue=True) should reschedule visibility via pgmq_set_vt."""
+    # pgmq_set_vt returns the updated message record (list of dicts)
+    sdk_client = _make_sdk_client(rpc_data=[{"msg_id": 5}])
+    client = SupabaseQueueClient(client=sdk_client)
+
+    result = await client.nack("q", "5", requeue=True, delay_seconds=30)
+
+    rpc_call = sdk_client.postgrest.rpc.call_args
+    assert rpc_call[0][0] == "pgmq_set_vt"
+    assert rpc_call[0][1]["msg_id"] == 5
+    assert rpc_call[0][1]["vt"] == 30
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_nack_no_requeue_calls_pgmq_delete() -> None:
+    """nack(requeue=False) should delete the message."""
+    sdk_client = _make_sdk_client(rpc_data=True)
+    client = SupabaseQueueClient(client=sdk_client)
+
+    result = await client.nack("q", "7", requeue=False)
+
+    rpc_call = sdk_client.postgrest.rpc.call_args
+    assert rpc_call[0][0] == "pgmq_delete"
+    assert rpc_call[0][1]["msg_id"] == 7
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_nack_default_delay_is_zero() -> None:
+    """nack(requeue=True) defaults delay_seconds to 0."""
+    sdk_client = _make_sdk_client(rpc_data=[{"msg_id": 1}])
+    client = SupabaseQueueClient(client=sdk_client)
+
+    await client.nack("q", "1", requeue=True)
+
+    rpc_call = sdk_client.postgrest.rpc.call_args
+    assert rpc_call[0][1]["vt"] == 0
+
+
+# ---------------------------------------------------------------------------
+# move_to_dead_letter
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_move_to_dead_letter_enqueues_before_delete() -> None:
+    """DLQ enqueue must happen before source queue delete (no message loss)."""
+    call_order: list[str] = []
+
+    # Track call order via side effects
+    async def track_execute():
+        response = MagicMock()
+        response.data = 42  # pgmq_send returns msg id
+        return response
+
+    rpc_builder = MagicMock()
+    rpc_builder.execute = AsyncMock(side_effect=track_execute)
+
+    postgrest = MagicMock()
+
+    def track_rpc(fn, params):
+        call_order.append(fn)
+        return rpc_builder
+
+    postgrest.rpc = MagicMock(side_effect=track_rpc)
+
+    sdk_client = MagicMock()
+    sdk_client.postgrest = postgrest
+
+    client = SupabaseQueueClient(client=sdk_client)
+
+    await client.move_to_dead_letter("source-q", "10", error="failed")
+
+    # pgmq_send (DLQ enqueue) must come before pgmq_delete (source delete)
+    assert call_order[0] == "pgmq_send", f"Expected pgmq_send first, got {call_order}"
+    assert call_order[-1] == "pgmq_delete", f"Expected pgmq_delete last, got {call_order}"
+
+
+# ---------------------------------------------------------------------------
+# RPC allowlist enforcement
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_rpc_call_disallowed_function_raises_value_error() -> None:
+    """Calling a function not in _ALLOWED_RPC_FUNCTIONS must raise ValueError."""
+    sdk_client = _make_sdk_client(rpc_data=None)
+    client = SupabaseQueueClient(client=sdk_client)
+
+    with pytest.raises(ValueError, match="Disallowed RPC function"):
+        await client._rpc_call("pg_sleep", {"seconds": 10})
+
+
+def test_allowed_rpc_functions_does_not_contain_archive() -> None:
+    """pgmq_archive was replaced by pgmq_set_vt — verify it's removed."""
+    assert "pgmq_archive" not in SupabaseQueueClient._ALLOWED_RPC_FUNCTIONS
+
+
+def test_allowed_rpc_functions_contains_set_vt() -> None:
+    """pgmq_set_vt must be in the allowlist for nack(requeue=True)."""
+    assert "pgmq_set_vt" in SupabaseQueueClient._ALLOWED_RPC_FUNCTIONS
