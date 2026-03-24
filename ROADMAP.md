@@ -253,7 +253,7 @@ Plans:
   8. Cmd+P quick open provides fuzzy file search
   9. Markdown preview renders GFM, KaTeX math, Mermaid diagrams, and admonitions
   10. Spring physics scrolling (Lenis) active on file tree and sidebar
-**Plans:** 8 plans (7 complete + 1 gap closure)
+**Plans:** 8/8 plans complete
 
 Plans:
 - [ ] 40-01-PLAN.md — Dependencies, types, Monaco theme, PM block marker parser, FileStore
@@ -275,15 +275,16 @@ Plans:
   4. Annotation panel is intuitive — per-slide notes with real-time persistence, clean edit/delete UX
   5. All previews work responsively in both normal and maximized modal states
   6. Keyboard navigation (arrows for slides, Escape to close) works seamlessly
-**Plans:** 6 plans
+**Plans:** 7 plans (4 complete, 3 remaining)
 
 Plans:
-- [ ] 41-01-PLAN.md — Foundation: deps, mime-type router, binary fetch, backend allowlist, FilePreviewModal wiring
-- [ ] 41-02-PLAN.md — XLSX renderer: SheetJS parsing, frozen headers, search, column resize, sheet tabs
-- [ ] 41-03-PLAN.md — DOCX renderer: dual-engine rendering, sandboxed iframe, ToC sidebar
-- [ ] 41-04-PLAN.md — PPTX renderer: canvas slides, keyboard nav, fullscreen, thumbnail strip
-- [ ] 41-05-PLAN.md — Annotation backend + panel: model, migration, CRUD endpoints, optimistic UI
-- [ ] 41-06-PLAN.md — Quality gates + human verification of all six success criteria
+- [x] 41-01-PLAN.md — Foundation: deps, mime-type router, binary fetch, backend allowlist, FilePreviewModal wiring
+- [x] 41-02-PLAN.md — XLSX renderer: SheetJS parsing, frozen headers, search, column resize, sheet tabs
+- [x] 41-03-PLAN.md — DOCX renderer: dual-engine rendering, sandboxed iframe, ToC sidebar
+- [x] 41-04-PLAN.md — PPTX renderer: canvas slides, keyboard nav, fullscreen, thumbnail strip
+- [ ] 41-05-PLAN.md — Annotation backend: model, migration, repository, service, CRUD endpoints
+- [ ] 41-06-PLAN.md — Annotation frontend: API client, TanStack Query hook, panel component, FilePreviewModal integration
+- [ ] 41-07-PLAN.md — Quality gates + human verification of all six success criteria
 
 ## Progress
 
@@ -306,8 +307,8 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 37. One-Click Implement + Tray | 2/2 | Complete    | 2026-03-20 | - |
 | 38. Packaging + Signing + Auto-Update | 3/3 | Complete    | 2026-03-20 | - |
 | 39. Tech Debt Cleanup | 1/1 | Complete    | 2026-03-20 | - |
-| 40. WebGPU Canvas IDE Editor | 7/8 | Gap Closure | 2026-03-24 | - |
-| 41. Office Suite Preview Redesign | 0/6 | In Progress | | - |
+| 40. WebGPU Canvas IDE Editor | 8/8 | Complete    | 2026-03-24 | - |
+| 41. Office Suite Preview Redesign | 4/7 | In Progress|  | - |
 
 **v1.1 total: 12 phases, ~39 plans, 30+ requirements**
 

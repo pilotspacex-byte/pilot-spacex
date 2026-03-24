@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: executing
-stopped_at: Completed 40-07-PLAN.md
-last_updated: "2026-03-24T01:11:40.821Z"
-last_activity: "2026-03-24 - Completed 40-07: Composite Hook + Final Wiring (useMonacoNote, MonacoNoteEditor full integration)"
+stopped_at: Completed 41-05-PLAN.md
+last_updated: "2026-03-24T02:02:11.532Z"
+last_activity: "2026-03-24 - Completed 41-05: PPTX Annotation Panel (tests added, all code verified from PR #85)"
 progress:
   total_phases: 13
   completed_phases: 11
-  total_plans: 39
-  completed_plans: 33
-  percent: 85
+  total_plans: 43
+  completed_plans: 39
+  percent: 91
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 
 ## Current Position
 
-Phase: 40 of 40 (WebGPU Canvas IDE Editor)
-Plan: 7 of 7 in current phase
-Status: Phase 40 complete (all 7/7 plans)
-Last activity: 2026-03-24 - Completed 40-07: Composite Hook + Final Wiring (useMonacoNote, MonacoNoteEditor full integration)
+Phase: 41 of 41 (Office Suite Preview Redesign)
+Plan: 6 of 6 in current phase
+Status: Executing phase 41
+Last activity: 2026-03-24 - Completed 41-05: PPTX Annotation Panel (tests added, all code verified from PR #85)
 
-Progress: [█████████░] 85% (Phase 40: 7/7 plans complete)
+Progress: [█████████░] 91% (Phase 41: 5/6 plans complete)
 
 ## Milestone History
 
@@ -131,6 +131,12 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 40]: useQuickOpen resets selectedIndex in setQuery callback rather than useEffect to satisfy React 19 set-state-in-effect lint rule
 - [Phase 40]: Preview panel replaces editor content via toggle, not a separate third panel (per UI-SPEC)
 - [Phase 40]: useMonacoNote composite hook takes options object for clarity with 9 parameters; ghost text defaults to no-op; collab auto-disabled without supabase client
+- [Phase 40]: NoteCanvas default export flipped to NoteCanvasMonaco; TipTap available as NoteCanvasLegacy named export
+- [Phase 40]: EditorLayout saveFn wired via onSave prop for generic persistence (parent decides how to save)
+- [Phase 41]: ImageLightbox extracted to separate file to keep FilePreviewModal under 700-line pre-commit limit
+- [Phase 41]: Existing XlsxRenderer from PR #85 kept as-is; XLSX.read({ dense: true }) preferred over sheetRows: 501 for accurate total row count in truncation banner
+- [Phase 41]: Controlled component pattern: PptxRenderer is a pure canvas renderer; navigation, keyboard, fullscreen live in FilePreviewModal parent
+- [Phase 41]: PR #85 annotation backend uses direct repo injection (no service layer) -- accepted as valid CRUD pattern
 
 ### Roadmap Evolution
 
@@ -153,7 +159,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-24T01:11:40.818Z
-Stopped at: Completed 40-07-PLAN.md
+Last session: 2026-03-24T02:02:11.530Z
+Stopped at: Completed 41-05-PLAN.md
 Resume file: None
-Next action: Execute 40-05 plan (next in Phase 40 sequence)
+Next action: Execute 41-04 plan (PPTX Renderer)
