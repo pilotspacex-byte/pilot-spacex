@@ -1,0 +1,2904 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* =============================================================================
+   PILOT SPACE DESIGN TOKENS v2.0
+   Direction: Neutral Notion-like base | Editorial Quality
+   ============================================================================= */
+
+@theme inline {
+  /* Color mappings */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-muted: var(--primary-muted);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Background variants */
+  --color-background-subtle: var(--background-subtle);
+  --color-background-muted: var(--background-muted);
+
+  /* AI Partner colors */
+  --color-ai: var(--ai);
+  --color-ai-foreground: var(--ai-foreground);
+  --color-ai-muted: var(--ai-muted);
+  --color-ai-border: var(--ai-border);
+  --color-ai-hover: var(--ai-hover);
+  --color-ai-bg: var(--ai-bg);
+  --color-primary-text: var(--primary-text);
+  --color-ai-text: var(--ai-text);
+
+  /* Issue state colors */
+  --color-state-backlog: var(--state-backlog);
+  --color-state-todo: var(--state-todo);
+  --color-state-in-progress: var(--state-in-progress);
+  --color-state-in-review: var(--state-in-review);
+  --color-state-done: var(--state-done);
+  --color-state-cancelled: var(--state-cancelled);
+
+  /* Priority colors */
+  --color-priority-urgent: var(--priority-urgent);
+  --color-priority-high: var(--priority-high);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-low: var(--priority-low);
+  --color-priority-none: var(--priority-none);
+
+  /* Sidebar */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Typography - Pilot Space v4 fonts */
+  --font-display: var(--font-fraunces), 'Fraunces', georgia, serif;
+  --font-sans:
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono:
+    var(--font-jetbrains-mono), 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code',
+    ui-monospace, monospace;
+
+  /* Border radius (Apple squircle style) */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-3xl: 2rem;
+  --radius-full: 9999px;
+
+  /* Animation easings */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Animation durations */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-medium: 400ms;
+  --duration-long: 1500ms;
+
+  /* Semantic state colors */
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+}
+
+/* =============================================================================
+   LIGHT THEME (Default) - Neutral Notion-like base
+   ============================================================================= */
+:root {
+  /* Base - Neutral Notion-like values */
+  --background: #ffffff;
+  --background-subtle: #f7f7f5;
+  --background-muted: #f1f1ef;
+  --foreground: #37352f;
+  --foreground-muted: #787774;
+
+  /* Card surfaces */
+  --card: #ffffff;
+  --card-foreground: #37352f;
+
+  /* Popover */
+  --popover: #ffffff;
+  --popover-foreground: #37352f;
+
+  /* Primary - Teal Green (v4 exact values) */
+  --primary: #29a386;
+  --primary-hover: #238f75;
+  --primary-muted: #e8f5f1;
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #f1f1ef;
+  --secondary-foreground: #37352f;
+
+  /* Muted */
+  --muted: #f1f1ef;
+  --muted-foreground: #6f6e6b;
+
+  /* Accent */
+  --accent: #f1f1ef;
+  --accent-foreground: #37352f;
+
+  /* Destructive - Warm red */
+  --destructive: #d9534f;
+  --destructive-foreground: #ffffff;
+
+  /* Warning */
+  --warning: #d9853f;
+
+  /* Info - Calm blue */
+  --info: #5b8fc9;
+  --info-foreground: #ffffff;
+
+  /* Success - Teal green (matches primary) */
+  --success: #29a386;
+  --success-foreground: #ffffff;
+
+  /* Borders - Neutral */
+  --border: #e9e9e7;
+  --border-subtle: #efefed;
+  --input: #e9e9e7;
+  --ring: #29a386;
+
+  /* AI Partner - Dusty Blue (v4 exact values) */
+  --ai: #6b8fad;
+  --ai-hover: #5a7d9b;
+  --ai-muted: #eef3f7;
+  --ai-border: #b8ccdb;
+  --ai-foreground: #ffffff;
+
+  /* AI Inline Card Background */
+  --ai-bg: #eef2f7;
+
+  /* Question Request - Warm cream background for QuestionBlock */
+  --color-question-bg: #f5f0eb;
+
+  /* Issue States (v4 exact values) */
+  --state-backlog: #9c9590;
+  --state-todo: #5b8fc9;
+  --state-in-progress: #d9853f;
+  --state-in-review: #8b7ec8;
+  --state-done: #29a386;
+  --state-cancelled: #d9534f;
+
+  /* Priority */
+  --priority-urgent: #d9534f;
+  --priority-high: #d9853f;
+  --priority-medium: #c4a035;
+  --priority-low: #5b8fc9;
+  --priority-none: #9c9590;
+
+  /* Sidebar */
+  --sidebar: #f7f7f5;
+  --sidebar-foreground: #37352f;
+  --sidebar-primary: #29a386;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f1ef;
+  --sidebar-accent-foreground: #37352f;
+  --sidebar-border: #e9e9e7;
+  --sidebar-ring: #29a386;
+
+  /* Layout */
+  --header-height: 48px;
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 60px;
+  --content-max-width: 1200px;
+
+  /* Accessible text colors (AA compliant) */
+  --primary-text: #1f7d66;
+  --ai-text: #4a6f8f;
+}
+
+/* =============================================================================
+   DARK THEME - Soft Dark (v4 aligned)
+   ============================================================================= */
+.dark {
+  /* Base - Neutral dark */
+  --background: #191919;
+  --background-subtle: #222222;
+  --background-muted: #2c2c2c;
+  --foreground: #ebebeb;
+  --foreground-muted: #9b9b9b;
+
+  /* Card surfaces */
+  --card: #222222;
+  --card-foreground: #ebebeb;
+
+  /* Popover */
+  --popover: #222222;
+  --popover-foreground: #ebebeb;
+
+  /* Primary */
+  --primary: #3db896;
+  --primary-hover: #29a386;
+  --primary-muted: #1f3d35;
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #2c2c2c;
+  --secondary-foreground: #ebebeb;
+
+  /* Muted */
+  --muted: #2c2c2c;
+  --muted-foreground: #9b9b9b;
+
+  /* Accent */
+  --accent: #2c2c2c;
+  --accent-foreground: #ebebeb;
+
+  /* Destructive */
+  --destructive: #e5605b;
+  --destructive-foreground: #ffffff;
+
+  /* Warning */
+  --warning: #e5955b;
+
+  /* Info */
+  --info: #7da3c1;
+  --info-foreground: #ffffff;
+
+  /* Success */
+  --success: #3db896;
+  --success-foreground: #ffffff;
+
+  /* Borders */
+  --border: #3c3c3c;
+  --border-subtle: #333333;
+  --input: #3c3c3c;
+  --ring: #3db896;
+
+  /* AI Partner */
+  --ai: #7da3c1;
+  --ai-hover: #6b8fad;
+  --ai-muted: #1f2d38;
+  --ai-border: #4a6b85;
+  --ai-foreground: #ffffff;
+
+  /* AI Inline Card Background */
+  --ai-bg: #1f252c;
+
+  /* Question Request - Dark warm background for QuestionBlock */
+  --color-question-bg-dark: #252220;
+
+  /* Issue States */
+  --state-backlog: #7a7570;
+  --state-todo: #5b8fc9;
+  --state-in-progress: #e5955b;
+  --state-in-review: #a98bd9;
+  --state-done: #3db896;
+  --state-cancelled: #e5605b;
+
+  /* Priority */
+  --priority-urgent: #e5605b;
+  --priority-high: #e5955b;
+  --priority-medium: #d4b045;
+  --priority-low: #7da3c1;
+  --priority-none: #7a7570;
+
+  /* Sidebar */
+  --sidebar: #141414;
+  --sidebar-foreground: #ebebeb;
+  --sidebar-primary: #3db896;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2c2c2c;
+  --sidebar-accent-foreground: #ebebeb;
+  --sidebar-border: #3c3c3c;
+  --sidebar-ring: #3db896;
+
+  /* Accessible text colors (AA compliant) */
+  --primary-text: #4ecaa8;
+  --ai-text: #8fb5d3;
+}
+
+/* =============================================================================
+   HIGH CONTRAST THEME - WCAG AAA compliant
+   ============================================================================= */
+.high-contrast {
+  /* Base - Maximum contrast */
+  --background: #000000;
+  --background-subtle: #0a0a0a;
+  --background-muted: #1a1a1a;
+  --foreground: #ffffff;
+  --foreground-muted: #e0e0e0;
+
+  /* Card surfaces */
+  --card: #0a0a0a;
+  --card-foreground: #ffffff;
+
+  /* Popover */
+  --popover: #0a0a0a;
+  --popover-foreground: #ffffff;
+
+  /* Primary - High contrast green */
+  --primary: #00ff88;
+  --primary-hover: #00cc6e;
+  --primary-muted: #003322;
+  --primary-foreground: #000000;
+
+  /* Secondary */
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ffffff;
+
+  /* Muted */
+  --muted: #1a1a1a;
+  --muted-foreground: #e0e0e0;
+
+  /* Accent */
+  --accent: #1a1a1a;
+  --accent-foreground: #ffffff;
+
+  /* Destructive - Maximum contrast red */
+  --destructive: #ff4444;
+  --destructive-foreground: #000000;
+
+  /* Warning */
+  --warning: #ffaa00;
+
+  /* Info - High contrast blue */
+  --info: #80c0ff;
+  --info-foreground: #000000;
+
+  /* Success */
+  --success: #00ff88;
+  --success-foreground: #000000;
+
+  /* Borders - White for maximum visibility */
+  --border: #ffffff;
+  --border-subtle: #cccccc;
+  --input: #ffffff;
+  --ring: #00ff88;
+
+  /* AI Partner - High contrast blue */
+  --ai: #80c0ff;
+  --ai-hover: #60a0e0;
+  --ai-muted: #002244;
+  --ai-border: #80c0ff;
+  --ai-foreground: #000000;
+  --ai-bg: #001a33;
+
+  /* Question Request */
+  --color-question-bg: #1a1a0a;
+
+  /* Issue States - Maximum contrast */
+  --state-backlog: #cccccc;
+  --state-todo: #80c0ff;
+  --state-in-progress: #ffaa00;
+  --state-in-review: #cc99ff;
+  --state-done: #00ff88;
+  --state-cancelled: #ff4444;
+
+  /* Priority - Maximum contrast */
+  --priority-urgent: #ff4444;
+  --priority-high: #ffaa00;
+  --priority-medium: #ffdd00;
+  --priority-low: #80c0ff;
+  --priority-none: #cccccc;
+
+  /* Sidebar */
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #00ff88;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #ffffff;
+  --sidebar-ring: #00ff88;
+
+  /* Accessible text colors (AAA compliant) */
+  --primary-text: #00ff88;
+  --ai-text: #80c0ff;
+}
+
+/* =============================================================================
+   REDUCED MOTION — C-1/C-2: Respect prefers-reduced-motion globally
+   ============================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation-duration: 0s;
+  }
+
+  .animate-in,
+  .animate-out {
+    animation-duration: 0s !important;
+  }
+
+  .animate-fade-up {
+    animation: none !important;
+  }
+
+  /* Disable smooth scrolling */
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* =============================================================================
+   BASE STYLES
+   ============================================================================= */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+}
+
+/* =============================================================================
+   CUSTOM CLASSES (Not using @layer utilities for Tailwind v4 compatibility)
+   ============================================================================= */
+
+/* Neutral Shadows */
+.shadow-warm-sm {
+  box-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.04),
+    0 1px 1px hsl(0 0% 0% / 0.02);
+}
+
+.shadow-warm {
+  box-shadow:
+    0 2px 4px hsl(0 0% 0% / 0.04),
+    0 4px 8px hsl(0 0% 0% / 0.04);
+}
+
+.shadow-warm-md {
+  box-shadow:
+    0 4px 8px hsl(0 0% 0% / 0.04),
+    0 8px 16px hsl(0 0% 0% / 0.06);
+}
+
+.shadow-warm-lg {
+  box-shadow:
+    0 8px 16px hsl(0 0% 0% / 0.06),
+    0 16px 32px hsl(0 0% 0% / 0.08);
+}
+
+.shadow-warm-xl {
+  box-shadow:
+    0 12px 24px hsl(0 0% 0% / 0.08),
+    0 24px 48px hsl(0 0% 0% / 0.1);
+}
+
+/* Frosted Glass */
+.glass {
+  backdrop-filter: blur(20px) saturate(180%);
+  background: hsl(0 0% 98% / 0.72);
+  border: 1px solid hsl(0 0% 90% / 0.5);
+}
+
+.glass-subtle {
+  backdrop-filter: blur(12px) saturate(150%);
+  background: hsl(0 0% 98% / 0.85);
+}
+
+/* AI Styling */
+.ai-border-left {
+  border-left: 3px solid hsl(210 40% 55%);
+  padding-left: 12px;
+  background: hsl(210 30% 94% / 0.5);
+}
+
+.ai-glow {
+  box-shadow: 0 0 20px hsl(210 40% 55% / 0.15);
+}
+
+/* Scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(0 0% 90%) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 90%);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(0 0% 45% / 0.5);
+}
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* Interactive States */
+.interactive {
+  transition: all 0.2s ease;
+}
+
+.interactive:hover {
+  box-shadow:
+    0 4px 8px hsl(0 0% 0% / 0.04),
+    0 8px 16px hsl(0 0% 0% / 0.06);
+  transform: translateY(-1px);
+}
+
+.interactive:active {
+  transform: scale(0.98) translateY(0);
+}
+
+/* Tabular numbers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+.animate-page-in {
+  animation: pageIn 0.4s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.3s cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-ai-pulse {
+  animation: aiPulse 2s ease-in-out infinite;
+}
+
+@keyframes aiPulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, hsl(0 0% 95%) 0%, hsl(0 0% 45% / 0.1) 50%, hsl(0 0% 95%) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* =============================================================================
+   TYPOGRAPHY UTILITIES
+   ============================================================================= */
+
+/* Display font for headings/titles */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+/* Document title style (from prototype v4) */
+.document-title {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+/* Section heading (h2) style */
+.section-heading {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Subsection heading (h3) style */
+.subsection-heading {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* =============================================================================
+   AI READING TIME PILL
+   ============================================================================= */
+.reading-time-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--ai-muted);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--ai);
+}
+
+/* AI attribution badge */
+.ai-attribution {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--ai-muted);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ai);
+}
+
+/* =============================================================================
+   DOCUMENT CANVAS STYLES
+   ============================================================================= */
+
+/* Clean document container - Notion-inspired minimal style */
+.document-canvas {
+  background: var(--background);
+}
+
+/* Block content typography - compact line-height */
+.prose p,
+.prose li,
+.prose blockquote {
+  line-height: 1.5;
+}
+
+/* =============================================================================
+   HORIZONTAL TOC PILLS - UI Spec v3.3 / Prototype v4 aligned
+   ============================================================================= */
+
+.toc-container {
+  position: sticky;
+  top: 0;
+  background: var(--background);
+  padding: 12px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: 10;
+}
+
+.toc-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--foreground-muted);
+  margin-bottom: 8px;
+}
+
+.toc-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toc-item {
+  padding: 4px 12px;
+  background: var(--background-muted);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  color: var(--foreground-muted);
+  cursor: pointer;
+  transition: all 150ms ease-out;
+  border: none;
+}
+
+.toc-item:hover {
+  background: var(--primary-muted);
+  color: var(--primary);
+}
+
+.toc-item.active {
+  background: var(--primary);
+  color: white;
+}
+
+/* =============================================================================
+   AI THREAD INDICATOR - UI Spec v3.3 / DD-013 aligned
+   ============================================================================= */
+
+.ai-thread-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: var(--ai-muted);
+  border-left: 3px solid var(--ai);
+  border-radius: 0 10px 10px 0;
+  cursor: pointer;
+  transition: all 150ms ease-out;
+}
+
+.ai-thread-collapsed:hover {
+  box-shadow: var(--shadow-warm-sm);
+}
+
+/* =============================================================================
+   MARGIN PANEL TOGGLE
+   ============================================================================= */
+
+/* Edge toggle button for margin panel */
+.margin-toggle {
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 48px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+  z-index: 10;
+}
+
+.margin-toggle:hover,
+.margin-panel:hover .margin-toggle {
+  opacity: 1;
+}
+
+.margin-toggle svg {
+  width: 14px;
+  height: 14px;
+  color: var(--foreground-muted);
+}
+
+/* =============================================================================
+   ISSUE BOX - Inline issue reference with rainbow animation
+   ============================================================================= */
+
+.issue-box {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  background: var(--background);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.issue-box::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--radius) + 2px);
+  background: linear-gradient(
+    90deg,
+    var(--primary) 0%,
+    var(--ai) 25%,
+    #9b59b6 50%,
+    #e74c8c 75%,
+    var(--primary) 100%
+  );
+  z-index: -1;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.issue-box:hover {
+  transform: scale(1.02);
+  box-shadow: var(--shadow-warm-md);
+  border-color: transparent;
+}
+
+.issue-box:hover::before {
+  opacity: 1;
+}
+
+.issue-box:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.issue-box-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.issue-box-id {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--foreground-muted);
+}
+
+.issue-box-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* New issue - rainbow ::before with hue-rotate animation */
+.issue-box-new {
+  border-color: transparent;
+}
+
+.issue-box-new::before {
+  opacity: 1;
+  animation: issue-box-rainbow 2.5s ease-in-out infinite;
+}
+
+@keyframes issue-box-rainbow {
+  0%,
+  100% {
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    filter: hue-rotate(30deg);
+  }
+}
+
+/* Issue type variants - warm thematic gradients via ::before */
+.issue-box.type-bug {
+  border-color: transparent;
+}
+.issue-box.type-bug::before {
+  opacity: 1;
+  background: linear-gradient(90deg, #d9534f 0%, #d9853f 40%, #c4a035 100%);
+}
+
+.issue-box.type-improvement {
+  border-color: transparent;
+}
+.issue-box.type-improvement::before {
+  opacity: 1;
+  background: linear-gradient(90deg, #29a386 0%, #3cb8a0 40%, #5bb8d0 100%);
+}
+
+.issue-box.type-feature {
+  border-color: transparent;
+}
+.issue-box.type-feature::before {
+  opacity: 1;
+  background: linear-gradient(90deg, #6b5b95 0%, #6b8fad 40%, #4a7fb5 100%);
+}
+
+/* Completed issue - solid green border */
+.issue-box-completed {
+  border-color: var(--state-done);
+}
+.issue-box-completed::before {
+  display: none;
+}
+
+.issue-box-completed .issue-box-title {
+  text-decoration: line-through;
+  color: var(--foreground-muted);
+}
+
+/* =============================================================================
+   VERTICAL TEXT UTILITY
+   ============================================================================= */
+.writing-mode-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+/* =============================================================================
+   RAINBOW GRADIENT BORDER - Inline Issue Extraction
+   Per UI Spec v3.3 Section 7: Issue Box with rainbow pulse
+   Uses ::before pseudo-element for gradient borders with rounded corners
+   ============================================================================= */
+.issue-rainbow-border {
+  position: relative;
+  isolation: isolate;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+}
+
+.issue-rainbow-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--radius-md) + 2px);
+  background: linear-gradient(
+    90deg,
+    var(--primary) 0%,
+    var(--ai) 25%,
+    #9b59b6 50%,
+    #e74c8c 75%,
+    var(--primary) 100%
+  );
+  z-index: -1;
+  animation: rainbow-pulse 3s ease-in-out infinite;
+}
+
+@keyframes rainbow-pulse {
+  0%,
+  100% {
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    filter: hue-rotate(30deg);
+  }
+}
+
+/* Done state - solid green border instead of rainbow */
+.issue-done-border {
+  border-color: var(--state-done);
+}
+.issue-done-border::before {
+  display: none;
+}
+
+/* =============================================================================
+   MINIMAL TIPTAP PROSE STYLES - Craft-like clean design
+   ============================================================================= */
+/* TipTap Placeholder styles */
+.document-canvas .ProseMirror [data-placeholder]::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  pointer-events: none;
+  height: 0;
+}
+
+.document-canvas .prose {
+  max-width: none;
+}
+
+.document-canvas .prose h1 {
+  font-family: var(--font-display);
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--foreground);
+}
+
+.document-canvas .prose h2 {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--foreground);
+}
+
+.document-canvas .prose h3 {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+
+.document-canvas .prose p {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  color: var(--foreground);
+}
+
+.document-canvas .prose ul,
+.document-canvas .prose ol {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.document-canvas .prose li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.document-canvas .prose code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--background-muted);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+}
+
+.document-canvas .prose pre {
+  background: var(--background-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.document-canvas .prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.8125rem;
+}
+
+.document-canvas .prose blockquote {
+  border-left: 3px solid var(--ai);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: var(--foreground-muted);
+}
+
+/* Pull quote — editorial variant. Activated by data-pull-quote attribute on blockquote. */
+/* EDIT-01 (v1.1): larger font, accent border (--accent not --ai), full-color text */
+.document-canvas .prose blockquote[data-pull-quote] {
+  font-size: 1.2em;
+  font-style: italic;
+  border-left: 4px solid var(--accent);
+  padding-left: 1.25rem;
+  margin: 1.5rem 0;
+  color: var(--foreground);
+}
+
+/* =============================================================================
+   AI THREAD INLINE INDICATOR
+   ============================================================================= */
+.ai-thread-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  font-size: 0.75rem;
+  color: var(--ai);
+  background: var(--ai-muted);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.ai-thread-indicator:hover {
+  background: var(--ai);
+  color: white;
+}
+
+/* =============================================================================
+   INLINE ISSUE NODE - TipTap NodeView styling
+   Rainbow border on hover with pulse animation (border-only, not background)
+   ============================================================================= */
+.inline-issue-node {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  margin: 0 2px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  cursor: pointer;
+  vertical-align: middle;
+  background: var(--background);
+  border: 2px solid var(--border-subtle);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    filter var(--duration-fast) var(--ease-out);
+}
+
+/* Gradient border via masked ::before pseudo-element (border-only, hollow center) */
+.inline-issue-node::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--radius-md) + 2px);
+  padding: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--primary) 0%,
+    var(--ai) 25%,
+    #9b59b6 50%,
+    #e74c8c 75%,
+    var(--primary) 100%
+  );
+  /* Mask to hollow out center — only the 2px border ring is visible */
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+/* Hover: show rainbow gradient border + subtle glow */
+.inline-issue-node:hover {
+  border-color: transparent;
+}
+
+.inline-issue-node:hover::before {
+  opacity: 1;
+  animation: rainbow-border-rotate 3s linear infinite;
+}
+
+/* New issues: pulse border animation on entry */
+.inline-issue-node.issue-rainbow-border {
+  border-color: transparent;
+}
+
+.inline-issue-node.issue-rainbow-border::before {
+  opacity: 1;
+  animation:
+    rainbow-border-rotate 3s linear infinite,
+    rainbow-border-pulse 2s ease-in-out infinite;
+}
+
+/* Smooth hue rotation for rainbow cycling */
+@keyframes rainbow-border-rotate {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+
+/* Pulse glow effect on border */
+@keyframes rainbow-border-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.inline-issue-node .issue-type-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.inline-issue-node .issue-key {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--foreground-muted);
+}
+
+.inline-issue-node .issue-title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Issue type variants - thematic gradient on hover only */
+.inline-issue-node.type-bug:hover::before {
+  background: linear-gradient(90deg, #d9534f 0%, #d9853f 40%, #c4a035 100%);
+}
+
+.inline-issue-node.type-improvement:hover::before {
+  background: linear-gradient(90deg, #29a386 0%, #3cb8a0 40%, #5bb8d0 100%);
+}
+
+.inline-issue-node.type-feature:hover::before {
+  background: linear-gradient(90deg, #6b5b95 0%, #6b8fad 40%, #4a7fb5 100%);
+}
+
+/* .type-task uses default rainbow gradient on hover */
+
+/* Done state - solid green border, no rainbow */
+.inline-issue-node.state-done {
+  border-color: var(--state-done);
+}
+.inline-issue-node.state-done::before {
+  display: none;
+}
+.inline-issue-node.state-done:hover {
+  border-color: var(--state-done);
+}
+.inline-issue-node.state-done:hover::before {
+  display: none;
+}
+
+.inline-issue-node.state-done .issue-title {
+  text-decoration: line-through;
+  color: var(--foreground-muted);
+}
+
+/* =============================================================================
+   SCROLLBAR NONE UTILITY
+   ============================================================================= */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* =============================================================================
+   LINE GUTTER - Line numbers and fold widgets (VS Code style)
+   Line numbers via decoration widgets (clickable to select block).
+   Fold widgets positioned by ProseMirror decoration widgets.
+   ============================================================================= */
+/* .document-canvas .ProseMirror {
+  padding-left: 48px;
+} */
+
+.document-canvas .ProseMirror [data-block-id] {
+  position: relative;
+}
+
+/* Line number widgets (injected by LineGutterExtension) */
+.line-gutter-number {
+  position: absolute;
+  left: -44px;
+  top: 2px;
+  width: 32px;
+  text-align: right;
+  font-family: var(--font-jetbrains-mono), var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--foreground-muted);
+  opacity: 0.35;
+  user-select: none;
+  cursor: pointer;
+  padding: 0;
+  border: none;
+  background: transparent;
+  transition:
+    opacity 150ms ease,
+    color 150ms ease;
+}
+
+.line-gutter-number:hover {
+  opacity: 0.8;
+  color: var(--primary);
+}
+
+.line-gutter-number:focus-visible {
+  opacity: 0.8;
+  color: var(--primary);
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* Selected line highlight (VS Code-style current line) — one-line height only */
+.document-canvas .ProseMirror [data-block-id].line-gutter-selected {
+  isolation: isolate;
+}
+
+.document-canvas .ProseMirror [data-block-id].line-gutter-selected::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  right: -4px;
+  height: 1.5em;
+  background: rgba(41, 163, 134, 0.08);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Fold widgets (injected by LineGutterExtension decoration) */
+.line-gutter-fold-widget {
+  position: absolute;
+  left: -48px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--foreground-muted);
+  font-size: 0.625rem;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  z-index: 2;
+}
+
+.document-canvas .ProseMirror [data-block-id]:hover .line-gutter-fold-widget,
+.line-gutter-fold-widget:focus-visible {
+  opacity: 0.7;
+}
+
+.line-gutter-fold-widget:hover {
+  opacity: 1;
+  color: var(--primary);
+}
+
+.line-gutter-fold-widget:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* Hidden blocks (collapsed sections) */
+.line-gutter-hidden {
+  display: none !important;
+}
+
+/* =============================================================================
+   AI BLOCK PROCESSING INDICATOR
+   Pulsing left-border when AI is working on a note block
+   ============================================================================= */
+[data-block-id].ai-block-processing {
+  position: relative;
+}
+
+[data-block-id].ai-block-processing::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 2px;
+  background: var(--ai);
+  border-radius: 2px;
+  animation: ai-block-pulse 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes ai-block-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* AI Block Edit Highlight — background flash after replace_block completes */
+[data-block-id].ai-block-edited {
+  background: var(--ai-muted);
+  transition: background 1s ease-out;
+}
+
+[data-block-id].ai-block-edited.ai-block-fade-out {
+  background: transparent;
+}
+
+/* AI New Block Slide-In — after append_blocks completes */
+[data-block-id].ai-block-new {
+  animation: blockSlideIn 300ms ease-out forwards;
+}
+
+@keyframes blockSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =============================================================================
+   CHAT STREAMING EFFECT - Per-chunk fade-in for AI text streaming
+   ============================================================================= */
+.chat-streaming .chat-markdown > * {
+  animation: chatStreamReveal 0.3s ease-out both;
+}
+
+@keyframes chatStreamReveal {
+  from {
+    opacity: 0.4;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--primary);
+  animation: chatCursorBlink 1s steps(2) infinite;
+}
+
+@keyframes chatCursorBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* =============================================================================
+   CHAT INPUT WORKING INDICATOR - Orange glow when AI is processing
+   ============================================================================= */
+.chat-input-working {
+  border-color: #d9853f !important;
+  animation: chatInputGlow 2s ease-in-out infinite;
+}
+
+@keyframes chatInputGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(217, 133, 63, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 8px 2px rgba(217, 133, 63, 0.15);
+  }
+}
+
+/* =============================================================================
+   AI BLOCK STREAMING REVEAL - Enhanced clip-path + shimmer animation
+   ============================================================================= */
+[data-block-id].ai-block-streaming-reveal {
+  position: relative;
+  animation: blockStreamingReveal 1.2s ease-out forwards;
+  border-left: 2px solid var(--ai);
+  padding-left: 8px;
+  background: var(--ai-muted);
+}
+
+/* Shimmer edge that sweeps across during reveal */
+[data-block-id].ai-block-streaming-reveal::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ai);
+  opacity: 0.6;
+  animation: shimmerEdge 1.2s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes blockStreamingReveal {
+  0% {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.4;
+    background: var(--ai-muted);
+  }
+  80% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    background: var(--ai-muted);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    background: transparent;
+  }
+}
+
+@keyframes shimmerEdge {
+  from {
+    left: 0;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-block-id].ai-block-streaming-reveal {
+    animation: none;
+    border-left: 2px solid var(--ai);
+    background: var(--ai-muted);
+    transition: background 0.5s ease-out;
+  }
+  [data-block-id].ai-block-streaming-reveal::after {
+    display: none;
+  }
+}
+
+/* =============================================================================
+   OFF-SCREEN AI INDICATOR
+   Floating pill at bottom-center when AI edits blocks off-screen
+   ============================================================================= */
+
+.ai-offscreen-indicator {
+  animation:
+    offscreenPulse 2s ease-in-out infinite,
+    offscreenBlink 3s ease-in-out infinite;
+}
+
+@keyframes offscreenPulse {
+  0%,
+  100% {
+    box-shadow: 0 2px 8px rgba(217, 133, 63, 0.3);
+  }
+  50% {
+    box-shadow: 0 2px 12px rgba(217, 133, 63, 0.5);
+  }
+}
+
+@keyframes offscreenBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* =============================================================================
+   AI BLOCK PENDING EDIT - Pulse + overlay when AI tool call targets a block.
+   Visually signals "AI is editing" and discourages user edits on the block.
+   ============================================================================= */
+[data-block-id].ai-block-pending-edit {
+  border-left: 3px solid var(--warning);
+  padding-left: 8px;
+  background: rgba(217, 133, 63, 0.06);
+  animation: pendingEditPulse 1.5s ease-in-out infinite;
+  position: relative;
+  border-radius: 4px;
+}
+
+/* Semi-transparent overlay — blocks pointer interaction while AI is working */
+[data-block-id].ai-block-pending-edit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(217, 133, 63, 0.04);
+  border-radius: 4px;
+  pointer-events: all;
+  cursor: wait;
+  z-index: 5;
+  animation: pendingOverlayPulse 1.5s ease-in-out infinite;
+}
+
+/* "AI editing" label — top-right corner */
+[data-block-id].ai-block-pending-edit::after {
+  content: 'AI editing';
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.625rem;
+  font-weight: 500;
+  color: var(--warning);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 6;
+  letter-spacing: 0.02em;
+}
+
+@keyframes pendingEditPulse {
+  0%,
+  100% {
+    border-left-color: var(--warning);
+    box-shadow: -2px 0 8px rgba(217, 133, 63, 0.15);
+  }
+  50% {
+    border-left-color: rgba(217, 133, 63, 0.5);
+    box-shadow: -2px 0 16px rgba(217, 133, 63, 0.25);
+  }
+}
+
+@keyframes pendingOverlayPulse {
+  0%,
+  100% {
+    background: rgba(217, 133, 63, 0.04);
+  }
+  50% {
+    background: rgba(217, 133, 63, 0.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-block-id].ai-block-pending-edit {
+    animation: none;
+    box-shadow: -2px 0 8px rgba(217, 133, 63, 0.15);
+  }
+  [data-block-id].ai-block-pending-edit::before {
+    animation: none;
+  }
+  [data-block-id].ai-block-pending-edit::after {
+    animation: none;
+  }
+}
+
+/* Transition bridge: pending-edit → streaming-reveal */
+[data-block-id].ai-block-pending-edit.ai-block-streaming-reveal {
+  animation: none;
+  border-left-color: var(--ai);
+  background: rgba(107, 143, 173, 0.06);
+  transition:
+    border-left-color 0.3s ease-out,
+    background 0.3s ease-out;
+}
+
+/* Hide "AI editing" label during transition; overlay becomes reveal shimmer */
+[data-block-id].ai-block-pending-edit.ai-block-streaming-reveal::after {
+  content: '';
+  font-size: 0;
+  opacity: 0;
+}
+
+[data-block-id].ai-block-pending-edit.ai-block-streaming-reveal::before {
+  animation: none;
+  pointer-events: none;
+  background: transparent;
+}
+
+/* =============================================================================
+   PROSEMIRROR / TIPTAP EDITOR TYPOGRAPHY
+   Tailwind preflight resets list-style, margins, and padding on ul/ol/table.
+   These styles restore proper rendering for AI-generated markdown content.
+   ============================================================================= */
+
+/* --- Lists --- */
+.document-canvas .ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.document-canvas .ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.document-canvas .ProseMirror li {
+  margin: 0.25rem 0;
+}
+
+.document-canvas .ProseMirror li > p {
+  margin: 0;
+}
+
+/* Nested lists */
+.document-canvas .ProseMirror ul ul {
+  list-style-type: circle;
+  margin: 0.125rem 0;
+}
+
+.document-canvas .ProseMirror ul ul ul {
+  list-style-type: square;
+}
+
+.document-canvas .ProseMirror ol ol {
+  list-style-type: lower-alpha;
+  margin: 0.125rem 0;
+}
+
+/* Task list override — no disc markers */
+.document-canvas .ProseMirror ul[data-type='taskList'] {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.document-canvas .ProseMirror li[data-type='taskItem'] div p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* --- Tables --- */
+.document-canvas .ProseMirror table.note-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.document-canvas .ProseMirror table.note-table th {
+  background: var(--muted);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--foreground);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border-subtle);
+  min-width: 80px;
+}
+
+.document-canvas .ProseMirror table.note-table th:last-child {
+  border-right: none;
+}
+
+.document-canvas .ProseMirror table.note-table td {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  color: var(--foreground);
+  min-width: 80px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.document-canvas .ProseMirror table.note-table td:last-child {
+  border-right: none;
+}
+
+.document-canvas .ProseMirror table.note-table tr:last-child td {
+  border-bottom: none;
+}
+
+.document-canvas .ProseMirror table.note-table tbody tr:hover {
+  background: rgba(243, 242, 239, 0.5);
+}
+
+.dark .document-canvas .ProseMirror table.note-table tbody tr:hover {
+  background: rgba(45, 44, 42, 0.5);
+}
+
+/* Selected table cell highlight */
+.document-canvas .ProseMirror .selectedCell {
+  background: var(--primary-muted);
+}
+
+/* =============================================================================
+   CHAT MARKDOWN CONTENT STYLES
+   Custom prose-like styling for AI chat messages (no @tailwindcss/typography)
+   ============================================================================= */
+.chat-markdown {
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: var(--foreground);
+}
+
+.chat-markdown > *:first-child {
+  margin-top: 0;
+}
+
+.chat-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  font-weight: 600;
+  color: var(--foreground);
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.chat-markdown h1 {
+  font-size: 1.25rem;
+}
+.chat-markdown h2 {
+  font-size: 1.125rem;
+}
+.chat-markdown h3 {
+  font-size: 1rem;
+}
+.chat-markdown h4 {
+  font-size: 0.875rem;
+}
+
+/* Paragraphs */
+.chat-markdown p {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  line-height: 1.7;
+}
+
+/* Lists */
+.chat-markdown ul,
+.chat-markdown ol {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.chat-markdown li {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.chat-markdown ul {
+  list-style-type: disc;
+}
+.chat-markdown ol {
+  list-style-type: decimal;
+}
+
+.chat-markdown li > ul,
+.chat-markdown li > ol {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Links */
+.chat-markdown a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.chat-markdown a:hover {
+  text-decoration: underline;
+}
+
+/* Inline code */
+.chat-markdown code:not(pre code) {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: var(--muted);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+}
+
+/* Code blocks */
+.chat-markdown pre {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: var(--muted);
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.chat-markdown pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Blockquotes */
+.chat-markdown blockquote {
+  border-left: 3px solid var(--ai);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: var(--foreground-muted);
+}
+
+/* Tables - scrollable container with text wrapping */
+.chat-markdown .table-wrapper {
+  overflow-x: auto;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.chat-markdown table {
+  width: 100%;
+  min-width: 400px;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.chat-markdown thead {
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-markdown th {
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.chat-markdown td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--foreground);
+  min-width: 80px;
+  max-width: 200px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.chat-markdown tr:last-child td {
+  border-bottom: none;
+}
+
+.chat-markdown tbody tr:hover {
+  background: rgba(243, 242, 239, 0.5);
+}
+
+.dark .chat-markdown tbody tr:hover {
+  background: rgba(45, 44, 42, 0.5);
+}
+
+/* Horizontal rule */
+.chat-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+/* Strong and emphasis */
+.chat-markdown strong {
+  font-weight: 600;
+}
+.chat-markdown em {
+  font-style: italic;
+}
+
+/* Task lists (GFM) */
+.chat-markdown input[type='checkbox'] {
+  margin-right: 0.5rem;
+}
+
+/* Strikethrough (GFM) */
+.chat-markdown del {
+  text-decoration: line-through;
+  color: var(--foreground-muted);
+}
+
+/* =============================================================================
+   CODE SYNTAX HIGHLIGHTING (highlight.js / rehype-highlight)
+   Pilot Space theme: Warm, Capable, Collaborative
+   Inspired by Things 3 / Craft - natural colors, spacious calm
+   ============================================================================= */
+
+/* Base code block styling */
+.chat-markdown pre code.hljs {
+  display: block;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.chat-markdown code.hljs {
+  padding: 0.2em 0.4em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Light Mode - Warm naturals with muted, comfortable tones
+   ───────────────────────────────────────────────────────────────────────────── */
+.chat-markdown .hljs {
+  color: var(--foreground);
+  background: transparent;
+}
+
+/* Comments - warm muted gray (foreground-muted) */
+.chat-markdown .hljs-comment,
+.chat-markdown .hljs-quote {
+  color: #9c9590;
+  font-style: italic;
+}
+
+/* Keywords - soft coral, warmer than harsh red */
+.chat-markdown .hljs-keyword,
+.chat-markdown .hljs-selector-tag {
+  color: #c9726c;
+  font-weight: 500;
+}
+
+/* Literals - warm dusty blue (ai color family) */
+.chat-markdown .hljs-literal,
+.chat-markdown .hljs-number,
+.chat-markdown .hljs-boolean {
+  color: #5b8fc9;
+}
+
+/* Strings - dusty blue (ai accent) */
+.chat-markdown .hljs-string,
+.chat-markdown .hljs-attr {
+  color: #6b8fad;
+}
+
+/* Functions/titles - primary teal green */
+.chat-markdown .hljs-title,
+.chat-markdown .hljs-section,
+.chat-markdown .hljs-title.function_ {
+  color: #29a386;
+  font-weight: 500;
+}
+
+/* Selectors/attributes - muted purple (in-review color family) */
+.chat-markdown .hljs-name,
+.chat-markdown .hljs-selector-class,
+.chat-markdown .hljs-selector-id,
+.chat-markdown .hljs-attribute {
+  color: #8b7ec8;
+}
+
+/* Variables - warm amber/orange (in-progress color family) */
+.chat-markdown .hljs-variable,
+.chat-markdown .hljs-template-variable {
+  color: #d9853f;
+}
+
+/* Types - deeper teal */
+.chat-markdown .hljs-type,
+.chat-markdown .hljs-built_in,
+.chat-markdown .hljs-class .hljs-title {
+  color: #238f74;
+}
+
+/* Tags - soft teal green */
+.chat-markdown .hljs-tag {
+  color: #29a386;
+}
+
+/* Regex/links - dusty blue */
+.chat-markdown .hljs-regexp,
+.chat-markdown .hljs-link {
+  color: #6b8fad;
+}
+
+/* Symbols - soft blue */
+.chat-markdown .hljs-symbol,
+.chat-markdown .hljs-bullet {
+  color: #5b8fc9;
+}
+
+/* Meta - warm gray */
+.chat-markdown .hljs-meta {
+  color: #9c9590;
+}
+
+/* Diff deletion - soft red with warm background */
+.chat-markdown .hljs-deletion {
+  color: #b54b47;
+  background-color: #fdf2f1;
+}
+
+/* Diff addition - teal with warm background */
+.chat-markdown .hljs-addition {
+  color: #29a386;
+  background-color: #f0faf6;
+}
+
+.chat-markdown .hljs-emphasis {
+  font-style: italic;
+}
+
+.chat-markdown .hljs-strong {
+  font-weight: 600;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dark Mode - Softer, warmer tones for comfortable night coding
+   ───────────────────────────────────────────────────────────────────────────── */
+.dark .chat-markdown .hljs {
+  color: var(--foreground);
+}
+
+/* Comments - warm muted gray */
+.dark .chat-markdown .hljs-comment,
+.dark .chat-markdown .hljs-quote {
+  color: #7a7572;
+}
+
+/* Keywords - soft salmon/coral */
+.dark .chat-markdown .hljs-keyword,
+.dark .chat-markdown .hljs-selector-tag {
+  color: #e8a49f;
+}
+
+/* Literals - soft sky blue */
+.dark .chat-markdown .hljs-literal,
+.dark .chat-markdown .hljs-number,
+.dark .chat-markdown .hljs-boolean {
+  color: #8eb8e5;
+}
+
+/* Strings - light dusty blue (ai accent) */
+.dark .chat-markdown .hljs-string,
+.dark .chat-markdown .hljs-attr {
+  color: #a3c4db;
+}
+
+/* Functions/titles - bright teal */
+.dark .chat-markdown .hljs-title,
+.dark .chat-markdown .hljs-section,
+.dark .chat-markdown .hljs-title.function_ {
+  color: #4ecba8;
+}
+
+/* Selectors/attributes - soft lavender */
+.dark .chat-markdown .hljs-name,
+.dark .chat-markdown .hljs-selector-class,
+.dark .chat-markdown .hljs-selector-id,
+.dark .chat-markdown .hljs-attribute {
+  color: #b5a9e0;
+}
+
+/* Variables - warm amber */
+.dark .chat-markdown .hljs-variable,
+.dark .chat-markdown .hljs-template-variable {
+  color: #f0a968;
+}
+
+/* Types - lighter teal */
+.dark .chat-markdown .hljs-type,
+.dark .chat-markdown .hljs-built_in,
+.dark .chat-markdown .hljs-class .hljs-title {
+  color: #5ed4b1;
+}
+
+/* Tags - teal green */
+.dark .chat-markdown .hljs-tag {
+  color: #4ecba8;
+}
+
+/* Regex/links - light blue */
+.dark .chat-markdown .hljs-regexp,
+.dark .chat-markdown .hljs-link {
+  color: #a3c4db;
+}
+
+/* Symbols - soft blue */
+.dark .chat-markdown .hljs-symbol,
+.dark .chat-markdown .hljs-bullet {
+  color: #8eb8e5;
+}
+
+/* Meta - warm gray */
+.dark .chat-markdown .hljs-meta {
+  color: #7a7572;
+}
+
+/* Diff deletion - soft red with dark warm background */
+.dark .chat-markdown .hljs-deletion {
+  color: #f0b4b0;
+  background-color: rgba(181, 75, 71, 0.2);
+}
+
+/* Diff addition - teal with dark warm background */
+.dark .chat-markdown .hljs-addition {
+  color: #8fe8ca;
+  background-color: rgba(41, 163, 134, 0.2);
+}
+
+/* =============================================================================
+   DOCS MARKDOWN CONTENT STYLES
+   Extends .chat-markdown with larger text, scroll-margin for TOC, and
+   heading borders. All shared styles (lists, tables, code, hljs) are
+   inherited from .chat-markdown — only overrides are defined here.
+   ============================================================================= */
+.docs-markdown {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+
+.docs-markdown h1,
+.docs-markdown h2,
+.docs-markdown h3,
+.docs-markdown h4 {
+  scroll-margin-top: 5rem;
+}
+
+.docs-markdown h1 {
+  font-size: 1.5rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-markdown h2 {
+  font-size: 1.25rem;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.docs-markdown h3 {
+  font-size: 1.125rem;
+  margin-top: 1.5rem;
+}
+
+.docs-markdown h4 {
+  font-size: 1rem;
+  margin-top: 1.25rem;
+}
+
+.docs-markdown p {
+  line-height: 1.8;
+}
+
+.docs-markdown ul,
+.docs-markdown ol {
+  padding-left: 1.75rem;
+}
+
+.docs-markdown blockquote {
+  border-left-color: var(--primary);
+}
+
+.docs-markdown hr {
+  margin: 2rem 0;
+}
+
+/* =============================================================================
+   ONBOARDING CELEBRATION CONFETTI
+   ============================================================================= */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(300px) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.animate-confetti-fall {
+  animation: confetti-fall 2s ease-out forwards;
+}
+
+/* =============================================================================
+   CODE BLOCK EXTENSION STYLES
+   Unified design for regular code blocks and mermaid diagram blocks.
+   Both share the "editor block card" aesthetic: warm surface, contained header
+   row, consistent radius (--radius-lg: 14px), polished interaction states.
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   REGULAR CODE BLOCKS
+   DOM: .code-block-wrapper[style="position: relative"]
+          > .code-block-language-selector (absolute, hover-reveal)
+          > .code-block-copy-button       (absolute, hover-reveal)
+          > pre > code
+   --------------------------------------------------------------------------- */
+
+/* Wrapper — outer card container */
+.code-block-wrapper {
+  margin: 16px 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--background-subtle);
+  transition:
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.code-block-wrapper:hover {
+  border-color: var(--border);
+  box-shadow:
+    0 2px 4px hsl(0 0% 0% / 0.03),
+    0 4px 8px hsl(0 0% 0% / 0.03);
+}
+
+.dark .code-block-wrapper:hover {
+  box-shadow:
+    0 2px 4px hsl(0 0% 0% / 0.15),
+    0 4px 8px hsl(0 0% 0% / 0.1);
+}
+
+/* Focus-within ring for keyboard accessibility */
+.code-block-wrapper:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.15);
+}
+
+/* <pre> — code surface with header clearance for floating controls */
+.code-block-wrapper pre {
+  margin: 0;
+  padding: 36px 16px 14px;
+  overflow-x: auto;
+  background: var(--muted) !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.code-block-wrapper code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Scrollbar inside code blocks */
+.code-block-wrapper pre::-webkit-scrollbar {
+  height: 6px;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 80%);
+  border-radius: 3px;
+}
+
+.dark .code-block-wrapper pre::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 30%);
+}
+
+/* Language selector — top-left floating pill */
+.code-block-language-selector {
+  opacity: 0;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.code-block-wrapper:hover .code-block-language-selector,
+.code-block-wrapper:focus-within .code-block-language-selector {
+  opacity: 1;
+}
+
+.code-block-language-select {
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 500 !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--background) !important;
+  color: var(--muted-foreground) !important;
+  cursor: pointer !important;
+  transition:
+    border-color var(--duration-fast) ease,
+    color var(--duration-fast) ease !important;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6966' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 4px center !important;
+  padding-right: 20px !important;
+}
+
+.code-block-language-select:hover {
+  border-color: var(--primary) !important;
+  color: var(--foreground) !important;
+}
+
+.code-block-language-select:focus {
+  outline: none !important;
+  border-color: var(--ring) !important;
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.15) !important;
+}
+
+/* Copy button — top-right floating pill */
+.code-block-copy-button {
+  opacity: 0;
+  transition:
+    opacity var(--duration-fast) ease,
+    background var(--duration-fast) ease,
+    border-color var(--duration-fast) ease !important;
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 500 !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--background) !important;
+  color: var(--muted-foreground) !important;
+}
+
+.code-block-wrapper:hover .code-block-copy-button,
+.code-block-wrapper:focus-within .code-block-copy-button {
+  opacity: 1;
+}
+
+.code-block-copy-button:hover {
+  border-color: var(--primary) !important;
+  color: var(--foreground) !important;
+  background: var(--background) !important;
+}
+
+.code-block-copy-button:focus-visible {
+  outline: none !important;
+  border-color: var(--ring) !important;
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.15) !important;
+}
+
+.code-block-copy-button:active {
+  transform: scale(0.97);
+}
+
+/* ---------------------------------------------------------------------------
+   MERMAID DIAGRAM BLOCKS
+   DOM: .mermaid-unified-block
+          > .mermaid-toolbar (toggle buttons)
+          > .mermaid-preview-section (React MermaidPreview)
+          > pre.mermaid-code-section > code
+   --------------------------------------------------------------------------- */
+
+/* Outer card — matches code block card aesthetic */
+.mermaid-unified-block {
+  margin: 16px 0;
+  overflow: hidden;
+  transition:
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.mermaid-unified-block:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.15);
+}
+
+/* Toolbar — header row with segmented control */
+.mermaid-unified-block .mermaid-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 4px 6px;
+}
+
+/* Toggle buttons — segmented pill style.
+   Uses button[class] for specificity over Tailwind's base reset. */
+.mermaid-unified-block button.mermaid-toggle-btn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+  box-sizing: border-box;
+  user-select: none;
+  min-height: 28px;
+}
+
+.mermaid-unified-block button.mermaid-toggle-btn:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.mermaid-unified-block button.mermaid-toggle-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(160 58% 40% / 0.2);
+}
+
+.mermaid-unified-block button.mermaid-toggle-btn:active {
+  transform: scale(0.97);
+}
+
+/* Active toggle — elevated surface with neutral shadow */
+.mermaid-unified-block button.mermaid-toggle-btn.active {
+  color: var(--foreground);
+  background: var(--background);
+  box-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.06),
+    0 1px 3px hsl(0 0% 0% / 0.04);
+}
+
+.dark .mermaid-unified-block button.mermaid-toggle-btn.active {
+  background: var(--muted);
+  box-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.2),
+    0 1px 3px hsl(0 0% 0% / 0.15);
+}
+
+/* Code section — editable source area, flush against toolbar */
+.mermaid-unified-block .mermaid-code-section {
+  margin: 0;
+  padding: 14px 16px;
+  border: none;
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-x: auto;
+  color: var(--foreground);
+  tab-size: 4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mermaid-unified-block .mermaid-code-section code {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* Scrollbar inside mermaid code section */
+.mermaid-unified-block .mermaid-code-section::-webkit-scrollbar {
+  height: 6px;
+}
+
+.mermaid-unified-block .mermaid-code-section::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mermaid-unified-block .mermaid-code-section::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 80%);
+  border-radius: 3px;
+}
+
+.dark .mermaid-unified-block .mermaid-code-section::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 30%);
+}
+
+/* Preview section — clean diagram area with breathing room */
+.mermaid-unified-block .mermaid-preview-section {
+  min-height: 80px;
+  background: var(--background);
+}
+
+.dark .mermaid-unified-block .mermaid-preview-section {
+  background: var(--card);
+}
+
+/* ---------------------------------------------------------------------------
+   SYNTAX HIGHLIGHTING FOR EDITOR CODE BLOCKS + MERMAID
+   Lowlight inline decorations apply .hljs-* classes to both regular code
+   blocks and mermaid NodeView contentDOM.
+   --------------------------------------------------------------------------- */
+
+/* Light mode */
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-comment,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-quote {
+  color: #9c9590;
+  font-style: italic;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-keyword,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-selector-tag {
+  color: #c9726c;
+  font-weight: 500;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-literal,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-number,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-boolean {
+  color: #5b8fc9;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-string,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-attr {
+  color: #6b8fad;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-title,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-section,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-title.function_ {
+  color: #29a386;
+  font-weight: 500;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-name,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-selector-class,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-selector-id,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-attribute {
+  color: #8b7ec8;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-variable,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-template-variable {
+  color: #d9853f;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-type,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-built_in,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-class .hljs-title {
+  color: #238f74;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-tag {
+  color: #29a386;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-regexp,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-link {
+  color: #6b8fad;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-symbol,
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-bullet {
+  color: #5b8fc9;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-meta {
+  color: #9c9590;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-deletion {
+  color: #b54b47;
+  background-color: #fdf2f1;
+}
+
+:is(.code-block-wrapper, .mermaid-unified-block) .hljs-addition {
+  color: #29a386;
+  background-color: #f0faf6;
+}
+
+/* Mermaid-specific: operator arrows get teal color */
+.mermaid-unified-block .hljs-operator {
+  color: #29a386;
+}
+
+/* Dark mode */
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-comment,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-quote {
+  color: #7a7572;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-keyword,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-selector-tag {
+  color: #e8a49f;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-literal,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-number,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-boolean {
+  color: #8eb8e5;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-string,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-attr {
+  color: #a3c4db;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-title,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-section,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-title.function_ {
+  color: #4ecba8;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-name,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-selector-class,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-selector-id,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-attribute {
+  color: #b5a9e0;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-variable,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-template-variable {
+  color: #f0a968;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-type,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-built_in,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-class .hljs-title {
+  color: #5ed4b1;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-tag {
+  color: #4ecba8;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-regexp,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-link {
+  color: #a3c4db;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-symbol,
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-bullet {
+  color: #8eb8e5;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-meta {
+  color: #7a7572;
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-deletion {
+  color: #f0b4b0;
+  background-color: rgba(181, 75, 71, 0.2);
+}
+
+:is(.dark .code-block-wrapper, .dark .mermaid-unified-block) .hljs-addition {
+  color: #8fe8ca;
+  background-color: rgba(41, 163, 134, 0.2);
+}
+
+.dark .mermaid-unified-block .hljs-operator {
+  color: #4ecba8;
+}
+
+/* =============================================================================
+   REDUCED MOTION
+   ============================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .issue-rainbow-border::before,
+  .inline-issue-node.issue-rainbow-border::before,
+  .inline-issue-node:hover::before,
+  .issue-box-new::before,
+  [data-block-id].ai-block-processing::after,
+  .animate-confetti-fall,
+  .ai-offscreen-indicator {
+    animation: none !important;
+  }
+
+  .chat-streaming .chat-markdown > * {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  .chat-input-working {
+    animation: none !important;
+    box-shadow: 0 0 0 1px rgba(217, 133, 63, 0.3) !important;
+  }
+
+  [data-block-id].ai-block-streaming-reveal {
+    animation: none !important;
+    clip-path: none !important;
+    opacity: 1 !important;
+  }
+
+  [data-block-id].ai-block-edited {
+    transition: none !important;
+  }
+
+  [data-block-id].ai-block-new {
+    animation: none !important;
+  }
+}
+
+/* ── Video Embeds (Phase 33: Video Embeds) ──────────────────────────────
+ * .video-embed: responsive 16:9 iframe for YouTube (YoutubeExtension) and
+ * Vimeo (VimeoNode) inline players.
+ * Applied via HTMLAttributes in both extension configurations.
+ * ─────────────────────────────────────────────────────────────────────── */
+.video-embed {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 6px);
+  display: block;
+  margin: 1rem 0;
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.video-embed:hover {
+  border-color: var(--primary, #0f172a);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.video-embed--youtube,
+.video-embed--vimeo {
+  max-width: 100%;
+}
+
+/* URL prompt and embed offer overlays */
+.video-url-prompt:focus {
+  outline: 2px solid var(--ring, #94a3b8);
+  outline-offset: 1px;
+}
+
+/* Voice recording pulse animation (RecordButton) */
+@keyframes record-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.25);
+  }
+}
