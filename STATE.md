@@ -10,8 +10,8 @@ progress:
   total_phases: 18
   completed_phases: 14
   total_plans: 55
-  completed_plans: 48
-  percent: 87
+  completed_plans: 50
+  percent: 89
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 44 of 46 (Web Git Integration and Source Control Panel)
-Plan: 1 of 5 in current phase
+Plan: 3 of 5 in current phase
 Status: In progress
-Last activity: 2026-03-24 - Plan 44-01 complete: GitProvider abstraction with GitHub Git Data API and GitLab REST v4
+Last activity: 2026-03-24 - Plan 44-03 complete: Frontend types, API service, and GitWebStore for SCM panel
 
-Progress: [█████████░] 87% (Phase 44: 1/5 plans complete)
+Progress: [█████████░] 89% (Phase 44: 3/5 plans complete)
 
 ## Milestone History
 
@@ -157,6 +157,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 43]: [Phase 43-03]: usePythonLanguage uses derived loading state (useMemo) instead of synchronous setState in effect -- React 19 set-state-in-effect compliance
 - [Phase 43]: [Phase 43-03]: ensurePythonLanguage shares loading promise at module level to prevent duplicate Pyright WASM initializations
 - [Phase 44]: GitDataMixin pattern: extracted 12 Git Data API methods into mixin to keep GitHubClient under 700-line limit while preserving single-class API surface
+- [Phase 44-03]: GitWebStore is UI-only store: no direct API calls; TanStack Query hooks in components handle fetching
+- [Phase 44-03]: Client-side staging is a boolean flag on ChangedFile, not persisted to backend
+- [Phase 44-03]: apiClient already unwraps .data; API service functions return Promise<T> directly
 
 ### Roadmap Evolution
 
@@ -184,7 +187,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-24T13:04:00.000Z
-Stopped at: Completed 44-01-PLAN.md
-Resume file: .planning/phases/44-web-git-integration-and-source-control-panel/44-02-PLAN.md
-Next action: Execute Plan 44-02 (Git proxy router endpoints).
+Last session: 2026-03-24T13:13:43.000Z
+Stopped at: Completed 44-03-PLAN.md
+Resume file: .planning/phases/44-web-git-integration-and-source-control-panel/44-04-PLAN.md
+Next action: Execute Plan 44-04 (SCM panel UI components).
