@@ -24,7 +24,7 @@ async def resolve_attachments(
     attachment_ids: list[UUID],
     user_id: UUID,
     session: AsyncSession,
-    storage_client: SupabaseStorageClient | None = None,
+    storage_client: SupabaseStorageClient,
 ) -> tuple[list[Any], list[dict[str, Any]]]:
     """Fetch attachment records owned by *user_id* and build Claude content blocks.
 
@@ -36,9 +36,7 @@ async def resolve_attachments(
         attachment_ids: List of attachment UUIDs to resolve.
         user_id: Authenticated user ID.
         session: Async DB session.
-        storage_client: Optional pre-injected storage client.  When *None*
-            a new ``SupabaseStorageClient`` is created which lazily obtains
-            the shared SDK singleton on first use.
+        storage_client: Injected storage client from the DI container.
 
     Raises:
         HTTPException 403 if any attachment is not owned by the user.
@@ -74,6 +72,5 @@ async def resolve_attachments(
             },
         )
 
-    client = storage_client or SupabaseStorageClient()
-    blocks = await AttachmentContentService(client).build_content_blocks(valid_records)
+    blocks = await AttachmentContentService(storage_client).build_content_blocks(valid_records)
     return valid_records, blocks

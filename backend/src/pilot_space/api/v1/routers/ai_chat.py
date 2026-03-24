@@ -295,6 +295,7 @@ async def chat(
         ctx_attachment_ids if ctx_workspace_id is not None else [],
         user_id,
         session,
+        storage_client=fastapi_request.app.state.container.storage_client(),
     )
 
     # Extract full AI context (loads Note/Issue objects if IDs provided)
