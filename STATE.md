@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: completed
-stopped_at: Completed 42-01-PLAN.md
-last_updated: "2026-03-24T10:17:15Z"
-last_activity: "2026-03-24 - Plan 42-01 complete: CommandPalette + ActionRegistry + 6 action modules, 20 tests green, tsc PASS"
+stopped_at: Plan 43-01 complete
+last_updated: "2026-03-24T11:05:45.700Z"
+last_activity: "2026-03-24 - Plan 43-01 complete: TypeScript IntelliSense and diagnostics foundation with Monaco 0.55+ namespace migration"
 progress:
   total_phases: 18
-  completed_phases: 12
-  total_plans: 44
-  completed_plans: 42
-  percent: 95
+  completed_phases: 13
+  total_plans: 47
+  completed_plans: 45
+  percent: 96
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 
 ## Current Position
 
-Phase: 42 of 46 (Command Palette and Breadcrumb Navigation)
-Plan: 3 of 3 in current phase (COMPLETE)
-Status: Phase 42 complete
-Last activity: 2026-03-24 - Plan 42-01 complete: CommandPalette + ActionRegistry + 6 action modules, 20 tests green, tsc PASS
+Phase: 43 of 46 (LSP Integration and Code Intelligence)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-03-24 - Plan 43-01 complete: TypeScript IntelliSense and diagnostics foundation with Monaco 0.55+ namespace migration
 
-Progress: [█████████░] 95% (Phase 42: 3/3 plans complete)
+Progress: [█████████░] 96% (Phase 43: 1/3 plans complete)
 
 ## Milestone History
 
@@ -147,6 +147,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 42-02]: React 19 compliant isLoading: batched state object { symbols, isLoading } instead of synchronous setState in effect body
 - [Phase 42-02]: Stack-based symbol hierarchy: pop until parent with lower level, PM blocks nest under most recent heading
 - [Phase 42-02]: EditorLike interface for useSymbolOutline to decouple from Monaco types
+- [Phase 42]: [Phase 42-03]: DOM CustomEvent bridge pattern for Monaco-to-React: command-palette:toggle, symbol-outline:toggle, symbol-outline:navigate
+- [Phase 43-01]: monaco.typescript namespace used instead of deprecated monaco.languages.typescript (Monaco 0.55+ API migration)
+- [Phase 43-01]: Module-level configured flag in useTypeScriptDefaults ensures one-time global setup across React StrictMode re-mounts
 
 ### Roadmap Evolution
 
@@ -174,7 +177,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-24T10:17:15Z
-Stopped at: Completed 42-01-PLAN.md
-Resume file: .planning/phases/42-command-palette-and-breadcrumb-navigation/42-03-PLAN.md
-Next action: Phase 42 complete (3/3 plans). Execute Plan 42-03 if not already done, or proceed to Phase 43.
+Last session: 2026-03-24T11:32:22Z
+Stopped at: Plan 43-01 complete
+Resume file: .planning/phases/43-lsp-integration-and-code-intelligence/43-02-PLAN.md
+Next action: Execute Plan 43-02 (Diagnostics Panel UI).

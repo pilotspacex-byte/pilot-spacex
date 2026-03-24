@@ -296,7 +296,7 @@ Plans:
   2. File path breadcrumbs appear above the editor with clickable segments and sibling dropdowns
   3. Cmd+Shift+O toggles a symbol outline panel showing heading hierarchy with click-to-navigate
   4. All keyboard shortcuts work both inside and outside Monaco editor (keybinding overrides)
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 42-01-PLAN.md — ActionRegistry, CommandPalette component, 6 action modules, useRecentActions
@@ -326,19 +326,28 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 39. Tech Debt Cleanup | 1/1 | Complete    | 2026-03-20 | - |
 | 40. WebGPU Canvas IDE Editor | 8/8 | Complete    | 2026-03-24 | - |
 | 41. Office Suite Preview Redesign | 7/7 | Complete   | 2026-03-24 | - |
-| 42. Command Palette + Breadcrumbs | 2/3 | In Progress|  | - |
+| 42. Command Palette + Breadcrumbs | 3/3 | Complete    | 2026-03-24 | - |
 
 **v1.1 total: 12 phases, ~39 plans, 30+ requirements**
 
 ### Phase 43: LSP Integration and Code Intelligence
 
 **Goal:** Integrate Language Server Protocol for code intelligence — autocomplete, hover info, go-to-definition, find references, signature help, and diagnostics for TypeScript, Python, and common languages in the Monaco editor
-**Requirements**: TBD
+**Requirements**: LSP-01, LSP-02, LSP-03, LSP-04, LSP-05, LSP-06
 **Depends on:** Phase 42
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. TypeScript/JavaScript files show full IntelliSense: autocomplete, hover types, go-to-definition, find references, signature help, and inline diagnostic squiggles
+  2. A collapsible Problems panel below the editor shows all diagnostics with severity icons, badge counts, filter toggles, and click-to-navigate
+  3. Python files get autocomplete, hover info, and diagnostics via lazy-loaded Pyright WASM (with graceful fallback)
+  4. F12 (Go to Definition) and Shift+F12 (Find References) work within files for TypeScript and Python
+  5. Go to Definition and Find All References appear as searchable actions in the command palette
+  6. JSON/CSS/HTML intelligence continues to work via Monaco's built-in language services (no regression)
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 43 to break down)
+- [ ] 43-01-PLAN.md — TypeScript/JS language config, diagnostics types and theme colors, useTypeScriptDefaults + useDiagnostics hooks
+- [ ] 43-02-PLAN.md — DiagnosticsPanel and DiagnosticRow components, EditorLayout integration
+- [ ] 43-03-PLAN.md — Python Pyright WASM lazy loader, LSP navigate actions (F12, Shift+F12), command palette integration
 
 ### Phase 44: Web Git Integration and Source Control Panel
 
