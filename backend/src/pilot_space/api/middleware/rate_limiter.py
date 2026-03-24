@@ -218,7 +218,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             from pilot_space.infrastructure.database.models.workspace import Workspace
 
-            ws_uuid = _uuid.UUID(workspace_id)
+            try:
+                ws_uuid = _uuid.UUID(workspace_id)
+            except ValueError:
+                # Not a valid UUID (e.g. IP-based fallback key) — skip DB lookup
+                return defaults
 
             async with self._session_factory() as session:  # type: ignore[attr-defined]
                 result = await session.execute(

@@ -29,6 +29,7 @@ from pilot_space.api.v1.routers.ai_extraction import router as ai_extraction_rou
 from pilot_space.api.v1.routers.ai_governance import router as ai_governance_router
 from pilot_space.api.v1.routers.ai_sessions import router as ai_sessions_router
 from pilot_space.api.v1.routers.ai_tasks import router as ai_tasks_router
+from pilot_space.api.v1.routers.artifact_annotations import router as artifact_annotations_router
 from pilot_space.api.v1.routers.audit import router as audit_router
 from pilot_space.api.v1.routers.auth import router as auth_router
 from pilot_space.api.v1.routers.auth_sso import router as auth_sso_router
@@ -85,6 +86,9 @@ from pilot_space.api.v1.routers.webhooks import router as webhooks_router
 from pilot_space.api.v1.routers.workspace_ai_settings import router as workspace_ai_settings_router
 from pilot_space.api.v1.routers.workspace_cycles import router as workspace_cycles_router
 from pilot_space.api.v1.routers.workspace_encryption import router as workspace_encryption_router
+from pilot_space.api.v1.routers.workspace_feature_toggles import (
+    router as workspace_feature_toggles_router,
+)
 from pilot_space.api.v1.routers.workspace_invitations import router as workspace_invitations_router
 from pilot_space.api.v1.routers.workspace_issue_branches import (
     router as workspace_issue_branches_router,
@@ -165,6 +169,7 @@ __all__ = [
     "ai_router",
     "ai_sessions_router",
     "ai_tasks_router",
+    "artifact_annotations_router",
     "audit_router",
     "auth_router",
     "auth_sso_router",
@@ -215,6 +220,7 @@ __all__ = [
     "workspace_ai_settings_router",
     "workspace_cycles_router",
     "workspace_encryption_router",
+    "workspace_feature_toggles_router",
     "workspace_invitations_router",
     "workspace_issue_branches_router",
     "workspace_issues_router",

@@ -124,6 +124,71 @@ describe('resolveRenderer', () => {
     });
   });
 
+  describe('Office document files', () => {
+    it('returns "xlsx" for application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', () => {
+      expect(
+        resolveRenderer(
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'data.xlsx'
+        )
+      ).toBe('xlsx');
+    });
+
+    it('returns "xlsx" for application/vnd.ms-excel (legacy .xls)', () => {
+      expect(resolveRenderer('application/vnd.ms-excel', 'old.xls')).toBe('xlsx');
+    });
+
+    it('returns "xlsx" for application/octet-stream with .xlsx extension (extension priority)', () => {
+      expect(resolveRenderer('application/octet-stream', 'data.xlsx')).toBe('xlsx');
+    });
+
+    it('returns "xlsx" for application/octet-stream with .xls extension (extension priority)', () => {
+      expect(resolveRenderer('application/octet-stream', 'legacy.xls')).toBe('xlsx');
+    });
+
+    it('returns "docx" for application/vnd.openxmlformats-officedocument.wordprocessingml.document', () => {
+      expect(
+        resolveRenderer(
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'doc.docx'
+        )
+      ).toBe('docx');
+    });
+
+    it('returns "docx" for application/msword (legacy .doc)', () => {
+      expect(resolveRenderer('application/msword', 'old.doc')).toBe('docx');
+    });
+
+    it('returns "docx" for application/octet-stream with .docx extension (extension priority)', () => {
+      expect(resolveRenderer('application/octet-stream', 'report.docx')).toBe('docx');
+    });
+
+    it('returns "docx" for application/octet-stream with .doc extension (extension priority)', () => {
+      expect(resolveRenderer('application/octet-stream', 'legacy.doc')).toBe('docx');
+    });
+
+    it('returns "pptx" for application/vnd.openxmlformats-officedocument.presentationml.presentation', () => {
+      expect(
+        resolveRenderer(
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'slides.pptx'
+        )
+      ).toBe('pptx');
+    });
+
+    it('returns "pptx" for application/vnd.ms-powerpoint (legacy .ppt)', () => {
+      expect(resolveRenderer('application/vnd.ms-powerpoint', 'old.ppt')).toBe('pptx');
+    });
+
+    it('returns "pptx" for application/octet-stream with .pptx extension (extension priority)', () => {
+      expect(resolveRenderer('application/octet-stream', 'deck.pptx')).toBe('pptx');
+    });
+
+    it('returns "pptx" for application/octet-stream with .ppt extension (extension priority)', () => {
+      expect(resolveRenderer('application/octet-stream', 'legacy.ppt')).toBe('pptx');
+    });
+  });
+
   describe('download fallback', () => {
     it('returns "download" for application/pdf', () => {
       expect(resolveRenderer('application/pdf', 'doc.pdf')).toBe('download');

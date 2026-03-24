@@ -1,6 +1,7 @@
 ---
 name: adr-lite
 description: Generate a lightweight Architecture Decision Record as a Decision block
+feature_module: docs
 trigger:
   - "architecture decision"
   - "adr"

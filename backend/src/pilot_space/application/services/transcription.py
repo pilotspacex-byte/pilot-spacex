@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import httpx
@@ -21,7 +22,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pilot_space.ai.infrastructure.cost_tracker import CostTracker
 from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
 from pilot_space.ai.infrastructure.stt_pricing import calculate_stt_cost
-from pilot_space.api.v1.schemas.transcription import TranscribeResponse
+
+# TYPE_CHECKING guard: importing schemas.transcription triggers the api.v1.routers
+# import chain, which includes repository_deps → container → this module (circular
+# import).  At runtime TranscribeResponse is resolved lazily inside transcribe().
+if TYPE_CHECKING:
+    from pilot_space.api.v1.schemas.transcription import TranscribeResponse
+
 from pilot_space.infrastructure.database.models.transcript_cache import (
     TRANSCRIPT_CACHE_TTL_DAYS,
     TranscriptCache,
@@ -156,6 +163,14 @@ class TranscriptionService:
             ProviderAuthError: If ElevenLabs API key is invalid or expired.
             ProviderError: If ElevenLabs API returns an unexpected error.
         """
+        # Lazy import to break circular dependency: transcription → schemas.transcription →
+        # api.v1.__init__ → routers → repository_deps → container → transcription.
+        # The TYPE_CHECKING guard above allows the return annotation; this import
+        # provides the class at call time.
+        from pilot_space.api.v1.schemas.transcription import (
+            TranscribeResponse as _TranscribeResponse,
+        )
+
         audio_hash = hashlib.sha256(payload.audio_bytes).hexdigest()
 
         # Check transcript cache (skip expired entries)
@@ -167,7 +182,7 @@ class TranscriptionService:
                 audio_hash=audio_hash[:8],
                 user_id=str(payload.user_id),
             )
-            return TranscribeResponse(
+            return _TranscribeResponse(
                 transcript_id=cached.id,
                 text=cached.text,
                 language_code=cached.language_code,
@@ -233,7 +248,7 @@ class TranscriptionService:
             content_type=payload.content_type,
         )
 
-        return TranscribeResponse(
+        return _TranscribeResponse(
             transcript_id=record_id,
             text=transcript_text,
             language_code=detected_language,

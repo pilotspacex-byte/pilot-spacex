@@ -12,10 +12,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 from sqlalchemy.orm.attributes import flag_modified
 
 from pilot_space.ai.providers.constants import PROVIDER_SERVICE_SLOTS
+from pilot_space.api.v1.routers._workspace_admin import get_admin_workspace
 from pilot_space.api.v1.schemas.workspace import (
     AIFeatureToggles,
     KeyValidationResult,
@@ -48,33 +49,6 @@ def _get_workspace_features(workspace: Workspace) -> AIFeatureToggles:
     return AIFeatureToggles(**features_data)
 
 
-async def _get_admin_workspace(
-    workspace_id: UUID,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> Workspace:
-    """Resolve workspace and verify admin access."""
-    workspace_repo = WorkspaceRepository(session=session)
-    workspace = await workspace_repo.get_with_members(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
-
-    member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not member or not member.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
-    return workspace
-
-
 @router.get(
     "/{workspace_id}/ai/settings",
     response_model=WorkspaceAISettingsResponse,
@@ -90,7 +64,7 @@ async def get_ai_settings(
     Returns provider statuses grouped by service type and feature toggles.
     Requires workspace admin permission.
     """
-    workspace = await _get_admin_workspace(workspace_id, current_user, session)
+    workspace = await get_admin_workspace(workspace_id, current_user, session)
 
     from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
     from pilot_space.config import get_settings
@@ -149,7 +123,7 @@ async def update_ai_settings(
     Stores API keys (encrypted with Fernet) and feature toggles.
     Requires workspace admin permission.
     """
-    workspace = await _get_admin_workspace(workspace_id, current_user, session)
+    workspace = await get_admin_workspace(workspace_id, current_user, session)
 
     from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
     from pilot_space.config import get_settings

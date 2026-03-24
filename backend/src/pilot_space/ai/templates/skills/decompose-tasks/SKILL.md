@@ -1,6 +1,7 @@
 ---
 name: decompose-tasks
 description: Break down issue into subtasks with dependencies using AI planning
+feature_module: projects
 ---
 
 # Decompose Tasks Skill

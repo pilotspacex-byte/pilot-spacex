@@ -5,6 +5,7 @@ Provides standardized error responses following RFC 7807 specification.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import HTTPException, Request, status
@@ -143,6 +144,33 @@ async def http_exception_handler(
     )
 
 
+def _sanitize_pydantic_errors(errors: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Ensure all values in Pydantic error dicts are JSON-serializable.
+
+    Pydantic v2 ``exc.errors()`` can include ``ctx["error"]`` entries that are
+    raw Python exceptions (e.g. ``ValueError``). These are not JSON-serializable
+    and cause ``JSONResponse`` to raise a 500. This helper converts any
+    non-primitive ``ctx["error"]`` value to its string representation.
+
+    Args:
+        errors: Raw list returned by ``RequestValidationError.errors()``.
+
+    Returns:
+        A new list of error dicts safe for JSON serialisation.
+    """
+    sanitized: list[dict[str, Any]] = []
+    _json_primitives = (str, int, float, bool, type(None))
+    for error in errors:
+        e: dict[str, Any] = dict(error)
+        if "ctx" in e and isinstance(e["ctx"], dict) and "error" in e["ctx"]:
+            ctx: dict[str, Any] = dict(e["ctx"])
+            if not isinstance(ctx["error"], _json_primitives):
+                ctx["error"] = str(ctx["error"])
+            e["ctx"] = ctx
+        sanitized.append(e)
+    return sanitized
+
+
 async def validation_exception_handler(
     request: Request,
     exc: Exception,
@@ -157,7 +185,7 @@ async def validation_exception_handler(
         Problem Details JSON response.
     """
     if isinstance(exc, RequestValidationError):
-        errors = exc.errors()
+        errors = _sanitize_pydantic_errors(exc.errors())
         detail = "Validation failed"
         extensions = {"errors": errors}
     else:
@@ -255,6 +283,62 @@ async def transcription_error_handler(
     return await generic_exception_handler(request, exc)
 
 
+async def feature_toggle_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Handle FeatureToggleError with RFC 7807 Problem Details response.
+
+    Maps FeatureToggleError.http_status and error_code to a structured
+    problem+json body so the feature toggles router stays thin.
+
+    Args:
+        request: The incoming request.
+        exc: The FeatureToggleError exception.
+
+    Returns:
+        Problem Details JSON response.
+    """
+    from pilot_space.application.services.feature_toggle import FeatureToggleError
+
+    if isinstance(exc, FeatureToggleError):
+        return create_problem_response(
+            status_code=exc.http_status,
+            detail=exc.message,
+            instance=str(request.url),
+            extensions={"error_code": exc.error_code},
+        )
+    return await generic_exception_handler(request, exc)
+
+
+async def mcp_server_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Handle McpServerError with RFC 7807 Problem Details response.
+
+    Maps McpServerError.http_status and error_code to a structured
+    problem+json body so routers don't need manual try/except → HTTPException.
+
+    Args:
+        request: The incoming request.
+        exc: The McpServerError exception.
+
+    Returns:
+        Problem Details JSON response.
+    """
+    from pilot_space.application.services.mcp.exceptions import McpServerError
+
+    if isinstance(exc, McpServerError):
+        return create_problem_response(
+            status_code=exc.http_status,
+            detail=exc.message,
+            instance=str(request.url),
+            extensions={"error_code": exc.error_code},
+        )
+    return await generic_exception_handler(request, exc)
+
+
 def register_exception_handlers(app: Any) -> None:
     """Register all exception handlers with the app.
 
@@ -262,10 +346,14 @@ def register_exception_handlers(app: Any) -> None:
         app: FastAPI application instance.
     """
     from pilot_space.ai.exceptions import AINotConfiguredError
+    from pilot_space.application.services.feature_toggle import FeatureToggleError
+    from pilot_space.application.services.mcp.exceptions import McpServerError
     from pilot_space.application.services.transcription import TranscriptionError
 
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(AINotConfiguredError, ai_not_configured_handler)
     app.add_exception_handler(TranscriptionError, transcription_error_handler)
+    app.add_exception_handler(FeatureToggleError, feature_toggle_error_handler)
+    app.add_exception_handler(McpServerError, mcp_server_error_handler)
     app.add_exception_handler(Exception, generic_exception_handler)

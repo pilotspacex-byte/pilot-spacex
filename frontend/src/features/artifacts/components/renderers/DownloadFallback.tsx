@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button';
 interface DownloadFallbackProps {
   filename: string;
   signedUrl: string;
-  reason?: 'unsupported' | 'expired' | 'error';
+  reason?: 'unsupported' | 'expired' | 'error' | 'legacy';
 }
 
 const MESSAGES: Record<NonNullable<DownloadFallbackProps['reason']>, string> = {
   expired: 'This link has expired.',
   unsupported: 'Preview not available for this file type.',
   error: 'Failed to load file content.',
+  legacy: 'Download to view \u2014 this file format requires a desktop application.',
 };
 
 export function DownloadFallback({
@@ -27,6 +28,8 @@ export function DownloadFallback({
       <div className="rounded-full bg-muted p-4">
         {reason === 'expired' ? (
           <Link2Off className="size-8 text-muted-foreground" />
+        ) : reason === 'legacy' ? (
+          <Download className="size-8 text-muted-foreground" />
         ) : (
           <AlertCircle className="size-8 text-muted-foreground" />
         )}

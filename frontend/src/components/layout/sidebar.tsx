@@ -11,7 +11,6 @@ import {
   LayoutGrid,
   FolderKanban,
   Users,
-  MessageSquare,
   DollarSign,
   Settings,
   ChevronLeft,
@@ -29,7 +28,7 @@ import {
   Moon,
   Monitor,
   CheckCircle2,
-  BookOpen,
+  Network,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useUIStore, useNotificationStore, useAuthStore, useWorkspaceStore } from '@/stores';
@@ -64,6 +63,7 @@ import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher';
 import { usePendingApprovalCount } from '@/features/approvals/hooks/use-approvals';
 import { usePinnedNotes } from '@/hooks/usePinnedNotes';
 import { useSettingsModal } from '@/features/settings/settings-modal-context';
+import type { WorkspaceFeatureToggles } from '@/types';
 
 interface NavItem {
   name: string;
@@ -74,6 +74,8 @@ interface NavItem {
   badgeKey?: string;
   /** When true, hidden from non-Owner/Admin members. */
   adminOnly?: boolean;
+  /** Maps to a WorkspaceFeatureToggles key. When set, item is hidden if the feature is disabled. */
+  featureKey?: keyof WorkspaceFeatureToggles;
 }
 
 interface NavSection {
@@ -87,20 +89,19 @@ const navigationSections: NavSection[] = [
     label: 'Main',
     items: [
       { name: 'Home', path: '', icon: Home, testId: 'nav-home' },
-      { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes' },
-      { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues' },
-      { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects' },
-      { name: 'Members', path: 'members', icon: Users, testId: 'nav-members' },
-      { name: 'Docs', path: 'docs', icon: BookOpen, testId: 'nav-docs' },
+      { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes', featureKey: 'notes' },
+      { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues', featureKey: 'issues' },
+      { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects', featureKey: 'projects' },
+      { name: 'Members', path: 'members', icon: Users, testId: 'nav-members', featureKey: 'members' },
+      { name: 'Knowledge', path: 'knowledge', icon: Network, testId: 'nav-knowledge', featureKey: 'knowledge' },
     ],
   },
   {
     label: 'AI',
     icon: Sparkles,
     items: [
-      { name: 'Chat', path: 'chat', icon: MessageSquare, testId: 'nav-chat' },
-      { name: 'Skill', path: 'skills', icon: UserCog, testId: 'nav-roles' },
-      { name: 'Costs', path: 'costs', icon: DollarSign, testId: 'nav-costs' },
+      { name: 'Skill', path: 'skills', icon: UserCog, testId: 'nav-roles', featureKey: 'skills' },
+      { name: 'Costs', path: 'costs', icon: DollarSign, testId: 'nav-costs', featureKey: 'costs' },
       {
         name: 'Approvals',
         path: 'approvals',
@@ -108,15 +109,12 @@ const navigationSections: NavSection[] = [
         testId: 'nav-approvals',
         badgeKey: 'pendingApprovals',
         adminOnly: true,
+        featureKey: 'approvals',
       },
     ],
   },
 ];
 
-/**
- * Claude iOS-inspired user card: single trigger with unified dropdown.
- * Consolidates notification bell, user avatar, profile, and settings.
- */
 const THEME_OPTIONS = [
   { value: 'light' as const, label: 'Light', icon: Sun },
   { value: 'dark' as const, label: 'Dark', icon: Moon },
@@ -209,7 +207,7 @@ export const SidebarUserControls = observer(function SidebarUserControls({
 
   if (collapsed) {
     return (
-      <div className="flex items-center justify-center gap-1 border-t border-sidebar-border p-1.5">
+      <div className="flex shrink-0 flex-col items-center gap-1.5 border-t border-sidebar-border p-2">
         <NotificationPanel store={notificationStore} workspaceId={workspaceId} collapsed />
         <DropdownMenu>
           <Tooltip delayDuration={0}>
@@ -219,9 +217,9 @@ export const SidebarUserControls = observer(function SidebarUserControls({
                   variant="ghost"
                   size="icon"
                   aria-label="Account"
-                  className="relative h-8 w-8 rounded-full"
+                  className="relative h-10 w-10 rounded-full"
                 >
-                  <Avatar className="h-6 w-6 border border-border">
+                  <Avatar className="h-7 w-7 border border-border">
                     <AvatarImage src={authStore.user?.avatarUrl ?? ''} alt="User" />
                     <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-medium">
                       {initials}
@@ -239,12 +237,12 @@ export const SidebarUserControls = observer(function SidebarUserControls({
   }
 
   return (
-    <div className="flex items-center gap-1 border-t border-sidebar-border px-2 py-2">
+    <div className="flex shrink-0 items-center gap-1 border-t border-sidebar-border px-2 py-2">
       <NotificationPanel store={notificationStore} workspaceId={workspaceId} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="flex flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-sidebar-accent/50"
+            className="flex flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-sidebar-accent/50 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar"
             aria-label="Account"
           >
             <Avatar className="h-7 w-7 shrink-0 border border-border">
@@ -264,10 +262,6 @@ export const SidebarUserControls = observer(function SidebarUserControls({
   );
 });
 
-/**
- * Extract workspace slug from pathname.
- * Pathname format: /{workspaceSlug}/... or /{workspaceSlug}
- */
 function getWorkspaceSlugFromPathname(pathname: string): string {
   const segments = pathname.split('/').filter(Boolean);
   const firstSegment = segments[0] ?? '';
@@ -300,13 +294,10 @@ export const Sidebar = observer(function Sidebar() {
 
   // Get workspace slug from URL pathname (not from store)
   const workspaceSlug = getWorkspaceSlugFromPathname(pathname);
-  // Resolve workspace UUID from slug. Notifications and other APIs require a UUID, not a slug.
   const workspaceId =
     workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id ??
     workspaceStore.currentWorkspaceId ??
     workspaceSlug;
-  // A verified UUID — undefined when workspaceId is still a slug (e.g. "acme-inc" also
-  // contains '-' so the old .includes('-') guard was insufficient).
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const resolvedWorkspaceId = UUID_RE.test(workspaceId) ? workspaceId : undefined;
 
@@ -355,15 +346,23 @@ export const Sidebar = observer(function Sidebar() {
   });
 
   const navigation = useMemo(() => {
-    return navigationSections.map((section) => ({
-      label: section.label,
-      icon: section.icon,
-      items: section.items.map((item) => ({
-        ...item,
-        href: item.path ? `/${workspaceSlug}/${item.path}` : `/${workspaceSlug}`,
-      })),
-    }));
-  }, [workspaceSlug]);
+    return navigationSections.map((section) => {
+      const items = section.items
+        .filter((item) => {
+          // Hide items whose feature is disabled
+          if (item.featureKey && !workspaceStore.isFeatureEnabled(item.featureKey)) {
+            return false;
+          }
+          return true;
+        })
+        .map((item) => ({
+          ...item,
+          href: item.path ? `/${workspaceSlug}/${item.path}` : `/${workspaceSlug}`,
+        }));
+      return { label: section.label, icon: section.icon, items };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceSlug, workspaceStore.featureToggles]);
 
   const projectMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -398,8 +397,8 @@ export const Sidebar = observer(function Sidebar() {
         {/* Logo & Workspace */}
         <div
           className={cn(
-            'flex h-10 items-center gap-2 border-b border-sidebar-border',
-            collapsed ? 'justify-center px-0' : 'px-3'
+            'flex h-10 shrink-0 items-center gap-2 border-b border-sidebar-border',
+            collapsed ? 'justify-center px-2' : 'px-3'
           )}
         >
           <motion.div
@@ -415,122 +414,141 @@ export const Sidebar = observer(function Sidebar() {
               initial={shouldReduceMotion ? false : { opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={shouldReduceMotion ? undefined : { opacity: 0, x: -10 }}
-              className="flex flex-col"
+              className="flex flex-1 flex-col min-w-0"
             >
               <WorkspaceSwitcher currentSlug={workspaceSlug} />
             </motion.div>
           )}
         </div>
 
-        {/* Main Navigation */}
-        <div className="flex flex-col gap-0.5 p-2">
-          {navigation.map((section, sectionIndex) => (
-            <nav
-              key={section.label}
-              aria-label={`${section.label} navigation`}
-              className={cn(sectionIndex > 0 && 'mt-3')}
-            >
-              {!collapsed ? (
-                <div className="mb-1 flex items-center gap-1.5 px-2.5" aria-hidden="true">
-                  {section.icon && (
-                    <section.icon className="h-2.5 w-2.5 text-sidebar-foreground/40" />
+        {/* Scrollable area: navigation + pinned notes */}
+        <ScrollArea className="flex-1 min-h-0">
+          {/* Main Navigation */}
+          <div className="flex flex-col gap-0.5 p-2">
+            {navigation.map((section, sectionIndex) => {
+              // Compute visible items after adminOnly filtering
+              const visibleItems = section.items.filter(
+                (item) => !(item.adminOnly && !isAdminOrOwner)
+              );
+              // Hide section when no items are visible
+              if (visibleItems.length === 0) return null;
+
+              return (
+                <nav
+                  key={section.label}
+                  aria-label={`${section.label} navigation`}
+                  className={cn(sectionIndex > 0 && 'mt-3')}
+                >
+                  {!collapsed ? (
+                    <div className="mb-1 flex items-center gap-1.5 px-2.5" aria-hidden="true">
+                      {section.icon && (
+                        <section.icon className="h-2.5 w-2.5 text-sidebar-foreground/40" />
+                      )}
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                        {section.label}
+                      </span>
+                    </div>
+                  ) : (
+                    sectionIndex > 0 && (
+                      <div
+                        className="mx-auto mb-1.5 h-px w-4 rounded-full bg-sidebar-border"
+                        aria-hidden="true"
+                      />
+                    )
                   )}
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                    {section.label}
-                  </span>
-                </div>
-              ) : (
-                sectionIndex > 0 && (
-                  <div
-                    className="mx-auto mb-1.5 h-px w-4 rounded-full bg-sidebar-border"
-                    aria-hidden="true"
-                  />
-                )
-              )}
-              {section.items.map((item) => {
-                // Hide adminOnly items from non-Owner/Admin members
-                if (item.adminOnly && !isAdminOrOwner) return null;
+                  {visibleItems.map((item) => {
+                    const isActive = item.path
+                      ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                      : pathname === item.href;
 
-                const isActive = item.path
-                  ? pathname === item.href || pathname.startsWith(`${item.href}/`)
-                  : pathname === item.href;
+                    const badgeCount =
+                      item.badgeKey !== undefined ? (badgeValues[item.badgeKey] ?? 0) : 0;
 
-                const badgeCount =
-                  item.badgeKey !== undefined ? (badgeValues[item.badgeKey] ?? 0) : 0;
-
-                return (
-                  <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
-                    <TooltipTrigger asChild>
-                      <Link
-                        href={item.href}
-                        data-testid={item.testId}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={cn(
-                          'group relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200',
-                          isActive
-                            ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent/50',
-                          collapsed && 'justify-center px-2'
-                        )}
-                      >
-                        <item.icon
-                          className={cn(
-                            'h-4 w-4 shrink-0 transition-colors',
-                            isActive
-                              ? 'text-sidebar-primary'
-                              : 'text-muted-foreground group-hover:text-sidebar-foreground'
-                          )}
-                        />
-                        {!collapsed && (
-                          <motion.span
-                            initial={shouldReduceMotion ? false : { opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={shouldReduceMotion ? undefined : { opacity: 0 }}
-                            className="flex flex-1 items-center justify-between"
-                          >
-                            {item.name}
-                            {badgeCount > 0 && (
-                              <span
-                                className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
-                                aria-label={`${badgeCount} pending`}
-                                data-testid={`${item.testId}-badge`}
-                              >
-                                {badgeCount}
-                              </span>
+                    return (
+                      <Tooltip key={item.name} delayDuration={collapsed ? 0 : 1000}>
+                        <TooltipTrigger asChild>
+                          <Link
+                            href={item.href}
+                            data-testid={item.testId}
+                            aria-current={isActive ? 'page' : undefined}
+                            aria-label={
+                              collapsed
+                                ? badgeCount > 0
+                                  ? `${item.name} (${badgeCount} pending)`
+                                  : item.name
+                                : undefined
+                            }
+                            className={cn(
+                              'group relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar',
+                              isActive
+                                ? [
+                                    'bg-sidebar-accent text-sidebar-primary font-semibold',
+                                    !collapsed &&
+                                      'before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-4 before:w-[3px] before:rounded-full before:bg-primary',
+                                    collapsed &&
+                                      'after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:h-[3px] after:w-3 after:rounded-full after:bg-primary',
+                                  ]
+                                : 'text-sidebar-foreground hover:bg-sidebar-accent/50',
+                              collapsed && 'justify-center px-0 py-2'
                             )}
-                          </motion.span>
+                          >
+                            <item.icon
+                              className={cn(
+                                'h-4 w-4 shrink-0 transition-colors',
+                                isActive
+                                  ? 'text-sidebar-primary'
+                                  : 'text-muted-foreground group-hover:text-sidebar-foreground'
+                              )}
+                            />
+                            {!collapsed && (
+                              <motion.span
+                                initial={shouldReduceMotion ? false : { opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={shouldReduceMotion ? undefined : { opacity: 0 }}
+                                className="flex flex-1 items-center justify-between"
+                              >
+                                {item.name}
+                                {badgeCount > 0 && (
+                                  <span
+                                    className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+                                    aria-label={`${badgeCount} pending`}
+                                    data-testid={`${item.testId}-badge`}
+                                  >
+                                    {badgeCount}
+                                  </span>
+                                )}
+                              </motion.span>
+                            )}
+                            {/* Collapsed badge dot */}
+                            {collapsed && badgeCount > 0 && (
+                              <span
+                                className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary"
+                                aria-hidden
+                              />
+                            )}
+                          </Link>
+                        </TooltipTrigger>
+                        {collapsed && (
+                          <TooltipContent side="right" className="font-medium">
+                            {item.name}
+                            {badgeCount > 0 && ` (${badgeCount} pending)`}
+                          </TooltipContent>
                         )}
-                        {/* Collapsed badge dot */}
-                        {collapsed && badgeCount > 0 && (
-                          <span
-                            className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary"
-                            aria-hidden
-                          />
-                        )}
-                      </Link>
-                    </TooltipTrigger>
-                    {collapsed && (
-                      <TooltipContent side="right" className="font-medium">
-                        {item.name}
-                        {badgeCount > 0 && ` (${badgeCount} pending)`}
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                );
-              })}
-            </nav>
-          ))}
-        </div>
+                      </Tooltip>
+                    );
+                  })}
+                </nav>
+              );
+            })}
+          </div>
 
-        <Separator className="mx-2" />
+          <Separator className="mx-2" />
 
-        {/* Notes sections — Project page trees + Personal pages */}
-        <ScrollArea className="flex-1 px-2 py-1.5">
+          {/* Pinned Notes — inside scrollable area */}
           {!collapsed && (
-            <>
-              {/* Pinned Notes */}
-              <div className="mb-3" data-testid="pinned-notes">
-                <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
+            <div className="px-2 py-2">
+              <div className="mb-4" data-testid="pinned-notes">
+                <div className="mb-2 flex items-center gap-1.5 px-1.5">
                   <PinIcon className="h-2.5 w-2.5 text-muted-foreground" />
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Pinned
@@ -551,16 +569,16 @@ export const Sidebar = observer(function Sidebar() {
                           data-testid="note-item"
                           aria-current={isActive ? 'page' : undefined}
                           className={cn(
-                            'group flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors',
+                            'group relative flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar',
                             isActive
-                              ? 'bg-sidebar-accent text-sidebar-primary shadow-warm-sm'
+                              ? 'bg-sidebar-accent text-sidebar-primary font-semibold before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-3.5 before:w-[3px] before:rounded-full before:bg-primary'
                               : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                           )}
                         >
                           <FileText className="h-3 w-3 text-muted-foreground" />
                           <span className="truncate">{note.title}</span>
                           {note.projectId && projectMap[note.projectId] && (
-                            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60 truncate max-w-[60px]">
+                            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60 truncate max-w-[80px]">
                               {projectMap[note.projectId]}
                             </span>
                           )}
@@ -570,14 +588,17 @@ export const Sidebar = observer(function Sidebar() {
                   })}
                 </div>
               </div>
-            </>
+            </div>
           )}
         </ScrollArea>
 
         {/* New Note Button — hidden for guests */}
         {canCreateContent && (
           <div
-            className={cn('border-t border-sidebar-border p-2', collapsed && 'flex justify-center')}
+            className={cn(
+              'shrink-0 border-t border-sidebar-border p-2',
+              collapsed && 'flex justify-center'
+            )}
           >
             <Tooltip delayDuration={collapsed ? 0 : 1000}>
               <TooltipTrigger asChild>
@@ -585,18 +606,21 @@ export const Sidebar = observer(function Sidebar() {
                   variant="default"
                   size={collapsed ? 'icon' : 'sm'}
                   data-testid="new-note-button"
+                  aria-label={collapsed ? 'New Note' : undefined}
                   onClick={handleNewNote}
                   disabled={createNote.isPending || !resolvedWorkspaceId}
                   className={cn(
-                    'shadow-warm-sm transition-all duration-200',
+                    'shadow-warm-sm transition-[colors,box-shadow] duration-200',
                     'hover:shadow-warm-md',
-                    collapsed ? 'h-8 w-8' : 'w-full'
+                    collapsed ? 'h-9 w-9' : 'w-full'
                   )}
                 >
                   {createNote.isPending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Loader2
+                      className={cn(collapsed ? 'h-4 w-4' : 'h-3.5 w-3.5', 'animate-spin')}
+                    />
                   ) : (
-                    <Plus className="h-3.5 w-3.5" />
+                    <Plus className={collapsed ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
                   )}
                   {!collapsed && (
                     <span className="ml-1.5 text-xs">
@@ -619,8 +643,8 @@ export const Sidebar = observer(function Sidebar() {
           uiStore={uiStore}
         />
 
-        {/* Collapse Toggle — close button on mobile, chevron toggle on desktop */}
-        <div className="border-t border-sidebar-border p-1.5">
+        {/* Collapse/Expand Toggle — always visible at bottom */}
+        <div className="shrink-0 border-t border-sidebar-border p-2">
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <Button
@@ -637,7 +661,7 @@ export const Sidebar = observer(function Sidebar() {
                       : 'Collapse sidebar'
                 }
                 className={cn(
-                  'h-6 w-full justify-center text-muted-foreground hover:text-sidebar-foreground',
+                  'h-8 w-full justify-center text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
                   collapsed && 'px-2'
                 )}
               >

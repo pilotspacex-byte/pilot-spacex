@@ -1,8 +1,8 @@
 /**
  * MCP Servers API client.
  *
- * Phase 14 Plan 04: Typed API client for workspace remote MCP server CRUD + status + OAuth.
- * Uses apiClient from services/api/client (same pattern as AISettingsStore).
+ * Phase 25: Extended for multi-type servers, bulk import, connection testing,
+ * enable/disable, and partial updates (PATCH).
  */
 import { apiClient } from '@/services/api/client';
 import type {
@@ -10,43 +10,57 @@ import type {
   MCPServerStatus,
   MCPServerListResponse,
   MCPServerRegisterRequest,
+  MCPServerUpdateRequest,
+  MCPServerTestResult,
+  ImportMcpServersResponse,
 } from '@/stores/ai/MCPServersStore';
 
 const base = (workspaceId: string) => `/workspaces/${workspaceId}/mcp-servers`;
 
 export const mcpServersApi = {
-  /**
-   * List all registered MCP servers for a workspace.
-   * GET /workspaces/{workspaceId}/mcp-servers
-   */
+  /** List all registered MCP servers. GET /workspaces/{id}/mcp-servers */
   list: (workspaceId: string): Promise<MCPServerListResponse> =>
     apiClient.get<MCPServerListResponse>(base(workspaceId)),
 
-  /**
-   * Register a new remote MCP server.
-   * POST /workspaces/{workspaceId}/mcp-servers
-   */
+  /** Register a new MCP server. POST /workspaces/{id}/mcp-servers */
   register: (workspaceId: string, data: MCPServerRegisterRequest): Promise<MCPServer> =>
     apiClient.post<MCPServer>(base(workspaceId), data),
 
-  /**
-   * Check connection status of a registered MCP server.
-   * GET /workspaces/{workspaceId}/mcp-servers/{serverId}/status
-   */
+  /** Partial update. PATCH /workspaces/{id}/mcp-servers/{serverId} */
+  update: (
+    workspaceId: string,
+    serverId: string,
+    data: MCPServerUpdateRequest
+  ): Promise<MCPServer> =>
+    apiClient.patch<MCPServer>(`${base(workspaceId)}/${serverId}`, data),
+
+  /** Legacy status probe. GET /workspaces/{id}/mcp-servers/{serverId}/status */
   checkStatus: (workspaceId: string, serverId: string): Promise<MCPServerStatus> =>
     apiClient.get<MCPServerStatus>(`${base(workspaceId)}/${serverId}/status`),
 
-  /**
-   * Remove a registered MCP server.
-   * DELETE /workspaces/{workspaceId}/mcp-servers/{serverId}
-   */
+  /** On-demand connection test. POST /workspaces/{id}/mcp-servers/{serverId}/test */
+  testConnection: (workspaceId: string, serverId: string): Promise<MCPServerTestResult> =>
+    apiClient.post<MCPServerTestResult>(`${base(workspaceId)}/${serverId}/test`),
+
+  /** Enable server. POST /workspaces/{id}/mcp-servers/{serverId}/enable */
+  enable: (workspaceId: string, serverId: string): Promise<void> =>
+    apiClient.post<void>(`${base(workspaceId)}/${serverId}/enable`),
+
+  /** Disable server. POST /workspaces/{id}/mcp-servers/{serverId}/disable */
+  disable: (workspaceId: string, serverId: string): Promise<void> =>
+    apiClient.post<void>(`${base(workspaceId)}/${serverId}/disable`),
+
+  /** Bulk import from JSON config. POST /workspaces/{id}/mcp-servers/import */
+  importServers: (workspaceId: string, configJson: string): Promise<ImportMcpServersResponse> =>
+    apiClient.post<ImportMcpServersResponse>(`${base(workspaceId)}/import`, {
+      config_json: configJson,
+    }),
+
+  /** Remove (soft-delete). DELETE /workspaces/{id}/mcp-servers/{serverId} */
   remove: (workspaceId: string, serverId: string): Promise<void> =>
     apiClient.delete<void>(`${base(workspaceId)}/${serverId}`),
 
-  /**
-   * Get the OAuth authorization URL for an OAuth2 MCP server.
-   * GET /workspaces/{workspaceId}/mcp-servers/{serverId}/oauth-url
-   */
+  /** Get OAuth URL. GET /workspaces/{id}/mcp-servers/{serverId}/oauth-url */
   getOAuthUrl: (workspaceId: string, serverId: string): Promise<{ auth_url: string }> =>
     apiClient.get<{ auth_url: string }>(`${base(workspaceId)}/${serverId}/oauth-url`),
 };

@@ -10,12 +10,18 @@
  *
  * staleTime: 55 minutes max. Supabase signed URLs expire at 60 minutes.
  * retry: false. A 403 means the URL has expired — retrying won't help.
- * Only fetches when the modal is open and the renderer needs text content.
- * Image and download renderers do not need text content — skipped via enabled.
+ * Only fetches when the modal is open and the renderer needs content.
+ * Image and download renderers do not need fetched content — skipped via enabled.
+ *
+ * Binary mode: xlsx, docx, pptx renderer types return ArrayBuffer instead of
+ * string. Office parsers (SheetJS, mammoth, pptxviewjs) require raw binary data.
  */
 
 import { useQuery } from '@tanstack/react-query';
 import type { RendererType } from '../utils/mime-type-router';
+
+/** Renderer types that require ArrayBuffer content (binary Office formats). */
+export const BINARY_RENDERER_TYPES: Set<RendererType> = new Set(['xlsx', 'docx', 'pptx']);
 
 export const artifactKeys = {
   all: ['artifacts'] as const,
@@ -24,8 +30,8 @@ export const artifactKeys = {
 };
 
 export interface UseFileContentResult {
-  /** The fetched text content, or undefined while loading / on error */
-  content: string | undefined;
+  /** The fetched content: string for text-based renderers, ArrayBuffer for binary (Office) renderers */
+  content: string | ArrayBuffer | undefined;
   /** True while the fetch is in-flight */
   isLoading: boolean;
   /** True if any fetch error occurred */
@@ -38,7 +44,11 @@ export interface UseFileContentResult {
 }
 
 /**
- * Fetches text content from a Supabase Storage signed URL when the modal is open.
+ * Fetches file content from a Supabase Storage signed URL when the modal is open.
+ *
+ * Returns:
+ * - ArrayBuffer for binary Office renderers (xlsx, docx, pptx) — required by Office parsers
+ * - string for all text-based renderers (markdown, json, code, text, csv, html-preview)
  *
  * Skips fetching for:
  * - 'image' renderer — the component uses the signed URL as <img src> directly
@@ -65,6 +75,10 @@ export function useFileContent(
       const res = await fetch(signedUrl);
       if (res.status === 403) throw new Error('URL_EXPIRED');
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      // Binary mode: Office formats require ArrayBuffer for parsers (SheetJS, mammoth, pptxviewjs)
+      if (BINARY_RENDERER_TYPES.has(rendererType)) {
+        return res.arrayBuffer();
+      }
       return res.text();
     },
     enabled: shouldFetch,

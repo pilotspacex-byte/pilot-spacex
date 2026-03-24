@@ -1,6 +1,7 @@
 ---
 name: enhance-issue
 description: Enhance issue with AI-suggested labels, priority, and acceptance criteria
+feature_module: issues
 ---
 
 # Enhance Issue Skill

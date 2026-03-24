@@ -26,7 +26,7 @@ design-system/ Design tokens and references
 # Install
 cd backend && uv sync          # Backend deps
 cd frontend && pnpm install    # Frontend deps
-make sync-docs                 # Pull docs from pilotspace/pilot-space-docs
+make sync-docs                 # Sync .planning submodule (pilotspace/pilot-space-docs)
 
 # Dev servers
 cd backend && uv run uvicorn pilot_space.main:app --reload --port 8000

@@ -9,7 +9,7 @@
 
 'use client';
 
-import { RefreshCw, Trash2, CheckCircle2, XCircle, Circle, Server } from 'lucide-react';
+import { RefreshCw, Trash2, Server } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { McpStatusBadge } from './mcp-status-badge';
 import type { MCPServer } from '@/stores/ai/MCPServersStore';
 
 interface MCPServerCardProps {
@@ -34,43 +35,11 @@ interface MCPServerCardProps {
   isDeleting: boolean;
 }
 
-function StatusBadge({ status }: { status: MCPServer['last_status'] }) {
-  if (status === 'connected') {
-    return (
-      <Badge
-        variant="outline"
-        className="gap-1.5 border-green-500/20 bg-green-500/10 text-green-600"
-      >
-        <CheckCircle2 className="h-3 w-3" />
-        Connected
-      </Badge>
-    );
-  }
-
-  if (status === 'failed') {
-    return (
-      <Badge
-        variant="outline"
-        className="gap-1.5 border-destructive/20 bg-destructive/10 text-destructive"
-      >
-        <XCircle className="h-3 w-3" />
-        Failed
-      </Badge>
-    );
-  }
-
-  return (
-    <Badge variant="secondary" className="gap-1.5">
-      <Circle className="h-3 w-3" />
-      Unknown
-    </Badge>
-  );
-}
-
 function AuthTypeBadge({ authType }: { authType: MCPServer['auth_type'] }) {
+  const label = authType === 'bearer' ? 'Bearer' : authType === 'oauth2' ? 'OAuth2' : 'None';
   return (
     <Badge variant="outline" className="text-xs">
-      {authType === 'bearer' ? 'Bearer' : 'OAuth2'}
+      {label}
     </Badge>
   );
 }
@@ -96,7 +65,7 @@ export function MCPServerCard({
               <p className="text-xs text-muted-foreground truncate">{server.url}</p>
               <div className="mt-1.5 flex items-center gap-2">
                 <AuthTypeBadge authType={server.auth_type} />
-                <StatusBadge status={server.last_status} />
+                <McpStatusBadge status={server.last_status} />
               </div>
             </div>
           </div>

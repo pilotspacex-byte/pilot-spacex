@@ -41,16 +41,21 @@ export function FigureNodeView({ node, editor }: NodeViewProps) {
       ico: 'image/x-icon',
     };
     const imgMime = mimeMap[extKey] ?? 'image/png';
-    window.dispatchEvent(
-      new CustomEvent('pilot:preview-artifact', {
-        detail: {
-          artifactId,
-          filename: alt || 'image',
-          mimeType: imgMime,
-          signedUrl: src,
-        },
-      })
-    );
+    // Defer dispatch so the event listener's React state updates run AFTER
+    // ProseMirror finishes its current render cycle, preventing "flushSync
+    // was called from inside a lifecycle method" in EditorContent.
+    queueMicrotask(() => {
+      window.dispatchEvent(
+        new CustomEvent('pilot:preview-artifact', {
+          detail: {
+            artifactId,
+            filename: alt || 'image',
+            mimeType: imgMime,
+            signedUrl: src,
+          },
+        })
+      );
+    });
   }
 
   return (
@@ -66,7 +71,9 @@ export function FigureNodeView({ node, editor }: NodeViewProps) {
             role="button"
             tabIndex={0}
             aria-label={`View ${alt || 'image'} full size`}
-            onClick={handlePreview}
+            onClick={() => {
+              handlePreview();
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();

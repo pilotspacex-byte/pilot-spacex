@@ -44,6 +44,17 @@ vi.mock('@/stores', () => ({
     currentWorkspaceId: 'test-ws',
     isOwner: true,
     isAdmin: false,
+    featureToggles: {
+      notes: true,
+      issues: true,
+      projects: true,
+      members: true,
+      knowledge: true,
+      skills: true,
+      costs: true,
+      approvals: true,
+    },
+    isFeatureEnabled: (_key: string) => true,
   }),
   useNotificationStore: () => ({
     unreadCount: 0,
@@ -120,6 +131,16 @@ vi.mock('@/features/approvals/hooks/use-approvals', () => ({
   usePendingApprovalCount: () => 0,
 }));
 
+// Mock usePinnedNotes — sidebar calls this via useQuery, which needs QueryClientProvider
+vi.mock('@/hooks/usePinnedNotes', () => ({
+  usePinnedNotes: () => ({ data: [] }),
+}));
+
+// Mock useSettingsModal — used by SidebarUserControls inside Sidebar
+vi.mock('@/features/settings/settings-modal-context', () => ({
+  useSettingsModal: () => ({ open: vi.fn(), isOpen: false }),
+}));
+
 function renderSidebar() {
   return render(
     <TooltipProvider>
@@ -136,7 +157,7 @@ describe('Sidebar Navigation', () => {
   });
 
   describe('section structure', () => {
-    it('renders Main section items (Home, Notes, Issues, Projects, Members)', () => {
+    it('renders Main section items (Home, Notes, Issues, Projects, Members, Knowledge)', () => {
       renderSidebar();
 
       expect(screen.getByTestId('nav-home')).toBeInTheDocument();
@@ -144,6 +165,7 @@ describe('Sidebar Navigation', () => {
       expect(screen.getByTestId('nav-issues')).toBeInTheDocument();
       expect(screen.getByTestId('nav-projects')).toBeInTheDocument();
       expect(screen.getByTestId('nav-members')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-knowledge')).toBeInTheDocument();
     });
 
     it('renders AI section items (Chat, Skill, Costs)', () => {

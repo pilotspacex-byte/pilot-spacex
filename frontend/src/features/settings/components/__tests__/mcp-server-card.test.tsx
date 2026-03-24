@@ -9,8 +9,18 @@ const makeServer = (overrides?: Partial<MCPServer>): MCPServer => ({
   workspace_id: 'ws-1',
   display_name: 'Test MCP Server',
   url: 'https://mcp.example.com',
+  server_type: 'remote',
+  command_runner: null,
+  transport: 'sse',
+  url_or_command: 'https://mcp.example.com',
+  command_args: null,
   auth_type: 'bearer',
-  last_status: 'connected',
+  has_auth_secret: false,
+  has_headers: false,
+  has_headers_encrypted: false,
+  has_env_secret: false,
+  is_enabled: true,
+  last_status: 'enabled',
   last_status_checked_at: '2026-01-01T00:00:00Z',
   created_at: '2026-01-01T00:00:00Z',
   ...overrides,
@@ -84,6 +94,33 @@ describe('MCPServerCard', () => {
         server={makeServer({ auth_type: 'oauth2' })}
         onDelete={vi.fn()}
         onRefreshStatus={vi.fn()}
+        isDeleting={false}
+      />
+    );
+
+    expect(screen.queryByText('Authorize')).not.toBeInTheDocument();
+  });
+
+  it('renders "None" badge when auth_type is none', () => {
+    render(
+      <MCPServerCard
+        server={makeServer({ auth_type: 'none' })}
+        onDelete={vi.fn()}
+        onRefreshStatus={vi.fn()}
+        isDeleting={false}
+      />
+    );
+
+    expect(screen.getByText('None')).toBeInTheDocument();
+  });
+
+  it('does NOT render Authorize button when auth_type is none', () => {
+    render(
+      <MCPServerCard
+        server={makeServer({ auth_type: 'none' })}
+        onDelete={vi.fn()}
+        onRefreshStatus={vi.fn()}
+        onAuthorize={vi.fn()}
         isDeleting={false}
       />
     );

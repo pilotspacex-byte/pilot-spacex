@@ -30,6 +30,7 @@ from pilot_space.api.v1.routers import (
     ai_router,
     ai_sessions_router,
     ai_tasks_router,
+    artifact_annotations_router,
     audit_router,
     auth_router,
     auth_sso_router,
@@ -74,6 +75,7 @@ from pilot_space.api.v1.routers import (
     workspace_ai_settings_router,
     workspace_cycles_router,
     workspace_encryption_router,
+    workspace_feature_toggles_router,
     workspace_invitations_router,
     workspace_issue_branches_router,
     workspace_issues_router,
@@ -327,6 +329,7 @@ app.include_router(workspace_ai_settings_router, prefix=f"{API_V1_PREFIX}/worksp
 app.include_router(workspace_mcp_servers_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(mcp_oauth_callback_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_encryption_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(workspace_feature_toggles_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_quota_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_cycles_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
@@ -361,6 +364,12 @@ app.include_router(
     project_artifacts_router,
     prefix=API_V1_PREFIX + "/workspaces/{workspace_id}/projects/{project_id}/artifacts",
     tags=["artifacts"],
+)
+app.include_router(
+    artifact_annotations_router,
+    prefix=API_V1_PREFIX
+    + "/workspaces/{workspace_id}/projects/{project_id}/artifacts/{artifact_id}/annotations",
+    tags=["artifact-annotations"],
 )
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_router, prefix=API_V1_PREFIX)

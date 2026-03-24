@@ -1,6 +1,7 @@
 ---
 name: summarize
 description: Summarize content in various formats (bullet points, brief, detailed)
+feature_module: notes
 ---
 
 # Summarize Skill

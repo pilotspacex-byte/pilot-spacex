@@ -36,7 +36,7 @@ def upgrade() -> None:
                 FROM workspace_members wm
                 WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
-                AND wm.role IN ('owner', 'admin', 'member', 'guest')
+                AND wm.role IN ('OWNER', 'ADMIN', 'MEMBER', 'GUEST')
             )
         )
         WITH CHECK (
@@ -45,7 +45,7 @@ def upgrade() -> None:
                 FROM workspace_members wm
                 WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
-                AND wm.role IN ('owner', 'admin', 'member', 'guest')
+                AND wm.role IN ('OWNER', 'ADMIN', 'MEMBER', 'GUEST')
             )
         )
     """)
@@ -67,7 +67,7 @@ def downgrade() -> None:
                 FROM workspace_members wm
                 WHERE wm.user_id = current_setting('app.current_user_id', true)::uuid
                 AND wm.is_deleted = false
-                AND wm.role IN ('owner', 'admin', 'member', 'guest')
+                AND wm.role IN ('OWNER', 'ADMIN', 'MEMBER', 'GUEST')
             )
         )
     """)

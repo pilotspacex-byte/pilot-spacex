@@ -13,8 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NoteCanvas } from '@/components/editor/NoteCanvas';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
-import { FilePreviewModal } from '@/features/artifacts/components/FilePreviewModal';
-import { useEditorArtifactPreview } from '@/features/artifacts/hooks/use-editor-artifact-preview';
+import { EditorFilePreview } from '@/features/artifacts/components/EditorFilePreview';
 import { useNote, useUpdateNote, useAutoSave } from '@/features/notes/hooks';
 import { useDeleteNote } from '@/features/notes/hooks/useDeleteNote';
 import { useTogglePin } from '@/hooks/useTogglePin';
@@ -383,9 +382,6 @@ function NoteDetailPage() {
     [restoreVersion]
   );
 
-  // Artifact preview modal for file cards and figures in the editor
-  const artifactPreview = useEditorArtifactPreview(workspaceId, note?.projectId ?? '');
-
   // Loading state - also show skeleton when params are not ready
   if (!hasValidParams || isLoadingNote) {
     return <NoteDetailSkeleton />;
@@ -432,8 +428,8 @@ function NoteDetailPage() {
           onToggleFocusMode={handleToggleFocusMode}
         />
 
-        {/* File preview modal — opens on file card / figure click in editor */}
-        {artifactPreview.signedUrl && <FilePreviewModal {...artifactPreview} />}
+        {/* File preview modal — self-contained to isolate state from EditorContent */}
+        <EditorFilePreview workspaceId={workspaceId} projectId={note.projectId ?? ''} />
 
         {/* Version History Panel - slides in from right */}
         {showVersionHistory && (

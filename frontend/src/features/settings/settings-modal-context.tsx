@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 
 export type SettingsSection =
   | 'general'
+  | 'features'
   | 'ai-providers'
   | 'mcp-servers'
   | 'integrations'

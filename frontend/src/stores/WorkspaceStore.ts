@@ -8,7 +8,9 @@ import type {
   CreateWorkspaceData,
   UpdateWorkspaceData,
   InviteMemberData,
+  WorkspaceFeatureToggles,
 } from '@/types';
+import { DEFAULT_FEATURE_TOGGLES } from '@/types';
 import type { AuthStore } from './AuthStore';
 
 export type {
@@ -33,12 +35,18 @@ interface WorkspaceApi {
     memberId: string,
     role: WorkspaceRole
   ): Promise<WorkspaceMember>;
+  getFeatureToggles(workspaceId: string): Promise<WorkspaceFeatureToggles>;
+  updateFeatureToggles(
+    workspaceId: string,
+    data: Partial<WorkspaceFeatureToggles>
+  ): Promise<WorkspaceFeatureToggles>;
 }
 
 export class WorkspaceStore {
   workspaces: Map<string, Workspace> = new Map();
   currentWorkspaceId: string | null = null;
   members: Map<string, WorkspaceMember[]> = new Map();
+  featureToggles: WorkspaceFeatureToggles | null = null;
   isLoading = false;
   isSaving = false;
   error: string | null = null;
@@ -140,6 +148,11 @@ export class WorkspaceStore {
     if (workspaceId && !this.members.has(workspaceId)) {
       this.fetchMembers(workspaceId);
     }
+    if (workspaceId) {
+      this.loadFeatureToggles(workspaceId);
+    } else {
+      this.featureToggles = null;
+    }
   }
 
   /**
@@ -154,6 +167,7 @@ export class WorkspaceStore {
     if (!this.members.has(workspace.id)) {
       this.fetchMembers(workspace.id);
     }
+    this.loadFeatureToggles(workspace.id);
   }
 
   async fetchWorkspaces(options?: { ensureSelection?: boolean }): Promise<void> {
@@ -432,6 +446,57 @@ export class WorkspaceStore {
     }
   }
 
+  /**
+   * Check if a workspace feature is enabled.
+   * Falls back to defaults when toggles haven't loaded yet.
+   */
+  isFeatureEnabled(key: keyof WorkspaceFeatureToggles): boolean {
+    if (this.featureToggles) {
+      return this.featureToggles[key] ?? DEFAULT_FEATURE_TOGGLES[key];
+    }
+    return DEFAULT_FEATURE_TOGGLES[key];
+  }
+
+  async loadFeatureToggles(workspaceId: string): Promise<void> {
+    if (!this.api) return;
+
+    try {
+      const toggles = await this.api.getFeatureToggles(workspaceId);
+      runInAction(() => {
+        this.featureToggles = toggles;
+        this.error = null;
+      });
+    } catch (err) {
+      // Surface the error so the UI can display it, then fall back to defaults
+      runInAction(() => {
+        this.error = err instanceof Error ? err.message : 'Failed to load feature toggles';
+        this.featureToggles = { ...DEFAULT_FEATURE_TOGGLES };
+      });
+    }
+  }
+
+  async saveFeatureToggles(data: Partial<WorkspaceFeatureToggles>): Promise<boolean> {
+    if (!this.api || !this.currentWorkspaceId) return false;
+
+    this.isSaving = true;
+    this.error = null;
+
+    try {
+      const updated = await this.api.updateFeatureToggles(this.currentWorkspaceId, data);
+      runInAction(() => {
+        this.featureToggles = updated;
+        this.isSaving = false;
+      });
+      return true;
+    } catch (err) {
+      runInAction(() => {
+        this.error = err instanceof Error ? err.message : 'Failed to update feature toggles';
+        this.isSaving = false;
+      });
+      return false;
+    }
+  }
+
   getWorkspaceBySlug(slug: string): Workspace | undefined {
     return this.workspaceList.find((w) => w.slug === slug);
   }
@@ -444,6 +509,7 @@ export class WorkspaceStore {
     this.workspaces.clear();
     this.currentWorkspaceId = null;
     this.members.clear();
+    this.featureToggles = null;
     this.isLoading = false;
     this.isSaving = false;
     this.error = null;

@@ -15,6 +15,14 @@
 # =============================================================================
 
 ARG PYTHON_VERSION=3.12
+# Node LTS version used for npx (stdio MCP servers)
+ARG NODE_VERSION=22
+
+# =============================================================================
+# NODE SUPPLIER - Provides node/npm/npx binaries for later stages
+# =============================================================================
+FROM node:${NODE_VERSION}-slim AS node-supplier
+# Nothing else needed — we only COPY from this stage
 
 # =============================================================================
 # BASE STAGE - Common setup for all stages
@@ -23,7 +31,7 @@ FROM python:${PYTHON_VERSION}-slim AS base
 
 # Venv lives at a fixed path so every stage can reference it consistently
 ENV VIRTUAL_ENV=/app/.venv \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:/usr/local/bin:$PATH"
 
 # Prevent Python from writing bytecode and buffering stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -38,20 +46,41 @@ WORKDIR /app
 # Install system dependencies
 # - curl: health checks
 # - build-essential: compile native extensions
+# - libffi-dev: required by cffi (C Foreign Function Interface) used by cryptography
+# - pkg-config, libssl-dev: required by openssl-sys (Rust crate) for cryptography
 # - libpq-dev: PostgreSQL client library
 # - libxml2-dev, libxmlsec1-dev, libxmlsec1: required by python3-saml (SAML 2.0 SSO)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
+    libffi-dev \
+    pkg-config \
+    libssl-dev \
     libpq-dev \
     libxml2-dev \
     libxmlsec1-dev \
     libxmlsec1 \
+    libstdc++6 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install uv package manager (faster than pip)
-RUN pip install --no-cache-dir uv
+# Install uv + uvx from the official Astral distribution.
+# Using COPY --from instead of pip install so that both `uv` and `uvx` are
+# available as separate binaries (pip install uv only ships `uv`).
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# Copy Node.js runtime (node + npm + npx) for stdio MCP servers that use npx.
+# IMPORTANT: npm and npx in node:slim are symlinks pointing to
+#   ../lib/node_modules/npm/bin/npm-cli.js  (relative to /usr/local/bin/)
+# Docker's COPY --from dereferences symlinks, turning them into plain files.
+# The dereferenced script then does require('../lib/cli.js'), which resolves to
+# /usr/local/lib/cli.js — a path that does not exist — causing MODULE_NOT_FOUND.
+# Fix: copy the node binary + the full npm package, then recreate the symlinks.
+COPY --from=node-supplier /usr/local/bin/node              /usr/local/bin/node
+COPY --from=node-supplier /usr/local/lib/node_modules      /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && chmod +x /usr/local/bin/npm /usr/local/bin/npx
 
 # Pre-create the venv so uv always installs into it
 RUN uv venv /app/.venv
@@ -65,7 +94,7 @@ COPY pyproject.toml uv.lock ./
 FROM base AS development
 
 # Install all dependencies (excluding the project itself — src/ not copied yet)
-RUN uv sync --frozen --no-install-project
+RUN uv sync --frozen --no-install-project --extra-packages
 
 # Copy source code
 COPY src/ ./src/
@@ -74,7 +103,7 @@ COPY alembic.ini ./
 COPY README.md ./
 
 # Install the project itself now that src/ is present
-RUN uv sync --frozen
+RUN uv sync --frozen --extra-packages
 
 # Set Python path for source code
 ENV PYTHONPATH=/app/src
@@ -125,18 +154,31 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     WORKERS=1 \
     # Use the venv from builder
     VIRTUAL_ENV=/app/.venv \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:/usr/local/bin:$PATH"
 
 WORKDIR /app
 
 # Install minimal runtime dependencies
 # - libxmlsec1: runtime shared library required by python3-saml (SAML 2.0 SSO)
+# - libstdc++6: required by the Node.js binary (node/npx) copied from node-supplier
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libpq5 \
     libxmlsec1 \
+    libstdc++6 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+# uv + uvx (for uvx-based stdio MCP servers)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# Node.js runtime (node + npm + npx) for npx-based stdio MCP servers.
+# Same symlink fix as the base stage — COPY --from dereferences symlinks.
+COPY --from=node-supplier /usr/local/bin/node              /usr/local/bin/node
+COPY --from=node-supplier /usr/local/lib/node_modules      /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && chmod +x /usr/local/bin/npm /usr/local/bin/npx
 
 # Create non-root user for security
 RUN groupadd --gid 1000 appgroup \

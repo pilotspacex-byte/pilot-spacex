@@ -110,16 +110,27 @@ export const FileCardView = observer(function FileCardView() {
       aria-label={`Open file: ${filename}`}
       onClick={() => {
         if (!artifactId) return;
-        window.dispatchEvent(
-          new CustomEvent('pilot:preview-artifact', {
-            detail: { artifactId, filename, mimeType },
-          })
-        );
+        // Defer dispatch so React state updates from the event listener run outside
+        // TipTap's ReactRenderer cycle (prevents residual flushSync warnings).
+        queueMicrotask(() => {
+          window.dispatchEvent(
+            new CustomEvent('pilot:preview-artifact', {
+              detail: { artifactId, filename, mimeType },
+            })
+          );
+        });
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          (e.currentTarget as HTMLElement).click();
+          if (!artifactId) return;
+          queueMicrotask(() => {
+            window.dispatchEvent(
+              new CustomEvent('pilot:preview-artifact', {
+                detail: { artifactId, filename, mimeType },
+              })
+            );
+          });
         }
       }}
     >

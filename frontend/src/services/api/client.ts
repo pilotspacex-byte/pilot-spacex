@@ -49,6 +49,11 @@ export class ApiError extends Error {
     return (status >= 500 && status !== 501) || status === 429 || status === 408;
   }
 
+  /** Check if an error (e.g. from TanStack Query) is a 403 Forbidden. */
+  static isForbidden(error: unknown): boolean {
+    return error instanceof ApiError && error.status === 403;
+  }
+
   static fromAxiosError(error: AxiosError<ApiProblemDetails | { detail?: string }>): ApiError {
     const response = error.response;
     const data = response?.data;

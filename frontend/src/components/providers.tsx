@@ -1,5 +1,8 @@
 'use client';
 
+// Must be first import — suppresses TipTap flushSync warning before any React renders
+import '@/lib/suppress-tiptap-warnings';
+
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ThemeProvider } from 'next-themes';

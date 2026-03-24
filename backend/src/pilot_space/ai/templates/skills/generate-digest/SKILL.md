@@ -1,6 +1,7 @@
 ---
 name: generate-digest
 description: Analyzes workspace state and generates actionable insights
+feature_module: notes
 trigger: scheduled
 ---
 

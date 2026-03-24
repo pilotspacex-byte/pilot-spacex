@@ -1,11 +1,8 @@
-"""KnowledgeGraphRepository — data access layer for the knowledge graph.
+"""KnowledgeGraphRepository — data access for the knowledge graph.
 
-Provides upsert, traversal, hybrid search, and subgraph extraction for
-graph nodes and edges. PostgreSQL-specific features (recursive CTEs,
-pgvector) are guarded by dialect detection; SQLite falls back to
-equivalent loop-based or keyword-only implementations for testing.
-
-Feature 016: Knowledge Graph — Memory Engine replacement
+Provides upsert, traversal, hybrid search, and subgraph extraction.
+PostgreSQL-specific features guarded by dialect detection; SQLite
+falls back to loop-based or keyword-only implementations for testing.
 """
 
 from __future__ import annotations
@@ -35,6 +32,7 @@ from pilot_space.infrastructure.database.repositories._graph_helpers import (
     keyword_search,
     node_model_to_domain,
     update_node_helper,
+    workspace_overview,
 )
 from pilot_space.infrastructure.logging import get_logger
 
@@ -74,10 +72,7 @@ class KnowledgeGraphRepository:
     async def upsert_node(self, node: GraphNode) -> GraphNode:
         """Idempotently persist a graph node.
 
-        Lookup priority:
-        1. external_id match — for entity-keyed nodes (issues, notes, etc.)
-        2. content_hash match — for unkeyed nodes (decisions, patterns, preferences)
-        3. Insert new — when neither match found.
+        Lookup: 1) external_id, 2) content_hash, 3) insert new.
         """
         if node.external_id is not None:
             existing = await self._find_node_by_external(
@@ -286,19 +281,19 @@ class KnowledgeGraphRepository:
         """
         # Only static SQL string fragments are f-string-interpolated — no user
         # data ever enters the SQL text directly.
-        edge_type_clause = "AND edge_type = ANY(:edge_types)" if edge_types else ""
-        ws_clause = "AND workspace_id = :workspace_id" if workspace_id is not None else ""
+        edge_type_clause = "AND e.edge_type = ANY(:edge_types)" if edge_types else ""
+        ws_clause = "AND e.workspace_id = :workspace_id" if workspace_id is not None else ""
 
         raw = text(
             f"""
             WITH RECURSIVE neighbors(id, depth) AS (
                 -- Anchor: direct neighbors in both directions (exclude deleted)
                 SELECT cand.id, 1
-                  FROM graph_edges
+                  FROM graph_edges e
                   JOIN graph_nodes cand
-                    ON cand.id = CASE WHEN source_id = :nid THEN target_id ELSE source_id END
+                    ON cand.id = CASE WHEN e.source_id = :nid THEN e.target_id ELSE e.source_id END
                    AND cand.is_deleted = false
-                  WHERE (source_id = :nid OR target_id = :nid) {edge_type_clause} {ws_clause}
+                  WHERE (e.source_id = :nid OR e.target_id = :nid) {edge_type_clause} {ws_clause}
                 UNION ALL
                 -- Recursive: expand bidirectionally, skip deleted + anti-backtrack
                 SELECT cand.id, n.depth + 1
@@ -467,6 +462,15 @@ class KnowledgeGraphRepository:
         return [
             node_model_to_domain(m) for m in (await self._session.execute(stmt)).scalars().all()
         ]
+
+    async def get_workspace_overview(
+        self,
+        workspace_id: UUID,
+        max_nodes: int = 200,
+        node_types: list[NodeType] | None = None,
+    ) -> tuple[list[GraphNode], list[GraphEdge]]:
+        """Return all workspace nodes + inter-edges (delegates to _graph_helpers)."""
+        return await workspace_overview(self._session, workspace_id, max_nodes, node_types)
 
     # ------------------------------------------------------------------
     # Bulk operations

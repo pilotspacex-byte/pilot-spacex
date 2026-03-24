@@ -27,7 +27,7 @@ export function useArtifactSignedUrl(
   return useQuery({
     queryKey: artifactsKeys.signedUrl(artifactId ?? ''),
     queryFn: () => artifactsApi.getSignedUrl(workspaceId, projectId, artifactId!),
-    enabled: !!artifactId && !!workspaceId,
+    enabled: !!artifactId && !!workspaceId && !!projectId,
     staleTime: 55 * 60 * 1000, // 55 minutes — below 1hr Supabase signed URL expiry
     gcTime: 60 * 60 * 1000, // 1 hour — retain while preview modal may be open
   });

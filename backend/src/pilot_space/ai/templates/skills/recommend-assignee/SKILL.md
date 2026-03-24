@@ -1,6 +1,7 @@
 ---
 name: recommend-assignee
 description: Recommend assignee based on expertise matching and workload balance
+feature_module: [issues, members]
 ---
 
 # Recommend Assignee Skill

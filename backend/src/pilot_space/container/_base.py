@@ -36,6 +36,9 @@ from pilot_space.infrastructure.database.repositories.ai_task_repository import 
 from pilot_space.infrastructure.database.repositories.approval_repository import (
     ApprovalRepository,
 )
+from pilot_space.infrastructure.database.repositories.artifact_annotation_repository import (
+    ArtifactAnnotationRepository,
+)
 from pilot_space.infrastructure.database.repositories.artifact_repository import (
     ArtifactRepository,
 )
@@ -207,6 +210,11 @@ class InfraContainer(containers.DeclarativeContainer):
 
     artifact_repository = providers.Factory(
         ArtifactRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    artifact_annotation_repository = providers.Factory(
+        ArtifactAnnotationRepository,
         session=providers.Callable(get_current_session),
     )
 

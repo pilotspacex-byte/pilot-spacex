@@ -1,14 +1,13 @@
 /**
- * Tests for MCPServersSettingsPage OAuth2 callback and authorize flow.
+ * Tests for MCPServersSettingsPage - Phase 25 redeveloped page.
  *
- * Phase 22 Plan 02: OAuth callback status handling and authorize handler.
+ * Verifies: OAuth callback handling, load on mount, polling interval,
+ * empty state, table rendering, and dialog integration.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
 
-// vi.hoisted runs before vi.mock hoisting, so these are available in factories
 const { mockToast, mockMcpStore, mockWorkspaceStore, mockSearchParamsHolder } = vi.hoisted(() => {
   const _mockToast = {
     success: vi.fn(),
@@ -17,14 +16,23 @@ const { mockToast, mockMcpStore, mockWorkspaceStore, mockSearchParamsHolder } = 
 
   const _mockMcpStore = {
     servers: [] as Array<Record<string, unknown>>,
+    filteredServers: [] as Array<Record<string, unknown>>,
     isLoading: false,
     isSaving: false,
+    isTesting: false,
     error: null as string | null,
+    filter: { serverType: 'all', status: 'all', search: '' },
     loadServers: vi.fn(),
     registerServer: vi.fn(),
     removeServer: vi.fn(),
     refreshStatus: vi.fn(),
     getOAuthUrl: vi.fn(),
+    updateServer: vi.fn(),
+    testConnection: vi.fn(),
+    enableServer: vi.fn(),
+    disableServer: vi.fn(),
+    importServers: vi.fn(),
+    setFilter: vi.fn(),
   };
 
   const _mockWorkspaceStore = {
@@ -35,7 +43,6 @@ const { mockToast, mockMcpStore, mockWorkspaceStore, mockSearchParamsHolder } = 
     }),
   };
 
-  // Holder object so we can reassign the value inside tests
   const _mockSearchParamsHolder = {
     current: new URLSearchParams(),
   };
@@ -68,30 +75,13 @@ vi.mock('@/stores', () => ({
   }),
 }));
 
-vi.mock('@/features/settings/components/mcp-server-form', () => ({
-  MCPServerForm: () => <div data-testid="mcp-server-form">MCPServerForm</div>,
+vi.mock('@/features/settings/components/mcp-servers-table', () => ({
+  MCPServersTable: () => <div data-testid="mcp-servers-table">MCPServersTable</div>,
 }));
 
-vi.mock('@/features/settings/components/mcp-server-card', () => ({
-  MCPServerCard: ({
-    server,
-    onAuthorize,
-  }: {
-    server: { id: string; display_name: string };
-    onDelete: (id: string) => void;
-    onRefreshStatus: (id: string) => void;
-    onAuthorize?: (id: string) => void;
-    isDeleting: boolean;
-  }) => (
-    <div data-testid={`server-card-${server.id}`}>
-      {server.display_name}
-      {onAuthorize && (
-        <button data-testid={`authorize-${server.id}`} onClick={() => onAuthorize(server.id)}>
-          Authorize
-        </button>
-      )}
-    </div>
-  ),
+vi.mock('@/features/settings/components/mcp-server-dialog', () => ({
+  MCPServerDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="mcp-server-dialog">MCPServerDialog</div> : null,
 }));
 
 import { MCPServersSettingsPage } from '@/features/settings/pages/mcp-servers-settings-page';
@@ -99,113 +89,82 @@ import { MCPServersSettingsPage } from '@/features/settings/pages/mcp-servers-se
 describe('MCPServersSettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
     mockSearchParamsHolder.current = new URLSearchParams();
     mockMcpStore.servers = [];
+    mockMcpStore.filteredServers = [];
     mockMcpStore.isLoading = false;
     mockMcpStore.error = null;
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('calls loadServers on mount', () => {
+    render(<MCPServersSettingsPage />);
+    expect(mockMcpStore.loadServers).toHaveBeenCalledWith('ws-1');
+  });
+
   it('shows success toast when URL has ?status=connected', () => {
     mockSearchParamsHolder.current = new URLSearchParams('status=connected');
-
     render(<MCPServersSettingsPage />);
-
     expect(mockToast.success).toHaveBeenCalledWith('MCP server authorized successfully');
   });
 
   it('shows error toast with reason when URL has ?status=error&reason=invalid_state', () => {
     mockSearchParamsHolder.current = new URLSearchParams('status=error&reason=invalid_state');
-
     render(<MCPServersSettingsPage />);
-
     expect(mockToast.error).toHaveBeenCalledWith('OAuth authorization failed: invalid_state');
   });
 
   it('shows error toast with fallback message when reason is missing', () => {
     mockSearchParamsHolder.current = new URLSearchParams('status=error');
-
     render(<MCPServersSettingsPage />);
-
     expect(mockToast.error).toHaveBeenCalledWith('OAuth authorization failed: Unknown error');
   });
 
-  it('calls mcpStore.loadServers after successful OAuth callback', () => {
-    mockSearchParamsHolder.current = new URLSearchParams('status=connected');
-
+  it('shows loading skeleton when isLoading and no servers', () => {
+    mockMcpStore.isLoading = true;
+    mockMcpStore.servers = [];
     render(<MCPServersSettingsPage />);
-
-    expect(mockMcpStore.loadServers).toHaveBeenCalledWith('ws-1');
+    // Skeleton uses role-less divs, check that table is not rendered
+    expect(screen.queryByTestId('mcp-servers-table')).not.toBeInTheDocument();
   });
 
-  it('handleAuthorize calls mcpStore.getOAuthUrl', async () => {
-    const user = userEvent.setup();
-    mockMcpStore.getOAuthUrl.mockResolvedValue('https://auth.example.com/authorize');
-    mockMcpStore.servers = [
-      {
-        id: 'srv-1',
-        workspace_id: 'ws-1',
-        display_name: 'OAuth Server',
-        url: 'https://mcp.example.com',
-        auth_type: 'oauth2',
-        last_status: null,
-        last_status_checked_at: null,
-        created_at: '2026-01-01T00:00:00Z',
-      },
-    ];
-
+  it('shows empty state when no servers and not loading', () => {
+    mockMcpStore.servers = [];
+    mockMcpStore.isLoading = false;
     render(<MCPServersSettingsPage />);
-
-    const authorizeBtn = screen.getByTestId('authorize-srv-1');
-    await user.click(authorizeBtn);
-
-    await waitFor(() => {
-      expect(mockMcpStore.getOAuthUrl).toHaveBeenCalledWith('ws-1', 'srv-1');
-    });
+    expect(screen.getByText('No MCP servers configured yet')).toBeInTheDocument();
   });
 
-  it('handleAuthorize shows error toast if getOAuthUrl throws', async () => {
-    const user = userEvent.setup();
-    mockMcpStore.getOAuthUrl.mockRejectedValue(new Error('Network error'));
-    mockMcpStore.servers = [
-      {
-        id: 'srv-2',
-        workspace_id: 'ws-1',
-        display_name: 'Failing Server',
-        url: 'https://fail.example.com',
-        auth_type: 'oauth2',
-        last_status: null,
-        last_status_checked_at: null,
-        created_at: '2026-01-01T00:00:00Z',
-      },
-    ];
-
+  it('renders table when servers exist', () => {
+    mockMcpStore.servers = [{ id: 'srv-1', display_name: 'Test' }];
+    mockMcpStore.filteredServers = [{ id: 'srv-1', display_name: 'Test' }];
     render(<MCPServersSettingsPage />);
-
-    const authorizeBtn = screen.getByTestId('authorize-srv-2');
-    await user.click(authorizeBtn);
-
-    await waitFor(() => {
-      expect(mockToast.error).toHaveBeenCalledWith('Failed to start OAuth authorization');
-    });
+    expect(screen.getByTestId('mcp-servers-table')).toBeInTheDocument();
   });
 
-  it('passes onAuthorize prop to MCPServerCard components', () => {
-    mockMcpStore.servers = [
-      {
-        id: 'srv-3',
-        workspace_id: 'ws-1',
-        display_name: 'Test Server',
-        url: 'https://test.example.com',
-        auth_type: 'oauth2',
-        last_status: 'connected',
-        last_status_checked_at: null,
-        created_at: '2026-01-01T00:00:00Z',
-      },
-    ];
-
+  it('shows error alert when error and no servers', () => {
+    mockMcpStore.error = 'Network failure';
+    mockMcpStore.servers = [];
     render(<MCPServersSettingsPage />);
+    expect(screen.getByText('Failed to load MCP servers')).toBeInTheDocument();
+    expect(screen.getByText('Network failure')).toBeInTheDocument();
+  });
 
-    // The mock MCPServerCard renders an authorize button only when onAuthorize is passed
-    expect(screen.getByTestId('authorize-srv-3')).toBeInTheDocument();
+  it('sets up 30s polling interval', () => {
+    render(<MCPServersSettingsPage />);
+    // Initial call
+    expect(mockMcpStore.loadServers).toHaveBeenCalledTimes(1);
+
+    // Advance 30s - should trigger another load
+    vi.advanceTimersByTime(30_000);
+    expect(mockMcpStore.loadServers).toHaveBeenCalledTimes(2);
+
+    // Advance another 30s
+    vi.advanceTimersByTime(30_000);
+    expect(mockMcpStore.loadServers).toHaveBeenCalledTimes(3);
   });
 });

@@ -1,6 +1,7 @@
 ---
 name: generate-pm-blocks
 description: Generate PM blocks (decision, risk, timeline, RACI, form, dashboard) from natural language description
+feature_module: projects
 ---
 
 # Generate PM Blocks Skill

@@ -1,6 +1,7 @@
 ---
 name: create-note-from-chat
 description: Creates a structured note from a homepage chat conversation
+feature_module: notes
 trigger: intent_detection
 ---
 

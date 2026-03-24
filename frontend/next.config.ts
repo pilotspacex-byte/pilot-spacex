@@ -22,6 +22,26 @@ if (sbUrl) {
   }
 }
 
+// Derive API origin from NEXT_PUBLIC_API_URL for CSP connect-src
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+let apiOrigin: string | null = null;
+let apiWsOrigin: string | null = null;
+
+if (apiUrl) {
+  try {
+    const parsed = new URL(apiUrl);
+    apiOrigin = parsed.origin;
+    apiWsOrigin =
+      parsed.protocol === 'https:'
+        ? `wss://${parsed.host}`
+        : parsed.protocol === 'http:'
+          ? `ws://${parsed.host}`
+          : null;
+  } catch {
+    // Relative URL (e.g. '/api/v1') — covered by 'self', no extra origin needed.
+  }
+}
+
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
@@ -65,7 +85,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               `img-src 'self' data: blob: https://*.supabase.co${sbOrigin ? ` ${sbOrigin}` : ''}`,
               "font-src 'self'",
-              `connect-src 'self' https://*.supabase.co wss://*.supabase.co${sbOrigin ? ` ${sbOrigin}` : ''}${sbWsOrigin ? ` ${sbWsOrigin}` : ''}`,
+              `connect-src 'self' https://*.supabase.co wss://*.supabase.co${sbOrigin ? ` ${sbOrigin}` : ''}${sbWsOrigin ? ` ${sbWsOrigin}` : ''}${apiOrigin ? ` ${apiOrigin}` : ''}${apiWsOrigin ? ` ${apiWsOrigin}` : ''}`,
               "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com",
               "object-src 'none'",
               "base-uri 'self'",

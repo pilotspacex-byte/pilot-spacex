@@ -1,7 +1,32 @@
 'use client';
 
 import * as React from 'react';
-import { MarkdownContent } from '@/features/ai/ChatView/MessageList/MarkdownContent';
+import dynamic from 'next/dynamic';
+
+const MarkdownContent = dynamic(
+  () =>
+    import('@/features/ai/ChatView/MessageList/MarkdownContent').then((m) => ({
+      default: m.MarkdownContent,
+    })),
+  {
+    loading: () => <CodeRendererSkeleton />,
+  }
+);
+
+const SKELETON_WIDTHS = [72, 88, 55, 91, 63, 80, 48, 85, 70, 94];
+
+function CodeRendererSkeleton() {
+  return (
+    <div className="p-6 space-y-2 animate-pulse">
+      <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2">
+        <div className="h-3 w-20 rounded bg-muted" />
+        {SKELETON_WIDTHS.map((w, i) => (
+          <div key={i} className="h-3 rounded bg-muted/70" style={{ width: `${w}%` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface CodeRendererProps {
   content: string;
@@ -35,7 +60,9 @@ export function CodeRenderer({ content, language }: CodeRendererProps) {
         </button>
       </div>
       <div className="flex-1 overflow-auto p-6">
-        <MarkdownContent content={wrappedContent} />
+        <React.Suspense fallback={<CodeRendererSkeleton />}>
+          <MarkdownContent content={wrappedContent} />
+        </React.Suspense>
       </div>
     </div>
   );

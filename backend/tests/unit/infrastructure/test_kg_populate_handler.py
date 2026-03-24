@@ -63,11 +63,14 @@ def _make_handler(
 ) -> KgPopulateHandler:
     if embedding_service is None:
         embedding_service = _make_embedding_service()
-    return KgPopulateHandler(
+    handler = KgPopulateHandler(
         session=session,
         embedding_service=embedding_service,
         queue=queue,
     )
+    # Skip BYOK key lookup in tests — the test-injected embedding_service is authoritative
+    handler._resolve_workspace_embedding = AsyncMock()  # type: ignore[method-assign]
+    return handler
 
 
 def _make_scored_node(score: float = 0.9, project_id: UUID | None = None) -> ScoredNode:
@@ -155,6 +158,8 @@ class TestHandleIssue:
         issue.description = "Users cannot log in with OAuth."
         issue.identifier = "PS-42"
         issue.state_id = uuid4()
+        issue.workspace_id = _WORKSPACE_ID
+        issue.project_id = _PROJECT_ID
         session.get.return_value = issue
 
         write_result = MagicMock()
@@ -174,6 +179,7 @@ class TestHandleIssue:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -194,6 +200,8 @@ class TestHandleIssue:
         issue.description = "Description"
         issue.identifier = "PS-1"
         issue.state_id = None
+        issue.workspace_id = _WORKSPACE_ID
+        issue.project_id = _PROJECT_ID
         session.get.return_value = issue
 
         similar_node = _make_scored_node(score=0.9)
@@ -215,12 +223,15 @@ class TestHandleIssue:
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[similar_node])
             mock_repo.upsert_edge = AsyncMock()
+            # find_node_by_external_id returns None → no BELONGS_TO edge
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
             result = await handler.handle(self._valid_payload())
 
         assert result["success"] is True
+        # Only RELATES_TO edge (no BELONGS_TO since project node not found)
         mock_repo.upsert_edge.assert_called_once()
 
     async def test_similarity_below_threshold_no_edge(self) -> None:
@@ -231,6 +242,8 @@ class TestHandleIssue:
         issue.description = "Description"
         issue.identifier = "PS-1"
         issue.state_id = None
+        issue.workspace_id = _WORKSPACE_ID
+        issue.project_id = _PROJECT_ID
         session.get.return_value = issue
 
         low_score_node = _make_scored_node(score=0.3)
@@ -252,6 +265,8 @@ class TestHandleIssue:
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[low_score_node])
             mock_repo.upsert_edge = AsyncMock()
+            # No project node → no BELONGS_TO edge
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -285,6 +300,8 @@ class TestHandleNote:
     async def test_happy_path_note_creates_nodes(self) -> None:
         session = _make_session()
         note = MagicMock()
+        note.workspace_id = _WORKSPACE_ID
+        note.project_id = _PROJECT_ID
         note.title = "Architecture Notes"
         note.content = {
             "type": "doc",
@@ -312,8 +329,8 @@ class TestHandleNote:
 
         mock_note_result = MagicMock()
         mock_note_result.scalar_one_or_none.return_value = note
-        # First: advisory lock, second: note query, rest: stale chunk delete etc.
-        session.execute = AsyncMock(side_effect=[MagicMock(), mock_note_result, MagicMock()])
+        # advisory lock, note query, stale chunk delete, + any extra session calls
+        session.execute = AsyncMock(side_effect=[MagicMock(), mock_note_result] + [MagicMock()] * 5)
 
         parent_result = MagicMock()
         parent_result.node_ids = [uuid4()]
@@ -363,6 +380,8 @@ class TestHandleNote:
         """When embed() returns None, text-only search is used and result is still success."""
         session = _make_session()
         note = MagicMock()
+        note.workspace_id = _WORKSPACE_ID
+        note.project_id = _PROJECT_ID
         note.title = "Simple Note"
         note.content = {
             "type": "doc",
@@ -396,6 +415,7 @@ class TestHandleNote:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, embedding_svc)
@@ -439,7 +459,16 @@ class TestHandleProject:
         project.identifier = "PILOT"
         project.icon = "rocket"
         project.lead_id = uuid4()
+        project.id = _PROJECT_ID
+        project.workspace_id = _WORKSPACE_ID
         session.get.return_value = project
+
+        # Mock session.execute for _link_existing_children query
+        mock_children_result = MagicMock()
+        mock_children_scalars = MagicMock()
+        mock_children_scalars.all.return_value = []
+        mock_children_result.scalars.return_value = mock_children_scalars
+        session.execute = AsyncMock(return_value=mock_children_result)
 
         write_result = MagicMock()
         write_result.node_ids = [uuid4()]
@@ -458,6 +487,7 @@ class TestHandleProject:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -465,6 +495,7 @@ class TestHandleProject:
 
         assert result["success"] is True
         assert len(result["node_ids"]) == 1
+        assert result["children_linked"] == 0
         call_args = mock_write_svc.execute.call_args[0][0]
         assert call_args.nodes[0].node_type == NodeType.PROJECT
         assert "Pilot Space" in call_args.nodes[0].content
@@ -509,6 +540,8 @@ class TestHandleCycle:
         cycle.start_date = date(2026, 1, 6)
         cycle.end_date = date(2026, 1, 20)
         cycle.owned_by_id = uuid4()
+        cycle.workspace_id = _WORKSPACE_ID
+        cycle.project_id = _PROJECT_ID
         session.get.return_value = cycle
 
         write_result = MagicMock()
@@ -528,6 +561,7 @@ class TestHandleCycle:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -569,6 +603,7 @@ class TestHandleCycle:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -578,6 +613,172 @@ class TestHandleCycle:
         call_args = mock_write_svc.execute.call_args[0][0]
         assert call_args.nodes[0].properties["start_date"] == ""
         assert call_args.nodes[0].properties["end_date"] == ""
+
+
+class TestBelongsToEdges:
+    """BELONGS_TO edges connect entities to their project node."""
+
+    async def test_issue_creates_belongs_to_edge_when_project_node_exists(self) -> None:
+        session = _make_session()
+        issue = MagicMock()
+        issue.is_deleted = False
+        issue.name = "Test issue"
+        issue.description = "Short desc"
+        issue.identifier = "PS-1"
+        issue.state_id = None
+        session.get.return_value = issue
+
+        issue_node_id = uuid4()
+        project_node_id = uuid4()
+        write_result = MagicMock()
+        write_result.node_ids = [issue_node_id]
+
+        from pilot_space.domain.graph_node import GraphNode
+
+        project_graph_node = MagicMock(spec=GraphNode)
+        project_graph_node.id = project_node_id
+
+        with (
+            patch(
+                "pilot_space.infrastructure.queue.handlers.kg_populate_handler.GraphWriteService"
+            ) as MockWrite,
+            patch(
+                "pilot_space.infrastructure.queue.handlers.kg_populate_handler.KnowledgeGraphRepository"
+            ) as MockRepo,
+        ):
+            mock_write_svc = AsyncMock()
+            mock_write_svc.execute = AsyncMock(return_value=write_result)
+            MockWrite.return_value = mock_write_svc
+
+            mock_repo = AsyncMock()
+            mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.upsert_edge = AsyncMock()
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=project_graph_node)
+            MockRepo.return_value = mock_repo
+
+            handler = _make_handler(session, _make_embedding_service([0.1] * 768))
+            result = await handler.handle(
+                {
+                    "workspace_id": str(_WORKSPACE_ID),
+                    "project_id": str(_PROJECT_ID),
+                    "entity_type": "issue",
+                    "entity_id": str(_ISSUE_ID),
+                }
+            )
+
+        assert result["success"] is True
+        # Verify BELONGS_TO edge was created
+        mock_repo.upsert_edge.assert_called_once()
+        edge_arg = mock_repo.upsert_edge.call_args[0][0]
+        assert edge_arg.source_id == issue_node_id
+        assert edge_arg.target_id == project_node_id
+        assert str(edge_arg.edge_type) == "belongs_to"
+
+    async def test_issue_no_belongs_to_when_project_node_missing(self) -> None:
+        session = _make_session()
+        issue = MagicMock()
+        issue.is_deleted = False
+        issue.name = "Test issue"
+        issue.description = "Short"
+        issue.identifier = "PS-1"
+        issue.state_id = None
+        session.get.return_value = issue
+
+        write_result = MagicMock()
+        write_result.node_ids = [uuid4()]
+
+        with (
+            patch(
+                "pilot_space.infrastructure.queue.handlers.kg_populate_handler.GraphWriteService"
+            ) as MockWrite,
+            patch(
+                "pilot_space.infrastructure.queue.handlers.kg_populate_handler.KnowledgeGraphRepository"
+            ) as MockRepo,
+        ):
+            mock_write_svc = AsyncMock()
+            mock_write_svc.execute = AsyncMock(return_value=write_result)
+            MockWrite.return_value = mock_write_svc
+
+            mock_repo = AsyncMock()
+            mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.upsert_edge = AsyncMock()
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
+            MockRepo.return_value = mock_repo
+
+            handler = _make_handler(session, _make_embedding_service([0.1] * 768))
+            result = await handler.handle(
+                {
+                    "workspace_id": str(_WORKSPACE_ID),
+                    "project_id": str(_PROJECT_ID),
+                    "entity_type": "issue",
+                    "entity_id": str(_ISSUE_ID),
+                }
+            )
+
+        assert result["success"] is True
+        mock_repo.upsert_edge.assert_not_called()
+
+    async def test_project_links_existing_children(self) -> None:
+        session = _make_session()
+        project = MagicMock()
+        project.is_deleted = False
+        project.name = "Test Project"
+        project.description = "Desc"
+        project.identifier = "TP"
+        project.icon = None
+        project.lead_id = None
+        session.get.return_value = project
+
+        project_node_id = uuid4()
+        child_issue_id = uuid4()
+
+        # Mock child node returned by session.execute
+        child_model = MagicMock()
+        child_model.id = child_issue_id
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = [child_model]
+        mock_exec_result = MagicMock()
+        mock_exec_result.scalars.return_value = mock_scalars
+        session.execute = AsyncMock(return_value=mock_exec_result)
+
+        write_result = MagicMock()
+        write_result.node_ids = [project_node_id]
+
+        with (
+            patch(
+                "pilot_space.infrastructure.queue.handlers.kg_populate_handler.GraphWriteService"
+            ) as MockWrite,
+            patch(
+                "pilot_space.infrastructure.queue.handlers.kg_populate_handler.KnowledgeGraphRepository"
+            ) as MockRepo,
+        ):
+            mock_write_svc = AsyncMock()
+            mock_write_svc.execute = AsyncMock(return_value=write_result)
+            MockWrite.return_value = mock_write_svc
+
+            mock_repo = AsyncMock()
+            mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.upsert_edge = AsyncMock()
+            MockRepo.return_value = mock_repo
+
+            handler = _make_handler(session, _make_embedding_service([0.1] * 768))
+            result = await handler.handle(
+                {
+                    "workspace_id": str(_WORKSPACE_ID),
+                    "project_id": str(_PROJECT_ID),
+                    "entity_type": "project",
+                    "entity_id": str(_PROJECT_ID),
+                }
+            )
+
+        assert result["success"] is True
+        assert result["children_linked"] == 1
+        # BELONGS_TO edge: child → project
+        mock_repo.upsert_edge.assert_called_once()
+        edge_arg = mock_repo.upsert_edge.call_args[0][0]
+        assert edge_arg.source_id == child_issue_id
+        assert edge_arg.target_id == project_node_id
+        assert str(edge_arg.edge_type) == "belongs_to"
 
 
 class TestTransactionOwnership:
@@ -613,6 +814,7 @@ class TestTransactionOwnership:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service())
@@ -655,6 +857,7 @@ class TestTransactionOwnership:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))
@@ -697,6 +900,7 @@ class TestTransactionOwnership:
 
             mock_repo = AsyncMock()
             mock_repo.hybrid_search = AsyncMock(return_value=[])
+            mock_repo.find_node_by_external_id = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             handler = _make_handler(session, _make_embedding_service([0.1] * 768))

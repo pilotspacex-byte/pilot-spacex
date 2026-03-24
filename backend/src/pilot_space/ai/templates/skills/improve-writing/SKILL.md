@@ -1,6 +1,7 @@
 ---
 name: improve-writing
 description: Improve writing clarity, conciseness, and style for technical documentation
+feature_module: notes
 ---
 
 # Improve Writing Skill
