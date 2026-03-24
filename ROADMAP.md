@@ -76,7 +76,7 @@ Full archive: `.planning/milestones/v1.0.0-alpha2-ROADMAP.md`
 - [x] **Phase 37: One-Click Implement Flow + Tray** — End-to-end issue->implement->commit loop; system tray with notifications (completed 2026-03-20)
 - [x] **Phase 38: Packaging + Signing + Auto-Update** — Signed .dmg/.deb/.AppImage/.msi per platform, notarization, auto-update (completed 2026-03-20)
 - [x] **Phase 39: Tech Debt Cleanup** — Auto-update pubkey, stores barrel exports, dev CI sidecar download (completed 2026-03-20)
-- [ ] **Phase 40: WebGPU Canvas IDE Editor** — Monaco editor migration, IDE file browser, markdown preview
+- [x] **Phase 40: WebGPU Canvas IDE Editor** — Monaco editor migration, IDE file browser, markdown preview (completed 2026-03-24)
 - [ ] **Phase 41: Office Suite Preview Redesign** — Redesign Office document previews (XLSX, DOCX, PPTX) with Google Docs-level UX and CX
 
 ## Phase Details
@@ -253,7 +253,7 @@ Plans:
   8. Cmd+P quick open provides fuzzy file search
   9. Markdown preview renders GFM, KaTeX math, Mermaid diagrams, and admonitions
   10. Spring physics scrolling (Lenis) active on file tree and sidebar
-**Plans:** 4/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 - [ ] 40-01-PLAN.md — Dependencies, types, Monaco theme, PM block marker parser, FileStore
@@ -285,7 +285,7 @@ Note: Phase 34 and Phase 35 depend only on Phase 30, so they can run in parallel
 | 37. One-Click Implement + Tray | 2/2 | Complete    | 2026-03-20 | - |
 | 38. Packaging + Signing + Auto-Update | 3/3 | Complete    | 2026-03-20 | - |
 | 39. Tech Debt Cleanup | 1/1 | Complete    | 2026-03-20 | - |
-| 40. WebGPU Canvas IDE Editor | 4/7 | In Progress|  | - |
+| 40. WebGPU Canvas IDE Editor | 7/7 | Complete   | 2026-03-24 | - |
 
 **v1.1 total: 11 phases, ~33 plans, 30+ requirements**
 
