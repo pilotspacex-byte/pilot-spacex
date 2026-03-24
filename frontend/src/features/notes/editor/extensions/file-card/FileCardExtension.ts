@@ -68,7 +68,16 @@ export const FileCardExtension = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(FileCardNodeView);
+    return ReactNodeViewRenderer(FileCardNodeView, {
+      // Stop mouse events so ProseMirror's selectClickedLeaf doesn't fire.
+      // Without this, ProseMirror dispatches a NodeSelection transaction which
+      // triggers TipTap's ReactRenderer.flushSync inside React's lifecycle,
+      // causing "flushSync was called from inside a lifecycle method" + RangeError.
+      stopEvent: ({ event }) => {
+        const t = event.type;
+        return t === 'mousedown' || t === 'mouseup' || t === 'click';
+      },
+    });
   },
 
   addStorage() {

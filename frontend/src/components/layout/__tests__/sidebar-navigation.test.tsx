@@ -44,6 +44,17 @@ vi.mock('@/stores', () => ({
     currentWorkspaceId: 'test-ws',
     isOwner: true,
     isAdmin: false,
+    featureToggles: {
+      notes: true,
+      issues: true,
+      projects: true,
+      members: true,
+      knowledge: true,
+      skills: true,
+      costs: true,
+      approvals: true,
+    },
+    isFeatureEnabled: (_key: string) => true,
   }),
   useNotificationStore: () => ({
     unreadCount: 0,

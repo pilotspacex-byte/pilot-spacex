@@ -22,7 +22,10 @@ export type RendererType =
   | 'code'
   | 'csv'
   | 'download'
-  | 'html-preview';
+  | 'html-preview'
+  | 'xlsx'
+  | 'docx'
+  | 'pptx';
 
 /**
  * Extension to lowlight language name mapping.
@@ -138,11 +141,16 @@ function resolveCodeOrText(filename: string): RendererType {
  * Priority order:
  * 1. Image MIME types → 'image'
  * 2. CSV (MIME or extension) → 'csv'
- * 3. Markdown (MIME or .md extension) → 'markdown'
- * 4. JSON (MIME or .json extension) → 'json'
- * 5. HTML (MIME or .html/.htm extension) → 'html-preview' (sandboxed iframe + source toggle)
- * 6. text/* MIME → resolve by extension (code or text)
- * 7. Everything else → 'download'
+ * 3. Office documents (extension wins — servers often send octet-stream)
+ *    - .xlsx / .xls → 'xlsx'
+ *    - .docx / .doc → 'docx'
+ *    - .pptx / .ppt → 'pptx'
+ * 4. Markdown (MIME or .md extension) → 'markdown'
+ * 5. JSON (MIME or .json extension) → 'json'
+ * 6. HTML (MIME or .html/.htm extension) → 'html-preview' (sandboxed iframe + source toggle)
+ * 7. text/* MIME → resolve by extension (code or text)
+ * 8. application/octet-stream with code/text extension → route by extension
+ * 9. Everything else → 'download'
  *
  * @param mimeType - The file's MIME type (case-insensitive)
  * @param filename - The file's name (used for extension-based overrides)
@@ -160,20 +168,39 @@ export function resolveRenderer(mimeType: string, filename: string): RendererTyp
   // 2. CSV — check both MIME and extension (some servers send text/plain for CSV)
   if (lowerMime === 'text/csv' || lowerMime === 'application/csv' || ext === 'csv') return 'csv';
 
-  // 3. Markdown — filename extension wins over generic text/plain
+  // 3. Office documents — extension wins over MIME (servers often send octet-stream for
+  //    .xlsx/.xls/.docx/.doc/.pptx/.ppt). Extension check runs first so that
+  //    application/octet-stream with an Office extension resolves correctly.
+  if (ext === 'xlsx' || ext === 'xls') return 'xlsx';
+  if (ext === 'docx' || ext === 'doc') return 'docx';
+  if (ext === 'pptx' || ext === 'ppt') return 'pptx';
+  // MIME fallback — modern OOXML formats
+  if (lowerMime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return 'xlsx';
+  if (lowerMime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    return 'docx';
+  if (lowerMime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
+    return 'pptx';
+  // Legacy Office MIME types — route to their respective renderer types.
+  // FilePreviewModal's isLegacyOfficeFormat check will show download fallback for these.
+  if (lowerMime === 'application/msword') return 'docx';
+  if (lowerMime === 'application/vnd.ms-excel') return 'xlsx';
+  if (lowerMime === 'application/vnd.ms-powerpoint') return 'pptx';
+
+  // 4. Markdown — filename extension wins over generic text/plain
   if (lowerMime === 'text/markdown' || ext === 'md') return 'markdown';
 
-  // 4. JSON — extension wins for ambiguous text/* MIME
+  // 5. JSON — extension wins for ambiguous text/* MIME
   if (lowerMime === 'application/json' || ext === 'json') return 'json';
 
-  // 5. HTML — route to html-preview renderer (sandboxed iframe + source toggle)
+  // 6. HTML — route to html-preview renderer (sandboxed iframe + source toggle)
   //    DOMPurify sanitization + empty sandbox (no allow-same-origin, no allow-scripts) prevents XSS.
   if (lowerMime === 'text/html' || ext === 'html' || ext === 'htm') return 'html-preview';
 
-  // 6. text/* types — resolve to code or plain text by extension
+  // 7. text/* types — resolve to code or plain text by extension
   if (lowerMime.startsWith('text/')) return resolveCodeOrText(filename);
 
-  // 7. application/octet-stream with code/text extension — servers often send
+  // 8. application/octet-stream with code/text extension — servers often send
   //    octet-stream for .py, .go, .rs, .toml, .yaml, etc. Route by extension.
   if (lowerMime === 'application/octet-stream') {
     const resolved = resolveCodeOrText(filename);
@@ -182,6 +209,6 @@ export function resolveRenderer(mimeType: string, filename: string): RendererTyp
     if (ext === 'txt') return 'text';
   }
 
-  // 8. Everything else — download fallback (PDF, binary, video, audio, etc.)
+  // 9. Everything else — download fallback (PDF, binary, video, audio, etc.)
   return 'download';
 }

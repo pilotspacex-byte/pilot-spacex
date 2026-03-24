@@ -6,6 +6,7 @@ Aggregates all v1 API routers into a single router for mounting on the main app.
 from fastapi import APIRouter
 
 from pilot_space.api.v1.routers.ai_configuration import router as ai_configuration_router
+from pilot_space.api.v1.routers.artifact_annotations import router as artifact_annotations_router
 from pilot_space.api.v1.routers.auth import router as auth_router
 from pilot_space.api.v1.routers.memory import router as memory_router
 from pilot_space.api.v1.routers.project_artifacts import router as project_artifacts_router
@@ -38,6 +39,11 @@ api_router.include_router(
 )
 
 api_router.include_router(memory_router, prefix="", tags=["memory"])
+api_router.include_router(
+    artifact_annotations_router,
+    prefix="/workspaces/{workspace_id}/projects/{project_id}/artifacts/{artifact_id}/annotations",
+    tags=["artifact-annotations"],
+)
 
 # Debug router and mock generators removed (were development-only features)
 

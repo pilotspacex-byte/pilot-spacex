@@ -49,6 +49,10 @@ _ALLOWED_EXTENSIONS: frozenset[str] = frozenset(
         ".txt",
         ".xlsx",
         ".xls",
+        ".docx",  # Word (Office Open XML)
+        ".doc",  # Word (legacy 97-2003)
+        ".pptx",  # PowerPoint (Office Open XML)
+        ".ppt",  # PowerPoint (legacy 97-2003)
         # Web / frontend
         ".js",
         ".ts",

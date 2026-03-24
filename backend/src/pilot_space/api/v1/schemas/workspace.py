@@ -335,7 +335,7 @@ class WorkspaceFeatureToggles(BaseSchema):
         issues: Whether the Issues module is visible in the sidebar.
         projects: Whether the Projects module is visible in the sidebar.
         members: Whether the Members module is visible in the sidebar.
-        docs: Whether the Docs module is visible in the sidebar.
+        knowledge: Whether the Knowledge Graph module is visible in the sidebar.
         skills: Whether the AI Skills module is visible in the sidebar.
         costs: Whether the AI Costs module is visible in the sidebar.
         approvals: Whether the AI Approvals module is visible in the sidebar.
@@ -345,7 +345,7 @@ class WorkspaceFeatureToggles(BaseSchema):
     issues: bool = Field(default=True, description="Issue tracker module enabled")
     projects: bool = Field(default=True, description="Project management module enabled")
     members: bool = Field(default=True, description="Member directory module enabled")
-    docs: bool = Field(default=True, description="Documentation module enabled")
+    knowledge: bool = Field(default=True, description="Knowledge Graph module enabled")
     skills: bool = Field(default=True, description="AI Skills module enabled")
     costs: bool = Field(default=True, description="AI cost tracking module enabled")
     approvals: bool = Field(default=True, description="AI approval workflow module enabled")
@@ -361,7 +361,7 @@ class WorkspaceFeatureTogglesUpdate(BaseSchema):
     issues: bool | None = Field(default=None, description="Issue tracker module enabled")
     projects: bool | None = Field(default=None, description="Project management module enabled")
     members: bool | None = Field(default=None, description="Member directory module enabled")
-    docs: bool | None = Field(default=None, description="Documentation module enabled")
+    knowledge: bool | None = Field(default=None, description="Knowledge Graph module enabled")
     skills: bool | None = Field(default=None, description="AI Skills module enabled")
     costs: bool | None = Field(default=None, description="AI cost tracking module enabled")
     approvals: bool | None = Field(default=None, description="AI approval workflow module enabled")

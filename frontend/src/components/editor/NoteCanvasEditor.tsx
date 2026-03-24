@@ -40,8 +40,7 @@ import {
   setupUploadListener,
 } from './hooks/useFileUploadHandlers';
 
-// H-6: Helper to update EntityHighlightExtension entities without recreating extensions.
-// Follows the pattern used by updateAIBlockProcessingStorage (functional/immutable-data rule).
+// H-6: Update EntityHighlightExtension entities without recreating extensions.
 function updateEntityHighlightStorage(
   editor: Editor,
   entities: Array<{ name: string; projectId: string }>
@@ -54,8 +53,6 @@ function updateEntityHighlightStorage(
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-
-/** Update AIBlockProcessingExtension storage — extracted to avoid lint mutation error. */
 function updateAIBlockProcessingStorage(editor: Editor, processingBlockIds: string[]) {
   (editor.storage as unknown as Record<string, unknown>).aiBlockProcessing = {
     processingBlockIds,
@@ -485,12 +482,17 @@ export function useNoteCanvasEditor(props: NoteCanvasProps): NoteCanvasEditorSta
     },
   });
 
-  // Update content when prop changes
+  // Update content when prop changes (try-catch guards against ProseMirror RangeError
+  // from stale selection when setContent races with click handling).
   useEffect(() => {
     if (editor && content && !editor.isDestroyed) {
       const currentContent = editor.getJSON();
       if (JSON.stringify(currentContent) !== JSON.stringify(content)) {
-        editor.commands.setContent(content as Content);
+        try {
+          editor.commands.setContent(content as Content);
+        } catch (err) {
+          if (!(err instanceof RangeError && err.message.includes('setSelection'))) throw err;
+        }
       }
     }
   }, [editor, content]);

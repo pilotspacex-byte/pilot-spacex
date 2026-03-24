@@ -15,7 +15,7 @@ import {
   LayoutGrid,
   FolderKanban,
   Users,
-  BookOpen,
+  Network,
   UserCog,
   DollarSign,
   CheckCircle2,
@@ -65,10 +65,10 @@ const mainFeatures: FeatureToggleItem[] = [
     icon: Users,
   },
   {
-    key: 'docs',
-    label: 'Docs',
-    description: 'Documentation module with diagrams, ADRs, and code generation',
-    icon: BookOpen,
+    key: 'knowledge',
+    label: 'Knowledge',
+    description: 'Knowledge graph for workspace-level code and dependency visualization',
+    icon: Network,
   },
 ];
 

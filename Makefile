@@ -54,7 +54,7 @@ help:
 	@echo "  make test-results-dir     Create test results directory"
 	@echo ""
 	@echo "Documentation (pilotspace/pilot-space-docs)"
-	@echo "  make sync-docs            Clone or pull docs repo into .planning/"
+	@echo "  make sync-docs            Sync .planning submodule (pilot-space-docs)"
 	@echo "  make push-docs            Commit and push docs changes"
 
 # ============================================================================
@@ -230,30 +230,16 @@ quality-gates-frontend:
 # Documentation (separate repo: pilotspace/pilot-space-docs)
 # ============================================================================
 
-DOCS_REPO := git@github.com:pilotspace/pilot-space-docs.git
 DOCS_DIR := .planning
 
 sync-docs:
-	@if [ -d "$(DOCS_DIR)/.git" ]; then \
-		echo "Pulling latest docs..."; \
-		cd $(DOCS_DIR) && git pull --rebase; \
-	else \
-		echo "Cloning docs repo..."; \
-		git clone $(DOCS_REPO) $(DOCS_DIR) 2>/dev/null \
-		|| { echo "⚠ No access to planning docs. Request access from a project admin."; exit 0; }; \
-	fi
-	@if [ -d "$(DOCS_DIR)/docs" ] && [ ! -L docs ]; then \
-		ln -s $(DOCS_DIR)/docs docs; \
-		echo "Created docs -> $(DOCS_DIR)/docs symlink"; \
-	fi
-	@if [ -d "$(DOCS_DIR)/specs" ] && [ ! -L specs ]; then \
-		ln -s $(DOCS_DIR)/specs specs; \
-		echo "Created specs -> $(DOCS_DIR)/specs symlink"; \
-	fi
+	@echo "Syncing docs submodule..."
+	@git submodule update --init --remote $(DOCS_DIR) \
+		|| { echo "⚠ No access to planning docs. Request access from a project admin."; exit 1; }
 
 push-docs:
 	@if [ ! -d "$(DOCS_DIR)/.git" ]; then \
-		echo "⚠ Docs repo not initialized. Run 'make sync-docs' first."; \
+		echo "⚠ Docs submodule not initialized. Run 'make sync-docs' first."; \
 		exit 1; \
 	fi
 	@cd $(DOCS_DIR) && git add -A && \

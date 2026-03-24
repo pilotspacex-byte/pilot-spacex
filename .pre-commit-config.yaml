@@ -84,7 +84,7 @@ repos:
       # Pyright type checking (runs on all files)
       - id: pyright
         name: pyright
-        entry: bash -c 'cd backend && uv run --extra dev pyright'
+        entry: bash -c 'cd backend && uv run --extra dev --extra google-ai --extra saml pyright'
         language: system
         files: ^backend/.*\.py$
         pass_filenames: false

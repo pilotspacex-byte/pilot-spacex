@@ -34,7 +34,7 @@ interface HtmlRendererProps {
  * No JavaScript execution is possible in preview mode (sandbox lacks allow-scripts).
  */
 export function HtmlRenderer({ content, filename }: HtmlRendererProps) {
-  const [viewMode, setViewMode] = React.useState<'preview' | 'source'>('source');
+  const [viewMode, setViewMode] = React.useState<'preview' | 'source'>('preview');
 
   const sanitizedHtml = React.useMemo(() => {
     if (viewMode !== 'preview') return '';
@@ -53,23 +53,6 @@ export function HtmlRenderer({ content, filename }: HtmlRendererProps) {
         <button
           type="button"
           role="tab"
-          id="html-tab-source"
-          aria-selected={viewMode === 'source'}
-          aria-controls="html-panel-source"
-          tabIndex={viewMode === 'source' ? 0 : -1}
-          onClick={() => setViewMode('source')}
-          className={
-            'px-3 py-1.5 text-xs rounded-md transition-colors ' +
-            (viewMode === 'source'
-              ? 'bg-muted text-foreground font-medium'
-              : 'text-muted-foreground hover:text-foreground')
-          }
-        >
-          Source
-        </button>
-        <button
-          type="button"
-          role="tab"
           id="html-tab-preview"
           aria-selected={viewMode === 'preview'}
           aria-controls="html-panel-preview"
@@ -83,6 +66,23 @@ export function HtmlRenderer({ content, filename }: HtmlRendererProps) {
           }
         >
           Preview
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="html-tab-source"
+          aria-selected={viewMode === 'source'}
+          aria-controls="html-panel-source"
+          tabIndex={viewMode === 'source' ? 0 : -1}
+          onClick={() => setViewMode('source')}
+          className={
+            'px-3 py-1.5 text-xs rounded-md transition-colors ' +
+            (viewMode === 'source'
+              ? 'bg-muted text-foreground font-medium'
+              : 'text-muted-foreground hover:text-foreground')
+          }
+        >
+          Source
         </button>
       </div>
 
