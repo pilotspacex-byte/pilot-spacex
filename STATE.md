@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
-status: completed
-stopped_at: Phase 44 context gathered (auto)
-last_updated: "2026-03-24T12:35:26.354Z"
-last_activity: "2026-03-24 - Plan 43-03 complete: Lazy Pyright WASM Python IntelliSense + F12/Shift+F12 LSP navigation"
+status: executing
+stopped_at: Completed 44-01-PLAN.md
+last_updated: "2026-03-24T13:06:09.593Z"
+last_activity: "2026-03-24 - Plan 44-01 complete: GitProvider abstraction with GitHub Git Data API and GitLab REST v4"
 progress:
   total_phases: 18
   completed_phases: 14
-  total_plans: 50
-  completed_plans: 47
-  percent: 100
+  total_plans: 55
+  completed_plans: 48
+  percent: 87
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 
 ## Current Position
 
-Phase: 43 of 46 (LSP Integration and Code Intelligence)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-03-24 - Plan 43-03 complete: Lazy Pyright WASM Python IntelliSense + F12/Shift+F12 LSP navigation
+Phase: 44 of 46 (Web Git Integration and Source Control Panel)
+Plan: 1 of 5 in current phase
+Status: In progress
+Last activity: 2026-03-24 - Plan 44-01 complete: GitProvider abstraction with GitHub Git Data API and GitLab REST v4
 
-Progress: [██████████] 100% (Phase 43: 3/3 plans complete)
+Progress: [█████████░] 87% (Phase 44: 1/5 plans complete)
 
 ## Milestone History
 
@@ -156,6 +156,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 43]: [Phase 43-03]: monaco-pyright-lsp 0.1.7 types target monaco-editor 0.52; runtime compatible with 0.55.1 -- cast to any for init() call
 - [Phase 43]: [Phase 43-03]: usePythonLanguage uses derived loading state (useMemo) instead of synchronous setState in effect -- React 19 set-state-in-effect compliance
 - [Phase 43]: [Phase 43-03]: ensurePythonLanguage shares loading promise at module level to prevent duplicate Pyright WASM initializations
+- [Phase 44]: GitDataMixin pattern: extracted 12 Git Data API methods into mixin to keep GitHubClient under 700-line limit while preserving single-class API surface
 
 ### Roadmap Evolution
 
@@ -183,7 +184,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-24T12:35:26.350Z
-Stopped at: Phase 44 context gathered (auto)
-Resume file: .planning/phases/44-web-git-integration-and-source-control-panel/44-CONTEXT.md
-Next action: Execute Plan 43-03 (Go to Definition, Find References).
+Last session: 2026-03-24T13:04:00.000Z
+Stopped at: Completed 44-01-PLAN.md
+Resume file: .planning/phases/44-web-git-integration-and-source-control-panel/44-02-PLAN.md
+Next action: Execute Plan 44-02 (Git proxy router endpoints).

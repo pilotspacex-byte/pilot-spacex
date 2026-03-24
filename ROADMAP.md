@@ -361,7 +361,7 @@ Plans:
   4. Monaco diff viewer shows syntax-highlighted inline diffs when clicking a changed file
   5. User can stage/unstage files, type a commit message, and commit via provider API from the browser
   6. User can create a pull request with title, description, base branch, and draft toggle directly from the SCM panel
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
 - [ ] 44-01-PLAN.md — GitProvider interface, GitHub Git Data API extension, GitLab client, provider tests
