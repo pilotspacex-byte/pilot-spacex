@@ -1,0 +1,30 @@
+{
+  "name": "changelog",
+  "version": "1.0.0",
+  "displayName": "Changelog Generator",
+  "description": "Generates release notes from recent activity",
+  "author": "Pilot Space",
+  "entrypoint": "index.js",
+  "permissions": ["editor:read", "editor:write"],
+  "blockTypes": [
+    {
+      "type": "changelog",
+      "label": "Changelog",
+      "icon": "FileText"
+    }
+  ],
+  "slashCommands": [
+    {
+      "trigger": "/changelog",
+      "label": "Insert Changelog",
+      "description": "Generate a changelog block"
+    }
+  ],
+  "actions": [
+    {
+      "id": "changelog.generate",
+      "label": "Generate Changelog",
+      "category": "note"
+    }
+  ]
+}

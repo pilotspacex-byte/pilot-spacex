@@ -1,0 +1,30 @@
+{
+  "name": "standup",
+  "version": "1.0.0",
+  "displayName": "Daily Standup",
+  "description": "Insert structured standup templates",
+  "author": "Pilot Space",
+  "entrypoint": "index.js",
+  "permissions": ["editor:write"],
+  "blockTypes": [
+    {
+      "type": "standup",
+      "label": "Standup",
+      "icon": "Users"
+    }
+  ],
+  "slashCommands": [
+    {
+      "trigger": "/standup",
+      "label": "Insert Standup",
+      "description": "Insert a daily standup template"
+    }
+  ],
+  "actions": [
+    {
+      "id": "standup.insert",
+      "label": "Insert Standup Template",
+      "category": "note"
+    }
+  ]
+}
