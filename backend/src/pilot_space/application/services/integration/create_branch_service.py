@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from pilot_space.domain.exceptions import AppError, ConflictError
 from pilot_space.infrastructure.database.models import (
     Activity,
     ActivityType,
@@ -58,8 +59,11 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class CreateBranchError(Exception):
+class CreateBranchError(AppError):
     """Raised when branch creation fails."""
+
+    http_status: int = 400
+    error_code: str = "create_branch_error"
 
 
 @dataclass
@@ -168,7 +172,9 @@ class CreateBranchService:
                 existing.external_id == payload.branch_name
                 and existing.integration_id == payload.integration_id
             ):
-                raise ValueError(f"Branch '{payload.branch_name}' is already linked to this issue")
+                raise ConflictError(
+                    f"Branch '{payload.branch_name}' is already linked to this issue"
+                )
 
         # 4. Create branch via GitHub API
         access_token = decrypt_api_key(integration.access_token)

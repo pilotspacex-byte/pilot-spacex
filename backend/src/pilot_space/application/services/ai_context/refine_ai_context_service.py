@@ -22,6 +22,7 @@ from pilot_space.ai.agents.ai_context_agent import (
     CodeReference,
     RelatedItem,
 )
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -135,7 +136,8 @@ class RefineAIContextService:
             RefineAIContextResult with AI response.
 
         Raises:
-            ValueError: If context or issue not found.
+            NotFoundError: If context or issue not found.
+            ValidationError: If agent refinement fails.
         """
         logger.info(
             "Refining AI context",
@@ -149,7 +151,7 @@ class RefineAIContextService:
         # Get existing context
         context = await self._context_repo.get_by_issue_id(payload.issue_id)
         if not context:
-            raise ValueError(
+            raise NotFoundError(
                 f"AI context not found for issue: {payload.issue_id}. "
                 "Generate context first before refining."
             )
@@ -157,7 +159,7 @@ class RefineAIContextService:
         # Get issue for context
         issue = await self._issue_repo.get_by_id_with_relations(payload.issue_id)
         if not issue:
-            raise ValueError(f"Issue not found: {payload.issue_id}")
+            raise NotFoundError(f"Issue not found: {payload.issue_id}")
 
         # Build related items from stored data
         related_issues = [
@@ -230,7 +232,7 @@ class RefineAIContextService:
         )
         result = await agent.run(agent_input, agent_context)
         if not result.success or not result.output:
-            raise ValueError(f"Agent refinement failed: {result.error}")
+            raise ValidationError(f"Agent refinement failed: {result.error}")
         output = result.output
 
         # Update conversation history
@@ -244,7 +246,7 @@ class RefineAIContextService:
         # Refresh context
         context = await self._context_repo.get_by_issue_id(payload.issue_id)
         if not context:
-            raise ValueError("Failed to retrieve updated context")
+            raise NotFoundError("Failed to retrieve updated context")
 
         # Extract response from last assistant message
         response_text = ""

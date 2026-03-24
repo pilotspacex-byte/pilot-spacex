@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, Path
 
 from pilot_space.api.v1.dependencies import (
     GetNoteServiceDep,
@@ -23,6 +23,7 @@ from pilot_space.api.v1.schemas.annotation import (
     AnnotationType,
 )
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models.note_annotation import NoteAnnotation
 from pilot_space.infrastructure.logging import get_logger
 
@@ -58,10 +59,7 @@ async def _resolve_workspace_for_annotations(
         workspace = await workspace_repo.get_by_slug(workspace_id_or_slug)
 
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
     return workspace.id
 
 
@@ -108,10 +106,7 @@ async def get_note_annotations(
     # Verify note exists and belongs to workspace
     note = await get_note_service.get_by_id(note_id)
     if not note or note.workspace_id != workspace_uuid:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found",
-        )
+        raise NotFoundError("Note not found")
 
     # Get annotations via service
     result = await list_annotations_service.execute(ListAnnotationsPayload(note_id=note_id))
@@ -147,37 +142,27 @@ async def update_annotation_status(
     # Verify note exists and belongs to workspace
     note = await get_note_service.get_by_id(note_id)
     if not note or note.workspace_id != workspace_uuid:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found",
+        raise NotFoundError("Note not found")
+
+    # Execute service — ownership is validated inside before any DB write
+    result = await update_annotation_service.execute(
+        UpdateAnnotationPayload(
+            annotation_id=annotation_id,
+            note_id=note_id,
+            status=DBAnnotationStatus(status_update.status.value),
         )
+    )
 
-    try:
-        # Execute service — ownership is validated inside before any DB write
-        result = await update_annotation_service.execute(
-            UpdateAnnotationPayload(
-                annotation_id=annotation_id,
-                note_id=note_id,
-                status=DBAnnotationStatus(status_update.status.value),
-            )
-        )
+    logger.info(
+        "Annotation status updated",
+        extra={
+            "annotation_id": str(annotation_id),
+            "note_id": str(note_id),
+            "new_status": status_update.status.value,
+        },
+    )
 
-        logger.info(
-            "Annotation status updated",
-            extra={
-                "annotation_id": str(annotation_id),
-                "note_id": str(note_id),
-                "new_status": status_update.status.value,
-            },
-        )
-
-        return _annotation_to_response(result.annotation)
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    return _annotation_to_response(result.annotation)
 
 
 __all__ = ["annotations_router"]

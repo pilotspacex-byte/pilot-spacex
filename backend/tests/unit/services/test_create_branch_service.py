@@ -16,6 +16,7 @@ from pilot_space.application.services.integration.create_branch_service import (
     CreateBranchPayload,
     CreateBranchService,
 )
+from pilot_space.domain.exceptions import ConflictError
 from pilot_space.infrastructure.database.models import (
     Integration,
     IntegrationLink,
@@ -253,7 +254,7 @@ class TestCreateBranchServiceValidation:
 
         service = _make_service(integration_repo, issue_repo, link_repo, activity_repo)
 
-        with pytest.raises(ValueError, match="already linked"):
+        with pytest.raises(ConflictError, match="already linked"):
             await service.execute(payload)
 
 

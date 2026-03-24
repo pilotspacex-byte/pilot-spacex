@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models.notification import (
     Notification,
     NotificationPriority,
@@ -56,7 +57,7 @@ class NotificationListResult:
         return (self.total + self.page_size - 1) // self.page_size
 
 
-class NotificationNotFoundError(Exception):
+class NotificationNotFoundError(NotFoundError):
     """Raised when a notification is not found or not owned by the user."""
 
 

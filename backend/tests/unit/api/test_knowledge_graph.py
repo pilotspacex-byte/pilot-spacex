@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from pilot_space.api.v1.routers.knowledge_graph import (
     _EDGE_LABELS,
@@ -39,6 +38,7 @@ from pilot_space.application.services.memory.knowledge_graph_query_service impor
     SubgraphResult,
     UserContextResult,
 )
+from pilot_space.domain.exceptions import ValidationError as DomainValidationError
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from tests.fixtures.knowledge_graph import (
     RLS_PATCH as _RLS_PATCH,
@@ -240,7 +240,7 @@ class TestSearchKnowledgeGraph:
         mock_rls.assert_awaited_once_with(session, TEST_USER_ID, TEST_WORKSPACE_ID)
 
     async def test_search_raises_422_on_invalid_node_type(self) -> None:
-        """Invalid node_type value raises HTTPException with status 422."""
+        """Invalid node_type value raises ValidationError with status 422."""
         repo = _make_repo()
         session = _make_session()
 
@@ -250,7 +250,7 @@ class TestSearchKnowledgeGraph:
                 "pilot_space.api.v1.routers.knowledge_graph.KnowledgeGraphRepository",
                 return_value=repo,
             ),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(DomainValidationError) as exc_info,
         ):
             await search_knowledge_graph(
                 workspace_id=TEST_WORKSPACE_ID,
@@ -261,8 +261,8 @@ class TestSearchKnowledgeGraph:
                 limit=10,
             )
 
-        assert exc_info.value.status_code == 422
-        assert "Invalid node_type" in exc_info.value.detail
+        assert exc_info.value.http_status == 422
+        assert "Invalid node_type" in exc_info.value.message
 
 
 # ---------------------------------------------------------------------------
@@ -325,13 +325,13 @@ class TestGetNodeNeighbors:
         assert call_kwargs["edge_types"] == [EdgeType.RELATES_TO]
 
     async def test_neighbors_raises_422_on_invalid_edge_type(self) -> None:
-        """Invalid edge_type value raises HTTPException with status 422."""
+        """Invalid edge_type value raises ValidationError with status 422."""
         kg_service = _make_kg_service()
         session = _make_session()
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(DomainValidationError) as exc_info,
         ):
             await get_node_neighbors(
                 workspace_id=TEST_WORKSPACE_ID,
@@ -343,8 +343,8 @@ class TestGetNodeNeighbors:
                 edge_types="totally_invalid_edge",
             )
 
-        assert exc_info.value.status_code == 422
-        assert "Invalid edge_type" in exc_info.value.detail
+        assert exc_info.value.http_status == 422
+        assert "Invalid edge_type" in exc_info.value.message
 
 
 # ---------------------------------------------------------------------------
@@ -385,14 +385,14 @@ class TestGetSubgraph:
         assert result.edges[0].edge_type == "relates_to"
 
     async def test_subgraph_returns_404_when_root_not_found(self) -> None:
-        """RootNodeNotFoundError from service is translated to 404."""
+        """RootNodeNotFoundError from service bubbles up (caught by global app_error_handler)."""
         kg_service = _make_kg_service()
         kg_service.get_subgraph.side_effect = RootNodeNotFoundError(TEST_NODE_ID)
         session = _make_session()
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(RootNodeNotFoundError) as exc_info,
         ):
             await get_subgraph(
                 workspace_id=TEST_WORKSPACE_ID,
@@ -404,7 +404,8 @@ class TestGetSubgraph:
                 max_nodes=50,
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
+        assert str(TEST_NODE_ID) in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------
@@ -471,7 +472,7 @@ class TestIssueKnowledgeGraph:
     """GET /workspaces/{workspace_id}/issues/{issue_id}/knowledge-graph"""
 
     async def test_issue_graph_returns_404_when_issue_not_found(self) -> None:
-        """EntityNotFoundError from service is translated to 404."""
+        """EntityNotFoundError from service bubbles up (caught by global app_error_handler)."""
         kg_service = _make_kg_service()
         kg_service.get_issue_knowledge_graph.side_effect = EntityNotFoundError(
             "Issue", TEST_ISSUE_ID
@@ -480,7 +481,7 @@ class TestIssueKnowledgeGraph:
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(EntityNotFoundError) as exc_info,
         ):
             await get_issue_knowledge_graph(
                 workspace_id=TEST_WORKSPACE_ID,
@@ -494,8 +495,8 @@ class TestIssueKnowledgeGraph:
                 include_github=False,
             )
 
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "Issue not found"
+        assert exc_info.value.http_status == 404
+        assert exc_info.value.entity_type == "Issue"
 
     async def test_issue_graph_returns_empty_when_no_graph_node(self) -> None:
         """Issue exists but has no graph node — empty response."""
@@ -590,13 +591,13 @@ class TestIssueKnowledgeGraph:
         assert call_kwargs["node_types"] == "issue"
 
     async def test_issue_graph_rejects_invalid_node_types(self) -> None:
-        """Invalid node_types value raises HTTPException with status 422."""
+        """Invalid node_types value raises ValidationError with status 422."""
         kg_service = _make_kg_service()
         session = _make_session()
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(DomainValidationError) as exc_info,
         ):
             await get_issue_knowledge_graph(
                 workspace_id=TEST_WORKSPACE_ID,
@@ -610,8 +611,8 @@ class TestIssueKnowledgeGraph:
                 include_github=False,
             )
 
-        assert exc_info.value.status_code == 422
-        assert "Invalid node_type" in exc_info.value.detail
+        assert exc_info.value.http_status == 422
+        assert "Invalid node_type" in exc_info.value.message
 
     async def test_issue_graph_sorts_by_importance_tier(self) -> None:
         """Service returns sorted nodes; verify order preserved in response."""

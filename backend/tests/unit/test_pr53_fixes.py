@@ -255,16 +255,17 @@ class TestCreateUserSkillWhitespaceRejection:
 
     @pytest.mark.asyncio
     async def test_rejects_whitespace_only_content(self) -> None:
-        """Should raise ValueError for whitespace-only skill_content."""
+        """Should raise ValidationError for whitespace-only skill_content."""
         from unittest.mock import AsyncMock
         from uuid import uuid4
 
         from pilot_space.application.services.user_skill.create_user_skill_service import (
             CreateUserSkillService,
         )
+        from pilot_space.domain.exceptions import ValidationError as AppValidationError
 
         svc = CreateUserSkillService(session=AsyncMock())
-        with pytest.raises(ValueError, match="skill_content is required"):
+        with pytest.raises(AppValidationError, match="skill_content is required"):
             await svc.create(
                 user_id=uuid4(),
                 workspace_id=uuid4(),

@@ -29,6 +29,7 @@ import pytest
 from pilot_space.application.services.artifact.artifact_upload_service import (
     ArtifactUploadService,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -143,7 +144,7 @@ class TestExtensionAllowlist:
         service: ArtifactUploadService,
     ) -> None:
         """.exe extension is NOT in the allowlist — raises ValueError('UNSUPPORTED_FILE_TYPE')."""
-        with pytest.raises(ValueError, match="UNSUPPORTED_FILE_TYPE"):
+        with pytest.raises(ValidationError, match="UNSUPPORTED_FILE_TYPE"):
             await service.upload(
                 file_data=b"\x7fELF malware bytes",
                 filename="malware.exe",
@@ -159,7 +160,7 @@ class TestExtensionAllowlist:
         service: ArtifactUploadService,
     ) -> None:
         """.pdf is NOT in the extension allowlist (artifacts use code/image types only)."""
-        with pytest.raises(ValueError, match="UNSUPPORTED_FILE_TYPE"):
+        with pytest.raises(ValidationError, match="UNSUPPORTED_FILE_TYPE"):
             await service.upload(
                 file_data=b"%PDF-1.4 content",
                 filename="document.pdf",
@@ -175,7 +176,7 @@ class TestExtensionAllowlist:
         service: ArtifactUploadService,
     ) -> None:
         """.zip is NOT in the extension allowlist."""
-        with pytest.raises(ValueError, match="UNSUPPORTED_FILE_TYPE"):
+        with pytest.raises(ValidationError, match="UNSUPPORTED_FILE_TYPE"):
             await service.upload(
                 file_data=b"PK archive bytes",
                 filename="archive.zip",
@@ -257,7 +258,7 @@ class TestFileSizeValidation:
         service: ArtifactUploadService,
     ) -> None:
         """Zero-byte file raises ValueError('EMPTY_FILE')."""
-        with pytest.raises(ValueError, match="EMPTY_FILE"):
+        with pytest.raises(ValidationError, match="EMPTY_FILE"):
             await service.upload(
                 file_data=b"",
                 filename="empty.py",
@@ -275,7 +276,7 @@ class TestFileSizeValidation:
         """10_485_761 bytes raises ValueError('FILE_TOO_LARGE')."""
         oversized = b"x" * (_MAX_BYTES + 1)
 
-        with pytest.raises(ValueError, match="FILE_TOO_LARGE"):
+        with pytest.raises(ValidationError, match="FILE_TOO_LARGE"):
             await service.upload(
                 file_data=oversized,
                 filename="big.py",
@@ -325,7 +326,7 @@ class TestMimeMismatch:
         filename='photo.png' has an image extension but content_type='application/json'
         is not an image/ MIME type — this triggers the MIME cross-check.
         """
-        with pytest.raises(ValueError, match="MIME_MISMATCH"):
+        with pytest.raises(ValidationError, match="MIME_MISMATCH"):
             await service.upload(
                 file_data=b"\x89PNG fake png",
                 filename="photo.png",  # image extension — requires image/ MIME prefix
@@ -341,7 +342,7 @@ class TestMimeMismatch:
         service: ArtifactUploadService,
     ) -> None:
         """filename='diagram.svg', content_type='application/json' → raises ValueError('MIME_MISMATCH')."""
-        with pytest.raises(ValueError, match="MIME_MISMATCH"):
+        with pytest.raises(ValidationError, match="MIME_MISMATCH"):
             await service.upload(
                 file_data=b"<svg>content</svg>",
                 filename="diagram.svg",  # image/ prefix expected
@@ -593,7 +594,7 @@ class TestDelete:
         """repo.get_by_id returns None → raises ValueError('NOT_FOUND')."""
         mock_artifact_repo.get_by_id.return_value = None
 
-        with pytest.raises(ValueError, match="NOT_FOUND"):
+        with pytest.raises(NotFoundError, match="NOT_FOUND"):
             await service.delete(
                 artifact_id=uuid.uuid4(),
                 user_id=_USER_ID,
@@ -608,10 +609,10 @@ class TestDelete:
         mock_artifact_repo: AsyncMock,
         mock_artifact: MagicMock,
     ) -> None:
-        """artifact.user_id != requesting user_id → raises PermissionError('FORBIDDEN')."""
+        """artifact.user_id != requesting user_id → raises ForbiddenError('FORBIDDEN')."""
         mock_artifact_repo.get_by_id.return_value = mock_artifact
 
-        with pytest.raises(PermissionError, match="FORBIDDEN"):
+        with pytest.raises(ForbiddenError, match="FORBIDDEN"):
             await service.delete(
                 artifact_id=mock_artifact.id,
                 user_id=_OTHER_USER_ID,  # Different from mock_artifact.user_id = _USER_ID
@@ -630,7 +631,7 @@ class TestDelete:
         different_workspace = uuid.UUID("99999999-9999-9999-9999-999999999999")
         mock_artifact_repo.get_by_id.return_value = mock_artifact
 
-        with pytest.raises(ValueError, match="NOT_FOUND"):
+        with pytest.raises(NotFoundError, match="NOT_FOUND"):
             await service.delete(
                 artifact_id=mock_artifact.id,
                 user_id=_USER_ID,

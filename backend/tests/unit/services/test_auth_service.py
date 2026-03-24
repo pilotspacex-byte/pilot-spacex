@@ -15,6 +15,7 @@ from pilot_space.application.services.auth import (
     LogoutPayload,
     UpdateProfilePayload,
 )
+from pilot_space.domain.exceptions import NotFoundError
 
 
 @pytest.fixture
@@ -122,7 +123,7 @@ class TestGetProfile:
         """Should raise ValueError when user not found."""
         user_repo.get_by_id.return_value = None
 
-        with pytest.raises(ValueError, match="User not found"):
+        with pytest.raises(NotFoundError, match="User not found"):
             await auth_service.get_profile(
                 GetProfilePayload(user_id=uuid.uuid4()),
             )
@@ -181,7 +182,7 @@ class TestUpdateProfile:
         """Should raise ValueError when user not found."""
         user_repo.get_by_id.return_value = None
 
-        with pytest.raises(ValueError, match="User not found"):
+        with pytest.raises(NotFoundError, match="User not found"):
             await auth_service.update_profile(
                 UpdateProfilePayload(
                     user_id=uuid.uuid4(),

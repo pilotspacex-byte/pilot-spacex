@@ -188,14 +188,16 @@ async def test_create_user_skill_returns_201(auth_client: AsyncClient) -> None:
     assert data["template_name"] == "Backend Engineer"
 
 
-async def test_create_user_skill_409_duplicate(auth_client: AsyncClient) -> None:
-    """POST returns 409 when user already has skill from template."""
+async def test_create_user_skill_422_duplicate(auth_client: AsyncClient) -> None:
+    """POST returns 422 when user already has skill from template."""
+    from pilot_space.domain.exceptions import ValidationError as AppValidationError
+
     with patch(
         "pilot_space.api.v1.routers.user_skills.CreateUserSkillService",
     ) as mock_svc_cls:
         mock_svc = mock_svc_cls.return_value
         mock_svc.create = AsyncMock(
-            side_effect=ValueError(f"User already has a skill from template {TEMPLATE_ID}")
+            side_effect=AppValidationError(f"User already has a skill from template {TEMPLATE_ID}")
         )
 
         resp = await auth_client.post(
@@ -205,16 +207,20 @@ async def test_create_user_skill_409_duplicate(auth_client: AsyncClient) -> None
             },
         )
 
-    assert resp.status_code == 409
+    assert resp.status_code == 422
 
 
-async def test_create_user_skill_400_template_not_found(auth_client: AsyncClient) -> None:
-    """POST returns 400 when template not found."""
+async def test_create_user_skill_422_template_not_found(auth_client: AsyncClient) -> None:
+    """POST returns 422 when template not found."""
+    from pilot_space.domain.exceptions import ValidationError as AppValidationError
+
     with patch(
         "pilot_space.api.v1.routers.user_skills.CreateUserSkillService",
     ) as mock_svc_cls:
         mock_svc = mock_svc_cls.return_value
-        mock_svc.create = AsyncMock(side_effect=ValueError(f"Template not found: {TEMPLATE_ID}"))
+        mock_svc.create = AsyncMock(
+            side_effect=AppValidationError(f"Template not found: {TEMPLATE_ID}")
+        )
 
         resp = await auth_client.post(
             BASE_URL,
@@ -223,7 +229,7 @@ async def test_create_user_skill_400_template_not_found(auth_client: AsyncClient
             },
         )
 
-    assert resp.status_code == 400
+    assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------

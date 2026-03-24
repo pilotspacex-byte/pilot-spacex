@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from pilot_space.api.v1.dependencies import (
     CreateRoleSkillServiceDep,
@@ -37,11 +37,8 @@ from pilot_space.application.services.role_skill import (
     ListRoleSkillsPayload,
     UpdateRoleSkillPayload,
 )
-from pilot_space.application.services.role_skill.generate_role_skill_service import (
-    SkillGenerationError,
-    SkillGenerationRateLimitError,
-)
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep, WorkspaceMemberId
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -163,25 +160,19 @@ async def create_role_skill(
     FR-018: Max 3 roles per user-workspace.
     FR-020: Guests cannot create skills.
     """
-    try:
-        skill = await service.execute(
-            CreateRoleSkillPayload(
-                user_id=current_user_id,
-                workspace_id=workspace_id,
-                role_type=request.role_type,
-                role_name=request.role_name,
-                skill_content=request.skill_content,
-                experience_description=request.experience_description,
-                tags=request.tags if request.tags else None,
-                usage=request.usage,
-                is_primary=request.is_primary,
-            )
+    skill = await service.execute(
+        CreateRoleSkillPayload(
+            user_id=current_user_id,
+            workspace_id=workspace_id,
+            role_type=request.role_type,
+            role_name=request.role_name,
+            skill_content=request.skill_content,
+            experience_description=request.experience_description,
+            tags=request.tags if request.tags else None,
+            usage=request.usage,
+            is_primary=request.is_primary,
         )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    )
 
     return RoleSkillResponse(
         id=skill.id,
@@ -220,35 +211,18 @@ async def update_role_skill(
     FR-009: Edit role skill content.
     FR-010: Update skill metadata.
     """
-    try:
-        skill = await service.execute(
-            UpdateRoleSkillPayload(
-                user_id=current_user_id,
-                skill_id=skill_id,
-                workspace_id=workspace_id,
-                role_name=request.role_name,
-                skill_content=request.skill_content,
-                tags=request.tags,
-                usage=request.usage,
-                is_primary=request.is_primary,
-            )
+    skill = await service.execute(
+        UpdateRoleSkillPayload(
+            user_id=current_user_id,
+            skill_id=skill_id,
+            workspace_id=workspace_id,
+            role_name=request.role_name,
+            skill_content=request.skill_content,
+            tags=request.tags,
+            usage=request.usage,
+            is_primary=request.is_primary,
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        if "not authorized" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_msg,
-        ) from e
+    )
 
     return RoleSkillResponse(
         id=skill.id,
@@ -285,30 +259,13 @@ async def delete_role_skill(
 
     FR-009: Remove configured role skill.
     """
-    try:
-        await service.execute(
-            DeleteRoleSkillPayload(
-                user_id=current_user_id,
-                skill_id=skill_id,
-                workspace_id=workspace_id,
-            )
+    await service.execute(
+        DeleteRoleSkillPayload(
+            user_id=current_user_id,
+            skill_id=skill_id,
+            workspace_id=workspace_id,
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        if "not authorized" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_msg,
-        ) from e
+    )
 
 
 @router.post(
@@ -330,31 +287,15 @@ async def generate_role_skill(
     FR-003: AI-powered skill generation.
     FR-004: Experience-based personalization.
     """
-    try:
-        result = await service.execute(
-            GenerateRoleSkillPayload(
-                role_type=request.role_type,
-                experience_description=request.experience_description,
-                role_name=request.role_name,
-                workspace_id=workspace_id,
-                user_id=current_user_id,
-            )
+    result = await service.execute(
+        GenerateRoleSkillPayload(
+            role_type=request.role_type,
+            experience_description=request.experience_description,
+            role_name=request.role_name,
+            workspace_id=workspace_id,
+            user_id=current_user_id,
         )
-    except SkillGenerationRateLimitError as e:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(e),
-        ) from e
-    except SkillGenerationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from e
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    )
 
     return GenerateRoleSkillResponse(
         skill_content=result.skill_content,
@@ -395,49 +336,24 @@ async def regenerate_role_skill(
     repo = RoleSkillRepository(session)
     skill = await repo.get_by_id(skill_id)
     if skill is None or skill.is_deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Role skill not found",
-        )
+        raise NotFoundError("Role skill not found")
     if skill.user_id != current_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to regenerate this skill",
-        )
+        raise ForbiddenError("Not authorized to regenerate this skill")
     if skill.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Skill does not belong to this workspace",
-        )
+        raise NotFoundError("Skill does not belong to this workspace")
 
     previous_content = skill.skill_content
     previous_name = skill.role_name
 
-    try:
-        result = await service.execute(
-            GenerateRoleSkillPayload(
-                role_type=skill.role_type,
-                experience_description=request.experience_description,
-                role_name=skill.role_name,
-                workspace_id=workspace_id,
-                user_id=current_user_id,
-            )
+    result = await service.execute(
+        GenerateRoleSkillPayload(
+            role_type=skill.role_type,
+            experience_description=request.experience_description,
+            role_name=skill.role_name,
+            workspace_id=workspace_id,
+            user_id=current_user_id,
         )
-    except SkillGenerationRateLimitError as e:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(e),
-        ) from e
-    except SkillGenerationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from e
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+    )
 
     return RegenerateRoleSkillResponse(
         skill_content=result.skill_content,

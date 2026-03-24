@@ -516,6 +516,7 @@ async def deprovision_user(
     """Deprovision a user (sets is_active=False). No data is deleted.
 
     Returns 204 No Content on success per RFC 7644.
+    Raises ScimUserNotFoundError (404) via global handler if user not found.
     """
     service = get_scim_service(session)
     try:

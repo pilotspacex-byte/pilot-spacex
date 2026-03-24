@@ -82,15 +82,9 @@ async def get_current_user_profile(
     Raises:
         HTTPException: If user not found.
     """
-    try:
-        result = await service.get_profile(
-            GetProfilePayload(user_id=current_user.user_id),
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    result = await service.get_profile(
+        GetProfilePayload(user_id=current_user.user_id),
+    )
 
     user = result.user
     return UserProfileResponse(
@@ -128,22 +122,16 @@ async def update_current_user_profile(
     """
     update_data = request.model_dump(exclude_unset=True)
 
-    try:
-        result = await service.update_profile(
-            UpdateProfilePayload(
-                user_id=current_user.user_id,
-                full_name=update_data.get("full_name"),
-                avatar_url=update_data.get("avatar_url"),
-                bio=update_data.get("bio"),
-                default_sdlc_role=update_data.get("default_sdlc_role"),
-                ai_settings=update_data.get("ai_settings", UNSET),
-            ),
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    result = await service.update_profile(
+        UpdateProfilePayload(
+            user_id=current_user.user_id,
+            full_name=update_data.get("full_name"),
+            avatar_url=update_data.get("avatar_url"),
+            bio=update_data.get("bio"),
+            default_sdlc_role=update_data.get("default_sdlc_role"),
+            ai_settings=update_data.get("ai_settings", UNSET),
+        ),
+    )
 
     user = result.user
     return UserProfileResponse(
@@ -296,14 +284,8 @@ async def validate_api_key(
     raw_key = auth_header[len("Bearer ") :]
     try:
         result = await service.execute(ValidateAPIKeyPayload(raw_key=raw_key), _session)
-    except ValueError as exc:
-        await asyncio.sleep(0.05)  # constant-time response prevents timing oracle
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired API key",
-        ) from exc
-
-    await asyncio.sleep(0.05)  # uniform timing on success path too
+    finally:
+        await asyncio.sleep(0.05)  # constant-time regardless of success/failure
     return {"workspace_slug": result.workspace_slug}
 
 

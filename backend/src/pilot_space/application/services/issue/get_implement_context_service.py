@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.logging import get_logger
 
@@ -217,7 +218,7 @@ def _derive_repo_info(integration: Any) -> _RepoInfo:
 
     org_name: str | None = integration.external_account_name
     if not org_name:
-        raise ValueError(
+        raise NotFoundError(
             "GitHub integration has no default_repository, repositories list, "
             "or external_account_name — cannot derive clone_url"
         )
@@ -305,7 +306,7 @@ class GetImplementContextService:
         # 1. Fetch issue with all relations
         issue = await self._issue_repo.get_by_id_with_relations(payload.issue_id)
         if issue is None:
-            raise ValueError(f"Issue not found: {payload.issue_id}")
+            raise NotFoundError(f"Issue not found: {payload.issue_id}")
 
         # 2. Authorize requester
         await self._authorize(
@@ -327,14 +328,14 @@ class GetImplementContextService:
                 "No active GitHub integration found for workspace",
                 extra={"workspace_id": str(payload.workspace_id)},
             )
-            raise ValueError("no_github_integration")
+            raise ValidationError("no_github_integration")
 
         repo_info = _derive_repo_info(integration)
 
         # 5. Fetch workspace
         workspace = await self._workspace_repo.get_by_id(payload.workspace_id)
         if workspace is None:
-            raise ValueError(f"Workspace not found: {payload.workspace_id}")
+            raise NotFoundError(f"Workspace not found: {payload.workspace_id}")
 
         # 6. Build project context values
         project = issue.project
@@ -439,7 +440,7 @@ class GetImplementContextService:
                 "member_role": member_role.value if member_role else None,
             },
         )
-        raise PermissionError(
+        raise ForbiddenError(
             "Only the issue assignee or workspace admins/owners can access implement context"
         )
 

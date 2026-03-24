@@ -28,6 +28,7 @@ from pilot_space.application.services.skill.skill_definition import (
     SkillDefinition,
     SkillDefinitionParser,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.skill_execution import (
     SkillApprovalRole,
     SkillApprovalStatus,
@@ -150,10 +151,10 @@ class SkillExecutionService:
         intent = await self._intent_repo.get_by_id(payload.intent.id)  # type: ignore[arg-type]
         if intent is None:
             msg = f"WorkIntent {payload.intent.id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
         if intent.workspace_id != payload.workspace_id:
             msg = "Intent does not belong to workspace"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         # 2. Load skill definition
         skill_def = await self._load_skill_definition(payload.skill_name)

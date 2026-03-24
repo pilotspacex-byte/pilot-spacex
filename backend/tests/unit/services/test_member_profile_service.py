@@ -26,7 +26,10 @@ import pytest
 from pilot_space.application.services.workspace_member import (
     GetMemberActivityPayload,
     GetMemberProfilePayload,
+    MemberNotFoundError,
     MemberProfileService,
+    UnauthorizedError,
+    WorkspaceNotFoundError,
 )
 
 # ---------------------------------------------------------------------------
@@ -97,11 +100,11 @@ class TestGetProfileErrors:
         workspace_repo: MagicMock,
         mock_session: MagicMock,
     ) -> None:
-        """Raises ValueError when workspace does not exist."""
+        """Raises WorkspaceNotFoundError when workspace does not exist."""
         workspace_repo.get_with_members.return_value = None
         svc = _make_service(mock_session, workspace_repo)
 
-        with pytest.raises(ValueError, match="Workspace not found"):
+        with pytest.raises(WorkspaceNotFoundError, match="Workspace not found"):
             await svc.get_profile(
                 GetMemberProfilePayload(
                     workspace_id=_make_uuid(),
@@ -116,11 +119,11 @@ class TestGetProfileErrors:
         workspace_repo: MagicMock,
         mock_session: MagicMock,
     ) -> None:
-        """Raises ValueError when requesting user is not in the workspace."""
+        """Raises UnauthorizedError when requesting user is not in the workspace."""
         workspace_repo.get_with_members.return_value = _make_workspace([])
         svc = _make_service(mock_session, workspace_repo)
 
-        with pytest.raises(ValueError, match="Not a member"):
+        with pytest.raises(UnauthorizedError, match="Not a member"):
             await svc.get_profile(
                 GetMemberProfilePayload(
                     workspace_id=_make_uuid(),
@@ -135,13 +138,13 @@ class TestGetProfileErrors:
         workspace_repo: MagicMock,
         mock_session: MagicMock,
     ) -> None:
-        """Raises ValueError when user_id does not match any member."""
+        """Raises MemberNotFoundError when user_id does not match any member."""
         requester_id = _make_uuid()
         requester = _make_member(requester_id)
         workspace_repo.get_with_members.return_value = _make_workspace([requester])
         svc = _make_service(mock_session, workspace_repo)
 
-        with pytest.raises(ValueError, match="Member not found"):
+        with pytest.raises(MemberNotFoundError, match="Member not found"):
             await svc.get_profile(
                 GetMemberProfilePayload(
                     workspace_id=_make_uuid(),
@@ -526,11 +529,11 @@ class TestGetActivity:
         workspace_repo: MagicMock,
         mock_session: MagicMock,
     ) -> None:
-        """Raises ValueError when workspace does not exist."""
+        """Raises WorkspaceNotFoundError when workspace does not exist."""
         workspace_repo.get_with_members.return_value = None
         svc = _make_service(mock_session, workspace_repo)
 
-        with pytest.raises(ValueError, match="Workspace not found"):
+        with pytest.raises(WorkspaceNotFoundError, match="Workspace not found"):
             await svc.get_activity(
                 GetMemberActivityPayload(
                     workspace_id=_make_uuid(),
@@ -545,11 +548,11 @@ class TestGetActivity:
         workspace_repo: MagicMock,
         mock_session: MagicMock,
     ) -> None:
-        """Raises ValueError when requesting user is not in the workspace."""
+        """Raises UnauthorizedError when requesting user is not in the workspace."""
         workspace_repo.get_with_members.return_value = _make_workspace([])
         svc = _make_service(mock_session, workspace_repo)
 
-        with pytest.raises(ValueError, match="Not a member"):
+        with pytest.raises(UnauthorizedError, match="Not a member"):
             await svc.get_activity(
                 GetMemberActivityPayload(
                     workspace_id=_make_uuid(),

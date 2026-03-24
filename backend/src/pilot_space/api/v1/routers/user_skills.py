@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 
 from pilot_space.api.middleware import create_problem_response
@@ -30,6 +30,7 @@ from pilot_space.application.services.user_skill.create_user_skill_service impor
     CreateUserSkillService,
 )
 from pilot_space.dependencies import CurrentUserId, DbSession
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.repositories.user_skill_repository import (
     UserSkillRepository,
 )
@@ -129,28 +130,16 @@ async def create_user_skill(
         )
 
     svc = CreateUserSkillService(session)
-    try:
-        skill = await svc.create(
-            user_id=current_user_id,
-            workspace_id=workspace_id,
-            template_id=body.template_id,
-            experience_description=body.experience_description or "",
-            skill_content=body.skill_content,
-            skill_name=body.skill_name,
-            tags=body.tags if body.tags else None,
-            usage=body.usage,
-        )
-    except ValueError as exc:
-        msg = str(exc)
-        if "already has" in msg:
-            return create_problem_response(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=msg,
-            )
-        return create_problem_response(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=msg,
-        )
+    skill = await svc.create(
+        user_id=current_user_id,
+        workspace_id=workspace_id,
+        template_id=body.template_id,
+        experience_description=body.experience_description or "",
+        skill_content=body.skill_content,
+        skill_name=body.skill_name,
+        tags=body.tags if body.tags else None,
+        usage=body.usage,
+    )
 
     logger.info(
         "[UserSkills] Created skill=%s user=%s workspace=%s",
@@ -199,16 +188,10 @@ async def update_user_skill(
     skill = await repo.get_by_id_with_template(skill_id)
 
     if skill is None or skill.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User skill not found",
-        )
+        raise NotFoundError("User skill not found")
 
     if skill.user_id != current_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Can only update your own skills",
-        )
+        raise ForbiddenError("Can only update your own skills")
 
     update_data = body.model_dump(exclude_unset=True)
     # Coerce tags=None to empty list to avoid NOT NULL constraint violation
@@ -260,16 +243,10 @@ async def delete_user_skill(
     skill = await repo.get_by_id_with_template(skill_id)
 
     if skill is None or skill.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User skill not found",
-        )
+        raise NotFoundError("User skill not found")
 
     if skill.user_id != current_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Can only delete your own skills",
-        )
+        raise ForbiddenError("Can only delete your own skills")
 
     await repo.soft_delete(skill_id)
 

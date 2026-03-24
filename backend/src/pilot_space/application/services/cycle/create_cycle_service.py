@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.database.models import Cycle, CycleStatus
 from pilot_space.infrastructure.logging import get_logger
 
@@ -112,14 +113,14 @@ class CreateCycleService:
 
         # Validate name
         if not payload.name or not payload.name.strip():
-            raise ValueError("Cycle name is required")
+            raise ValidationError("Cycle name is required")
         if len(payload.name) > 255:
-            raise ValueError("Cycle name must be 255 characters or less")
+            raise ValidationError("Cycle name must be 255 characters or less")
 
         # Validate dates
         if payload.start_date and payload.end_date:
             if payload.end_date < payload.start_date:
-                raise ValueError("End date must be after start date")
+                raise ValidationError("End date must be after start date")
 
         # Get next sequence for ordering
         sequence = await self._cycle_repo.get_next_sequence(payload.project_id)

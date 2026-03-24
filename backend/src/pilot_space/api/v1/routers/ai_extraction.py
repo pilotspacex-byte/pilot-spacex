@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
@@ -20,6 +20,10 @@ from pilot_space.dependencies import (
     DbSession,
 )
 from pilot_space.dependencies.auth import require_workspace_member
+from pilot_space.domain.exceptions import (
+    NotFoundError,
+    ValidationError as DomainValidationError,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -266,24 +270,15 @@ async def _create_extracted_issues(
     )
 
     if not body.issues:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No issues to create",
-        )
+        raise DomainValidationError("No issues to create")
 
     if not body.project_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="project_id is required to create issues",
-        )
+        raise DomainValidationError("project_id is required to create issues")
 
     try:
         project_id = UUID(body.project_id)
     except (ValueError, AttributeError):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid project_id format",
-        ) from None
+        raise DomainValidationError("Invalid project_id format") from None
 
     # Pre-fetch project identifier for constructing issue identifiers
     project_row = await session.execute(
@@ -291,20 +286,14 @@ async def _create_extracted_issues(
     )
     project_identifier = project_row.scalar_one_or_none()
     if not project_identifier:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Project not found for id {project_id}",
-        )
+        raise NotFoundError(f"Project not found for id {project_id}")
 
     note_uuid: UUID | None = None
     if note_id:
         try:
             note_uuid = UUID(note_id)
         except (ValueError, AttributeError):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid note_id format",
-            ) from None
+            raise DomainValidationError("Invalid note_id format") from None
 
     issue_service = CreateIssueService(
         session=session,

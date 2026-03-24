@@ -20,6 +20,7 @@ from pilot_space.application.services.issue.get_implement_context_service import
     _extract_text_blocks,
     _slugify,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import IssuePriority
 from pilot_space.infrastructure.database.models.state import StateGroup
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
@@ -364,7 +365,7 @@ class TestDeriveRepoInfo:
             repositories=[],
             external_account_name=None,
         )
-        with pytest.raises(ValueError, match="cannot derive clone_url"):
+        with pytest.raises(NotFoundError, match="cannot derive clone_url"):
             _derive_repo_info(integration)
 
     def test_provider_is_always_github(self) -> None:
@@ -676,13 +677,13 @@ class TestGetImplementContextServiceAuth:
         note_link_repo: AsyncMock,
         workspace_repo: AsyncMock,
     ) -> None:
-        """Regular member who is not the assignee should get PermissionError."""
+        """Regular member who is not the assignee should get ForbiddenError."""
         non_assignee_id = uuid.uuid4()
         issue = _make_issue(assignee_id=uuid.uuid4())  # different assignee
         issue_repo.get_by_id_with_relations.return_value = issue
         workspace_repo.get_member_role.return_value = WorkspaceRole.MEMBER
 
-        with pytest.raises(PermissionError, match="assignee or workspace admins"):
+        with pytest.raises(ForbiddenError, match="assignee or workspace admins"):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -697,13 +698,13 @@ class TestGetImplementContextServiceAuth:
         issue_repo: AsyncMock,
         workspace_repo: AsyncMock,
     ) -> None:
-        """Guest user (not assignee) should get PermissionError."""
+        """Guest user (not assignee) should get ForbiddenError."""
         guest_id = uuid.uuid4()
         issue = _make_issue(assignee_id=uuid.uuid4())
         issue_repo.get_by_id_with_relations.return_value = issue
         workspace_repo.get_member_role.return_value = WorkspaceRole.GUEST
 
-        with pytest.raises(PermissionError):
+        with pytest.raises(ForbiddenError):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -718,13 +719,13 @@ class TestGetImplementContextServiceAuth:
         issue_repo: AsyncMock,
         workspace_repo: AsyncMock,
     ) -> None:
-        """User not in workspace (role=None) should get PermissionError."""
+        """User not in workspace (role=None) should get ForbiddenError."""
         requester_id = uuid.uuid4()
         issue = _make_issue(assignee_id=uuid.uuid4())
         issue_repo.get_by_id_with_relations.return_value = issue
         workspace_repo.get_member_role.return_value = None
 
-        with pytest.raises(PermissionError):
+        with pytest.raises(ForbiddenError):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -746,7 +747,7 @@ class TestGetImplementContextServiceAuth:
         issue_repo.get_by_id_with_relations.return_value = issue
         workspace_repo.get_member_role.return_value = WorkspaceRole.MEMBER
 
-        with pytest.raises(PermissionError):
+        with pytest.raises(ForbiddenError):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -778,7 +779,7 @@ class TestGetImplementContextServiceValueErrors:
         missing_id = uuid.uuid4()
         issue_repo.get_by_id_with_relations.return_value = None
 
-        with pytest.raises(ValueError, match=str(missing_id)):
+        with pytest.raises(NotFoundError, match=str(missing_id)):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=missing_id,
@@ -802,7 +803,7 @@ class TestGetImplementContextServiceValueErrors:
         note_link_repo.get_by_issue.return_value = []
         integration_repo.get_active_github.return_value = None  # no integration
 
-        with pytest.raises(ValueError, match="no_github_integration"):
+        with pytest.raises(ValidationError, match="no_github_integration"):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -828,7 +829,7 @@ class TestGetImplementContextServiceValueErrors:
         integration_repo.get_active_github.return_value = _make_integration()
         workspace_repo.get_by_id.return_value = None  # workspace missing
 
-        with pytest.raises(ValueError, match=str(workspace_id)):
+        with pytest.raises(NotFoundError, match=str(workspace_id)):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -857,7 +858,7 @@ class TestGetImplementContextServiceValueErrors:
         bad_integration.external_account_name = None
         integration_repo.get_active_github.return_value = bad_integration
 
-        with pytest.raises(ValueError, match="cannot derive clone_url"):
+        with pytest.raises(NotFoundError, match="cannot derive clone_url"):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=issue.id,
@@ -876,7 +877,7 @@ class TestGetImplementContextServiceValueErrors:
         missing_id = uuid.uuid4()
         issue_repo.get_by_id_with_relations.return_value = None
 
-        with pytest.raises(ValueError, match=str(missing_id)):
+        with pytest.raises(NotFoundError, match=str(missing_id)):
             await service.execute(
                 GetImplementContextPayload(
                     issue_id=missing_id,

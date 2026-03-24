@@ -34,12 +34,12 @@ TEST_PROJECT_ID = UUID("eeeeeeee-0000-0000-0000-000000000005")
 
 class TestRegenerateIssue:
     async def test_queue_unavailable_returns_503(self) -> None:
-        from fastapi import HTTPException
+        from pilot_space.domain.exceptions import ServiceUnavailableError
 
         session = _make_session()
         issue_repo = AsyncMock()
 
-        with patch(_RLS_PATCH), pytest.raises(HTTPException) as exc_info:
+        with patch(_RLS_PATCH), pytest.raises(ServiceUnavailableError) as exc_info:
             await regenerate_issue_knowledge_graph(
                 workspace_id=TEST_WORKSPACE_ID,
                 issue_id=TEST_ISSUE_ID,
@@ -49,17 +49,17 @@ class TestRegenerateIssue:
                 issue_repo=issue_repo,
                 queue_client=None,
             )
-        assert exc_info.value.status_code == 503
+        assert exc_info.value.http_status == 503
 
     async def test_issue_not_found_returns_404(self) -> None:
-        from fastapi import HTTPException
+        from pilot_space.domain.exceptions import NotFoundError
 
         session = _make_session()
         issue_repo = AsyncMock()
         issue_repo.get_by_id = AsyncMock(return_value=None)
         queue = AsyncMock()
 
-        with patch(_RLS_PATCH), pytest.raises(HTTPException) as exc_info:
+        with patch(_RLS_PATCH), pytest.raises(NotFoundError) as exc_info:
             await regenerate_issue_knowledge_graph(
                 workspace_id=TEST_WORKSPACE_ID,
                 issue_id=TEST_ISSUE_ID,
@@ -69,10 +69,10 @@ class TestRegenerateIssue:
                 issue_repo=issue_repo,
                 queue_client=queue,
             )
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     async def test_deleted_issue_returns_404(self) -> None:
-        from fastapi import HTTPException
+        from pilot_space.domain.exceptions import NotFoundError
 
         session = _make_session()
         issue = MagicMock()
@@ -81,7 +81,7 @@ class TestRegenerateIssue:
         issue_repo.get_by_id = AsyncMock(return_value=issue)
         queue = AsyncMock()
 
-        with patch(_RLS_PATCH), pytest.raises(HTTPException) as exc_info:
+        with patch(_RLS_PATCH), pytest.raises(NotFoundError) as exc_info:
             await regenerate_issue_knowledge_graph(
                 workspace_id=TEST_WORKSPACE_ID,
                 issue_id=TEST_ISSUE_ID,
@@ -91,7 +91,7 @@ class TestRegenerateIssue:
                 issue_repo=issue_repo,
                 queue_client=queue,
             )
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     async def test_happy_path_enqueues_job(self) -> None:
         session = _make_session()
@@ -126,12 +126,12 @@ class TestRegenerateIssue:
 
 class TestRegenerateProject:
     async def test_queue_unavailable_returns_503(self) -> None:
-        from fastapi import HTTPException
+        from pilot_space.domain.exceptions import ServiceUnavailableError
 
         session = _make_session()
         project_repo = AsyncMock()
 
-        with patch(_RLS_PATCH), pytest.raises(HTTPException) as exc_info:
+        with patch(_RLS_PATCH), pytest.raises(ServiceUnavailableError) as exc_info:
             await regenerate_project_knowledge_graph(
                 workspace_id=TEST_WORKSPACE_ID,
                 project_id=TEST_PROJECT_ID,
@@ -141,17 +141,17 @@ class TestRegenerateProject:
                 project_repo=project_repo,
                 queue_client=None,
             )
-        assert exc_info.value.status_code == 503
+        assert exc_info.value.http_status == 503
 
     async def test_project_not_found_returns_404(self) -> None:
-        from fastapi import HTTPException
+        from pilot_space.domain.exceptions import NotFoundError
 
         session = _make_session()
         project_repo = AsyncMock()
         project_repo.get_by_id = AsyncMock(return_value=None)
         queue = AsyncMock()
 
-        with patch(_RLS_PATCH), pytest.raises(HTTPException) as exc_info:
+        with patch(_RLS_PATCH), pytest.raises(NotFoundError) as exc_info:
             await regenerate_project_knowledge_graph(
                 workspace_id=TEST_WORKSPACE_ID,
                 project_id=TEST_PROJECT_ID,
@@ -161,7 +161,7 @@ class TestRegenerateProject:
                 project_repo=project_repo,
                 queue_client=queue,
             )
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     async def test_happy_path_enqueues_all_entities(self) -> None:
         session = _make_session()

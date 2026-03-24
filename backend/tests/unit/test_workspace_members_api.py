@@ -125,7 +125,9 @@ class TestAddWorkspaceMember:
 
     @pytest.mark.asyncio
     async def test_invite_already_member_raises_conflict(self) -> None:
-        """Inviting someone who is already a member raises ValueError."""
+        """Inviting someone who is already a member raises ConflictError."""
+        from pilot_space.domain.exceptions import ConflictError
+
         workspace, admin, _ = _make_workspace_with_admin()
         existing_user = UserFactory(email="member@example.com")
 
@@ -142,7 +144,7 @@ class TestAddWorkspaceMember:
             mock_workspace_repo, mock_user_repo, mock_invitation_repo, AsyncMock()
         )
 
-        with pytest.raises(ValueError, match="already a member"):
+        with pytest.raises(ConflictError):
             await service.invite_member(
                 workspace_id=workspace.id,
                 email="member@example.com",
@@ -152,7 +154,9 @@ class TestAddWorkspaceMember:
 
     @pytest.mark.asyncio
     async def test_invite_duplicate_pending_raises_conflict(self) -> None:
-        """Inviting someone with an existing pending invitation raises ValueError."""
+        """Inviting someone with an existing pending invitation raises ConflictError."""
+        from pilot_space.domain.exceptions import ConflictError
+
         workspace, admin, _ = _make_workspace_with_admin()
 
         mock_workspace_repo = AsyncMock()
@@ -168,7 +172,7 @@ class TestAddWorkspaceMember:
             mock_workspace_repo, mock_user_repo, mock_invitation_repo, AsyncMock()
         )
 
-        with pytest.raises(ValueError, match="already pending"):
+        with pytest.raises(ConflictError):
             await service.invite_member(
                 workspace_id=workspace.id,
                 email="pending@example.com",

@@ -11,13 +11,17 @@ from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from pilot_space.domain.exceptions import AppError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-class EncryptionError(Exception):
+class EncryptionError(AppError):
     """Raised when encryption/decryption fails."""
+
+    http_status: int = 500
+    error_code: str = "encryption_error"
 
 
 class EncryptionService:
@@ -53,7 +57,8 @@ class EncryptionService:
                 derived_key = self._derive_key("pilot-space-dev-encryption-seed")
                 self._fernet = Fernet(derived_key)
         except (ValueError, TypeError) as e:
-            raise EncryptionError(f"Invalid encryption key: {e}") from e
+            logger.exception("Invalid encryption key configuration", exc_info=e)
+            raise EncryptionError("Encryption key configuration is invalid") from e
 
     @staticmethod
     def _derive_key(seed: str) -> bytes:
@@ -98,7 +103,8 @@ class EncryptionService:
             encrypted = self._fernet.encrypt(plaintext.encode())
             return encrypted.decode()
         except Exception as e:
-            raise EncryptionError(f"Encryption failed: {e}") from e
+            logger.exception("Encryption operation failed", exc_info=e)
+            raise EncryptionError("Encryption operation failed") from e
 
     def decrypt(self, ciphertext: str) -> str:
         """Decrypt a ciphertext string.
@@ -119,11 +125,11 @@ class EncryptionService:
             decrypted = self._fernet.decrypt(ciphertext.encode())
             return decrypted.decode()
         except InvalidToken as e:
-            raise EncryptionError(
-                "Decryption failed: invalid token (wrong key or corrupted data)"
-            ) from e
+            logger.exception("Decryption failed: invalid token", exc_info=e)
+            raise EncryptionError("Decryption failed") from e
         except Exception as e:
-            raise EncryptionError(f"Decryption failed: {e}") from e
+            logger.exception("Decryption operation failed", exc_info=e)
+            raise EncryptionError("Decryption failed") from e
 
     def is_valid_ciphertext(self, ciphertext: str) -> bool:
         """Check if ciphertext can be decrypted.

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import NotFoundError
+
 if TYPE_CHECKING:
     from uuid import UUID
 
@@ -83,7 +85,7 @@ class DeleteNoteService:
         # Get note
         note = await self._note_repo.get_by_id(payload.note_id)
         if not note:
-            raise ValueError("Note not found")
+            raise NotFoundError("Note not found")
 
         # Soft delete
         await self._note_repo.delete(note)

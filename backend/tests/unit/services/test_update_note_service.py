@@ -19,6 +19,7 @@ from pilot_space.application.services.note.update_note_service import (
     UpdateNotePayload,
     UpdateNoteService,
 )
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models.note import Note
 
 # ---------------------------------------------------------------------------
@@ -175,14 +176,14 @@ async def test_icon_emoji_whitespace_only_clears_field() -> None:
 
 @pytest.mark.asyncio
 async def test_note_not_found_raises_value_error() -> None:
-    """When note does not exist, execute raises ValueError."""
+    """When note does not exist, execute raises NotFoundError."""
     repo = _make_repo(note=None)
     session = _make_session()
     service = UpdateNoteService(session=session, note_repository=repo)
 
     payload = UpdateNotePayload(note_id=uuid.uuid4(), title="New Title")
 
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(NotFoundError, match="not found"):
         await service.execute(payload)
 
 

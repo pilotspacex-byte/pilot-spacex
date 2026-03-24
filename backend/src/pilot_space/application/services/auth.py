@@ -14,6 +14,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pilot_space.domain.exceptions import NotFoundError, UnauthorizedError
 from pilot_space.infrastructure.database.models.user import User
 from pilot_space.infrastructure.database.repositories.pilot_api_key_repository import (
     PilotAPIKeyRepository,
@@ -150,7 +151,7 @@ class AuthService:
         user = await self._user_repo.get_by_id(payload.user_id)
         if not user:
             msg = "User not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         return GetProfileResult(user=user)
 
@@ -174,7 +175,7 @@ class AuthService:
         user = await self._user_repo.get_by_id(payload.user_id)
         if not user:
             msg = "User not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         changed_fields: list[str] = []
 
@@ -281,8 +282,8 @@ class ValidateAPIKeyService:
             ValidateAPIKeyResult with workspace_slug and user_id.
 
         Raises:
-            ValueError: With code "invalid_api_key" if key not found.
-            ValueError: With code "workspace_not_found" if workspace missing.
+            UnauthorizedError: If API key is invalid or not found (401).
+            NotFoundError: If workspace associated with key is missing.
         """
         from pilot_space.infrastructure.database.rls import set_rls_context
 
@@ -292,7 +293,7 @@ class ValidateAPIKeyService:
         if api_key is None:
             logger.warning("api_key_validation_failed", reason="key_not_found")
             msg = "invalid_api_key"
-            raise ValueError(msg)
+            raise UnauthorizedError(msg)
 
         # SQL query already filters expired/deleted keys — no Python re-check needed.
         await self._api_key_repo.mark_last_used(api_key.id)
@@ -308,7 +309,7 @@ class ValidateAPIKeyService:
                 workspace_id=str(api_key.workspace_id),
             )
             msg = "workspace_not_found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         logger.info("api_key_validated", workspace_slug=workspace.slug)
         return ValidateAPIKeyResult(

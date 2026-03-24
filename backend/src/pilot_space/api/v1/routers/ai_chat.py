@@ -17,7 +17,7 @@ from typing import Any
 from uuid import UUID
 
 import orjson
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from pilot_space.ai.sdk.question_adapter import Question, get_question_adapter
@@ -37,6 +37,7 @@ from pilot_space.dependencies import (
     SessionHandlerDep,
     SkillRegistryDep,
 )
+from pilot_space.domain.exceptions import ForbiddenError
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
@@ -537,7 +538,7 @@ async def abort_chat(
     if session_handler is not None:
         session = await session_handler.get_session(UUID(abort_request.session_id))
         if session and session.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Access denied to this session")
+            raise ForbiddenError("Access denied to this session")
 
     interrupted = await agent.interrupt_session(abort_request.session_id)
     return AbortResponse(

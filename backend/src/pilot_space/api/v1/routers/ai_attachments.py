@@ -29,6 +29,7 @@ from pilot_space.api.v1.schemas.attachments import AttachmentUploadResponse
 from pilot_space.dependencies.auth import CurrentUserId, DbSession
 from pilot_space.dependencies.services import AttachmentUploadServiceDep
 from pilot_space.dependencies.workspace import HeaderWorkspaceMemberId
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.chat_attachment import ChatAttachment
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
@@ -114,10 +115,7 @@ async def upload_attachment(
     )
     role = result.scalar()
     if role == WorkspaceRole.GUEST:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "GUEST_NOT_ALLOWED", "message": "Guests cannot upload attachments"},
-        )
+        raise ForbiddenError("Guests cannot upload attachments", error_code="GUEST_NOT_ALLOWED")
 
     file_data = await file.read()
     filename = file.filename or "upload"
@@ -185,9 +183,9 @@ async def get_attachment_url(
     result = await db.execute(select(ChatAttachment).where(ChatAttachment.id == attachment_id))
     attachment = result.scalar_one_or_none()
     if attachment is None:
-        raise HTTPException(status_code=404, detail="Attachment not found")
+        raise NotFoundError("Attachment not found")
     if attachment.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not your attachment")
+        raise ForbiddenError("Not your attachment")
 
     storage = request.app.state.container.storage_client()
     signed_url = await storage.get_signed_url(
@@ -222,18 +220,7 @@ async def delete_attachment(
         HTTPException 404: NOT_FOUND if attachment does not exist.
         HTTPException 403: FORBIDDEN if user does not own the attachment.
     """
-    try:
-        await upload_service.delete(attachment_id=attachment_id, user_id=user_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "NOT_FOUND", "message": "Attachment not found or expired"},
-        ) from exc
-    except PermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "FORBIDDEN", "message": "You do not own this attachment"},
-        ) from exc
+    await upload_service.delete(attachment_id=attachment_id, user_id=user_id)
 
     logger.info(
         "attachment_deleted",

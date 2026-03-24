@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -102,18 +103,18 @@ class CreateNoteFromChatService:
 
         if not payload.title or not payload.title.strip():
             msg = "Note title is required"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Fetch the AI session
         ai_session = await self._session.get(AISession, payload.chat_session_id)
         if ai_session is None:
             msg = f"Chat session {payload.chat_session_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Verify workspace ownership
         if ai_session.workspace_id != payload.workspace_id:
             msg = "Chat session does not belong to this workspace"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Build TipTap content from messages
         messages = sorted(ai_session.messages, key=lambda m: m.created_at)

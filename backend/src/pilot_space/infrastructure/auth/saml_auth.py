@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from pilot_space.domain.exceptions import AppError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -27,12 +28,15 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class SamlValidationError(Exception):
+class SamlValidationError(AppError):
     """Raised when SAML assertion validation fails.
 
     Covers: missing/invalid signature, expired assertion, audience mismatch,
     replay attacks, and any other validation error from python3-saml.
     """
+
+    http_status: int = 401
+    error_code: str = "saml_validation_error"
 
 
 class SamlAuthProvider:

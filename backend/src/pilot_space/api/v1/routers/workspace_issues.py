@@ -47,6 +47,11 @@ from pilot_space.api.v1.schemas.issue import (
 )
 from pilot_space.dependencies import DbSession, SyncedUserId
 from pilot_space.dependencies.auth import SessionDep
+from pilot_space.domain.exceptions import (
+    ForbiddenError,
+    NotFoundError,
+    ValidationError as DomainValidationError,
+)
 from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
 from pilot_space.infrastructure.database.models.state import State
 from pilot_space.infrastructure.database.models.workspace import Workspace
@@ -94,10 +99,7 @@ async def _resolve_workspace(
         workspace = await workspace_repo.get_by_slug_scalar(workspace_id_or_slug)
 
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
     return workspace
 
 
@@ -203,16 +205,10 @@ async def get_workspace_issue(
 
     result = await get_service.execute(issue_id)
     if not result.found or not result.issue:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Issue not found",
-        )
+        raise NotFoundError("Issue not found")
 
     if result.issue.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Issue not found",
-        )
+        raise NotFoundError("Issue not found")
 
     return IssueResponse.from_issue(result.issue)
 
@@ -238,7 +234,7 @@ async def list_issue_note_links(
 
     issue = await issue_repo.get_by_id_with_relations(issue_id)
     if issue is None or issue.workspace_id != workspace.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
 
     links = await link_repo.get_by_issue(issue_id, workspace.id)
     return [
@@ -280,7 +276,7 @@ async def list_issue_relations(
     )
     issue_workspace_id = issue_ws_row.scalar_one_or_none()
     if issue_workspace_id is None or issue_workspace_id != workspace.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
 
     links = await link_repo.find_all_for_issue(issue_id, workspace.id)
     result: list[IssueLinkSchema] = []
@@ -337,10 +333,7 @@ async def create_workspace_issue(
         )
 
     if not issue_data.project_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="project_id is required",
-        )
+        raise DomainValidationError("project_id is required")
 
     priority_map = {
         "urgent": IssuePriority.URGENT,
@@ -356,10 +349,7 @@ async def create_workspace_issue(
         try:
             label_uuids = [UUID(label) for label in issue_data.label_ids]
         except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid label UUID format: {e}",
-            ) from e
+            raise DomainValidationError(f"Invalid label UUID format: {e}") from e
 
     payload = CreateIssuePayload(
         workspace_id=workspace.id,
@@ -437,9 +427,9 @@ async def update_workspace_issue(
     issue_ws_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
     issue_workspace_id = issue_ws_row.scalar_one_or_none()
     if issue_workspace_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
     if issue_workspace_id != workspace.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise ForbiddenError("Access denied")
 
     priority = UNCHANGED
     if issue_data.priority is not None:
@@ -461,10 +451,7 @@ async def update_workspace_issue(
         try:
             start_date_value = date_type.fromisoformat(issue_data.start_date)
         except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid start_date format: {e}",
-            ) from e
+            raise DomainValidationError(f"Invalid start_date format: {e}") from e
 
     target_date_value = UNCHANGED
     if issue_data.clear_target_date:
@@ -473,10 +460,7 @@ async def update_workspace_issue(
         try:
             target_date_value = date_type.fromisoformat(issue_data.target_date)
         except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid target_date format: {e}",
-            ) from e
+            raise DomainValidationError(f"Invalid target_date format: {e}") from e
 
     payload = UpdateIssuePayload(
         issue_id=issue_id,
@@ -515,13 +499,7 @@ async def update_workspace_issue(
         else UNCHANGED,
     )
 
-    try:
-        result = await update_service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    result = await update_service.execute(payload)
 
     try:
         await _update_storage_usage(session, workspace.id, delta_bytes)
@@ -565,9 +543,9 @@ async def update_workspace_issue_state(
     issue_ws_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
     issue_workspace_id = issue_ws_row.scalar_one_or_none()
     if issue_workspace_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
     if issue_workspace_id != workspace.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise ForbiddenError("Access denied")
 
     state_name = body.state
     state_name_map = {
@@ -594,10 +572,7 @@ async def update_workspace_issue_state(
     )
     new_state = state_result.scalar_one_or_none()
     if not new_state:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"State '{state_name}' not found",
-        )
+        raise NotFoundError(f"State '{state_name}' not found")
 
     payload = UpdateIssuePayload(
         issue_id=issue_id,
@@ -618,13 +593,7 @@ async def update_workspace_issue_state(
         label_ids=UNCHANGED,
     )
 
-    try:
-        result = await update_service.execute(payload)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    result = await update_service.execute(payload)
 
     return IssueResponse.from_issue(result.issue)
 
@@ -652,30 +621,23 @@ async def delete_workspace_issue(
     result_row = await session.execute(select(Issue.workspace_id).where(Issue.id == issue_id))
     issue_workspace_id = result_row.scalar_one_or_none()
     if issue_workspace_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
     if issue_workspace_id != workspace.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise ForbiddenError("Access denied")
 
-    try:
-        result = await delete_service.execute(
-            DeleteIssuePayload(
-                issue_id=issue_id,
-                actor_id=current_user_id,
-            )
+    result = await delete_service.execute(
+        DeleteIssuePayload(
+            issue_id=issue_id,
+            actor_id=current_user_id,
         )
+    )
 
-        logger.info(
-            "Issue deleted",
-            extra={"issue_id": str(issue_id), "workspace_id": str(workspace.id)},
-        )
+    logger.info(
+        "Issue deleted",
+        extra={"issue_id": str(issue_id), "workspace_id": str(workspace.id)},
+    )
 
-        return DeleteResponse(id=result.issue_id, message="Issue deleted successfully")
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+    return DeleteResponse(id=result.issue_id, message="Issue deleted successfully")
 
 
 __all__ = ["router"]

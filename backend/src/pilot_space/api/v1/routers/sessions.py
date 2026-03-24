@@ -212,17 +212,11 @@ async def force_terminate_session(
         )
 
     svc = _get_session_service(request, session)
-    try:
-        await svc.force_terminate(
-            session_id=session_id,
-            workspace_id=workspace_id,
-            db=session,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    await svc.force_terminate(
+        session_id=session_id,
+        workspace_id=workspace_id,
+        db=session,
+    )
 
 
 @router.delete(

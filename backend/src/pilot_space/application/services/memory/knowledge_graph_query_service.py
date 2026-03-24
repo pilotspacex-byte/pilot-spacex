@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from pilot_space.domain.graph_node import GraphNode, NodeType
 from pilot_space.infrastructure.database.models.integration import (
@@ -132,7 +133,7 @@ class EntitySubgraphResult:
     center_node_id: UUID | None
 
 
-class EntityNotFoundError(Exception):
+class EntityNotFoundError(NotFoundError):
     """Raised when the target entity (issue/project) does not exist."""
 
     def __init__(self, entity_type: str, entity_id: UUID) -> None:
@@ -141,7 +142,7 @@ class EntityNotFoundError(Exception):
         super().__init__(f"{entity_type} {entity_id} not found")
 
 
-class RootNodeNotFoundError(Exception):
+class RootNodeNotFoundError(NotFoundError):
     """Raised when the root node for subgraph extraction does not exist."""
 
     def __init__(self, node_id: UUID) -> None:

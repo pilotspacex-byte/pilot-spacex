@@ -10,10 +10,11 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from pilot_space.dependencies import CurrentUserId, DbSession
+from pilot_space.domain.exceptions import AppError, NotFoundError, ValidationError
 
 router = APIRouter(prefix="/ai/mcp/tools", tags=["mcp-tools"])
 
@@ -176,11 +177,11 @@ async def execute_tool(
         )
 
     except ToolNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise NotFoundError(str(e)) from e
     except ToolValidationError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
+        raise ValidationError(str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Tool execution failed: {e!s}") from e
+        raise AppError(f"Tool execution failed: {e!s}") from e
 
 
 __all__ = ["router"]

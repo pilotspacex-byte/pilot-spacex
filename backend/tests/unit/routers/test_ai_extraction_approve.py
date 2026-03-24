@@ -10,12 +10,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from pilot_space.api.v1.routers.ai_extraction import (
     CreateExtractedIssuesRequest,
     ExtractedIssueInput,
     _create_extracted_issues,
+)
+from pilot_space.domain.exceptions import (
+    NotFoundError,
+    ValidationError as DomainValidationError,
 )
 
 TEST_USER_ID = UUID("77a6813e-0aa3-400c-8d4e-540b6ed2187a")
@@ -61,11 +64,11 @@ def _mock_session(project_identifier: str | None = "PROJ") -> AsyncMock:
 pytestmark = pytest.mark.asyncio
 
 
-async def test_empty_issues_raises_400() -> None:
-    """Should raise 400 when no issues provided."""
+async def test_empty_issues_raises_validation_error() -> None:
+    """Should raise ValidationError when no issues provided."""
     body = CreateExtractedIssuesRequest(issues=[], project_id=str(TEST_PROJECT_ID))
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(DomainValidationError) as exc_info:
         await _create_extracted_issues(
             workspace_id=TEST_WORKSPACE_ID,
             note_id=None,
@@ -74,18 +77,18 @@ async def test_empty_issues_raises_400() -> None:
             session=AsyncMock(),
         )
 
-    assert exc_info.value.status_code == 400
-    assert "No issues" in str(exc_info.value.detail)
+    assert exc_info.value.http_status == 422
+    assert "No issues" in exc_info.value.message
 
 
-async def test_missing_project_id_raises_400() -> None:
-    """Should raise 400 when project_id is missing."""
+async def test_missing_project_id_raises_validation_error() -> None:
+    """Should raise ValidationError when project_id is missing."""
     body = CreateExtractedIssuesRequest(
         issues=[ExtractedIssueInput(title="Test")],
         project_id=None,
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(DomainValidationError) as exc_info:
         await _create_extracted_issues(
             workspace_id=TEST_WORKSPACE_ID,
             note_id=None,
@@ -94,18 +97,18 @@ async def test_missing_project_id_raises_400() -> None:
             session=AsyncMock(),
         )
 
-    assert exc_info.value.status_code == 400
-    assert "project_id" in str(exc_info.value.detail)
+    assert exc_info.value.http_status == 422
+    assert "project_id" in exc_info.value.message
 
 
-async def test_invalid_project_id_raises_400() -> None:
-    """Should raise 400 when project_id is not a valid UUID."""
+async def test_invalid_project_id_raises_validation_error() -> None:
+    """Should raise ValidationError when project_id is not a valid UUID."""
     body = CreateExtractedIssuesRequest(
         issues=[ExtractedIssueInput(title="Test")],
         project_id="not-a-uuid",
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(DomainValidationError) as exc_info:
         await _create_extracted_issues(
             workspace_id=TEST_WORKSPACE_ID,
             note_id=None,
@@ -114,19 +117,19 @@ async def test_invalid_project_id_raises_400() -> None:
             session=AsyncMock(),
         )
 
-    assert exc_info.value.status_code == 400
-    assert "Invalid project_id" in str(exc_info.value.detail)
+    assert exc_info.value.http_status == 422
+    assert "Invalid project_id" in exc_info.value.message
 
 
-async def test_project_not_found_raises_400() -> None:
-    """Should raise 400 when project identifier is not found."""
+async def test_project_not_found_raises_not_found() -> None:
+    """Should raise NotFoundError when project identifier is not found."""
     session = _mock_session(project_identifier=None)
     body = CreateExtractedIssuesRequest(
         issues=[ExtractedIssueInput(title="Test")],
         project_id=str(TEST_PROJECT_ID),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await _create_extracted_issues(
             workspace_id=TEST_WORKSPACE_ID,
             note_id=None,
@@ -135,8 +138,8 @@ async def test_project_not_found_raises_400() -> None:
             session=session,
         )
 
-    assert exc_info.value.status_code == 400
-    assert "Project not found" in str(exc_info.value.detail)
+    assert exc_info.value.http_status == 404
+    assert "Project not found" in exc_info.value.message
 
 
 async def test_creates_issues_successfully() -> None:

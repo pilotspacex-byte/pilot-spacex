@@ -15,11 +15,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, status
 from sqlalchemy import select
 
-from pilot_space.api.middleware import create_problem_response
 from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.api.v1.schemas.workspace_role_skill import (
     GenerateWorkspaceSkillRequest,
@@ -27,6 +25,7 @@ from pilot_space.api.v1.schemas.workspace_role_skill import (
     WorkspaceRoleSkillResponse,
 )
 from pilot_space.dependencies import CurrentUserId, DbSession
+from pilot_space.domain.exceptions import ForbiddenError
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
@@ -66,18 +65,12 @@ async def _require_admin(
     row = result.scalar()
 
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+        raise ForbiddenError("Not a member of this workspace")
 
     role = row.value if hasattr(row, "value") else str(row).upper()
 
     if role not in (WorkspaceRole.ADMIN.value, WorkspaceRole.OWNER.value):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or owner role required",
-        )
+        raise ForbiddenError("Admin or owner role required")
 
 
 @router.post(
@@ -95,7 +88,7 @@ async def create_workspace_skill(
     request: GenerateWorkspaceSkillRequest,
     session: DbSession,
     current_user_id: CurrentUserId,
-) -> WorkspaceRoleSkillResponse | JSONResponse:
+) -> WorkspaceRoleSkillResponse:
     """Generate + create a workspace role skill.
 
     Args:
@@ -111,43 +104,21 @@ async def create_workspace_skill(
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.role_skill.generate_role_skill_service import (
-        SkillGenerationError,
-        SkillGenerationRateLimitError,
-    )
     from pilot_space.application.services.workspace_role_skill import (
         CreateWorkspaceSkillPayload,
         CreateWorkspaceSkillService,
     )
 
     svc = CreateWorkspaceSkillService(session=session)
-    try:
-        skill = await svc.execute(
-            CreateWorkspaceSkillPayload(
-                workspace_id=workspace_id,
-                created_by=current_user_id,
-                role_type=request.role_type,
-                role_name=request.role_name,
-                experience_description=request.experience_description,
-            )
+    skill = await svc.execute(
+        CreateWorkspaceSkillPayload(
+            workspace_id=workspace_id,
+            created_by=current_user_id,
+            role_type=request.role_type,
+            role_name=request.role_name,
+            experience_description=request.experience_description,
         )
-    except ValueError as exc:
-        return create_problem_response(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        )
-    except SkillGenerationRateLimitError as exc:
-        return create_problem_response(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=str(exc),
-        )
-    except SkillGenerationError as exc:
-        return create_problem_response(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        )
-    except Exception:
-        raise
+    )
 
     logger.info(
         "[WorkspaceRoleSkills] Created skill workspace=%s role_type=%s user=%s",
@@ -239,24 +210,12 @@ async def activate_workspace_skill(
     )
 
     svc = ActivateWorkspaceSkillService(session=session)
-    try:
-        skill = await svc.execute(
-            ActivateWorkspaceSkillPayload(
-                skill_id=skill_id,
-                workspace_id=workspace_id,
-            )
+    skill = await svc.execute(
+        ActivateWorkspaceSkillPayload(
+            skill_id=skill_id,
+            workspace_id=workspace_id,
         )
-    except ValueError as exc:
-        msg = str(exc)
-        if "not found" in msg:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=msg,
-            ) from exc
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=msg,
-        ) from exc
+    )
 
     logger.info(
         "[WorkspaceRoleSkills] Activated skill=%s workspace=%s user=%s",
@@ -300,24 +259,12 @@ async def delete_workspace_skill(
     )
 
     svc = DeleteWorkspaceSkillService(session=session)
-    try:
-        await svc.execute(
-            DeleteWorkspaceSkillPayload(
-                skill_id=skill_id,
-                workspace_id=workspace_id,
-            )
+    await svc.execute(
+        DeleteWorkspaceSkillPayload(
+            skill_id=skill_id,
+            workspace_id=workspace_id,
         )
-    except ValueError as exc:
-        msg = str(exc)
-        if "not found" in msg:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=msg,
-            ) from exc
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=msg,
-        ) from exc
+    )
 
     logger.info(
         "[WorkspaceRoleSkills] Deleted skill=%s workspace=%s user=%s",

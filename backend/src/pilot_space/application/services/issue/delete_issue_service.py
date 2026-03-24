@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import NotFoundError
+
 if TYPE_CHECKING:
     from uuid import UUID
 
@@ -83,12 +85,12 @@ class DeleteIssueService:
             DeleteIssueResult with deletion status.
 
         Raises:
-            ValueError: If issue not found.
+            NotFoundError: If issue not found.
         """
         # Get issue
         issue = await self._issue_repo.get_by_id(payload.issue_id)
         if not issue:
-            raise ValueError("Issue not found")
+            raise NotFoundError("Issue not found")
 
         # Soft delete
         await self._issue_repo.delete(issue)

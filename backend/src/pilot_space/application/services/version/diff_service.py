@@ -15,6 +15,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.repositories.note_version_repository import (
     NoteVersionRepository,
 )
@@ -102,12 +103,12 @@ class VersionDiffService:
         v1 = await self._version_repo.get_by_id_for_note(v1_id, note_id, workspace_id)
         if not v1:
             msg = f"Version {v1_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         v2 = await self._version_repo.get_by_id_for_note(v2_id, note_id, workspace_id)
         if not v2:
             msg = f"Version {v2_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         blocks_v1 = _extract_blocks(v1.content)
         blocks_v2 = _extract_blocks(v2.content)

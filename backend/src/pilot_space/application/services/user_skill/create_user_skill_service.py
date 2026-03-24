@@ -14,6 +14,7 @@ from pilot_space.application.services.role_skill.generate_role_skill_service imp
     GenerateRoleSkillPayload,
     GenerateRoleSkillService,
 )
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.database.models.skill_template import SkillTemplate
 from pilot_space.infrastructure.database.repositories.skill_template_repository import (
     SkillTemplateRepository,
@@ -90,7 +91,7 @@ class CreateUserSkillService:
             template = await template_repo.get_by_id(template_id)
             if template is None:
                 msg = f"Template not found: {template_id}"
-                raise ValueError(msg)
+                raise ValidationError(msg)
 
             if (
                 not template.is_active
@@ -98,14 +99,14 @@ class CreateUserSkillService:
                 or template.workspace_id != workspace_id
             ):
                 msg = f"Template {template_id} is not active in workspace {workspace_id}"
-                raise ValueError(msg)
+                raise ValidationError(msg)
 
             existing = await user_skill_repo.get_by_user_workspace_template(
                 user_id, workspace_id, template_id
             )
             if existing is not None:
                 msg = f"User already has a skill from template {template_id}"
-                raise ValueError(msg)
+                raise ValidationError(msg)
 
             if skill_content and skill_content.strip():
                 # Frontend already generated + user may have edited — use as-is
@@ -122,7 +123,7 @@ class CreateUserSkillService:
             # Custom skill: use provided content directly
             if not skill_content or not skill_content.strip():
                 msg = "skill_content is required for custom skills (no template_id)"
-                raise ValueError(msg)
+                raise ValidationError(msg)
             content = skill_content
 
         user_skill = await user_skill_repo.create(

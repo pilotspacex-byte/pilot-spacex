@@ -188,8 +188,8 @@ class TestScimServiceDeprovisionUser:
 
     @pytest.mark.asyncio
     async def test_deprovision_not_found_raises(self) -> None:
-        """deprovision_user raises ValueError if member not in workspace."""
-        from pilot_space.application.services.scim_service import ScimService
+        """deprovision_user raises ScimUserNotFoundError if member not in workspace."""
+        from pilot_space.application.services.scim_service import ScimService, ScimUserNotFoundError
 
         mock_session = MagicMock()
         execute_result = MagicMock()
@@ -202,7 +202,7 @@ class TestScimServiceDeprovisionUser:
             supabase_admin_client=MagicMock(),
         )
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(ScimUserNotFoundError, match="not found"):
             await service.deprovision_user(
                 user_id=uuid4(),
                 workspace_id=uuid4(),
@@ -321,8 +321,11 @@ class TestScimServiceGenerateToken:
 
     @pytest.mark.asyncio
     async def test_generate_token_workspace_not_found_raises(self) -> None:
-        """generate_scim_token raises ValueError when workspace not found."""
-        from pilot_space.application.services.scim_service import ScimService
+        """generate_scim_token raises ScimWorkspaceNotFoundError when workspace not found."""
+        from pilot_space.application.services.scim_service import (
+            ScimService,
+            ScimWorkspaceNotFoundError,
+        )
 
         mock_session = MagicMock()
         execute_result = MagicMock()
@@ -335,7 +338,7 @@ class TestScimServiceGenerateToken:
             supabase_admin_client=MagicMock(),
         )
 
-        with pytest.raises(ValueError, match="Workspace not found"):
+        with pytest.raises(ScimWorkspaceNotFoundError, match="Workspace not found"):
             await service.generate_scim_token(
                 workspace_id=uuid4(),
                 db=mock_session,

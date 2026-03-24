@@ -144,35 +144,7 @@ async def get_implement_context(
         requester_id=current_user_id,
     )
 
-    try:
-        result = await service.execute(payload)
-    except PermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "type": "https://pilot.space/errors/forbidden",
-                "title": "Forbidden",
-                "status": 403,
-                "detail": str(exc),
-            },
-        ) from exc
-    except ValueError as exc:
-        msg = str(exc)
-        if msg == "no_github_integration":
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={
-                    "type": "https://pilot.space/errors/no-github-integration",
-                    "title": "Unprocessable Entity",
-                    "status": 422,
-                    "detail": "No GitHub integration configured for this workspace.",
-                },
-            ) from exc
-        # Issue not found or workspace not found
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=msg,
-        ) from exc
+    result = await service.execute(payload)
 
     logger.info(
         "Implement context returned",
@@ -295,13 +267,7 @@ async def update_issue_state(
         label_ids=UNCHANGED,
     )
 
-    try:
-        await update_service.execute(payload)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    await update_service.execute(payload)
 
     logger.info(
         "Issue state updated via pilot CLI",

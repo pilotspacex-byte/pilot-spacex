@@ -25,6 +25,7 @@ from pilot_space.application.services.ai_context.generate_plan_service import (
     GeneratePlanPayload,
     GeneratePlanResult,
 )
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -135,7 +136,7 @@ class TestGenerateImplementationPlanService:
         service = _make_service(context_repo=context_repo)
         payload = _make_payload()
 
-        with pytest.raises(ValueError, match="No AI context found"):
+        with pytest.raises(NotFoundError, match="No AI context found"):
             await service.execute(payload)
 
     @pytest.mark.asyncio
@@ -150,7 +151,7 @@ class TestGenerateImplementationPlanService:
         service = _make_service(context_repo=context_repo, issue_repo=issue_repo)
         payload = _make_payload()
 
-        with pytest.raises(ValueError, match="Issue not found"):
+        with pytest.raises(NotFoundError, match="Issue not found"):
             await service.execute(payload)
 
     @pytest.mark.asyncio
@@ -314,7 +315,7 @@ class TestGenerateImplementationPlanService:
                 issue_repo=issue_repo,
             )
 
-            with pytest.raises(ValueError, match="Failed to persist plan"):
+            with pytest.raises(ValidationError, match="Failed to persist plan"):
                 await service.execute(_make_payload())
 
     @pytest.mark.asyncio

@@ -389,7 +389,7 @@ class TestApprovalRoleVerification:
     @pytest.mark.asyncio
     async def test_member_blocked_when_admin_required(self) -> None:
         """Member is blocked with 403 when admin role is required."""
-        from fastapi import HTTPException
+        from pilot_space.domain.exceptions import ForbiddenError
 
         session = MagicMock()
         result_mock = MagicMock()
@@ -422,7 +422,7 @@ class TestApprovalRoleVerification:
                     _verify_workspace_membership,
                 )
 
-                with pytest.raises(HTTPException) as exc_info:
+                with pytest.raises(ForbiddenError) as exc_info:
                     await _verify_workspace_membership(
                         user_id=uuid4(),
                         workspace_id=uuid4(),
@@ -430,12 +430,12 @@ class TestApprovalRoleVerification:
                         required_role="admin",
                     )
 
-                assert exc_info.value.status_code == 403
+                assert exc_info.value.http_status == 403
 
     @pytest.mark.asyncio
     async def test_non_member_raises_403(self) -> None:
         """Non-member raises 403 Forbidden."""
-        from fastapi import HTTPException
+        from pilot_space.domain.exceptions import ForbiddenError
 
         session = MagicMock()
         result_mock = MagicMock()
@@ -446,11 +446,11 @@ class TestApprovalRoleVerification:
             _verify_workspace_membership,
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ForbiddenError) as exc_info:
             await _verify_workspace_membership(
                 user_id=uuid4(),
                 workspace_id=uuid4(),
                 session=session,
             )
 
-        assert exc_info.value.status_code == 403
+        assert exc_info.value.http_status == 403

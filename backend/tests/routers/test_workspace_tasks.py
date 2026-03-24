@@ -17,6 +17,7 @@ from uuid import uuid4
 import pytest
 from fastapi import status
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models.task import Task, TaskStatus
 
 if TYPE_CHECKING:
@@ -267,8 +268,8 @@ class TestCreateTask:
         mock_service: AsyncMock,
         mock_workspace: MagicMock,
     ) -> None:
-        """Returns 400 if issue not found."""
-        mock_service.create_task.side_effect = ValueError("Issue not found")
+        """Returns 404 if issue not found."""
+        mock_service.create_task.side_effect = NotFoundError("Issue not found")
 
         with patch(_RESOLVE_WORKSPACE_PATH, return_value=mock_workspace):
             response = await task_client.post(
@@ -276,7 +277,7 @@ class TestCreateTask:
                 json={"title": "Task"},
             )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ============================================================================
@@ -319,7 +320,7 @@ class TestUpdateTask:
         mock_workspace: MagicMock,
     ) -> None:
         """Returns 404 if task not found."""
-        mock_service.update_task.side_effect = ValueError("Task not found")
+        mock_service.update_task.side_effect = NotFoundError("Task not found")
 
         with patch(_RESOLVE_WORKSPACE_PATH, return_value=mock_workspace):
             response = await task_client.patch(
@@ -388,7 +389,7 @@ class TestDeleteTask:
         mock_workspace: MagicMock,
     ) -> None:
         """Returns 404 if task not found."""
-        mock_service.delete_task.side_effect = ValueError("Task not found")
+        mock_service.delete_task.side_effect = NotFoundError("Task not found")
 
         with patch(_RESOLVE_WORKSPACE_PATH, return_value=mock_workspace):
             response = await task_client.delete(

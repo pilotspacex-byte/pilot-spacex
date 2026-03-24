@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from pilot_space.dependencies import CurrentUserId, DbSession, GhostTextServiceDep, RedisDep
+from pilot_space.domain.exceptions import AppError, ForbiddenError, ServiceUnavailableError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -140,7 +141,7 @@ async def generate_ghost_text(
     )
     result = await session.execute(stmt)
     if not result.scalar():
-        raise HTTPException(status_code=403, detail="Not a member of this workspace")
+        raise ForbiddenError("Not a member of this workspace")
 
     try:
         result = await service.generate_completion(
@@ -159,14 +160,11 @@ async def generate_ghost_text(
             cached=result["cached"],
         )
 
-    except HTTPException:
+    except AppError:
         raise
     except Exception as e:
         logger.exception("Ghost text generation failed: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to generate completion. Please try again.",
-        ) from e
+        raise ServiceUnavailableError("Failed to generate completion. Please try again.") from e
 
 
 @router.delete("/cache/{workspace_id}")
@@ -210,7 +208,7 @@ async def clear_workspace_cache(
     is_member = result.scalar()
 
     if not is_member:
-        raise HTTPException(status_code=403, detail="Not a member of this workspace")
+        raise ForbiddenError("Not a member of this workspace")
 
     keys_cleared = await service.clear_workspace_cache(workspace_id)
 

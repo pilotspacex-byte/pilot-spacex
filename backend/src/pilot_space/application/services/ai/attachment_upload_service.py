@@ -14,6 +14,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.chat_attachment import ChatAttachment
 from pilot_space.infrastructure.logging import get_logger
 
@@ -125,13 +126,13 @@ class AttachmentUploadService:
             ValueError: FILE_TOO_LARGE if size exceeds the per-type limit.
         """
         if content_type not in _SIZE_LIMITS:
-            raise ValueError("UNSUPPORTED_FILE_TYPE")
+            raise ValidationError("UNSUPPORTED_FILE_TYPE")
 
         if len(file_data) == 0:
-            raise ValueError("EMPTY_FILE")
+            raise ValidationError("EMPTY_FILE")
 
         if len(file_data) > _SIZE_LIMITS[content_type]:
-            raise ValueError("FILE_TOO_LARGE")
+            raise ValidationError("FILE_TOO_LARGE")
 
         attachment_id = uuid4()
         # Sanitize filename: strip directory components and null bytes to prevent path traversal
@@ -232,11 +233,11 @@ class AttachmentUploadService:
 
         Raises:
             ValueError: NOT_FOUND if the attachment does not exist.
-            PermissionError: FORBIDDEN if user does not own the attachment.
+            ForbiddenError: FORBIDDEN if user does not own the attachment.
         """
         attachment = await self._repo.get_by_id(attachment_id)
         if attachment is None:
-            raise ValueError("NOT_FOUND")
+            raise NotFoundError("NOT_FOUND")
 
         # Compare attachment owner against the requesting user.
         # ``attachment.user_id`` is the canonical field on the ORM model.
@@ -250,7 +251,7 @@ class AttachmentUploadService:
             raw_owner if isinstance(raw_owner, UUID) else getattr(attachment, "owner_id", None)
         )
         if owner_id != user_id:
-            raise PermissionError("FORBIDDEN")
+            raise ForbiddenError("FORBIDDEN")
 
         await self._storage.delete_object(
             bucket=_BUCKET,

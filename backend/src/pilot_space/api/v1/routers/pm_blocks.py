@@ -27,6 +27,7 @@ from pilot_space.api.v1.routers.pm_dependency_graph import router as pm_dependen
 from pilot_space.api.v1.routers.pm_release_notes import router as pm_release_notes_router
 from pilot_space.api.v1.routers.pm_sprint_board import router as pm_sprint_board_router
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, require_workspace_member
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.domain.pm_block_insight import InsightSeverity, PMBlockType
 from pilot_space.infrastructure.database.models.pm_block_insight import (
     PMBlockInsight as PMBlockInsightModel,
@@ -218,10 +219,7 @@ async def refresh_pm_block_insights(
     try:
         block_type_enum = PMBlockType(body.block_type)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid block_type: {body.block_type!r}",
-        ) from exc
+        raise ValidationError(f"Invalid block_type: {body.block_type}") from exc
 
     service = PMBlockInsightService(session=session, repository=repo)
     insights = await service.refresh_insights(

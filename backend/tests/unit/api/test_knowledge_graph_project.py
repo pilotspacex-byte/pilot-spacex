@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import pytest
-from fastapi import HTTPException
 
 from pilot_space.api.v1.routers.knowledge_graph import (
     get_project_knowledge_graph,
@@ -28,6 +27,7 @@ from pilot_space.application.services.memory.knowledge_graph_query_service impor
     EntityNotFoundError,
     EntitySubgraphResult,
 )
+from pilot_space.domain.exceptions import ValidationError as DomainValidationError
 from tests.fixtures.knowledge_graph import (
     RLS_PATCH as _RLS_PATCH,
     make_ephemeral_node as _make_ephemeral_node,
@@ -73,7 +73,7 @@ class TestProjectKnowledgeGraph404:
     """GET /workspaces/{wid}/projects/{pid}/knowledge-graph — not found."""
 
     async def test_returns_404_with_correct_detail(self) -> None:
-        """EntityNotFoundError from service is translated to 404."""
+        """EntityNotFoundError from service bubbles up (caught by global app_error_handler)."""
         kg_service = _make_kg_service()
         kg_service.get_project_knowledge_graph.side_effect = EntityNotFoundError(
             "Project", TEST_PROJECT_ID
@@ -82,7 +82,7 @@ class TestProjectKnowledgeGraph404:
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(EntityNotFoundError) as exc_info,
         ):
             await get_project_knowledge_graph(
                 session=session,
@@ -90,8 +90,8 @@ class TestProjectKnowledgeGraph404:
                 **_default_kwargs(),  # type: ignore[arg-type]
             )
 
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "Project not found"
+        assert exc_info.value.http_status == 404
+        assert exc_info.value.entity_type == "Project"
 
 
 # ---------------------------------------------------------------------------
@@ -202,13 +202,13 @@ class TestProjectKnowledgeGraphSuccess:
         assert call_kwargs["node_types"] == "issue"
 
     async def test_rejects_invalid_node_types(self) -> None:
-        """Invalid node_types value raises HTTPException with status 422."""
+        """Invalid node_types value raises ValidationError with status 422."""
         kg_service = _make_kg_service()
         session = _make_session()
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(DomainValidationError) as exc_info,
         ):
             await get_project_knowledge_graph(
                 session=session,
@@ -216,8 +216,8 @@ class TestProjectKnowledgeGraphSuccess:
                 **_default_kwargs(node_types="not_a_valid_type"),  # type: ignore[arg-type]
             )
 
-        assert exc_info.value.status_code == 422
-        assert "Invalid node_type" in exc_info.value.detail
+        assert exc_info.value.http_status == 422
+        assert "Invalid node_type" in exc_info.value.message
 
     async def test_sorts_nodes_by_importance_tier(self) -> None:
         """Service returns sorted nodes; verify order preserved in response."""
@@ -309,7 +309,7 @@ class TestProjectKnowledgeGraphSuccess:
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock) as mock_rls,
-            pytest.raises(HTTPException, match="Project not found"),
+            pytest.raises(EntityNotFoundError),
         ):
             await get_project_knowledge_graph(
                 session=session,

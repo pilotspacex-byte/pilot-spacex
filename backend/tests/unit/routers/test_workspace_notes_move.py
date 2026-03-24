@@ -7,7 +7,7 @@ Covers all conditional branches in the move_workspace_note handler:
 - note workspace mismatch (note.workspace_id != workspace.id)
 - project not found (project_repo returns None when project_id provided)
 - project workspace mismatch (project.workspace_id != workspace.id)
-- ValueError raised by UpdateNoteService.execute → JSONResponse 404
+- NotFoundError raised by UpdateNoteService.execute → JSONResponse 404
 - workspace not found (workspace_repo returns None) → HTTPException 404
 
 Handler under test:
@@ -472,22 +472,24 @@ class TestWorkspaceNotFound:
 
 
 # ---------------------------------------------------------------------------
-# ValueError from UpdateNoteService.execute
+# NotFoundError from UpdateNoteService.execute
 # ---------------------------------------------------------------------------
 
 
-class TestServiceValueError:
-    """ValueError raised by update_service.execute → JSONResponse 404."""
+class TestServiceNotFoundError:
+    """NotFoundError raised by update_service.execute → propagates to global handler."""
 
-    async def test_returns_json_response_404_on_value_error(self) -> None:
+    async def test_raises_not_found_error(self) -> None:
+        from pilot_space.domain.exceptions import NotFoundError
+
         ws_id = uuid4()
         workspace = _make_workspace(ws_id)
         note = _make_note(ws_id)
 
-        svc = _update_service(raises=ValueError("Note does not exist"))
+        svc = _update_service(raises=NotFoundError("Note does not exist"))
 
-        with patch(_RLS_PATCH, new_callable=AsyncMock):
-            response = await move_workspace_note(
+        with patch(_RLS_PATCH, new_callable=AsyncMock), pytest.raises(NotFoundError) as exc_info:
+            await move_workspace_note(
                 workspace_id=str(ws_id),
                 note_id=note.id,
                 move_data=NoteMove(project_id=None),
@@ -499,19 +501,20 @@ class TestServiceValueError:
                 project_repo=_project_repo(),
             )
 
-        assert isinstance(response, JSONResponse)
-        assert response.status_code == 404
+        assert exc_info.value.http_status == 404
 
-    async def test_value_error_detail_propagated(self) -> None:
+    async def test_not_found_error_detail_propagated(self) -> None:
+        from pilot_space.domain.exceptions import NotFoundError
+
         ws_id = uuid4()
         workspace = _make_workspace(ws_id)
         note = _make_note(ws_id)
         error_msg = "note record missing from database"
 
-        svc = _update_service(raises=ValueError(error_msg))
+        svc = _update_service(raises=NotFoundError(error_msg))
 
-        with patch(_RLS_PATCH, new_callable=AsyncMock):
-            response = await move_workspace_note(
+        with patch(_RLS_PATCH, new_callable=AsyncMock), pytest.raises(NotFoundError) as exc_info:
+            await move_workspace_note(
                 workspace_id=str(ws_id),
                 note_id=note.id,
                 move_data=NoteMove(project_id=None),
@@ -523,5 +526,4 @@ class TestServiceValueError:
                 project_repo=_project_repo(),
             )
 
-        body = json.loads(response.body)
-        assert error_msg in body.get("detail", "")
+        assert error_msg in exc_info.value.message

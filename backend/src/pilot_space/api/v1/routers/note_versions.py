@@ -47,7 +47,6 @@ from pilot_space.application.services.version.diff_service import VersionDiffSer
 from pilot_space.application.services.version.digest_service import VersionDigestService
 from pilot_space.application.services.version.impact_service import ImpactAnalysisService
 from pilot_space.application.services.version.restore_service import (
-    ConcurrentRestoreError,
     RestorePayload,
     VersionRestoreService,
 )
@@ -163,18 +162,15 @@ async def create_version(
     version_repo = NoteVersionRepository(session)
     svc = VersionSnapshotService(session, note_repo, version_repo)
 
-    try:
-        result = await svc.execute(
-            SnapshotPayload(
-                note_id=note_id,
-                workspace_id=ws_uuid,
-                trigger=VersionTrigger.MANUAL,
-                created_by=user_id,
-                label=request.label,
-            )
+    result = await svc.execute(
+        SnapshotPayload(
+            note_id=note_id,
+            workspace_id=ws_uuid,
+            trigger=VersionTrigger.MANUAL,
+            created_by=user_id,
+            label=request.label,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    )
 
     await session.commit()
 
@@ -289,10 +285,7 @@ async def diff_versions(
     version_repo = NoteVersionRepository(session)
     svc = VersionDiffService(session, version_repo)
 
-    try:
-        result = await svc.execute(version1_id, version2_id, note_id, ws_uuid)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    result = await svc.execute(version1_id, version2_id, note_id, ws_uuid)
 
     return DiffResponse(
         version1_id=result.version1_id,
@@ -341,26 +334,15 @@ async def restore_version(
     version_repo = NoteVersionRepository(session)
     svc = VersionRestoreService(session, note_repo, version_repo)
 
-    try:
-        result = await svc.execute(
-            RestorePayload(
-                version_id=version_id,
-                note_id=note_id,
-                workspace_id=ws_uuid,
-                restored_by=user_id,
-                expected_version_number=request.version_number,
-            )
+    result = await svc.execute(
+        RestorePayload(
+            version_id=version_id,
+            note_id=note_id,
+            workspace_id=ws_uuid,
+            restored_by=user_id,
+            expected_version_number=request.version_number,
         )
-    except ConcurrentRestoreError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": "Another restore was applied. Reload to see current state.",
-                "current_version_number": exc.competing_version_number,
-            },
-        ) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    )
 
     await session.commit()
 
@@ -414,10 +396,7 @@ async def get_digest(
     version_repo = NoteVersionRepository(session)
     svc = VersionDigestService(session, version_repo, anthropic_api_key=anthropic_key)
 
-    try:
-        result = await svc.execute(version_id, note_id, ws_uuid, user_id=user_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    result = await svc.execute(version_id, note_id, ws_uuid, user_id=user_id)
 
     await session.commit()
     return DigestResponse(
@@ -449,10 +428,7 @@ async def get_impact(
     version_repo = NoteVersionRepository(session)
     svc = ImpactAnalysisService(session, version_repo)
 
-    try:
-        result = await svc.execute(version_id, note_id, ws_uuid)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    result = await svc.execute(version_id, note_id, ws_uuid)
 
     return ImpactResponse(
         version_id=result.version_id,
@@ -573,26 +549,15 @@ async def undo_ai_changes(
     note_repo = NoteRepository(session)
     restore_svc = VersionRestoreService(session, note_repo, version_repo)
 
-    try:
-        result = await restore_svc.execute(
-            RestorePayload(
-                version_id=ai_before.id,
-                note_id=note_id,
-                workspace_id=ws_uuid,
-                restored_by=user_id,
-                expected_version_number=request.version_number,
-            )
+    result = await restore_svc.execute(
+        RestorePayload(
+            version_id=ai_before.id,
+            note_id=note_id,
+            workspace_id=ws_uuid,
+            restored_by=user_id,
+            expected_version_number=request.version_number,
         )
-    except ConcurrentRestoreError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": "Another change was applied. Reload to see current state.",
-                "current_version_number": exc.competing_version_number,
-            },
-        ) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    )
 
     await session.commit()
 

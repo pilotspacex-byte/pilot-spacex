@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import NotFoundError
+
 if TYPE_CHECKING:
     from uuid import UUID
 
@@ -75,16 +77,16 @@ class UpdateAnnotationService:
             UpdateAnnotationResult with updated annotation.
 
         Raises:
-            ValueError: If annotation not found.
+            NotFoundError: If annotation not found.
         """
         # Get annotation
         annotation = await self._annotation_repo.get_by_id(payload.annotation_id)
         if not annotation:
-            raise ValueError("Annotation not found")
+            raise NotFoundError("Annotation not found")
 
         # Verify annotation belongs to the requested note before any mutation
         if annotation.note_id != payload.note_id:
-            raise ValueError("Annotation not found")
+            raise NotFoundError("Annotation not found")
 
         # Update status
         annotation.status = payload.status

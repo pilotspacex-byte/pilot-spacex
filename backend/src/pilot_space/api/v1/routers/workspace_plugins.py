@@ -27,6 +27,7 @@ from pilot_space.api.v1.schemas.workspace_plugin import (
     WorkspacePluginUpdateCheckResponse,
 )
 from pilot_space.dependencies import CurrentUserId, DbSession, RedisDep
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
@@ -54,10 +55,10 @@ async def _require_admin(user_id: UUID, workspace_id: UUID, session: DbSession) 
     result = await session.execute(stmt)
     row = result.scalar()
     if row is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member")
+        raise ForbiddenError("Not a member")
     role = row.value if hasattr(row, "value") else str(row).upper()
     if role not in (WorkspaceRole.ADMIN.value, WorkspaceRole.OWNER.value):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
+        raise ForbiddenError("Admin required")
 
 
 async def _get_workspace_token(workspace_id: UUID, session: DbSession) -> str | None:
@@ -141,17 +142,10 @@ async def browse_repo(
 
     from pilot_space.integrations.github.plugin_service import (
         GitHubPluginService,
-        PluginRateLimitError,
-        PluginRepoError,
         parse_github_url,
     )
 
-    try:
-        owner, repo = parse_github_url(repo_url)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+    owner, repo = parse_github_url(repo_url)
 
     token = await _get_workspace_token(workspace_id, session)
     gh = GitHubPluginService(token=token)
@@ -171,14 +165,6 @@ async def browse_repo(
             except Exception:
                 items.append(SkillListItem(skill_name=name, display_name=name))
         return items
-    except PluginRepoError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except PluginRateLimitError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"GitHub API error: {exc}"
-        ) from exc
     finally:
         await gh.aclose()
 
@@ -204,12 +190,7 @@ async def install_plugin(
     )
     from pilot_space.integrations.github.plugin_service import GitHubPluginService, parse_github_url
 
-    try:
-        owner, repo = parse_github_url(request.repo_url)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+    owner, repo = parse_github_url(request.repo_url)
 
     token = await _get_workspace_token(workspace_id, session)
     gh = GitHubPluginService(token=token)
@@ -257,37 +238,21 @@ async def install_all_from_repo(
     )
     from pilot_space.integrations.github.plugin_service import (
         GitHubPluginService,
-        PluginRateLimitError,
-        PluginRepoError,
         parse_github_url,
     )
 
-    try:
-        owner, repo = parse_github_url(request.repo_url)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+    owner, repo = parse_github_url(request.repo_url)
 
     token = await _get_workspace_token(workspace_id, session)
     gh = GitHubPluginService(token=token)
     skill_names: list[str] = []
     head_sha = ""
-    try:
-        skill_names = await gh.list_skills(owner, repo)
-        head_sha = await gh.get_head_sha(owner, repo) if skill_names else ""
-    except PluginRepoError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except PluginRateLimitError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"GitHub API error: {exc}"
-        ) from exc
+    skill_names = await gh.list_skills(owner, repo)
+    head_sha = await gh.get_head_sha(owner, repo) if skill_names else ""
 
     if not skill_names:
         await gh.aclose()
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No skills found.")
+        raise NotFoundError("No skills found.")
 
     install_svc = InstallPluginService(db_session=session)
     results: list[WorkspacePluginResponse] = []
@@ -371,7 +336,7 @@ async def toggle_plugin(
     repo = WorkspacePluginRepository(session)
     plugin = await repo.get_by_id(plugin_id)
     if plugin is None or plugin.workspace_id != workspace_id or plugin.is_deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found")
+        raise NotFoundError("Plugin not found")
 
     plugin.is_active = request.is_active
     updated = await repo.update(plugin)
@@ -402,19 +367,12 @@ async def toggle_repo_plugins(
     )
     from pilot_space.integrations.github.plugin_service import parse_github_url
 
-    try:
-        owner, repo = parse_github_url(request.repo_url)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+    owner, repo = parse_github_url(request.repo_url)
 
     plugin_repo = WorkspacePluginRepository(session)
     plugins = await plugin_repo.get_by_workspace_and_repo(workspace_id, owner, repo)
     if not plugins:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No plugins from this repo."
-        )
+        raise NotFoundError("No plugins from this repo.")
 
     plugin_ids = [p.id for p in plugins]
     await session.execute(
@@ -458,19 +416,12 @@ async def uninstall_repo_plugins(
     )
     from pilot_space.integrations.github.plugin_service import parse_github_url
 
-    try:
-        owner, repo = parse_github_url(repo_url)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+    owner, repo = parse_github_url(repo_url)
 
     plugin_repo = WorkspacePluginRepository(session)
     plugins = await plugin_repo.get_by_workspace_and_repo(workspace_id, owner, repo)
     if not plugins:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No plugins from this repo."
-        )
+        raise NotFoundError("No plugins from this repo.")
 
     plugin_ids = [p.id for p in plugins]
     plugin_id_strs = [str(pid) for pid in plugin_ids]
@@ -535,7 +486,7 @@ async def uninstall_plugin(
     repo = WorkspacePluginRepository(session)
     plugin = await repo.get_by_id(plugin_id)
     if plugin is None or plugin.workspace_id != workspace_id or plugin.is_deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found")
+        raise NotFoundError("Plugin not found")
 
     install_svc = InstallPluginService(db_session=session)
     await install_svc.uninstall(plugin)

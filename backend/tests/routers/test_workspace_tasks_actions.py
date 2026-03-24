@@ -17,6 +17,7 @@ from uuid import uuid4
 import pytest
 from fastapi import status
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models.task import Task, TaskStatus
 
 if TYPE_CHECKING:
@@ -164,8 +165,8 @@ class TestUpdateTaskStatus:
         mock_service: AsyncMock,
         mock_workspace: MagicMock,
     ) -> None:
-        """Returns 400 if task not found (status endpoint uses 400 for ValueError)."""
-        mock_service.update_status.side_effect = ValueError("Task not found")
+        """Returns 404 if task not found."""
+        mock_service.update_status.side_effect = NotFoundError("Task not found")
 
         with patch(_RESOLVE_WORKSPACE_PATH, return_value=mock_workspace):
             response = await task_client.patch(
@@ -173,7 +174,7 @@ class TestUpdateTaskStatus:
                 json={"status": "in_progress"},
             )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     async def test_update_status_validation_error(
         self,
@@ -243,8 +244,8 @@ class TestReorderTasks:
         mock_service: AsyncMock,
         mock_workspace: MagicMock,
     ) -> None:
-        """Returns 400 if task ID not in issue."""
-        mock_service.reorder_tasks.side_effect = ValueError("Task not found for issue")
+        """Returns 404 if task ID not in issue."""
+        mock_service.reorder_tasks.side_effect = NotFoundError("Task not found for issue")
 
         with patch(_RESOLVE_WORKSPACE_PATH, return_value=mock_workspace):
             response = await task_client.put(
@@ -252,7 +253,7 @@ class TestReorderTasks:
                 json={"taskIds": [str(uuid4())]},
             )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     async def test_reorder_tasks_empty_list(
         self,
@@ -363,7 +364,7 @@ class TestExportContext:
         mock_workspace: MagicMock,
     ) -> None:
         """Returns 404 if issue not found."""
-        mock_service.export_context.side_effect = ValueError("Issue not found")
+        mock_service.export_context.side_effect = NotFoundError("Issue not found")
 
         with patch(_RESOLVE_WORKSPACE_PATH, return_value=mock_workspace):
             response = await task_client.get(

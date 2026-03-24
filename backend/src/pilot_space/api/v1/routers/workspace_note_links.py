@@ -24,6 +24,7 @@ from pilot_space.api.v1.dependencies import (
 from pilot_space.api.v1.repository_deps import NoteNoteLinkRepositoryDep
 from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.note_note_link import (
     NoteNoteLink,
     NoteNoteLinkType,
@@ -168,25 +169,16 @@ async def create_note_link(
     # Verify source note exists in workspace
     source_note = await note_repo.get_by_id(note_id)
     if not source_note or source_note.workspace_id != ws_uuid:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Source note not found in workspace",
-        )
+        raise NotFoundError("Source note not found in workspace")
 
     # Verify target note exists in workspace
     target_note = await note_repo.get_by_id(body.target_note_id)
     if not target_note or target_note.workspace_id != ws_uuid:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Target note not found in workspace",
-        )
+        raise NotFoundError("Target note not found in workspace")
 
     # Prevent self-linking
     if note_id == body.target_note_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot link a note to itself",
-        )
+        raise ValidationError("Cannot link a note to itself")
 
     link_type = NoteNoteLinkType(body.link_type)
 
@@ -246,10 +238,7 @@ async def delete_note_link(
     )
 
     if count == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No link found between these notes",
-        )
+        raise NotFoundError("No link found between these notes")
 
     await session.commit()
 

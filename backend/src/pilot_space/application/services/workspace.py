@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_invitation import (
     InvitationStatus,
@@ -228,7 +229,7 @@ class WorkspaceService:
 
         if not workspace:
             msg = "Workspace not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         return workspace
 
@@ -292,7 +293,7 @@ class WorkspaceService:
         )
         if not member:
             msg = "Not a member of this workspace"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         return GetWorkspaceResult(
             workspace=workspace,
@@ -320,7 +321,7 @@ class WorkspaceService:
         existing = await self.workspace_repo.get_by_slug(payload.slug)
         if existing:
             msg = f"Workspace with slug '{payload.slug}' already exists"
-            raise ValueError(msg)
+            raise ConflictError(msg)
 
         # Create workspace
         workspace = Workspace(
@@ -377,7 +378,7 @@ class WorkspaceService:
         )
         if not member or not member.is_admin:
             msg = "Admin role required"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         # Track changed fields
         changed_fields: list[str] = []
@@ -392,7 +393,7 @@ class WorkspaceService:
             )
             if slug_taken:
                 msg = f"Slug '{payload.slug}' is already taken"
-                raise ValueError(msg)
+                raise ConflictError(msg)
             workspace.slug = payload.slug
             changed_fields.append("slug")
         if payload.description is not None:
@@ -450,7 +451,7 @@ class WorkspaceService:
         )
         if not member or not member.is_owner:
             msg = "Owner role required to delete workspace"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         await self.workspace_repo.delete(workspace)
 
@@ -488,7 +489,7 @@ class WorkspaceService:
         is_member = any(m.user_id == payload.user_id for m in (workspace.members or []))
         if not is_member:
             msg = "Not a member of this workspace"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         labels = await self.label_repo.get_workspace_labels(
             workspace.id,
@@ -533,7 +534,7 @@ class WorkspaceService:
             is_member = await self.workspace_repo.is_member(workspace_id, existing_user.id)
             if is_member:
                 msg = "User is already a member of this workspace"
-                raise ValueError(msg)
+                raise ConflictError(msg)
 
             # Add immediately
             member = await self.workspace_repo.add_member(
@@ -557,7 +558,7 @@ class WorkspaceService:
         has_pending = await self.invitation_repo.exists_pending(workspace_id, normalized_email)
         if has_pending:
             msg = "An invitation is already pending for this email"
-            raise ValueError(msg)
+            raise ConflictError(msg)
 
         # Create pending invitation
         invitation = WorkspaceInvitation(

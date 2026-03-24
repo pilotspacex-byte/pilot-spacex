@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import (
     Activity,
     ActivityType,
@@ -149,7 +150,7 @@ class UpdateIssueService:
         # Get existing issue
         issue = await self._issue_repo.get_by_id_with_relations(payload.issue_id)
         if not issue:
-            raise ValueError(f"Issue not found: {payload.issue_id}")
+            raise NotFoundError(f"Issue not found: {payload.issue_id}")
 
         activities: list[Activity] = []
         changed_fields: list[str] = []
@@ -157,9 +158,9 @@ class UpdateIssueService:
         # Track changes and create activities
         if not isinstance(payload.name, _Unchanged):
             if not payload.name or not payload.name.strip():
-                raise ValueError("Issue name is required")
+                raise ValidationError("Issue name is required")
             if len(payload.name) > 255:
-                raise ValueError("Issue name must be 255 characters or less")
+                raise ValidationError("Issue name must be 255 characters or less")
             if payload.name != issue.name:
                 old_value = issue.name
                 issue.name = payload.name.strip()

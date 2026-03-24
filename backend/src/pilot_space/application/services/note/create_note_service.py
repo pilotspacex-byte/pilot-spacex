@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -122,7 +123,7 @@ class CreateNoteService:
         # Validate title
         if not payload.title or not payload.title.strip():
             msg = "Note title is required"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Resolve tree position fields from parent
         depth = 0
@@ -133,19 +134,19 @@ class CreateNoteService:
             # Personal pages cannot be nested (no project_id)
             if payload.project_id is None:
                 msg = "Cannot nest personal pages: parent_id requires a project_id"
-                raise ValueError(msg)
+                raise ValidationError(msg)
 
             # Fetch parent note
             parent = await self._note_repo.get_by_id(parent_id)
             if parent is None:
                 msg = f"Parent note not found: {parent_id}"
-                raise ValueError(msg)
+                raise NotFoundError(msg)
 
             # Enforce 3-level max depth (0=root, 1=section, 2=page)
             depth = parent.depth + 1
             if depth > 2:
                 msg = f"Cannot exceed maximum depth of 2 (parent depth={parent.depth})"
-                raise ValueError(msg)
+                raise ValidationError(msg)
 
             # Compute position: max sibling position + 1000
             # Use get_children to find existing children of the parent

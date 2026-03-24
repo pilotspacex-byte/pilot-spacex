@@ -266,15 +266,11 @@ class AINotConfiguredError(AIError):
         self.workspace_id = workspace_id
         if workspace_id is not None:
             msg = (
-                f"No BYOK API key configured for workspace {workspace_id}. "
-                "Configure a key in Settings > API Keys."
+                "No API key configured for this workspace. Configure a key in Settings > API Keys."
             )
         else:
-            msg = "No AI provider API key configured. Set ANTHROPIC_API_KEY for system operations."
-        super().__init__(
-            msg,
-            details={"workspace_id": str(workspace_id) if workspace_id else None},
-        )
+            msg = "AI provider is not configured. Contact your administrator."
+        super().__init__(msg)
 
 
 class AIConfigurationError(AIError):

@@ -11,6 +11,7 @@ import uuid
 
 import pytest
 
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.domain.intent_artifact import ArtifactType, IntentArtifact
 from pilot_space.domain.work_intent import DedupStatus, IntentStatus, WorkIntent
 
@@ -48,11 +49,11 @@ class TestWorkIntentCreation:
         assert intent.dedup_hash == explicit_hash
 
     def test_create_with_invalid_confidence_raises(self) -> None:
-        with pytest.raises(ValueError, match="Confidence must be between"):
+        with pytest.raises(ValidationError, match="Confidence must be between"):
             make_intent(confidence=1.1)
 
     def test_create_with_negative_confidence_raises(self) -> None:
-        with pytest.raises(ValueError, match="Confidence must be between"):
+        with pytest.raises(ValidationError, match="Confidence must be between"):
             make_intent(confidence=-0.01)
 
     def test_confidence_boundary_values_are_valid(self) -> None:
@@ -117,18 +118,18 @@ class TestWorkIntentStatusTransitions:
 
     def test_detected_to_executing_is_invalid(self) -> None:
         intent = make_intent()
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.transition_to(IntentStatus.EXECUTING)
 
     def test_detected_to_accepted_is_invalid(self) -> None:
         intent = make_intent()
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.transition_to(IntentStatus.ACCEPTED)
 
     def test_confirmed_to_accepted_is_invalid(self) -> None:
         intent = make_intent()
         intent.transition_to(IntentStatus.CONFIRMED)
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.transition_to(IntentStatus.ACCEPTED)
 
     def test_accepted_is_terminal(self) -> None:
@@ -137,13 +138,13 @@ class TestWorkIntentStatusTransitions:
         intent.transition_to(IntentStatus.EXECUTING)
         intent.transition_to(IntentStatus.REVIEW)
         intent.transition_to(IntentStatus.ACCEPTED)
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.transition_to(IntentStatus.REJECTED)
 
     def test_rejected_is_terminal(self) -> None:
         intent = make_intent()
         intent.transition_to(IntentStatus.REJECTED)
-        with pytest.raises(ValueError, match="Cannot transition"):
+        with pytest.raises(ValidationError, match="Cannot transition"):
             intent.transition_to(IntentStatus.CONFIRMED)
 
     def test_convenience_confirm_method(self) -> None:
@@ -176,7 +177,7 @@ class TestWorkIntentImmutability:
     def test_update_what_blocked_after_confirmed(self) -> None:
         intent = make_intent()
         intent.confirm()
-        with pytest.raises(ValueError, match="Cannot update 'what'"):
+        with pytest.raises(ValidationError, match="Cannot update 'what'"):
             intent.update_what("New description")
 
     def test_update_why_allowed_in_detected(self) -> None:
@@ -187,7 +188,7 @@ class TestWorkIntentImmutability:
     def test_update_why_blocked_after_confirmed(self) -> None:
         intent = make_intent()
         intent.confirm()
-        with pytest.raises(ValueError, match="Cannot update 'why'"):
+        with pytest.raises(ValidationError, match="Cannot update 'why'"):
             intent.update_why("Different reason")
 
     def test_update_what_recomputes_dedup_hash(self) -> None:
@@ -263,7 +264,7 @@ class TestWorkIntentProperties:
 
     def test_set_confidence_invalid_raises(self) -> None:
         intent = make_intent()
-        with pytest.raises(ValueError, match="Confidence must be between"):
+        with pytest.raises(ValidationError, match="Confidence must be between"):
             intent.set_confidence(2.0)
 
 

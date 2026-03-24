@@ -144,6 +144,21 @@ Read index at `docs/claude-sdk.txt` for full documentation.
 
 8. **Error responses**: All backend errors use `Content-Type: application/problem+json` (RFC 7807), not `application/json`. Frontend `ApiError.fromAxiosError` handles both formats, but new error-parsing code must not assume `application/json`.
 
+9. **Exception handling — AppError hierarchy**: Services MUST raise domain exceptions from `pilot_space.domain.exceptions`, NOT `ValueError` or `HTTPException`. The global `app_error_handler` catches all `AppError` subclasses automatically and produces RFC 7807 responses. Available subclasses:
+   - `NotFoundError` (404) — resource not found
+   - `ForbiddenError` (403) — insufficient permissions
+   - `ConflictError` (409) — duplicate, already exists, invalid state transition
+   - `ValidationError` (422) — input validation failure
+   - `AppError` (400) — generic domain error (extend for custom status codes)
+
+   **Routers MUST NOT** wrap service calls in `try/except → raise HTTPException`. Let exceptions propagate.
+   **Keep `ValueError`** only for: UUID parsing (`UUID(slug)` fallback), enum parsing, `int()` conversion.
+   See `backend/src/pilot_space/domain/exceptions.py`.
+
+10. **Exception handling — AIError hierarchy**: AI exceptions use `pilot_space.ai.exceptions.AIError` base class with `http_status` and `error_code`. The global `ai_error_handler` catches all 10 subtypes automatically (`RateLimitError` 429, `AINotConfiguredError` 503, `AITimeoutError` 504, etc.). Do NOT catch AIError in routers.
+
+11. **Exception handling — Infrastructure exceptions**: `EncryptionError`, `SamlValidationError`, `CreateBranchError`, `PluginRepoError`, `PluginRateLimitError` all extend `AppError`. They propagate to the global handler automatically. Exception: `EncryptionError` in `test_ai_configuration` endpoint has a justified graceful catch (returns `success=False` response instead of error).
+
 ---
 
 ## Design Context

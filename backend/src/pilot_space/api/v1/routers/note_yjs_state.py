@@ -34,6 +34,10 @@ from fastapi import APIRouter, HTTPException, Path, Request, Response, status
 from pilot_space.api.v1.dependencies import NoteRepositoryDep, WorkspaceRepositoryDep
 from pilot_space.api.v1.repository_deps import NoteYjsStateRepositoryDep
 from pilot_space.dependencies.auth import SessionDep, SyncedUserId
+from pilot_space.domain.exceptions import (
+    NotFoundError,
+    ValidationError as DomainValidationError,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -53,16 +57,10 @@ async def _validate_note_access(
     """Verify workspace exists and note belongs to it."""
     workspace = await workspace_repo.get_by_id(workspace_id)
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
     note = await note_repo.get_by_id(note_id)
     if not note or note.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found",
-        )
+        raise NotFoundError("Note not found")
 
 
 @router.get(
@@ -88,10 +86,7 @@ async def get_yjs_state(
 
     state = await yjs_repo.get_state(note_id)
     if not state:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No Yjs state persisted for this note",
-        )
+        raise NotFoundError("No Yjs state persisted for this note")
 
     logger.debug("[YjsState] GET note_id=%s state_bytes=%d", note_id, len(state))
 
@@ -125,10 +120,7 @@ async def put_yjs_state(
 
     body = await request.body()
     if not body:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Request body must be non-empty Yjs state bytes",
-        )
+        raise DomainValidationError("Request body must be non-empty Yjs state bytes")
 
     _MAX_YJS_BODY_BYTES = 4 * 1024 * 1024  # 4 MB
     if len(body) > _MAX_YJS_BODY_BYTES:

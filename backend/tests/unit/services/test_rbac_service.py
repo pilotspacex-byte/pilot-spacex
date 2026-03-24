@@ -20,6 +20,7 @@ from pilot_space.application.services.rbac_service import (
     MemberNotFoundError,
     RbacService,
 )
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.database.permissions import (
     BUILTIN_ROLE_PERMISSIONS,
     check_permission,
@@ -272,14 +273,14 @@ async def test_create_role_raises_duplicate_name() -> None:
 
 @pytest.mark.asyncio
 async def test_create_role_raises_invalid_permission() -> None:
-    """create_role raises ValueError for unknown resource or action."""
+    """create_role raises ValidationError for unknown resource or action."""
     custom_role_repo = MagicMock()
     custom_role_repo.get_by_name = AsyncMock(return_value=None)
 
     member_repo = MagicMock()
     service = RbacService(custom_role_repo=custom_role_repo, workspace_member_repo=member_repo)
 
-    with pytest.raises(ValueError, match="invalid permission"):
+    with pytest.raises(ValidationError, match="invalid permission"):
         await service.create_role(
             workspace_id=uuid.uuid4(),
             name="bad",

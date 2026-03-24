@@ -15,6 +15,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.database.models.onboarding import WorkspaceOnboarding
 from pilot_space.infrastructure.database.repositories.base import BaseRepository
 
@@ -108,7 +109,7 @@ class OnboardingRepository(BaseRepository[WorkspaceOnboarding]):
         """
         if step_name not in ("ai_providers", "invite_members", "first_note", "role_setup"):
             msg = f"Invalid step name: {step_name}"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         onboarding = await self.get_by_workspace_id(workspace_id)
         if not onboarding:

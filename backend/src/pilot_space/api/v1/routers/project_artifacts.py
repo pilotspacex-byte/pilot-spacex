@@ -32,6 +32,7 @@ from pilot_space.application.services.artifact.artifact_upload_service import (
 from pilot_space.container._base import InfraContainer
 from pilot_space.container.container import Container
 from pilot_space.dependencies.auth import CurrentUser, SessionDep, require_workspace_member
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.repositories.artifact_repository import (
     ArtifactRepository,
 )
@@ -44,104 +45,6 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 _MAX_BYTES = 10 * 1024 * 1024  # 10 MB flat limit
-
-# Sorted list of allowed extensions for display in 422 error bodies.
-# Must stay in sync with _ALLOWED_EXTENSIONS in ArtifactUploadService.
-_ALLOWED_EXTENSIONS_DISPLAY: list[str] = sorted(
-    [
-        ".bmp",
-        ".c",
-        ".cpp",
-        ".css",
-        ".csv",
-        ".doc",
-        ".docx",
-        ".gif",
-        ".go",
-        ".h",
-        ".html",
-        ".ico",
-        ".java",
-        ".jpeg",
-        ".jpg",
-        ".js",
-        ".json",
-        ".jsx",
-        ".kt",
-        ".md",
-        ".php",
-        ".png",
-        ".ppt",
-        ".pptx",
-        ".py",
-        ".rb",
-        ".rs",
-        ".scss",
-        ".sh",
-        ".sql",
-        ".svg",
-        ".swift",
-        ".toml",
-        ".ts",
-        ".tsx",
-        ".txt",
-        ".webp",
-        ".xlsx",
-        ".xls",
-        ".xml",
-        ".yaml",
-        ".yml",
-    ]
-)
-
-
-def _map_service_error(exc: Exception) -> HTTPException:
-    """Map service ValueError / PermissionError to an HTTPException with RFC 7807 body."""
-    msg = str(exc)
-    if msg == "UNSUPPORTED_FILE_TYPE":
-        return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "type": "about:blank",
-                "title": "Unsupported File Type",
-                "status": 422,
-                "detail": "File extension is not in the allowed list.",
-                "allowed_extensions": _ALLOWED_EXTENSIONS_DISPLAY,
-            },
-        )
-    if msg == "FILE_TOO_LARGE":
-        return HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail={
-                "type": "about:blank",
-                "title": "File Too Large",
-                "status": 413,
-                "detail": "File exceeds the 10 MB limit.",
-            },
-        )
-    if msg == "EMPTY_FILE":
-        return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "type": "about:blank",
-                "title": "Invalid File",
-                "status": 422,
-                "detail": "File must not be empty.",
-            },
-        )
-    if msg == "MIME_MISMATCH":
-        return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "type": "about:blank",
-                "title": "MIME Type Mismatch",
-                "status": 422,
-                "detail": "Image file extension requires an image/* MIME type.",
-            },
-        )
-    if msg == "NOT_FOUND":
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found")
-    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal error")
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ArtifactResponse)
@@ -179,12 +82,7 @@ async def upload_artifact(
     if file.size is not None and file.size > _MAX_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail={
-                "type": "about:blank",
-                "title": "File Too Large",
-                "status": 413,
-                "detail": f"File exceeds 10 MB limit ({file.size} bytes declared).",
-            },
+            detail=f"File exceeds 10 MB limit ({file.size} bytes declared).",
         )
 
     file_data = await file.read()
@@ -193,27 +91,19 @@ async def upload_artifact(
     if len(file_data) > _MAX_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail={
-                "type": "about:blank",
-                "title": "File Too Large",
-                "status": 413,
-                "detail": f"File exceeds 10 MB limit ({len(file_data)} bytes received).",
-            },
+            detail=f"File exceeds 10 MB limit ({len(file_data)} bytes received).",
         )
 
     await set_rls_context(session, current_user.user_id, workspace_id)
 
-    try:
-        return await artifact_service.upload(
-            file_data=file_data,
-            filename=file.filename or "upload",
-            content_type=file.content_type or "application/octet-stream",
-            workspace_id=workspace_id,
-            project_id=project_id,
-            user_id=current_user.user_id,
-        )
-    except ValueError as exc:
-        raise _map_service_error(exc) from exc
+    return await artifact_service.upload(
+        file_data=file_data,
+        filename=file.filename or "upload",
+        content_type=file.content_type or "application/octet-stream",
+        workspace_id=workspace_id,
+        project_id=project_id,
+        user_id=current_user.user_id,
+    )
 
 
 @router.get("", response_model=ArtifactListResponse)
@@ -285,10 +175,7 @@ async def get_artifact_url(
         or artifact.workspace_id != workspace_id
         or artifact.project_id != project_id
     ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Artifact not found",
-        )
+        raise NotFoundError("Artifact not found")
 
     signed_url = await storage_client.get_signed_url(
         bucket="note-artifacts",
@@ -328,20 +215,12 @@ async def delete_artifact(
     """
     await set_rls_context(session, current_user.user_id, workspace_id)
 
-    try:
-        await artifact_service.delete(
-            artifact_id=artifact_id,
-            user_id=current_user.user_id,
-            workspace_id=workspace_id,
-            project_id=project_id,
-        )
-    except ValueError as exc:
-        raise _map_service_error(exc) from exc
-    except PermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: you do not own this artifact.",
-        ) from exc
+    await artifact_service.delete(
+        artifact_id=artifact_id,
+        user_id=current_user.user_id,
+        workspace_id=workspace_id,
+        project_id=project_id,
+    )
 
 
 __all__ = ["router"]

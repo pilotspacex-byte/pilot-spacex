@@ -14,9 +14,9 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
 
 from pilot_space.api.v1.routers.ai_governance import _dispatch_rollback
+from pilot_space.domain.exceptions import ValidationError as DomainValidationError
 
 
 @pytest.mark.asyncio
@@ -143,7 +143,7 @@ async def test_dispatch_rollback_unknown_resource_type_raises_422() -> None:
     mock_session = MagicMock()
     before_state: dict = {}
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(DomainValidationError) as exc_info:
         await _dispatch_rollback("other", resource_id, before_state, mock_session)
 
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.http_status == 422

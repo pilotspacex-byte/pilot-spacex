@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.note_annotation import (
     AnnotationStatus,
     AnnotationType,
@@ -100,7 +101,8 @@ class CreateAnnotationService:
             CreateAnnotationResult with created annotation.
 
         Raises:
-            ValueError: If validation fails.
+            ValidationError: If content, block_id, or confidence invalid.
+            NotFoundError: If note not found.
         """
         from pilot_space.infrastructure.database.models.note_annotation import (
             NoteAnnotation,
@@ -109,28 +111,28 @@ class CreateAnnotationService:
         # Validate content
         if not payload.content or not payload.content.strip():
             msg = "Annotation content is required"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Validate block_id
         if not payload.block_id or not payload.block_id.strip():
             msg = "Block ID is required"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Validate confidence range
         if not 0.0 <= payload.confidence <= 1.0:
             msg = "Confidence must be between 0.0 and 1.0"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Verify note exists
         note = await self._note_repo.get_by_id(payload.note_id)
         if not note:
             msg = f"Note with ID {payload.note_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Verify note belongs to workspace
         if note.workspace_id != payload.workspace_id:
             msg = "Note does not belong to the specified workspace"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Build AI metadata with defaults
         ai_metadata = payload.ai_metadata or {}
@@ -169,7 +171,8 @@ class CreateAnnotationService:
             List of CreateAnnotationResult for each annotation.
 
         Raises:
-            ValueError: If any validation fails.
+            ValidationError: If content, block_id, or confidence invalid.
+            NotFoundError: If note not found.
         """
         results: list[CreateAnnotationResult] = []
         for payload in payloads:

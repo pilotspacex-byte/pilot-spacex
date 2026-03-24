@@ -14,6 +14,7 @@ from pilot_space.application.services.role_skill.types import (
     MAX_ROLES_PER_USER_WORKSPACE,
     VALID_ROLE_TYPES,
 )
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -73,7 +74,7 @@ class CreateRoleSkillService:
             Created UserRoleSkill entity.
 
         Raises:
-            ValueError: If validation fails (max roles, duplicate type, invalid type).
+            ValidationError: If validation fails (max roles, duplicate type, invalid type).
         """
         from pilot_space.infrastructure.database.models.user_role_skill import (
             UserRoleSkill,
@@ -87,13 +88,13 @@ class CreateRoleSkillService:
         # Validate role_type
         if payload.role_type not in VALID_ROLE_TYPES:
             msg = f"Invalid role type: {payload.role_type}"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Check max roles constraint
         count = await self._repo.count_by_user_workspace(payload.user_id, payload.workspace_id)
         if count >= MAX_ROLES_PER_USER_WORKSPACE:
             msg = f"Maximum {MAX_ROLES_PER_USER_WORKSPACE} roles per workspace"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Get template version if predefined type
         template_version: int | None = None

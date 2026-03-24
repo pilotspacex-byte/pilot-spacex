@@ -1,11 +1,6 @@
 """Workspace member management service.
 
-Handles member operations following CQRS-lite pattern (DD-064):
-- List workspace members
-- Update member role (with ownership transfer support)
-- Remove member (with constraints)
-- Member profile + contribution stats (MemberProfileService)
-
+CQRS-lite pattern (DD-064): list, update role, remove, profile + stats.
 Source: FR-017, T020a (ownership transfer), M-5 (prevent owner self-removal).
 """
 
@@ -21,6 +16,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
+from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.activity import Activity, ActivityType
 from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
 from pilot_space.infrastructure.database.models.integration import IntegrationLink
@@ -50,15 +46,15 @@ logger = get_logger(__name__)
 # ===== Custom Exceptions =====
 
 
-class WorkspaceNotFoundError(ValueError):
+class WorkspaceNotFoundError(NotFoundError):
     """Raised when the workspace does not exist."""
 
 
-class MemberNotFoundError(ValueError):
+class MemberNotFoundError(NotFoundError):
     """Raised when the target member is not in the workspace."""
 
 
-class UnauthorizedError(ValueError):
+class UnauthorizedError(ForbiddenError):
     """Raised when the actor lacks required permissions."""
 
 
@@ -224,7 +220,7 @@ class WorkspaceMemberService:
             admin_count = sum(1 for m in (workspace.members or []) if m.is_admin)
             if admin_count <= 1:
                 msg = "Cannot demote the only admin from workspace"
-                raise ValueError(msg)
+                raise ConflictError(msg)
 
         # Ownership transfer guard (FR-017, T020a)
         if new_role_enum == WorkspaceRole.OWNER:

@@ -22,6 +22,7 @@ import pathlib
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.artifact import Artifact
 from pilot_space.infrastructure.logging import get_logger
 
@@ -120,10 +121,10 @@ def _validate_file_type(filename: str, content_type: str) -> None:
     """
     ext = pathlib.Path(filename).suffix.lower()
     if ext not in _ALLOWED_EXTENSIONS:
-        raise ValueError("UNSUPPORTED_FILE_TYPE")
+        raise ValidationError("UNSUPPORTED_FILE_TYPE")
     # MIME cross-check: image extensions must have image/ MIME type prefix
     if ext in _IMAGE_EXTENSIONS and not content_type.startswith("image/"):
-        raise ValueError("MIME_MISMATCH")
+        raise ValidationError("MIME_MISMATCH")
 
 
 def _validate_file_size(file_data: bytes) -> None:
@@ -137,9 +138,9 @@ def _validate_file_size(file_data: bytes) -> None:
         ValueError: FILE_TOO_LARGE if file_data exceeds 10 MB.
     """
     if len(file_data) == 0:
-        raise ValueError("EMPTY_FILE")
+        raise ValidationError("EMPTY_FILE")
     if len(file_data) > _MAX_BYTES:
-        raise ValueError("FILE_TOO_LARGE")
+        raise ValidationError("FILE_TOO_LARGE")
 
 
 class ArtifactUploadService:
@@ -287,16 +288,16 @@ class ArtifactUploadService:
         Raises:
             ValueError: NOT_FOUND if artifact does not exist or belongs to
                 a different workspace/project.
-            PermissionError: FORBIDDEN if user does not own the artifact.
+            ForbiddenError: FORBIDDEN if user does not own the artifact.
         """
         artifact = await self._repo.get_by_id(artifact_id)
         if artifact is None:
-            raise ValueError("NOT_FOUND")
+            raise NotFoundError("NOT_FOUND")
         # Cross-workspace/project isolation: treat mismatched artifacts as not found
         if artifact.workspace_id != workspace_id or artifact.project_id != project_id:
-            raise ValueError("NOT_FOUND")
+            raise NotFoundError("NOT_FOUND")
         if artifact.user_id != user_id:
-            raise PermissionError("FORBIDDEN")
+            raise ForbiddenError("FORBIDDEN")
 
         await self._storage.delete_object(bucket=_BUCKET, key=artifact.storage_key)
         await self._repo.delete(artifact_id)

@@ -114,14 +114,16 @@ class TestInviteMember:
         user_repo: AsyncMock,
         workspace_repo: AsyncMock,
     ) -> None:
-        """User exists and is already a member -- raises ValueError."""
+        """User exists and is already a member -- raises ConflictError."""
+        from pilot_space.domain.exceptions import ConflictError
+
         # Arrange
         existing_user = UserFactory(email="member@example.com")
         user_repo.get_by_email.return_value = existing_user
         workspace_repo.is_member.return_value = True
 
         # Act & Assert
-        with pytest.raises(ValueError, match="already a member"):
+        with pytest.raises(ConflictError):
             await workspace_service.invite_member(
                 workspace_id=uuid4(),
                 email="member@example.com",
@@ -171,13 +173,15 @@ class TestInviteMember:
         user_repo: AsyncMock,
         invitation_repo: AsyncMock,
     ) -> None:
-        """User does not exist, pending invitation exists -- raises ValueError."""
+        """User does not exist, pending invitation exists -- raises ConflictError."""
+        from pilot_space.domain.exceptions import ConflictError
+
         # Arrange
         user_repo.get_by_email.return_value = None
         invitation_repo.exists_pending.return_value = True
 
         # Act & Assert
-        with pytest.raises(ValueError, match="already pending"):
+        with pytest.raises(ConflictError):
             await workspace_service.invite_member(
                 workspace_id=uuid4(),
                 email="pending@example.com",

@@ -11,7 +11,7 @@ import time
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
 from pilot_space.api.v1.schemas.ai_configuration import (
@@ -25,6 +25,7 @@ from pilot_space.api.v1.schemas.ai_configuration import (
 )
 from pilot_space.api.v1.schemas.base import DeleteResponse
 from pilot_space.dependencies import CurrentUser, DbSession
+from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.ai_configuration import (
     AIConfiguration,
     LLMProvider,
@@ -35,7 +36,6 @@ from pilot_space.infrastructure.database.repositories.ai_configuration_repositor
 )
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.encryption import (
-    EncryptionError,
     decrypt_api_key,
     encrypt_api_key,
 )
@@ -82,26 +82,17 @@ async def _verify_workspace_membership(
     # MissingGreenlet errors when iterating workspace.members in async context.
     workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
 
     member = next(
         (m for m in (workspace.members or []) if m.user_id == user_id and not m.is_deleted),
         None,
     )
     if not member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+        raise ForbiddenError("Not a member of this workspace")
 
     if require_admin and member.role not in (WorkspaceRole.ADMIN, WorkspaceRole.OWNER):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required for this operation",
-        )
+        raise ForbiddenError("Admin role required for this operation")
 
     return member.role
 
@@ -199,20 +190,10 @@ async def create_ai_configuration(
     # Check if provider already exists for this workspace
     existing = await ai_config_repo.get_by_workspace_and_provider(workspace_id, request.provider)
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Configuration for provider '{request.provider.value}' already exists",
-        )
+        raise ConflictError(f"Configuration for provider '{request.provider.value}' already exists")
 
     # Encrypt the API key
-    try:
-        encrypted_key = encrypt_api_key(request.api_key)
-    except EncryptionError as e:
-        logger.exception("Failed to encrypt API key")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to securely store API key",
-        ) from e
+    encrypted_key = encrypt_api_key(request.api_key)
 
     # Create configuration
     config = AIConfiguration(
@@ -329,10 +310,7 @@ async def get_ai_configuration(
 
     config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
     if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="AI configuration not found",
-        )
+        raise NotFoundError("AI configuration not found")
 
     return _config_to_response(config)
 
@@ -376,10 +354,7 @@ async def update_ai_configuration(
 
     config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
     if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="AI configuration not found",
-        )
+        raise NotFoundError("AI configuration not found")
 
     # Apply updates
     update_data = request.model_dump(exclude_unset=True)
@@ -388,14 +363,7 @@ async def update_ai_configuration(
     if "api_key" in update_data:
         api_key = update_data.pop("api_key")
         if api_key:
-            try:
-                config.api_key_encrypted = encrypt_api_key(api_key)
-            except EncryptionError as e:
-                logger.exception("Failed to encrypt API key")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to securely store API key",
-                ) from e
+            config.api_key_encrypted = encrypt_api_key(api_key)
 
     # Apply remaining updates
     for key, value in update_data.items():
@@ -452,10 +420,7 @@ async def delete_ai_configuration(
 
     config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
     if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="AI configuration not found",
-        )
+        raise NotFoundError("AI configuration not found")
 
     await ai_config_repo.delete(config)
     await session.commit()
@@ -509,12 +474,11 @@ async def test_ai_configuration(
 
     config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
     if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="AI configuration not found",
-        )
+        raise NotFoundError("AI configuration not found")
 
     # Decrypt API key for testing
+    from pilot_space.infrastructure.encryption import EncryptionError
+
     try:
         api_key = decrypt_api_key(config.api_key_encrypted)
     except EncryptionError:

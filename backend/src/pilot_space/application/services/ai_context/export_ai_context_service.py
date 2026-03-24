@@ -16,6 +16,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -112,7 +113,7 @@ class ExportAIContextService:
             ExportAIContextResult with exported content.
 
         Raises:
-            ValueError: If context or issue not found.
+            NotFoundError: If context, issue, or plan not found.
         """
         logger.info(
             "Exporting AI context",
@@ -125,12 +126,12 @@ class ExportAIContextService:
         # Get context
         context = await self._context_repo.get_by_issue_id(payload.issue_id)
         if not context:
-            raise ValueError(f"AI context not found for issue: {payload.issue_id}")
+            raise NotFoundError(f"AI context not found for issue: {payload.issue_id}")
 
         # Get issue
         issue = await self._issue_repo.get_by_id_with_relations(payload.issue_id)
         if not issue:
-            raise ValueError(f"Issue not found: {payload.issue_id}")
+            raise NotFoundError(f"Issue not found: {payload.issue_id}")
 
         # Export based on format
         if payload.format == ExportFormat.MARKDOWN:
@@ -145,7 +146,7 @@ class ExportAIContextService:
             context_content = getattr(context, "content", {}) or {}
             plan = context_content.get("implementation_plan", "")
             if not plan:
-                raise ValueError(
+                raise NotFoundError(
                     "No implementation plan found. Generate an implementation plan first."
                 )
             content = plan

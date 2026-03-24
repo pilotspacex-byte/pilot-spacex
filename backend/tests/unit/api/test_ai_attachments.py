@@ -21,6 +21,7 @@ from pilot_space.api.v1.routers.ai_attachments import (
     delete_attachment,
     upload_attachment,
 )
+from pilot_space.domain.exceptions import ForbiddenError
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 
 pytestmark = pytest.mark.asyncio
@@ -248,33 +249,33 @@ class TestDeleteEndpoint:
 
     async def test_delete_not_found_returns_404(self) -> None:
         """Unknown attachment_id → 404 NOT_FOUND."""
-        svc = AsyncMock()
-        svc.delete = AsyncMock(side_effect=ValueError("NOT_FOUND"))
+        from pilot_space.domain.exceptions import NotFoundError
 
-        with pytest.raises(HTTPException) as exc_info:
+        svc = AsyncMock()
+        svc.delete = AsyncMock(side_effect=NotFoundError("NOT_FOUND"))
+
+        with pytest.raises(NotFoundError) as exc_info:
             await delete_attachment(
                 attachment_id=uuid4(),
                 user_id=TEST_USER_ID,
                 upload_service=svc,
             )
 
-        assert exc_info.value.status_code == 404
-        assert exc_info.value.detail["code"] == "NOT_FOUND"
+        assert exc_info.value.http_status == 404
 
     async def test_delete_other_user_attachment_returns_403(self) -> None:
         """Attachment owned by a different user → 403 FORBIDDEN."""
-        svc = AsyncMock()
-        svc.delete = AsyncMock(side_effect=PermissionError("FORBIDDEN"))
+        from pilot_space.domain.exceptions import ForbiddenError
 
-        with pytest.raises(HTTPException) as exc_info:
+        svc = AsyncMock()
+        svc.delete = AsyncMock(side_effect=ForbiddenError("FORBIDDEN"))
+
+        with pytest.raises(ForbiddenError):
             await delete_attachment(
                 attachment_id=TEST_ATTACHMENT_ID,
                 user_id=TEST_USER_ID,
                 upload_service=svc,
             )
-
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.detail["code"] == "FORBIDDEN"
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +292,7 @@ class TestGuestRestriction:
         upload_svc = _make_upload_service(return_record=_make_attachment_record())
         db = _make_db_session(WorkspaceRole.GUEST)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ForbiddenError) as exc_info:
             await upload_attachment(
                 file=file,
                 workspace_id=TEST_WORKSPACE_ID,
@@ -301,8 +302,8 @@ class TestGuestRestriction:
                 db=db,
             )
 
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.detail["code"] == "GUEST_NOT_ALLOWED"
+        assert exc_info.value.http_status == 403
+        assert exc_info.value.error_code == "GUEST_NOT_ALLOWED"
         # Confirm service was never invoked
         upload_svc.execute.assert_not_awaited()
 

@@ -15,7 +15,7 @@ from pilot_space.infrastructure.logging import get_logger
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Path, Query, status
 
 from pilot_space.api.v1.schemas.integration import (
     ConnectGitHubResponse,
@@ -29,6 +29,11 @@ from pilot_space.api.v1.schemas.integration import (
 )
 from pilot_space.config import get_settings
 from pilot_space.dependencies import CurrentUser, CurrentUserId, DbSession
+from pilot_space.domain.exceptions import (
+    NotFoundError,
+    ServiceUnavailableError,
+    ValidationError as DomainValidationError,
+)
 from pilot_space.infrastructure.database.models import IntegrationProvider
 from pilot_space.infrastructure.database.repositories import (
     IntegrationRepository,
@@ -69,7 +74,7 @@ async def _resolve_workspace_id(
         The workspace UUID.
 
     Raises:
-        HTTPException: If workspace not found.
+        NotFoundError: If workspace not found.
     """
     workspace_repo = WorkspaceRepository(session)
 
@@ -79,10 +84,7 @@ async def _resolve_workspace_id(
         workspace = await workspace_repo.get_by_slug(workspace_id_or_slug)
 
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
 
     return workspace.id
 
@@ -129,10 +131,7 @@ async def get_integration(
     integration = await repo.get_by_id(integration_id)
 
     if not integration:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
+        raise NotFoundError("Integration not found")
 
     return IntegrationResponse.from_integration(integration)
 
@@ -152,10 +151,7 @@ async def disconnect_integration(
     integration = await repo.get_by_id(integration_id)
 
     if not integration:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
+        raise NotFoundError("Integration not found")
 
     await repo.deactivate(integration_id)
     await session.commit()
@@ -188,10 +184,7 @@ async def get_github_authorize_url(
     settings = get_settings()
 
     if not settings.github_client_id:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="GitHub integration not configured",
-        )
+        raise ServiceUnavailableError("GitHub integration not configured")
 
     # Resolve workspace ID from slug if needed
     resolved_workspace_id = await _resolve_workspace_id(workspace_id, session)
@@ -232,25 +225,16 @@ async def github_oauth_callback(
     settings = get_settings()
 
     if not settings.github_client_id or not settings.github_client_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="GitHub integration not configured",
-        )
+        raise ServiceUnavailableError("GitHub integration not configured")
 
     # Parse workspace_id from state
     if not request.state:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing state parameter",
-        )
+        raise DomainValidationError("Missing state parameter")
 
     try:
         workspace_id = UUID(request.state.split(":")[0])
     except (ValueError, IndexError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid state parameter",
-        ) from e
+        raise DomainValidationError("Invalid state parameter") from e
 
     from pilot_space.application.services.integration import (
         ConnectGitHubPayload,
@@ -275,10 +259,7 @@ async def github_oauth_callback(
         )
     except Exception as e:
         logger.exception("GitHub OAuth failed")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+        raise ServiceUnavailableError(str(e)) from e
 
     await session.commit()
 
@@ -310,22 +291,13 @@ async def list_github_repos(
     integration = await repo.get_by_id(integration_id)
 
     if not integration:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
+        raise NotFoundError("Integration not found")
 
     if integration.provider != IntegrationProvider.GITHUB:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Not a GitHub integration",
-        )
+        raise DomainValidationError("Not a GitHub integration")
 
     if not integration.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Integration is not active",
-        )
+        raise DomainValidationError("Integration is not active")
 
     from pilot_space.integrations.github import GitHubClient
 
@@ -335,10 +307,7 @@ async def list_github_repos(
             repos = await client.get_repos()
         except Exception as e:
             logger.exception("Failed to fetch repos")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to fetch repositories: {e}",
-            ) from e
+            raise ServiceUnavailableError(f"Failed to fetch repositories: {e}") from e
 
     return GitHubRepositoriesResponse(
         items=[
@@ -375,16 +344,10 @@ async def setup_github_webhook(
     integration = await integration_repo.get_by_id(integration_id)
 
     if not integration:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
+        raise NotFoundError("Integration not found")
 
     if not settings.github_webhook_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Webhook secret not configured",
-        )
+        raise ServiceUnavailableError("Webhook secret not configured")
 
     # Determine webhook URL
     webhook_url = f"{settings.supabase_url.rstrip('/')}/api/v1/webhooks/github"
@@ -402,10 +365,7 @@ async def setup_github_webhook(
             )
         except Exception as e:
             logger.exception("Failed to create webhook")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to create webhook: {e}",
-            ) from e
+            raise ServiceUnavailableError(f"Failed to create webhook: {e}") from e
 
     return WebhookSetupResponse(
         hook_id=hook["id"],
@@ -437,10 +397,7 @@ async def list_workspace_github_repos(
     integration = await repo.get_active_github(resolved_id)
 
     if not integration:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active GitHub integration found for this workspace",
-        )
+        raise NotFoundError("No active GitHub integration found for this workspace")
 
     from pilot_space.integrations.github import GitHubClient
 
@@ -450,10 +407,7 @@ async def list_workspace_github_repos(
             repos = await client.get_repos()
         except Exception as e:
             logger.exception("Failed to fetch repos for workspace %s", workspace_id)
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to fetch repositories: {e}",
-            ) from e
+            raise ServiceUnavailableError(f"Failed to fetch repositories: {e}") from e
 
     return GitHubRepositoriesResponse(
         items=[
@@ -489,10 +443,7 @@ async def disconnect_workspace_github(
     integration = await repo.get_active_github(resolved_id)
 
     if not integration:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active GitHub integration found for this workspace",
-        )
+        raise NotFoundError("No active GitHub integration found for this workspace")
 
     await repo.deactivate(integration.id)
     await session.commit()

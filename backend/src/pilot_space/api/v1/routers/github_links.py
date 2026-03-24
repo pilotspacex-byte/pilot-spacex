@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Path, Query, Request, status
 
 from pilot_space.api.v1.schemas.integration import (
     CreateBranchRequest,
@@ -25,11 +25,11 @@ from pilot_space.api.v1.schemas.pr_review import (
     TriggerReviewResponse,
 )
 from pilot_space.application.services.integration import (
-    CreateBranchError,
     CreateBranchPayload,
     CreateBranchService,
 )
 from pilot_space.dependencies import CurrentUser, CurrentUserId, DbSession
+from pilot_space.domain.exceptions import NotFoundError, ServiceUnavailableError
 from pilot_space.infrastructure.database.repositories import (
     ActivityRepository,
     IntegrationLinkRepository,
@@ -87,7 +87,7 @@ async def link_commit_to_issue(
     issue_repo = IssueRepository(session)
     issue = await issue_repo.get_by_id_with_relations(issue_id)
     if not issue:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
 
     from pilot_space.application.services.integration import LinkCommitPayload, LinkCommitService
 
@@ -112,7 +112,7 @@ async def link_commit_to_issue(
         )
     except Exception as e:
         logger.exception("Failed to link commit")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        raise ServiceUnavailableError(str(e)) from e
 
     await session.commit()
     return IntegrationLinkResponse.model_validate(result.link)
@@ -136,7 +136,7 @@ async def link_pr_to_issue(
     issue_repo = IssueRepository(session)
     issue = await issue_repo.get_by_id_with_relations(issue_id)
     if not issue:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
 
     from pilot_space.application.services.integration import (
         LinkCommitService,
@@ -164,7 +164,7 @@ async def link_pr_to_issue(
         )
     except Exception as e:
         logger.exception("Failed to link PR")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        raise ServiceUnavailableError(str(e)) from e
 
     await session.commit()
     return IntegrationLinkResponse.model_validate(result.link)
@@ -208,7 +208,7 @@ async def trigger_pr_review(
     integration = await integration_repo.get_by_id(integration_id)
 
     if not integration:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+        raise NotFoundError("Integration not found")
 
     workspace_id = integration.workspace_id
     correlation_id = request.headers.get("X-Correlation-ID", "")
@@ -220,39 +220,27 @@ async def trigger_pr_review(
     queue_client = container.queue_client()
 
     if not queue_client:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Queue service not configured",
-        )
+        raise ServiceUnavailableError("Queue service not configured")
 
-    try:
-        service = TriggerPRReviewService(
-            session=session,
-            queue_client=queue_client,
-            integration_repo=integration_repo,
-            cache_client=container.redis_client() if container.redis_client else None,
+    service = TriggerPRReviewService(
+        session=session,
+        queue_client=queue_client,
+        integration_repo=integration_repo,
+        cache_client=container.redis_client() if container.redis_client else None,
+    )
+    result = await service.execute(
+        TriggerPRReviewPayload(
+            workspace_id=workspace_id,
+            integration_id=integration_id,
+            repository=review_request.repository,
+            pr_number=pr_number,
+            user_id=current_user_id,
+            correlation_id=correlation_id,
+            post_comments=review_request.post_comments,
+            post_summary=review_request.post_summary,
+            project_context=review_request.project_context,
         )
-        result = await service.execute(
-            TriggerPRReviewPayload(
-                workspace_id=workspace_id,
-                integration_id=integration_id,
-                repository=review_request.repository,
-                pr_number=pr_number,
-                user_id=current_user_id,
-                correlation_id=correlation_id,
-                post_comments=review_request.post_comments,
-                post_summary=review_request.post_summary,
-                project_context=review_request.project_context,
-            )
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    except Exception as e:
-        logger.exception("Failed to trigger PR review")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to trigger PR review",
-        ) from e
+    )
 
     return TriggerReviewResponse(
         job_id=result.job_id,
@@ -294,7 +282,7 @@ async def create_branch_for_issue(
     integration_repo = IntegrationRepository(session)
     integration = await integration_repo.get_by_id(integration_id)
     if not integration:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+        raise NotFoundError("Integration not found")
 
     # Enforce RLS: user must belong to the integration's workspace.
     await set_rls_context(session, current_user_id, integration.workspace_id)
@@ -302,9 +290,9 @@ async def create_branch_for_issue(
     issue_repo = IssueRepository(session)
     issue = await issue_repo.get_by_id_with_relations(issue_id)
     if not issue:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
     if issue.workspace_id != integration.workspace_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
 
     service = CreateBranchService(
         session=session,
@@ -314,33 +302,17 @@ async def create_branch_for_issue(
         activity_repo=ActivityRepository(session),
     )
 
-    try:
-        result = await service.execute(
-            CreateBranchPayload(
-                workspace_id=issue.workspace_id,
-                issue_id=issue_id,
-                integration_id=integration_id,
-                repository=request.repository,
-                branch_name=request.branch_name,
-                base_branch=request.base_branch,
-                actor_id=current_user_id,
-            )
+    result = await service.execute(
+        CreateBranchPayload(
+            workspace_id=issue.workspace_id,
+            issue_id=issue_id,
+            integration_id=integration_id,
+            repository=request.repository,
+            branch_name=request.branch_name,
+            base_branch=request.base_branch,
+            actor_id=current_user_id,
         )
-    except ValueError as e:
-        # Duplicate branch link — surface message directly (safe, user-defined input).
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
-    except CreateBranchError as exc:
-        logger.exception("Branch creation failed for issue %s", issue_id)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to create branch. Verify the GitHub integration and repository access.",
-        ) from exc
-    except Exception as exc:
-        logger.exception("Unexpected error creating branch for issue %s", issue_id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred.",
-        ) from exc
+    )
 
     await session.commit()
     return IntegrationLinkResponse.model_validate(result.link)

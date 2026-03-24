@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.database.models import Activity, ActivityType
 from pilot_space.infrastructure.logging import get_logger
 
@@ -168,7 +169,7 @@ class ActivityService:
             ValueError: If comment is empty.
         """
         if not comment_text or not comment_text.strip():
-            raise ValueError("Comment text is required")
+            raise ValidationError("Comment text is required")
 
         return await self.create(
             CreateActivityPayload(

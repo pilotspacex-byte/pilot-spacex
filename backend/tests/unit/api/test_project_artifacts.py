@@ -16,7 +16,7 @@ Covers:
 - GET signed URL: returns 200 ArtifactUrlResponse with url and expires_in
 - DELETE: returns 204 (None)
 - GET URL: artifact.workspace_id != path workspace_id → 404
-- DELETE: service raises PermissionError("FORBIDDEN") → 403
+- DELETE: service raises ForbiddenError("FORBIDDEN") → 403
 
 Feature: v1.1 — Artifacts (ARTF-04, ARTF-05, ARTF-06)
 """
@@ -36,6 +36,7 @@ from pilot_space.api.v1.routers.project_artifacts import (
     list_artifacts,
     upload_artifact,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 
 pytestmark = pytest.mark.asyncio
 
@@ -263,9 +264,9 @@ class TestUploadEndpoint:
         assert exc_info.value.status_code == 413
         svc.upload.assert_not_awaited()
 
-    async def test_upload_disallowed_extension_returns_422_with_allowed_list(self) -> None:
-        """service raises ValueError("UNSUPPORTED_FILE_TYPE") → 422 with allowed_extensions in body."""
-        svc = _make_artifact_service(upload_raises=ValueError("UNSUPPORTED_FILE_TYPE"))
+    async def test_upload_disallowed_extension_raises_value_error(self) -> None:
+        """service raises ValueError("UNSUPPORTED_FILE_TYPE") → propagates to global handler."""
+        svc = _make_artifact_service(upload_raises=ValidationError("UNSUPPORTED_FILE_TYPE"))
         file = _make_upload_file(
             filename="malware.exe",
             content_type="application/octet-stream",
@@ -274,7 +275,7 @@ class TestUploadEndpoint:
         session = _make_session()
         current_user = _make_current_user()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ValidationError, match="UNSUPPORTED_FILE_TYPE"):
             await upload_artifact(
                 workspace_id=TEST_WORKSPACE_ID,
                 project_id=TEST_PROJECT_ID,
@@ -285,17 +286,9 @@ class TestUploadEndpoint:
                 artifact_service=svc,
             )
 
-        exc = exc_info.value
-        assert exc.status_code == 422
-        # RFC 7807 body must include allowed_extensions list
-        assert isinstance(exc.detail, dict)
-        assert "allowed_extensions" in exc.detail
-        assert isinstance(exc.detail["allowed_extensions"], list)
-        assert len(exc.detail["allowed_extensions"]) > 0
-
-    async def test_upload_empty_file_returns_422(self) -> None:
-        """service raises ValueError("EMPTY_FILE") → 422."""
-        svc = _make_artifact_service(upload_raises=ValueError("EMPTY_FILE"))
+    async def test_upload_empty_file_raises_value_error(self) -> None:
+        """service raises ValueError("EMPTY_FILE") → propagates to global handler."""
+        svc = _make_artifact_service(upload_raises=ValidationError("EMPTY_FILE"))
         file = _make_upload_file(
             filename="empty.py",
             content=b"",
@@ -305,7 +298,7 @@ class TestUploadEndpoint:
         session = _make_session()
         current_user = _make_current_user()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ValidationError, match="EMPTY_FILE"):
             await upload_artifact(
                 workspace_id=TEST_WORKSPACE_ID,
                 project_id=TEST_PROJECT_ID,
@@ -315,8 +308,6 @@ class TestUploadEndpoint:
                 _member=TEST_USER_ID,
                 artifact_service=svc,
             )
-
-        assert exc_info.value.status_code == 422
 
 
 # ===========================================================================
@@ -406,7 +397,7 @@ class TestGetArtifactUrl:
         session = _make_session()
         current_user = _make_current_user()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await get_artifact_url(
                 workspace_id=OTHER_WORKSPACE_ID,  # different workspace
                 project_id=TEST_PROJECT_ID,
@@ -418,7 +409,7 @@ class TestGetArtifactUrl:
                 storage_client=storage,
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     async def test_artifact_not_found_returns_404(self) -> None:
         """repo.get_by_id returns None → 404."""
@@ -427,7 +418,7 @@ class TestGetArtifactUrl:
         session = _make_session()
         current_user = _make_current_user()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await get_artifact_url(
                 workspace_id=TEST_WORKSPACE_ID,
                 project_id=TEST_PROJECT_ID,
@@ -439,7 +430,7 @@ class TestGetArtifactUrl:
                 storage_client=storage,
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 # ===========================================================================
@@ -474,13 +465,13 @@ class TestDeleteArtifact:
             project_id=TEST_PROJECT_ID,
         )
 
-    async def test_delete_forbidden_returns_403(self) -> None:
-        """service raises PermissionError("FORBIDDEN") → 403."""
-        svc = _make_artifact_service(delete_raises=PermissionError("FORBIDDEN"))
+    async def test_delete_forbidden_raises_forbidden_error(self) -> None:
+        """service raises ForbiddenError("FORBIDDEN") → propagates to global handler."""
+        svc = _make_artifact_service(delete_raises=ForbiddenError("FORBIDDEN"))
         session = _make_session()
         current_user = _make_current_user()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ForbiddenError):
             await delete_artifact(
                 workspace_id=TEST_WORKSPACE_ID,
                 project_id=TEST_PROJECT_ID,
@@ -491,15 +482,13 @@ class TestDeleteArtifact:
                 artifact_service=svc,
             )
 
-        assert exc_info.value.status_code == 403
-
-    async def test_delete_not_found_returns_404(self) -> None:
-        """service raises ValueError("NOT_FOUND") → 404."""
+    async def test_delete_not_found_raises_value_error(self) -> None:
+        """service raises ValueError("NOT_FOUND") → propagates to global handler."""
         svc = _make_artifact_service(delete_raises=ValueError("NOT_FOUND"))
         session = _make_session()
         current_user = _make_current_user()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ValueError, match="NOT_FOUND"):
             await delete_artifact(
                 workspace_id=TEST_WORKSPACE_ID,
                 project_id=TEST_PROJECT_ID,
@@ -509,8 +498,6 @@ class TestDeleteArtifact:
                 _member=TEST_USER_ID,
                 artifact_service=svc,
             )
-
-        assert exc_info.value.status_code == 404
 
 
 __all__: list[str] = []

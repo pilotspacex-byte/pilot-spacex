@@ -25,6 +25,7 @@ from uuid import UUID
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
 
+from pilot_space.domain.exceptions import ConflictError, NotFoundError, ValidationError
 from pilot_space.infrastructure.encryption import get_encryption_service
 
 if TYPE_CHECKING:
@@ -44,14 +45,14 @@ def validate_workspace_key(raw_key: str) -> None:
             message directing the user to use the Generate Key button.
     """
     if not raw_key:
-        raise ValueError(
+        raise ValidationError(
             "Key must be a 32-byte URL-safe base64 string. "
             "Use the Generate Key button to create a valid key."
         )
     try:
         Fernet(raw_key.encode())
     except Exception as exc:
-        raise ValueError(
+        raise ValidationError(
             "Key must be a 32-byte URL-safe base64 string. "
             "Use the Generate Key button to create a valid key."
         ) from exc
@@ -283,7 +284,7 @@ async def rotate_workspace_key(
 
     if key_record is None:
         msg = "No encryption key configured for this workspace. Cannot rotate."
-        raise ValueError(msg)
+        raise NotFoundError(msg)
 
     # Retrieve old raw key before upsert overwrites it
     old_raw_key = retrieve_workspace_key(key_record.encrypted_workspace_key)
@@ -340,7 +341,7 @@ async def rotate_workspace_key(
             "Previous key has NOT been cleared. Investigate undecryptable content before retrying."
         )
         logger.error(msg)
-        raise ValueError(msg)
+        raise ConflictError(msg)
 
     # Clear previous key -- rotation complete
     await repo.clear_previous_key(workspace_id)

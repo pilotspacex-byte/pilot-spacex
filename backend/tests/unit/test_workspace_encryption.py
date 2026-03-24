@@ -9,6 +9,8 @@ from __future__ import annotations
 import pytest
 from cryptography.fernet import Fernet, InvalidToken
 
+from pilot_space.domain.exceptions import ValidationError
+
 
 @pytest.mark.asyncio
 async def test_workspace_key_stored_encrypted_with_master_key() -> None:
@@ -62,21 +64,21 @@ async def test_content_round_trip_encryption() -> None:
 
 @pytest.mark.asyncio
 async def test_invalid_key_format_raises_value_error() -> None:
-    """Non-Fernet key format raises ValueError with actionable message.
+    """Non-Fernet key format raises ValidationError with actionable message.
 
     Valid Fernet key: URL-safe base64, 32 bytes when decoded.
     Invalid examples: "not-a-key", "deadbeef" * 8, empty string.
-    Expected: ValueError with "invalid_key_format" or descriptive message.
+    Expected: ValidationError with "invalid_key_format" or descriptive message.
     """
     from pilot_space.infrastructure.workspace_encryption import validate_workspace_key
 
-    with pytest.raises(ValueError, match="32-byte"):
+    with pytest.raises(ValidationError, match="32-byte"):
         validate_workspace_key("not-a-valid-key")
 
-    with pytest.raises(ValueError, match="32-byte"):
+    with pytest.raises(ValidationError, match="32-byte"):
         validate_workspace_key("deadbeef" * 8)
 
-    with pytest.raises(ValueError, match="32-byte"):
+    with pytest.raises(ValidationError, match="32-byte"):
         validate_workspace_key("")
 
 

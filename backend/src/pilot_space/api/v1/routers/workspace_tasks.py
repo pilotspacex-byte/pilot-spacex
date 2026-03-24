@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Path, Query, status
 
 from pilot_space.api.v1.dependencies import TaskServiceDep, WorkspaceRepositoryDep
 from pilot_space.api.v1.schemas.task import (
@@ -29,6 +29,7 @@ from pilot_space.api.v1.schemas.task import (
 )
 from pilot_space.dependencies import SyncedUserId
 from pilot_space.dependencies.auth import SessionDep
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -66,10 +67,7 @@ async def _resolve_workspace(
         workspace = await workspace_repo.get_by_slug_scalar(workspace_id_or_slug)
 
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
     return workspace
 
 
@@ -139,10 +137,7 @@ async def create_task(
         dependency_ids=[str(d) for d in request.dependency_ids] if request.dependency_ids else None,
     )
 
-    try:
-        task = await service.create_task(payload)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    task = await service.create_task(payload)
 
     return TaskResponse.from_task(task)
 
@@ -184,10 +179,7 @@ async def update_task(
         clear_code_references=request.clear_code_references,
     )
 
-    try:
-        task = await service.update_task(payload)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    task = await service.update_task(payload)
 
     return TaskResponse.from_task(task)
 
@@ -209,10 +201,7 @@ async def delete_task(
     """Soft-delete a task."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    try:
-        await service.delete_task(task_id, workspace.id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    await service.delete_task(task_id, workspace.id)
 
 
 @router.patch(
@@ -233,10 +222,7 @@ async def update_task_status(
     """Update task status (todo/in_progress/done)."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    try:
-        task = await service.update_status(task_id, workspace.id, request.status)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    task = await service.update_status(task_id, workspace.id, request.status)
 
     return TaskResponse.from_task(task)
 
@@ -259,10 +245,7 @@ async def reorder_tasks(
     """Reorder tasks for an issue."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    try:
-        tasks = await service.reorder_tasks(issue_id, workspace.id, request.task_ids)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    tasks = await service.reorder_tasks(issue_id, workspace.id, request.task_ids)
 
     total = len(tasks)
     completed = sum(1 for t in tasks if t.status.value == "done")
@@ -302,10 +285,7 @@ async def export_context(
     """Export issue context with tasks in various formats."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    try:
-        result = await service.export_context(issue_id, workspace.id, export_format)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    result = await service.export_context(issue_id, workspace.id, export_format)
 
     return ContextExportResponse(
         content=result["content"],

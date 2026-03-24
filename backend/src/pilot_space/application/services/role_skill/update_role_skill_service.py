@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -57,7 +58,8 @@ class UpdateRoleSkillService:
             Updated UserRoleSkill entity.
 
         Raises:
-            ValueError: If skill not found or user doesn't own it.
+            NotFoundError: If skill not found.
+            ForbiddenError: If user doesn't own the skill or workspace mismatch.
         """
         from pilot_space.infrastructure.database.repositories.role_skill_repository import (
             RoleSkillRepository,
@@ -68,16 +70,16 @@ class UpdateRoleSkillService:
         skill = await repo.get_by_id(payload.skill_id)
         if skill is None or skill.is_deleted:
             msg = "Role skill not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Ownership check (defense-in-depth alongside RLS)
         if skill.user_id != payload.user_id:
             msg = "Not authorized to update this skill"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         if skill.workspace_id != payload.workspace_id:
             msg = "Skill does not belong to this workspace"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         # Handle primary demotion before update
         if payload.is_primary is True and not skill.is_primary:

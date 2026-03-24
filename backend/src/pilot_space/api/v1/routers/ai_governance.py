@@ -21,7 +21,7 @@ import uuid
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, Path, status
 from pydantic import BaseModel
 
 from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
@@ -37,6 +37,7 @@ from pilot_space.application.services.note.update_note_service import (
 )
 from pilot_space.config import get_settings
 from pilot_space.dependencies.auth import CurrentUser, SessionDep
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import IssuePriority
 from pilot_space.infrastructure.database.models.audit_log import ActorType, AuditLog
 from pilot_space.infrastructure.database.permissions import check_permission
@@ -120,10 +121,7 @@ async def _resolve_workspace(
         workspace = await workspace_repo.get_by_slug_scalar(workspace_slug)
 
     if workspace is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
     return workspace.id  # type: ignore[return-value]
 
 
@@ -150,10 +148,7 @@ async def _require_admin_or_owner(
         action="read",
     )
     if not allowed:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or owner access required",
-        )
+        raise ForbiddenError("Admin or owner access required")
 
 
 async def _require_owner(
@@ -179,10 +174,7 @@ async def _require_owner(
         action="manage",
     )
     if not allowed:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner access required",
-        )
+        raise ForbiddenError("Owner access required")
 
 
 def _is_rollback_eligible(entry: AuditLog) -> bool:
@@ -226,10 +218,7 @@ async def _dispatch_rollback(
         HTTPException: 422 if resource_type not supported.
     """
     if resource_type not in _ROLLBACK_RESOURCE_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Rollback not supported for resource_type '{resource_type}'.",
-        )
+        raise ValidationError(f"Rollback not supported for resource_type '{resource_type}'.")
 
     if resource_type == "issue":
         await _rollback_issue(resource_id, before_state, session)
@@ -380,10 +369,7 @@ async def set_ai_policy(
         HTTPException: 400 if role is OWNER. 403 if user is not owner.
     """
     if role.upper() == "OWNER":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Owner role policy is not configurable.",
-        )
+        raise ValidationError("Owner role policy is not configurable.")
 
     workspace_id = await _resolve_workspace(workspace_slug, session)
     await _require_owner(session, current_user.user_id, workspace_id)
@@ -511,28 +497,19 @@ async def rollback_ai_artifact(
     audit_repo = AuditLogRepository(session)
     entry = await audit_repo.get_by_id(entry_id)
     if entry is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Audit entry not found.",
-        )
+        raise NotFoundError("Audit entry not found.")
 
     if not _is_rollback_eligible(entry):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Entry is not rollback-eligible. "
-                "Rollback applies only to AI create/update actions on supported resource types."
-            ),
+        raise ValidationError(
+            "Entry is not rollback-eligible. "
+            "Rollback applies only to AI create/update actions on supported resource types."
         )
 
     before_state: dict = (entry.payload or {}).get("before") or {}  # type: ignore[assignment]
     current_state: dict = (entry.payload or {}).get("after") or {}  # type: ignore[assignment]
 
     if entry.resource_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Audit entry has no resource_id — cannot rollback.",
-        )
+        raise ValidationError("Audit entry has no resource_id — cannot rollback.")
     await _dispatch_rollback(entry.resource_type, entry.resource_id, before_state, session)
 
     # Record the rollback as a new immutable audit entry

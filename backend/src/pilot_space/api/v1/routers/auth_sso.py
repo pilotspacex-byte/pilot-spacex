@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Form, HTTPException, Query, Request, status
+from fastapi import APIRouter, Form, Query, Request, status
 from fastapi.responses import RedirectResponse, Response
 
 from pilot_space.api.v1.schemas.sso import (
@@ -39,7 +39,13 @@ from pilot_space.api.v1.schemas.sso import (
 from pilot_space.config import get_settings
 from pilot_space.dependencies import CurrentUser
 from pilot_space.dependencies.auth import SessionDep
-from pilot_space.infrastructure.auth.saml_auth import SamlAuthProvider, SamlValidationError
+from pilot_space.domain.exceptions import (
+    ForbiddenError,
+    NotFoundError,
+    ServiceUnavailableError,
+    ValidationError as DomainValidationError,
+)
+from pilot_space.infrastructure.auth.saml_auth import SamlAuthProvider
 from pilot_space.infrastructure.database.permissions import check_permission
 from pilot_space.infrastructure.database.repositories.audit_log_repository import (
     AuditLogRepository,
@@ -93,7 +99,7 @@ async def _resolve_workspace(workspace_slug: str, session: AsyncSession) -> UUID
     except ValueError:
         workspace = await workspace_repo.get_by_slug_scalar(workspace_slug)
     if workspace is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+        raise NotFoundError("Workspace not found")
     return workspace.id
 
 
@@ -110,9 +116,7 @@ async def _resolve_and_authorize(
     """
     workspace_id = await _resolve_workspace(workspace_slug, session)
     if not await check_permission(session, user_id, workspace_id, "settings", "manage"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
-        )
+        raise ForbiddenError("Insufficient permissions")
     return workspace_id
 
 
@@ -150,10 +154,7 @@ async def configure_saml(
 
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="SSO service unavailable",
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
     config = {
         "entity_id": body.entity_id,
@@ -162,15 +163,8 @@ async def configure_saml(
         "name_id_format": body.name_id_format,
     }
 
-    try:
-        await sso_service.configure_saml(workspace_id, config)
-        await session.commit()
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+    await sso_service.configure_saml(workspace_id, config)
+    await session.commit()
 
     return _saml_config_response(workspace_id, body.entity_id, str(body.sso_url))
 
@@ -190,15 +184,11 @@ async def get_saml_config(
 
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
     config = await sso_service.get_saml_config(workspace_id)
     if config is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="SAML not configured for this workspace"
-        )
+        raise NotFoundError("SAML not configured for this workspace")
 
     return _saml_config_response(workspace_id, config["entity_id"], config["sso_url"])
 
@@ -225,26 +215,14 @@ async def initiate_saml_login(
     """
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
     idp_config = await sso_service.get_saml_config(workspace_id)
     if not idp_config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="SAML not configured for this workspace",
-        )
+        raise NotFoundError("SAML not configured for this workspace")
 
-    try:
-        provider = _get_saml_provider()
-        redirect_url = provider.get_login_url(request, idp_config, return_to)
-    except SamlValidationError as exc:
-        logger.warning("saml_initiate_failed", workspace_id=str(workspace_id), error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to build SAML login URL",
-        ) from exc
+    provider = _get_saml_provider()
+    redirect_url = provider.get_login_url(request, idp_config, return_to)
 
     return SsoInitiateResponse(redirect_url=redirect_url)
 
@@ -267,24 +245,13 @@ async def saml_callback(
     """
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
     idp_config = await sso_service.get_saml_config(workspace_id)
     if not idp_config:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="SAML not configured for this workspace"
-        )
+        raise NotFoundError("SAML not configured for this workspace")
     post_data = {"SAMLResponse": SAMLResponse, "RelayState": RelayState}
-    try:
-        provider = _get_saml_provider()
-        result = provider.process_response(request, post_data, idp_config)
-    except SamlValidationError as exc:
-        logger.warning("saml_callback_invalid", workspace_id=str(workspace_id), error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"SAML assertion validation failed: {exc}",
-        ) from exc
+    provider = _get_saml_provider()
+    result = provider.process_response(request, post_data, idp_config)
     # Extract email from SAML attributes or name_id
     name_id: str = result.get("name_id") or ""
     attributes: dict[str, list[str]] = result.get("attributes") or {}
@@ -293,9 +260,7 @@ async def saml_callback(
     )
     email = (email_attrs[0] if email_attrs else None) or name_id
     if not email or "@" not in email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="SAML assertion missing email attribute"
-        )
+        raise DomainValidationError("SAML assertion missing email attribute")
     display_name_attrs = (
         attributes.get("displayName") or attributes.get("name") or attributes.get("cn") or []
     )
@@ -309,9 +274,7 @@ async def saml_callback(
         await session.commit()
     except RuntimeError as exc:
         logger.exception("saml_user_provision_failed", email=email, workspace_id=str(workspace_id))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to provision user"
-        ) from exc
+        raise ServiceUnavailableError("Failed to provision user") from exc
     _ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or None
     try:
         await set_rls_context(session, UUID(str(user_info["user_id"])), workspace_id)
@@ -354,24 +317,14 @@ async def get_sp_metadata(
     """
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
     idp_config = await sso_service.get_saml_config(workspace_id)
     if not idp_config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="SAML not configured for this workspace"
-        )
+        raise NotFoundError("SAML not configured for this workspace")
 
-    try:
-        provider = _get_saml_provider()
-        metadata_xml = provider.get_metadata_xml(idp_config)
-    except SamlValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate SP metadata",
-        ) from exc
+    provider = _get_saml_provider()
+    metadata_xml = provider.get_metadata_xml(idp_config)
 
     return Response(content=metadata_xml, media_type="application/xml")
 
@@ -397,9 +350,7 @@ async def configure_oidc(
 
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
     config = {
         "provider": body.provider,
@@ -408,11 +359,8 @@ async def configure_oidc(
         "issuer_url": str(body.issuer_url) if body.issuer_url else None,
     }
 
-    try:
-        await sso_service.configure_oidc(workspace_id, config)
-        await session.commit()
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    await sso_service.configure_oidc(workspace_id, config)
+    await session.commit()
 
     return OidcConfigResponse(
         provider=body.provider,
@@ -437,15 +385,11 @@ async def get_oidc_config(
 
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
     config = await sso_service.get_oidc_config(workspace_id)
     if config is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="OIDC not configured for this workspace"
-        )
+        raise NotFoundError("OIDC not configured for this workspace")
 
     return OidcConfigResponse(
         provider=config["provider"],
@@ -476,15 +420,10 @@ async def set_sso_enforcement(
 
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
-    try:
-        await sso_service.set_sso_required(workspace_id, required=body.sso_required)
-        await session.commit()
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    await sso_service.set_sso_required(workspace_id, required=body.sso_required)
+    await session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -572,9 +511,8 @@ async def check_sso_login_allowed(
 
     sso_status = await sso_service.get_sso_status(workspace_id)
     if sso_status.get("sso_required"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This workspace requires SSO login. Use your identity provider account.",
+        raise ForbiddenError(
+            "This workspace requires SSO login. Use your identity provider account."
         )
 
     return {"password_login_allowed": True}
@@ -601,19 +539,14 @@ async def configure_role_claim_mapping(
 
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
-    try:
-        await sso_service.configure_role_claim_mapping(
-            workspace_id,
-            claim_key=body.claim_key,
-            mappings=body.mappings,
-        )
-        await session.commit()
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    await sso_service.configure_role_claim_mapping(
+        workspace_id,
+        claim_key=body.claim_key,
+        mappings=body.mappings,
+    )
+    await session.commit()
 
     return {"status": "ok"}
 
@@ -632,9 +565,7 @@ async def get_role_claim_mapping(
 
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
     config = await sso_service.get_role_claim_mapping(workspace_id)
     if config is None:
@@ -679,19 +610,14 @@ async def claim_sso_role(
     """
     sso_service = _get_sso_service()
     if sso_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="SSO service unavailable"
-        )
+        raise ServiceUnavailableError("SSO service unavailable")
 
-    try:
-        member = await sso_service.apply_sso_role(
-            user_id=current_user.user_id,
-            workspace_id=body.workspace_id,
-            jwt_claims=body.jwt_claims,
-        )
-        await session.commit()
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    member = await sso_service.apply_sso_role(
+        user_id=current_user.user_id,
+        workspace_id=body.workspace_id,
+        jwt_claims=body.jwt_claims,
+    )
+    await session.commit()
 
     logger.info(
         "sso_claim_role_applied",

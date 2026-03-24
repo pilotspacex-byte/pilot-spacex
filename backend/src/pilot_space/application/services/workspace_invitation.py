@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -103,7 +104,7 @@ class WorkspaceInvitationService:
         workspace = await self.workspace_repo.get_with_members(payload.workspace_id)
         if not workspace:
             msg = "Workspace not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Check admin/owner role
         current_member = next(
@@ -112,7 +113,7 @@ class WorkspaceInvitationService:
         )
         if not current_member or not current_member.is_admin:
             msg = "Admin role required"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         invitations = await self.invitation_repo.get_by_workspace(payload.workspace_id)
 
@@ -139,7 +140,7 @@ class WorkspaceInvitationService:
         workspace = await self.workspace_repo.get_with_members(payload.workspace_id)
         if not workspace:
             msg = "Workspace not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Check admin/owner role
         current_member = next(
@@ -148,18 +149,18 @@ class WorkspaceInvitationService:
         )
         if not current_member or not current_member.is_admin:
             msg = "Admin role required"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         # Cancel invitation
         cancelled_invitation = await self.invitation_repo.cancel(payload.invitation_id)
         if cancelled_invitation is None:
             msg = "Invitation not found or already processed"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # H-5 fix: verify invitation belongs to this workspace (cross-workspace security)
         if cancelled_invitation.workspace_id != payload.workspace_id:
             msg = "Invitation not found or already processed"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         logger.info(
             "Invitation cancelled",

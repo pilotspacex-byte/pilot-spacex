@@ -31,6 +31,7 @@ from pilot_space.api.v1.schemas.attachments import (
 from pilot_space.config import Settings, get_settings
 from pilot_space.dependencies.auth import CurrentUserId, DbSession
 from pilot_space.dependencies.services import DriveFileServiceDep, DriveOAuthServiceDep
+from pilot_space.domain.exceptions import ForbiddenError
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceMember
 from pilot_space.infrastructure.logging import get_logger
 
@@ -88,10 +89,7 @@ async def get_drive_auth_url(
         HTTPException 403: When the user has the ``guest`` role.
     """
     if user_role == "guest":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "FORBIDDEN", "message": "Guests cannot connect Google Drive"},
-        )
+        raise ForbiddenError("Guests cannot connect Google Drive")
     return await drive_service.get_auth_url(
         workspace_id=workspace_id,
         redirect_uri=redirect_uri,

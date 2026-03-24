@@ -169,13 +169,13 @@ async def test_put_ai_policy_creates_row(gov_client: AsyncClient) -> None:
 
 
 async def test_put_ai_policy_owner_role_rejected(gov_client: AsyncClient) -> None:
-    """PUT /workspaces/{slug}/settings/ai-policy/OWNER/... returns 400."""
+    """PUT /workspaces/{slug}/settings/ai-policy/OWNER/... returns 422."""
     response = await gov_client.put(
         f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-policy/OWNER/extract_issues",
         json={"requires_approval": True},
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 422
     assert "not configurable" in response.json()["detail"].lower()
 
 
@@ -263,7 +263,7 @@ async def test_rollback_eligible_entry(gov_client: AsyncClient) -> None:
 
 
 async def test_rollback_ineligible_entry_rejected(gov_client: AsyncClient) -> None:
-    """POST /audit/{id}/rollback on USER entry returns 400."""
+    """POST /audit/{id}/rollback on USER entry returns 422."""
     entry = _make_audit_entry(ActorType.USER, "issue.create", "issue")
     entry_id = entry.id
 
@@ -275,7 +275,7 @@ async def test_rollback_ineligible_entry_rejected(gov_client: AsyncClient) -> No
             f"/api/v1/workspaces/{WORKSPACE_SLUG}/audit/{entry_id}/rollback"
         )
 
-    assert response.status_code == 400
+    assert response.status_code == 422
     assert "rollback" in response.json()["detail"].lower()
 
 

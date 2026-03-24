@@ -12,11 +12,12 @@ import json
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.dependencies import CurrentUserId, DbSession, SessionManagerDep
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
@@ -401,17 +402,11 @@ async def resume_session(
     session = await store.load_from_db(session_id)
 
     if not session:
-        raise HTTPException(
-            status_code=404,
-            detail="Session not found",
-        )
+        raise NotFoundError("Session not found")
 
     # Verify ownership
     if session.user_id != user_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied to this session",
-        )
+        raise ForbiddenError("Access denied to this session")
 
     # Paginate messages: offset=0 means latest messages
     # Messages are stored chronologically (oldest first), we want latest first for pagination
@@ -514,19 +509,13 @@ async def delete_session(
     # Verify ownership first (load from DB)
     session = await store.load_from_db(session_id)
     if session and session.user_id != user_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied to this session",
-        )
+        raise ForbiddenError("Access denied to this session")
 
     # Delete from both stores
     deleted = await store.delete_session(session_id)
 
     if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail="Session not found",
-        )
+        raise NotFoundError("Session not found")
 
     return {"message": "Session deleted successfully"}
 

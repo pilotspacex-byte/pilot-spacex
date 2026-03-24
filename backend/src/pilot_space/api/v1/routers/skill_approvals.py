@@ -18,13 +18,14 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Path, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.dependencies import CurrentUserId, DbSession
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.skill_execution import (
     SkillApprovalStatus,
     SkillExecution,
@@ -135,10 +136,7 @@ async def _verify_workspace_membership(
     row = result.scalar()
 
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+        raise ForbiddenError("Not a member of this workspace")
 
     role = row.value if hasattr(row, "value") else str(row)
 
@@ -146,10 +144,7 @@ async def _verify_workspace_membership(
         WorkspaceRole.ADMIN.value,
         WorkspaceRole.OWNER.value,
     ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or owner role required to approve this skill execution",
-        )
+        raise ForbiddenError("Admin or owner role required to approve this skill execution")
 
     return role
 
@@ -185,15 +180,11 @@ async def _get_execution_or_404(
     execution = result.scalar_one_or_none()
 
     if execution is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Skill execution {execution_id} not found in this workspace",
-        )
+        raise NotFoundError(f"Skill execution {execution_id} not found in this workspace")
 
     if execution.approval_status != SkillApprovalStatus.PENDING_APPROVAL:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Execution is in '{execution.approval_status.value}' state, not pending_approval",
+        raise ValidationError(
+            f"Execution is in '{execution.approval_status.value}' state, not pending_approval"
         )
 
     return execution

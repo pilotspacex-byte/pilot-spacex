@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
+
 if TYPE_CHECKING:
     from uuid import UUID
 
@@ -118,7 +120,7 @@ class NoteAIUpdateService:
         note = await self._note_repo.get_by_id(payload.note_id)
         if not note:
             msg = f"Note with ID {payload.note_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Route to operation handler
         if payload.operation == AIUpdateOperation.REPLACE_BLOCK:
@@ -128,7 +130,7 @@ class NoteAIUpdateService:
         if payload.operation == AIUpdateOperation.INSERT_INLINE_ISSUE:
             return await self._insert_inline_issue(note, payload)
         msg = f"Unknown operation: {payload.operation}"
-        raise ValueError(msg)
+        raise ValidationError(msg)
 
     async def _replace_block(
         self,
@@ -149,11 +151,11 @@ class NoteAIUpdateService:
         """
         if not payload.block_id:
             msg = "block_id is required for replace_block operation"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         if not payload.content:
             msg = "content is required for replace_block operation"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Find and replace the block
         content = note.content
@@ -173,7 +175,7 @@ class NoteAIUpdateService:
 
         if not replaced:
             msg = f"Block with ID {payload.block_id} not found in note {payload.note_id}"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Update note content
         updated_content = {"type": "doc", "content": new_blocks}
@@ -209,7 +211,7 @@ class NoteAIUpdateService:
         """
         if not payload.content:
             msg = "content is required for append_blocks operation"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Extract new blocks
         new_blocks_data = payload.content.get("blocks", [])
@@ -231,7 +233,7 @@ class NoteAIUpdateService:
 
             if insert_index == -1:
                 msg = f"Block with ID {payload.after_block_id} not found"
-                raise ValueError(msg)
+                raise NotFoundError(msg)
 
             new_blocks = blocks[:insert_index] + new_blocks_data + blocks[insert_index:]
         else:
@@ -279,11 +281,11 @@ class NoteAIUpdateService:
         """
         if not payload.block_id:
             msg = "block_id is required for insert_inline_issue operation"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         if not payload.issue_data:
             msg = "issue_data is required for insert_inline_issue operation"
-            raise ValueError(msg)
+            raise ValidationError(msg)
 
         # Find the target block
         content = note.content
@@ -306,7 +308,7 @@ class NoteAIUpdateService:
 
         if not found:
             msg = f"Block with ID {payload.block_id} not found in note {payload.note_id}"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         # Update note content
         updated_content = {"type": "doc", "content": new_blocks}

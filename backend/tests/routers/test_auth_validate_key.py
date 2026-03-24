@@ -15,6 +15,7 @@ import pytest
 from fastapi import status
 
 from pilot_space.application.services.auth import ValidateAPIKeyResult
+from pilot_space.domain.exceptions import UnauthorizedError
 
 pytestmark = pytest.mark.asyncio
 
@@ -114,8 +115,8 @@ class TestValidateAPIKeyEndpoint:
         validate_key_client: Any,
         mock_service: AsyncMock,
     ) -> None:
-        """Service raising ValueError maps to HTTP 401."""
-        mock_service.execute.side_effect = ValueError("invalid_api_key")
+        """Service raising UnauthorizedError maps to HTTP 401."""
+        mock_service.execute.side_effect = UnauthorizedError("invalid_api_key")
 
         response = await validate_key_client.post(
             _ENDPOINT,
@@ -129,8 +130,8 @@ class TestValidateAPIKeyEndpoint:
         validate_key_client: Any,
         mock_service: AsyncMock,
     ) -> None:
-        """Service raising ValueError for expired key maps to HTTP 401."""
-        mock_service.execute.side_effect = ValueError("expired_api_key")
+        """Service raising UnauthorizedError for expired key maps to HTTP 401."""
+        mock_service.execute.side_effect = UnauthorizedError("expired_api_key")
 
         response = await validate_key_client.post(
             _ENDPOINT,
@@ -167,7 +168,7 @@ class TestValidateAPIKeyEndpoint:
         mock_service: AsyncMock,
     ) -> None:
         """Error response body must not contain the raw API key value."""
-        mock_service.execute.side_effect = ValueError("invalid_api_key")
+        mock_service.execute.side_effect = UnauthorizedError("invalid_api_key")
         raw_key = "ps_super_secret_key"
 
         response = await validate_key_client.post(

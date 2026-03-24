@@ -15,6 +15,7 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select, text
 from sqlalchemy.exc import IntegrityError
 
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from pilot_space.domain.graph_node import GraphNode, NodeType
 from pilot_space.domain.graph_query import ScoredNode
@@ -151,7 +152,7 @@ class KnowledgeGraphRepository:
         )
         workspace_id = ws_result.scalar_one_or_none()
         if workspace_id is None:
-            raise ValueError(f"Source node {edge.source_id} not found or is deleted")
+            raise NotFoundError(f"Source node {edge.source_id} not found or is deleted")
 
         target_ws = (
             await self._session.execute(
@@ -162,7 +163,7 @@ class KnowledgeGraphRepository:
             )
         ).scalar_one_or_none()
         if target_ws != workspace_id:
-            raise ValueError(f"Target node {edge.target_id} not in same workspace or not found")
+            raise NotFoundError(f"Target node {edge.target_id} not in same workspace or not found")
 
         model = GraphEdgeModel(
             id=edge.id,

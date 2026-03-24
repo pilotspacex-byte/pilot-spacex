@@ -40,6 +40,7 @@ from pilot_space.application.services.intent.intent_service import (
     IntentService,
     RejectIntentPayload,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.domain.work_intent import IntentStatus
 from pilot_space.infrastructure.database.models.work_intent import (
     DedupStatus as DBDedupStatus,
@@ -224,7 +225,7 @@ async def test_confirm_intent_not_found(
     workspace: None,
 ) -> None:
     """Confirm raises ValueError when intent doesn't exist."""
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(NotFoundError, match="not found"):
         await intent_service.confirm(
             ConfirmIntentPayload(intent_id=uuid4(), workspace_id=workspace_id)
         )
@@ -243,7 +244,7 @@ async def test_confirm_intent_wrong_workspace(
     created = await intent_repo.create(model)
     await db_session.flush()
 
-    with pytest.raises(ValueError, match="does not belong"):
+    with pytest.raises(ForbiddenError, match="does not belong"):
         await intent_service.confirm(
             ConfirmIntentPayload(intent_id=created.id, workspace_id=uuid4())
         )
@@ -288,7 +289,7 @@ async def test_reject_already_rejected_raises(
     created = await intent_repo.create(model)
     await db_session.flush()
 
-    with pytest.raises(ValueError, match="Cannot transition"):
+    with pytest.raises(ValidationError, match="Cannot transition"):
         await intent_service.reject(
             RejectIntentPayload(intent_id=created.id, workspace_id=workspace_id)
         )
@@ -363,7 +364,7 @@ async def test_edit_confirmed_intent_raises(
     created = await intent_repo.create(model)
     await db_session.flush()
 
-    with pytest.raises(ValueError, match="Cannot update"):
+    with pytest.raises(ValidationError, match="Cannot update"):
         await intent_service.edit(
             EditIntentPayload(
                 intent_id=created.id,
@@ -837,7 +838,7 @@ async def test_get_intent_not_found_raises(
     workspace: None,
 ) -> None:
     """get_intent raises ValueError when not found."""
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(NotFoundError, match="not found"):
         await intent_service.get_intent(uuid4(), workspace_id)
 
 
@@ -854,7 +855,7 @@ async def test_get_intent_wrong_workspace_raises(
     created = await intent_repo.create(model)
     await db_session.flush()
 
-    with pytest.raises(ValueError, match="does not belong"):
+    with pytest.raises(ForbiddenError, match="does not belong"):
         await intent_service.get_intent(created.id, uuid4())
 
 
@@ -896,7 +897,7 @@ async def test_reject_not_found_raises(
     workspace: None,
 ) -> None:
     """reject raises ValueError when intent not found."""
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(NotFoundError, match="not found"):
         await intent_service.reject(
             RejectIntentPayload(intent_id=uuid4(), workspace_id=workspace_id)
         )
@@ -915,7 +916,7 @@ async def test_reject_wrong_workspace_raises(
     created = await intent_repo.create(model)
     await db_session.flush()
 
-    with pytest.raises(ValueError, match="does not belong"):
+    with pytest.raises(ForbiddenError, match="does not belong"):
         await intent_service.reject(RejectIntentPayload(intent_id=created.id, workspace_id=uuid4()))
 
 
@@ -926,7 +927,7 @@ async def test_edit_not_found_raises(
     workspace: None,
 ) -> None:
     """edit raises ValueError when intent not found."""
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(NotFoundError, match="not found"):
         await intent_service.edit(
             EditIntentPayload(intent_id=uuid4(), workspace_id=workspace_id, new_what="x")
         )
@@ -945,7 +946,7 @@ async def test_edit_wrong_workspace_raises(
     created = await intent_repo.create(model)
     await db_session.flush()
 
-    with pytest.raises(ValueError, match="does not belong"):
+    with pytest.raises(ForbiddenError, match="does not belong"):
         await intent_service.edit(
             EditIntentPayload(intent_id=created.id, workspace_id=uuid4(), new_what="x")
         )
@@ -965,7 +966,7 @@ async def test_edit_constraints_on_confirmed_raises(
     created = await intent_repo.create(model)
     await db_session.flush()
 
-    with pytest.raises(ValueError, match="Cannot update constraints"):
+    with pytest.raises(ValidationError, match="Cannot update constraints"):
         await intent_service.edit(
             EditIntentPayload(
                 intent_id=created.id,
@@ -989,7 +990,7 @@ async def test_edit_acceptance_on_confirmed_raises(
     created = await intent_repo.create(model)
     await db_session.flush()
 
-    with pytest.raises(ValueError, match="Cannot update acceptance"):
+    with pytest.raises(ValidationError, match="Cannot update acceptance"):
         await intent_service.edit(
             EditIntentPayload(
                 intent_id=created.id,

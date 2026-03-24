@@ -17,6 +17,7 @@ from pilot_space.application.services.auth import (
     ValidateAPIKeyPayload,
     ValidateAPIKeyService,
 )
+from pilot_space.domain.exceptions import NotFoundError, UnauthorizedError
 
 pytestmark = pytest.mark.asyncio
 
@@ -197,7 +198,7 @@ async def test_key_not_found_raises_value_error(
     """Repository returning None raises ValueError('invalid_api_key')."""
     api_key_repo.get_by_key_hash.return_value = None
 
-    with pytest.raises(ValueError, match="invalid_api_key"):
+    with pytest.raises(UnauthorizedError, match="invalid_api_key"):
         await service.execute(ValidateAPIKeyPayload(raw_key="ps_unknown"), session=mock_session)
 
 
@@ -214,7 +215,7 @@ async def test_expired_key_returns_not_found(
     # DB query filters expired keys and returns None — service sees no key
     api_key_repo.get_by_key_hash.return_value = None
 
-    with pytest.raises(ValueError, match="invalid_api_key"):
+    with pytest.raises(UnauthorizedError, match="invalid_api_key"):
         await service.execute(ValidateAPIKeyPayload(raw_key="ps_expired"), session=mock_session)
 
 
@@ -227,7 +228,7 @@ async def test_expired_key_does_not_call_mark_last_used(
     # DB filters expired keys → repository returns None
     api_key_repo.get_by_key_hash.return_value = None
 
-    with pytest.raises(ValueError, match="invalid_api_key"):
+    with pytest.raises(UnauthorizedError, match="invalid_api_key"):
         await service.execute(ValidateAPIKeyPayload(raw_key="ps_old"), session=mock_session)
 
     api_key_repo.mark_last_used.assert_not_awaited()
@@ -244,5 +245,5 @@ async def test_workspace_not_found_raises_value_error(
     api_key_repo.get_by_key_hash.return_value = api_key
     workspace_repo.get_by_id.return_value = None
 
-    with pytest.raises(ValueError, match="workspace_not_found"):
+    with pytest.raises(NotFoundError, match="workspace_not_found"):
         await service.execute(ValidateAPIKeyPayload(raw_key="ps_orphan"), session=mock_session)

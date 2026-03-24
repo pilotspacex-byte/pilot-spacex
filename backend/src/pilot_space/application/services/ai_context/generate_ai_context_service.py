@@ -23,6 +23,7 @@ from pilot_space.ai.agents.ai_context_agent import (
     CodeReference,
     RelatedItem,
 )
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -155,7 +156,8 @@ class GenerateAIContextService:
             GenerateAIContextResult with generated context.
 
         Raises:
-            ValueError: If issue not found.
+            NotFoundError: If issue not found.
+            ValidationError: If agent execution fails.
             AIConfigurationError: If API keys missing.
         """
         logger.info(
@@ -171,7 +173,7 @@ class GenerateAIContextService:
         # Get issue
         issue = await self._issue_repo.get_by_id_with_relations(payload.issue_id)
         if not issue:
-            raise ValueError(f"Issue not found: {payload.issue_id}")
+            raise NotFoundError(f"Issue not found: {payload.issue_id}")
 
         # Check cache unless forced
         if not payload.force_regenerate:
@@ -257,7 +259,7 @@ class GenerateAIContextService:
         )
         result = await agent.run(agent_input, agent_context)
         if not result.success or not result.output:
-            raise ValueError(f"Agent execution failed: {result.error}")
+            raise ValidationError(f"Agent execution failed: {result.error}")
         output = result.output
 
         # Update context in database
@@ -275,7 +277,7 @@ class GenerateAIContextService:
         # Refresh context
         context = await self._context_repo.get_by_issue_id(payload.issue_id)
         if not context:
-            raise ValueError("Failed to retrieve updated context")
+            raise NotFoundError("Failed to retrieve updated context")
 
         await self._session.commit()
 

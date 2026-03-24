@@ -12,11 +12,12 @@ from collections import defaultdict
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from pydantic import BaseModel, Field
 
 from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, require_workspace_member
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.repositories.pm_block_queries_repository import (
     PMBlockQueriesRepository,
 )
@@ -92,14 +93,14 @@ async def get_sprint_board(
     """Return issues for a cycle grouped into 6 state lanes (FR-049)."""
     workspace = await workspace_repo.get_by_id(workspace_id)
     if not workspace:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+        raise NotFoundError("Workspace not found")
 
     cycle_uuid = UUID(cycle_id)
     repo = PMBlockQueriesRepository(session)
 
     cycle = await repo.get_cycle(cycle_uuid, workspace_id)
     if not cycle:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cycle not found")
+        raise NotFoundError("Cycle not found")
 
     issues = await repo.get_cycle_issues_with_state_and_assignee(cycle_uuid, workspace_id)
 

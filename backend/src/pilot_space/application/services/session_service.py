@@ -15,6 +15,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.domain.exceptions import NotFoundError
+
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -213,12 +215,12 @@ class SessionService:
             db: Database session for writes.
 
         Raises:
-            ValueError: If session not found or already revoked.
+            NotFoundError: If session not found or already revoked.
         """
         session = await self._repo.get_session_by_id(session_id, workspace_id)
         if session is None:
             msg = f"Session {session_id} not found in workspace {workspace_id}"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
 
         token_hash = session.session_token_hash
 

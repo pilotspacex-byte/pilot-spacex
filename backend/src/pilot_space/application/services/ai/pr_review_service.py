@@ -16,6 +16,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import IntegrationProvider
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.infrastructure.queue.handlers.pr_review_handler import (
@@ -193,16 +194,16 @@ class TriggerPRReviewService:
         # Validate integration
         integration = await self._integration_repo.get_by_id(payload.integration_id)
         if not integration:
-            raise ValueError(f"Integration {payload.integration_id} not found")
+            raise NotFoundError(f"Integration {payload.integration_id} not found")
 
         if integration.provider != IntegrationProvider.GITHUB:
-            raise ValueError("Integration must be GitHub")
+            raise ValidationError("Integration must be GitHub")
 
         if not integration.is_active:
-            raise ValueError("Integration is not active")
+            raise ValidationError("Integration is not active")
 
         if integration.workspace_id != payload.workspace_id:
-            raise ValueError("Integration does not belong to workspace")
+            raise ForbiddenError("Integration does not belong to workspace")
 
         # Check rate limit (one active review per PR)
         if self._cache:

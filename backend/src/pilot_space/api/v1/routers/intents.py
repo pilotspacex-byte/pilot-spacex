@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 
 from pilot_space.api.v1.intent_deps import IntentDetectionServiceDep, IntentServiceDep
 from pilot_space.api.v1.schemas.intent import (
@@ -38,6 +38,7 @@ from pilot_space.application.services.intent.intent_service import (
     RejectIntentPayload,
 )
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, require_workspace_member
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.domain.work_intent import IntentStatus
 from pilot_space.infrastructure.logging import get_logger
 
@@ -76,10 +77,7 @@ async def detect_intents(
     try:
         source = IntentSource(request.source)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="source must be 'chat' or 'note'",
-        ) from exc
+        raise ValidationError("source must be 'chat' or 'note'") from exc
 
     payload = DetectIntentPayload(
         workspace_id=workspace_id,
@@ -114,15 +112,9 @@ async def confirm_intent(
 ) -> IntentResponse:
     """Confirm a detected intent, locking its what/why fields."""
 
-    try:
-        updated = await intent_service.confirm(
-            ConfirmIntentPayload(intent_id=intent_id, workspace_id=workspace_id)
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    updated = await intent_service.confirm(
+        ConfirmIntentPayload(intent_id=intent_id, workspace_id=workspace_id)
+    )
 
     return IntentResponse.from_model(updated)
 
@@ -142,15 +134,9 @@ async def reject_intent(
 ) -> IntentResponse:
     """Reject an intent from any non-terminal state."""
 
-    try:
-        updated = await intent_service.reject(
-            RejectIntentPayload(intent_id=intent_id, workspace_id=workspace_id)
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    updated = await intent_service.reject(
+        RejectIntentPayload(intent_id=intent_id, workspace_id=workspace_id)
+    )
 
     return IntentResponse.from_model(updated)
 
@@ -174,22 +160,16 @@ async def edit_intent(
     Updating 'what' resets dedup_status to pending so J-1 re-processes.
     """
 
-    try:
-        updated = await intent_service.edit(
-            EditIntentPayload(
-                intent_id=intent_id,
-                workspace_id=workspace_id,
-                new_what=request.new_what,
-                new_why=request.new_why,
-                new_constraints=request.new_constraints,
-                new_acceptance=request.new_acceptance,
-            )
+    updated = await intent_service.edit(
+        EditIntentPayload(
+            intent_id=intent_id,
+            workspace_id=workspace_id,
+            new_what=request.new_what,
+            new_why=request.new_why,
+            new_constraints=request.new_constraints,
+            new_acceptance=request.new_acceptance,
         )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    )
 
     return IntentResponse.from_model(updated)
 
@@ -248,10 +228,7 @@ async def list_intents(
         status_filter = IntentStatus(intent_status)
     except ValueError as exc:
         valid_statuses = [s.value for s in IntentStatus]
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid status. Valid values: {valid_statuses}",
-        ) from exc
+        raise ValidationError(f"Invalid status. Valid values: {valid_statuses}") from exc
 
     intents = await intent_service.list_by_status(workspace_id, status_filter)
     return [IntentResponse.from_model(i) for i in intents]
@@ -272,12 +249,6 @@ async def get_intent(
 ) -> IntentResponse:
     """Get a single intent by ID."""
 
-    try:
-        intent = await intent_service.get_intent(intent_id, workspace_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    intent = await intent_service.get_intent(intent_id, workspace_id)
 
     return IntentResponse.from_model(intent)

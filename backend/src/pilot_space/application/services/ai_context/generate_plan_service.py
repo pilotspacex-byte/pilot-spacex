@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pilot_space.ai.agents.plan_generation_agent import PlanGenerationAgent, PlanInput
+from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -110,8 +111,8 @@ class GenerateImplementationPlanService:
             GeneratePlanResult with context ID and subagent count.
 
         Raises:
-            ValueError: If AIContext not found (must generate AI context first)
-                        or if issue not found.
+            NotFoundError: If AIContext or issue not found.
+            ValidationError: If plan persistence fails.
         """
         logger.info(
             "Generating implementation plan",
@@ -125,7 +126,7 @@ class GenerateImplementationPlanService:
         # Load existing AIContext — prerequisite check
         context = await self._context_repo.get_by_issue_id(payload.issue_id)
         if not context:
-            raise ValueError(
+            raise NotFoundError(
                 f"No AI context found for issue {payload.issue_id}. "
                 "Generate AI context first before creating an implementation plan."
             )
@@ -133,7 +134,7 @@ class GenerateImplementationPlanService:
         # Load issue for identifier/title
         issue = await self._issue_repo.get_by_id_with_relations(payload.issue_id)
         if not issue:
-            raise ValueError(f"Issue not found: {payload.issue_id}")
+            raise NotFoundError(f"Issue not found: {payload.issue_id}")
 
         # Build PlanInput from existing context data
         content_data = context.content or {}
@@ -163,7 +164,7 @@ class GenerateImplementationPlanService:
             new_content=new_content,
         )
         if not updated:
-            raise ValueError(f"Failed to persist plan for issue: {payload.issue_id}")
+            raise ValidationError(f"Failed to persist plan for issue: {payload.issue_id}")
 
         await self._session.commit()
 

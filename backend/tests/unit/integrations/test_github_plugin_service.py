@@ -49,9 +49,10 @@ class TestParseGithubUrl:
         assert repo == "repo"
 
     def test_parse_invalid_url_raises(self) -> None:
+        from pilot_space.domain.exceptions import ValidationError
         from pilot_space.integrations.github.plugin_service import parse_github_url
 
-        with pytest.raises(ValueError, match="Invalid GitHub URL"):
+        with pytest.raises(ValidationError, match="Invalid GitHub URL"):
             parse_github_url("https://gitlab.com/user/repo")
 
 

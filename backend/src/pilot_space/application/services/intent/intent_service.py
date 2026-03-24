@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.domain.work_intent import DedupStatus, IntentStatus, WorkIntent
 from pilot_space.infrastructure.database.models.work_intent import (
     WorkIntent as WorkIntentModel,
@@ -137,10 +138,10 @@ class IntentService:
         intent = await self._intent_repo.get_by_id(payload.intent_id)
         if intent is None:
             msg = f"Intent {payload.intent_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
         if intent.workspace_id != payload.workspace_id:
             msg = "Intent does not belong to workspace"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         # Apply domain transition
         domain = _model_to_domain(intent)
@@ -172,10 +173,10 @@ class IntentService:
         intent = await self._intent_repo.get_by_id(payload.intent_id)
         if intent is None:
             msg = f"Intent {payload.intent_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
         if intent.workspace_id != payload.workspace_id:
             msg = "Intent does not belong to workspace"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         domain = _model_to_domain(intent)
         domain.reject()
@@ -207,10 +208,10 @@ class IntentService:
         intent = await self._intent_repo.get_by_id(payload.intent_id)
         if intent is None:
             msg = f"Intent {payload.intent_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
         if intent.workspace_id != payload.workspace_id:
             msg = "Intent does not belong to workspace"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
 
         domain = _model_to_domain(intent)
 
@@ -232,13 +233,13 @@ class IntentService:
         if payload.new_constraints is not None:
             if not domain.is_mutable:
                 msg = f"Cannot update constraints after status is {domain.status.value!r}"
-                raise ValueError(msg)
+                raise ValidationError(msg)
             intent.constraints = payload.new_constraints
 
         if payload.new_acceptance is not None:
             if not domain.is_mutable:
                 msg = f"Cannot update acceptance after status is {domain.status.value!r}"
-                raise ValueError(msg)
+                raise ValidationError(msg)
             intent.acceptance = payload.new_acceptance
 
         updated = await self._intent_repo.update(intent)
@@ -339,10 +340,10 @@ class IntentService:
         intent = await self._intent_repo.get_by_id(intent_id)
         if intent is None:
             msg = f"Intent {intent_id} not found"
-            raise ValueError(msg)
+            raise NotFoundError(msg)
         if intent.workspace_id != workspace_id:
             msg = "Intent does not belong to workspace"
-            raise ValueError(msg)
+            raise ForbiddenError(msg)
         return intent
 
     async def list_by_status(

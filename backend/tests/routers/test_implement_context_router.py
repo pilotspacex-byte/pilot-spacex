@@ -28,6 +28,7 @@ from pilot_space.api.v1.schemas.implement_context import (
 from pilot_space.application.services.issue.get_implement_context_service import (
     GetImplementContextResult,
 )
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import IssuePriority
 from pilot_space.infrastructure.database.models.state import StateGroup
 
@@ -229,14 +230,12 @@ class TestImplementContextRouterErrors:
         implement_client: Any,
         mock_service: AsyncMock,
     ) -> None:
-        """PermissionError from service maps to HTTP 403.
+        """ForbiddenError from service maps to HTTP 403.
 
-        The global exception handler wraps the HTTPException detail (a dict) into
-        a string inside the outer RFC 7807 envelope. We assert on the outer
-        envelope's ``status`` and that the inner detail string contains the
-        expected identifiers.
+        The global ``app_error_handler`` reads ``http_status`` and ``message``
+        from the domain exception and produces an RFC 7807 envelope.
         """
-        mock_service.execute.side_effect = PermissionError(
+        mock_service.execute.side_effect = ForbiddenError(
             "Only the issue assignee or workspace admins/owners can access implement context"
         )
 
@@ -247,10 +246,7 @@ class TestImplementContextRouterErrors:
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
         body = response.json()
-        # Global handler returns outer RFC 7807 wrapper
         assert body["status"] == 403
-        # Inner detail dict is serialized into the outer detail string
-        assert "forbidden" in body["detail"]
         assert "assignee or workspace admins" in body["detail"]
 
     async def test_no_github_integration_returns_422_rfc7807(
@@ -258,12 +254,12 @@ class TestImplementContextRouterErrors:
         implement_client: Any,
         mock_service: AsyncMock,
     ) -> None:
-        """ValueError('no_github_integration') maps to HTTP 422.
+        """ValidationError('no_github_integration') maps to HTTP 422.
 
-        Same wrapping pattern as 403: outer RFC 7807 envelope contains the inner
-        dict serialized as a string in the ``detail`` field.
+        The ``app_error_handler`` reads ``http_status`` (422) and ``message``
+        from the domain exception and produces an RFC 7807 envelope.
         """
-        mock_service.execute.side_effect = ValueError("no_github_integration")
+        mock_service.execute.side_effect = ValidationError("no_github_integration")
 
         response = await implement_client.get(
             f"{_BASE_PATH}/{_ISSUE_ID}/implement-context",
@@ -273,17 +269,16 @@ class TestImplementContextRouterErrors:
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         body = response.json()
         assert body["status"] == 422
-        assert "no-github-integration" in body["detail"]
-        assert "No GitHub integration" in body["detail"]
+        assert "no_github_integration" in body["detail"]
 
     async def test_issue_not_found_returns_404(
         self,
         implement_client: Any,
         mock_service: AsyncMock,
     ) -> None:
-        """ValueError('Issue not found: ...') maps to HTTP 404."""
+        """NotFoundError('Issue not found: ...') maps to HTTP 404."""
         missing_id = uuid4()
-        mock_service.execute.side_effect = ValueError(f"Issue not found: {missing_id}")
+        mock_service.execute.side_effect = NotFoundError(f"Issue not found: {missing_id}")
 
         response = await implement_client.get(
             f"{_BASE_PATH}/{_ISSUE_ID}/implement-context",
@@ -297,8 +292,8 @@ class TestImplementContextRouterErrors:
         implement_client: Any,
         mock_service: AsyncMock,
     ) -> None:
-        """ValueError('Workspace not found: ...') maps to HTTP 404."""
-        mock_service.execute.side_effect = ValueError(f"Workspace not found: {_WORKSPACE_ID}")
+        """NotFoundError('Workspace not found: ...') maps to HTTP 404."""
+        mock_service.execute.side_effect = NotFoundError(f"Workspace not found: {_WORKSPACE_ID}")
 
         response = await implement_client.get(
             f"{_BASE_PATH}/{_ISSUE_ID}/implement-context",
@@ -307,13 +302,13 @@ class TestImplementContextRouterErrors:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    async def test_generic_value_error_returns_404(
+    async def test_generic_not_found_error_returns_404(
         self,
         implement_client: Any,
         mock_service: AsyncMock,
     ) -> None:
-        """Any ValueError other than 'no_github_integration' maps to 404."""
-        mock_service.execute.side_effect = ValueError("some other error")
+        """Any NotFoundError maps to 404."""
+        mock_service.execute.side_effect = NotFoundError("some other error")
 
         response = await implement_client.get(
             f"{_BASE_PATH}/{_ISSUE_ID}/implement-context",
@@ -363,10 +358,10 @@ class TestImplementContextRouterErrors:
     ) -> None:
         """403 error body must not leak requester_id (information exposure check).
 
-        The router constructs the RFC 7807 detail manually; the requester's UUID
-        is not included, only the human-readable message from PermissionError.
+        The ``app_error_handler`` builds the RFC 7807 response from the domain
+        exception's ``message``; the requester's UUID must not appear.
         """
-        mock_service.execute.side_effect = PermissionError("access denied")
+        mock_service.execute.side_effect = ForbiddenError("access denied")
 
         response = await implement_client.get(
             f"{_BASE_PATH}/{_ISSUE_ID}/implement-context",
@@ -384,10 +379,10 @@ class TestImplementContextRouterErrors:
     ) -> None:
         """422 no_github_integration error must not leak workspace_id.
 
-        The router hard-codes the 422 detail message; the workspace_id from
-        the payload is not echoed back.
+        The ``app_error_handler`` builds the response from the domain
+        exception's ``message``; the workspace_id must not appear.
         """
-        mock_service.execute.side_effect = ValueError("no_github_integration")
+        mock_service.execute.side_effect = ValidationError("no_github_integration")
 
         response = await implement_client.get(
             f"{_BASE_PATH}/{_ISSUE_ID}/implement-context",

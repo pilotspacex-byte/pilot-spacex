@@ -11,7 +11,7 @@ import uuid
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Path, Query
 
 from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.api.v1.schemas.approval import (
@@ -26,6 +26,7 @@ from pilot_space.dependencies import (
     CurrentUserId,
     DbSession,
 )
+from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
@@ -96,10 +97,7 @@ async def verify_workspace_admin(
     role = result.scalar()
 
     if role not in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
+        raise ForbiddenError("Admin access required")
 
 
 @router.get(
@@ -213,10 +211,7 @@ async def get_approval(
     approval_request = await approval_service.get_request(approval_id)
 
     if not approval_request or approval_request.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Approval request not found",
-        )
+        raise NotFoundError("Approval request not found")
 
     return ApprovalDetailResponse(
         id=str(approval_request.id),
@@ -278,16 +273,10 @@ async def resolve_approval(
     approval_request = await approval_service.get_request(approval_id)
 
     if not approval_request or approval_request.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Approval request not found",
-        )
+        raise NotFoundError("Approval request not found")
 
     if approval_request.status != "pending":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Request already {approval_request.status}",
-        )
+        raise ConflictError(f"Request already {approval_request.status}")
 
     # Resolve the request
     await approval_service.resolve(

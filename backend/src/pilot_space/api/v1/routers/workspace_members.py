@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from pilot_space.api.v1.dependencies import MemberProfileServiceDep, WorkspaceMemberServiceDep
 from pilot_space.api.v1.schemas.workspace import (
@@ -25,12 +25,9 @@ from pilot_space.application.services.workspace_member import (
     GetMemberActivityPayload,
     GetMemberProfilePayload,
     ListMembersPayload,
-    MemberNotFoundError,
     RemoveMemberPayload,
-    UnauthorizedError,
     UpdateMemberAvailabilityPayload,
     UpdateMemberRolePayload,
-    WorkspaceNotFoundError,
 )
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep
 from pilot_space.infrastructure.database.models.activity import ActivityType
@@ -74,20 +71,17 @@ async def list_workspace_members(
         List of workspace members.
 
     Raises:
-        HTTPException: If workspace not found or user not a member.
+        WorkspaceNotFoundError: If workspace not found.
+        MemberNotFoundError: If user not a member.
+        UnauthorizedError: If user not authorized.
     """
     await set_rls_context(session, current_user_id, workspace_id)
-    try:
-        result = await service.list_members(
-            ListMembersPayload(
-                workspace_id=workspace_id,
-                requesting_user_id=current_user_id,
-            )
+    result = await service.list_members(
+        ListMembersPayload(
+            workspace_id=workspace_id,
+            requesting_user_id=current_user_id,
         )
-    except (WorkspaceNotFoundError, MemberNotFoundError) as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
-    except UnauthorizedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
+    )
 
     return [
         WorkspaceMemberResponse(
@@ -132,22 +126,19 @@ async def update_workspace_member(
         Updated member.
 
     Raises:
-        HTTPException: If not found or not admin.
+        WorkspaceNotFoundError: If workspace not found.
+        MemberNotFoundError: If member not found.
+        UnauthorizedError: If not admin.
     """
     await set_rls_context(session, current_user.user_id, workspace_id)
-    try:
-        result = await service.update_member_role(
-            UpdateMemberRolePayload(
-                workspace_id=workspace_id,
-                target_user_id=user_id,
-                new_role=request.role,
-                actor_id=current_user.user_id,
-            )
+    result = await service.update_member_role(
+        UpdateMemberRolePayload(
+            workspace_id=workspace_id,
+            target_user_id=user_id,
+            new_role=request.role,
+            actor_id=current_user.user_id,
         )
-    except (WorkspaceNotFoundError, MemberNotFoundError) as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
-    except UnauthorizedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
+    )
 
     updated_member = result.updated_member
     return WorkspaceMemberResponse(
@@ -185,27 +176,18 @@ async def remove_workspace_member(
         service: Workspace member service.
 
     Raises:
-        HTTPException: If not found or not authorized.
+        WorkspaceNotFoundError: If workspace not found.
+        MemberNotFoundError: If member not found.
+        UnauthorizedError: If not authorized.
     """
     await set_rls_context(session, current_user.user_id, workspace_id)
-    try:
-        await service.remove_member(
-            RemoveMemberPayload(
-                workspace_id=workspace_id,
-                target_user_id=user_id,
-                actor_id=current_user.user_id,
-            )
+    await service.remove_member(
+        RemoveMemberPayload(
+            workspace_id=workspace_id,
+            target_user_id=user_id,
+            actor_id=current_user.user_id,
         )
-    except (WorkspaceNotFoundError, MemberNotFoundError) as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
-    except UnauthorizedError as e:
-        error_msg = str(e)
-        if "only admin" in error_msg.lower() or "owner cannot remove" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg) from e
+    )
 
 
 @router.patch(
@@ -239,25 +221,20 @@ async def update_member_availability(
         Updated member response.
 
     Raises:
-        HTTPException: If member not found or unauthorized.
+        WorkspaceNotFoundError: If workspace not found.
+        MemberNotFoundError: If member not found.
+        UnauthorizedError: If not authorized.
     """
     await set_rls_context(session, current_user.user_id, workspace_id)
-    try:
-        result = await service.update_availability(
-            UpdateMemberAvailabilityPayload(
-                workspace_id=workspace_id,
-                user_id=user_id,
-                actor_id=current_user.user_id,
-                weekly_available_hours=request.weekly_available_hours,
-            ),
-            session,
-        )
-    except WorkspaceNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
-    except MemberNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
-    except UnauthorizedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
+    result = await service.update_availability(
+        UpdateMemberAvailabilityPayload(
+            workspace_id=workspace_id,
+            user_id=user_id,
+            actor_id=current_user.user_id,
+            weekly_available_hours=request.weekly_available_hours,
+        ),
+        session,
+    )
 
     member = result.member
     user = member.user
@@ -303,21 +280,18 @@ async def get_workspace_member_profile(
         Member profile with contribution metrics.
 
     Raises:
-        HTTPException: If workspace/member not found or requester not a member.
+        WorkspaceNotFoundError: If workspace not found.
+        MemberNotFoundError: If member not found.
+        UnauthorizedError: If requester not a member.
     """
     await set_rls_context(session, current_user_id, workspace_id)
-    try:
-        result = await service.get_profile(
-            GetMemberProfilePayload(
-                workspace_id=workspace_id,
-                user_id=user_id,
-                requesting_user_id=current_user_id,
-            )
+    result = await service.get_profile(
+        GetMemberProfilePayload(
+            workspace_id=workspace_id,
+            user_id=user_id,
+            requesting_user_id=current_user_id,
         )
-    except (WorkspaceNotFoundError, MemberNotFoundError) as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
-    except UnauthorizedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
+    )
 
     member = result.member
     return MemberProfileResponse(
@@ -369,24 +343,21 @@ async def get_workspace_member_activity(
         Paginated member activity items with issue context.
 
     Raises:
-        HTTPException: If workspace not found or requester not a member.
+        WorkspaceNotFoundError: If workspace not found.
+        MemberNotFoundError: If member not found.
+        UnauthorizedError: If requester not a member.
     """
     await set_rls_context(session, current_user_id, workspace_id)
-    try:
-        result = await service.get_activity(
-            GetMemberActivityPayload(
-                workspace_id=workspace_id,
-                user_id=user_id,
-                requesting_user_id=current_user_id,
-                page=page,
-                page_size=page_size,
-                type_filter=type_filter,
-            )
+    result = await service.get_activity(
+        GetMemberActivityPayload(
+            workspace_id=workspace_id,
+            user_id=user_id,
+            requesting_user_id=current_user_id,
+            page=page,
+            page_size=page_size,
+            type_filter=type_filter,
         )
-    except (WorkspaceNotFoundError, MemberNotFoundError) as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
-    except UnauthorizedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
+    )
 
     items = []
     for activity in result.items:
